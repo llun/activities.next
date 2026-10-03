@@ -66,6 +66,9 @@ describe('FitnessPrivacyLocationSettings', () => {
     // The shared closed-select look: OS arrow hidden, one painted chevron (not
     // a second icon laid over it).
     expect(radiusSelect).toHaveClass('appearance-none', 'pr-8')
+    // …which is the shared Select, not a raw <select> carrying the same class.
+    expect(radiusSelect).toHaveAttribute('data-slot', 'select')
+    expect(radiusSelect).toHaveAttribute('id', 'privacyHideRadiusMeters')
     expect(radiusSelect.parentElement?.querySelector('svg')).toBeNull()
     expect(screen.queryByRole('option', { name: '0m' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: '50m' })).toBeInTheDocument()

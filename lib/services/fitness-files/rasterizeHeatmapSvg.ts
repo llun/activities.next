@@ -8,7 +8,7 @@ import sharp from 'sharp'
  * `og:image` pointing at one yields a card with no image at all. Callers that
  * need a raster ask for one, and this is the conversion.
  *
- * `buildHeatmapSvg` emits nothing but numbers and a fixed colour: no text
+ * `buildHeatmapSvg` emits nothing but numbers and plain hex colours: no text
  * nodes, no external references, no embedded assets. That matters because the
  * production image is bare `node:24-alpine` with no fonts installed and no
  * outbound access from the rasterizer — an SVG carrying either would render

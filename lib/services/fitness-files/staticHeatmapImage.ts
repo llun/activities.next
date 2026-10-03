@@ -1,5 +1,7 @@
 import {
+  HEAT_COUNT_COLOR_STOPS,
   HEAT_VISIBLE_BASE_OPACITY,
+  heatColorForCount,
   heatOpacityForCount
 } from '@/lib/services/fitness-files/heatmapTiles/constants'
 import {
@@ -22,7 +24,20 @@ const MAPBOX_STATIC_URL_BUDGET = 7000
 // Long segments are split into multiple overlays instead, sharing an endpoint
 // so the rendered line stays continuous.
 const MAPBOX_OVERLAY_MAX_POINTS = 120
-const ROUTE_COLOR_HEX = 'ef4444'
+// The still image draws the design's orange-to-yellow heat, which is the
+// interactive ramp (`HEAT_COUNT_COLOR_STOPS`) from its orange stop onward: its
+// red stop, a road ridden once, is the colour the share image no longer uses.
+// So a road ridden once is that ramp's orange and a busy one blends towards its
+// yellow, with the same stop counts the interactive map blends over. Dropping
+// the first `[count, colour]` pair rather than listing orange and yellow again
+// keeps one source for the colours themselves.
+const STATIC_HEAT_COLOR_STOPS = HEAT_COUNT_COLOR_STOPS.slice(2)
+// Geometry without a visit count (the untiled blob: one polyline per activity,
+// and every Mapbox overlay, which takes a single colour) draws in the ramp's
+// first colour, as a count of one does.
+const FLAT_ROUTE_COLOR = heatColorForCount(1, STATIC_HEAT_COLOR_STOPS)
+// Mapbox's `path-` overlay takes the colour without its `#`.
+const FLAT_ROUTE_COLOR_HEX = FLAT_ROUTE_COLOR.slice(1)
 const SVG_PADDING = 12
 
 export interface StaticHeatmapImageInput {
@@ -139,7 +154,7 @@ export const buildMapboxStaticUrl = ({
   let usedLength = 0
   for (const points of chunks) {
     const polyline = encodeURIComponent(encodePolyline(points))
-    const overlay = `path-2+${ROUTE_COLOR_HEX}-0.9(${polyline})`
+    const overlay = `path-2+${FLAT_ROUTE_COLOR_HEX}-0.9(${polyline})`
     const addition = overlay.length + (overlays.length > 0 ? 1 : 0)
     if (usedLength + addition > MAPBOX_STATIC_URL_BUDGET) break
     overlays.push(overlay)
@@ -234,7 +249,13 @@ export const buildHeatmapSvg = ({
         typeof count === 'number'
           ? round2(heatOpacityForCount(count, HEAT_VISIBLE_BASE_OPACITY))
           : STATIC_ROUTE_STROKE_OPACITY
-      return `<polyline points="${coords}" fill="none" stroke="#${ROUTE_COLOR_HEX}" stroke-width="1.4" stroke-opacity="${opacity}" stroke-linecap="round" stroke-linejoin="round"/>`
+      // The colour follows the count along the same ramp as the opacity, so a
+      // busier road reads hotter as well as stronger.
+      const color =
+        typeof count === 'number'
+          ? heatColorForCount(count, STATIC_HEAT_COLOR_STOPS)
+          : FLAT_ROUTE_COLOR
+      return `<polyline points="${coords}" fill="none" stroke="${color}" stroke-width="1.4" stroke-opacity="${opacity}" stroke-linecap="round" stroke-linejoin="round"/>`
     })
     .join('')
 

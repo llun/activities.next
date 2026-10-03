@@ -8,13 +8,12 @@ import { ThemeControl } from '@/lib/components/theme'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
-import { selectChevronClassName } from '@/lib/components/ui/select'
+import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorProfile } from '@/lib/types/domain/actor'
-import { cn } from '@/lib/utils'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -69,19 +68,15 @@ const Page = async () => {
 
           <div className="space-y-2">
             <Label htmlFor="postLineLimitInput">Post line limit</Label>
-            <select
+            <Select
               id="postLineLimitInput"
               name="postLineLimit"
               defaultValue={String(settings?.postLineLimit ?? 5)}
-              className={cn(
-                'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-                selectChevronClassName
-              )}
             >
               <option value="5">5 lines</option>
               <option value="10">10 lines</option>
               <option value="0">No limit</option>
-            </select>
+            </Select>
             <p className="text-[0.8rem] text-muted-foreground">
               Number of lines to show before a &quot;Show more&quot; button
               appears. Set to &quot;No limit&quot; to always show full post

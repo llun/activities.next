@@ -128,4 +128,20 @@ describe('AdminReportDetail', () => {
     expect(screen.getAllByRole('option')).toHaveLength(4)
     expect(select).toHaveClass('appearance-none', 'pr-8')
   })
+
+  it('is the shared Select, sized to its content beside the buttons', async () => {
+    mockGetAdminReport.mockResolvedValue(report({ category: 'legal' }))
+
+    render(<AdminReportDetail reportId="report-1" />)
+    await waitFor(() =>
+      expect(screen.getByText('troll@evil.example')).toBeInTheDocument()
+    )
+
+    const select = screen.getByRole('combobox')
+    expect(select).toHaveAttribute('data-slot', 'select')
+    // Not the primitive's full width: it shares a wrapping row with the buttons.
+    expect(select).toHaveClass('w-auto')
+    expect(select).not.toHaveClass('w-full')
+    expect(select).toHaveValue('legal')
+  })
 })

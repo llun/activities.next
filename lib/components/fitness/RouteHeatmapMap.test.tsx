@@ -9,6 +9,7 @@ import type {
   FitnessRouteHeatmapTileRequest
 } from '@/lib/client'
 import {
+  HEAT_COUNT_COLOR_STOPS,
   HEAT_COUNT_SATURATION,
   HEAT_VISIBLE_BASE_OPACITY,
   TILE_EXTENT,
@@ -373,6 +374,32 @@ describe('RouteHeatmapMap tiled rendering', () => {
       .map(([definition]) => definition as { id: string; paint: unknown })
       .find((definition) => definition.id === 'route-heatmap-tile-lines')
     expect(JSON.stringify(layer?.paint)).toContain('"count"')
+  })
+
+  it('colours the tile layer from the shared heat ramp, the one the static image uses', async () => {
+    const { gl, map } = createFakeGl()
+    vi.mocked(loadMapboxModule).mockResolvedValue(gl as never)
+
+    render(
+      <RouteHeatmapMap
+        heatmap={tiled}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+        fetchTiles={fetchAll()}
+      />
+    )
+
+    await waitFor(() => expect(map.addLayer).toHaveBeenCalled())
+    const layer = map.addLayer.mock.calls
+      .map(([definition]) => definition as { id: string; paint: unknown })
+      .find((definition) => definition.id === 'route-heatmap-tile-lines')
+    const paint = layer?.paint as { 'line-color': unknown[] }
+    // ['case', hidden?, blue, ['interpolate', ['linear'], ['get', 'count'], …stops]]
+    expect(paint['line-color'][3]).toEqual([
+      'interpolate',
+      ['linear'],
+      ['get', 'count'],
+      ...HEAT_COUNT_COLOR_STOPS
+    ])
   })
 
   it('stays entirely on the untiled path for a heatmap with no pyramid', async () => {

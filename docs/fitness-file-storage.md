@@ -167,8 +167,19 @@ pixels in Mercator and at 52 degrees north it is about 1.6 times a degree of
 longitude. Reading longitude alone asks for a rung finer than the image can draw
 and reads tiles nobody sees. The keyless SVG renderer shades each stroke by visit
 count from the same `heatOpacityForCount` ramp the interactive maps paint with,
-so a road ridden thirty times reads darker than one ridden once; the two basemap
-renderers draw every stroke at one flat opacity and ignore the count.
+so a road ridden thirty times reads darker than one ridden once, and colours it
+along the same `HEAT_COUNT_COLOR_STOPS` the interactive map blends over, from its
+orange stop (a road ridden once) to its yellow one (twelve or more): the share
+image is the design's orange-to-yellow heat, not the red the interactive map
+starts a single visit at. The Mapbox overlay takes one colour, so it draws every
+stroke in that ramp's orange; the Apple snapshot's flat overlay is the route
+orange (`ROUTE_COLOR`). Neither basemap renderer reads the count.
+
+The image is rendered on each request (and held at the edge for 60 seconds), not
+stored, so a change to these colours reaches every share link at once. A copy
+that something else already fetched — a link-preview card on another service, an
+image saved out of an embed — keeps the colours it was drawn with until that
+service fetches again; nothing here regenerates it.
 
 The image path enforces the same two boundaries the tile routes do, because
 every path that reads the pyramid has to enforce them again: it refuses a share
@@ -769,8 +780,9 @@ Read the applicable rules and review checks below before changing this subsystem
   NOT remove the fallback, and do NOT make pyramid rows store `segments = null`,
   until the raster path can stand alone (coarsening down the ladder until the
   geometry fits a renderer's ceiling is the open design). Only the keyless SVG
-  renderer has neither limit — and it is the only one that shades strokes by
-  visit count; Apple and Mapbox draw every stroke at a flat 0.9.
+  renderer has neither limit — and it is the only one that shades and colours
+  strokes by visit count (orange to yellow along the interactive map's ramp);
+  Apple and Mapbox draw every stroke at a flat 0.9 in one colour.
 - **The share page's link-preview card points at that same image route, and
   `format=png` is what makes it work.** `/u/heatmaps/<token>` publishes
   OpenGraph and Twitter tags through `generateMetadata`; its `og:image` is the

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { Badge } from '@/lib/components/ui/badge'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getMention } from '@/lib/types/domain/actor'
@@ -48,9 +49,7 @@ const Page = async ({ params }: Props) => {
             <span className="flex flex-wrap items-center gap-3">
               {account.name || account.email}
               {account.role === 'admin' ? (
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-text">
-                  Admin
-                </span>
+                <Badge tone="primary">Admin</Badge>
               ) : undefined}
             </span>
           }

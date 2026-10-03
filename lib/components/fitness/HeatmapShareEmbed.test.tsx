@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
 import type { FitnessRouteHeatmapData } from '@/lib/client'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
@@ -249,6 +249,9 @@ describe('HeatmapShareEmbed', () => {
     })
 
     it('grow the snippet box to its whole text instead of scrolling the last line away', () => {
+      // A browser without `field-sizing: content` (Safari, Firefox): the shared
+      // hook measures. jsdom reports the property as supported, so say it is not.
+      vi.stubGlobal('CSS', { supports: () => false })
       // jsdom lays nothing out, so give the textarea a measured height: 4 wrapped
       // lines of 17.875px plus 12px padding.
       const scrollHeight = vi
@@ -268,9 +271,46 @@ describe('HeatmapShareEmbed', () => {
         }) as HTMLTextAreaElement
         // Not capped at `rows`: it follows the content.
         expect(snippet.style.height).toBe('83.5px')
-        expect(snippet).toHaveClass('field-sizing-fixed', 'resize-none')
+        expect(snippet).toHaveClass('resize-none')
+        // The shared hook leaves a browser with `field-sizing: content` to size
+        // the box in CSS, so the box must not pin `field-sizing: fixed` (the old
+        // local hook measured everywhere and did).
+        expect(snippet).not.toHaveClass('field-sizing-fixed')
+        expect(snippet).toHaveClass('field-sizing-content')
       } finally {
         scrollHeight.mockRestore()
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('leaves the box to CSS in a browser with field-sizing: content', () => {
+      // Chrome sizes the textarea natively (the Textarea's `field-sizing-content`),
+      // so the shared hook writes no inline height and the box follows its text
+      // without a JS measurement.
+      vi.stubGlobal('CSS', {
+        supports: (property: string, value: string) =>
+          property === 'field-sizing' && value === 'content'
+      })
+      const scrollHeight = vi
+        .spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get')
+        .mockReturnValue(83.5)
+      try {
+        render(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok123"
+            defaultOpen
+          />
+        )
+
+        const snippet = screen.getByRole('textbox', {
+          name: 'Copy embed code'
+        }) as HTMLTextAreaElement
+        expect(snippet.style.height).toBe('')
+        expect(snippet).toHaveClass('field-sizing-content')
+      } finally {
+        scrollHeight.mockRestore()
+        vi.unstubAllGlobals()
       }
     })
 
@@ -282,7 +322,7 @@ describe('HeatmapShareEmbed', () => {
         offsetHeight: 0,
         clientHeight: 0
       }
-      let notifyResize: () => void
+      let notifyResize: (width?: number) => void
       let observers: number
       let disconnected: number
       const observeSpy = vi.fn()
@@ -318,7 +358,11 @@ describe('HeatmapShareEmbed', () => {
         class FakeResizeObserver {
           constructor(callback: ResizeObserverCallback) {
             observers += 1
-            notifyResize = () => callback([], this as never)
+            notifyResize = (width = 0) =>
+              callback(
+                [{ contentRect: { width } } as ResizeObserverEntry],
+                this as never
+              )
           }
           observe = observeSpy
           unobserve = vi.fn()
@@ -327,6 +371,9 @@ describe('HeatmapShareEmbed', () => {
           }
         }
         vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+        // Measuring only happens in a browser without `field-sizing: content`;
+        // jsdom reports it as supported.
+        vi.stubGlobal('CSS', { supports: () => false })
       })
 
       afterEach(() => {
@@ -369,7 +416,12 @@ describe('HeatmapShareEmbed', () => {
 
       it('re-fits only when the width changes, and stops observing on unmount', () => {
         layout.scrollHeight = 80
-        layout.offsetWidth = 500
+        vi.spyOn(
+          HTMLElement.prototype,
+          'getBoundingClientRect'
+        ).mockReturnValue({
+          width: 500
+        } as DOMRect)
         const { unmount } = render(
           <HeatmapShareEmbed
             {...defaultProps}
@@ -383,16 +435,34 @@ describe('HeatmapShareEmbed', () => {
 
         // Our own height write fires the observer with the width unchanged.
         layout.scrollHeight = 120
-        notifyResize()
+        notifyResize(500)
         expect(snippet().style.height).toBe('80px')
 
         // A narrower box wraps to more lines.
-        layout.offsetWidth = 300
-        notifyResize()
+        notifyResize(300)
         expect(snippet().style.height).toBe('120px')
 
         unmount()
         expect(disconnected).toBeGreaterThan(0)
+      })
+
+      it('re-fits on a window resize, which the shared hook also listens for', () => {
+        layout.scrollHeight = 80
+        render(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok123"
+            defaultOpen
+          />
+        )
+        expect(snippet().style.height).toBe('80px')
+
+        layout.scrollHeight = 100
+        act(() => {
+          window.dispatchEvent(new Event('resize'))
+        })
+
+        expect(snippet().style.height).toBe('100px')
       })
 
       it('re-fits when the snippet text changes', () => {

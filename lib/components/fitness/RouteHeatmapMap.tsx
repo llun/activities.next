@@ -18,6 +18,7 @@ import {
   useHeatmapTiles
 } from '@/lib/components/fitness/useHeatmapTiles'
 import {
+  HEAT_COUNT_COLOR_STOPS,
   HEAT_COUNT_SATURATION,
   HEAT_HIDDEN_BASE_OPACITY,
   HEAT_VISIBLE_BASE_OPACITY,
@@ -110,12 +111,12 @@ const ROUTE_LINE_STYLES = {
  * Colour and width are interpolated over the count so a street ridden fifty
  * times reads differently from one ridden once — which is the whole reason the
  * pyramid stores a count per stretch of road rather than one polyline per
- * activity. Opacity is NOT hand-tuned: it is generated from
- * `heatOpacityForCount`, the same function the server documents the ramp with,
- * so the two cannot drift and a test can pin the formula rather than a copied
- * table of numbers.
+ * activity. Colour is `HEAT_COUNT_COLOR_STOPS`, shared with the static share
+ * image so the thumbnail and this map draw the same ramp. Opacity is NOT
+ * hand-tuned: it is generated from `heatOpacityForCount`, the same function the
+ * server documents the ramp with, so the two cannot drift and a test can pin
+ * the formula rather than a copied table of numbers.
  */
-const TILE_COUNT_COLOR_STOPS = [1, '#ef4444', 4, '#f97316', 12, '#facc15']
 const TILE_COUNT_WIDTH_STOPS = [1, 2.8, 4, 3.4, 16, 4.2]
 
 export const tileOpacityStops = (base: number): number[] =>
@@ -124,7 +125,7 @@ export const tileOpacityStops = (base: number): number[] =>
     (_unused, index) => index + 1
   ).flatMap((count) => [count, heatOpacityForCount(count, base)])
 
-const countRamp = (stops: Array<number | string>) => [
+const countRamp = (stops: ReadonlyArray<number | string>) => [
   'interpolate',
   ['linear'],
   ['get', 'count'],
@@ -136,7 +137,7 @@ const TILE_LINE_PAINT = {
     'case',
     ['boolean', ['get', 'isHiddenByPrivacy'], false],
     ROUTE_LINE_STYLES.hidden.color,
-    countRamp(TILE_COUNT_COLOR_STOPS)
+    countRamp(HEAT_COUNT_COLOR_STOPS)
   ],
   'line-width': [
     'case',

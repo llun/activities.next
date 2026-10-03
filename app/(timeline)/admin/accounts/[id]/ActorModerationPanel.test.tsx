@@ -89,6 +89,36 @@ describe('ActorModerationPanel', () => {
     await waitFor(() => expect(mockUnsuspend).toHaveBeenCalledWith('acct-1'))
   })
 
+  it('draws every state label as the shared destructive Badge', async () => {
+    mockGetAdminAccount.mockResolvedValue(
+      account({
+        suspended: true,
+        silenced: true,
+        sensitized: true,
+        disabled: true,
+        approved: false
+      })
+    )
+
+    render(<ActorModerationPanel actorId="acct-1" username="target" />)
+
+    await waitFor(() =>
+      expect(screen.getByText('Suspended')).toBeInTheDocument()
+    )
+    for (const label of [
+      'Suspended',
+      'Silenced',
+      'Sensitized',
+      'Disabled',
+      'Pending'
+    ]) {
+      const badge = screen.getByText(label, { selector: 'span' })
+      expect(badge).toHaveClass('bg-destructive/10', 'text-destructive-text')
+      // The shared tone's dark fill; the hand-rolled pill had none.
+      expect(badge.className).toContain('dark:bg-[#DF3A3A]/16')
+    }
+  })
+
   it('treats a local actor on a secondary domain as local (login actions shown)', async () => {
     // domain is non-null (secondary served domain) but role is set → local.
     mockGetAdminAccount.mockResolvedValue(account({ domain: 'second.example' }))

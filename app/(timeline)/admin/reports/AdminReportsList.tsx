@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 
 import { getAdminReports } from '@/lib/client'
+import { Badge } from '@/lib/components/ui/badge'
 import { AdminReport } from '@/lib/types/mastodon/admin/report'
 
 const acct = (account: AdminReport['account']) =>
@@ -83,15 +84,12 @@ export const AdminReportsList = () => {
                       : ''}
                   </p>
                 </div>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                    report.action_taken
-                      ? 'bg-muted text-muted-foreground'
-                      : 'bg-primary/10 text-primary-text'
-                  }`}
+                <Badge
+                  tone={report.action_taken ? 'gray' : 'primary'}
+                  className="shrink-0"
                 >
                   {report.action_taken ? 'Resolved' : 'Open'}
-                </span>
+                </Badge>
               </Link>
             </li>
           ))}

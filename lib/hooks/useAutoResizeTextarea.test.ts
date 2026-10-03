@@ -123,6 +123,81 @@ describe('useAutoResizeTextarea', () => {
     expect(textarea.style.height).toBe('72px')
   })
 
+  describe('borders', () => {
+    const lay = (
+      el: HTMLTextAreaElement,
+      layout: {
+        scrollHeight: number
+        offsetHeight: number
+        clientHeight: number
+      }
+    ) => {
+      for (const [property, value] of Object.entries(layout)) {
+        Object.defineProperty(el, property, { configurable: true, value })
+      }
+    }
+
+    it('adds the borders to the measured height of a bordered textarea', () => {
+      // A `border-box` textarea with a 1px border: scrollHeight is the padding
+      // box, so the height must cover the 2px of border as well or the last line
+      // scrolls out of view.
+      lay(textarea, { scrollHeight: 80, offsetHeight: 84, clientHeight: 82 })
+
+      const ref = createRef<HTMLTextAreaElement>()
+      ref.current = textarea
+      renderHook(() => useAutoResizeTextarea(ref, 'text'))
+
+      expect(textarea.style.height).toBe('82px')
+    })
+
+    it('keeps adding them as the content grows and shrinks', () => {
+      lay(textarea, { scrollHeight: 80, offsetHeight: 84, clientHeight: 82 })
+
+      const ref = createRef<HTMLTextAreaElement>()
+      ref.current = textarea
+      const { rerender } = renderHook(
+        ({ value }) => useAutoResizeTextarea(ref, value),
+        { initialProps: { value: 'one' } }
+      )
+      expect(textarea.style.height).toBe('82px')
+
+      lay(textarea, { scrollHeight: 200, offsetHeight: 204, clientHeight: 202 })
+      act(() => {
+        rerender({ value: 'one\ntwo\nthree\nfour\nfive' })
+      })
+      expect(textarea.style.height).toBe('202px')
+
+      lay(textarea, { scrollHeight: 50, offsetHeight: 54, clientHeight: 52 })
+      act(() => {
+        textarea.dispatchEvent(new Event('input'))
+      })
+      expect(textarea.style.height).toBe('52px')
+    })
+
+    it('adds nothing for a borderless textarea, like the composers', () => {
+      // The composers have no border, so offsetHeight equals clientHeight and the
+      // height stays exactly the scrollHeight they always got.
+      lay(textarea, { scrollHeight: 120, offsetHeight: 120, clientHeight: 120 })
+
+      const ref = createRef<HTMLTextAreaElement>()
+      ref.current = textarea
+      renderHook(() => useAutoResizeTextarea(ref, 'text'))
+
+      expect(textarea.style.height).toBe('120px')
+    })
+
+    it('keeps the rows height while nothing is laid out, instead of collapsing to 0px', () => {
+      lay(textarea, { scrollHeight: 0, offsetHeight: 2, clientHeight: 0 })
+
+      const ref = createRef<HTMLTextAreaElement>()
+      ref.current = textarea
+      renderHook(() => useAutoResizeTextarea(ref, 'text'))
+
+      // Not `2px`: borders alone are not a measurement.
+      expect(textarea.style.height).toBe('auto')
+    })
+  })
+
   it('preserves scrollTop during height adjustments', () => {
     Object.defineProperty(textarea, 'scrollHeight', {
       configurable: true,

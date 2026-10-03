@@ -7,6 +7,7 @@ import { ChangeNameForm } from '@/app/(timeline)/account/ChangeNameForm'
 import { PageHeader } from '@/lib/components/page-header'
 import { ActorsSection } from '@/lib/components/settings/ActorsSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
+import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -135,11 +136,7 @@ const Page = async ({
           <Label>Current email</Label>
           <div className="flex items-center gap-2">
             <Input value={account.email} disabled className="bg-muted" />
-            {account.emailVerifiedAt && (
-              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                Verified
-              </span>
-            )}
+            {account.emailVerifiedAt && <Badge tone="success">Verified</Badge>}
           </div>
         </div>
 

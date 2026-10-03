@@ -148,6 +148,65 @@ describe('MuteAction', () => {
     })
   })
 
+  it('draws the notifications option as the shared Checkbox, checked by default', async () => {
+    render(
+      <MuteAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mute' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Mute account' })
+    const checkbox = within(dialog).getByLabelText(
+      'Also hide notifications from this actor'
+    )
+    // The shared control (16 px, radius 4, orange when checked), not a bare
+    // `<input type="checkbox">` that shows the browser's own blue tick.
+    expect(checkbox).toHaveAttribute('data-slot', 'checkbox')
+    expect(checkbox).toHaveAttribute('type', 'checkbox')
+    expect(checkbox).toHaveClass(
+      'size-4',
+      'appearance-none',
+      'checked:bg-primary'
+    )
+    expect(checkbox).toBeChecked()
+  })
+
+  it('toggles the option from its label text and resets it when the dialog reopens', async () => {
+    render(
+      <MuteAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mute' }))
+    let dialog = await screen.findByRole('dialog', { name: 'Mute account' })
+    // The input sits inside its label, so a click on the text reaches it.
+    fireEvent.click(
+      within(dialog).getByText('Also hide notifications from this actor')
+    )
+    expect(
+      within(dialog).getByLabelText('Also hide notifications from this actor')
+    ).not.toBeChecked()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Mute account' })
+      ).not.toBeInTheDocument()
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mute' }))
+    dialog = await screen.findByRole('dialog', { name: 'Mute account' })
+    expect(
+      within(dialog).getByLabelText('Also hide notifications from this actor')
+    ).toBeChecked()
+  })
+
   it('unmutes directly without showing a dialog', async () => {
     unmuteMock.mockResolvedValue(relationship({ muting: false }))
 

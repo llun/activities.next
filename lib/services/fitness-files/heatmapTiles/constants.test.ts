@@ -1,4 +1,5 @@
 import {
+  HEAT_COUNT_COLOR_STOPS,
   HEAT_COUNT_SATURATION,
   HEAT_HIDDEN_BASE_OPACITY,
   HEAT_VISIBLE_BASE_OPACITY,
@@ -7,6 +8,7 @@ import {
   TILE_MAX_ZOOM,
   TILE_MIN_ZOOM,
   TILE_SIMPLIFY_TOLERANCE_PX,
+  heatColorForCount,
   heatOpacityForCount,
   metersPerPixelAtZoom,
   tileToleranceMeters
@@ -201,6 +203,55 @@ describe('heatOpacityForCount', () => {
         expect(opacity).toBeLessThanOrEqual(1)
       }
     }
+  })
+})
+
+describe('HEAT_COUNT_COLOR_STOPS', () => {
+  it('is the heat ramp the interactive map paints: red, orange, yellow', () => {
+    // Pinned as a literal: the interactive tiled layer and the static share
+    // image both read this one list, so an edit changes both on purpose.
+    expect([...HEAT_COUNT_COLOR_STOPS]).toEqual([
+      1,
+      '#ef4444',
+      4,
+      '#f97316',
+      12,
+      '#facc15'
+    ])
+  })
+
+  it('ascends in count, which a GL interpolate requires', () => {
+    const counts = HEAT_COUNT_COLOR_STOPS.filter(
+      (_unused, index) => index % 2 === 0
+    ) as number[]
+    for (let i = 1; i < counts.length; i += 1) {
+      expect(counts[i]).toBeGreaterThan(counts[i - 1])
+    }
+  })
+})
+
+describe('heatColorForCount', () => {
+  it.each([
+    { description: 'a count of one', count: 1, expected: '#ef4444' },
+    { description: 'the orange stop', count: 4, expected: '#f97316' },
+    { description: 'the yellow stop', count: 12, expected: '#facc15' },
+    // Below the first stop and past the last hold the end colours, as GL does.
+    { description: 'a count below the ramp', count: 0, expected: '#ef4444' },
+    { description: 'a count past the ramp', count: 99, expected: '#facc15' },
+    // 1 -> 4 is 3 counts wide, so count 2.5 is half way: per channel
+    // (239+249)/2 -> 244, (68+115)/2 -> 91.5 -> 92, (68+22)/2 -> 45.
+    {
+      description: 'half way from red to orange',
+      count: 2.5,
+      expected: '#f45c2d'
+    }
+  ])('answers $expected for $description', ({ count, expected }) => {
+    expect(heatColorForCount(count)).toBe(expected)
+  })
+
+  it('blends over any stop list it is given', () => {
+    expect(heatColorForCount(1, [4, '#f97316', 12, '#facc15'])).toBe('#f97316')
+    expect(heatColorForCount(8, [4, '#000000', 12, '#ffffff'])).toBe('#808080')
   })
 })
 

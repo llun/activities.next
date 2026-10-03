@@ -347,7 +347,10 @@ Four surfaces read the pyramid:
 - `GET /embed/heatmap/:token/image` — the static share/embed image. It picks the
   rung from the image's own size, along whichever axis the renderer fits by. Where
   it falls through to the keyless SVG renderer it also shades each stroke by its
-  visit count; the Apple and Mapbox renderers draw at one flat opacity. `?format=png`
+  visit count and colours it along the heat ramp the interactive map paints with
+  (`HEAT_COUNT_COLOR_STOPS`, from its orange stop to its yellow one — never red);
+  the Apple and Mapbox renderers draw at one flat opacity, and the Mapbox overlay
+  in the ramp's orange. `?format=png`
   rasterizes that keyless fallback instead of serving SVG — which is what the
   public share page's `og:image` asks for, since no link-preview crawler renders
   SVG. It is opt-in, so an existing embed keeps the scalable image; any other
@@ -1408,7 +1411,14 @@ legacy shape left to copy.
     (`@/lib/hooks/useAutoResizeTextarea`) provides a measured-height fallback that
     updates `element.style.height` based on `scrollHeight` on mount, input, value
     changes, and container width changes, while preserving `scrollTop` so internal
-    scrolling does not jump.
+    scrolling does not jump. It adds the element's own border
+    (`offsetHeight - clientHeight`, 0 for the borderless composers) to the
+    measured `scrollHeight`, because a `border-box` textarea's `height` includes
+    its border and `scrollHeight` does not: a bordered box fitted without it is
+    2px short and scrolls its last line away. The share dialog's read-only
+    snippet box on the heatmap page (`HeatmapShareEmbed`) is the bordered caller;
+    it uses this hook with the shared `Textarea`'s own `field-sizing-content`
+    rather than a hook of its own.
   - Height is capped at `min(320px, 40dvh)`. On extremely short viewports, CSS
     `min-height` takes precedence over `max-height`. Textareas scroll internally
     after reaching the cap and shrink smoothly back to the minimum height when text
@@ -1593,7 +1603,8 @@ legacy shape left to copy.
   a destructive action). The heart icon itself stays `text-red-500` (#FB2C36).
 - Translucent chrome — the sticky page header, the sidebar, the icon rail, the
   mobile header, and the sticky bars of the public shell (`PublicTopBar`), the
-  shared heatmap page and the status page header — uses `bg-surface-chrome`
+  logged-out landing page's public-feed header, the shared heatmap page and the
+  status page header — uses `bg-surface-chrome`
   (`--surface-chrome`: white at 72 % light, #141414 at 80 % dark) with
   `backdrop-blur`, not `bg-background/NN`. `lib/components/surfaceChromeUsage.test.ts`
   lists the bars.
@@ -1604,15 +1615,36 @@ legacy shape left to copy.
   dark; `gray` is `#383838` with a `#C2C2C2` label in dark (the connected-app
   scope chips use the same `#383838` fill). Do not hand-roll badge colours with
   fixed `hsl()` values — a pill that has no `dark:` variant renders as a light
-  chip on the dark surface.
-- A native `<select>` is the shared `Select`. One that needs its own size or
-  focus ring keeps its classes and appends `selectChevronClassName` (from
-  `@/lib/components/ui/select`), which hides the OS arrow and paints the
-  design's muted chevron; a bare `<select>` shows the platform arrow. The
-  activity-file switcher in `FitnessStatusDetail` is the one exception: it
-  overlays its own foreground-coloured `ChevronDown`, as the design draws it,
-  and sits in a card of its own beside the activity card (only for a status
-  with more than one fitness file), not nested inside it.
+  chip on the dark surface. A status or label pill whose meaning fits a tone is
+  `<Badge tone="…">` rather than a hand-copied `rounded-full bg-… px-2 py-0.5`
+  span: the Admin pill on the accounts list and detail, the report's Open /
+  Resolved, the moderation panel's state labels, a collection's visibility and
+  topic, the passkey domain pill, the account's Verified mark and a filter's
+  Expired pill are all the shared `Badge` (its `px-2.5` is 4 px wider across
+  than the hand-rolled `px-2`, and it carries the design's dark tints). A pill
+  that is not a tone — the relay state chips with their own border colours, the
+  10–11 px file-type and position tags, the filter context chips — stays its
+  own element.
+- A native `<select>` is the shared `Select` (`@/lib/components/ui/select`):
+  36 px, the design's 3 px focus ring, `shadow-xs`, the OS arrow hidden and the
+  muted chevron painted in its place. A call site that needs a different width
+  passes it as a `className` (`w-auto` for a select that shares a row with other
+  controls); the chevron class is private to the primitive, so there is no
+  raw `<select>` to append it to, and `lib/components/ui/formControlUsage.test.ts`
+  fails on one. The post line limit, the admin statistic type, the report
+  category, the Wahoo environment, the notification actor and the privacy hide
+  radius are all `Select`. The activity-file switcher in `FitnessStatusDetail`
+  is the one exception: it overlays its own foreground-coloured `ChevronDown`,
+  as the design draws it, and sits in a card of its own beside the activity
+  card (only for a status with more than one fitness file), not nested inside
+  it.
+- A checkbox is the shared `Checkbox` (`@/lib/components/ui/checkbox`): 16 px,
+  radius 4, an orange fill and a white tick when checked, instead of the
+  browser's blue control. It is still a real `<input type="checkbox">`, so a
+  label that wraps it or points at it with `htmlFor` toggles it and a form posts
+  it as before; the mute dialog's "Also hide notifications" option wraps it in
+  its label. `lib/components/ui/formControlUsage.test.ts` fails on a raw
+  `<input type="checkbox">` (and on a raw `<select>`).
 - The unread-count pill (`NotificationBadge`) is filled `#B7282E` in light — the
   design's count-badge red, darker than the `#EF4444` `--destructive` token that
   white text only reaches 3.8:1 on — and `--destructive` (`#7F1D1D`) in dark.

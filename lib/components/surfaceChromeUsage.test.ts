@@ -3,7 +3,8 @@ import path from 'path'
 
 // The translucent bars that sit over the page — the sticky page header, the
 // sidebar and icon rail, the mobile header, and the sticky bars of the public
-// shell, shared heatmap and status page — all use the design's Surface Chrome
+// shell, the landing page's public feed, the shared heatmap and the status page
+// — all use the design's Surface Chrome
 // (white at 72 % in light, #141414 at 80 % in dark) through the
 // `bg-surface-chrome` utility. A bar hand-rolled as `bg-background/85` or `/90`
 // is the pre-token look: in dark it is the near-black page colour rather than
@@ -15,6 +16,7 @@ const CHROME_BARS: Array<[file: string, bars: number]> = [
   ['lib/components/layout/sidebar.tsx', 2],
   ['lib/components/layout/mobile-navigation-header.tsx', 1],
   ['app/(timeline)/PublicTopBar.tsx', 1],
+  ['app/(timeline)/landing/LandingPublicFeed.tsx', 1],
   ['app/u/heatmaps/[token]/SharedHeatmapPage.tsx', 1],
   ['app/(timeline)/[actor]/[status]/Header.tsx', 1],
   ['app/(timeline)/[actor]/[status]/loading.tsx', 1]
@@ -32,4 +34,14 @@ describe('Surface Chrome usage', () => {
       expect(countOf(source, /\bbg-background\/(85|90)\b/g)).toBe(0)
     }
   )
+
+  it('keeps the landing feed bar off the bg-background/70 it was hand-rolled with', () => {
+    // `/70` is checked here rather than in the table: the shared heatmap page
+    // also has a small `bg-background/70` pill that is not a bar.
+    const source = fs.readFileSync(
+      path.join(process.cwd(), 'app/(timeline)/landing/LandingPublicFeed.tsx'),
+      'utf8'
+    )
+    expect(countOf(source, /\bbg-background\/70\b/g)).toBe(0)
+  })
 })

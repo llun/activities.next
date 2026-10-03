@@ -13,6 +13,7 @@ import {
   getAdminAccount,
   performAdminAccountAction
 } from '@/lib/client'
+import { Badge } from '@/lib/components/ui/badge'
 import { AdminAccount } from '@/lib/types/mastodon/admin/account'
 
 interface Props {
@@ -21,12 +22,6 @@ interface Props {
   actorId: string
   username: string
 }
-
-const Badge = ({ label }: { label: string }) => (
-  <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive-text">
-    {label}
-  </span>
-)
 
 const ActionButton = ({
   label,
@@ -137,11 +132,15 @@ export const ActorModerationPanel = ({ actorId, username }: Props) => {
         <span className="text-sm text-muted-foreground">
           @{username} moderation
         </span>
-        {account.suspended ? <Badge label="Suspended" /> : null}
-        {account.silenced ? <Badge label="Silenced" /> : null}
-        {account.sensitized ? <Badge label="Sensitized" /> : null}
-        {account.disabled ? <Badge label="Disabled" /> : null}
-        {isLocal && !account.approved ? <Badge label="Pending" /> : null}
+        {account.suspended ? <Badge tone="destructive">Suspended</Badge> : null}
+        {account.silenced ? <Badge tone="destructive">Silenced</Badge> : null}
+        {account.sensitized ? (
+          <Badge tone="destructive">Sensitized</Badge>
+        ) : null}
+        {account.disabled ? <Badge tone="destructive">Disabled</Badge> : null}
+        {isLocal && !account.approved ? (
+          <Badge tone="destructive">Pending</Badge>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2">

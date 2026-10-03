@@ -12,9 +12,8 @@ import {
   unassignAdminReport,
   updateAdminReport
 } from '@/lib/client'
-import { selectChevronClassName } from '@/lib/components/ui/select'
+import { Select } from '@/lib/components/ui/select'
 import { AdminReport } from '@/lib/types/mastodon/admin/report'
-import { cn } from '@/lib/utils'
 
 const CATEGORIES: ReportCategory[] = ['spam', 'legal', 'violation', 'other']
 
@@ -135,7 +134,7 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
 
       <div className="flex flex-wrap items-center gap-2">
         <label className="text-sm text-muted-foreground">Category</label>
-        <select
+        <Select
           value={report.category}
           disabled={busy}
           onChange={(event) =>
@@ -146,17 +145,16 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
               })
             )
           }
-          className={cn(
-            'rounded-lg border px-2 py-1.5 text-sm',
-            selectChevronClassName
-          )}
+          // Sits in a wrapping row beside the buttons, so it takes its content
+          // width rather than the primitive's full width.
+          className="w-auto"
         >
           {CATEGORIES.map((category) => (
             <option key={category} value={category}>
               {category}
             </option>
           ))}
-        </select>
+        </Select>
 
         {report.assigned_account ? (
           <button

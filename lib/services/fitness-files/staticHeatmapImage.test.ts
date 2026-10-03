@@ -1,4 +1,5 @@
 import {
+  HEAT_COUNT_COLOR_STOPS,
   HEAT_VISIBLE_BASE_OPACITY,
   heatOpacityForCount
 } from '@/lib/services/fitness-files/heatmapTiles/constants'
@@ -38,7 +39,9 @@ describe('buildMapboxStaticUrl', () => {
     expect(url).toContain(
       'https://api.mapbox.com/styles/v1/mapbox/light-v11/static/'
     )
-    expect(url).toContain('path-2+ef4444-0.9(')
+    // The heat ramp's orange, not the red it used to draw.
+    expect(url).toContain('path-2+f97316-0.9(')
+    expect(url).not.toContain('ef4444')
     expect(url).toContain('/auto/600x420@2x')
     expect(url).toContain('access_token=pk.test-token')
   })
@@ -78,7 +81,7 @@ describe('buildMapboxStaticUrl', () => {
     expect(url).not.toBeNull()
     expect((url as string).length).toBeLessThanOrEqual(8192)
     expect(
-      ((url as string).match(/path-2\+ef4444/g) ?? []).length
+      ((url as string).match(/path-2\+f97316/g) ?? []).length
     ).toBeGreaterThan(1)
   })
 
@@ -118,7 +121,8 @@ describe('buildHeatmapSvg', () => {
     expect(svg).toContain('<svg')
     expect(svg).toContain('viewBox="0 0 600 420"')
     expect((svg.match(/<polyline/g) ?? []).length).toBe(2)
-    expect(svg).toContain('stroke="#ef4444"')
+    expect(svg).toContain('stroke="#f97316"')
+    expect(svg).not.toContain('#ef4444')
   })
 
   it('renders a plain background when there is no geometry', () => {
@@ -220,5 +224,67 @@ describe('buildHeatmapSvg stroke shading', () => {
       height: 400
     })
     expect(svg).toContain('stroke-opacity="0.85"')
+  })
+})
+
+describe('heat colours', () => {
+  const bounds = { minLat: 52, maxLat: 52.6, minLng: 5.6, maxLng: 6.2 }
+  const points = [
+    { lat: 52.1, lng: 5.7 },
+    { lat: 52.5, lng: 6.1 }
+  ]
+  const strokeOf = (count?: number) => {
+    const svg = buildHeatmapSvg({
+      segments: [
+        count === undefined ? { points } : ({ count, points } as never)
+      ],
+      bounds,
+      width: 600,
+      height: 400
+    })
+    return /stroke="(#[0-9a-f]{6})"/.exec(svg)?.[1]
+  }
+
+  // The interactive map's stops are 1 red, 4 orange (#f97316), 12 yellow
+  // (#facc15); the share image starts at the orange one, so it never draws red.
+  it.each([
+    { description: 'a road ridden once', count: 1, expected: '#f97316' },
+    { description: 'a road at the ramp orange', count: 4, expected: '#f97316' },
+    // Halfway between the orange and yellow stops, per RGB channel:
+    // (249+250)/2 -> 250, (115+204)/2 -> 160, (22+21)/2 -> 22.
+    { description: 'a road halfway to yellow', count: 8, expected: '#faa016' },
+    {
+      description: 'a road at the ramp yellow',
+      count: 12,
+      expected: '#facc15'
+    },
+    { description: 'a road past the ramp end', count: 40, expected: '#facc15' }
+  ])('draws $description in $expected', ({ count, expected }) => {
+    expect(strokeOf(count)).toBe(expected)
+  })
+
+  it('draws untiled geometry, which has no count, in the ramp orange', () => {
+    expect(strokeOf(undefined)).toBe('#f97316')
+  })
+
+  it('never draws a line in red, at any count', () => {
+    for (const count of [undefined, 1, 2, 3, 5, 6, 9, 12, 25]) {
+      expect(strokeOf(count)).not.toBe('#ef4444')
+    }
+  })
+
+  it('draws a busier road hotter, from orange towards yellow', () => {
+    const greenChannel = (count: number) =>
+      parseInt((strokeOf(count) as string).slice(3, 5), 16)
+    // Orange has the lower green channel; yellow the higher.
+    expect(greenChannel(8)).toBeGreaterThan(greenChannel(4))
+    expect(greenChannel(12)).toBeGreaterThan(greenChannel(8))
+  })
+
+  it("uses the interactive ramp's own orange and yellow, not a second copy", () => {
+    const stops = HEAT_COUNT_COLOR_STOPS
+    // [1, red, 4, orange, 12, yellow]
+    expect(strokeOf(4)).toBe(stops[3])
+    expect(strokeOf(12)).toBe(stops[5])
   })
 })

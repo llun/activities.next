@@ -29,7 +29,7 @@ export const LandingPublicFeed: FC<LandingPublicFeedProps> = ({
   const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
   return (
     <div className="flex h-full flex-col">
-      <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b bg-background/70 px-5 py-3.5 backdrop-blur">
+      <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b bg-surface-chrome px-5 py-3.5 backdrop-blur">
         <Image
           src={logoSrc}
           alt=""

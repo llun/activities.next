@@ -115,6 +115,21 @@ describe('FilterRow', () => {
     expect(screen.getByText('Expired')).toBeInTheDocument()
   })
 
+  it('draws the Expired pill as the shared gray Badge, with a dark variant', () => {
+    renderRow(
+      filterFor(['home'], 'warn', '2026-01-01T00:00:00.000Z'),
+      Date.parse('2026-06-01T00:00:00.000Z')
+    )
+
+    const pill = screen.getByText('Expired')
+    expect(pill).toHaveClass('bg-muted', 'text-muted-foreground')
+    // The design's dark gray (#383838 / #C2C2C2). The hand-rolled pill had a
+    // light-only fill and glared on the dark row.
+    expect(pill.className).toContain('dark:bg-[#383838]')
+    expect(pill.className).toContain('dark:text-[#C2C2C2]')
+    expect(pill).not.toHaveClass('bg-[hsl(0_0%_94%)]')
+  })
+
   it.each([
     { description: 'never expires', expiresAt: null },
     { description: 'expires later', expiresAt: '2026-12-01T00:00:00.000Z' }

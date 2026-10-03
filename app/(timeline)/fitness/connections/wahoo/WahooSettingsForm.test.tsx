@@ -55,6 +55,17 @@ describe('WahooSettingsForm', () => {
     )
   })
 
+  it('draws the environment select with the shared Select, keeping its id and value', async () => {
+    render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    const select = screen.getByLabelText('Environment')
+    expect(select.tagName).toBe('SELECT')
+    expect(select).toHaveAttribute('data-slot', 'select')
+    expect(select).toHaveAttribute('id', 'wahoo-environment')
+    expect(select).toHaveValue(settings.environment)
+  })
+
   it('keeps saved secrets out of the page and omits blank replacements on save', async () => {
     render(<WahooSettingsForm />)
 
