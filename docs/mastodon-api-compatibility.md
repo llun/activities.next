@@ -78,16 +78,17 @@ product or security decision, not a gap to be closed.
   GET — while the web UI still rendered it. The id matters as much as the type:
   an entry a client cannot name is one it cannot preserve through an edit.
 
-- **OAuth access tokens expire after 7 days without use.** Mastodon access
-  tokens do not expire by default. Activity.next issues a user access token for
-  a 7-day window and slides it forward when an API request it authenticates is
-  accepted (writing at most once a day), so a client in regular use stays
-  signed in indefinitely while a token nobody presents for 6–7 days ages out —
-  the security property the window exists for. No refresh token is ever issued (`offline_access` is not a scope
-  this server offers, and Mastodon clients would not use one), so the slide is
-  what keeps clients signed in. App (`client_credentials`) tokens last one hour
-  and do not slide. Configured in `lib/services/auth/constants.ts` and applied
-  in `lib/services/guards/OAuthGuard.ts`; see
+- **OAuth access tokens expire after about a week without use.** Mastodon
+  access tokens do not expire by default. Activity.next issues a user access
+  token for a 7-day window and slides it forward when an API request it
+  authenticates is accepted (writing at most once a day), so a client in
+  regular use stays signed in indefinitely while a token nobody presents for
+  6–7 days ages out — the security property the window exists for. No refresh
+  token is ever issued (`offline_access` is not a scope this server offers, and
+  Mastodon clients would not use one), so the slide is what keeps clients
+  signed in. App (`client_credentials`) tokens last one hour and do not slide.
+  Configured in `lib/services/auth/constants.ts` and applied in
+  `lib/services/guards/OAuthGuard.ts`; see
   [OAuth Access Token Sliding Expiry](architecture.md#agents-oauth-access-token-sliding-expiry).
 
 - **A remote reaction is not a favourite.** Mastodon has no reaction concept, so

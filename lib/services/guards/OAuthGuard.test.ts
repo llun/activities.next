@@ -1257,6 +1257,23 @@ describe('OAuthGuard', () => {
       }
     })
 
+    test('does not slide a JWT access token, whose exp is signed in', async () => {
+      const actor = await storeToken('eyJ.due-jwt.sig', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+      mockVerifyBearerToken.mockResolvedValue({
+        sub: 'user-id',
+        scope: 'read',
+        actorId: actor.id
+      })
+
+      const response = await callWith('eyJ.due-jwt.sig')
+
+      expect(response.status).toBe(200)
+      expect(mockVerifyBearerToken).toHaveBeenCalled()
+      expect(extendSpy).not.toHaveBeenCalled()
+    })
+
     test('slides a user token accepted by OAuthAppGuard', async () => {
       await storeToken('app-guard-user-token', {
         expiresAt: new Date(NOW + HOUR_MS)

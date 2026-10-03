@@ -102,7 +102,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Health check** — Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}`
 - ✅ **oEmbed provider** — `GET /api/oembed` returns rich embed metadata for this instance's public/unlisted status pages, discoverable via the `application/json+oembed` `<link>` emitted on every status page
 - ✅ **Notification policy** — Filtered-notification policy via `GET|PUT|PATCH /api/v2/notifications/policy`, plus the deprecated `GET|PUT|PATCH /api/v1/notifications/policy` alias serving the legacy `filter_*` boolean entity
-- 📖 **[Mastodon API compatibility reference](./mastodon-api-compatibility.md)** — Intentional divergences (e.g. OAuth tokens that expire after 7 days unused), unplanned endpoints, and activities.next-only extensions
+- 📖 **[Mastodon API compatibility reference](./mastodon-api-compatibility.md)** — Intentional divergences (e.g. OAuth tokens that expire after about a week unused), unplanned endpoints, and activities.next-only extensions
 
 ### Infrastructure
 
