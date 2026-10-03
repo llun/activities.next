@@ -1541,8 +1541,10 @@ legacy shape left to copy.
   badge, subtitle or back arrow in it. Back, descriptions, actions, counts and
   filters stay in the content; a Back is a labelled `BackLink` row, and the
   post page's history Back falls back to a real "Back to profile" link. The
-  desktop markup (≥768px) is unchanged: mobile-only styles are `max-md:`/
-  `md:hidden`, desktop chrome classes are `md:`-prefixed. See **Mobile chrome**.
+  desktop rendering (≥768px) is visually unchanged: mobile-only nodes (the bar,
+  floating trigger, Back rows) stay in the markup but are `md:hidden`, mobile
+  styles are `max-md:`, and desktop chrome classes are `md:`-prefixed. See
+  **Mobile chrome**.
 - Route loading skeletons (`loading.tsx`) in `(timeline)` reuse `PageHeader` from
   `@/lib/components/page-header` directly with `.skeleton` placeholders (title
   `h-7`, description `h-4`, action button vertically centered via
