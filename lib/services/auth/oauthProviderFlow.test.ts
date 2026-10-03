@@ -239,8 +239,8 @@ describe('OAuth provider token grants', () => {
         code_verifier: codeVerifier
       }).toString()
     })
-    // Writes oauthAccessToken and oauthRefreshToken rows, which is the second
-    // place a missing plugin column shows up.
+    // Writes an oauthAccessToken row, which is the second place a missing
+    // plugin column shows up.
     expect(token.status).toBe(200)
 
     const tokenBody = JSON.parse(token.text) as {
@@ -261,6 +261,15 @@ describe('OAuth provider token grants', () => {
     expect(stored).toBeDefined()
     expect(stored?.userId).toBe(accountId)
     expect(stored?.referenceId).toBe(actorId)
+
+    // No refresh token: better-auth mints one only for `offline_access`, which
+    // this server does not offer, so the `refresh_token` grant is neither
+    // advertised nor served (see OAUTH_GRANT_TYPES).
+    const refreshTokens = await database('oauthRefreshToken').where(
+      'clientId',
+      CLIENT_ID
+    )
+    expect(refreshTokens).toEqual([])
 
     // A new browser session must be able to authorize the same client without
     // losing the actor reference that was bound to the first consent. With an
