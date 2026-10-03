@@ -36,6 +36,11 @@ const TEST_BCRYPT_COST = 4
 const CLIENT_ID = 'flow-test-client'
 const CLIENT_SECRET = 'flow-test-secret'
 const REDIRECT_URI = 'https://client.example.com/callback'
+const LEGACY_GRANT_TYPES = [
+  'authorization_code',
+  'client_credentials',
+  'refresh_token'
+]
 
 const holder = vi.hoisted(() => ({
   knex: null as Knex | null,
@@ -150,6 +155,10 @@ describe('OAuth provider token grants', () => {
       name: 'Flow Test',
       redirectUris: JSON.stringify([REDIRECT_URI]),
       scopes: JSON.stringify(['read', 'write']),
+      // The grant list every registration recorded before `refresh_token` was
+      // dropped from OAUTH_GRANT_TYPES. Registrations are never rewritten, so
+      // the authorization code flow below must keep working for this shape.
+      grantTypes: JSON.stringify(LEGACY_GRANT_TYPES),
       type: 'web',
       disabled: false
     })
@@ -230,8 +239,8 @@ describe('OAuth provider token grants', () => {
         code_verifier: codeVerifier
       }).toString()
     })
-    // Writes oauthAccessToken and oauthRefreshToken rows, which is the second
-    // place a missing plugin column shows up.
+    // Writes an oauthAccessToken row, which is the second place a missing
+    // plugin column shows up.
     expect(token.status).toBe(200)
 
     const tokenBody = JSON.parse(token.text) as {
@@ -252,6 +261,15 @@ describe('OAuth provider token grants', () => {
     expect(stored).toBeDefined()
     expect(stored?.userId).toBe(accountId)
     expect(stored?.referenceId).toBe(actorId)
+
+    // No refresh token: better-auth mints one only for `offline_access`, which
+    // this server does not offer, so the `refresh_token` grant is neither
+    // advertised nor served (see OAUTH_GRANT_TYPES).
+    const refreshTokens = await database('oauthRefreshToken').where(
+      'clientId',
+      CLIENT_ID
+    )
+    expect(refreshTokens).toEqual([])
 
     // A new browser session must be able to authorize the same client without
     // losing the actor reference that was bound to the first consent. With an
@@ -372,5 +390,61 @@ describe('OAuth provider token grants', () => {
       .first()
     expect(stored).toBeDefined()
     expect(stored?.userId ?? null).toBeNull()
+  })
+
+  // Registrations made before `refresh_token` left OAUTH_GRANT_TYPES still list
+  // it, and clients cache them indefinitely. Such a row must still get an app
+  // token, and the token endpoint must refuse the refresh grant as unsupported
+  // rather than route it to a handler that can never succeed: this server
+  // issues no refresh tokens (better-auth mints one only for `offline_access`,
+  // which is not in its scope vocabulary).
+  it('serves a legacy registration but refuses the refresh_token grant', async () => {
+    const clientId = 'legacy-grant-client'
+    const clientSecret = 'legacy-grant-secret'
+    await database('oauthClient').insert({
+      id: crypto.randomUUID(),
+      clientId,
+      clientSecret: hashClientSecret(clientSecret),
+      name: 'Legacy Grants',
+      redirectUris: JSON.stringify([REDIRECT_URI]),
+      scopes: JSON.stringify(['read']),
+      clientCredentialsScopes: JSON.stringify(['read']),
+      grantTypes: JSON.stringify(LEGACY_GRANT_TYPES),
+      responseTypes: JSON.stringify(['code']),
+      tokenEndpointAuthMethod: 'client_secret_post',
+      disabled: false
+    })
+
+    const tokenRequest = (body: Record<string, string>) =>
+      call('/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          cookie: ''
+        },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          ...body
+        }).toString()
+      })
+
+    const appToken = await tokenRequest({
+      grant_type: 'client_credentials',
+      scope: 'read'
+    })
+    expect(appToken.status).toBe(200)
+    expect(
+      (JSON.parse(appToken.text) as { access_token?: string }).access_token
+    ).toBeTruthy()
+
+    const refresh = await tokenRequest({
+      grant_type: 'refresh_token',
+      refresh_token: 'not-a-real-refresh-token'
+    })
+    expect(refresh.status).toBe(400)
+    expect(JSON.parse(refresh.text)).toMatchObject({
+      error: 'unsupported_grant_type'
+    })
   })
 })

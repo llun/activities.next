@@ -12,6 +12,7 @@ import crypto from 'crypto'
 import type { Knex } from 'knex'
 
 import { getKnex } from '@/lib/database'
+import { OAUTH_GRANT_TYPES } from '@/lib/services/auth/constants'
 import { toClientCredentialsScopes } from '@/lib/services/oauth/clientCredentialsScopes'
 import { Scope } from '@/lib/types/database/operations'
 import { withSpan } from '@/lib/utils/trace'
@@ -240,11 +241,9 @@ export const createApplication = async (
           // when present, and for public clients regardless of this flag.
           requirePKCE: false,
           disabled: false,
-          grantTypes: JSON.stringify([
-            'authorization_code',
-            'client_credentials',
-            'refresh_token'
-          ]),
+          // No `refresh_token`: the provider does not serve it (see
+          // OAUTH_GRANT_TYPES). Older rows still list it; they are left alone.
+          grantTypes: JSON.stringify(OAUTH_GRANT_TYPES),
           responseTypes: JSON.stringify(['code']),
           tokenEndpointAuthMethod: 'client_secret_post',
           referenceId: registrationReference ?? '',

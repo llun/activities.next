@@ -14,7 +14,8 @@ import { ConsentSession, resolveConsentReferenceId } from './consentReferenceId'
 import {
   AUTH_BASE_PATH,
   AUTH_ERROR_PATH,
-  OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS
+  OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+  OAUTH_GRANT_TYPES
 } from './constants'
 import { knexAdapter } from './knexAdapter'
 import { buildTrustedOrigins } from './trustedOrigins'
@@ -152,13 +153,10 @@ const buildAuth = (baseURL: string) => {
         // (client_credentials) tokens read `m2mAccessTokenExpiresIn` instead,
         // which stays at better-auth's one-hour default and does not slide.
         accessTokenExpiresIn: OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
-        refreshTokenExpiresIn: 30 * 24 * 60 * 60,
         codeExpiresIn: 10 * 60,
-        grantTypes: [
-          'authorization_code',
-          'client_credentials',
-          'refresh_token'
-        ],
+        // No `refresh_token`: it could never be fulfilled here, so the token
+        // endpoint answers `unsupported_grant_type` for it. See OAUTH_GRANT_TYPES.
+        grantTypes: [...OAUTH_GRANT_TYPES],
         allowDynamicClientRegistration: false,
         postLogin: {
           page: '/oauth/authorize',

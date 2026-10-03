@@ -1,5 +1,8 @@
 import { getBaseURL } from '@/lib/config'
-import { AUTH_BASE_PATH } from '@/lib/services/auth/constants'
+import {
+  AUTH_BASE_PATH,
+  OAUTH_GRANT_TYPES
+} from '@/lib/services/auth/constants'
 import { UsableScopes } from '@/lib/types/database/operations'
 
 export interface OpenIDConfiguration {
@@ -59,11 +62,9 @@ export const getOpenIDConfiguration = (
     scopes_supported: UsableScopes,
     response_types_supported: ['code'],
     response_modes_supported: ['query'],
-    grant_types_supported: [
-      'authorization_code',
-      'client_credentials',
-      'refresh_token'
-    ],
+    // Exactly the grants the provider serves — no `refresh_token`; see
+    // OAUTH_GRANT_TYPES.
+    grant_types_supported: [...OAUTH_GRANT_TYPES],
     subject_types_supported: ['public'],
     id_token_signing_alg_values_supported: ['RS256'],
     token_endpoint_auth_methods_supported: [
