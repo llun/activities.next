@@ -5,25 +5,9 @@ import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
 import { ClientFilter } from '@/lib/client'
+import { contrastRatio } from '@/lib/testing/contrast'
 
 import { FilterRow } from './FilterRow'
-
-// WCAG 2.1 contrast ratio of two #RRGGBB colours.
-const luminance = (hex: string) => {
-  const [r, g, b] = [1, 3, 5].map((start) => {
-    const channel = parseInt(hex.slice(start, start + 2), 16) / 255
-    return channel <= 0.03928
-      ? channel / 12.92
-      : Math.pow((channel + 0.055) / 1.055, 2.4)
-  })
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-const contrastRatio = (foreground: string, background: string) => {
-  const [hi, lo] = [luminance(foreground), luminance(background)].sort(
-    (a, b) => b - a
-  )
-  return (hi + 0.05) / (lo + 0.05)
-}
 
 const filterFor = (
   context: string[],
@@ -66,9 +50,28 @@ describe('FilterRow', () => {
   })
 
   it('keeps the context chip label at or above the 4.5:1 AA floor on its fill', () => {
-    // #F0F0F0 is hsl(0 0% 94%), the chip's fill in both themes.
-    expect(contrastRatio('#6A6A6A', '#F0F0F0')).toBeGreaterThanOrEqual(4.7)
-    expect(contrastRatio('#595959', '#F0F0F0')).toBeGreaterThanOrEqual(4.5)
+    renderRow(filterFor(['home']))
+
+    // Read the pair off the rendered chip, so the ratio is the one the row
+    // ships. The fill and the dark label are grey hsl() values (0 0% N%).
+    const { className } = screen.getByText('Home')
+    const read = (pattern: RegExp) => {
+      const match = className.match(pattern)
+      if (!match) throw new Error(`${pattern} not found in "${className}"`)
+      return match[1]
+    }
+    const greyHex = (lightness: string) =>
+      `#${Math.round(Number(lightness) * 2.55)
+        .toString(16)
+        .padStart(2, '0')
+        .repeat(3)}`
+
+    const fill = greyHex(read(/(?:^|\s)bg-\[hsl\(0_0%_(\d+)%\)\]/))
+    const lightLabel = read(/(?:^|\s)text-\[(#[0-9A-Fa-f]{6})\]/)
+    const darkLabel = greyHex(read(/dark:text-\[hsl\(0_0%_(\d+)%\)\]/))
+
+    expect(contrastRatio(lightLabel, fill)).toBeGreaterThanOrEqual(4.7)
+    expect(contrastRatio(darkLabel, fill)).toBeGreaterThanOrEqual(4.5)
   })
 
   it('collapses every context into a single Everywhere chip', () => {

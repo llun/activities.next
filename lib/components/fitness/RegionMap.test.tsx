@@ -199,14 +199,15 @@ describe('RegionMap', () => {
     expect(attributionEl).not.toHaveClass('maplibregl-compact-show')
   })
 
-  it('folds the credit again on load when MapLibre opened it in between', async () => {
+  it("folds the credit again on load when the control started empty and MapLibre opened it for the style's credits", async () => {
     const { gl, map, attributionEl, handlers } = createFakeGl({
       autoLoad: false
     })
     renderRegionMap(gl)
     await waitFor(() => expect(map.addControl).toHaveBeenCalled())
 
-    // The style's credits arrive, and the control opens itself for them.
+    // No `customAttribution` here, so the control started empty: the style's
+    // credits arrive, and MapLibre opens it for them.
     attributionEl.classList.add('maplibregl-compact-show')
     act(() => handlers.load?.())
 

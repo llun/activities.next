@@ -224,9 +224,11 @@ export const RegionMap: FC<RegionMapProps> = ({
           })
         )
         // Folded as soon as it exists, not only once the map loads: until then
-        // the wide credit would sit over the "Loading map…" overlay. MapLibre
-        // can open it again as the style's credits arrive, hence the fold on
-        // load as well.
+        // the wide credit would sit over the "Loading map…" overlay. With
+        // `customAttribution` MapLibre opens the control once, inside
+        // `addControl`, so this is enough; a control created without it starts
+        // empty and opens when the style's credits arrive, which is why the
+        // fold runs on load as well.
         foldMaplibreCredit()
 
         // If the map never reaches 'load' (e.g. the style fails to fetch), fall
