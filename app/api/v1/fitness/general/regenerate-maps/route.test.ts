@@ -68,8 +68,7 @@ describe('POST /api/v1/fitness/general/regenerate-maps', () => {
     vi.clearAllMocks()
     // clearAllMocks keeps queued mockResolvedValueOnce values. Each test queues
     // an empty second page that the route, stopping at a short first page, does
-    // not read, so without a reset that page answered the next test's first
-    // call.
+    // not read. Without a reset it would answer the next test's first call.
     for (const fn of Object.values(mockDb)) {
       fn.mockReset()
     }

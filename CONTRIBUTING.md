@@ -854,9 +854,9 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   it in `afterEach`, or, on the PostgreSQL harness where `prepare` recreates a
   whole database, have each test seed the rows it asserts on under ids of its
   own. CI runs tests in declaration order and cannot see either leak, and in
-  that order one had left a route test (`regenerate-maps/route.test.ts`,
-  'returns zero when there are no eligible old statuses') passing without ever
-  reaching the filter it tests. Check with
+  that order one had left a route test passing without ever reaching the filter
+  it tests (`app/api/v1/fitness/general/regenerate-maps/route.test.ts`,
+  `returns zero when there are no eligible old statuses`). Check with
   `yarn test --sequence.shuffle --sequence.seed=<n>` over a few seeds.
 - **`toHaveBeenCalledWith` asks whether a call ever happened, never whether it
   was the only one.** A once-per-run summary asserted that way is equally
