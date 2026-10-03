@@ -88,7 +88,8 @@ product or security decision, not a gap to be closed.
   Mastodon clients would not use one), so the slide is what keeps clients
   signed in. Accordingly the `refresh_token` grant is not advertised in
   `grant_types_supported` by either discovery document, and the token endpoint
-  answers it with `unsupported_grant_type`. App (`client_credentials`) tokens last one hour and do not slide.
+  answers it with `unsupported_grant_type`. App (`client_credentials`) tokens
+  last one hour and do not slide.
   Configured in `lib/services/auth/constants.ts` and applied in
   `lib/services/guards/OAuthGuard.ts`; see
   [OAuth Access Token Sliding Expiry](architecture.md#agents-oauth-access-token-sliding-expiry).
