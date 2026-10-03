@@ -7,18 +7,18 @@ import {
 } from '../scripts/select-sync-commit.mjs'
 
 type Run = {
+  id: number
   workflow: string
   head_sha: string
   run_attempt: number
-  updated_at: string
   status: string
   conclusion: string | null
 }
 
 const run = (overrides: Partial<Run> & Pick<Run, 'workflow' | 'head_sha'>) =>
   ({
+    id: 1,
     run_attempt: 1,
-    updated_at: '2026-10-03T01:00:00Z',
     status: 'completed',
     conclusion: 'success',
     ...overrides
@@ -39,13 +39,16 @@ describe('daily activities.prod sync commit selection', () => {
   })
 
   it.each([
-    ['still running', { status: 'in_progress', conclusion: null }],
-    ['failed', { conclusion: 'failure' }],
-    ['cancelled', { conclusion: 'cancelled' }],
-    ['skipped', { conclusion: 'skipped' }]
+    {
+      description: 'still running',
+      overrides: { status: 'in_progress', conclusion: null }
+    },
+    { description: 'failed', overrides: { conclusion: 'failure' } },
+    { description: 'cancelled', overrides: { conclusion: 'cancelled' } },
+    { description: 'skipped', overrides: { conclusion: 'skipped' } }
   ])(
-    'falls back to an older green commit when the newest CI run is %s',
-    (_label, overrides) => {
+    'falls back to an older green commit when the newest CI run is $description',
+    ({ overrides }) => {
       const result = selectSyncCommit({
         commits: ['new', 'old'],
         runs: [
@@ -81,74 +84,58 @@ describe('daily activities.prod sync commit selection', () => {
     })
   })
 
-  it('lets a successful re-run supersede a failed first attempt', () => {
+  it.each([
+    {
+      description: 'a newer successful run overrides an older failed one',
+      older: 'failure',
+      newer: 'success',
+      expected: 'new'
+    },
+    {
+      description: 'a newer failed run overrides an older successful one',
+      older: 'success',
+      newer: 'failure',
+      expected: null
+    }
+  ])(
+    'judges a commit by its newest run: $description',
+    ({ older, newer, expected }) => {
+      const result = selectSyncCommit({
+        commits: ['new'],
+        // The newer run is listed first, as the API returns newest first, so
+        // the id decides rather than the order the runs arrive in.
+        runs: [
+          run({ id: 20, workflow: 'CI', head_sha: 'new', conclusion: newer }),
+          run({
+            id: 10,
+            workflow: 'CI',
+            head_sha: 'new',
+            run_attempt: 3,
+            conclusion: older
+          }),
+          run({ workflow: 'Package', head_sha: 'new' }),
+          run({ workflow: 'CodeQL', head_sha: 'new' })
+        ]
+      })
+
+      expect(result.sha).toBe(expected)
+    }
+  )
+
+  it('ignores failed runs of workflows that do not gate the sync', () => {
     const result = selectSyncCommit({
       commits: ['new'],
       runs: [
-        run({ workflow: 'CI', head_sha: 'new', conclusion: 'failure' }),
-        run({ workflow: 'CI', head_sha: 'new', run_attempt: 2 }),
-        run({ workflow: 'Package', head_sha: 'new' }),
-        run({ workflow: 'CodeQL', head_sha: 'new' })
+        run({
+          workflow: 'Version Bump',
+          head_sha: 'new',
+          conclusion: 'failure'
+        }),
+        ...greenRuns('new')
       ]
     })
 
     expect(result.sha).toBe('new')
-  })
-
-  it('lets a failed re-run supersede a successful first attempt', () => {
-    const result = selectSyncCommit({
-      commits: ['new'],
-      runs: [
-        run({ workflow: 'CI', head_sha: 'new' }),
-        run({
-          workflow: 'CI',
-          head_sha: 'new',
-          run_attempt: 2,
-          conclusion: 'failure'
-        }),
-        run({ workflow: 'Package', head_sha: 'new' }),
-        run({ workflow: 'CodeQL', head_sha: 'new' })
-      ]
-    })
-
-    expect(result.sha).toBeNull()
-  })
-
-  it('uses the most recently updated run when attempts are equal', () => {
-    const result = selectSyncCommit({
-      commits: ['new'],
-      runs: [
-        run({
-          workflow: 'CI',
-          head_sha: 'new',
-          updated_at: '2026-10-03T02:00:00Z',
-          conclusion: 'failure'
-        }),
-        run({
-          workflow: 'CI',
-          head_sha: 'new',
-          updated_at: '2026-10-03T01:00:00Z'
-        }),
-        run({ workflow: 'Package', head_sha: 'new' }),
-        run({ workflow: 'CodeQL', head_sha: 'new' })
-      ]
-    })
-
-    expect(result.sha).toBeNull()
-  })
-
-  it('ignores runs of workflows that do not gate the sync', () => {
-    const result = selectSyncCommit({
-      commits: ['new', 'old'],
-      runs: [
-        run({ workflow: 'Version Bump', head_sha: 'new' }),
-        run({ workflow: 'CI', head_sha: 'new' }),
-        run({ workflow: 'Package', head_sha: 'new' }),
-        ...greenRuns('old')
-      ]
-    })
-
-    expect(result.sha).toBe('old')
   })
 
   it('returns no commit, with every inspected commit, when none is green', () => {
@@ -205,12 +192,14 @@ describe('daily activities.prod sync workflow', () => {
     expect(workflow).not.toMatch(/^\s*workflow_run:/m)
   })
 
-  it.each(Object.entries(REQUIRED_WORKFLOW_FILES))(
-    'gates on the %s workflow defined in %s',
-    (name, file) => {
-      const definition = readFileSync(`.github/workflows/${file}`, 'utf8')
+  it.each(
+    Object.entries(REQUIRED_WORKFLOW_FILES).map(([name, file]) => ({
+      name,
+      file
+    }))
+  )('gates on the $name workflow defined in $file', ({ name, file }) => {
+    const definition = readFileSync(`.github/workflows/${file}`, 'utf8')
 
-      expect(definition).toMatch(new RegExp(`^name: '?${name}'?$`, 'm'))
-    }
-  )
+    expect(definition).toMatch(new RegExp(`^name: '?${name}'?$`, 'm'))
+  })
 })

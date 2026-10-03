@@ -48,9 +48,10 @@ jobs:
           LOOKBACK_COMMITS: '30'
         with:
           script: |
-            const { REQUIRED_WORKFLOW_FILES, selectSyncCommit } = await import(
-              `${process.env.GITHUB_WORKSPACE}/.github/scripts/select-sync-commit.mjs`
-            )
+            const { REQUIRED_WORKFLOW_FILES, REQUIRED_WORKFLOWS, selectSyncCommit } =
+              await import(
+                `${process.env.GITHUB_WORKSPACE}/.github/scripts/select-sync-commit.mjs`
+              )
 
             const { owner, repo } = context.repo
 
@@ -61,8 +62,9 @@ jobs:
               per_page: Number(process.env.LOOKBACK_COMMITS),
             })
 
-            // 100 most recent push runs per workflow comfortably cover the
-            // lookback window, including re-runs.
+            // Each entry is one run at its latest attempt (re-runs do not add
+            // entries), so the 100 most recent push runs per workflow
+            // comfortably cover the lookback window.
             const runs = []
             for (const [workflow, file] of Object.entries(REQUIRED_WORKFLOW_FILES)) {
               const { data } = await github.rest.actions.listWorkflowRuns({
@@ -75,32 +77,30 @@ jobs:
               })
               for (const run of data.workflow_runs) {
                 runs.push({
+                  id: run.id,
                   workflow,
                   head_sha: run.head_sha,
                   run_attempt: run.run_attempt,
-                  updated_at: run.updated_at,
                   status: run.status,
                   conclusion: run.conclusion,
                 })
               }
             }
 
-            const workflows = Object.keys(REQUIRED_WORKFLOW_FILES)
             const { sha, evaluated } = selectSyncCommit({
               commits: commits.map((commit) => commit.sha),
               runs,
-              requiredWorkflows: workflows,
             })
 
             core.summary.addHeading('Daily Main-to-Activities.prod Sync')
             core.summary.addTable([
               [
                 { data: 'Commit', header: true },
-                ...workflows.map((workflow) => ({ data: workflow, header: true })),
+                ...REQUIRED_WORKFLOWS.map((workflow) => ({ data: workflow, header: true })),
               ],
               ...evaluated.map((entry) => [
                 `<code>${entry.sha.slice(0, 12)}</code>${entry.sha === sha ? ' ✅' : ''}`,
-                ...workflows.map((workflow) => entry.states[workflow]),
+                ...REQUIRED_WORKFLOWS.map((workflow) => entry.states[workflow]),
               ]),
             ])
 

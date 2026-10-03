@@ -15,14 +15,12 @@ export const REQUIRED_WORKFLOW_FILES = {
 
 export const REQUIRED_WORKFLOWS = Object.keys(REQUIRED_WORKFLOW_FILES)
 
-// The run GitHub treats as current for one workflow on one commit: the highest
-// attempt, then the most recently updated run (a manual re-run of a failed run
-// supersedes it, and vice versa).
-const isNewerRun = (run, previous) =>
-  !previous ||
-  run.run_attempt > previous.run_attempt ||
-  (run.run_attempt === previous.run_attempt &&
-    new Date(run.updated_at) > new Date(previous.updated_at))
+// The run that decides one workflow on one commit is the newest one. Run ids
+// increase over time, so the highest id wins. `run_attempt` is not compared:
+// the list endpoint returns each run once, already at its latest attempt, so a
+// re-run is reflected in its own entry and two entries are always two
+// different runs (e.g. main was reset back to a commit and pushed again).
+const isNewerRun = (run, previous) => !previous || run.id > previous.id
 
 const describeRun = (run) =>
   run
@@ -34,10 +32,10 @@ const isSuccessful = (run) =>
 
 /**
  * @typedef {object} WorkflowRun
+ * @property {number} id
  * @property {string} workflow    Required-workflow name the run belongs to.
  * @property {string} head_sha
- * @property {number} run_attempt
- * @property {string} updated_at
+ * @property {number} run_attempt Latest attempt of this run.
  * @property {string} status
  * @property {string | null} conclusion
  */
@@ -63,10 +61,10 @@ export const selectSyncCommit = ({
   runs,
   requiredWorkflows = REQUIRED_WORKFLOWS
 }) => {
+  // Keyed by workflow name, so runs of non-gating workflows are never read.
   /** @type {Map<string, WorkflowRun>} */
   const latest = new Map()
   for (const run of runs) {
-    if (!requiredWorkflows.includes(run.workflow)) continue
     const key = `${run.head_sha}\t${run.workflow}`
     if (isNewerRun(run, latest.get(key))) latest.set(key, run)
   }
