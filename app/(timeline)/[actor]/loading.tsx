@@ -1,17 +1,21 @@
 import { FC } from 'react'
 
-import { MobileNavigationHeader } from '@/lib/components/layout/mobile-navigation-header'
+import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+
+import { PROFILE_CARD_MOBILE_CLASS } from './profileLayout'
 
 export const ProfileLoading: FC = () => {
   return (
     <div
       aria-busy="true"
       aria-label="Loading profile"
-      className="flex flex-col gap-6 pt-6 sm:pt-8 group-data-[shell=public]/shell:pt-0"
+      className="flex flex-col gap-6 md:pt-8 group-data-[shell=public]/shell:pt-0"
     >
-      <MobileNavigationHeader className="-mt-6" />
-      <section className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+      <MobileNavigationTrigger variant="floating" />
+      <section
+        className={`overflow-hidden rounded-2xl border bg-background/80 shadow-sm max-md:shadow-none ${PROFILE_CARD_MOBILE_CLASS}`}
+      >
         <div className="skeleton h-36 md:h-52" />
 
         <div className="relative px-6 pb-6">

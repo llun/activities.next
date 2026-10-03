@@ -36,11 +36,14 @@ describe('[actor] loading', () => {
     expect(container.querySelector('.animate-pulse')).toBeNull()
   })
 
-  it('renders with signed-in top padding that resets under public shell', () => {
+  it('pads the top only from md up, so the cover sits flush on mobile', () => {
     const { container } = render(<Loading />)
     const root = container.firstElementChild
-    expect(root).toHaveClass('pt-6')
-    expect(root).toHaveClass('sm:pt-8')
+    expect(root).toHaveClass('md:pt-8')
+    expect(root).not.toHaveClass('pt-6')
     expect(root).toHaveClass('group-data-[shell=public]/shell:pt-0')
+    expect(container.querySelector('section')).toHaveClass(
+      'max-md:rounded-none'
+    )
   })
 })

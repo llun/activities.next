@@ -8,7 +8,7 @@ import { getActorEmojiTags } from '@/lib/actions/utils'
 import { getUrl } from '@/lib/activities/note'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Bio } from '@/lib/components/bio/Bio'
-import { MobileNavigationHeader } from '@/lib/components/layout/mobile-navigation-header'
+import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { FeaturedTagsBlock } from '@/lib/components/profile/FeaturedTagsBlock'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
@@ -27,6 +27,7 @@ import { ActorTimelines } from './ActorTimelines'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
 import { ProfileRelationshipActions } from './ProfileRelationshipActions'
 import { getProfileData } from './getProfileData'
+import { PROFILE_CARD_MOBILE_CLASS } from './profileLayout'
 import { getNonLocalActorRedirectTarget } from './resolveActorRedirect'
 
 interface Props {
@@ -254,9 +255,17 @@ const Page: FC<Props> = async ({ params }) => {
     : null
 
   return (
-    <div className={cn('flex flex-col gap-6', isLoggedIn && 'pt-6 sm:pt-8')}>
-      <MobileNavigationHeader className="-mt-6" />
-      <section className="overflow-hidden rounded-2xl border bg-card">
+    // Below `md` the profile has no page bar at all: the cover runs flush to
+    // the top of the viewport and full-bleed, and the menu button floats over
+    // its top-left corner (fixed, so it stays put while the page scrolls).
+    <div className={cn('flex flex-col gap-6', isLoggedIn && 'md:pt-8')}>
+      <MobileNavigationTrigger variant="floating" />
+      <section
+        className={cn(
+          'overflow-hidden rounded-2xl border bg-card',
+          PROFILE_CARD_MOBILE_CLASS
+        )}
+      >
         <ProfileHeaderImage
           actorId={person.id}
           imageUrl={headerImageUrl}

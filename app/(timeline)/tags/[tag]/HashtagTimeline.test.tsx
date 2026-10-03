@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -352,19 +352,42 @@ describe('HashtagTimeline', () => {
       ).toHaveTextContent('1')
     })
 
-    it('renders mobile navigation header when wrapped in MobileNavigationProvider', () => {
-      render(
+    it('renders the compact bar titled with the tag under MobileNavigationProvider', () => {
+      const { container } = render(
         <MobileNavigationProvider>
           <HashtagTimeline {...baseProps} />
         </MobileNavigationProvider>
       )
 
+      const bar = container.querySelector(
+        '[data-mobile-compact-header]'
+      ) as HTMLElement
       expect(
-        screen.getByRole('button', { name: 'Open navigation' })
+        within(bar).getByRole('button', { name: 'Open navigation' })
       ).toBeInTheDocument()
       expect(
-        screen.getByRole('link', { name: 'Activities home' })
+        within(bar).getByRole('heading', {
+          level: 1,
+          name: `#${baseProps.tag}`
+        })
       ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('link', { name: 'Activities home' })
+      ).not.toBeInTheDocument()
+      // The in-content heading row steps aside below md; the count stays.
+      expect(
+        screen.getByRole('heading', { level: 1, name: baseProps.tag })
+          .parentElement
+      ).toHaveClass('max-md:hidden')
+    })
+
+    it('keeps the in-content heading on every width without a navigation provider', () => {
+      render(<HashtagTimeline {...baseProps} />)
+
+      expect(
+        screen.getByRole('heading', { level: 1, name: baseProps.tag })
+          .parentElement
+      ).not.toHaveClass('max-md:hidden')
     })
   })
 })

@@ -4,7 +4,8 @@ import { Hash } from 'lucide-react'
 import { FC, useCallback, useRef, useState } from 'react'
 
 import { getHashtagTimeline } from '@/lib/client'
-import { MobileNavigationHeader } from '@/lib/components/layout/mobile-navigation-header'
+import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
+import { useMobileNavigation } from '@/lib/components/layout/mobile-navigation-context'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
@@ -18,6 +19,7 @@ import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
+import { cn } from '@/lib/utils'
 
 interface HashtagTimelineProps {
   tag: string
@@ -42,6 +44,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
   isMediaUploadEnabled,
   postLineLimit
 }) => {
+  const nav = useMobileNavigation()
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
     statuses.length > 0 || Boolean(nextMaxStatusId)
@@ -145,12 +148,14 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
 
   return (
     <div className="flex flex-col gap-6">
-      <MobileNavigationHeader />
+      <MobileCompactHeader title={`#${tag}`} />
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
       <div>
-        <div className="flex items-center gap-2">
+        {/* Below `md` the compact bar carries "#tag" as the page heading, so
+            this row steps aside there; the post count stays in content. */}
+        <div className={cn('flex items-center gap-2', nav && 'max-md:hidden')}>
           <Hash className="size-6 text-muted-foreground" />
           <h1 className="text-2xl font-semibold">{tag}</h1>
         </div>

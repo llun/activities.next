@@ -533,7 +533,7 @@ describe('[actor] page header handle link', () => {
     expect(screen.queryByText(/^mastodon(\/.*)?$/i)).not.toBeInTheDocument()
   })
 
-  it('renders mobile navigation header when wrapped in MobileNavigationProvider', async () => {
+  it('renders the floating menu button, and no logo bar, under MobileNavigationProvider', async () => {
     mockGetProfileData.mockResolvedValue({
       person: {
         id: 'https://mastodon.social/users/bob',
@@ -558,13 +558,22 @@ describe('[actor] page header handle link', () => {
     const element = await Page({
       params: Promise.resolve({ actor: '@bob@mastodon.social' })
     })
-    render(<MobileNavigationProvider>{element}</MobileNavigationProvider>)
+    const { container } = render(
+      <MobileNavigationProvider>{element}</MobileNavigationProvider>
+    )
 
+    const trigger = screen.getByRole('button', { name: 'Open navigation' })
+    expect(trigger).toHaveAttribute('data-floating-nav-trigger')
+    // No title bar of any kind on the profile: no logo, no compact header.
     expect(
-      screen.getByRole('button', { name: 'Open navigation' })
-    ).toBeInTheDocument()
+      screen.queryByRole('link', { name: 'Activities home' })
+    ).not.toBeInTheDocument()
     expect(
-      screen.getByRole('link', { name: 'Activities home' })
-    ).toBeInTheDocument()
+      container.querySelector('[data-mobile-compact-header]')
+    ).not.toBeInTheDocument()
+    // The cover's card is full-bleed and square below md, flush to the top.
+    const card = container.querySelector('section') as HTMLElement
+    expect(card).toHaveClass('max-md:rounded-none', 'max-md:border-t-0')
+    expect(card.parentElement).not.toHaveClass('pt-6')
   })
 })
