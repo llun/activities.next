@@ -166,6 +166,34 @@ describe('POST /api/v1/accounts/outbox', () => {
     )
   })
 
+  it('resolves quoted status id param before passing to resolveQuoteForCreate', async () => {
+    mockResolveQuoteForCreate.mockResolvedValueOnce({
+      ok: true,
+      quotedStatusId: 'https://llun.test/users/alice/statuses/1',
+      quoteApprovalPolicy: 'public'
+    })
+    const req = new NextRequest('http://localhost/api/v1/accounts/outbox', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'note',
+        message: 'quoting with param id',
+        quotedStatusId: 'https://llun.test/users/alice/statuses/1'
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://test.llun.dev'
+      }
+    })
+
+    await POST(req, { params: Promise.resolve({}) })
+
+    expect(mockResolveQuoteForCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        quotedStatusId: 'https://llun.test/users/alice/statuses/1'
+      })
+    )
+  })
+
   it('returns 404 when the quote target is not found or unreadable', async () => {
     mockResolveQuoteForCreate.mockResolvedValueOnce({
       ok: false,

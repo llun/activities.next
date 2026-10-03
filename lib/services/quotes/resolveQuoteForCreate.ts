@@ -1,5 +1,6 @@
 import { Database } from '@/lib/database/types'
 import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
+import { fetchQuoteTargetForCreate } from '@/lib/services/quotes/fetchQuoteTargetForCreate'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/domain/actor'
 import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
@@ -40,10 +41,15 @@ export const resolveQuoteForCreate = async ({
 }: ResolveQuoteForCreateParams): Promise<ResolveQuoteForCreateResult> => {
   let quotedStatusId: string | undefined
   if (quotedStatusIdInput) {
-    const quotedStatus = await database.getStatus({
-      statusId: quotedStatusIdInput,
-      withReplies: false
-    })
+    const quotedStatus =
+      (await database.getStatus({
+        statusId: quotedStatusIdInput,
+        withReplies: false
+      })) ??
+      (await fetchQuoteTargetForCreate({
+        database,
+        quotedStatusId: quotedStatusIdInput
+      }))
     if (
       !quotedStatus ||
       !(await canActorReadStatus({
@@ -60,7 +66,7 @@ export const resolveQuoteForCreate = async ({
       quotingActorId: currentActor.id
     })
     if (verdict === 'denied') return { ok: false, reason: 'denied' }
-    quotedStatusId = quotedStatusIdInput
+    quotedStatusId = quotedStatus.id
   }
 
   const quoteApprovalPolicy =

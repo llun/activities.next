@@ -2,9 +2,14 @@ import type { Database } from '@/lib/database/types'
 import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
 import type { Actor } from '@/lib/types/domain/actor'
 
-const { mockCanActorReadStatus, mockCanQuoteStatus } = vi.hoisted(() => ({
+const {
+  mockCanActorReadStatus,
+  mockCanQuoteStatus,
+  mockFetchQuoteTargetForCreate
+} = vi.hoisted(() => ({
   mockCanActorReadStatus: vi.fn(),
-  mockCanQuoteStatus: vi.fn()
+  mockCanQuoteStatus: vi.fn(),
+  mockFetchQuoteTargetForCreate: vi.fn()
 }))
 
 vi.mock('@/lib/services/statusAccess', () => ({
@@ -12,6 +17,9 @@ vi.mock('@/lib/services/statusAccess', () => ({
 }))
 vi.mock('@/lib/services/quotes/canQuoteStatus', () => ({
   canQuoteStatus: mockCanQuoteStatus
+}))
+vi.mock('@/lib/services/quotes/fetchQuoteTargetForCreate', () => ({
+  fetchQuoteTargetForCreate: mockFetchQuoteTargetForCreate
 }))
 
 const currentActor = { id: 'https://llun.test/users/me' } as Actor
@@ -41,6 +49,7 @@ describe('resolveQuoteForCreate', () => {
     vi.clearAllMocks()
     mockCanActorReadStatus.mockResolvedValue(true)
     mockCanQuoteStatus.mockResolvedValue('automatic')
+    mockFetchQuoteTargetForCreate.mockResolvedValue(null)
   })
 
   it('resolves the quoted status id and defaults the policy from the actor setting', async () => {
@@ -81,14 +90,56 @@ describe('resolveQuoteForCreate', () => {
     })
   })
 
-  it('returns not_found when the quoted status does not exist', async () => {
+  it('returns not_found when the quoted status does not exist and fetch returns null', async () => {
     const database = makeDatabase({ quotedStatus: null })
     const result = await resolveQuoteForCreate({
       database,
       currentActor,
       quotedStatusId: QUOTED_URL
     })
+    expect(mockFetchQuoteTargetForCreate).toHaveBeenCalledWith({
+      database,
+      quotedStatusId: QUOTED_URL
+    })
     expect(result).toEqual({ ok: false, reason: 'not_found' })
+  })
+
+  it('fetches unstored remote quote target on database miss and uses its canonical id', async () => {
+    const database = makeDatabase({ quotedStatus: null })
+    const canonicalId = 'https://remote.test/users/alice/statuses/canonical-1'
+    mockFetchQuoteTargetForCreate.mockResolvedValue({
+      id: canonicalId,
+      actorId: 'https://remote.test/users/alice'
+    })
+    const result = await resolveQuoteForCreate({
+      database,
+      currentActor,
+      quotedStatusId: QUOTED_URL
+    })
+    expect(mockFetchQuoteTargetForCreate).toHaveBeenCalledWith({
+      database,
+      quotedStatusId: QUOTED_URL
+    })
+    expect(result).toEqual({
+      ok: true,
+      quotedStatusId: canonicalId,
+      quoteApprovalPolicy: undefined
+    })
+  })
+
+  it('does not call fetchQuoteTargetForCreate when the status is already stored', async () => {
+    const database = makeDatabase()
+    const result = await resolveQuoteForCreate({
+      database,
+      currentActor,
+      quotedStatusId: QUOTED_URL
+    })
+    expect(mockFetchQuoteTargetForCreate).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      ok: true,
+      quotedStatusId: QUOTED_URL,
+      quoteApprovalPolicy: undefined
+    })
   })
 
   it('returns not_found when the quoted status is not readable by the caller', async () => {

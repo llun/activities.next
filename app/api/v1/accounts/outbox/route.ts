@@ -149,10 +149,13 @@ export const POST = traceApiRoute(
           }
           // Authorize the quote target (if any) and default the new status's
           // quote policy, mirroring POST /api/v1/statuses.
+          const resolvedQuotedStatusId = quotedStatusIdInput
+            ? await resolveStatusIdParam(database, quotedStatusIdInput)
+            : undefined
           const quoteResolution = await resolveQuoteForCreate({
             database,
             currentActor,
-            quotedStatusId: quotedStatusIdInput,
+            quotedStatusId: resolvedQuotedStatusId,
             requestedPolicy: requestedQuotePolicy
           })
           if (!quoteResolution.ok) {
