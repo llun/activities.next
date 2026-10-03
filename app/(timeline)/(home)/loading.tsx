@@ -7,7 +7,7 @@ export const TimelineLoading: FC = () => {
   return (
     <div aria-busy="true" aria-label="Loading timeline" className="space-y-6">
       <PageHeader
-        className="max-md:border-b"
+        className="max-md:border-b max-md:[&>div:first-child]:pb-3"
         title={<span className="skeleton block h-7 w-24 rounded-md" />}
         description={<span className="skeleton block h-4 w-48 rounded" />}
         actions={<div className="skeleton size-9 rounded-md" />}

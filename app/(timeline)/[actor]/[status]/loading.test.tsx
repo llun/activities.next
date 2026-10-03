@@ -36,6 +36,18 @@ describe('[status] loading', () => {
     expect(container.querySelector('.animate-pulse')).toBeNull()
   })
 
+  it('draws the mobile Back row skeleton where the loaded row puts it', () => {
+    const { container } = render(<Loading />)
+
+    // Same 16px gutter and 16px arrow as the loaded Header, so the arrow
+    // does not shift when the post arrives.
+    const arrow = container.querySelector('.md\\:hidden > .size-4')
+    expect(arrow).toHaveClass('skeleton')
+    expect(arrow?.parentElement).toHaveClass('h-11', 'gap-2')
+    expect(arrow?.parentElement).not.toHaveClass('px-1')
+    expect(arrow?.parentElement?.parentElement).toHaveClass('max-md:px-4')
+  })
+
   it('applies top margin only from md up, sitting flush on mobile', () => {
     const { container } = render(<Loading />)
     const card = container.firstElementChild as HTMLElement

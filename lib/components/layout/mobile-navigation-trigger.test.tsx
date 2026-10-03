@@ -58,6 +58,30 @@ describe('MobileNavigationTrigger', () => {
     )
   })
 
+  it('keeps the orange focus ring and adds a foreground outline to the floating variant', () => {
+    render(
+      <MobileNavigationProvider>
+        <MobileNavigationTrigger variant="floating" />
+      </MobileNavigationProvider>
+    )
+
+    // The ring alone vanishes over the orange profile cover, so a 1px
+    // foreground outline sits outside it. `outline-1` carries the solid style
+    // (`cn` would merge a bare `outline` into it), and `outline-hidden` must
+    // not be on the button: it would set the style to none and cancel it.
+    const button = screen.getByRole('button', { name: 'Open navigation' })
+    expect(button).toHaveClass(
+      'focus-visible:ring-2',
+      'focus-visible:ring-ring',
+      'focus-visible:ring-offset-2',
+      'focus-visible:ring-offset-background',
+      'focus-visible:outline-1',
+      'focus-visible:outline-offset-4',
+      'focus-visible:outline-foreground'
+    )
+    expect(button).not.toHaveClass('focus-visible:outline-hidden')
+  })
+
   it('opens navigation drawer when clicked', () => {
     render(
       <MobileNavigationProvider>

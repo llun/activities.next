@@ -186,6 +186,13 @@ describe('FollowListLoadingSkeleton', () => {
         'max-md:pt-2'
       )
       expect(anonHeader.firstElementChild).toHaveClass('max-md:min-h-11')
+      // The row's arrow is the 16px, gutter-aligned one the loaded page draws.
+      expect(anonHeader.firstElementChild?.className).not.toContain(
+        'max-md:-ml-1'
+      )
+      expect(anonHeader.firstElementChild?.firstElementChild).toHaveClass(
+        'max-md:size-4'
+      )
       // The title is the bar's below md, and the count is a 20px line.
       expect(anonHeader.querySelector('.h-7')).toHaveClass('max-md:hidden')
       expect(anonHeader.querySelector('.h-4.w-24')).toHaveClass('max-md:h-5')

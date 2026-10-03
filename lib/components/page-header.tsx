@@ -227,7 +227,17 @@ export const PageHeader = ({
                   heading
                 )}
                 {description && (
-                  <div className="mt-0.5 text-xs text-muted-foreground">
+                  <div
+                    className={cn(
+                      'mt-0.5 text-xs text-muted-foreground',
+                      // Below `md` the description is the intro row's own
+                      // text: 14px on a 20px line (a skeleton fills the same
+                      // line), flush with the row's 16px top padding when the
+                      // bar already carries the title.
+                      hasMobileBar && 'max-md:min-h-5 max-md:text-sm',
+                      hidesTitleOnMobile && 'max-md:mt-0'
+                    )}
+                  >
                     {description}
                   </div>
                 )}

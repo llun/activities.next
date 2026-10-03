@@ -37,7 +37,7 @@ export function BackLink({
   accessibleName,
   iconOnlyFrom,
   className,
-  iconClassName = 'h-5 w-5',
+  iconClassName = 'size-5 max-md:size-4',
   prefetch
 }: BackLinkProps) {
   return (

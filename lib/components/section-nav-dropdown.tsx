@@ -53,7 +53,7 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
       .sort((a, b) => b.url.length - a.url.length)[0] || tabs[0]
 
   return (
-    <nav aria-label={label} className="mb-4">
+    <nav aria-label={label} className="mb-4 max-md:mb-5">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           {/* The design's trigger is taller and softer-cornered than the shared

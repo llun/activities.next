@@ -22,7 +22,7 @@ export type MobileNavigationTriggerProps =
 const VARIANT_CLASS = {
   bar: 'relative flex h-11 w-11 items-center justify-center rounded-lg text-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
   floating:
-    'fixed top-[calc(env(safe-area-inset-top,0px)+16px)] left-[calc(env(safe-area-inset-left,0px)+16px)] z-30 flex size-11 items-center justify-center rounded-full border bg-popover text-popover-foreground shadow-md hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+    'fixed top-[calc(env(safe-area-inset-top,0px)+16px)] left-[calc(env(safe-area-inset-left,0px)+16px)] z-30 flex size-11 items-center justify-center rounded-full border bg-popover text-popover-foreground shadow-md hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-foreground'
 } as const
 
 /**

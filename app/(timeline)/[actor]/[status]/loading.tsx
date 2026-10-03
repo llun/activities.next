@@ -16,11 +16,11 @@ export const StatusLoading: FC = () => {
         aria-label="Loading post"
         className={`md:mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm group-data-[shell=public]/shell:mt-0 ${MOBILE_FEED_SURFACE_CLASS}`}
       >
-        <div className="flex items-center gap-3 border-b bg-surface-chrome px-5 py-3 group-data-[shell=public]/shell:hidden max-md:bg-transparent max-md:px-3 max-md:py-0.5">
+        <div className="flex items-center gap-3 border-b bg-surface-chrome px-5 py-3 group-data-[shell=public]/shell:hidden max-md:bg-transparent max-md:px-4 max-md:py-0.5">
           <div className="skeleton h-8 w-8 rounded-md max-md:hidden" />
           {/* Mobile: the labelled Back row ("Back" / "Back to profile"). */}
-          <div className="flex h-11 items-center gap-2 px-1 md:hidden">
-            <div className="skeleton size-5 rounded-md" />
+          <div className="flex h-11 items-center gap-2 md:hidden">
+            <div className="skeleton size-4 rounded-md" />
             <div className="skeleton h-4 w-24 rounded" />
           </div>
           <div className="space-y-1 max-md:hidden">

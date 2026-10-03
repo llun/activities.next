@@ -34,4 +34,4 @@ export const MOBILE_COMPACT_HEADER_CLASS =
 // 44px-tall target in the first row of the content. From `md` up a `BackLink`
 // with `iconOnlyFrom="md"` collapses to the icon it always was.
 export const MOBILE_BACK_ROW_CLASS =
-  'max-md:-ml-1 max-md:min-h-11 max-md:gap-2 max-md:px-1 max-md:text-sm max-md:font-medium'
+  'max-md:min-h-11 max-md:gap-2 max-md:text-sm max-md:font-medium'

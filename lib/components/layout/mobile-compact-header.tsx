@@ -51,7 +51,7 @@ export function MobileCompactHeader({
     >
       <MobileNavigationTrigger className="shrink-0" />
       <Title
-        className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight"
+        className="min-w-0 flex-1 truncate text-lg font-semibold"
         // The visual title truncates; a string title stays whole in the
         // tooltip, and the heading's accessible name is never cut.
         title={typeof title === 'string' ? title : undefined}

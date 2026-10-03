@@ -35,7 +35,7 @@ export const Header: FC<Props> = ({
   const { canGoBack, goBack } = useInAppBack()
 
   return (
-    <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-surface-chrome px-5 py-3 backdrop-blur max-md:bg-transparent max-md:px-3 max-md:py-0.5 max-md:backdrop-blur-none">
+    <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-surface-chrome px-5 py-3 backdrop-blur max-md:bg-transparent max-md:px-4 max-md:py-0.5 max-md:backdrop-blur-none">
       <Button
         variant="ghost"
         size="icon"
@@ -54,7 +54,7 @@ export const Header: FC<Props> = ({
             MOBILE_BACK_ROW_CLASS
           )}
         >
-          <ArrowLeft className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
           <span>Back</span>
         </button>
       ) : (

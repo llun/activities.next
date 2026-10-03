@@ -63,6 +63,15 @@ describe('Status Header', () => {
     expect(mockBack).toHaveBeenCalled()
   })
 
+  it('lays the mobile Back row on the 16px content gutter', () => {
+    const { container } = render(<Header fallbackHref={FALLBACK} />)
+
+    // The row's own 16px padding is the whole gutter: the arrow lines up
+    // with the post card's avatar below it.
+    expect(container.firstElementChild).toHaveClass('max-md:px-4')
+    expect(container.firstElementChild).not.toHaveClass('max-md:px-3')
+  })
+
   it('offers "Back to profile" as a real link to the author on direct entry', () => {
     render(<Header fallbackHref={FALLBACK} />)
 
@@ -70,6 +79,9 @@ describe('Status Header', () => {
     expect(link).toHaveAttribute('href', FALLBACK)
     expect(link).toHaveAttribute('data-prefetch', 'false')
     expect(link).toHaveClass('md:hidden')
+    // Same row geometry as the history Back: no negative margin, 16px arrow.
+    expect(link.className).not.toContain('max-md:-ml-1')
+    expect(link.querySelector('svg')).toHaveClass('max-md:size-4')
     expect(
       screen.queryByRole('button', { name: 'Back' })
     ).not.toBeInTheDocument()
@@ -83,7 +95,19 @@ describe('Status Header', () => {
       screen.queryByRole('link', { name: 'Back to profile' })
     ).not.toBeInTheDocument()
     const back = screen.getByRole('button', { name: 'Back' })
-    expect(back).toHaveClass('md:hidden')
+    expect(back).toHaveClass(
+      'md:hidden',
+      'max-md:min-h-11',
+      'max-md:gap-2',
+      'max-md:text-sm',
+      'max-md:font-medium',
+      'text-muted-foreground'
+    )
+    // The arrow sits on the 16px content gutter: 16px icon, no negative
+    // margin or horizontal padding on the row.
+    expect(back.className).not.toContain('max-md:-ml-1')
+    expect(back.className).not.toContain('max-md:px-1')
+    expect(back.querySelector('svg')).toHaveClass('size-4')
 
     fireEvent.click(back)
     expect(mockBack).toHaveBeenCalled()

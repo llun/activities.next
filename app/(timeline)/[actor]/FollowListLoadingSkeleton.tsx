@@ -16,7 +16,7 @@ interface FollowListLoadingSkeletonProps {
 // the arrow and the label.
 const MobileBackRowSkeleton: FC<{ className?: string }> = ({ className }) => (
   <div className={cn('flex items-center', MOBILE_BACK_ROW_CLASS, className)}>
-    <div className="skeleton size-5 shrink-0 rounded-md" />
+    <div className="skeleton size-5 shrink-0 rounded-md max-md:size-4" />
     <div className="skeleton h-4 w-28 rounded md:hidden" />
   </div>
 )

@@ -64,6 +64,29 @@ describe('MobileCompactHeader', () => {
     expect(screen.getByText('Lists').tagName).toBe('P')
   })
 
+  it('puts the menu button at x=8 and sets the title at 18/28 semibold', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <MobileCompactHeader title="Timeline" />
+      </MobileNavigationProvider>
+    )
+
+    // 8px bar padding and no negative margin on the 44px trigger put its
+    // 20px icon at x=20 and, after the 8px gap, the title at x=60.
+    const bar = container.querySelector('[data-mobile-compact-header]')
+    expect(bar).toHaveClass('pl-2', 'gap-2')
+    const trigger = screen.getByRole('button', { name: 'Open navigation' })
+    expect(trigger.className).not.toMatch(/(^|\s)-?m[lxs]?-/)
+    expect(screen.getByRole('heading', { name: 'Timeline' })).toHaveClass(
+      'text-lg',
+      'font-semibold',
+      'truncate'
+    )
+    expect(screen.getByRole('heading', { name: 'Timeline' })).not.toHaveClass(
+      'text-base'
+    )
+  })
+
   it('keeps a long string title whole in its title attribute while it truncates', () => {
     const longTitle = 'Morning running crew and friends from the coastal trail'
     render(
