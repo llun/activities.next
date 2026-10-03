@@ -1131,7 +1131,7 @@ If the PR title uses a generic prefix (e.g. `feat:`) but an individual commit in
 Commits that change only files under `.github/` are also treated as no-bump by default, unless the commit message explicitly uses `major:` or `minor:`.
 When the repository has no version tag yet, the workflow still bootstraps `v1.0.0` regardless of commit history.
 
-After a merge to `main`, the version-bump workflow opens an auto-merging `Bump version to vX.Y.Z` PR from the reserved `version-bump/main` branch — leave that branch and PR alone. The merged bump commit is tagged by `tag-version.yml`, and `package.yml` builds and publishes multi-arch Docker images (tagged `main`) to GHCR and Docker Hub on every push to `main`.
+After a merge to `main`, the version-bump workflow opens an auto-merging `Bump version to vX.Y.Z` PR from the reserved `version-bump/main` branch — leave that branch and PR alone. The merged bump commit is tagged by `tag-version.yml`, and `package.yml` builds and publishes multi-arch Docker images (tagged `main`) to GHCR and Docker Hub on every push to `main`. The sync to the production deployment does **not** follow each merge: `sync-main-to-prod-dispatch.yml` runs once a day at 01:17 UTC (fixed in UTC, so 02:17/03:17 Netherlands time across DST) and dispatches the newest `main` commit on which CI, Package and CodeQL all succeeded. A merge therefore reaches production within about a day; to ship sooner, run activities.prod's `sync-upstream.yml` by hand.
 
 Examples:
 
