@@ -149,6 +149,18 @@ export const HEAT_COUNT_COLOR_STOPS: ReadonlyArray<number | string> = [
   '#facc15'
 ]
 
+/**
+ * The heat ramp's line-width stops in px, as a flat `[visit count, width, …]`
+ * list — the shape a GL `interpolate` expression takes, and what the interactive
+ * tiled map paints with. Width keeps growing past the count where the colour
+ * stops (16 against 12), so a street ridden twelve times is still getting
+ * thicker. Shared for the same reason as `HEAT_COUNT_COLOR_STOPS`: the GL and
+ * MapKit maps must draw one ramp.
+ */
+export const HEAT_COUNT_WIDTH_STOPS: ReadonlyArray<number> = [
+  1, 2.8, 4, 3.4, 16, 4.2
+]
+
 const parseHexColor = (hex: string): [number, number, number] => [
   parseInt(hex.slice(1, 3), 16),
   parseInt(hex.slice(3, 5), 16),
@@ -192,4 +204,32 @@ export const heatColorForCount = (
       Math.round(channel + (upper.color[i] - channel) * t)
     )
   )
+}
+
+/**
+ * The line width of a line visited `count` times on a `[count, width, …]` ramp.
+ *
+ * Blends linearly between the two surrounding stops and holds the first or last
+ * width outside the ramp — what a GL `interpolate` over the same stops does, as
+ * `heatColorForCount` does for colour.
+ */
+export const heatWidthForCount = (
+  count: number,
+  stops: ReadonlyArray<number> = HEAT_COUNT_WIDTH_STOPS
+): number => {
+  const ramp: Array<{ count: number; width: number }> = []
+  for (let index = 0; index + 1 < stops.length; index += 2) {
+    ramp.push({ count: stops[index], width: stops[index + 1] })
+  }
+
+  const first = ramp[0]
+  const last = ramp[ramp.length - 1]
+  if (count <= first.count) return first.width
+  if (count >= last.count) return last.width
+
+  const upperIndex = ramp.findIndex((stop) => stop.count >= count)
+  const lower = ramp[upperIndex - 1]
+  const upper = ramp[upperIndex]
+  const t = (count - lower.count) / (upper.count - lower.count)
+  return lower.width + (upper.width - lower.width) * t
 }

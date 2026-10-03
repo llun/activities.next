@@ -39,6 +39,61 @@ describe('FitnessAnalysisCharts', () => {
       }) as DOMRect
   }
 
+  // The labels sit at equal fractions of the activity, so each must be placed at
+  // its own fraction of the plot's width. `justify-between` spread the boxes
+  // evenly instead, which puts a label under its time only when every label is
+  // the same width — they are not ("0:00" next to "1:13:46").
+  //
+  // With six labels the one before the flush-right last label collides with it
+  // on a phone-width plot, so the six-label charts hide exactly that one below
+  // 400px of label row; the four-label overview chart hides none.
+  const expectLabelsAtTheirFractions = (
+    labels: HTMLElement[],
+    expectedTexts: string[],
+    { dropsPenultimateWhenNarrow }: { dropsPenultimateWhenNarrow: boolean }
+  ) => {
+    expect(labels.map((label) => label.textContent)).toEqual(expectedTexts)
+    const last = labels.length - 1
+
+    labels.forEach((label, index) => {
+      if (dropsPenultimateWhenNarrow && index === last - 1) {
+        expect(label).toHaveClass('hidden', '@min-[400px]:block')
+      } else {
+        expect(label).not.toHaveClass('hidden')
+      }
+    })
+
+    labels.forEach((label, index) => {
+      expect(label).toHaveClass('absolute', 'whitespace-nowrap')
+      if (index === 0) {
+        expect(label).toHaveClass('left-0')
+        expect(label.style.left).toBe('')
+      } else if (index === last) {
+        expect(label).toHaveClass('right-0')
+        expect(label.style.left).toBe('')
+      } else {
+        // Centred on its fraction: the left edge is at the fraction and the box
+        // is pulled back by half its own width.
+        expect(label).toHaveClass('-translate-x-1/2')
+        expect(parseFloat(label.style.left)).toBeCloseTo(
+          (index / last) * 100,
+          5
+        )
+      }
+    })
+    // No flex row spreading the boxes. The row is also the size container the
+    // hidden penultimate label's `@min-[400px]` query measures: without
+    // `@container` no ancestor on the status page is one, the query never
+    // matches, and that label stays hidden at every width.
+    expect(labels[0].parentElement).toHaveClass('relative', '@container')
+    // Every label is `absolute`, so `h-4` is all that gives the row a height:
+    // without it the row is 0px tall and its labels (a 16px line) hang over
+    // whatever follows it, such as the combined chart's caption.
+    expect(labels[0].parentElement).toHaveClass('h-4')
+    expect(labels[0].parentElement).not.toHaveClass('flex')
+    expect(labels[0].parentElement).not.toHaveClass('justify-between')
+  }
+
   describe('ChartHoverMarker', () => {
     it('renders hover dot and value chip with correct coordinates and formatting', () => {
       render(
@@ -109,6 +164,11 @@ describe('FitnessAnalysisCharts', () => {
       const labels = container.querySelectorAll('span')
       const labelTexts = Array.from(labels).map((l) => l.textContent)
       expect(labelTexts).toEqual(['0:00', '10:00', '20:00', '30:00'])
+      expectLabelsAtTheirFractions(
+        screen.getAllByTestId('chart-time-label'),
+        ['0:00', '10:00', '20:00', '30:00'],
+        { dropsPenultimateWhenNarrow: false }
+      )
 
       const svg = container.querySelector('svg')!
       mockSvgBoundingBox(svg, 100, 400)
@@ -255,6 +315,28 @@ describe('FitnessAnalysisCharts', () => {
       ).toBeInTheDocument()
       expect(container.querySelector('path')).toBeInTheDocument()
     })
+
+    it('puts each time label at its own fraction of the plot, whatever its width', () => {
+      // A 2:02:57 ride: the middle labels are "H:MM:SS" while the first is
+      // "0:00", which is what made equal-gap spacing drift off their times.
+      render(
+        <ChartPanel
+          title="Speed"
+          unit="km/h"
+          values={[10, 20, 30]}
+          minLabel="10.0"
+          maxLabel="30.0"
+          fractionDigits={1}
+          durationSeconds={7377}
+        />
+      )
+
+      expectLabelsAtTheirFractions(
+        screen.getAllByTestId('chart-time-label'),
+        ['0:00', '24:35', '49:11', '1:13:46', '1:38:22', '2:02:57'],
+        { dropsPenultimateWhenNarrow: true }
+      )
+    })
   })
 
   describe('CombinedChartPanel', () => {
@@ -313,6 +395,18 @@ describe('FitnessAnalysisCharts', () => {
 
       fireEvent.mouseLeave(svg)
       expect(onHighlight).toHaveBeenCalledWith(null)
+    })
+
+    it('puts each time label at its own fraction of the plot', () => {
+      render(
+        <CombinedChartPanel series={combinedSeries} durationSeconds={7377} />
+      )
+
+      expectLabelsAtTheirFractions(
+        screen.getAllByTestId('chart-time-label'),
+        ['0:00', '24:35', '49:11', '1:13:46', '1:38:22', '2:02:57'],
+        { dropsPenultimateWhenNarrow: true }
+      )
     })
   })
 

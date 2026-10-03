@@ -489,6 +489,23 @@ Read the applicable rules and review checks below before changing this subsystem
 - Changing the basemap does **not** restyle already-stored route images. They are
   re-rendered only by **Regenerate maps for old statuses** (`/fitness/privacy`,
   `POST /api/v1/fitness/general/regenerate-maps`).
+- **`ActivityRouteMapKit` draws its own +/− buttons, so it creates the map with
+  `showsZoomControl: false`.** MapKit's native zoom control is on by default and
+  would otherwise be a second pair, partly under the "Apple Maps" chip
+  (`AppleMapsChip`). The other three MapKit components draw no zoom buttons of
+  their own and keep the native one.
+- **The static route preview keeps the Apple attribution visible.** Apple bakes
+  its logo into the lower-left corner of the stored snapshot, and the activity
+  detail page shows the image `object-cover` in a frame wider than its 4:3, which
+  crops that corner off. `ActivityMapPanel` therefore draws the same
+  `AppleMapsChip` (bottom-left, where the logo was) over the preview whenever the
+  instance's map provider is Apple. The crop is left alone: pinning it to the
+  bottom would trade the logo for the top of the route. The provider is the
+  instance's current one, not the one that rendered a given image — which is not
+  recorded — so an image Apple failed to render (and OSM drew instead) or one
+  from before a switch to Apple still carries the chip, while an Apple-rendered
+  image on an instance that has since switched away shows none (its logo stays
+  cropped) until **Regenerate maps for old statuses** re-renders it.
 
 <a id="agents-fitness-activity-dates"></a>
 
@@ -755,6 +772,14 @@ Read the applicable rules and review checks below before changing this subsystem
   the same roads at different fidelities, so together every line renders at
   twice its opacity. The swap waits for a batch to resolve, so a pan never
   blanks the map, and a failed fetch leaves the previous view standing.
+- **The GL and MapKit maps draw ONE heat ramp.** GL interpolates colour and
+  width over the visit count in a data-driven paint; MapKit has no such thing,
+  so each run's `Style` is sampled from the same stops at its own count —
+  `heatColorForCount(count, HEAT_COUNT_COLOR_STOPS)` and
+  `heatWidthForCount(count)` (stops in `HEAT_COUNT_WIDTH_STOPS`), both in
+  `heatmapTiles/constants.ts` — rather than snapped to flat tiers, which painted
+  every road ridden four to eleven times the same orange. Do not re-introduce a
+  copy of the stops in either component.
 - **The STATIC share image reads the pyramid too, and enforces the same two
   boundaries the tile routes do.** `buildHeatmapSegmentsFromTiles` takes the
   heatmap ROW, not a bare actor id — pairing a scope with the wrong actor's

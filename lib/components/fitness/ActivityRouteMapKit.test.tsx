@@ -109,6 +109,30 @@ describe('ActivityRouteMapKit', () => {
     expect(double.getMap()!.options.mapType).toBe('mutedStandard')
   })
 
+  it("turns MapKit's native zoom control off, because the component draws its own +/- buttons", async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockImplementation((() =>
+      Promise.resolve(double.mapkit)) as never)
+
+    render(
+      <ActivityRouteMapKit
+        routeSegments={routeSegments}
+        routeSamples={routeSamples}
+        onUnavailable={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(double.getMap()).not.toBeNull())
+    expect(double.getMap()!.options.showsZoomControl).toBe(false)
+    expect(
+      await screen.findByRole('button', { name: 'Zoom in map' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Zoom out map' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Apple Maps')).toHaveClass('bottom-3', 'right-3')
+  })
+
   it('draws a white casing and a route line per drawable segment once MapKit resolves', async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockImplementation((() =>

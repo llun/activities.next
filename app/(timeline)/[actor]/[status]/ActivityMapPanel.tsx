@@ -3,6 +3,7 @@ import { type FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { FitnessRouteSample, FitnessRouteSegment } from '@/lib/client'
 import { ActivityRouteMapKit } from '@/lib/components/fitness/ActivityRouteMapKit'
+import { AppleMapsChip } from '@/lib/components/fitness/AppleMapsChip'
 import {
   ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS,
   RoutePrivacyDescription,
@@ -675,16 +676,27 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
           className="h-full w-full"
         />
       ) : mapAttachment ? (
-        <button
-          type="button"
-          onClick={onOpenMap}
-          className="block h-full w-full cursor-pointer"
-        >
-          <Media
-            attachment={mapAttachment}
-            className="h-full w-full object-cover"
-          />
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={onOpenMap}
+            className="block h-full w-full cursor-pointer"
+          >
+            <Media
+              attachment={mapAttachment}
+              className="h-full w-full object-cover"
+            />
+          </button>
+          {/* Apple bakes its logo into the lower-left corner of the stored
+              snapshot, and `object-cover` in a frame wider than the image's
+              4:3 crops that corner off. The attribution has to stay visible, so
+              the same chip the interactive Apple map shows is drawn here, in
+              the corner the logo was cut from. The crop itself is left alone:
+              moving it to the bottom would trade the logo for the route. */}
+          {mapProvider.type === 'apple' ? (
+            <AppleMapsChip className="bottom-3 left-3" />
+          ) : null}
+        </>
       ) : (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           Map preview unavailable
@@ -693,7 +705,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
 
       {shouldRenderInteractiveMap ? (
         <>
-          {/* MapKit renders its own zoom controls (it has no zoomIn/zoomOut). */}
+          {/* The Apple branch draws its own +/− inside ActivityRouteMapKit. */}
           {glProvider ? (
             <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border bg-background/95 shadow-sm">
               <button

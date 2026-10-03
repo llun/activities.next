@@ -483,3 +483,30 @@ export const computePowerHistogramMinutes = (
   }
   return buckets.map((seconds) => seconds / 60)
 }
+
+/**
+ * Share of the power-distribution plot, counted back from its right edge, that
+ * is kept free of tick labels because the end label (the right-aligned range
+ * maximum) is printed there. Two "NNN W" labels at 11px are ~35px each, so 15%
+ * holds both with a gap once the plot is ~465px wide or more (the detail column
+ * gives it ~530px at 768px and ~776px from 1024px); a tick closer to the end
+ * than that is the one that overlapped it. On a narrower plot the last tick can
+ * still touch the end label — a fixed share cannot follow a pixel-sized label.
+ */
+export const POWER_AXIS_END_CLEARANCE = 0.15
+
+/**
+ * Which 25 W buckets get a tick label on the power-distribution x axis: every
+ * other one (a label every 50 W), minus any that sits inside the end label's
+ * clearance. The old `index % 2 === 0` rule alone printed the last even index
+ * for an odd bucket count right under the end label — 25 buckets put "600 W"
+ * at 96% of the plot and "625 W" at its right edge.
+ */
+export const getPowerAxisTickIndices = (barCount: number): number[] => {
+  const indices: number[] = []
+  for (let index = 0; index < barCount; index += 2) {
+    if ((barCount - index) / barCount < POWER_AXIS_END_CLEARANCE) continue
+    indices.push(index)
+  }
+  return indices
+}

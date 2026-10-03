@@ -9,7 +9,12 @@ import type {
   FitnessRouteHeatmapTileRequest
 } from '@/lib/client'
 import { createMapKitTestDouble } from '@/lib/components/fitness/mapkitTestDouble'
-import { TILE_EXTENT } from '@/lib/services/fitness-files/heatmapTiles/constants'
+import {
+  HEAT_COUNT_COLOR_STOPS,
+  TILE_EXTENT,
+  heatColorForCount,
+  heatWidthForCount
+} from '@/lib/services/fitness-files/heatmapTiles/constants'
 import {
   encodeTile,
   tilesForBounds
@@ -454,6 +459,64 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
       expect(colours.has('#facc15')).toBe(true)
       expect(colours.has('#ef4444')).toBe(true)
     })
+  })
+
+  it('blends colour and width between ramp stops, as the GL map does, instead of stepping', async () => {
+    // Counts 5 and 8 sit between the orange stop (4) and the yellow one (12).
+    // The old three-tier rule painted both the flat orange 3.4px; the GL paint
+    // interpolates, so each gets its own blend of colour and width.
+    //
+    // 13 and 16 are past the opacity saturation (6), so the cache key's opacity
+    // part is the same for 8, 13 and 16 and only the resolved colour and width
+    // keep their Styles apart: 8 and 13 differ in colour (the ramp runs to 12),
+    // 13 and 16 only in width (both are the final yellow, the width ramp runs
+    // to 16). A key without the width part would share one Style between 13
+    // and 16. Width alone separates every count up to 16, so the colour part
+    // is not pinned here.
+    const midRamp = encodeTile([
+      { count: 5, points: [0, 0, 32, 32] },
+      { count: 8, points: [64, 64, 96, 96] },
+      { count: 13, points: [128, 128, 160, 160] },
+      { count: 16, points: [192, 192, 224, 224] }
+    ])
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+
+    render(
+      <RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchWith(midRamp)} />
+    )
+
+    await waitFor(() => {
+      const styles = double
+        .overlaysOfKind('polyline')
+        .map(
+          (overlay) =>
+            overlay.styleOptions as { strokeColor?: string; lineWidth?: number }
+        )
+      for (const count of [5, 8, 13, 16]) {
+        expect(styles).toContainEqual(
+          expect.objectContaining({
+            strokeColor: heatColorForCount(count, HEAT_COUNT_COLOR_STOPS),
+            lineWidth: heatWidthForCount(count)
+          })
+        )
+      }
+    })
+    // Neither blend is the flat orange tier, and the two differ from each other.
+    expect(heatColorForCount(5, HEAT_COUNT_COLOR_STOPS)).not.toBe('#f97316')
+    expect(heatColorForCount(5, HEAT_COUNT_COLOR_STOPS)).not.toBe(
+      heatColorForCount(8, HEAT_COUNT_COLOR_STOPS)
+    )
+    expect(heatWidthForCount(5)).not.toBe(heatWidthForCount(8))
+    // Past the opacity saturation the counts still tell apart: 8 and 13 by
+    // colour, 13 and 16 by width alone.
+    expect(heatColorForCount(8, HEAT_COUNT_COLOR_STOPS)).not.toBe(
+      heatColorForCount(13, HEAT_COUNT_COLOR_STOPS)
+    )
+    expect(heatColorForCount(13, HEAT_COUNT_COLOR_STOPS)).toBe(
+      heatColorForCount(16, HEAT_COUNT_COLOR_STOPS)
+    )
+    expect(heatWidthForCount(13)).not.toBe(heatWidthForCount(16))
   })
 
   it('draws the muted standard basemap, so the heat runs stay the brightest thing', async () => {

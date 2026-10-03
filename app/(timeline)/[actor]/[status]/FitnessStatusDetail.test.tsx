@@ -25,6 +25,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
+import { GRAPH_HEIGHT_CLASSNAME } from './FitnessAnalysisCharts'
 import { FitnessStatusDetail } from './FitnessStatusDetail'
 
 vi.mock('@/lib/client', () => ({
@@ -710,6 +711,36 @@ describe('FitnessStatusDetail', () => {
     await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
   })
 
+  describe('moving time tile', () => {
+    const movingTimeValue = () =>
+      screen.getByText('Moving time').closest('div')!.parentElement!.textContent
+
+    it('shows the recorded moving time, not the elapsed duration', () => {
+      // 30:00 elapsed, 25:00 of it spent moving: the average-speed tile is
+      // distance over moving time, so this tile has to be the same span.
+      renderDetail({
+        initialFitnessFiles: [buildFitnessFile({ movingTimeSeconds: 1500 })]
+      })
+
+      expect(movingTimeValue()).toContain('25:00')
+      expect(movingTimeValue()).not.toContain('30:00')
+    })
+
+    // `getFitnessPaceOrSpeed` falls back on a stored 0 as well as on null, and
+    // the tile has to follow it — a 0 would otherwise read "0:00" while the
+    // average-speed tile divides by the elapsed time.
+    it.each([{ movingTimeSeconds: null }, { movingTimeSeconds: 0 }])(
+      'falls back to the elapsed duration when moving time is $movingTimeSeconds',
+      ({ movingTimeSeconds }) => {
+        renderDetail({
+          initialFitnessFiles: [buildFitnessFile({ movingTimeSeconds })]
+        })
+
+        expect(movingTimeValue()).toContain('30:00')
+      }
+    )
+  })
+
   it('draws stat tiles as the design does: radius 8, flat, and a value line height of 1', () => {
     renderDetail()
 
@@ -932,6 +963,106 @@ describe('FitnessStatusDetail', () => {
 
       expect(label.style.left).toMatch(/^calc\(\d+(\.\d+)?% \+ 6px\)$/)
       expect(label.style.right).toBe('')
+    })
+  })
+
+  describe('power distribution axes', () => {
+    const openPowerDistribution = async (powerSeries: number[]) => {
+      mockGetFitnessRouteData.mockResolvedValue({ ...routeData, powerSeries })
+      const { container } = renderDetail()
+      await waitFor(() =>
+        expect(screen.getByText('Avg HR')).toBeInTheDocument()
+      )
+      const menu = await openSectionMenu()
+      fireEvent.click(
+        within(menu).getByRole('menuitem', { name: '25 W Distribution' })
+      )
+      await screen.findByTestId('power-average-label')
+      return container
+    }
+
+    // A 300 W peak is ceil((300 + 25) / 25) = 13 buckets — an odd count, the
+    // shape whose last even index (12, at 92%) sat under the end label.
+    const oddBucketSeries = [40, 50, 60, 50, 40, 60, 300]
+
+    it('prints no x tick label under the end label when the bucket count is odd', async () => {
+      await openPowerDistribution(oddBucketSeries)
+
+      expect(
+        screen.getAllByTestId('power-x-tick').map((tick) => tick.textContent)
+      ).toEqual(['0 W', '50 W', '100 W', '150 W', '200 W', '250 W'])
+      expect(screen.getByTestId('power-x-end-label')).toHaveTextContent('325 W')
+    })
+
+    it('keeps every x axis label on one line', async () => {
+      await openPowerDistribution(oddBucketSeries)
+
+      for (const label of [
+        ...screen.getAllByTestId('power-x-tick'),
+        screen.getByTestId('power-x-end-label')
+      ]) {
+        expect(label).toHaveClass('whitespace-nowrap')
+      }
+    })
+
+    it('puts each y label on its own gridline, clamped inside the axis box', async () => {
+      const container = await openPowerDistribution(oddBucketSeries)
+
+      // The plot's horizontal gridlines, as a share of the svg's viewBox height.
+      const gridlines = Array.from(
+        container.querySelectorAll('svg line[x1="0"]')
+      )
+      const viewBoxHeight = Number(
+        gridlines[0]?.closest('svg')?.getAttribute('viewBox')?.split(' ')[3]
+      )
+      const gridlinePercents = gridlines.map(
+        (line) => (Number(line.getAttribute('y1')) / viewBoxHeight) * 100
+      )
+      expect(gridlinePercents).toHaveLength(5)
+
+      // Labels read top to bottom, so the top label belongs to the highest
+      // gridline (the smallest y).
+      const labels = screen.getAllByTestId('power-y-tick')
+      expect(labels).toHaveLength(5)
+      const labelPercents = labels.map((label) =>
+        Number(/^clamp\(8px, ([\d.]+)%/.exec(label.style.top)?.[1])
+      )
+      labelPercents.forEach((percent, index) => {
+        expect(percent).toBeCloseTo(
+          gridlinePercents[gridlinePercents.length - 1 - index],
+          5
+        )
+      })
+      // The gridlines are not evenly spread over the box, which is why
+      // `justify-between` could not place the labels.
+      expect(labelPercents[0]).toBeGreaterThan(5)
+      expect(labelPercents[4]).toBe(100)
+      // Every label is centred on its own position and holds one line. It is
+      // `self-start` because a grid item stretches to its 250px cell by
+      // default, and `-translate-y-1/2` of a 250px box shoves the text ~125px
+      // above its gridline. jsdom lays nothing out, so the classes that make
+      // `top` mean "down from the top of the shared box" are the contract:
+      // `relative` (`top` is ignored on a static element, so every label would
+      // pile onto the top edge), the one shared `col-start-1 row-start-1` cell
+      // and the `grid` that owns it.
+      for (const label of labels) {
+        expect(label).toHaveClass(
+          'relative',
+          'col-start-1',
+          'row-start-1',
+          '-translate-y-1/2',
+          'self-start',
+          'whitespace-nowrap'
+        )
+        // The lower clamp keeps the baseline label inside the box. jsdom's
+        // serializer drops the inner `calc(`, hence the optional group.
+        expect(label.style.top).toMatch(/, (calc\()?100% - 8px\)+$/)
+      }
+      expect(labels[0].parentElement).toHaveClass('grid')
+      // `top: N%` is a share of this box, so it has to be as tall as the plot
+      // it labels: without the height the box is one 16px line and the five
+      // labels stack on the same spot.
+      expect(labels[0].parentElement).toHaveClass(GRAPH_HEIGHT_CLASSNAME)
     })
   })
 

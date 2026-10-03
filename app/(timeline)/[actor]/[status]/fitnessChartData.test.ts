@@ -27,6 +27,7 @@ import {
   formatDuration,
   getChartXPosition,
   getChartYPosition,
+  getPowerAxisTickIndices,
   getSeriesMinMax,
   plotAtStravaDensity,
   scaleCombinedChartSeries,
@@ -424,5 +425,24 @@ describe('fitnessChartData', () => {
       expect(histogram.length).toBeGreaterThan(0)
       expect(histogram[8]).toBe(50_000 / 60)
     })
+  })
+
+  describe('getPowerAxisTickIndices', () => {
+    it.each([
+      // Odd count (576 W max): the last even index, 24, would sit at 96% of the
+      // plot under the "625 W" end label, and 22 at 88% still touches it.
+      [25, [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20]],
+      // Even count: the last even index, 22 at 92%, is the one that clashed.
+      [24, [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20]],
+      [13, [0, 2, 4, 6, 8, 10]],
+      [10, [0, 2, 4, 6, 8]],
+      [1, [0]],
+      [0, []]
+    ])(
+      'labels every 50 W of %i buckets except next to the end label',
+      (barCount, expected) => {
+        expect(getPowerAxisTickIndices(barCount)).toEqual(expected)
+      }
+    )
   })
 })

@@ -107,6 +107,7 @@ import {
   fillHeartRateDropouts,
   filterPositiveHeartRateSeries,
   formatDuration,
+  getPowerAxisTickIndices,
   getSeriesMinMax,
   plotAtStravaDensity
 } from './fitnessChartData'
@@ -1171,6 +1172,16 @@ export const FitnessStatusDetail: FC<Props> = ({
 
   const distanceMeters = fitness?.totalDistanceMeters ?? 0
   const durationSeconds = fitness?.totalDurationSeconds ?? 0
+  // The "Moving time" tile reads the stored moving time (stops excluded) — the
+  // same value the average-speed tile divides the distance by, so the two agree
+  // — and falls back to elapsed time only when none was recorded, exactly as
+  // `getFitnessPaceOrSpeed` does. Charts and axes keep `durationSeconds`:
+  // they plot the whole elapsed span.
+  const movingTimeSeconds =
+    typeof fitness?.movingTimeSeconds === 'number' &&
+    fitness.movingTimeSeconds > 0
+      ? fitness.movingTimeSeconds
+      : durationSeconds
   const elevationGainMeters = fitness?.elevationGainMeters ?? 0
   const distanceKm = distanceMeters > 0 ? distanceMeters / 1000 : 0
   const distanceValue =
@@ -1586,7 +1597,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             <StatTile
               icon={Clock}
               label="Moving time"
-              value={formatDuration(durationSeconds)}
+              value={formatDuration(movingTimeSeconds)}
               sub="moving"
               big
             />
@@ -1945,20 +1956,40 @@ export const FitnessStatusDetail: FC<Props> = ({
               Power distribution
             </SectionTitle>
             <div className="grid grid-cols-[auto_1fr] items-stretch gap-4">
-              <div
-                className={cn(
-                  'flex flex-col justify-between py-1 text-[11px] tabular-nums text-muted-foreground',
-                  GRAPH_HEIGHT_CLASSNAME
-                )}
-              >
-                {histogramLayout.yAxisTicks
-                  .slice()
-                  .reverse()
-                  .map((tick, i) => (
-                    <span key={`y-tick-${i}`} className="pr-2 text-right">
-                      {tick.label}
-                    </span>
-                  ))}
+              {/* The `pt-1` matches the plot column's, so this box and the svg
+                  start at the same y. Each label is centred on its own gridline
+                  at `tick.y / viewBox height` of that box — the gridlines are
+                  not evenly spread over it (the top one is below the average
+                  label's headroom, the bottom one is the baseline), which
+                  `justify-between` could not follow. All labels share one grid
+                  cell, so the column is still as wide as the widest of them,
+                  and the clamp keeps the baseline label inside the box
+                  instead of hanging below it. */}
+              <div className="pt-1">
+                <div
+                  className={cn(
+                    'grid text-[11px] leading-4 tabular-nums text-muted-foreground',
+                    GRAPH_HEIGHT_CLASSNAME
+                  )}
+                >
+                  {histogramLayout.yAxisTicks
+                    .slice()
+                    .reverse()
+                    .map((tick, i) => (
+                      <span
+                        key={`y-tick-${i}`}
+                        data-testid="power-y-tick"
+                        className="relative col-start-1 row-start-1 -translate-y-1/2 self-start justify-self-end whitespace-nowrap pr-2 text-right"
+                        style={{
+                          top: `clamp(8px, ${
+                            (tick.y / histogramLayout.histogramViewHeight) * 100
+                          }%, calc(100% - 8px))`
+                        }}
+                      >
+                        {tick.label}
+                      </span>
+                    ))}
+                </div>
               </div>
               <div className="relative min-w-0 pt-1">
                 <svg
@@ -2113,23 +2144,29 @@ export const FitnessStatusDetail: FC<Props> = ({
 
                 {/* X-Axis labels */}
                 <div className="relative mt-2 flex h-6 border-t border-border pt-2 text-[11px] tabular-nums text-muted-foreground">
-                  {histogramMinutes.map((_, index) => {
-                    // Show label at start of bucket, only every 50W (index % 2 === 0)
-                    if (index % 2 !== 0) return null
-
-                    const leftPercent = (index / histogramLayout.barCount) * 100
-                    return (
-                      <span
-                        key={`label-${index}`}
-                        className="absolute"
-                        style={{ left: `${leftPercent}%` }}
-                      >
-                        {index * 25} W
-                      </span>
-                    )
-                  })}
+                  {/* A label at the start of every other bucket (every 50 W),
+                      except the ones the end label below would sit on. */}
+                  {getPowerAxisTickIndices(histogramLayout.barCount).map(
+                    (index) => {
+                      const leftPercent =
+                        (index / histogramLayout.barCount) * 100
+                      return (
+                        <span
+                          key={`label-${index}`}
+                          data-testid="power-x-tick"
+                          className="absolute whitespace-nowrap"
+                          style={{ left: `${leftPercent}%` }}
+                        >
+                          {index * 25} W
+                        </span>
+                      )
+                    }
+                  )}
                   {/* Final label at the end */}
-                  <span className="absolute right-0 text-right">
+                  <span
+                    data-testid="power-x-end-label"
+                    className="absolute right-0 whitespace-nowrap text-right"
+                  >
                     {histogramLayout.barCount * 25} W
                   </span>
                 </div>
