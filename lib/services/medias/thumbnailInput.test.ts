@@ -75,7 +75,7 @@ describe('readValidThumbnail', () => {
     const truncated = jpeg.subarray(0, jpeg.length - 1000)
 
     // Each promise is collapsed to its outcome first: a wrongly resolved
-    // promise would otherwise print its whole decoded Buffer into the failure.
+    // promise would otherwise print its whole resolved Buffer into the failure.
     const encoded = await createStoredImagePipeline(truncated)
       .webp()
       .toBuffer()
