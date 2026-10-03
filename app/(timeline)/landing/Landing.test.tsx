@@ -83,18 +83,20 @@ describe('Landing', () => {
     // The bar is `sticky` inside this wrapper, so any height that tracks the
     // scrolling column (`h-full`, `min-h-full`, `h-dvh`, `min-h-0`,
     // `max-h-full`, their `md:` forms) shrinks it back to the viewport and the
-    // bar stops sticking after the first screen at md+. jsdom has no layout, so
-    // the contract is "no height utility at all"; nothing here needs even
-    // `h-auto`.
+    // bar stops sticking after the first screen at md+. Any non-visible
+    // `overflow-*` breaks it too: it makes the wrapper a scroll container, so
+    // it clips the feed at md+ and the bar scrolls away with the page below it.
+    // jsdom has no layout, so the contract is "no height, size or overflow
+    // utility at all"; nothing here needs even `h-auto`.
     const wrapper = screen
       .getByText('llun.social')
       .closest('.sticky')?.parentElement
     // The bar's parent is the element that holds the feed (not a bar-sized box).
     expect(wrapper).toContainElement(screen.getByTestId('posts'))
-    const heights = Array.from(wrapper?.classList ?? []).filter((name) =>
-      /(?:^|:)!?(?:(?:min-|max-)?h|size)-/.test(name)
+    const sizing = Array.from(wrapper?.classList ?? []).filter((name) =>
+      /(?:^|:)!?(?:(?:(?:min-|max-)?h|size)-|overflow-)/.test(name)
     )
-    expect(heights).toEqual([])
+    expect(sizing).toEqual([])
   })
 
   it("keeps the sticky feed bar above a post's z-10 media controls", () => {
