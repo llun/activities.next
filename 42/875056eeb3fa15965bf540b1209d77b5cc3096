@@ -1,0 +1,31 @@
+CONTRIBUTING.md
+  s_bb92ee938bf6dc::t_7395f661e21eae 856-860
+  s_bb92ee938bf6dc::t_15cbb16e0160ed 849-851
+  s_bb92ee938bf6dc::t_ab2f42b095a76a 852-855
+app/api/users/[username]/collections/tags/route.test.ts
+  s_bb92ee938bf6dc::t_15cbb16e0160ed 52-53
+app/api/v1/fitness/general/regenerate-maps/route.test.ts
+  s_bb92ee938bf6dc::t_15cbb16e0160ed 70-72
+scripts/backup/actorArchive.test.ts
+  s_bb92ee938bf6dc::t_15cbb16e0160ed 1200-1202
+app/api/users/[username]/inbox/route.test.ts
+  s_bb92ee938bf6dc::t_15cbb16e0160ed 235-236
+lib/actions/applyBlock.test.ts
+  s_bb92ee938bf6dc::t_15cbb16e0160ed 20-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "42875056eeb3fa15965bf540b1209d77b5cc3096",
+  "prompts": {},
+  "sessions": {
+    "s_bb92ee938bf6dc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e42ed834-8d66-48e4-81fb-7bba86cad7f1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
