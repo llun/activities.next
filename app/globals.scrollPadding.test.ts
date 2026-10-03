@@ -39,27 +39,27 @@ const bodyOf = (source: string, prelude: RegExp): string => {
 // padding must stop at exactly the width the chrome does.
 const mobileQuery = bodyOf(css, /@media\s*\(width\s*<\s*48rem\)\s*\{/)
 
-const offsetOf = (selector: string): { safeArea: boolean; rem: number } => {
+// Returns the rem term of `calc(env(safe-area-inset-top, 0px) + <n>rem)`; the
+// pattern requires the safe-area term, so a block without it throws here.
+const offsetOf = (selector: string): number => {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const body = bodyOf(mobileQuery, new RegExp(`${escaped}\\s*\\{`))
   const match = body.match(
-    /scroll-padding-top\s*:\s*calc\(\s*(env\(safe-area-inset-top,\s*0px\))\s*\+\s*([\d.]+)rem\s*\)\s*;/
+    /scroll-padding-top\s*:\s*calc\(\s*env\(safe-area-inset-top,\s*0px\)\s*\+\s*([\d.]+)rem\s*\)\s*;/
   )
   if (!match) throw new Error(`No safe-area scroll-padding-top in ${selector}`)
-  return { safeArea: Boolean(match[1]), rem: Number(match[2]) }
+  return Number(match[1])
 }
 
 describe('mobile scroll-padding for fixed chrome', () => {
   it('clears the 56px compact bar and its border plus the safe area', () => {
-    const { safeArea, rem } = offsetOf('html:has([data-mobile-compact-header])')
-    expect(safeArea).toBe(true)
+    const rem = offsetOf('html:has([data-mobile-compact-header])')
     // 56px bar (55px + 1px border) is 3.5rem; the offset keeps a gap below it.
     expect(rem).toBeGreaterThanOrEqual(3.5)
   })
 
   it('clears the 44px floating menu button at its 16px inset plus the safe area', () => {
-    const { safeArea, rem } = offsetOf('html:has([data-floating-nav-trigger])')
-    expect(safeArea).toBe(true)
+    const rem = offsetOf('html:has([data-floating-nav-trigger])')
     // 16px inset + 44px button is 3.75rem; the offset keeps a gap below it.
     expect(rem).toBeGreaterThanOrEqual(3.75)
   })
