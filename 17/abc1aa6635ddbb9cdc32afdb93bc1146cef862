@@ -1,0 +1,30 @@
+lib/components/fitness/RegionMap.test.tsx
+  s_82468012d96a9d::t_17e0b201e8e4f3 202
+  s_82468012d96a9d::t_d20c4f83de356e 209-210
+lib/components/fitness/RegionMap.tsx
+  s_82468012d96a9d::t_d20c4f83de356e 227-231
+lib/testing/contrast.ts
+  s_82468012d96a9d::t_c0eb50c57ca597 1-20
+lib/services/email/layout/blocks.test.ts
+  s_82468012d96a9d::t_444225ff4cf204 357-359
+  s_82468012d96a9d::t_c0eb50c57ca597 354
+  s_82468012d96a9d::t_9f1529fcb50e0d 1-2
+lib/components/filters/FilterRow.test.tsx
+  s_82468012d96a9d::t_c0eb50c57ca597 8,53-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "17abc1aa6635ddbb9cdc32afdb93bc1146cef862",
+  "prompts": {},
+  "sessions": {
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
