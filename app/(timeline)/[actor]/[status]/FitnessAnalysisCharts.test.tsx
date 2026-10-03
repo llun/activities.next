@@ -81,8 +81,11 @@ describe('FitnessAnalysisCharts', () => {
         )
       }
     })
-    // No flex row spreading the boxes.
-    expect(labels[0].parentElement).toHaveClass('relative')
+    // No flex row spreading the boxes. The row is also the size container the
+    // hidden penultimate label's `@min-[400px]` query measures: without
+    // `@container` no ancestor on the status page is one, the query never
+    // matches, and that label stays hidden at every width.
+    expect(labels[0].parentElement).toHaveClass('relative', '@container')
     expect(labels[0].parentElement).not.toHaveClass('flex')
     expect(labels[0].parentElement).not.toHaveClass('justify-between')
   }

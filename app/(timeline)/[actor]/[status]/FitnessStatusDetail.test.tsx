@@ -725,13 +725,19 @@ describe('FitnessStatusDetail', () => {
       expect(movingTimeValue()).not.toContain('30:00')
     })
 
-    it('falls back to the elapsed duration when no moving time was recorded', () => {
-      renderDetail({
-        initialFitnessFiles: [buildFitnessFile({ movingTimeSeconds: null })]
-      })
+    // `getFitnessPaceOrSpeed` falls back on a stored 0 as well as on null, and
+    // the tile has to follow it — a 0 would otherwise read "0:00" while the
+    // average-speed tile divides by the elapsed time.
+    it.each([{ movingTimeSeconds: null }, { movingTimeSeconds: 0 }])(
+      'falls back to the elapsed duration when moving time is $movingTimeSeconds',
+      ({ movingTimeSeconds }) => {
+        renderDetail({
+          initialFitnessFiles: [buildFitnessFile({ movingTimeSeconds })]
+        })
 
-      expect(movingTimeValue()).toContain('30:00')
-    })
+        expect(movingTimeValue()).toContain('30:00')
+      }
+    )
   })
 
   it('draws stat tiles as the design does: radius 8, flat, and a value line height of 1', () => {
@@ -1033,14 +1039,25 @@ describe('FitnessStatusDetail', () => {
       // Every label is centred on its own position and holds one line. It is
       // `self-start` because a grid item stretches to its 250px cell by
       // default, and `-translate-y-1/2` of a 250px box shoves the text ~125px
-      // above its gridline.
+      // above its gridline. jsdom lays nothing out, so the classes that make
+      // `top` mean "down from the top of the shared box" are the contract:
+      // `relative` (`top` is ignored on a static element, so every label would
+      // pile onto the top edge), the one shared `col-start-1 row-start-1` cell
+      // and the `grid` that owns it.
       for (const label of labels) {
         expect(label).toHaveClass(
+          'relative',
+          'col-start-1',
+          'row-start-1',
           '-translate-y-1/2',
           'self-start',
           'whitespace-nowrap'
         )
+        // The lower clamp keeps the baseline label inside the box. jsdom's
+        // serializer drops the inner `calc(`, hence the optional group.
+        expect(label.style.top).toMatch(/, (calc\()?100% - 8px\)+$/)
       }
+      expect(labels[0].parentElement).toHaveClass('grid')
     })
   })
 

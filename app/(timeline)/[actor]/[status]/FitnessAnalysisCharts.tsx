@@ -107,12 +107,13 @@ export const Card: FC<{
 // Placing labels at their fractions costs the even gaps: the flush-right last
 // label sits half its width inside its own fraction, so with six labels (one
 // every fifth of the plot) the one before it collides once the plot is under
-// ~345px for "H:MM:SS" labels (~400px for a ten-hour ride's "10:00:00") — a
-// phone-width plot on any ride over an hour. `dropPenultimateWhenNarrow` hides
-// that one label below 400px, measured on the label row itself (a container
-// query, never the viewport: the plot can be narrow in a wide window). The
-// four-label overview chart does not need it — its last pair stays clear down
-// to the 212px a 320px screen leaves it.
+// ~315px for "H:MM:SS" labels (~350px for a ten-hour ride's "10:00:00", ~365px
+// at the widest) — a phone-width plot on any ride over an hour.
+// `dropPenultimateWhenNarrow` hides that one label below 400px, a margin over
+// those figures, measured on the label row itself (a container query, never the
+// viewport: the plot can be narrow in a wide window). The four-label overview
+// chart does not need it — its last pair stays clear down to the 212px a 320px
+// screen leaves it for any ride under 15 hours.
 const ChartTimeLabels: FC<{
   labels: string[]
   dropPenultimateWhenNarrow?: boolean
@@ -312,10 +313,14 @@ export const ElevationProfileChart: FC<ElevationProfileChartProps> = ({
   // (0, 1/3, 2/3 and 1, the ends flush), so the tightest pair is the last two:
   // the 2/3 label ends at 162px and the end label starts at 212 - 42 = 170px.
   // A ten-hour ride widens only the end label ("10:00:00", ~49px), leaving
-  // them ~1px apart — just clear. Six ticks would put the 4/5 label at
-  // 170px ± 21 over an end label starting at 170px, ~20px of overlap. Pinned
-  // by a test, since the failure is silent — nothing errors, the labels just
-  // overlap.
+  // them ~1px apart — just clear. From fifteen hours the 2/3 label is
+  // "10:00:00" too, and on system-ui fonts with Apple's wider digits the pair
+  // overlaps by ~2px at 212px (Arial and Roboto digits are narrower and stay
+  // clear) — accepted: a 320px screen with a 15 h+ activity, where hiding the
+  // 2/3 label would cost every shorter ride a label to fix a 2px touch. Six
+  // ticks would put the 4/5 label at 170px ± 21 over an end label starting at
+  // 170px, ~20px of overlap. Pinned by a test, since the failure is silent —
+  // nothing errors, the labels just overlap.
   const xLabels = useMemo(
     () =>
       durationSeconds

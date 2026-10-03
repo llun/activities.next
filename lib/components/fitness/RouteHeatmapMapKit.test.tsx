@@ -465,9 +465,17 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
     // Counts 5 and 8 sit between the orange stop (4) and the yellow one (12).
     // The old three-tier rule painted both the flat orange 3.4px; the GL paint
     // interpolates, so each gets its own blend of colour and width.
+    //
+    // 13 and 16 are past the opacity saturation (6), so the cache key's opacity
+    // part is the same for 8, 13 and 16 and only the resolved colour and width
+    // keep their Styles apart: 8 and 13 differ in colour (the ramp runs to 12),
+    // 13 and 16 only in width (both are the final yellow, the width ramp runs
+    // to 16). A key that dropped either part would share one Style among them.
     const midRamp = encodeTile([
       { count: 5, points: [0, 0, 32, 32] },
-      { count: 8, points: [64, 64, 96, 96] }
+      { count: 8, points: [64, 64, 96, 96] },
+      { count: 13, points: [128, 128, 160, 160] },
+      { count: 16, points: [192, 192, 224, 224] }
     ])
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
@@ -483,7 +491,7 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
           (overlay) =>
             overlay.styleOptions as { strokeColor?: string; lineWidth?: number }
         )
-      for (const count of [5, 8]) {
+      for (const count of [5, 8, 13, 16]) {
         expect(styles).toContainEqual(
           expect.objectContaining({
             strokeColor: heatColorForCount(count, HEAT_COUNT_COLOR_STOPS),
@@ -498,6 +506,15 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
       heatColorForCount(8, HEAT_COUNT_COLOR_STOPS)
     )
     expect(heatWidthForCount(5)).not.toBe(heatWidthForCount(8))
+    // Past the opacity saturation the counts still tell apart: 8 and 13 by
+    // colour, 13 and 16 by width alone.
+    expect(heatColorForCount(8, HEAT_COUNT_COLOR_STOPS)).not.toBe(
+      heatColorForCount(13, HEAT_COUNT_COLOR_STOPS)
+    )
+    expect(heatColorForCount(13, HEAT_COUNT_COLOR_STOPS)).toBe(
+      heatColorForCount(16, HEAT_COUNT_COLOR_STOPS)
+    )
+    expect(heatWidthForCount(13)).not.toBe(heatWidthForCount(16))
   })
 
   it('draws the muted standard basemap, so the heat runs stay the brightest thing', async () => {

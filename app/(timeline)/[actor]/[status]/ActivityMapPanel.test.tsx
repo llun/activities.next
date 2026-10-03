@@ -252,8 +252,16 @@ describe('ActivityMapPanel', () => {
 
       const chip = screen.getByText('Apple Maps')
       // Bottom-left is where Apple draws its logo on the image; the chip must
-      // not take clicks away from the preview button it sits over.
-      expect(chip).toHaveClass('bottom-3', 'left-3', 'pointer-events-none')
+      // not take clicks away from the preview button it sits over. `absolute`
+      // is what makes the offsets apply, and it lives in `AppleMapsChip`, not
+      // at this call site, so it is pinned here too: without it the chip drops
+      // into normal flow below the preview instead of over the cropped corner.
+      expect(chip).toHaveClass(
+        'absolute',
+        'bottom-3',
+        'left-3',
+        'pointer-events-none'
+      )
       expect(screen.getByTestId('media-attachment')).toBeInTheDocument()
     })
 

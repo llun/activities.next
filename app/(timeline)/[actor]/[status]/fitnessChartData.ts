@@ -487,9 +487,11 @@ export const computePowerHistogramMinutes = (
 /**
  * Share of the power-distribution plot, counted back from its right edge, that
  * is kept free of tick labels because the end label (the right-aligned range
- * maximum) is printed there. Two "NNN W" labels at 11px are ~33px each, so 15%
- * of a ~490px plot (the widest the detail column gives it) holds both with a
- * gap; a tick closer to the end than that is the one that overlapped it.
+ * maximum) is printed there. Two "NNN W" labels at 11px are ~35px each, so 15%
+ * holds both with a gap once the plot is ~465px wide or more (the detail column
+ * gives it ~530px at 768px and ~776px from 1024px); a tick closer to the end
+ * than that is the one that overlapped it. On a narrower plot the last tick can
+ * still touch the end label — a fixed share cannot follow a pixel-sized label.
  */
 export const POWER_AXIS_END_CLEARANCE = 0.15
 

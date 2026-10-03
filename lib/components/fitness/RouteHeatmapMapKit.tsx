@@ -366,10 +366,11 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
       //
       // Opacity saturates at HEAT_COUNT_SATURATION; colour and width do NOT —
       // their ramps run to 12 and 16. Clamping before all three would collapse
-      // every busy street onto the coolest tier, so only the opacity input is
-      // clamped, and the cache key keys on the resolved values rather than the
-      // raw count so the style table stays small: past their last stop colour
-      // and width stop changing, and opacity stops at the saturation count.
+      // every busy street onto the colour and width of a count of six, so only
+      // the opacity input is clamped, and the cache key keys on the resolved
+      // values rather than the raw count so the style table stays small: past
+      // their last stop colour and width stop changing, and opacity stops at
+      // the saturation count.
       const opacityCount = Math.min(count, HEAT_COUNT_SATURATION)
       const color = heatColorForCount(count, HEAT_COUNT_COLOR_STOPS)
       const width = heatWidthForCount(count)

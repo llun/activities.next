@@ -503,7 +503,9 @@ Read the applicable rules and review checks below before changing this subsystem
   bottom would trade the logo for the top of the route. The provider is the
   instance's current one, not the one that rendered a given image — which is not
   recorded — so an image Apple failed to render (and OSM drew instead) or one
-  from before a provider switch still carries the chip.
+  from before a switch to Apple still carries the chip, while an Apple-rendered
+  image on an instance that has since switched away shows none (its logo stays
+  cropped) until **Regenerate maps for old statuses** re-renders it.
 
 <a id="agents-fitness-activity-dates"></a>
 
