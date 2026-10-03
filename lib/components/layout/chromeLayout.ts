@@ -1,10 +1,11 @@
 import type { CSSProperties } from 'react'
 
 // Shared geometry for the page chrome. Dependency-free and without a
-// `'use client'` directive on purpose: server components (`page.tsx`,
-// `loading.tsx`) read these values too, and a value read out of a client
-// module comes back empty on the server (see **Server/Client Module Boundary**
-// in docs/architecture.md). Mirrors `lib/components/posts/feedLayout.ts`.
+// `'use client'` directive on purpose: server-rendered components read these
+// values too — `BackLink` when a server page renders it, the followers/following
+// loading skeleton — and a value read out of a client module comes back empty
+// on the server (see **Server/Client Module Boundary** in docs/architecture.md).
+// Mirrors `lib/components/posts/feedLayout.ts`.
 
 // Break out of the content column (`max-w-content`) so the chrome spans the
 // full area to the right of the fixed sidebar. The inner row stays centered at

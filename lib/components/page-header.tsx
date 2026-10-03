@@ -29,18 +29,21 @@ interface PageHeaderProps {
   /**
    * A parent-route Back. Below `md` it is a labelled row at the top of the
    * content; from `md` up it is the arrow beside the title it always was.
+   * Not rendered in section mode: there the section layout owns the bar, and
+   * a detail page renders its own `BackLink` above the section heading.
    */
   back?: PageHeaderBack
   /**
    * A short section title for the mobile bar when the page's own heading is
    * longer or more specific (a list's name, a collection's title). The page
-   * heading then stays visible in the content below the bar.
+   * heading then stays visible in the content below the bar. Not rendered in
+   * section mode, where the section layout's bar carries the section name.
    */
   compactTitle?: string
   /**
    * Content that sits above the header on desktop and directly below the
    * mobile bar (the home timeline's announcements), so the DOM order matches
-   * what is on screen at every width.
+   * what is on screen at every width. Not rendered in section mode.
    */
   banner?: ReactNode
 }
@@ -144,8 +147,8 @@ export const PageHeader = ({
   // it: the Back row, description, actions and sub-nav. From `md` up the box
   // keeps the sticky chrome it always had (every chrome class is `md:`
   // prefixed, so the desktop computed style is unchanged) and the bar is
-  // `display: none`. Without a provider (tests, logged-out shells without a
-  // drawer) the box renders exactly as before.
+  // `display: none`. Without a provider (tests) the box renders exactly as
+  // before.
   const hasMobileBar = nav !== null
   // The bar title is the page's h1 below `md` unless the content keeps a more
   // specific heading of its own (`compactTitle`), so exactly one h1 is
