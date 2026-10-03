@@ -39,6 +39,10 @@ vi.mock('@/lib/database', async () => ({
     getStatus: mockGetStatus,
     getStatusReplies: mockGetStatusReplies,
     getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow,
+    // Read only by the real resolver, which the off-site Back test runs.
+    getActorFromUsername: vi.fn(async () => null),
+    getStatusFromUrlHash: vi.fn(async () => null),
+    getStatusFromPublicId: vi.fn(async () => null),
     // Without this the page's settings read throws and every test logs an
     // error while quietly exercising the env/default fallback path.
     getAllServerSettings: vi.fn(async () => [])
@@ -231,6 +235,46 @@ describe('Mobile chrome', () => {
       expect(
         screen.getByRole('link', { name: 'Back to profile' })
       ).toHaveAttribute('href', '/@anna@activities.local')
+    }
+  )
+})
+
+// The resolver reads only the two parts after the first '@', so a segment that
+// decodes to `//x@u@attacker.example` (or `\x@…`) still resolves any public
+// status by its full URL. The Back fallback must come from the parsed handle:
+// `/${segment}` would be `///x@…`, which next/link treats as off-site.
+describe('Back to profile fallback from an untrusted actor segment', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    mockGetStatus.mockReset()
+    mockGetServerAuthSession.mockResolvedValue(null)
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+    mockGetStatusReplies.mockResolvedValue([])
+    // The real resolver, so the test proves such a path renders at all.
+    const actual = await vi.importActual<
+      typeof import('./resolveStatusFromPath')
+    >('./resolveStatusFromPath')
+    mockResolveStatusFromPath.mockImplementation(actual.resolveStatusFromPath)
+  })
+
+  it.each(['%2F%2Fx%40u%40attacker.example', '%5Cx%40u%40attacker.example'])(
+    'stays on this site for %s',
+    async (actor) => {
+      const note = buildNote({ id: 'focused' })
+      mockGetStatus.mockResolvedValue(note)
+
+      const element = await Page({
+        params: Promise.resolve({
+          actor,
+          status: encodeURIComponent(note.url)
+        })
+      })
+      render(<MobileNavigationProvider>{element}</MobileNavigationProvider>)
+
+      expect(screen.getByTestId('status-focused')).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: 'Back to profile' })
+      ).toHaveAttribute('href', '/@u@attacker.example')
     }
   )
 })

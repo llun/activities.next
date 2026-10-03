@@ -38,7 +38,11 @@ import { SignInCallout } from './SignInCallout'
 import { StatusBox } from './StatusBox'
 import { StatusLikes } from './StatusLikes'
 import { StatusStatStrip } from './StatusStatStrip'
-import { decodePathParam, resolveStatusFromPath } from './resolveStatusFromPath'
+import {
+  decodePathParam,
+  parseActorPathParam,
+  resolveStatusFromPath
+} from './resolveStatusFromPath'
 
 interface Props {
   params: Promise<{ actor: string; status: string }>
@@ -90,6 +94,9 @@ const Page: FC<Props> = async ({ params }) => {
     currentActorId: currentActor?.id
   })
   if (!resolvedStatus) return notFound()
+  // Parsed from the segment the resolver just accepted, so it always parses.
+  const pathActor = parseActorPathParam(actor)
+  if (!pathActor) return notFound()
 
   const { fullStatusId, isStatusHash } = resolvedStatus
   let { status, statusId } = resolvedStatus
@@ -237,8 +244,11 @@ const Page: FC<Props> = async ({ params }) => {
     statusForLayout.type === StatusType.enum.Note &&
     statusForLayout.fitness?.processingStatus === 'completed'
   // The mobile Back's direct-entry fallback: the profile in this URL, which is
-  // the author whose post or activity is being viewed.
-  const authorProfileHref = `/${decodePathParam(actor)}`
+  // the author whose post or activity is being viewed. Built from the parsed
+  // handle, never the raw segment: the resolver ignores anything before the
+  // first '@', so `/%2F%2Fx%40u%40evil.example/<any public status url>` renders
+  // a real post, and `/${segment}` would be the off-site `///x@u@evil.example`.
+  const authorProfileHref = `/@${pathActor.username}@${pathActor.domain}`
 
   if (isFitnessDashboard) {
     const fitnessFiles = await getStatusFitnessFiles(

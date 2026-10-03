@@ -32,6 +32,19 @@ export const decodePathParam = (param: string) => {
   }
 }
 
+// The username and domain an actor path segment names, or null when it does
+// not parse. Only the two parts after the first '@' are read — anything before
+// it is ignored — so the decoded segment itself is untrusted: build any link
+// from these parts (`/@${username}@${domain}`), never from the raw segment,
+// which can decode to `//host…` or `\host…` and leave the site.
+export const parseActorPathParam = (actorParam: string) => {
+  const parts = decodePathParam(actorParam).split('@').slice(1)
+  if (parts.length !== 2) return null
+
+  const [username, domain] = parts
+  return { username, domain }
+}
+
 const getStatusForPathActor = (status: Status, actorId: string) => {
   if (status.actorId === actorId) return status
 
@@ -53,15 +66,14 @@ export const resolveStatusFromPath = async ({
   statusParam,
   currentActorId
 }: ResolveStatusFromPathParams): Promise<ResolveStatusFromPathResult | null> => {
-  const decodedActor = decodePathParam(actorParam)
   const decodedStatusParam = decodePathParam(statusParam)
 
-  const parts = decodedActor.split('@').slice(1)
-  if (parts.length !== 2) {
+  const pathActor = parseActorPathParam(actorParam)
+  if (!pathActor) {
     return null
   }
 
-  const [username, domain] = parts
+  const { username, domain } = pathActor
   const actorFromPath = await database.getActorFromUsername({
     username,
     domain
