@@ -1,0 +1,32 @@
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts
+  s_94426ef8ef042a::t_5872f8d882a1a0 25-32,48,158-159
+app/(timeline)/[actor]/[status]/page.layout.test.tsx
+  s_94426ef8ef042a::t_45f3cb73d4d5c6 89-90,214,302,381,403,431,463
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  s_94426ef8ef042a::t_45f3cb73d4d5c6 92-93,198,224,254,277,306,335,354,388,447,480,511,536,567,605,630,650,672,691,710,737,761,807
+app/(timeline)/[actor]/[status]/page.tsx
+  s_94426ef8ef042a::t_baef587cac5305 41
+  s_94426ef8ef042a::t_5872f8d882a1a0 94
+app/(timeline)/[actor]/[status]/page.remote-signing.test.tsx
+  s_94426ef8ef042a::t_45f3cb73d4d5c6 100,194
+  s_94426ef8ef042a::t_08e54f80304c73 101-104
+app/(timeline)/[actor]/[status]/resolveStatusFromPath.test.ts
+  s_94426ef8ef042a::t_22b40a11ee24e0 10-18,27-39,47,165,194,225,249,276,329,362,411,429,474
+  s_94426ef8ef042a::t_08e54f80304c73 19-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d96c6be614569f56b8105c673d96b354475cd3f2",
+  "prompts": {},
+  "sessions": {
+    "s_94426ef8ef042a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08204b68-8e02-41c3-aa35-385d0860dc9b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
