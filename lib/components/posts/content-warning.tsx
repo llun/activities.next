@@ -45,7 +45,7 @@ export const ContentWarning: FC<Props> = ({
         <div className="flex min-w-0 items-center gap-2">
           <AlertTriangle className="size-4 shrink-0 text-muted-foreground" />
           <span className="break-words text-sm font-medium">
-            <CustomEmojiText text={summary} tags={tags} />
+            Sensitive content — <CustomEmojiText text={summary} tags={tags} />
           </span>
         </div>
         <span

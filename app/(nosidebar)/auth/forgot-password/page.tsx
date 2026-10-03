@@ -44,7 +44,10 @@ const Page: FC = async () => {
       <CardFooter className="justify-center">
         <p className="text-sm text-muted-foreground">
           Remembered your password?{' '}
-          <Link href="/auth/signin" className="text-primary hover:underline">
+          <Link
+            href="/auth/signin"
+            className="text-primary-text hover:underline"
+          >
             Sign in
           </Link>
         </p>

@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { Activity, Wrench } from 'lucide-react'
 
 import {
@@ -84,6 +90,11 @@ describe('SectionNavSelect', () => {
     const active = within(menu).getByRole('menuitem', { name: 'Activities' })
     expect(active.className).toMatch(/focus:bg-primary\/10/)
     expect(active.className).toMatch(/focus:ring-2/)
+    // The shared item's `dark:focus:bg-muted` survives tailwind-merge unless
+    // the row carries its own `dark:focus:` background, and would turn the
+    // hovered current row grey in dark.
+    expect(active.className).toMatch(/dark:focus:bg-primary\/10/)
+    expect(active.className).not.toMatch(/dark:focus:bg-muted/)
     // `text-primary-text`, never `text-primary`: `--primary` is the icon
     // orange and is under the AA floor as a foreground. Nothing else in the
     // repo catches that regression on a text node.
@@ -92,6 +103,22 @@ describe('SectionNavSelect', () => {
     expect(
       within(menu).getByRole('menuitem', { name: 'Components' }).className
     ).not.toMatch(/focus:ring-2/)
+  })
+
+  // `SectionNavDropdown` opens 6 px under its trigger and a gear's page renders
+  // the two one above the other, so this twin matches it rather than the shared
+  // default of 4. jsdom lays nothing out (every rect is 0), so Radix's popper
+  // wrapper is translated by exactly the side offset.
+  it('opens the menu 6 px below the trigger, not the shared default of 4', async () => {
+    renderSelect({ active: 'components' })
+
+    const menu = await openMenu()
+    const wrapper = menu.closest(
+      '[data-radix-popper-content-wrapper]'
+    ) as HTMLElement
+    await waitFor(() => {
+      expect(wrapper.style.transform).toMatch(/translate\(0px, 6px\)/)
+    })
   })
 
   it('reports the chosen tab to its caller', async () => {

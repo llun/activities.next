@@ -809,7 +809,7 @@ export const FitnessAnalysisCharts: FC<FitnessAnalysisChartsProps> = ({
   const analysisCharts = useMemo(
     (): Array<{
       key: AnalysisGraphKey
-      /** Long title for the stacked panel row ("Elevation profile"). */
+      /** Long title for the stacked panel row ("Elevation Profile"). */
       title: string
       /** Short label for the picker chip and combined-chart legend. */
       label: string
@@ -821,7 +821,7 @@ export const FitnessAnalysisCharts: FC<FitnessAnalysisChartsProps> = ({
     }> => [
       {
         key: 'elevation',
-        title: 'Elevation profile',
+        title: 'Elevation Profile',
         label: 'Elevation',
         unit: 'm',
         values: activitySeries.elevation,
@@ -843,7 +843,7 @@ export const FitnessAnalysisCharts: FC<FitnessAnalysisChartsProps> = ({
         key: 'power',
         title: 'Power',
         label: 'Power',
-        unit: 'w',
+        unit: 'W',
         values: activitySeries.power,
         minLabel: formatChartValue(powerMin, 0),
         maxLabel: formatChartValue(powerMax, 0),
@@ -954,7 +954,7 @@ export const FitnessAnalysisCharts: FC<FitnessAnalysisChartsProps> = ({
                 className={cn(
                   'rounded-md px-3 py-1 transition-colors',
                   graphDisplayMode === mode.id
-                    ? 'bg-background text-primary shadow-sm'
+                    ? 'bg-background text-primary-text shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >

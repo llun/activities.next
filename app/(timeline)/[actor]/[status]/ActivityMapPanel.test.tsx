@@ -15,6 +15,7 @@ import {
   ActivityMapPanel,
   MAP_ACTIVE_POINT_SOURCE_ID,
   MAP_LOAD_TIMEOUT_MS,
+  MAP_ROUTE_CASING_LAYER_ID,
   MAP_ROUTE_HIDDEN_HIT_LAYER_ID,
   MAP_ROUTE_SOURCE_ID
 } from './ActivityMapPanel'
@@ -296,6 +297,50 @@ describe('ActivityMapPanel', () => {
       expect(mapkit).toHaveAttribute('data-segments-count', '1')
     })
 
+    it('draws the route as a #E55F06 line over a white casing, casing first', async () => {
+      const { map, layers, MapConstructor } = setupGlMock()
+
+      render(
+        <ActivityMapPanel
+          routeSamples={sampleRoute}
+          mapProvider={{ type: 'osm' }}
+        />
+      )
+      await waitFor(() => expect(MapConstructor).toHaveBeenCalledTimes(1))
+
+      // Layers draw in the order they are added, so the casing has to come
+      // before BOTH lines to sit under them.
+      expect(layers.indexOf(MAP_ROUTE_CASING_LAYER_ID)).toBeGreaterThanOrEqual(
+        0
+      )
+      expect(layers.indexOf(MAP_ROUTE_CASING_LAYER_ID)).toBeLessThan(
+        layers.indexOf('activity-route-line-visible')
+      )
+      expect(layers.indexOf(MAP_ROUTE_CASING_LAYER_ID)).toBeLessThan(
+        layers.indexOf('activity-route-line-hidden')
+      )
+
+      const paintOf = (id: string) =>
+        map.addLayer.mock.calls
+          .map(([layer]) => layer as { id: string; paint: unknown })
+          .find((layer) => layer.id === id)?.paint
+      expect(paintOf(MAP_ROUTE_CASING_LAYER_ID)).toEqual({
+        'line-color': '#ffffff',
+        'line-width': 6,
+        'line-opacity': 0.9
+      })
+      // Fully opaque: transparency would tint the brand orange.
+      expect(paintOf('activity-route-line-visible')).toEqual({
+        'line-color': '#E55F06',
+        'line-width': 3.3
+      })
+      expect(paintOf('activity-route-line-hidden')).toEqual({
+        'line-color': '#16a34a',
+        'line-width': 4,
+        'line-opacity': 0.95
+      })
+    })
+
     it('initializes GL map for OSM provider and registers layers, sources, and bounds', async () => {
       const { map, layers, MapConstructor } = setupGlMock()
 
@@ -317,6 +362,7 @@ describe('ActivityMapPanel', () => {
           type: 'geojson'
         })
       )
+      expect(layers).toContain(MAP_ROUTE_CASING_LAYER_ID)
       expect(layers).toContain('activity-route-line-visible')
       expect(layers).toContain('activity-route-line-hidden')
       expect(layers).toContain(MAP_ROUTE_HIDDEN_HIT_LAYER_ID)

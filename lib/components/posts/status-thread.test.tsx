@@ -99,6 +99,52 @@ describe('StatusThread', () => {
     expect(screen.getByText('Direct Reply from Bob')).toBeInTheDocument()
   })
 
+  it("centres only the focused post's header row on its avatar", () => {
+    const root = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/root',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      text: 'Ancestor Root',
+      createdAt: BASE_TIME
+    })
+    const focused = createMockNote({
+      id: 'https://activities.local/users/alice/statuses/focused',
+      actor: mockAlice,
+      actorId: mockAlice.id,
+      reply: root.id,
+      text: 'Focused Status',
+      createdAt: BASE_TIME + 60000
+    })
+    const descendant = createMockNote({
+      id: 'https://activities.local/users/bob/statuses/reply1',
+      actor: mockBob,
+      actorId: mockBob.id,
+      reply: focused.id,
+      text: 'Direct Reply from Bob',
+      createdAt: BASE_TIME + 120000
+    })
+
+    render(
+      <StatusThread
+        host={host}
+        status={focused}
+        ancestors={[root]}
+        descendants={[descendant]}
+        currentTime={BASE_TIME + 200000}
+      />
+    )
+
+    // The status detail board draws the focused post's name row on the
+    // avatar's centre; ancestors and replies are rows, aligned to the top.
+    const headerRow = (testId: string) =>
+      screen
+        .getByTestId(testId)
+        .querySelector('.flex-1 > .flex.flex-wrap.items-center')
+    expect(headerRow('focused-status')).toHaveClass('mt-2.5')
+    expect(headerRow(`status-${root.id}`)).not.toHaveClass('mt-2.5')
+    expect(headerRow(`status-${descendant.id}`)).not.toHaveClass('mt-2.5')
+  })
+
   it('renders empty state when there are no replies', () => {
     const focused = createMockNote({
       id: 'https://activities.local/users/alice/statuses/lonely',

@@ -127,6 +127,24 @@ describe('PasskeyManager', () => {
     expect(screen.queryByText('Domain')).not.toBeInTheDocument()
   })
 
+  it('draws the add dialog title on a 16 px line so the description sits right under it', async () => {
+    mockGetPasskeys.mockResolvedValue([])
+
+    render(
+      <PasskeyManager
+        domains={[{ domain: 'llun.social', primary: true }]}
+        currentDomain="llun.social"
+        handlePrefix="anna"
+      />
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: /add passkey/i }))
+    const title = await screen.findByText('Add a passkey')
+    // `text-base` alone would bring a 24 px line height (class merging drops
+    // the DialogTitle's own leading-none), pushing the header 8 px taller.
+    expect(title).toHaveClass('text-base', 'leading-none')
+  })
+
   it('shows a creation failure inside the still-open dialog', async () => {
     mockGetPasskeys.mockResolvedValue([])
     mockAddPasskey.mockResolvedValue({

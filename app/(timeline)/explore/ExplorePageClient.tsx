@@ -49,10 +49,10 @@ const SkeletonRows = ({ count = 4 }: { count?: number }) => (
     {Array.from({ length: count }).map((_, index) => (
       <div key={index} className="flex items-center justify-between gap-4 py-2">
         <div className="w-full space-y-2">
-          <div className="h-3.5 w-32 rounded bg-muted" />
-          <div className="h-3 w-48 rounded bg-muted/60" />
+          <div className="skeleton h-3.5 w-32 rounded" />
+          <div className="skeleton h-3 w-48 rounded" />
         </div>
-        <div className="h-6 w-14 rounded bg-muted/60" />
+        <div className="skeleton h-6 w-14 rounded" />
       </div>
     ))}
   </div>
@@ -66,11 +66,11 @@ const PostSkeletonRows = ({ count = 4 }: { count?: number }) => (
     {Array.from({ length: count }).map((_, index) => (
       <div key={index} className="px-4 py-3">
         <div className="flex gap-3">
-          <div className="size-10 shrink-0 rounded-full bg-muted" />
+          <div className="skeleton size-10 shrink-0 rounded-full" />
           <div className="min-w-0 flex-1 space-y-2">
-            <div className="h-3.5 w-32 rounded bg-muted" />
-            <div className="h-3 w-full rounded bg-muted/60" />
-            <div className="h-3 w-2/3 rounded bg-muted/60" />
+            <div className="skeleton h-3.5 w-32 rounded" />
+            <div className="skeleton h-3 w-full rounded" />
+            <div className="skeleton h-3 w-2/3 rounded" />
           </div>
         </div>
       </div>

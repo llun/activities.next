@@ -1,3 +1,5 @@
+import { contrastRatio } from '@/lib/testing/contrast'
+
 import {
   button,
   fallbackUrl,
@@ -8,7 +10,7 @@ import {
   quote,
   statCard
 } from './blocks'
-import { MONOGRAM_PALETTE } from './theme'
+import { INSET_BACKGROUND, MONOGRAM_PALETTE, QUOTE_LINK } from './theme'
 
 const XSS = '"><script>alert(1)</script>'
 
@@ -112,7 +114,7 @@ describe('button', () => {
   it('puts the background on the td so Outlook keeps it visible', () => {
     expect(
       button({ label: 'View post', url: 'https://example.com' }).html
-    ).toContain('<td align="center" bgcolor="#E66A0F"')
+    ).toContain('<td align="center" bgcolor="#E55F06"')
   })
 
   it('carries both halves of the outlook padding recipe', () => {
@@ -308,8 +310,72 @@ describe('quote', () => {
       author,
       body: { html: '<p>Hello <b>there</b></p>', text: 'Hello there' }
     })
-    expect(html).toContain('<p>Hello <b>there</b></p>')
+    expect(html).toContain('<p style="margin:0;">Hello <b>there</b></p>')
     expect(text).toBe('Ben Carter (@ben@example.com)\nHello there')
+  })
+
+  describe('body styling', () => {
+    const bodyOf = (htmlBody: string) =>
+      quote({ author, body: { html: htmlBody, text: 'x' } }).html
+
+    it('leaves no paragraph margin above or below a single-paragraph post', () => {
+      const html = bodyOf('<p>Morning run done</p>')
+      // A bare <p> keeps the client's 14px margins, which pushed the text
+      // 14px (not 8px) below the actor row and added 14px under the last line.
+      expect(html).toContain('<p style="margin:0;">Morning run done</p>')
+    })
+
+    it('trims only the outer edges of a multi-paragraph post', () => {
+      const html = bodyOf('<p>One</p><p>Two</p><p>Three</p>')
+      expect(html).toContain(
+        '<p style="margin:0 0 14px;">One</p><p style="margin:0 0 14px;">Two</p><p style="margin:0;">Three</p>'
+      )
+    })
+
+    it('keeps a paragraph class and does not touch <pre>', () => {
+      const html = bodyOf('<p class="quote-inline">RE</p><pre>code</pre>')
+      expect(html).toContain('<p class="quote-inline" style="margin:0;">RE</p>')
+      expect(html).toContain('<pre>code</pre>')
+    })
+
+    it.each([
+      '<a href="https://example.com/tags/running" class="mention hashtag" rel="tag">#running</a>',
+      '<a href="https://llun.social/@anna" class="u-url mention">@anna</a>',
+      '<a href="https://example.com/tags/run" class="hashtag" rel="tag">#run</a>'
+    ])(
+      'draws a hashtag or mention link mid blue without an underline (%s)',
+      (anchor) => {
+        const html = bodyOf(`<p>${anchor}</p>`)
+        expect(html).toContain('style="color:#0272AC;text-decoration:none;"')
+      }
+    )
+
+    it('keeps the hashtag and mention blue above the 4.5:1 AA floor on the quote inset', () => {
+      // The design's #0284C7 is only 3.76:1 on #F5F5F5.
+      expect(QUOTE_LINK).toBe('#0272AC')
+      expect(INSET_BACKGROUND).toBe('#f5f5f5')
+      expect(
+        contrastRatio(QUOTE_LINK, INSET_BACKGROUND)
+      ).toBeGreaterThanOrEqual(4.7)
+    })
+
+    it('leaves an ordinary link as it was, underline included', () => {
+      const html = bodyOf(
+        '<p><a href="https://example.com/x" rel="nofollow">https://example.com/x</a></p>'
+      )
+      expect(html).toContain(
+        '<a href="https://example.com/x" rel="nofollow">https://example.com/x</a>'
+      )
+      expect(html).not.toContain('text-decoration:none')
+    })
+
+    it('does not style the plain-text part', () => {
+      const { text } = quote({
+        author,
+        body: { html: '<p>Hi <a class="hashtag">#x</a></p>', text: 'Hi #x' }
+      })
+      expect(text).toBe('Ben Carter (@ben@example.com)\nHi #x')
+    })
   })
 
   it('escapes the display name and handle', () => {
@@ -338,7 +404,7 @@ describe('statCard', () => {
   const stats = [
     { label: 'Distance', value: '8.21 km' },
     { label: 'Time', value: '42:18' },
-    { label: 'Pace', value: '5:09 / km' }
+    { label: 'Pace', value: '5:09 /km' }
   ]
 
   it('renders the title, stats and footnote', () => {

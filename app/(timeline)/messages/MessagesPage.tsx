@@ -758,7 +758,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                       <span className="flex items-center gap-2">
                         <span
                           className={cn(
-                            'truncate text-sm md:text-base',
+                            'truncate text-sm',
                             conversation.unread
                               ? 'font-semibold'
                               : 'font-medium'
@@ -1019,7 +1019,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                 disabled={isSending || !message.trim()}
                 aria-label="Send message"
                 title="Send message"
-                className="shrink-0"
+                // 16px of side padding as the design draws it; the default
+                // size drops to 12px for a button whose icon is a direct child.
+                className="shrink-0 has-[>svg]:px-4"
               >
                 {isSending ? (
                   <Loader2 className="size-4 animate-spin" />

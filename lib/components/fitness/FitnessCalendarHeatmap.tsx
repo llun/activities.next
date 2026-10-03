@@ -384,7 +384,7 @@ export const FitnessCalendarHeatmap: FC<Props> = ({
                   return (
                     <div
                       key={di}
-                      className={cn('h-3 w-3 rounded-sm', colorClass)}
+                      className={cn('h-3 w-3 rounded-xs', colorClass)}
                       title={tooltip}
                     />
                   )

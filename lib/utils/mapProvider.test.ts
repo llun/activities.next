@@ -13,6 +13,10 @@ import {
 } from '@/lib/utils/maplibre'
 
 const MAPBOX_TOKEN = 'pk.test-token'
+// What MapLibre's own default attribution control credits MapLibre with; the
+// OpenFreeMap map builds its control by hand, which drops it unless it is passed.
+const MAPLIBRE_CREDIT =
+  '<a href="https://maplibre.org/" target="_blank">MapLibre</a>'
 
 interface Case {
   description: string
@@ -23,6 +27,7 @@ interface Case {
   expectedLabel: 'Mapbox' | 'OpenFreeMap'
   expectedAccessToken?: string
   expectedProjection?: string
+  expectedCustomAttribution?: string
 }
 
 describe('buildGlProviderOptions', () => {
@@ -52,7 +57,8 @@ describe('buildGlProviderOptions', () => {
       variant: 'outdoors',
       expectedLoadModule: loadMaplibreModule,
       expectedStyle: OPENFREEMAP_STYLE_URL,
-      expectedLabel: 'OpenFreeMap'
+      expectedLabel: 'OpenFreeMap',
+      expectedCustomAttribution: MAPLIBRE_CREDIT
     },
     {
       description: 'osm + light',
@@ -60,7 +66,8 @@ describe('buildGlProviderOptions', () => {
       variant: 'light',
       expectedLoadModule: loadMaplibreModule,
       expectedStyle: OPENFREEMAP_HEATMAP_STYLE_URL,
-      expectedLabel: 'OpenFreeMap'
+      expectedLabel: 'OpenFreeMap',
+      expectedCustomAttribution: MAPLIBRE_CREDIT
     }
   ]
 
@@ -73,7 +80,8 @@ describe('buildGlProviderOptions', () => {
       expectedStyle,
       expectedLabel,
       expectedAccessToken,
-      expectedProjection
+      expectedProjection,
+      expectedCustomAttribution
     }) => {
       const options = buildGlProviderOptions(provider, variant)
 
@@ -86,6 +94,9 @@ describe('buildGlProviderOptions', () => {
       } else {
         expect(options.mapOptions.accessToken).toBe(expectedAccessToken)
       }
+
+      // MapLibre credits itself; Mapbox has no such credit to add.
+      expect(options.customAttribution).toBe(expectedCustomAttribution)
 
       if (expectedProjection === undefined) {
         expect(options.mapOptions).not.toHaveProperty('projection')

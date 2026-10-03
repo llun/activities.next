@@ -65,4 +65,36 @@ describe('FilterEditor', () => {
       checked === 'hide' ? 'true' : 'false'
     )
   })
+
+  describe('warn preview', () => {
+    const renderEditor = (filterAction: string) =>
+      render(
+        <FilterEditor
+          initial={filterWithAction(filterAction)}
+          scope="account"
+          currentTime={0}
+          saving={false}
+          error={null}
+          onCancel={() => {}}
+          onSave={() => {}}
+        />
+      )
+
+    it('shows the bare "Filtered" bar for a warn filter, with no frame or caption', () => {
+      renderEditor('warn')
+
+      const bar = screen.getByText('Filtered: Spoilers').parentElement
+      expect(bar).toHaveClass('bg-muted', 'rounded-lg')
+      expect(bar).toHaveTextContent('Show anyway')
+      // No dashed wrapper and no PREVIEW caption around it.
+      expect(bar?.parentElement).not.toHaveClass('border-dashed')
+      expect(screen.queryByText('Preview')).not.toBeInTheDocument()
+    })
+
+    it('shows no preview for a hide filter', () => {
+      renderEditor('hide')
+
+      expect(screen.queryByText('Show anyway')).not.toBeInTheDocument()
+    })
+  })
 })

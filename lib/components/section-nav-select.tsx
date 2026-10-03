@@ -79,9 +79,15 @@ export const SectionNavSelect = <Id extends string>({
         {/* Tailwind v4 parenthesis syntax — the v3 `w-[--radix-…]` form emits
             `width: --radix-…` instead of `width: var(--radix-…)`, which the
             browser drops silently, leaving the menu narrower than its trigger.
-            Guarded by lib/components/tailwindCssVariableSyntax.test.ts. */}
+            Guarded by lib/components/tailwindCssVariableSyntax.test.ts.
+
+            `sideOffset={6}` is `SectionNavDropdown`'s gap: the two menus sit
+            one above the other on a gear's page, so they open the same
+            distance under their triggers rather than at the shared default
+            of 4. */}
         <DropdownMenuContent
           align="start"
+          sideOffset={6}
           className="w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg"
         >
           {tabs.map((tab) => {
@@ -103,7 +109,7 @@ export const SectionNavSelect = <Id extends string>({
                     // wash plus orange text. `text-primary-text`, not
                     // `text-primary` — `--primary` is the icon/fill orange and
                     // is under the AA floor as a foreground.
-                    'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text',
+                    'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text dark:focus:bg-primary/10',
                     // "Held on focus" would otherwise make the focused current
                     // row pixel-identical to its resting state, so a keyboard
                     // user watching the highlight move down the list would see

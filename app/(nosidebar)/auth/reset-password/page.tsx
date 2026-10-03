@@ -40,7 +40,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
           Need a new reset link?{' '}
           <Link
             href="/auth/forgot-password"
-            className="text-primary hover:underline"
+            className="text-primary-text hover:underline"
           >
             Request one
           </Link>

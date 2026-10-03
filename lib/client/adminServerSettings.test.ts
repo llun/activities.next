@@ -76,7 +76,7 @@ describe('adminServerSettings client module', () => {
 
       await expect(
         updateAdminServerSettings({ serverTitle: 'Blocked' })
-      ).rejects.toThrow('Failed to save server settings')
+      ).rejects.toThrow('Failed to save changes. Please try again.')
     })
   })
 })

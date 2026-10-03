@@ -22,7 +22,12 @@ const DEFAULT_MAP_CENTER: { latitude: number; longitude: number } = {
 }
 const DEFAULT_MAP_SPAN_DEG = 6
 const MARKER_SPAN_DEG = 0.08
-const ZONE_COLOR = '#16a34a'
+// The privacy circle: a 20% green fill under a 2px green outline, as the design
+// draws "Privacy Zone Circle". Exported so the GL picker in
+// `FitnessPrivacyLocationSettings` draws the same circle from the same values.
+export const ZONE_COLOR = '#16a34a'
+export const ZONE_FILL_OPACITY = 0.2
+export const ZONE_OUTLINE_WIDTH_PX = 2
 
 export interface PrivacyZone {
   latitude: number
@@ -218,9 +223,9 @@ export const PrivacyZoneMapKit: FC<PrivacyZoneMapKitProps> = ({
 
     const style = new mapkit.Style({
       strokeColor: ZONE_COLOR,
-      lineWidth: 2,
+      lineWidth: ZONE_OUTLINE_WIDTH_PX,
       fillColor: ZONE_COLOR,
-      fillOpacity: 0.2
+      fillOpacity: ZONE_FILL_OPACITY
     })
     const overlays = zonesRef.current.map(
       (zone) =>

@@ -59,7 +59,7 @@ const Page = async ({ searchParams }: Props) => {
                     {account.name || account.email}
                   </p>
                   {account.role === 'admin' && (
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-text">
                       Admin
                     </span>
                   )}

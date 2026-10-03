@@ -310,18 +310,15 @@ export const FilterEditor: FC<FilterEditorProps> = ({
           })}
         </div>
         {action === 'warn' && (
-          <div className="rounded-lg border border-dashed p-3">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-[hsl(0_0%_55%)]">
-              Preview
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2.5">
-              <span className="text-sm text-muted-foreground">
-                Filtered: {title.trim() || 'Untitled filter'}
-              </span>
-              <span className="text-sm font-medium text-primary">
-                Show anyway
-              </span>
-            </div>
+          // The bare bar a warned post collapses to, as the Filter management
+          // board draws it: no dashed frame, no caption.
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2">
+            <span className="text-sm text-muted-foreground">
+              Filtered: {title.trim() || 'Untitled filter'}
+            </span>
+            <span className="text-sm font-medium text-primary-text">
+              Show anyway
+            </span>
           </div>
         )}
       </FilterSection>

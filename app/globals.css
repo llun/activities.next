@@ -30,6 +30,9 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-destructive-text: var(--destructive-text);
+  --color-like-text: var(--like-text);
+  --color-surface-chrome: var(--surface-chrome);
+  --color-surface-accent: var(--surface-accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -56,11 +59,22 @@
      dark mode it steps up with lightness instead of shadow (surface ramp). */
   --color-control-active: var(--control-active);
 
+  /* Off state of a Switch track (the design's Control Off), exposed as the
+     `bg-control-off` utility. Darker than the --input hairline so an off switch
+     reads as a control rather than a pale pill. */
+  --color-control-off: var(--control-off);
+
   /* Unified desktop content width. Every top-level page in the (timeline)
      route group centers its content (and its page-header title row) at this
      single width, so the column stays aligned as you switch tabs. Exposed as
      the `max-w-content` utility via Tailwind's `--container-*` namespace. */
   --container-content: 940px;
+
+  /* The design's type scale draws 18 px text on a 24 px line (Heading/lg 18/24),
+     where Tailwind's default `text-lg` is 18/28. Every `text-lg` element (the
+     settings and admin card headings above all) takes its line height from this
+     one value. */
+  --text-lg--line-height: calc(1.5 / 1.125);
 }
 
 :root {
@@ -98,14 +112,33 @@
   --destructive-foreground: hsl(0 0% 100%);
   /* Destructive text and link color, as distinct from --destructive for fills
      and accents — matching the --primary vs --primary-text pattern. In light
-     mode this is hsl(0 84.2% 60.2%) (#EF4444). In dark mode, --destructive is
-     hsl(0 62.8% 30.6%) (#7F1D1D) to maintain white-on-destructive contrast (9:1)
-     for button fills and badges, but fails WCAG AA on dark surfaces (only ~1.8:1
-     on card/popover). Dark --destructive-text is lightened to hsl(0 91% 71%)
-     (#F87171, Tailwind red-400) to clear 4.5:1 on every dark surface (6.44:1 on
-     popover/card #171717, 7.3:1 on background #0A0A0A). Exposed as the
-     `text-destructive-text` utility. */
-  --destructive-text: hsl(0 84.2% 60.2%);
+     mode --destructive is hsl(0 84.2% 60.2%) (#EF4444), which is the red FILL
+     (3.76:1 as a foreground on white, under the AA floor for text), so the text
+     token is the darker design colour Control/Destructive Text hsl(357.5 64.1%
+     43.7%) (#B7282E, 6.26:1 on white and 5.99:1 on the card). In dark mode,
+     --destructive is hsl(0 62.8% 30.6%) (#7F1D1D) to maintain white-on-destructive
+     contrast (9:1) for button fills and badges, but fails WCAG AA on dark
+     surfaces (only ~1.8:1 on card/popover). Dark --destructive-text is lightened
+     to hsl(0 91% 71%) (#F87171, Tailwind red-400) to clear 4.5:1 on every dark
+     surface (6.44:1 on popover/card #171717, 7.3:1 on background #0A0A0A).
+     Exposed as the `text-destructive-text` utility. */
+  --destructive-text: hsl(357.5 64.1% 43.7%);
+  /* Count beside a LIKED heart (the design's "Like Text"). The heart icon stays
+     the bright red-500 (#FB2C36); only the number darkens so it clears AA. The
+     values equal --destructive-text on purpose, but the design names them
+     separately, so this is its own token and the like button never reads as a
+     destructive action. Exposed as the `text-like-text` utility. */
+  --like-text: hsl(357.5 64.1% 43.7%);
+  /* Translucent "Surface Chrome" behind the sticky page header, sidebar, rail
+     and mobile header (white at 72 % light, #141414 at 80 % dark). Paired with
+     `backdrop-blur` at the use site. Exposed as the `bg-surface-chrome`
+     utility. */
+  --surface-chrome: hsl(0 0% 100% / 0.72);
+  /* The design's "Surface Accent" (#FFF6F0): the pale brand-orange tile behind an
+     accent icon (the admin stat cards). Opaque, so it reads the same on the page
+     background and on a card, unlike `bg-primary/10`, which is more saturated
+     (#FCEFE6) on white. Exposed as the `bg-surface-accent` utility. */
+  --surface-accent: hsl(24 100% 97.06%);
   --border: hsl(0 0% 89.8%);
   --input: hsl(0 0% 89.8%);
   --ring: hsl(24 95% 46%);
@@ -113,6 +146,9 @@
   /* Raised active segment for the theme switcher: white on the light-grey
      (--muted) track. */
   --control-active: hsl(0 0% 100%);
+
+  /* Switch track when off: #CCCCCC. */
+  --control-off: hsl(0 0% 80%);
 
   /* Loading skeleton placeholder, plus the band the `skeleton` utility sweeps
      across it. Deliberately NOT --muted: that is a hover/track surface tuned
@@ -184,6 +220,12 @@
      WCAG 2.1 AA (4.5:1) on dark surfaces: 6.44:1 on card/popover (#171717) and
      7.3:1 on dark background (#0A0A0A). Fills (bg-destructive) keep #7F1D1D. */
   --destructive-text: hsl(0 91% 71%);
+  /* Like Text (see the light block): the same red-400 as --destructive-text. */
+  --like-text: hsl(0 91% 71%);
+  /* Surface Chrome (see the light block): #141414 at 80 %. */
+  --surface-chrome: hsl(0 0% 7.8% / 0.8);
+  /* Surface Accent (see the light block): #271A11. */
+  --surface-accent: hsl(24 39.3% 11%);
   --border: hsl(0 0% 18%);
   --input: hsl(0 0% 24%);
   --ring: hsl(24 95% 46%);
@@ -191,6 +233,10 @@
   /* The raised active segment sits ~13% above the --muted track (elevation via
      lightness, not shadow). */
   --control-active: hsl(0 0% 30%);
+
+  /* Switch track when off: #545454, lighter than the card so the thumb and
+     track both stay visible. */
+  --control-off: hsl(0 0% 32.9%);
 
   /* Loading skeleton: on the dark ramp visibility comes from going UP — the
      base sits above the 9% card. The highlight is a faint white wash;
@@ -243,27 +289,30 @@
     background-repeat: no-repeat;
   }
 
-  /* Dark mode keeps the signature dual-radial geometry but desaturates and
-     dims the tints so the brand backdrop reads on the near-black canvas. */
+  /* Dark mode keeps the signature dual-radial geometry with the design's dark
+     tints — warm orange #492812 top-left and sky #193543 top-right, both at
+     60 % — so the brand backdrop reads on the near-black canvas instead of
+     collapsing to flat black. */
   .dark body {
     background-image:
       radial-gradient(
         1200px 600px at 10% -10%,
-        hsl(24 45% 14% / 0.55),
+        rgb(73 40 18 / 0.6),
         transparent 60%
       ),
       radial-gradient(
         900px 600px at 90% -10%,
-        hsl(200 40% 14% / 0.55),
+        rgb(25 53 67 / 0.6),
         transparent 55%
       );
   }
 }
 
 @layer utilities {
-  /* Destructive text and icons resolve to --destructive-text (#F87171 in dark mode,
-     clearing WCAG AA >= 4.5:1), while fills and backgrounds keep --destructive
-     (#7F1D1D in dark mode, preserving white-on-destructive contrast). */
+  /* Destructive text and icons resolve to --destructive-text (#B7282E in light
+     mode, #F87171 in dark mode, clearing WCAG AA >= 4.5:1), while fills and
+     backgrounds keep --destructive (#EF4444 in light mode, #7F1D1D in dark
+     mode, preserving white-on-destructive contrast). */
   .text-destructive {
     color: var(--destructive-text);
   }

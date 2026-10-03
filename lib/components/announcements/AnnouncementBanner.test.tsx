@@ -94,6 +94,49 @@ describe('AnnouncementBanner', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders a same-day timed event on one line with its time zone', async () => {
+    mockGetAnnouncements.mockResolvedValue([
+      buildAnnouncement({
+        starts_at: '2026-06-13T12:00:00.000Z',
+        // A ten-minute window: unlike a longer one, it cannot cross local
+        // midnight in any zone (that needs an offset within ten minutes of
+        // +12:00, and none exists), so the range always keeps a single date.
+        ends_at: '2026-06-13T12:10:00.000Z'
+      })
+    ])
+
+    await act(async () => {
+      renderBanner()
+    })
+
+    // The reader's own time zone decides the clock and its label, and the test
+    // runner's zone is not guaranteed, so assert the shape (formatEventTime's
+    // own test pins the zones): one weekday and date, a time range, a label.
+    expect(
+      await screen.findByText(
+        /^[A-Z][a-z]{2} [A-Z][a-z]{2} \d{1,2}, \d{2}:\d{2} – \d{2}:\d{2} \S+$/
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('renders an all-day event as dates only', async () => {
+    mockGetAnnouncements.mockResolvedValue([
+      buildAnnouncement({
+        starts_at: '2026-06-13T00:00:00.000Z',
+        ends_at: '2026-06-15T00:00:00.000Z',
+        all_day: true
+      })
+    ])
+
+    await act(async () => {
+      renderBanner()
+    })
+
+    expect(
+      await screen.findByText('Sat Jun 13 – Mon Jun 15')
+    ).toBeInTheDocument()
+  })
+
   it('renders both read and unread active announcements with a pager', async () => {
     mockGetAnnouncements.mockResolvedValue([
       buildAnnouncement({ id: 'a1', content: '<p>First</p>', read: false }),

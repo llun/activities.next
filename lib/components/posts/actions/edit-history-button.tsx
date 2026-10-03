@@ -154,7 +154,11 @@ export const EditHistoryButton: FC<Props> = ({
                       </span>
                     ) : null}
                   </div>
-                  <div className="mr-auto text-left mt-2 whitespace-normal overflow-auto max-h-40">
+                  <div className="mr-auto text-left mt-2 whitespace-normal overflow-auto max-h-40 text-foreground">
+                    {/* `text-foreground`: the panel renders inside the action
+                        row, which is muted, and the revision text would
+                        inherit that. The design draws it in the foreground
+                        colour; the placeholders below stay muted. */}
                     {/* The SAME pipeline the post body uses, not a local
                         rearrangement of its parts. A revision is the status
                         text as it was, so for a remote status it is raw HTML

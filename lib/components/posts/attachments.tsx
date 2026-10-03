@@ -176,6 +176,46 @@ const Caption: FC<CaptionProps> = ({ identity, text, tags }) => {
 const isAnimationAttachment = (attachment: Attachment) =>
   attachment.playbackType === 'gifv' || attachment.mediaType === 'image/gif'
 
+// An ordinary video — not a looping gifv, which is an animation. It plays in
+// the post with the player's own controls, as the design's Attachments board
+// draws it, instead of being a picture that opens the lightbox.
+const isVideoAttachment = (attachment: Attachment) =>
+  attachment.mediaType.startsWith('video') && !isAnimationAttachment(attachment)
+
+interface VideoCardProps {
+  attachment: Attachment
+  className?: string
+  style?: CSSProperties
+  mediaClassName?: string
+  loading?: 'lazy' | 'eager'
+}
+
+// The same box a picture gets (size, corners, border), with a `<video controls>`
+// inside it. It is a plain `div`, never a `button`: the controls are
+// interactive content, and a button around them would swallow every press.
+// Presses stop here like every other control in a post, so playing a video never
+// doubles as a click on whatever surface embeds the post.
+const VideoCard: FC<VideoCardProps> = ({
+  attachment,
+  className,
+  style,
+  mediaClassName,
+  loading
+}) => (
+  <div
+    className={cn(MEDIA_BOX_CLASS, 'cursor-auto', className)}
+    style={style}
+    onClick={(event) => event.stopPropagation()}
+  >
+    <Media
+      className={mediaClassName}
+      attachment={attachment}
+      loading={loading}
+      showVideoControl
+    />
+  </div>
+)
+
 interface AnimationCardProps {
   attachment: Attachment
   onOpen: (event: MouseEvent) => void
@@ -325,6 +365,13 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
               style={{ aspectRatio, width: `min(100%, ${width}px)` }}
               mediaClassName="h-full w-full object-cover rounded-2xl"
             />
+          ) : isVideoAttachment(attachment) ? (
+            <VideoCard
+              attachment={attachment}
+              className="rounded-2xl"
+              style={{ aspectRatio, width: `min(100%, ${width}px)` }}
+              mediaClassName="h-full w-full object-contain rounded-2xl"
+            />
           ) : (
             <button
               type="button"
@@ -393,6 +440,17 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
                       style={{ scrollSnapAlign: 'start' }}
                       mediaClassName={cn(
                         'h-full w-full object-cover',
+                        cornerClass
+                      )}
+                      loading="lazy"
+                    />
+                  ) : isVideoAttachment(attachment) ? (
+                    <VideoCard
+                      attachment={attachment}
+                      className={cn('h-[240px] w-full flex-none', cornerClass)}
+                      style={{ scrollSnapAlign: 'start' }}
+                      mediaClassName={cn(
+                        'h-full w-full object-contain',
                         cornerClass
                       )}
                       loading="lazy"

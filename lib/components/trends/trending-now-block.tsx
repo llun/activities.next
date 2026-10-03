@@ -44,7 +44,7 @@ export const TrendingNowBlock = () => {
         </div>
         <Link
           href="/explore"
-          className="text-xs font-medium text-primary hover:underline"
+          className="text-xs font-medium text-primary-text hover:underline"
         >
           See more
         </Link>

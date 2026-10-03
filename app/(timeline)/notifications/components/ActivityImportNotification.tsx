@@ -40,7 +40,7 @@ export const ActivityImportNotification: FC<Props> = ({
       <Link
         href={statusUrl}
         prefetch={false}
-        className="shrink-0 text-[13px] font-medium text-primary hover:underline"
+        className="shrink-0 text-[13px] font-medium text-primary-text hover:underline"
       >
         {hasMultiple ? 'View latest activity' : 'View activity'}
       </Link>

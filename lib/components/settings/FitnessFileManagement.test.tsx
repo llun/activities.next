@@ -619,4 +619,29 @@ describe('FitnessFileManagement', () => {
       })
     })
   })
+
+  describe('storage meter', () => {
+    it('captions the bar with the mono used / limit on the left and the percent on the right', () => {
+      render(
+        <FitnessFileManagement
+          used={524288}
+          limit={1048576}
+          fitnessFiles={[]}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={0}
+        />
+      )
+
+      const bar = screen.getByRole('progressbar', {
+        name: 'Storage quota used by fitness files'
+      })
+      const caption = bar.nextElementSibling as HTMLElement
+      expect(caption).toHaveClass('font-mono', 'text-xs', 'justify-between')
+      expect(caption.children).toHaveLength(2)
+      expect(caption.children[0]).toHaveTextContent('512 KB / 1 MB')
+      expect(caption.children[1]).toHaveTextContent('50.0%')
+      expect(screen.queryByText('Used')).not.toBeInTheDocument()
+    })
+  })
 })

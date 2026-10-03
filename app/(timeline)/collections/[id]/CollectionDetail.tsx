@@ -316,8 +316,8 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
             {visibility.label}
           </span>
           {collection.topic && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-              <Hash className="h-3 w-3" />
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-text">
+              <Hash className="h-3 w-3 text-primary" />
               {collection.topic}
             </span>
           )}

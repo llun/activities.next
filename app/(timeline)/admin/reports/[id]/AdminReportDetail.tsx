@@ -12,7 +12,9 @@ import {
   unassignAdminReport,
   updateAdminReport
 } from '@/lib/client'
+import { selectChevronClassName } from '@/lib/components/ui/select'
 import { AdminReport } from '@/lib/types/mastodon/admin/report'
+import { cn } from '@/lib/utils'
 
 const CATEGORIES: ReportCategory[] = ['spam', 'legal', 'violation', 'other']
 
@@ -121,7 +123,7 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
               <li key={status.id} className="truncate">
                 <Link
                   href={status.url ?? '#'}
-                  className="text-primary hover:underline"
+                  className="text-primary-text hover:underline"
                 >
                   {status.url ?? status.id}
                 </Link>
@@ -144,7 +146,10 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
               })
             )
           }
-          className="rounded-lg border px-2 py-1.5 text-sm"
+          className={cn(
+            'rounded-lg border px-2 py-1.5 text-sm',
+            selectChevronClassName
+          )}
         >
           {CATEGORIES.map((category) => (
             <option key={category} value={category}>
@@ -187,7 +192,7 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
             type="button"
             disabled={busy}
             onClick={() => run(() => resolveAdminReport(reportId))}
-            className="rounded-lg border border-primary/40 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
+            className="rounded-lg border border-primary/40 px-3 py-1.5 text-sm font-medium text-primary-text hover:bg-primary/10 disabled:opacity-50"
           >
             Resolve
           </button>

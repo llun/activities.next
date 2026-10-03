@@ -138,10 +138,10 @@ export const PollChoices: FC<Props> = ({
           type="button"
           variant="ghost"
           size="sm"
-          className="ml-7 mt-2 gap-1.5 text-primary hover:bg-primary/10 hover:text-primary"
+          className="ml-7 mt-2 gap-1.5 text-primary-text hover:bg-primary/10 hover:text-primary-text"
           onClick={() => onAddChoice()}
         >
-          <Plus className="size-3.5" /> Add choice
+          <Plus className="size-3.5 text-primary" /> Add choice
         </Button>
       ) : null}
 

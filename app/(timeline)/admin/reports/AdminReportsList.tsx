@@ -87,7 +87,7 @@ export const AdminReportsList = () => {
                   className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
                     report.action_taken
                       ? 'bg-muted text-muted-foreground'
-                      : 'bg-primary/10 text-primary'
+                      : 'bg-primary/10 text-primary-text'
                   }`}
                 >
                   {report.action_taken ? 'Resolved' : 'Open'}

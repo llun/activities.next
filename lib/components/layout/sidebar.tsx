@@ -284,10 +284,13 @@ export function Sidebar({
         className={cn(
           isDrawer
             ? 'flex h-full w-full min-h-0 flex-col bg-background'
-            : 'fixed left-0 top-0 z-40 h-screen w-[280px] border-r bg-background/90 backdrop-blur hidden xl:flex flex-col'
+            : 'fixed left-0 top-0 z-40 h-screen w-[280px] border-r bg-surface-chrome backdrop-blur hidden xl:flex flex-col'
         )}
       >
-        <div className={cn('p-6', isDrawer && 'pr-14')}>
+        {/* flex, not block: the Logo link is inline-flex, and as an inline
+            box in a block wrapper it sits in a 38px line box instead of its own
+            32px, pushing the whole nav 6px down. */}
+        <div className={cn('flex p-6', isDrawer && 'pr-14')}>
           <Logo size="md" onNavigate={onNavigate} />
         </div>
 
@@ -309,7 +312,7 @@ export function Sidebar({
                       className={cn(
                         'group flex items-center rounded-lg text-sm font-medium transition-colors',
                         isListsSectionActive
-                          ? 'text-primary'
+                          ? 'text-primary-text'
                           : 'text-muted-foreground'
                       )}
                     >
@@ -335,7 +338,12 @@ export function Sidebar({
                             'hover:bg-muted hover:text-foreground'
                         )}
                       >
-                        <item.icon className="h-5 w-5" />
+                        <item.icon
+                          className={cn(
+                            'h-5 w-5',
+                            isListsSectionActive && 'text-primary'
+                          )}
+                        />
                         {item.label}
                       </Link>
                       {renderRowMenu(item, index, true)}
@@ -353,9 +361,19 @@ export function Sidebar({
                         )}
                       >
                         {isListsOpen ? (
-                          <ChevronDown className="h-4 w-4" />
+                          <ChevronDown
+                            className={cn(
+                              'h-4 w-4',
+                              isListsSectionActive && 'text-primary'
+                            )}
+                          />
                         ) : (
-                          <ChevronRight className="h-4 w-4" />
+                          <ChevronRight
+                            className={cn(
+                              'h-4 w-4',
+                              isListsSectionActive && 'text-primary'
+                            )}
+                          />
                         )}
                       </button>
                     </div>
@@ -373,7 +391,7 @@ export function Sidebar({
                                   'block truncate rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                                   isDrawer && 'min-h-[44px] flex items-center',
                                   isListActive
-                                    ? 'bg-primary/10 text-primary'
+                                    ? 'bg-primary/10 text-primary-text'
                                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                 )}
                               >
@@ -399,11 +417,13 @@ export function Sidebar({
                       'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative',
                       isDrawer ? 'min-h-[44px] pr-14' : 'pr-10',
                       isActive
-                        ? 'bg-primary/10 text-primary'
+                        ? 'bg-primary/10 text-primary-text'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     )}
                   >
-                    <item.icon className="h-5 w-5" />
+                    <item.icon
+                      className={cn('h-5 w-5', isActive && 'text-primary')}
+                    />
                     {item.label}
                     {isNotifications && unreadCount > 0 && (
                       <>
@@ -443,18 +463,33 @@ export function Sidebar({
                     'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground',
                     isDrawer && 'min-h-[44px]',
                     isMoreSectionActive && !isMoreOpen
-                      ? 'text-primary'
+                      ? 'text-primary-text'
                       : 'text-muted-foreground'
                   )}
                 >
-                  <MoreHorizontal className="h-5 w-5" />
+                  <MoreHorizontal
+                    className={cn(
+                      'h-5 w-5',
+                      isMoreSectionActive && !isMoreOpen && 'text-primary'
+                    )}
+                  />
                   More
                   <span className="ml-auto inline-flex items-center gap-1.5 text-xs">
                     {more.length}
                     {isMoreOpen ? (
-                      <ChevronUp className="h-4 w-4" />
+                      <ChevronUp
+                        className={cn(
+                          'h-4 w-4',
+                          isMoreSectionActive && 'text-primary'
+                        )}
+                      />
                     ) : (
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown
+                        className={cn(
+                          'h-4 w-4',
+                          isMoreSectionActive && 'text-primary'
+                        )}
+                      />
                     )}
                   </span>
                 </button>
@@ -473,11 +508,16 @@ export function Sidebar({
                               'flex items-center gap-3 rounded-lg py-1.5 pl-6 text-sm transition-colors',
                               isDrawer ? 'min-h-[44px] pr-14' : 'pr-10',
                               isActive
-                                ? 'bg-primary/10 text-primary'
+                                ? 'bg-primary/10 text-primary-text'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                             )}
                           >
-                            <item.icon className="h-[18px] w-[18px]" />
+                            <item.icon
+                              className={cn(
+                                'h-[18px] w-[18px]',
+                                isActive && 'text-primary'
+                              )}
+                            />
                             {item.label}
                           </Link>
                           <button
@@ -525,7 +565,7 @@ export function Sidebar({
               >
                 <Avatar className="h-10 w-10">
                   {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                  <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                  <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
                     {getAvatarInitial(user.username)}
                   </AvatarFallback>
                 </Avatar>
@@ -543,8 +583,11 @@ export function Sidebar({
 
       {/* Collapsed sidebar - Tablet */}
       {variant === 'responsive' && (
-        <aside className="fixed left-0 top-0 z-40 h-screen w-[72px] border-r bg-background/90 backdrop-blur hidden md:flex xl:hidden flex-col items-center">
-          <div className="p-4">
+        <aside className="fixed left-0 top-0 z-40 h-screen w-[72px] border-r bg-surface-chrome backdrop-blur hidden md:flex xl:hidden flex-col items-center">
+          {/* flex for the same reason as the full sidebar's logo wrapper. The
+              rail draws the logo at y 20 and its first item at y 64, so the
+              extra 4px on top comes off the bottom (20 + 32 + 12 = 64). */}
+          <div className="flex px-4 pt-5 pb-3">
             <Logo showText={false} size="md" />
           </div>
 
@@ -626,10 +669,15 @@ export function Sidebar({
                                 aria-current={isActive ? 'page' : undefined}
                                 className={cn(
                                   'flex items-center gap-2.5',
-                                  isActive && 'text-primary'
+                                  isActive && 'text-primary-text'
                                 )}
                               >
-                                <item.icon className="h-4 w-4 shrink-0" />
+                                <item.icon
+                                  className={cn(
+                                    'h-4 w-4 shrink-0',
+                                    isActive && 'text-primary'
+                                  )}
+                                />
                                 {item.label}
                               </Link>
                             </DropdownMenuItem>
@@ -676,7 +724,10 @@ export function Sidebar({
           </nav>
 
           {user && (
-            <div className="border-t p-3">
+            // w-full so the divider spans the whole rail (the aside is an
+            // items-center column, which would shrink it to its content);
+            // justify-center keeps the avatar where it was.
+            <div className="flex w-full justify-center border-t p-3">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
@@ -686,7 +737,7 @@ export function Sidebar({
                   >
                     <Avatar className="h-10 w-10">
                       {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                      <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                      <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
                         {getAvatarInitial(user.username)}
                       </AvatarFallback>
                     </Avatar>

@@ -2,10 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 
 import { EnvLockBadge } from './EnvLockBadge'
-import { LanguagesPicker } from './LanguagesPicker'
 import { SettingsField } from './SettingsField'
 
 describe('EnvLockBadge', () => {
@@ -43,45 +42,6 @@ describe('SettingsField', () => {
     // The locked help replaces the normal help.
     expect(
       screen.queryByText('Shown on the about page.')
-    ).not.toBeInTheDocument()
-  })
-})
-
-describe('LanguagesPicker', () => {
-  it('renders a chip per selected language', () => {
-    render(<LanguagesPicker value={['en', 'th']} onChange={vi.fn()} />)
-    expect(screen.getByText('English')).toBeInTheDocument()
-    expect(screen.getByText('ไทย')).toBeInTheDocument()
-  })
-
-  it('removes a language via its chip button', () => {
-    const onChange = vi.fn()
-    render(<LanguagesPicker value={['en', 'th']} onChange={onChange} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Remove English' }))
-    expect(onChange).toHaveBeenCalledWith(['th'])
-  })
-
-  it('adds a language through the searchable picker', () => {
-    const onChange = vi.fn()
-    render(<LanguagesPicker value={['en']} onChange={onChange} />)
-
-    fireEvent.click(screen.getByRole('button', { name: /add language/i }))
-    fireEvent.change(screen.getByPlaceholderText('Search languages'), {
-      target: { value: 'deutsch' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: /Deutsch/ }))
-
-    expect(onChange).toHaveBeenCalledWith(['en', 'de'])
-  })
-
-  it('hides the add and remove controls when disabled', () => {
-    render(<LanguagesPicker value={['en']} onChange={vi.fn()} disabled />)
-    expect(screen.getByText('English')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: /add language/i })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Remove English' })
     ).not.toBeInTheDocument()
   })
 })

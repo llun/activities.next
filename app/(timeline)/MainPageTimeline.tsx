@@ -402,6 +402,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           <Button
             variant="outline"
             size="icon"
+            // Chrome control: the design draws it on the card surface with the
+            // hairline border in dark, not the translucent outline fill.
+            className="dark:border-border dark:bg-card dark:hover:bg-accent"
             onClick={refreshTimeline}
             disabled={isRefreshing}
             aria-label="Refresh timeline"

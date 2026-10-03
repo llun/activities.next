@@ -118,6 +118,17 @@ describe('DeviceDetailView', () => {
     expect(screen.queryByText('Distance')).not.toBeInTheDocument()
   })
 
+  it('draws the stat tiles radius 8 and flat, not as the Card default', () => {
+    renderView({})
+
+    for (const label of ['Activities', 'First used']) {
+      const tile = screen.getByText(label).closest('[data-slot="card"]')
+      expect(tile).toHaveClass('rounded-lg', 'shadow-none')
+      expect(tile).not.toHaveClass('rounded-xl')
+      expect(tile).not.toHaveClass('shadow-sm')
+    }
+  })
+
   it('renders an em dash for a device with no dated activity yet', () => {
     renderView({ gear: createDevice({ firstUsedAt: null }) })
 

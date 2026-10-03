@@ -263,7 +263,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
                       {statusLink && (
                         <Link
                           href={statusLink}
-                          className="text-xs text-primary hover:underline"
+                          className="text-xs text-primary-text hover:underline"
                         >
                           View status →
                         </Link>

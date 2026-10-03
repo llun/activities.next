@@ -415,7 +415,7 @@ export const StravaGearDefaultsSection: FC = () => {
                         className={cn(
                           'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 font-medium',
                           isActive && [
-                            'bg-primary/10 text-primary focus:bg-primary/10 focus:text-primary',
+                            'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text dark:focus:bg-primary/10',
                             'focus:ring-2 focus:ring-primary/50'
                           ]
                         )}

@@ -6,9 +6,9 @@
 // from it: the app's tokens are `hsl()`/`oklch()` and Outlook only understands
 // hex, so the values are pinned as the design system spells them.
 //
-// Note `BUTTON_BACKGROUND` is the design's `#E66A0F`, which is very slightly
-// warmer than the app's `--primary` `hsl(24 95% 46%)` (`#E55F06`). The design
-// is the reviewed source of truth for email, so the literal wins here.
+// `BUTTON_BACKGROUND` is the design's Brand/Primary `#E55F06`, the same orange
+// as the app's `--primary` `hsl(24 95% 46%)`. The design is the reviewed source
+// of truth for email, so the literal is pinned here rather than derived.
 
 export const FONT_STACK =
   "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
@@ -37,8 +37,19 @@ export const TEXT_MUTED = '#737373'
 /** Chrome outside the card: host, handles, footer. */
 export const TEXT_CHROME = '#8a8a8a'
 
-export const BUTTON_BACKGROUND = '#E66A0F'
+export const BUTTON_BACKGROUND = '#E55F06'
 export const BUTTON_TEXT = '#ffffff'
+
+/**
+ * Hashtag and mention links inside a quoted post, set without an underline. A
+ * bare `<a>` would take the mail client's default, `#0000EE`.
+ *
+ * The design's mid blue, `#0284C7`, reads 3.76:1 on the `#F5F5F5` inset these
+ * links sit in, under the 4.5:1 AA floor for body text. This is the same hue
+ * and saturation, darkened until it clears the floor with a little margin:
+ * 4.81:1 on the inset, 5.15:1 on the card.
+ */
+export const QUOTE_LINK = '#0272AC'
 
 export const CONTENT_WIDTH = 600
 

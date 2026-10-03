@@ -18,6 +18,10 @@ vi.mock('@/lib/client', () => ({
 }))
 
 describe('Notification settings', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   const notificationTypes = [
     {
       key: 'mention',
@@ -76,5 +80,25 @@ describe('Notification settings', () => {
       await screen.findByText(/Push notifications are not configured/i)
     ).toBeInTheDocument()
     expect(screen.queryByText(/ACTIVITIES_/)).not.toBeInTheDocument()
+  })
+
+  it('sets the helper text under each channel and event row at 12/16', async () => {
+    render(
+      <NotificationSettings
+        actorId="actor-1"
+        accountEmail="alice@llun.test"
+        actors={actors}
+        notificationTypes={notificationTypes}
+      />
+    )
+
+    for (const text of [
+      'Email notifications are enabled.',
+      'Someone mentions you'
+    ]) {
+      const helper = await screen.findByText(text)
+      expect(helper).toHaveClass('text-xs')
+      expect(helper).not.toHaveClass('text-[0.8rem]')
+    }
   })
 })

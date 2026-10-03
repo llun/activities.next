@@ -287,6 +287,22 @@ describe('ActorFitnessDashboard', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('sets the section headings 16/24 semibold', async () => {
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={FIXED_CURRENT_TIME}
+      />
+    )
+
+    for (const name of ['Training Calendar', 'Activities']) {
+      expect(await screen.findByRole('heading', { name })).toHaveClass(
+        'text-base',
+        'font-semibold'
+      )
+    }
+  })
+
   it('reports a duration column beside the count and distance', async () => {
     render(
       <ActorFitnessDashboard

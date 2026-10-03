@@ -75,6 +75,36 @@ describe('StravaSettingsForm', () => {
     vi.restoreAllMocks()
   })
 
+  describe('layout', () => {
+    it('puts the archive importer in a card of its own, outside the credentials form', async () => {
+      mockGetStravaSettings.mockResolvedValueOnce({
+        configured: false,
+        defaultVisibility: 'private'
+      })
+
+      render(<StravaSettingsForm serverActorHandle="@server@example.com" />)
+
+      await waitFor(() => expect(mockGetStravaSettings).toHaveBeenCalled())
+
+      const archive = screen.getByTestId('archive-import-section')
+      const form = screen
+        .getByLabelText(/^client id/i)
+        .closest('form') as HTMLFormElement
+
+      // Not nested in the credentials form (where it sat as a bordered box under
+      // Save / Unlink)…
+      expect(form).toContainElement(screen.getByLabelText(/^client secret/i))
+      expect(form).not.toContainElement(archive)
+      // …but in a card of its own, beside the settings card.
+      const archiveCard = archive.closest('[data-slot="card"]')
+      const settingsCard = form.closest('[data-slot="card"]')
+      expect(archiveCard).not.toBeNull()
+      expect(settingsCard).not.toBeNull()
+      expect(archiveCard).not.toBe(settingsCard)
+      expect(archiveCard?.parentElement).toBe(settingsCard?.parentElement)
+    })
+  })
+
   describe('loading', () => {
     it('loads unconfigured settings into form', async () => {
       mockGetStravaSettings.mockResolvedValueOnce({

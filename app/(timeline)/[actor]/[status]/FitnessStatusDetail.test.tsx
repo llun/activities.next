@@ -710,6 +710,20 @@ describe('FitnessStatusDetail', () => {
     await waitFor(() => expect(screen.getByText('Avg HR')).toBeInTheDocument())
   })
 
+  it('draws stat tiles as the design does: radius 8, flat, and a value line height of 1', () => {
+    renderDetail()
+
+    const value = screen.getByText('5.00')
+    // `leading-none` must SURVIVE the class merge. tailwind-merge drops a
+    // `leading-*` that comes before a `text-[28px]`, which left the value at
+    // 1.5 (42px) and every tile 14px taller than the design's 101.
+    expect(value).toHaveClass('text-[28px]', 'leading-none')
+    const tile = value.parentElement as HTMLElement
+    expect(tile).toHaveClass('rounded-lg', 'border')
+    expect(tile).not.toHaveClass('rounded-xl')
+    expect(tile).not.toHaveClass('shadow-sm')
+  })
+
   it('renders the caption through the same markup pipeline as the timeline, not flattened to plain text', () => {
     renderDetail({
       status: buildStatus({
@@ -877,6 +891,50 @@ describe('FitnessStatusDetail', () => {
     expect(container.querySelectorAll('rect').length).toBeGreaterThan(0)
   })
 
+  describe('power distribution average label', () => {
+    const openPowerDistribution = async () => {
+      renderDetail()
+      await waitFor(() =>
+        expect(screen.getByText('Avg HR')).toBeInTheDocument()
+      )
+      const menu = await openSectionMenu()
+      fireEvent.click(
+        within(menu).getByRole('menuitem', { name: '25 W Distribution' })
+      )
+      return screen.findByTestId('power-average-label')
+    }
+
+    it('is 12px HTML text over the plot, not SVG text that scales with the card', async () => {
+      const label = await openPowerDistribution()
+
+      // The plot's svg is stretched with preserveAspectRatio="none", so an SVG
+      // <text> shrank with the card to ~8px. Outside the svg it stays fixed.
+      expect(label.closest('svg')).toBeNull()
+      expect(label).toHaveClass('text-xs', 'font-medium', 'whitespace-nowrap')
+      expect(label).toHaveTextContent('Average Power 135 W')
+    })
+
+    it('flips to the left of the average line once the line is past the middle of the plot', async () => {
+      // 135 W over 10 buckets of 25 W puts the line at ~54% of the plot.
+      const label = await openPowerDistribution()
+
+      expect(label.style.right).toMatch(/^calc\(\d+(\.\d+)?% \+ 6px\)$/)
+      expect(label.style.left).toBe('')
+    })
+
+    it('starts just right of the average line while the line is in the left half', async () => {
+      // Mostly easy riding plus one 300 W sprint: mean 71 W, line at ~18%.
+      mockGetFitnessRouteData.mockResolvedValue({
+        ...routeData,
+        powerSeries: [40, 50, 60, 50, 40, 60, 300]
+      })
+      const label = await openPowerDistribution()
+
+      expect(label.style.left).toMatch(/^calc\(\d+(\.\d+)?% \+ 6px\)$/)
+      expect(label.style.right).toBe('')
+    })
+  })
+
   it('toggles a series off with its picker chip and keeps the rest', async () => {
     renderDetail()
 
@@ -899,7 +957,7 @@ describe('FitnessStatusDetail', () => {
     }
     // Every series is stacked by default.
     expect(
-      screen.getByRole('heading', { name: 'Elevation profile' })
+      screen.getByRole('heading', { name: 'Elevation Profile' })
     ).toBeInTheDocument()
 
     // Toggling a chip off drops that graph and leaves the others in place.
@@ -912,7 +970,7 @@ describe('FitnessStatusDetail', () => {
       screen.queryByRole('heading', { name: 'Power' })
     ).not.toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'Elevation profile' })
+      screen.getByRole('heading', { name: 'Elevation Profile' })
     ).toBeInTheDocument()
   })
 
@@ -946,7 +1004,7 @@ describe('FitnessStatusDetail', () => {
         within(panel)
           .getAllByRole('heading', { level: 3 })
           .map((heading) => heading.textContent)
-      ).toEqual(['Elevation profile', 'Speed', 'Power', 'Heart rate'])
+      ).toEqual(['Elevation Profile', 'Speed', 'Power', 'Heart rate'])
       // Each row is flush: the border and the rounding belong to the shared
       // panel. None of this is observable in jsdom, and without it the stack
       // silently goes back to four separately bordered cards.
@@ -1020,7 +1078,7 @@ describe('FitnessStatusDetail', () => {
 
       const readout = screen.getByTestId('combined-hover-value')
       // One box, with a value + unit row for every selected series.
-      expect(within(readout).getAllByText(/^(m|km\/h|w|bpm)$/)).toHaveLength(4)
+      expect(within(readout).getAllByText(/^(m|km\/h|W|bpm)$/)).toHaveLength(4)
       expect(screen.getByText('Selected time: 7:30')).toBeInTheDocument()
       // A dot pinned to each series' own line at that instant.
       expect(screen.getAllByTestId('combined-hover-dot')).toHaveLength(4)
@@ -1050,7 +1108,7 @@ describe('FitnessStatusDetail', () => {
       // Deselect Elevation in the default separate mode.
       fireEvent.click(screen.getByRole('button', { name: 'Elevation' }))
       expect(
-        screen.queryByRole('heading', { name: 'Elevation profile' })
+        screen.queryByRole('heading', { name: 'Elevation Profile' })
       ).not.toBeInTheDocument()
 
       // The selection is independent of the mode: switching to combined keeps
@@ -1070,7 +1128,7 @@ describe('FitnessStatusDetail', () => {
         3
       )
       expect(
-        within(panel).queryByRole('heading', { name: 'Elevation profile' })
+        within(panel).queryByRole('heading', { name: 'Elevation Profile' })
       ).not.toBeInTheDocument()
     })
 
@@ -1125,7 +1183,7 @@ describe('FitnessStatusDetail', () => {
       expect(readouts.map((readout) => readout.textContent)).toEqual([
         '24m',
         '22.0km/h',
-        '150w',
+        '150W',
         '130bpm'
       ])
       expect(screen.getByText('Selected time: 7:30')).toBeInTheDocument()
@@ -1173,7 +1231,7 @@ describe('FitnessStatusDetail', () => {
       expect(readouts.map((readout) => readout.textContent)).toEqual([
         '24m',
         '22.0km/h',
-        '150w',
+        '150W',
         // Index 1 of the held series [120,120,120,120,140,160] — still the
         // reading for 7:30, not the second POSITIVE sample (140).
         '120bpm'
@@ -1253,7 +1311,7 @@ describe('FitnessStatusDetail', () => {
 
       expect(
         screen.getAllByTestId('chart-hover-value').map((r) => r.textContent)
-      ).toEqual(['24m', '22.0km/h', '150w', '130bpm'])
+      ).toEqual(['24m', '22.0km/h', '150W', '130bpm'])
 
       fireEvent.touchEnd(elevationChart)
       expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
@@ -1583,6 +1641,25 @@ describe('FitnessStatusDetail', () => {
     expect(select.parentElement?.querySelector('svg')).toHaveClass(
       'pointer-events-none'
     )
+    // The switcher is its own bordered card (radius 12, 16 padding) with a
+    // chevron in the foreground colour, not a bare select with a muted one.
+    expect(select.parentElement?.querySelector('svg')).toHaveClass(
+      'text-foreground'
+    )
+    expect(select.parentElement?.querySelector('svg')).not.toHaveClass(
+      'text-muted-foreground'
+    )
+    const switcherCard = select.closest('div.rounded-xl') as HTMLElement
+    expect(switcherCard).toHaveClass('border', 'bg-card', 'p-4')
+    expect(switcherCard).toContainElement(screen.getByText('Activity file'))
+    // A card of its own, beside the activity card rather than inside it: the
+    // activity card is the one holding the file position in its footer, and the
+    // two share the page's column.
+    const activityCard = switcherCard.previousElementSibling as HTMLElement
+    expect(activityCard).toContainElement(screen.getByText('file 1 of 2'))
+    expect(activityCard).not.toContainElement(select)
+    expect(activityCard).not.toContainElement(switcherCard)
+    expect(switcherCard.parentElement).toBe(activityCard.parentElement)
     expect(within(select).getAllByRole('option')).toHaveLength(2)
     expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
 
@@ -1590,6 +1667,21 @@ describe('FitnessStatusDetail', () => {
     await waitFor(() =>
       expect(screen.getByText('file 2 of 2')).toBeInTheDocument()
     )
+  })
+
+  it('shows no activity-file switcher card for a status with a single fitness file', async () => {
+    mockGetFitnessFilesByStatus.mockResolvedValue([
+      buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.fit' })
+    ])
+
+    renderDetail()
+
+    // Positive anchor first: the file row is what the loaded file renders, so
+    // the absences below are not just "the files have not arrived yet".
+    expect(await screen.findByText('ride-morning.fit')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Activity file')).not.toBeInTheDocument()
+    expect(screen.queryByText('Activity file')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^file \d+ of \d+$/)).not.toBeInTheDocument()
   })
 
   describe('route privacy hint', () => {

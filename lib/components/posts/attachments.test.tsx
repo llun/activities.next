@@ -749,9 +749,137 @@ describe('Attachments', () => {
         />
       )
 
-      const [video] = screen.getAllByRole('button')
-      expect(video.parentElement?.style.width).toBe('576px')
-      expect(container.querySelector('video')).toBeInTheDocument()
+      // strip item (sized from the aspect ratio) > tile > <video>
+      const video = container.querySelector('video')
+      expect(video).toBeInTheDocument()
+      expect(video?.parentElement?.parentElement?.style.width).toBe('576px')
+      expect(video?.parentElement).toHaveClass('h-[240px]', 'w-full')
+    })
+
+    it('plays a video inline with the player controls instead of opening the lightbox', () => {
+      const onMediaSelected = vi.fn()
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({ mediaType: 'video/mp4', width: 800, height: 600 })
+          ])}
+          onMediaSelected={onMediaSelected}
+        />
+      )
+
+      const video = container.querySelector('video')
+      expect(video).toHaveAttribute('controls')
+      // The controls are interactive content, so nothing may wrap the video in
+      // a button, and pressing the picture is the player's (play / pause).
+      expect(video?.closest('button')).toBeNull()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+      video?.dispatchEvent(click)
+      expect(click.defaultPrevented).toBe(false)
+      expect(onMediaSelected).not.toHaveBeenCalled()
+    })
+
+    // `Media` leaves a click on a controlled video alone, so the card's own
+    // `stopPropagation` is the only thing keeping a play / pause press from
+    // reaching whatever surface embeds the post (a timeline row that opens the
+    // status, say).
+    it.each([1, 2])(
+      'keeps a press on the player of %i video(s) from reaching the surface embedding the post',
+      (count) => {
+        const surfaceClick = vi.fn()
+        const { container } = render(
+          <div onClick={surfaceClick}>
+            <Attachments
+              status={buildNoteStatus(
+                Array.from({ length: count }, () =>
+                  buildAttachment({
+                    mediaType: 'video/mp4',
+                    width: 800,
+                    height: 600
+                  })
+                )
+              )}
+              onMediaSelected={vi.fn()}
+            />
+          </div>
+        )
+
+        const videos = container.querySelectorAll('video')
+        expect(videos).toHaveLength(count)
+        videos.forEach((video) => fireEvent.click(video))
+        expect(surfaceClick).not.toHaveBeenCalled()
+      }
+    )
+
+    it('plays every video of a strip inline and keeps the pictures opening the lightbox', () => {
+      const onMediaSelected = vi.fn()
+      const attachments = [
+        buildAttachment({ mediaType: 'video/mp4', width: 800, height: 600 }),
+        buildAttachment({ width: 800, height: 600 }),
+        buildAttachment({ mediaType: 'video/mp4', width: 800, height: 600 })
+      ]
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus(attachments)}
+          onMediaSelected={onMediaSelected}
+        />
+      )
+
+      const videos = Array.from(container.querySelectorAll('video'))
+      expect(videos).toHaveLength(2)
+      videos.forEach((video) => expect(video).toHaveAttribute('controls'))
+
+      // Only the picture is a button, and it still opens the lightbox on its
+      // own place in the list the lightbox is handed (videos included).
+      const [picture] = screen.getAllByRole('button')
+      fireEvent.click(picture)
+      expect(onMediaSelected).toHaveBeenCalledWith(attachments, 1)
+    })
+
+    it('keeps a looping GIFV an animation, with no player controls', () => {
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({
+              mediaType: 'video/mp4',
+              playbackType: 'gifv',
+              width: 800,
+              height: 600
+            })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      expect(container.querySelector('video')).not.toHaveAttribute('controls')
+      // The animation chip, not a player: its own play / pause toggle.
+      expect(
+        screen.getByRole('button', { name: /(Play|Pause) animation/ })
+      ).toBeInTheDocument()
+    })
+
+    it('keeps a video behind its content warning until the warning is expanded', () => {
+      const { container } = render(
+        <ContentWarning summary="Spoilers">
+          <Attachments
+            status={buildNoteStatus([
+              buildAttachment({
+                mediaType: 'video/mp4',
+                width: 800,
+                height: 600
+              })
+            ])}
+            onMediaSelected={vi.fn()}
+          />
+        </ContentWarning>
+      )
+
+      // The gate mounts nothing while collapsed: no <video>, so no request.
+      expect(container.querySelector('video')).toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Show content' }))
+      expect(container.querySelector('video')).toHaveAttribute('controls')
     })
 
     it('defers a strip video that has a poster to paint instead', () => {
@@ -1702,11 +1830,13 @@ describe('Attachments', () => {
           />
         )
 
-        const button = screen.getByRole('button')
-        expect(button).toHaveClass('rounded-2xl')
+        // The tile around an inline video is a div, not a button, because the
+        // player's controls live inside it.
+        expect(screen.queryByRole('button')).not.toBeInTheDocument()
 
         const video = container.querySelector('video')
         expect(video).toBeInTheDocument()
+        expect(video?.parentElement).toHaveClass('rounded-2xl')
         expect(video).toHaveClass('rounded-2xl')
       })
     })
@@ -1787,16 +1917,12 @@ describe('Attachments', () => {
         expect(videos[1]).toHaveClass('rounded-none')
         expect(videos[2]).toHaveClass('rounded-r-2xl')
 
-        const buttons = screen.getAllByRole('button')
-        expect(buttons).toHaveLength(3)
-        buttons.forEach((button) => {
-          expect(button).toHaveClass(
-            'focus-visible:outline-2',
-            'focus-visible:-outline-offset-2',
-            'focus-visible:outline-ring/50'
-          )
-          expect(button.className).not.toContain('focus-visible:ring-')
-        })
+        // The tile clipping each video carries the same per-position corner as
+        // a picture's button does.
+        expect(videos[0].parentElement).toHaveClass('rounded-l-2xl')
+        expect(videos[1].parentElement).toHaveClass('rounded-none')
+        expect(videos[2].parentElement).toHaveClass('rounded-r-2xl')
+        expect(screen.queryByRole('button', { name: /Open media/ })).toBeNull()
       })
     })
 

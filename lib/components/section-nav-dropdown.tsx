@@ -77,9 +77,15 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
             CSS variable. The v3 bracket form, `w-[--radix-…]`, compiles to
             `width: --radix-…` rather than `width: var(--radix-…)` — an invalid
             declaration the browser drops silently, leaving the menu to size to
-            its content instead of to the trigger. */}
+            its content instead of to the trigger.
+
+            `sideOffset={6}`: the Settings navigation board opens the menu 6 pt
+            under the trigger (trigger y 46..86, menu at y 92). The shared
+            menu's default of 4 is the Visibility menu board's gap, so it is
+            overridden here and not in the primitive. */}
         <DropdownMenuContent
           align="start"
+          sideOffset={6}
           className="w-(--radix-dropdown-menu-trigger-width) rounded-xl shadow-lg"
         >
           {tabs.map((tab) => {
@@ -110,7 +116,7 @@ export const SectionNavDropdown: FC<SectionNavDropdownProps> = ({
                     // paints the identical row, and the pair now sits on one
                     // screen on a gear's page, where two shades of orange
                     // would read as a mistake.
-                    'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text',
+                    'bg-primary/10 text-primary-text focus:bg-primary/10 focus:text-primary-text dark:focus:bg-primary/10',
                     // …but "held on focus" would otherwise make the focused
                     // current row pixel-identical to its resting state, so a
                     // keyboard user watching the highlight move down the list

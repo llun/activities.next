@@ -232,7 +232,8 @@ const RectComposer: FC<RectComposerProps> = ({
     return {
       loadModule: () => options.loadModule() as Promise<GlModule>,
       mapOptions: options.mapOptions,
-      providerLabel: options.label
+      providerLabel: options.label,
+      customAttribution: options.customAttribution
     }
   }, [providerType, providerAccessToken])
 
@@ -268,6 +269,7 @@ const RectComposer: FC<RectComposerProps> = ({
           loadModule={glProvider.loadModule}
           mapOptions={glProvider.mapOptions}
           providerLabel={glProvider.providerLabel}
+          customAttribution={glProvider.customAttribution}
           centerOnUser={!initial}
           onUnavailable={() => setMapUnavailable(true)}
         />

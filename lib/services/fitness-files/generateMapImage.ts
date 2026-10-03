@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 
 import { getMapProviderConfig } from '@/lib/config/mapProvider'
+import { ROUTE_COLOR } from '@/lib/fitness/routeColor'
 import { fetchAppleSnapshot } from '@/lib/services/fitness-files/appleMapsSnapshot'
 import { downsamplePrivacySegments } from '@/lib/services/fitness-files/privacy'
 import type { PrivacySegment } from '@/lib/services/fitness-files/privacy'
@@ -116,7 +117,7 @@ const buildMapboxUrl = ({
   const geoJson = {
     type: 'Feature',
     properties: {
-      stroke: '#ff3b30',
+      stroke: ROUTE_COLOR,
       'stroke-width': 4,
       'stroke-opacity': 0.9
     },
@@ -199,7 +200,7 @@ const renderOsmMap = async ({
       const points = segment
         .map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`)
         .join(' ')
-      return `<polyline points="${points}" fill="none" stroke="#ff3b30" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`
+      return `<polyline points="${points}" fill="none" stroke="${ROUTE_COLOR}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`
     })
     .join('')
 

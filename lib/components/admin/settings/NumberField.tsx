@@ -3,6 +3,7 @@
 import { FC, ReactNode, useEffect, useRef, useState } from 'react'
 
 import { Input } from '@/lib/components/ui/input'
+import { cn } from '@/lib/utils'
 
 // A numeric input with an optional trailing unit. Keeps a local text buffer so
 // clearing/retyping stays smooth, and only emits finite numbers. Re-syncs the
@@ -75,7 +76,10 @@ export const NumberField: FC<NumberFieldProps> = ({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    // One 200 px field with the unit inside its right edge, as the design's
+    // Input/NumberField draws it. The input reserves room for the longest unit
+    // (`attachments`) so a typed value never runs under it.
+    <div className="relative w-50">
       <Input
         id={id}
         type="number"
@@ -87,10 +91,12 @@ export const NumberField: FC<NumberFieldProps> = ({
         disabled={disabled}
         onChange={(event) => handleChange(event.target.value)}
         onBlur={handleBlur}
-        className="w-40"
+        className={cn(suffix && 'pr-24')}
       />
       {suffix && (
-        <span className="text-sm text-muted-foreground">{suffix}</span>
+        <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm">
+          {suffix}
+        </span>
       )}
     </div>
   )

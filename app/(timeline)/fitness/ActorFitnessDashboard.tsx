@@ -370,7 +370,7 @@ export const ActorFitnessDashboard: FC<Props> = ({
           <section>
             <Card className="flex flex-col gap-3 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="inline-flex items-center gap-2 text-base font-medium">
+                <h2 className="inline-flex items-center gap-2 text-base font-semibold">
                   <CalendarDays className="size-4" />
                   Training Calendar
                 </h2>
@@ -405,7 +405,7 @@ export const ActorFitnessDashboard: FC<Props> = ({
 
           <section>
             <Card className="flex flex-col gap-3 p-4">
-              <h2 className="inline-flex items-center gap-2 text-base font-medium">
+              <h2 className="inline-flex items-center gap-2 text-base font-semibold">
                 <BarChart3 className="size-4" />
                 Activities
               </h2>

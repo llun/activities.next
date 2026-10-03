@@ -74,6 +74,44 @@ const KIND_ICON: Record<FitnessGearKind, typeof Bike> = {
 const getGearHref = (gearId: string) =>
   `/fitness/gear/${encodeURIComponent(gearId)}`
 
+/**
+ * The row's Actions cell: one Edit button, centred in the column in the
+ * symmetric `px-2` the components table gives its own buttons.
+ *
+ * The column is 10% of the table, so how much room the button has depends on
+ * how wide the table is — and "Edit" needs more than a narrow table gives it:
+ * the label and its icon measure 62.5px, while the cell leaves 40px of content
+ * at the 560px minimum and 74.6px at the 906px maximum. The label therefore
+ * shows only where its own cell has the room (a container query on the wrapper,
+ * which is as wide as the cell's content) and the pencil stands alone
+ * everywhere else. `4rem` is the label's 62.5px rounded up. A viewport
+ * breakpoint cannot answer this, because the table's width follows the page's
+ * side navigation as much as the viewport: at 800px the table is 694px, and the
+ * label overflowed it by 5px.
+ */
+const GearActionsCell: FC<{
+  gear: GearEntity
+  onEdit: (gear: GearEntity) => void
+}> = ({ gear, onEdit }) => (
+  <td className={cn('px-2 py-3 align-middle', gear.retiredAt && 'opacity-60')}>
+    <div className="@container flex w-full justify-center">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+        onClick={(event) => {
+          event.stopPropagation()
+          onEdit(gear)
+        }}
+        aria-label={`Edit ${getGearDisplayName(gear)}`}
+      >
+        <Pencil className="size-3.5" />
+        <span className="sr-only @min-[4rem]:not-sr-only">Edit</span>
+      </Button>
+    </div>
+  </td>
+)
+
 interface SectionProps {
   kind: UserCreatableGearKind
   gears: GearEntity[]
@@ -115,11 +153,21 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
       ) : (
         <div className={GEAR_TABLE_SCROLLER}>
           <table className="w-full min-w-[560px] table-fixed text-sm">
+            {/* 33.5/22.5/14.5/19.5/10, sized from the widest content of each
+                column at the design's 590pt card: Distance needs ~112pt for a
+                five-digit lifetime total ("35,670.2 km"), a product host needs
+                ~125pt, and the first column ~195pt for a default "brand model"
+                name. "Default sports" is the one that gives: its header stays on
+                one line by overflowing its own padding, and its cells truncate
+                ("Ride, Grav…") as the design draws them. That puts Default sports
+                at 342pt and Distance's right edge at 518pt from the card's left,
+                as the design does. The design's 30% first column was not used: it
+                wraps those names and turns a 65pt row into 97. */}
             <colgroup>
-              <col className="w-[34%]" />
-              <col className="w-[26%]" />
-              <col className="w-[18%]" />
-              <col className="w-[12%]" />
+              <col className="w-[33.5%]" />
+              <col className="w-[22.5%]" />
+              <col className="w-[14.5%]" />
+              <col className="w-[19.5%]" />
               <col className="w-[10%]" />
             </colgroup>
             <thead>
@@ -133,9 +181,11 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
                   {copy.columnHeader}
                 </th>
                 <th className="px-3 pb-2 font-medium">Product page</th>
-                <th className="px-3 pb-2 font-medium">Default sports</th>
+                <th className="px-3 pb-2 font-medium whitespace-nowrap">
+                  Default sports
+                </th>
                 <th className="px-3 pb-2 text-right font-medium">Distance</th>
-                <th className="px-3 pr-4 pb-2 text-right font-medium">
+                <th className="px-2 pb-2 font-medium">
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
@@ -205,32 +255,13 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
                     </td>
                     <td
                       className={cn(
-                        'px-3 py-3 text-right align-middle font-semibold tabular-nums',
+                        'px-3 py-3 text-right align-middle font-semibold whitespace-nowrap tabular-nums',
                         gear.retiredAt && 'opacity-60'
                       )}
                     >
                       {formatGearDistanceKm(gear.distanceMeters)}
                     </td>
-                    <td
-                      className={cn(
-                        'px-3 py-3 pr-4 text-right align-middle',
-                        gear.retiredAt && 'opacity-60'
-                      )}
-                    >
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onEdit(gear)
-                        }}
-                        aria-label={`Edit ${getGearDisplayName(gear)}`}
-                      >
-                        <Pencil className="size-3.5" />
-                        <span className="sr-only sm:not-sr-only">Edit</span>
-                      </Button>
-                    </td>
+                    <GearActionsCell gear={gear} onEdit={onEdit} />
                   </tr>
                 )
               })}
@@ -286,10 +317,14 @@ const DeviceSection: FC<{
 
       <div className={GEAR_TABLE_SCROLLER}>
         <table className="w-full min-w-[560px] table-fixed text-sm">
+          {/* 33.5/22.5/34/10: the first two columns and the Actions column are
+              the bikes and shoes tables' own, so the three tables line up, and
+              Activities takes the rest. Its right-aligned count then ends at 90%
+              of the table, where Distance ends on the other two. */}
           <colgroup>
+            <col className="w-[33.5%]" />
+            <col className="w-[22.5%]" />
             <col className="w-[34%]" />
-            <col className="w-[26%]" />
-            <col className="w-[30%]" />
             <col className="w-[10%]" />
           </colgroup>
           <thead>
@@ -304,7 +339,7 @@ const DeviceSection: FC<{
               </th>
               <th className="px-3 pb-2 font-medium">Product page</th>
               <th className="px-3 pb-2 text-right font-medium">Activities</th>
-              <th className="px-3 pr-4 pb-2 text-right font-medium">
+              <th className="px-2 pb-2 font-medium">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -351,21 +386,7 @@ const DeviceSection: FC<{
                   <td className="px-3 py-3 text-right align-middle font-semibold tabular-nums">
                     {gear.activityCount}
                   </td>
-                  <td className="px-3 py-3 pr-4 text-right align-middle">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onEdit(gear)
-                      }}
-                      aria-label={`Edit ${getGearDisplayName(gear)}`}
-                    >
-                      <Pencil className="size-3.5" />
-                      <span className="sr-only sm:not-sr-only">Edit</span>
-                    </Button>
-                  </td>
+                  <GearActionsCell gear={gear} onEdit={onEdit} />
                 </tr>
               )
             })}

@@ -156,7 +156,7 @@ describe('buildAppleSnapshotPath', () => {
     expect(overlays[0]).toEqual({
       type: 'polyline',
       points: encodePolyline(straightRoute[0].points),
-      strokeColor: 'ef4444',
+      strokeColor: 'e55f06',
       strokeOpacity: 0.9,
       lineWidth: 4
     })

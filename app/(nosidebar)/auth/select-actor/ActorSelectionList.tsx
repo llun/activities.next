@@ -57,7 +57,7 @@ export function ActorSelectionList({ actors }: ActorSelectionListProps) {
         >
           <Avatar className="h-12 w-12">
             {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
-            <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+            <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
               {getAvatarInitial(actor.username)}
             </AvatarFallback>
           </Avatar>

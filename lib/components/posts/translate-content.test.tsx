@@ -9,6 +9,7 @@ import {
   getTranslationLanguages,
   translateStatus
 } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { Translation } from '@/lib/types/mastodon/translation'
 
 import { TranslateContent } from './translate-content'
@@ -114,6 +115,25 @@ describe('TranslateContent', () => {
     fireEvent.click(await findTranslateButton())
     expect(await screen.findByText('Bonjour le monde')).toBeInTheDocument()
     expect(translateStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the 8-spoke loader, not the open arc, while the translation is pending', async () => {
+    mockCapability(true, 'fr')
+    const pending = createDeferred<Translation>()
+    ;(translateStatus as jest.Mock).mockReturnValue(pending.promise)
+    renderContent('en')
+
+    fireEvent.click(await findTranslateButton())
+
+    const status = await screen.findByText(/Translating to French/)
+    const spinner = status.querySelector('svg')
+    expect(spinner).not.toBeNull()
+    expect(spinner).toHaveClass('lucide-loader', 'animate-spin')
+    expect(spinner).not.toHaveClass('lucide-loader-circle')
+    expect(spinner).toHaveAttribute('aria-hidden', 'true')
+
+    pending.resolve(translation)
+    expect(await screen.findByText('Bonjour le monde')).toBeInTheDocument()
   })
 
   it('offers a target-language picker when the backend supports more than one', async () => {

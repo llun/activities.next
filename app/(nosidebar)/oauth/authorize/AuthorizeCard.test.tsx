@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import * as clientModule from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -533,6 +539,68 @@ describe('AuthorizeCard', () => {
     expect(screen.queryByText('R')).not.toBeInTheDocument()
   })
 
+  it('draws the OIDC account monogram on the neutral tokens, not Tailwind grays', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={{ email: 'rider@example.com', name: 'Zoe', iconUrl: null }}
+        navigate={mockNavigate}
+      />
+    )
+
+    const monogram = screen.getByText('Z')
+    expect(monogram).toHaveClass(
+      'bg-(--skeleton)',
+      'font-semibold',
+      'text-muted-foreground',
+      'dark:bg-input'
+    )
+    expect(monogram.className).not.toMatch(/gray-/)
+  })
+
+  it('draws the actor picker monograms on the neutral tokens, not Tailwind grays', async () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={signedSearchParams}
+        actors={alternateActors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    const expectNeutralMonogram = (monogram: Element | null) => {
+      expect(monogram).toHaveClass(
+        'bg-(--skeleton)',
+        'font-semibold',
+        'text-muted-foreground',
+        'dark:bg-input'
+      )
+      expect(monogram?.className).not.toMatch(/gray-/)
+    }
+
+    const trigger = screen.getByRole('button', { name: /llun/ })
+    const triggerMonogram = trigger.querySelector(
+      '[data-slot="avatar-fallback"]'
+    )
+    expect(triggerMonogram).toHaveTextContent('L')
+    expectNeutralMonogram(triggerMonogram)
+
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    const menu = await screen.findByRole('menu')
+    const items = within(menu).getAllByRole('menuitem')
+    expect(items).toHaveLength(2)
+    for (const item of items) {
+      const monogram = item.querySelector('[data-slot="avatar-fallback"]')
+      expectNeutralMonogram(monogram)
+      expect(monogram).toHaveClass('text-xs')
+    }
+  })
+
   it('derives a Unicode-safe avatar initial for a non-BMP name (OIDC)', () => {
     render(
       <AuthorizeCard
@@ -1012,5 +1080,125 @@ describe('AuthorizeCard', () => {
       expect(mockPush).toHaveBeenCalledWith('https://phanpy.local')
     })
     expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  describe('scope checkboxes', () => {
+    const renderCard = (searchParams: SearchParams = signedSearchParams) =>
+      render(
+        <AuthorizeCard
+          client={client}
+          searchParams={searchParams}
+          actors={actors}
+          currentActorId="https://activities.local/users/llun"
+          account={account}
+          navigate={mockNavigate}
+        />
+      )
+
+    // The consent form's scopes come from the form's own data, so the shared
+    // Checkbox must post exactly what the bare <input> it replaced did: the
+    // `scope` name, the scope as the value, checked by default, and omitted
+    // from the form data once unchecked.
+    it('renders each requested scope as a checked checkbox named scope', () => {
+      const { container } = renderCard()
+
+      const boxes = Array.from(
+        container.querySelectorAll<HTMLInputElement>('input[name="scope"]')
+      )
+      expect(boxes.map((box) => box.value)).toEqual([
+        'read',
+        'write',
+        'follow',
+        'push'
+      ])
+      for (const box of boxes) {
+        expect(box).toHaveAttribute('type', 'checkbox')
+        expect(box).toHaveAttribute('id', `scope-${box.value}`)
+        expect(box).toBeChecked()
+        expect(box).toBeEnabled()
+      }
+    })
+
+    // Presentation, not behaviour: kept apart from the tests around it so they
+    // stay valid against the card as it was before the shared Checkbox.
+    it('draws each scope box with the shared Checkbox at the 14 px tick', () => {
+      renderCard()
+
+      const boxes = screen.getAllByRole('checkbox')
+      expect(boxes).toHaveLength(4)
+      for (const box of boxes) {
+        expect(box).toHaveAttribute('data-slot', 'checkbox')
+        expect(box).toHaveClass('bg-[length:14px_14px]')
+      }
+    })
+
+    it('posts the same scope set through the form data as before', () => {
+      const { container } = renderCard()
+
+      const form = container.querySelector('form') as HTMLFormElement
+      expect(new FormData(form).getAll('scope')).toEqual([
+        'read',
+        'write',
+        'follow',
+        'push'
+      ])
+    })
+
+    it('leaves an unchecked scope out of the consent', async () => {
+      const { container } = renderCard()
+
+      fireEvent.click(screen.getByLabelText('write'))
+      expect(screen.getByLabelText('write')).not.toBeChecked()
+      const form = container.querySelector('form') as HTMLFormElement
+      expect(new FormData(form).getAll('scope')).toEqual([
+        'read',
+        'follow',
+        'push'
+      ])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+      await waitFor(() => {
+        expect(mockSubmitOAuthConsent).toHaveBeenCalled()
+      })
+      expect(mockSubmitOAuthConsent.mock.calls[0][0]).toMatchObject({
+        accept: true,
+        scope: 'read follow push'
+      })
+    })
+
+    it('submits an empty scope when every box is unchecked', async () => {
+      renderCard()
+
+      for (const scope of ['read', 'write', 'follow', 'push']) {
+        fireEvent.click(screen.getByLabelText(scope))
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+
+      await waitFor(() => {
+        expect(mockSubmitOAuthConsent).toHaveBeenCalled()
+      })
+      expect(mockSubmitOAuthConsent.mock.calls[0][0].scope).toBe('')
+    })
+
+    it('posts a locked openid scope once, from the hidden field, not the disabled box', () => {
+      const { container } = renderCard(oidcSearchParams)
+
+      const locked = screen.getByLabelText('openid') as HTMLInputElement
+      expect(locked).toBeDisabled()
+      expect(locked).toBeChecked()
+      expect(locked).not.toHaveAttribute('name')
+
+      const hidden = container.querySelector<HTMLInputElement>(
+        'input[type="hidden"][name="scope"]'
+      )
+      expect(hidden).toHaveValue('openid')
+
+      const form = container.querySelector('form') as HTMLFormElement
+      expect(new FormData(form).getAll('scope')).toEqual([
+        'openid',
+        'profile',
+        'email'
+      ])
+    })
   })
 })

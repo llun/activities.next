@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { Activity, Files, Globe, Lock } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
@@ -93,6 +99,12 @@ describe('SectionNavDropdown', () => {
     const active = within(menu).getByRole('menuitem', { name: 'Strava' })
     expect(active.className).toMatch(/focus:bg-primary\/10/)
     expect(active.className).toMatch(/focus:ring-2/)
+    // The shared item carries `dark:focus:bg-muted`, and tailwind-merge only
+    // drops it for a `dark:focus:` class of the same family. Without that dark
+    // twin the hovered current row turns grey in dark instead of holding its
+    // wash.
+    expect(active.className).toMatch(/dark:focus:bg-primary\/10/)
+    expect(active.className).not.toMatch(/dark:focus:bg-muted/)
     // `text-primary-text`, never `text-primary`: `--primary` is the icon
     // orange and is under the AA floor as a foreground. This assertion and the
     // identical one in `section-nav-select.test.tsx` are the only two things in
@@ -104,6 +116,26 @@ describe('SectionNavDropdown', () => {
     // Inactive rows keep the shared grey focus wash, so they need no ring.
     const inactive = within(menu).getByRole('menuitem', { name: 'Overview' })
     expect(inactive.className).not.toMatch(/focus:ring-2/)
+  })
+
+  // The Settings navigation board opens the menu 6 pt below its trigger; the
+  // shared menu's own default is 4. jsdom lays nothing out (every rect is 0),
+  // so Radix's popper wrapper is translated by exactly the side offset, which
+  // makes the transform a faithful readout of it.
+  it('opens the menu 6 px below the trigger, not the shared default of 4', async () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness')
+    renderDropdown()
+
+    const nav = screen.getByRole('navigation', { name: 'Fitness' })
+    fireEvent.keyDown(within(nav).getByRole('button'), { key: 'ArrowDown' })
+
+    const menu = await screen.findByRole('menu')
+    const wrapper = menu.closest(
+      '[data-radix-popper-content-wrapper]'
+    ) as HTMLElement
+    await waitFor(() => {
+      expect(wrapper.style.transform).toMatch(/translate\(0px, 6px\)/)
+    })
   })
 
   // The design system's sub-nav is one flat run of links. A `group` field once

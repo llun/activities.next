@@ -249,7 +249,7 @@ describe('email design conformance', () => {
   it.each(cases)(
     '$description renders the expected number of call-to-action buttons',
     ({ email, buttons }) => {
-      expect(count(email.html, 'bgcolor="#E66A0F"')).toBe(buttons)
+      expect(count(email.html, 'bgcolor="#E55F06"')).toBe(buttons)
     }
   )
 
@@ -353,7 +353,7 @@ describe('email design conformance', () => {
       // With no actor there is no local path, so getEmailStatusUrl returns the
       // remote-controlled status.url. The button builder must refuse it.
       expect(email.html).not.toContain('javascript:')
-      expect(count(email.html, 'bgcolor="#E66A0F"')).toBe(0)
+      expect(count(email.html, 'bgcolor="#E55F06"')).toBe(0)
     }
   )
 

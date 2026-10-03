@@ -21,7 +21,10 @@ export const NotificationBadge: FC<Props> = ({
       className={cn(
         'absolute -top-1 -right-1 flex items-center justify-center',
         'min-w-[18px] h-[18px] px-1 rounded-full',
-        'bg-destructive text-white',
+        // Light fill is the design's Control/Destructive Fill (#B7282E), darker
+        // than the #EF4444 --destructive token (white on it is only 3.8:1);
+        // dark keeps --destructive (#7F1D1D).
+        'bg-[#B7282E] dark:bg-destructive text-white',
         'text-xs font-medium',
         className
       )}

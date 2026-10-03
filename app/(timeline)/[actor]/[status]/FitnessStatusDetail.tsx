@@ -233,7 +233,7 @@ const StatTile: FC<{
   accent?: boolean
   big?: boolean
 }> = ({ icon: Icon, label, value, sub, accent = false, big = false }) => (
-  <div className="rounded-xl border bg-background p-3.5 shadow-sm">
+  <div className="rounded-lg border bg-background p-3.5">
     <div className="flex items-center gap-1.5 text-muted-foreground">
       {Icon ? <Icon className="size-3.5" /> : null}
       <span className="text-[11px] font-medium uppercase tracking-wide">
@@ -242,9 +242,14 @@ const StatTile: FC<{
     </div>
     <div
       className={cn(
-        'mt-1.5 font-semibold leading-none tracking-tight tabular-nums',
+        'mt-1.5 font-semibold tracking-tight tabular-nums',
         big ? 'text-[28px]' : 'text-[21px]',
-        accent && 'text-primary'
+        // After the size class on purpose: tailwind-merge treats `text-[28px]`
+        // as also setting the line height and drops an EARLIER `leading-*`,
+        // which left the value at 1.5 (42px) and the tile 115px tall instead
+        // of the design's 99px.
+        'leading-none',
+        accent && 'text-primary-text'
       )}
     >
       {value}
@@ -587,16 +592,16 @@ export const FitnessStatusDetail: FC<Props> = ({
                 type="button"
                 onClick={() => toggleCommentBranch(node.status.id)}
                 aria-expanded={isExpanded}
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline focus:outline-none"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary-text hover:underline focus:outline-none"
               >
                 {isExpanded ? (
                   <>
-                    <ChevronUp className="size-3.5" />
+                    <ChevronUp className="size-3.5 text-primary" />
                     <span>Hide replies</span>
                   </>
                 ) : (
                   <>
-                    <ChevronDown className="size-3.5" />
+                    <ChevronDown className="size-3.5 text-primary" />
                     <span>
                       Show {node.totalDescendantCount} more{' '}
                       {node.totalDescendantCount === 1 ? 'reply' : 'replies'}
@@ -1312,6 +1317,13 @@ export const FitnessStatusDetail: FC<Props> = ({
     }
   }, [avgPower, histogramMinutes])
 
+  // Where the average line sits across the plot, 0-100, for the HTML label that
+  // follows it.
+  const averageLabelLeftPercent = Math.min(
+    100,
+    Math.max(0, (histogramLayout.weightedAvgX / 760) * 100)
+  )
+
   const getBarColor = (index: number, total: number) => {
     const ratio = index / Math.max(1, total - 1)
     // Interpolate between light pink (#f4e6ec) and dark purple (#804374)
@@ -1485,8 +1497,8 @@ export const FitnessStatusDetail: FC<Props> = ({
                 </div>
               ) : null}
             </div>
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-              <Activity className="size-3.5" /> {activityLabel}
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary-text">
+              <Activity className="size-3.5 text-primary" /> {activityLabel}
             </span>
           </div>
 
@@ -1557,45 +1569,11 @@ export const FitnessStatusDetail: FC<Props> = ({
           ) : null}
 
           {/* Design system order: the caption sits after the date/device
-              metadata, right before the file switcher and stat grid — not
-              immediately under the header row. */}
+              metadata, right before the stat grid — not immediately under the
+              header row. */}
           <div className="mt-3 text-sm leading-relaxed break-words markdown-content">
             {caption}
           </div>
-
-          {fitnessFiles.length > 1 && (
-            <div className="mt-4">
-              <label
-                htmlFor="activity-file-select"
-                className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-              >
-                Activity file
-              </label>
-              <div className="relative mt-1.5">
-                <select
-                  id="activity-file-select"
-                  value={selectedFitnessFileId ?? ''}
-                  // No need to clear the gear error here — it is keyed to its
-                  // own file, so switching hides it and switching back brings it
-                  // back, which is what actually happened.
-                  onChange={(event) =>
-                    setSelectedFitnessFileId(event.target.value)
-                  }
-                  className="h-9 w-full max-w-full appearance-none rounded-lg border bg-background px-3 py-1.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary truncate"
-                >
-                  {fitnessFiles.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.fileName}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  aria-hidden="true"
-                  className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                />
-              </div>
-            </div>
-          )}
 
           <FitnessStatGrid className="mt-4">
             <StatTile
@@ -1737,6 +1715,45 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         ) : null}
       </div>
+
+      {/* The file switcher is a card of its own, as the design's "File switcher"
+          board draws it — a sibling of the activity card above, not a
+          bordered box nested inside it, which stacked two borders. It sits
+          between that card and the section sub-navigation because it scopes
+          what follows: the file it selects drives the stat grid above and every
+          section below. Only a status with more than one fitness file shows it.
+          Same card and 16px inset as the page's other `padded={false}` cards. */}
+      {fitnessFiles.length > 1 && (
+        <Card padded={false} className="p-4">
+          <label
+            htmlFor="activity-file-select"
+            className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+          >
+            Activity file
+          </label>
+          <div className="relative mt-1.5">
+            <select
+              id="activity-file-select"
+              value={selectedFitnessFileId ?? ''}
+              // No need to clear the gear error here — it is keyed to its
+              // own file, so switching hides it and switching back brings it
+              // back, which is what actually happened.
+              onChange={(event) => setSelectedFitnessFileId(event.target.value)}
+              className="h-9 w-full max-w-full appearance-none rounded-lg border bg-background px-3 py-1.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary truncate"
+            >
+              {fitnessFiles.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.fileName}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-foreground"
+            />
+          </div>
+        </Card>
+      )}
 
       {/* Section sub-navigation */}
       <SectionNavSelect
@@ -2070,20 +2087,29 @@ export const FitnessStatusDetail: FC<Props> = ({
                     strokeWidth="1.5"
                     strokeDasharray="4,4"
                   />
-                  <text
-                    x={Math.min(
-                      Math.max(histogramLayout.weightedAvgX, 80),
-                      680
-                    )}
-                    y={histogramLayout.histogramTopPadding - 6}
-                    textAnchor="middle"
-                    fill="#a65e92"
-                    fontSize="12"
-                    className="font-medium"
-                  >
-                    Average Power {histogramLayout.weightedAvgPowerValue} W
-                  </text>
                 </svg>
+
+                {/* The label is HTML laid over the plot, not an SVG <text>: the
+                    svg is stretched to the card with
+                    `preserveAspectRatio="none"`, which scaled the label with it
+                    down to ~8px at a 590pt card. As a span it is a fixed
+                    12px/Medium and starts just right of the average line, in
+                    the band above the bars. Past the middle it flips to the
+                    line's left, whichever side has more room. */}
+                <span
+                  data-testid="power-average-label"
+                  className="pointer-events-none absolute top-1 whitespace-nowrap text-xs font-medium"
+                  style={{
+                    color: '#a65e92',
+                    ...(averageLabelLeftPercent > 50
+                      ? {
+                          right: `calc(${100 - averageLabelLeftPercent}% + 6px)`
+                        }
+                      : { left: `calc(${averageLabelLeftPercent}% + 6px)` })
+                  }}
+                >
+                  Average Power {histogramLayout.weightedAvgPowerValue} W
+                </span>
 
                 {/* X-Axis labels */}
                 <div className="relative mt-2 flex h-6 border-t border-border pt-2 text-[11px] tabular-nums text-muted-foreground">

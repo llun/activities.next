@@ -228,7 +228,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
                   )}
                 >
                   <CustomEmojiText text={titleFor(index)} tags={status.tags} />
-                  {mine && <span className="text-primary"> ✓</span>}
+                  {mine && <span className="text-primary-text"> ✓</span>}
                 </span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">
                   {percentage}%

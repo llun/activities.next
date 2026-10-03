@@ -282,7 +282,7 @@ export const NotificationSettings: FC<Props> = ({
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-0.5">
               <Label className="cursor-pointer">Email ({accountEmail})</Label>
-              <p className="text-[0.8rem] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {emailMasterEnabled
                   ? 'Email notifications are enabled.'
                   : 'Email notifications are disabled.'}
@@ -327,7 +327,7 @@ export const NotificationSettings: FC<Props> = ({
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-0.5">
                 <Label className="cursor-pointer">Push Notifications</Label>
-                <p className="text-[0.8rem] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {pushEnabled
                     ? 'Push notifications are active in this browser.'
                     : 'Enable to receive notifications even when the tab is closed.'}
@@ -376,7 +376,7 @@ export const NotificationSettings: FC<Props> = ({
                   <td className="py-3 pr-4">
                     <div>
                       <span className="font-medium">{nt.label}</span>
-                      <p className="text-[0.8rem] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {nt.description}
                       </p>
                     </div>

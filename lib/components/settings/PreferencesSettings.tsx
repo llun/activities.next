@@ -270,24 +270,29 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
                 <div
                   key={option.value}
                   className={cn(
-                    'flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/50',
-                    index > 0 && 'border-t',
+                    // 68 high including the divider under it, as the design
+                    // draws the row: 14 above the title, 16 below the helper.
+                    'flex min-h-[68px] items-start gap-3 px-4 pt-3.5 pb-4 transition-colors hover:bg-muted/50',
+                    index < MEDIA_DISPLAY.length - 1 && 'border-b',
                     active && 'bg-primary/5'
                   )}
                 >
                   <RadioGroupItem
                     id={`media-${option.value}`}
                     value={option.value}
-                    className="mt-0.5"
+                    className="mt-px"
                   />
+                  {/* The shared Label is a flex ROW (it lays an icon beside its
+                      text), which put the title and the helper side by side;
+                      this row stacks them, with the helper 1 below the title. */}
                   <Label
                     htmlFor={`media-${option.value}`}
-                    className="min-w-0 flex-1 cursor-pointer font-normal"
+                    className="min-w-0 flex-1 cursor-pointer flex-col items-start gap-px font-normal"
                   >
                     <span className="block text-sm font-medium">
                       {option.label}
                     </span>
-                    <span className="block text-[0.8rem] text-muted-foreground">
+                    <span className="block text-xs text-muted-foreground">
                       {option.help}
                     </span>
                   </Label>

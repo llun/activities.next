@@ -120,7 +120,7 @@ export const PageHeader = ({
   return (
     <div
       className={cn(
-        'sticky top-0 z-20 border-b bg-background/85 backdrop-blur',
+        'sticky top-0 z-20 border-b bg-surface-chrome backdrop-blur',
         className
       )}
       style={breakoutStyle}

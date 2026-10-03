@@ -1,11 +1,6 @@
 'use client'
 
-import {
-  AlertTriangle,
-  ChevronDown,
-  Languages,
-  LoaderCircle
-} from 'lucide-react'
+import { AlertTriangle, ChevronDown, Languages, Loader } from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
 import {
@@ -119,7 +114,9 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
           className="inline-flex min-h-8 -my-1 items-center gap-1.5 py-1 font-medium text-muted-foreground"
           aria-live="polite"
         >
-          <LoaderCircle className="size-3.5 animate-spin" />
+          {/* The 8-spoke loader, as the Translation board draws it — not the
+              open-arc `LoaderCircle`. */}
+          <Loader className="size-3.5 animate-spin" aria-hidden="true" />
           Translating to {displayLanguageName(target ?? '')}…
         </span>
       )}

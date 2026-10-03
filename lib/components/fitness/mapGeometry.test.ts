@@ -2,6 +2,7 @@ import {
   boxFromPoints,
   boxToPolygon,
   buildRouteGeoJson,
+  circleToPolygon,
   computeFocusBounds,
   downsampleSegments,
   getDistanceToHiddenSegments,
@@ -573,5 +574,68 @@ describe('getDistanceToHiddenSegments degenerate geometry', () => {
         lng: 0
       })
     ).toBeNull()
+  })
+})
+
+describe('circleToPolygon', () => {
+  const EARTH_RADIUS_METERS = 6_371_008.8
+  const toRadians = (degrees: number) => (degrees * Math.PI) / 180
+
+  // Haversine, written out here rather than imported so the test does not lean
+  // on the code under test for its ruler.
+  const distanceMeters = (a: [number, number], b: [number, number]) => {
+    const deltaLat = toRadians(b[1] - a[1])
+    const deltaLng = toRadians(b[0] - a[0])
+    const h =
+      Math.sin(deltaLat / 2) ** 2 +
+      Math.cos(toRadians(a[1])) *
+        Math.cos(toRadians(b[1])) *
+        Math.sin(deltaLng / 2) ** 2
+    return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(h))
+  }
+
+  it('returns a closed ring', () => {
+    const polygon = circleToPolygon({ lat: 52.37, lng: 4.89 }, 500)
+
+    expect(polygon.type).toBe('Polygon')
+    const [ring] = polygon.coordinates
+    expect(ring).toHaveLength(65)
+    expect(ring[0]).toEqual(ring[ring.length - 1])
+  })
+
+  it.each([
+    { lat: 0, lng: 0 },
+    { lat: 52.37, lng: 4.89 },
+    { lat: -33.87, lng: 151.21 },
+    { lat: 69.65, lng: 18.96 }
+  ])(
+    'puts every vertex the hide radius from the centre ($lat, $lng)',
+    ({ lat, lng }) => {
+      for (const radius of [50, 500, 5_000]) {
+        const [ring] = circleToPolygon({ lat, lng }, radius).coordinates
+
+        for (const vertex of ring) {
+          // A 64-gon's vertices are exactly on the circle, so this is tight.
+          expect(distanceMeters([lng, lat], vertex)).toBeCloseTo(radius, 1)
+        }
+      }
+    }
+  )
+
+  it('is a circle on the ground, so it is wider in degrees than it is tall at high latitude', () => {
+    const [ring] = circleToPolygon({ lat: 60, lng: 10 }, 1_000).coordinates
+    const lats = ring.map(([, vertexLat]) => vertexLat)
+    const lngs = ring.map(([vertexLng]) => vertexLng)
+    const heightDegrees = Math.max(...lats) - Math.min(...lats)
+    const widthDegrees = Math.max(...lngs) - Math.min(...lngs)
+
+    // At 60° a degree of longitude is half as long as a degree of latitude.
+    expect(widthDegrees / heightDegrees).toBeCloseTo(2, 1)
+  })
+
+  it('honours the requested number of steps', () => {
+    const [ring] = circleToPolygon({ lat: 0, lng: 0 }, 100, 8).coordinates
+
+    expect(ring).toHaveLength(9)
   })
 })

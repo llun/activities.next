@@ -4,9 +4,9 @@ import { Filter as FilterIcon, Pencil, Trash2 } from 'lucide-react'
 import { FC } from 'react'
 
 import type { ClientFilter } from '@/lib/client'
+import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import type { FilterContext } from '@/lib/types/domain/filter'
-import { cn } from '@/lib/utils'
 
 import {
   CONTEXT_SHORT,
@@ -14,28 +14,6 @@ import {
   formatExpiry,
   isFilterExpired
 } from './filterConstants'
-
-type BadgeTone = 'orange' | 'red' | 'gray'
-
-const BADGE_TONE_CLASSES: Record<BadgeTone, string> = {
-  orange: 'bg-[hsl(24_95%_46%/0.12)] text-[hsl(24_95%_40%)]',
-  red: 'bg-[hsl(0_84.2%_60.2%/0.12)] text-[hsl(0_72%_45%)]',
-  gray: 'bg-[hsl(0_0%_94%)] text-[hsl(0_0%_35%)]'
-}
-
-const Badge: FC<{ tone: BadgeTone; children: string }> = ({
-  tone,
-  children
-}) => (
-  <span
-    className={cn(
-      'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
-      BADGE_TONE_CLASSES[tone]
-    )}
-  >
-    {children}
-  </span>
-)
 
 const ContextChips: FC<{ context: FilterContext[] }> = ({ context }) => {
   const showsEverywhere = context.length === FILTER_CONTEXTS.length
@@ -47,7 +25,7 @@ const ContextChips: FC<{ context: FilterContext[] }> = ({ context }) => {
       {labels.map((label) => (
         <span
           key={label}
-          className="inline-flex items-center rounded-full bg-[hsl(0_0%_94%)] px-2 py-0.5 text-[11px] font-medium text-[hsl(0_0%_35%)]"
+          className="inline-flex items-center rounded-full bg-[hsl(0_0%_94%)] px-2 py-0.5 text-[11px] font-medium text-[#6A6A6A] dark:text-[hsl(0_0%_35%)]"
         >
           {label}
         </span>
@@ -82,12 +60,19 @@ export const FilterRow: FC<FilterRowProps> = ({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium">{filter.title}</span>
+          {/* The two action badges are the shared Badge tones (token labels,
+              dark fills); only the neutral "Expired" pill carries its own
+              colours. */}
           {filter.filter_action === 'hide' ? (
-            <Badge tone="red">Hide completely</Badge>
+            <Badge tone="destructive">Hide completely</Badge>
           ) : (
-            <Badge tone="orange">Hide with warning</Badge>
+            <Badge tone="primary">Hide with warning</Badge>
           )}
-          {expired && <Badge tone="gray">Expired</Badge>}
+          {expired && (
+            <span className="inline-flex items-center rounded-full bg-[hsl(0_0%_94%)] px-2.5 py-0.5 text-xs font-medium text-[hsl(0_0%_35%)]">
+              Expired
+            </span>
+          )}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>

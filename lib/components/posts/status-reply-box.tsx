@@ -350,7 +350,7 @@ export const StatusReplyBox: FC<Props> = ({
               {targetPreview.authorHandle}
             </span>
             {targetPreview.isPoll ? (
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary font-semibold">
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary-text font-semibold">
                 Poll
               </span>
             ) : null}

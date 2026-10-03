@@ -171,9 +171,10 @@ describe('RecentFitnessActivities', () => {
       />
     )
 
+    // 16/24 semibold, as the Type board draws a section heading.
     expect(
       screen.getByRole('heading', { name: 'Recent activities' })
-    ).toBeInTheDocument()
+    ).toHaveClass('text-base', 'font-semibold')
 
     const postsEl = screen.getByTestId('posts')
     expect(postsEl).toBeInTheDocument()

@@ -51,6 +51,20 @@ describe('Button', () => {
     expect(button).not.toHaveClass('rounded-md')
   })
 
+  it('renders the link variant in the orange TEXT colour, not the icon orange', () => {
+    render(<Button variant="link">Link</Button>)
+    const button = screen.getByRole('button', { name: 'Link' })
+    expect(button).toHaveClass('text-primary-text')
+    expect(button).not.toHaveClass('text-primary')
+  })
+
+  it('fills the light outline button with the card surface', () => {
+    render(<Button variant="outline">Outline</Button>)
+    const button = screen.getByRole('button', { name: 'Outline' })
+    expect(button).toHaveClass('bg-card', 'dark:bg-input/30')
+    expect(button).not.toHaveClass('bg-background')
+  })
+
   it('renders outline variant with rounded-md', () => {
     render(<Button variant="outline">Outline</Button>)
     const button = screen.getByRole('button', { name: 'Outline' })

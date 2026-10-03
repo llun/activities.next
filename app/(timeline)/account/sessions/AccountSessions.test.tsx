@@ -83,7 +83,7 @@ const apps: AccountAppRow[] = [
     name: 'Ice Cubes',
     website: 'icecubesapp.com',
     scopes: ['read', 'write'],
-    authorizedLabel: 'Jun 2, 2026',
+    authorizedAt: NOW - 26 * DAY,
     signIn: false
   },
   {
@@ -93,7 +93,7 @@ const apps: AccountAppRow[] = [
     name: 'La Suite Docs',
     website: 'docs.llun.dev',
     scopes: ['openid', 'read:accounts'],
-    authorizedLabel: 'Jun 10, 2026',
+    authorizedAt: NOW - 18 * DAY,
     signIn: true
   }
 ]
@@ -183,8 +183,21 @@ describe('AccountSessions', () => {
     expect(screen.getByText('Sign-in')).toBeInTheDocument()
     expect(screen.getByText('read:accounts')).toBeInTheDocument()
     expect(
-      screen.getByText(/docs\.llun\.dev · Signs you in Jun 10, 2026/)
+      screen.getByText('docs.llun.dev · Signs you in 18 days ago')
     ).toBeInTheDocument()
+    expect(
+      screen.getByText('icecubesapp.com · Authorized 26 days ago')
+    ).toBeInTheDocument()
+  })
+
+  it('draws the App badge and the scope chips on the lighter dark gray', () => {
+    renderSessions()
+    // Both gray pills sit on #383838 in dark mode, above the card, instead of
+    // the near-invisible --muted fill.
+    expect(screen.getByText('App').className).toContain('dark:bg-[#383838]')
+    expect(screen.getByText('read:accounts').className).toContain(
+      'dark:bg-[#383838]'
+    )
   })
 
   it('revokes all other sessions and keeps the current one', async () => {
@@ -350,7 +363,7 @@ describe('AccountSessions', () => {
           name: 'Client Credentials',
           website: null,
           scopes: ['read'],
-          authorizedLabel: 'Jun 1, 2026',
+          authorizedAt: NOW - 27 * DAY,
           signIn: false
         }
       ]

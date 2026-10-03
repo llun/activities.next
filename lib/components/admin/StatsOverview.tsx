@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  ChevronDown,
   Database as DatabaseIcon,
   HardDrive,
   Image,
@@ -20,12 +19,14 @@ import {
 
 import { getAllStatsBuckets } from '@/app/(timeline)/admin/actions'
 import { PageHeader } from '@/lib/components/page-header'
+import { selectChevronClassName } from '@/lib/components/ui/select'
 import {
   ALL_COUNTER_TYPES,
   ServiceStatCounterType,
   ServiceStats,
   ServiceStatsBucket
 } from '@/lib/types/database/operations'
+import { cn } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
 import { MiniChart } from './MiniChart'
@@ -245,23 +246,23 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
       >
         <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <div className="relative">
-              <select
-                value={selectedCounter}
-                onChange={(e) =>
-                  setSelectedCounter(e.target.value as ServiceStatCounterType)
-                }
-                aria-label="Select statistic type"
-                className="appearance-none rounded-lg border bg-background py-1.5 pl-3 pr-8 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                {statCards.map((card) => (
-                  <option key={card.counterType} value={card.counterType}>
-                    {card.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            </div>
+            <select
+              value={selectedCounter}
+              onChange={(e) =>
+                setSelectedCounter(e.target.value as ServiceStatCounterType)
+              }
+              aria-label="Select statistic type"
+              className={cn(
+                'rounded-md border bg-background py-1.5 pl-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary',
+                selectChevronClassName
+              )}
+            >
+              {statCards.map((card) => (
+                <option key={card.counterType} value={card.counterType}>
+                  {card.label}
+                </option>
+              ))}
+            </select>
             {selectedTrend !== undefined && (
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -276,7 +277,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
             )}
           </div>
           <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-2">
+            <div className="rounded-lg bg-surface-accent p-2">
               <SelectedIcon className="h-5 w-5 text-primary" />
             </div>
             <div>
@@ -322,7 +323,7 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
               >
                 <div className="mb-2 flex items-center gap-2">
                   <div
-                    className={`rounded-md p-1.5 ${isSelected ? 'bg-primary/20' : 'bg-primary/10'}`}
+                    className={`rounded-md p-1.5 ${isSelected ? 'bg-primary/20' : 'bg-surface-accent'}`}
                   >
                     <CardIcon className="h-4 w-4 text-primary" />
                   </div>

@@ -300,7 +300,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
   }
 
   return (
-    <div className="space-y-4 rounded-md border p-4">
+    <div className="space-y-4">
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">Import Strava Archive</h3>
         <p className="text-xs text-muted-foreground">

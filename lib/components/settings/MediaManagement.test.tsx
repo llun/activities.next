@@ -224,4 +224,47 @@ describe('MediaManagement', () => {
       })
     })
   })
+
+  describe('storage meter', () => {
+    it('captions the bar with the mono used / limit on the left and the percent on the right', () => {
+      render(
+        <MediaManagement
+          used={524288}
+          limit={1048576}
+          medias={[]}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={0}
+        />
+      )
+
+      const bar = screen.getByRole('progressbar', {
+        name: 'Storage quota used'
+      })
+      // The caption row sits directly under the bar, in the mono face.
+      const caption = bar.nextElementSibling as HTMLElement
+      expect(caption).toHaveClass('font-mono', 'text-xs', 'justify-between')
+      expect(caption.children).toHaveLength(2)
+      expect(caption.children[0]).toHaveTextContent('512 KB / 1 MB')
+      expect(caption.children[1]).toHaveTextContent('50.0%')
+    })
+
+    it('no longer spells the meter out in a sans row above and a sentence below', () => {
+      render(
+        <MediaManagement
+          used={524288}
+          limit={1048576}
+          medias={[]}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={0}
+        />
+      )
+
+      expect(screen.queryByText('Used')).not.toBeInTheDocument()
+      expect(
+        screen.queryByText(/of your storage quota used/)
+      ).not.toBeInTheDocument()
+    })
+  })
 })

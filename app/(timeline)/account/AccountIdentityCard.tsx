@@ -22,7 +22,7 @@ export const AccountIdentityCard: FC<Props> = ({ name, email, iconUrl }) => {
     <section className="flex items-center gap-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
       <Avatar className="h-16 w-16" aria-hidden="true">
         {iconUrl && <AvatarImage src={iconUrl} alt="" />}
-        <AvatarFallback className="bg-gray-200 text-xl text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+        <AvatarFallback className="bg-(--skeleton) text-xl font-semibold text-muted-foreground dark:bg-input">
           {initial}
         </AvatarFallback>
       </Avatar>

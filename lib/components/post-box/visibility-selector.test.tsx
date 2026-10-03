@@ -107,6 +107,38 @@ describe('VisibilitySelector', () => {
     }
   )
 
+  // The shared item carries `dark:focus:bg-muted`, which tailwind-merge only
+  // drops for a `dark:focus:` class of the same family, so each current row has
+  // its own dark twin or it turns grey under the pointer in dark.
+  it('keeps the current row of each group on its wash when hovered in dark', async () => {
+    render(
+      <VisibilitySelector
+        visibility="public"
+        onVisibilityChange={vi.fn()}
+        quotePolicy="followers"
+        onQuotePolicyChange={vi.fn()}
+      />
+    )
+
+    fireEvent.keyDown(
+      screen.getByRole('button', { name: /set visibility and who can quote/i }),
+      { key: 'ArrowDown' }
+    )
+    const quoteGroup = await screen.findByRole('group', {
+      name: /who can quote/i
+    })
+    const rows = [
+      screen.getByRole('menuitemradio', { name: /^public/i }),
+      within(quoteGroup).getByRole('menuitemradio', { name: /^Followers$/i })
+    ]
+
+    for (const row of rows) {
+      expect(row).toHaveAttribute('aria-checked', 'true')
+      expect(row).toHaveClass('focus:bg-primary/15', 'dark:focus:bg-primary/15')
+      expect(row).not.toHaveClass('dark:focus:bg-muted')
+    }
+  })
+
   it('shows the quote-policy icon on the trigger only when the policy is not public', () => {
     const trigger = () =>
       screen.getByRole('button', {

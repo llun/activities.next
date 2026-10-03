@@ -15,7 +15,7 @@ export const Header: FC<Props> = ({ isFitnessDashboard = false }) => {
   const router = useRouter()
 
   return (
-    <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/90 px-5 py-3 backdrop-blur">
+    <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-surface-chrome px-5 py-3 backdrop-blur">
       <MobileNavigationTrigger className="-ml-2 shrink-0" />
       <Button
         variant="ghost"

@@ -97,6 +97,12 @@ const appendUniqueStatuses = (
   ]
 }
 
+// The shared trigger pads 16px a side, which makes the four triggers 308px wide
+// together: more than the 282px a 320px viewport leaves inside the list, so they
+// would spill out of the pill. Pad 8px a side until the list stops stretching
+// to the card (`sm`), then the shared 16px.
+const PROFILE_TAB_TRIGGER_CLASS = 'flex-1 px-2 sm:flex-none sm:px-4'
+
 const EmptyState: FC<{ children: string }> = ({ children }) => (
   <p className="py-10 text-center text-sm text-muted-foreground">{children}</p>
 )
@@ -475,21 +481,21 @@ export const ActorTimelines: FC<Props> = ({
         className="w-full gap-4"
       >
         <TabsList className="w-full sm:w-fit" aria-label="Profile sections">
-          <TabsTrigger value="posts" className="flex-1 sm:flex-none">
+          <TabsTrigger value="posts" className={PROFILE_TAB_TRIGGER_CLASS}>
             Posts
           </TabsTrigger>
           {showRepliesTab && (
-            <TabsTrigger value="replies" className="flex-1 sm:flex-none">
+            <TabsTrigger value="replies" className={PROFILE_TAB_TRIGGER_CLASS}>
               Replies
             </TabsTrigger>
           )}
           {hasMedia && (
-            <TabsTrigger value="media" className="flex-1 sm:flex-none">
+            <TabsTrigger value="media" className={PROFILE_TAB_TRIGGER_CLASS}>
               Media
             </TabsTrigger>
           )}
           {showFitnessTab && (
-            <TabsTrigger value="fitness" className="flex-1 sm:flex-none">
+            <TabsTrigger value="fitness" className={PROFILE_TAB_TRIGGER_CLASS}>
               Fitness
             </TabsTrigger>
           )}

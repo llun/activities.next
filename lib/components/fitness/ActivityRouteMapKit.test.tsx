@@ -109,7 +109,7 @@ describe('ActivityRouteMapKit', () => {
     expect(double.getMap()!.options.mapType).toBe('mutedStandard')
   })
 
-  it('draws one polyline overlay per drawable segment once MapKit resolves', async () => {
+  it('draws a white casing and a route line per drawable segment once MapKit resolves', async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockImplementation((() =>
       Promise.resolve(double.mapkit)) as never)
@@ -125,13 +125,17 @@ describe('ActivityRouteMapKit', () => {
       />
     )
 
+    // Two segments: a casing under each, then each line, so every casing is
+    // added (and so drawn) before any line.
     await waitFor(() =>
-      expect(double.getMap()?.currentOverlays).toHaveLength(2)
+      expect(double.getMap()?.currentOverlays).toHaveLength(4)
     )
     expect(
       double.overlaysOfKind('polyline').map((overlay) => overlay.styleOptions)
     ).toEqual([
-      { strokeColor: '#f97316', lineWidth: 4, strokeOpacity: 0.9 },
+      { strokeColor: '#ffffff', lineWidth: 6, strokeOpacity: 0.9 },
+      { strokeColor: '#ffffff', lineWidth: 6, strokeOpacity: 0.9 },
+      { strokeColor: '#E55F06', lineWidth: 3.3, strokeOpacity: 1 },
       { strokeColor: '#16a34a', lineWidth: 4, strokeOpacity: 0.95 }
     ])
     expect(double.getMap()?.assignedRegions).toHaveLength(1)
@@ -153,7 +157,7 @@ describe('ActivityRouteMapKit', () => {
 
     await waitFor(() => expect(double.maps).toHaveLength(1))
     const map = double.getMap()
-    await waitFor(() => expect(map?.currentOverlays).toHaveLength(1))
+    await waitFor(() => expect(map?.currentOverlays).toHaveLength(2))
 
     rerender(
       <ActivityRouteMapKit
@@ -173,7 +177,7 @@ describe('ActivityRouteMapKit', () => {
     // …without tearing the map (or its overlays) down and rebuilding them.
     expect(double.maps).toHaveLength(1)
     expect(map?.destroyCount).toBe(0)
-    expect(map?.currentOverlays).toHaveLength(1)
+    expect(map?.currentOverlays).toHaveLength(2)
     expect(map?.removedOverlays).toHaveLength(0)
     expect(mockLoadMapKitModule).toHaveBeenCalledTimes(1)
   })
@@ -228,7 +232,7 @@ describe('ActivityRouteMapKit', () => {
       />
     )
     await waitFor(() =>
-      expect(double.getMap()?.currentOverlays).toHaveLength(1)
+      expect(double.getMap()?.currentOverlays).toHaveLength(2)
     )
 
     const nextSamples = [
@@ -244,11 +248,12 @@ describe('ActivityRouteMapKit', () => {
       />
     )
 
+    // The casing and the line are both replaced.
     await waitFor(() =>
-      expect(double.getMap()?.removedOverlays).toHaveLength(1)
+      expect(double.getMap()?.removedOverlays).toHaveLength(2)
     )
-    expect(double.getMap()?.currentOverlays).toHaveLength(1)
-    expect(double.overlaysOfKind('polyline')).toHaveLength(2)
+    expect(double.getMap()?.currentOverlays).toHaveLength(2)
+    expect(double.overlaysOfKind('polyline')).toHaveLength(4)
     expect(double.maps).toHaveLength(1)
   })
   describe('route privacy hint', () => {

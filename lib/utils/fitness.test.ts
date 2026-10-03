@@ -2,6 +2,7 @@ import {
   formatFitnessDistance,
   formatFitnessDuration,
   formatFitnessElevation,
+  formatFitnessPace,
   getFitnessPaceOrSpeed,
   getFitnessSourceLabel,
   normalizeFitnessSourceUrl
@@ -87,7 +88,62 @@ describe('fitness utils', () => {
     })
   })
 
+  describe('formatFitnessPace', () => {
+    it('formats seconds per kilometre as m:ss /km with no space after the slash', () => {
+      expect(formatFitnessPace(309)).toBe('5:09 /km')
+      expect(formatFitnessPace(300)).toBe('5:00 /km')
+      expect(formatFitnessPace(65)).toBe('1:05 /km')
+    })
+
+    it('rounds the total seconds before splitting, so :59.5 carries into the minute', () => {
+      expect(formatFitnessPace(359.4)).toBe('5:59 /km')
+      expect(formatFitnessPace(359.5)).toBe('6:00 /km')
+      expect(formatFitnessPace(308.5)).toBe('5:09 /km')
+    })
+
+    it('keeps counting minutes past an hour per kilometre', () => {
+      expect(formatFitnessPace(3_725)).toBe('62:05 /km')
+    })
+
+    it('returns null for a missing, zero, negative or non-finite pace', () => {
+      expect(formatFitnessPace(undefined)).toBeNull()
+      expect(formatFitnessPace(0)).toBeNull()
+      expect(formatFitnessPace(0.4)).toBeNull()
+      expect(formatFitnessPace(-30)).toBeNull()
+      expect(formatFitnessPace(Number.NaN)).toBeNull()
+      expect(formatFitnessPace(Number.POSITIVE_INFINITY)).toBeNull()
+    })
+
+    it('returns the fallback for an unusable pace', () => {
+      expect(formatFitnessPace(undefined, { fallback: '-' })).toBe('-')
+      expect(formatFitnessPace(0, { fallback: '-' })).toBe('-')
+      expect(formatFitnessPace(309, { fallback: '-' })).toBe('5:09 /km')
+    })
+  })
+
   describe('getFitnessPaceOrSpeed', () => {
+    it('writes the pace the way the design system does', () => {
+      // The activity-import email board: 8.21 km in 42:18 reads "5:09 /km".
+      expect(
+        getFitnessPaceOrSpeed({
+          distanceMeters: 8_210,
+          durationSeconds: 2_538,
+          activityType: 'running'
+        })
+      ).toEqual({ label: 'Pace', value: '5:09 /km' })
+    })
+
+    it('carries a :59.5 pace into the next minute instead of printing :60', () => {
+      // 1 km in 359.5 s: Math.round puts it at 360 s, i.e. 6:00.
+      expect(
+        getFitnessPaceOrSpeed({
+          distanceMeters: 1_000,
+          durationSeconds: 359.5,
+          activityType: 'running'
+        })
+      ).toEqual({ label: 'Pace', value: '6:00 /km' })
+    })
+
     it('returns pace for running activities', () => {
       expect(
         getFitnessPaceOrSpeed({
@@ -95,7 +151,7 @@ describe('fitness utils', () => {
           durationSeconds: 1_499,
           activityType: 'running'
         })
-      ).toEqual({ label: 'Pace', value: '5:00 / km' })
+      ).toEqual({ label: 'Pace', value: '5:00 /km' })
     })
 
     it('returns speed for cycling activities', () => {
@@ -138,7 +194,7 @@ describe('fitness utils', () => {
           movingTimeSeconds: 1_499,
           activityType: 'running'
         })
-      ).toEqual({ label: 'Pace', value: '5:00 / km' })
+      ).toEqual({ label: 'Pace', value: '5:00 /km' })
     })
 
     it('falls back to elapsed duration when moving time is absent or invalid', () => {

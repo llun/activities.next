@@ -22,6 +22,8 @@ import type {
 import { cn } from '@/lib/utils'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 
+import { formatEventTime } from './formatEventTime'
+
 // Quick-access unicode emoji offered by the reaction picker. Instance-level
 // only — no custom per-account stickers (see design spec).
 const QUICK_EMOJI = ['👍', '❤️', '🎉', '🔥', '👋', '🙏', '😂', '🚀']
@@ -43,35 +45,6 @@ const formatPublishedDate = (iso: string): string => {
   })
 }
 
-// "Sat Jun 13, 09:00" for a timed event; "Sat Jun 13" when all-day. Timed
-// events are stored in UTC and rendered in the reader's local timezone. All-day
-// events store a UTC-midnight instant that represents a calendar date, so they
-// are rendered in UTC to show that exact day rather than shifting it across the
-// date line for readers west of UTC.
-const formatEventBound = (iso: string, allDay: boolean): string => {
-  const time = Date.parse(iso)
-  if (Number.isNaN(time)) return ''
-  const date = new Date(time)
-  if (allDay) {
-    return date.toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC'
-    })
-  }
-  const day = date.toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric'
-  })
-  const clock = date.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-  return `${day}, ${clock}`
-}
-
 interface BadgeProps {
   tone?: 'orange' | 'green' | 'gray'
   className?: string
@@ -87,7 +60,7 @@ export const AnnouncementBadge: FC<BadgeProps> = ({
   children
 }) => {
   const tones: Record<NonNullable<BadgeProps['tone']>, string> = {
-    orange: 'border-primary/30 bg-primary/10 text-primary',
+    orange: 'border-primary/30 bg-primary/10 text-primary-text',
     green:
       'border-green-600/30 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     gray: 'border-border bg-muted text-muted-foreground'
@@ -123,7 +96,7 @@ const ReactionChip: FC<ReactionChipProps> = ({ reaction, onToggle }) => (
     className={cn(
       'flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[13px] transition-colors',
       reaction.me
-        ? 'border-primary/45 bg-primary/10 text-primary'
+        ? 'border-primary/45 bg-primary/10 text-primary-text'
         : 'border-border bg-background text-foreground hover:bg-muted'
     )}
   >
@@ -433,15 +406,13 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
   if (!current) return null
 
   const hasMultiple = announcements.length > 1
-  const eventStart = current.starts_at
-    ? formatEventBound(current.starts_at, current.all_day)
-    : null
-  // Render the end bound whenever one exists, including all-day events spanning
-  // multiple days. formatEventBound strips the clock when all_day is true, so an
-  // all-day range shows dates only and never leaks a time.
-  const eventEnd = current.ends_at
-    ? formatEventBound(current.ends_at, current.all_day)
-    : null
+  // "Sat Jun 13, 09:00 – 10:00 UTC"; all-day events show dates only. See
+  // formatEventTime for the rules.
+  const eventTime = formatEventTime({
+    startsAt: current.starts_at,
+    endsAt: current.ends_at,
+    allDay: current.all_day
+  })
 
   return (
     <div className="bg-background/80 rounded-2xl border shadow-sm backdrop-blur">
@@ -480,13 +451,10 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
             <span suppressHydrationWarning>
               {formatPublishedDate(current.published_at)}
             </span>
-            {eventStart && (
-              <span className="text-primary flex items-center gap-1 font-medium">
-                <Clock className="size-3" />
-                <span suppressHydrationWarning>
-                  {eventStart}
-                  {eventEnd ? ` – ${eventEnd}` : ''}
-                </span>
+            {eventTime && (
+              <span className="text-primary-text flex items-center gap-1 font-medium">
+                <Clock className="size-3 text-primary" />
+                <span suppressHydrationWarning>{eventTime}</span>
               </span>
             )}
             {current.read === false && (

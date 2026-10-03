@@ -243,6 +243,29 @@ describe('StravaGearDefaultsSection', () => {
     expect(mockUpdateFitnessGear).not.toHaveBeenCalled()
   })
 
+  // The shared item carries `dark:focus:bg-muted`, which tailwind-merge only
+  // drops for a `dark:focus:` class of the same family, so the assigned row has
+  // its own dark twin or it turns grey under the pointer in dark.
+  it('keeps the assigned gear on its wash when hovered in dark', async () => {
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({ defaultSports: ['ride'] }),
+      createGear({ id: 'gear-other', name: 'Giant', defaultSports: [] })
+    ])
+
+    render(<StravaGearDefaultsSection />)
+
+    const menu = await openMenu(gearTriggerFor('Ride'))
+    const assigned = within(menu).getByRole('menuitemradio', { name: /Moots/ })
+    expect(assigned).toHaveClass(
+      'focus:bg-primary/10',
+      'dark:focus:bg-primary/10'
+    )
+    expect(assigned).not.toHaveClass('dark:focus:bg-muted')
+    // Every other row keeps the shared grey hover.
+    const other = within(menu).getByRole('menuitemradio', { name: /Giant/ })
+    expect(other).toHaveClass('dark:focus:bg-muted')
+  })
+
   it('removes the activity type from the gear that held it', async () => {
     const bike = createGear({ defaultSports: ['ride', 'gravel_ride'] })
     mockGetFitnessGearList.mockResolvedValue([bike])

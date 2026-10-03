@@ -116,7 +116,10 @@ const Page: FC<Props> = async ({ searchParams }) => {
         <CardFooter className="justify-center">
           <p className="text-sm text-muted-foreground">
             Don&apos;t have an account?{' '}
-            <Link href="/auth/signup" className="text-primary hover:underline">
+            <Link
+              href="/auth/signup"
+              className="text-primary-text hover:underline"
+            >
               Sign up
             </Link>
           </p>

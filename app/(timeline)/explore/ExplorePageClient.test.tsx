@@ -162,6 +162,28 @@ describe('ExplorePageClient', () => {
     expect(mockGetTrendingStatuses).not.toHaveBeenCalled()
   })
 
+  // The loading rows use the shared `.skeleton` utility (#E6E6E6 / #333333
+  // with the shimmer), not `bg-muted`, which sits almost on the card and made
+  // the bars near-invisible.
+  it.each([
+    ['hashtags', null, mockGetTrendingTags],
+    ['posts', 'posts', mockGetTrendingStatuses]
+  ])(
+    'draws the %s loading rows with the shared skeleton utility',
+    (_tab, tabParam, loader) => {
+      loader.mockReturnValue(new Promise(() => {}))
+      const { container } = renderExplore(tabParam, Date.now())
+
+      const rows = container.querySelectorAll('[aria-hidden="true"]')
+      expect(rows.length).toBeGreaterThan(0)
+      const bars = container.querySelectorAll('[aria-hidden="true"] .skeleton')
+      expect(bars.length).toBeGreaterThan(0)
+      expect(
+        container.querySelectorAll('[aria-hidden="true"] [class*="bg-muted"]')
+      ).toHaveLength(0)
+    }
+  )
+
   it('shows the empty note when no hashtags are trending', async () => {
     renderExplore(null, Date.now())
 
@@ -180,7 +202,7 @@ describe('ExplorePageClient', () => {
     expect(await screen.findByText('Gravel season is here')).toBeInTheDocument()
     // Relative time is derived from the server-provided currentTime, not
     // Date.now(), so SSR and hydration agree.
-    expect(screen.getByText('5 minutes')).toBeInTheDocument()
+    expect(screen.getByText('5m')).toBeInTheDocument()
     expect(mockGetTrendingStatuses).toHaveBeenCalledWith(20)
 
     // The trending posts now carry the same action row as the timeline.

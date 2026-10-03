@@ -114,4 +114,18 @@ describe('AdminReportDetail', () => {
       })
     )
   })
+
+  it('keeps the native category menu but draws the thin muted chevron, not the OS arrow', async () => {
+    mockGetAdminReport.mockResolvedValue(report({}))
+
+    render(<AdminReportDetail reportId="report-1" />)
+    await waitFor(() =>
+      expect(screen.getByText('troll@evil.example')).toBeInTheDocument()
+    )
+
+    const select = screen.getByRole('combobox')
+    expect(select.tagName).toBe('SELECT')
+    expect(screen.getAllByRole('option')).toHaveLength(4)
+    expect(select).toHaveClass('appearance-none', 'pr-8')
+  })
 })

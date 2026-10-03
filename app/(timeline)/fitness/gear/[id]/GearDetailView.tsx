@@ -84,16 +84,25 @@ interface StatTileProps {
   value: string
 }
 
+// `rounded-lg shadow-none` override the Card's own `rounded-xl shadow-sm`: the
+// design's gear stat tiles are radius 8 and flat.
 const StatTile: FC<StatTileProps> = ({ label, value }) => (
-  <Card className="flex min-w-0 flex-col gap-2 p-4">
+  <Card className="flex min-w-0 flex-col gap-2 rounded-lg p-4 shadow-none">
     <div className="text-xs text-muted-foreground">{label}</div>
     <div className="text-xl font-semibold tabular-nums">{value}</div>
   </Card>
 )
 
+const getBrandModel = (gear: GearEntity): string =>
+  [gear.brand, gear.model].filter(Boolean).join(' ')
+
 const getMetaLine = (gear: GearEntity): string =>
   [
-    [gear.brand, gear.model].filter(Boolean).join(' '),
+    // The title already reads "brand model" when the gear has no nickname, so
+    // repeating it on the line under it says nothing.
+    getBrandModel(gear) === getGearDisplayName(gear)
+      ? null
+      : getBrandModel(gear),
     gear.bikeType,
     gear.weightKilograms === null ? null : formatWeightKg(gear.weightKilograms),
     `added ${formatGearDate(gear.createdAt)}`
@@ -293,6 +302,9 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
       {backLink}
 
       <PageHeader
+        // The design sets the stat tiles 15pt under the meta line; the header's
+        // own `mb-6` would leave 24.
+        className="mb-4"
         title={
           <span className="flex flex-wrap items-center gap-2">
             {getGearDisplayName(gear)}
@@ -300,14 +312,27 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
           </span>
         }
         description={
-          <div className="space-y-0.5">
-            <div>{getMetaLine(gear)}</div>
-            <div>
-              {gear.defaultSports.length > 0
-                ? `Default for ${gear.defaultSports.map(getSportLabel).join(', ')}`
-                : 'No default sports'}
-            </div>
-            <div>
+          // ONE 12/16 line, as the design draws it: the facts, what the gear is
+          // the default for, and the product page, run together instead of three
+          // stacked 14/20 lines. Edit / Retire live under the stat tiles.
+          <div className="space-y-0.5 text-xs">
+            {/* `align-top` on the link: its inline-flex box otherwise sits on
+                the text baseline and stretches the 16pt line to 18.
+
+                The dots are decorative, so they are `aria-hidden` — which
+                leaves nothing between the neighbouring spans for a screen
+                reader, and "…2025" would run into "Default for…". The `{' '}`
+                keeps them apart; it collapses into the dot's own spaces, so
+                nothing moves. */}
+            <div className="[&_a]:align-top">
+              <span>{getMetaLine(gear)}</span>{' '}
+              <span aria-hidden="true"> · </span>
+              <span>
+                {gear.defaultSports.length > 0
+                  ? `Default for ${gear.defaultSports.map(getSportLabel).join(', ')}`
+                  : 'No default sports'}
+              </span>{' '}
+              <span aria-hidden="true"> · </span>
               <GearProductLink
                 productUrl={gear.productUrl}
                 onEdit={() => setIsEditOpen(true)}
@@ -317,42 +342,6 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
               <div>
                 {`Retired ${formatGearDate(gear.retiredAt)} — total frozen, excluded from auto-assign and pickers.`}
               </div>
-            )}
-          </div>
-        }
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditOpen(true)}
-            >
-              <Pencil />
-              Edit
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleToggleRetired}
-              disabled={isRetiring || isDeleting}
-            >
-              {isRetired ? <History /> : <Archive />}
-              {isRetired ? 'Unretire' : 'Retire'}
-            </Button>
-            {isRetired && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => {
-                  setDeleteError(null)
-                  setIsDeleteDialogOpen(true)
-                }}
-                disabled={isRetiring || isDeleting}
-              >
-                <Trash2 />
-                Delete
-              </Button>
             )}
           </div>
         }
@@ -366,24 +355,63 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
         </p>
       )}
 
-      <div
-        className={
-          gear.kind === 'bike'
-            ? 'grid grid-cols-1 gap-3 sm:grid-cols-3'
-            : 'grid grid-cols-1 gap-3 sm:grid-cols-2'
-        }
-      >
-        <StatTile
-          label="Distance"
-          value={formatGearDistanceKm(gear.distanceMeters)}
-        />
-        <StatTile label="Activities" value={String(gear.activityCount)} />
-        {gear.kind === 'bike' && (
+      <div className="space-y-4">
+        <div
+          className={
+            gear.kind === 'bike'
+              ? 'grid grid-cols-1 gap-3 sm:grid-cols-3'
+              : 'grid grid-cols-1 gap-3 sm:grid-cols-2'
+          }
+        >
           <StatTile
-            label="Components installed"
-            value={String(installedCount)}
+            label="Distance"
+            value={formatGearDistanceKm(gear.distanceMeters)}
           />
-        )}
+          <StatTile label="Activities" value={String(gear.activityCount)} />
+          {gear.kind === 'bike' && (
+            <StatTile
+              label="Components installed"
+              value={String(installedCount)}
+            />
+          )}
+        </div>
+
+        {/* The design puts the actions in a left-aligned row under the stat
+            tiles, not beside the title. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsEditOpen(true)}
+          >
+            <Pencil />
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleRetired}
+            disabled={isRetiring || isDeleting}
+          >
+            {isRetired ? <History /> : <Archive />}
+            {isRetired ? 'Unretire' : 'Retire'}
+          </Button>
+          {isRetired && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive-text"
+              onClick={() => {
+                setDeleteError(null)
+                setIsDeleteDialogOpen(true)
+              }}
+              disabled={isRetiring || isDeleting}
+            >
+              <Trash2 />
+              Delete
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Only a bike has a second view to reach. */}

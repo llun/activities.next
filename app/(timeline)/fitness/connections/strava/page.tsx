@@ -28,26 +28,7 @@ const StravaPage: FC = async () => {
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
-        <div className="mb-6 space-y-1">
-          <h2 className="text-lg font-semibold">Strava settings</h2>
-          <p className="text-sm text-muted-foreground">
-            Connect your Strava account to sync fitness activities. You&apos;ll
-            need to create an application in the{' '}
-            <a
-              href="https://www.strava.com/settings/api"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              Strava API settings
-            </a>
-            . You can also import historical activities from a Strava export
-            archive.
-          </p>
-        </div>
-        <StravaSettingsForm serverActorHandle={actorHandle} />
-      </Card>
+      <StravaSettingsForm serverActorHandle={actorHandle} />
 
       <Card className="p-6">
         <StravaGearDefaultsSection />

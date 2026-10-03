@@ -17,7 +17,7 @@ describe('ContentWarning', () => {
       </div>
     )
 
-    expect(screen.getByText('Spoilers')).toBeInTheDocument()
+    expect(screen.getByText('Sensitive content — Spoilers')).toBeInTheDocument()
     expect(screen.queryByText('Hidden details')).not.toBeInTheDocument()
 
     const showButton = screen.getByRole('button', { name: 'Show content' })
@@ -40,6 +40,24 @@ describe('ContentWarning', () => {
     expect(screen.queryByText('Hidden details')).not.toBeInTheDocument()
   })
 
+  it('prefixes the author summary with "Sensitive content —" both collapsed and expanded', () => {
+    render(
+      <ContentWarning summary="Spoilers for recent race">
+        <p>Hidden details</p>
+      </ContentWarning>
+    )
+
+    expect(
+      screen.getByText('Sensitive content — Spoilers for recent race')
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show content' }))
+
+    expect(
+      screen.getByText('Sensitive content — Spoilers for recent race')
+    ).toBeInTheDocument()
+  })
+
   it('renders custom emoji images in summary when matching tags are provided', () => {
     render(
       <ContentWarning
@@ -59,7 +77,7 @@ describe('ContentWarning', () => {
     const img = screen.getByRole('img', { name: ':blobcat:' })
     expect(img).toBeInTheDocument()
     expect(img).toHaveAttribute('src', 'https://example.com/blobcat.png')
-    expect(screen.getByText(/CW/)).toBeInTheDocument()
+    expect(screen.getByText(/Sensitive content — CW/)).toBeInTheDocument()
     expect(screen.getByText(/beware/)).toBeInTheDocument()
   })
 

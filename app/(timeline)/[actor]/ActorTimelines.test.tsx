@@ -129,11 +129,17 @@ vi.mock('@/lib/components/ui/tabs', () => ({
   TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsTrigger: ({
     children,
+    className,
     value
   }: {
     children: ReactNode
+    className?: string
     value?: string
-  }) => <button data-value={value}>{children}</button>
+  }) => (
+    <button data-value={value} className={className}>
+      {children}
+    </button>
+  )
 }))
 
 vi.mock('@/lib/components/ui/button', () => ({
@@ -610,6 +616,35 @@ describe('ActorTimelines', () => {
     expect(
       screen.getAllByText('https://remote.example/statuses/run')
     ).toHaveLength(2)
+  })
+
+  it('pads the four profile tabs 8px a side on a phone and the shared 16px from sm up', () => {
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[
+          createStatus('https://remote.example/statuses/post'),
+          createFitnessStatus('https://remote.example/statuses/run')
+        ]}
+        attachments={[sampleAttachment]}
+        currentTime={FIXED_CURRENT_TIME}
+        hasFitnessData
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    // jsdom has no layout, so pin the classes: with the shared 16px padding the
+    // four triggers are 308px wide together and spill out of a 320px
+    // viewport's 282px list, centred, on both sides.
+    for (const name of ['Posts', 'Replies', 'Media', 'Fitness']) {
+      expect(screen.getByRole('button', { name })).toHaveClass(
+        'flex-1',
+        'px-2',
+        'sm:flex-none',
+        'sm:px-4'
+      )
+    }
   })
 
   it('surfaces a newly created reply on the viewer’s own profile', () => {

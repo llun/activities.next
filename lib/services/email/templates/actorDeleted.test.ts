@@ -51,7 +51,7 @@ describe('buildActorDeletedEmail', () => {
   })
 
   it('carries no call to action because there is nothing left to open', () => {
-    expect(build().html).not.toContain('bgcolor="#E66A0F"')
+    expect(build().html).not.toContain('bgcolor="#E55F06"')
   })
 
   it('links the instance contact address when one is configured', () => {

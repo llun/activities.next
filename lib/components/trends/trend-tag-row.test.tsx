@@ -38,4 +38,20 @@ describe('TrendTagRow', () => {
 
     expect(screen.getByText('1 person in the past 2 days')).toBeInTheDocument()
   })
+
+  it.each([
+    ['full-size', false, '60', '22'],
+    ['compact', true, '52', '24']
+  ])(
+    'draws the %s sparkline at its designed size',
+    (_label, compact, width, height) => {
+      const { container } = render(<TrendTagRow tag={tag} compact={compact} />)
+
+      const sparkline = container.querySelector('svg')
+      expect(sparkline).not.toBeNull()
+      expect(sparkline).toHaveAttribute('width', width)
+      expect(sparkline).toHaveAttribute('height', height)
+      expect(sparkline).toHaveAttribute('viewBox', `0 0 ${width} ${height}`)
+    }
+  )
 })

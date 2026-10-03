@@ -119,8 +119,8 @@ describe('GearListView', () => {
   })
 
   // jsdom lays nothing out, so this guards the containing block instead of
-  // the page width: the "Actions" header and a phone's hidden "Edit" text are
-  // `sr-only` (`position: absolute`) in cells that are not positioned, and
+  // the page width: the "Actions" header and a narrow table's hidden "Edit" text
+  // are `sr-only` (`position: absolute`) in cells that are not positioned, and
   // without a positioned scroller they escaped its overflow clip and widened
   // a 390px document to ~560px.
   it('keeps every table in a positioned scroller', async () => {
@@ -165,6 +165,166 @@ describe('GearListView', () => {
     expect(bikes.getByText('Ride, Gravel ride')).toBeInTheDocument()
     expect(bikes.getByText('35,253.7 km')).toBeInTheDocument()
     expect(bikes.getByText('1 active')).toBeInTheDocument()
+  })
+
+  it('keeps the Default sports header and the distance on one line at a narrow card', async () => {
+    mockGetFitnessGearList.mockResolvedValue([createGear()])
+    render(<GearListView />)
+
+    const bikes = await getSection('Bikes')
+    // jsdom has no layout, so pin what keeps them on one line: at the design's
+    // 590pt card the 12% Distance column was 71pt wide, wrapping "0.0 km" and the
+    // two-word header into two lines each.
+    expect(
+      bikes.getByRole('columnheader', { name: 'Default sports' })
+    ).toHaveClass('whitespace-nowrap')
+    expect(bikes.getByText('35,253.7 km')).toHaveClass('whitespace-nowrap')
+  })
+
+  it('splits the bikes table into columns that add up to a full row, Distance wide enough for a lifetime total', async () => {
+    mockGetFitnessGearList.mockResolvedValue([createGear()])
+    render(<GearListView />)
+
+    const bikes = await getSection('Bikes')
+    const table = bikes.getByRole('table')
+    const widths = Array.from(table.querySelectorAll('col')).map((col) => {
+      const match = /w-\[([\d.]+)%\]/.exec(col.className)
+      return match ? Number(match[1]) : NaN
+    })
+
+    expect(widths).toHaveLength(5)
+    expect(widths.reduce((sum, width) => sum + width, 0)).toBeCloseTo(100)
+    // Bike, Product page, Default sports, Distance, actions. Distance (a
+    // five-digit total like "35,670.2 km") is the widest data cell after the
+    // name, so it must out-size the Default sports column it used to be
+    // smaller than.
+    const [, , defaultSports, distance] = widths
+    expect(distance).toBeGreaterThan(defaultSports)
+  })
+
+  // The three tables are meant to line up: the same first two columns and the
+  // same Actions column, and the number each one right-aligns ends at 90% (the
+  // Distance column of bikes and shoes, the Activities column of devices). The
+  // devices table used to carry 34 / 26 / 30 / 10, so its Product page started
+  // 0.5% left of the other two and its count ended 4% further left.
+  it('lines the devices table up with the bikes and shoes tables', async () => {
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear(),
+      createGear({ id: 'gear-2', kind: 'shoes', name: 'Cloudmonster' }),
+      createDevice()
+    ])
+    render(<GearListView />)
+
+    const getWidths = async (title: string) => {
+      const section = await getSection(title)
+      return Array.from(section.getByRole('table').querySelectorAll('col')).map(
+        (col) => {
+          const match = /w-\[([\d.]+)%\]/.exec(col.className)
+          return match ? Number(match[1]) : NaN
+        }
+      )
+    }
+    const bikes = await getWidths('Bikes')
+    const shoes = await getWidths('Shoes')
+    const devices = await getWidths('Devices')
+
+    expect(devices).toEqual([33.5, 22.5, 34, 10])
+    expect(shoes).toEqual(bikes)
+    // Name, Product page and Actions are the same columns on all three.
+    expect(devices[0]).toBe(bikes[0])
+    expect(devices[1]).toBe(bikes[1])
+    expect(devices[3]).toBe(bikes[4])
+    // The count's right edge is the Distance column's: 90% in and 10% to go.
+    const edge = (widths: number[]) =>
+      widths.slice(0, -1).reduce((sum, width) => sum + width, 0)
+    expect(edge(devices)).toBeCloseTo(edge(bikes))
+    expect(devices.reduce((sum, width) => sum + width, 0)).toBeCloseTo(100)
+  })
+
+  // jsdom lays nothing out, so none of this can measure the button: it pins the
+  // classes that decide it. At 800px the table is 694px, the Actions column (10%)
+  // 69px, and the old `px-3 pr-4` cell left 41px of content for a 62.5px
+  // "pencil + Edit" button, which overflowed the table by 5px (14px at 640px).
+  describe('Actions column', () => {
+    // A bike, a retired bike (revealed) and a device: the bikes table and the
+    // devices table, which render their own Actions cells.
+    const renderTables = async () => {
+      mockGetFitnessGearList.mockResolvedValue([
+        createGear(),
+        createGear({
+          id: 'gear-retired',
+          name: 'Old racer',
+          retiredAt: Date.UTC(2023, 4, 1)
+        }),
+        createDevice()
+      ])
+      render(<GearListView />)
+
+      const bikes = await getSection('Bikes')
+      fireEvent.click(
+        bikes.getByRole('button', { name: 'Show 1 retired bike' })
+      )
+    }
+
+    const getEditButtons = () =>
+      screen.getAllByRole('button', { name: /^Edit / })
+
+    it('centres the button in symmetric padding on every table', async () => {
+      await renderTables()
+
+      const buttons = getEditButtons()
+      expect(buttons).toHaveLength(3)
+      for (const button of buttons) {
+        const cell = button.closest('td') as HTMLElement
+        // Symmetric `px-2`, as the components table's pinned actions: the old
+        // `px-3 pr-4` took 28px of a 56px column, and `text-right` aligned the
+        // button to what was left.
+        expect(cell).toHaveClass('px-2')
+        expect(cell).not.toHaveClass('pr-4')
+        expect(cell).not.toHaveClass('text-right')
+        expect(button.parentElement).toHaveClass(
+          'flex',
+          'w-full',
+          'justify-center'
+        )
+      }
+      const headers = screen.getAllByRole('columnheader', { name: 'Actions' })
+      expect(headers).toHaveLength(2)
+      for (const header of headers) {
+        expect(header).toHaveClass('px-2')
+        expect(header).not.toHaveClass('pr-4')
+      }
+    })
+
+    // The column is 10% of the table, so the label's room depends on how wide
+    // the TABLE is, which a viewport breakpoint cannot say: the table follows the
+    // page's side navigation, so `sm:` showed the label from a 640px viewport,
+    // on a 606px table whose Actions column could not hold it.
+    it('shows the Edit label only where its own cell has the room, by container query', async () => {
+      await renderTables()
+
+      for (const button of getEditButtons()) {
+        const label = within(button).getByText('Edit')
+        expect(label).toHaveClass('sr-only', '@min-[4rem]:not-sr-only')
+        expect(label.className).not.toMatch(/(^|\s)sm:/)
+        // The container is the wrapper around the button, which is as wide as the
+        // cell's content; the cell itself cannot be a size container.
+        expect(button.parentElement).toHaveClass('@container')
+        expect(button.closest('td')).not.toHaveClass('@container')
+        // The pencil is always there, and the accessible name never changes.
+        expect(button.querySelector('svg')).toBeInTheDocument()
+      }
+    })
+
+    it("dims a retired row's Actions cell with the rest of the row, and only that one", async () => {
+      await renderTables()
+
+      const cellOf = (name: string) =>
+        screen.getByRole('button', { name }).closest('td') as HTMLElement
+      expect(cellOf('Edit Old racer')).toHaveClass('opacity-60')
+      expect(cellOf('Edit Rocket')).not.toHaveClass('opacity-60')
+      expect(cellOf('Edit Garmin Edge 840')).not.toHaveClass('opacity-60')
+    })
   })
 
   it('renders an em dash when a gear has no default sports', async () => {
