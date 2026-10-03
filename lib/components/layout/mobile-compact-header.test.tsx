@@ -76,7 +76,8 @@ describe('MobileCompactHeader', () => {
     const bar = container.querySelector('[data-mobile-compact-header]')
     expect(bar).toHaveClass('pl-2', 'gap-2')
     const trigger = screen.getByRole('button', { name: 'Open navigation' })
-    expect(trigger.className).not.toMatch(/(^|\s)-?m[lxs]?-/)
+    // Any margin, negative or not, with or without a variant prefix.
+    expect(trigger.className).not.toMatch(/(^|[\s:])-?m[a-z]?-/)
     expect(screen.getByRole('heading', { name: 'Timeline' })).toHaveClass(
       'text-lg',
       'font-semibold',
@@ -84,6 +85,9 @@ describe('MobileCompactHeader', () => {
     )
     expect(screen.getByRole('heading', { name: 'Timeline' })).not.toHaveClass(
       'text-base'
+    )
+    expect(screen.getByRole('heading', { name: 'Timeline' })).not.toHaveClass(
+      'tracking-tight'
     )
   })
 

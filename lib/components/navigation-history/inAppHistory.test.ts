@@ -34,9 +34,11 @@ describe('inAppHistory', () => {
     expect(hasInAppPrevious('/@alice@example.com/1')).toBe(false)
   })
 
-  // A multi-step jump back to the entry page, e.g. `history.go(-2)`. Popping
-  // one entry would leave [P0, X, Y, P0] and offer a `router.back()` that
-  // leaves the app.
+  // A multi-step jump back to the entry page, e.g. `history.go(-2)`. A record
+  // that read only a return to the entry directly below the top as a Back
+  // would push here, leaving [P0, X, Y, P0] and offering a `router.back()`
+  // that leaves the app. What this guards is the rule that a recorded
+  // pathname has something before it only when it is not the bottom entry.
   it('offers no Back after a multi-step return to the entry page', () => {
     recordNavigation('/p0')
     recordNavigation('/x')
@@ -67,8 +69,7 @@ describe('inAppHistory', () => {
     expect(hasInAppPrevious('/x')).toBe(true)
     recordNavigation('/x')
     expect(hasInAppPrevious('/x')).toBe(true)
-    // …and the jump dropped what lay above it, so stepping back once more
-    // reaches the entry page with nothing before it.
+    // …and the entry page, reached again, still has nothing before it.
     recordNavigation('/p0')
     expect(hasInAppPrevious('/p0')).toBe(false)
   })
