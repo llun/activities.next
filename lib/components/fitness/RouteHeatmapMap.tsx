@@ -111,8 +111,8 @@ const ROUTE_LINE_STYLES = {
  * Colour and width are interpolated over the count so a street ridden fifty
  * times reads differently from one ridden once — which is the whole reason the
  * pyramid stores a count per stretch of road rather than one polyline per
- * activity. Colour is `HEAT_COUNT_COLOR_STOPS`, shared with the static share
- * image so the thumbnail and this map draw the same ramp. Opacity is NOT
+ * activity. Colour is `HEAT_COUNT_COLOR_STOPS`; the static share image shares
+ * its orange and yellow stops and leaves out the red one. Opacity is NOT
  * hand-tuned: it is generated from `heatOpacityForCount`, the same function the
  * server documents the ramp with, so the two cannot drift and a test can pin
  * the formula rather than a copied table of numbers.

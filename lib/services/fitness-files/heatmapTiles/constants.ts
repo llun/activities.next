@@ -137,8 +137,8 @@ export const heatOpacityForCount = (count: number, base: number) =>
  * It lives here, beside `heatOpacityForCount`, because the static share image
  * has to colour its lines from the same stops and a server module may not read
  * a constant out of the `'use client'` map (see AGENTS.md → Server/Client
- * Module Boundary). One list, so the thumbnail and the map it links to cannot
- * drift apart.
+ * Module Boundary). One list, so the orange and yellow the thumbnail draws are
+ * the map's own; the thumbnail leaves out the red stop.
  */
 export const HEAT_COUNT_COLOR_STOPS: ReadonlyArray<number | string> = [
   1,
@@ -163,12 +163,12 @@ const formatHexColor = (channels: number[]): string =>
  *
  * Blends linearly between the two surrounding stops, per RGB channel, and holds
  * the first or last colour outside the ramp — what a GL `interpolate` over the
- * same stops does, so a thumbnail drawn with this reads like the map. Colours
- * are `#rrggbb`; the result is lower-case `#rrggbb`.
+ * same stops does, so the stops a thumbnail draws with this read like the
+ * map's. Colours are `#rrggbb`; the result is lower-case `#rrggbb`.
  */
 export const heatColorForCount = (
   count: number,
-  stops: ReadonlyArray<number | string> = HEAT_COUNT_COLOR_STOPS
+  stops: ReadonlyArray<number | string>
 ): string => {
   const ramp: Array<{ count: number; color: [number, number, number] }> = []
   for (let index = 0; index + 1 < stops.length; index += 2) {

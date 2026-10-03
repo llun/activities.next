@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 
 import { ActorSelector } from './ActorSelector'
 
@@ -44,5 +44,36 @@ describe('ActorSelector', () => {
     // submits `actorId` through the hidden input, exactly one field.
     const form = container.querySelector('form') as HTMLFormElement
     expect([...new FormData(form).entries()]).toEqual([['actorId', 'actor-2']])
+  })
+
+  it("navigates to the chosen actor's notification settings, id URL-encoded", () => {
+    // Real actor ids are URLs, so encodeURIComponent has something to encode.
+    const urlActors = actors.map((actor) => ({
+      ...actor,
+      id: `https://llun.test/users/${actor.username}`
+    }))
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, href: '' }
+    })
+    try {
+      render(
+        <ActorSelector actors={urlActors} selectedActorId={urlActors[0].id} />
+      )
+
+      fireEvent.change(screen.getByLabelText('Actor'), {
+        target: { value: 'https://llun.test/users/bob' }
+      })
+
+      expect(window.location.href).toBe(
+        '/settings/notifications?actorId=https%3A%2F%2Fllun.test%2Fusers%2Fbob'
+      )
+    } finally {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: originalLocation
+      })
+    }
   })
 })

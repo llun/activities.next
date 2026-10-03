@@ -69,6 +69,10 @@ describe('FitnessPrivacyLocationSettings', () => {
     // …which is the shared Select, not a raw <select> carrying the same class.
     expect(radiusSelect).toHaveAttribute('data-slot', 'select')
     expect(radiusSelect).toHaveAttribute('id', 'privacyHideRadiusMeters')
+    // The design's Hide Radius board draws this one select at 40 px, not the
+    // primitive's 36: `h-10` wins over `h-9` through the primitive's merge.
+    expect(radiusSelect).toHaveClass('h-10')
+    expect(radiusSelect).not.toHaveClass('h-9')
     expect(radiusSelect.parentElement?.querySelector('svg')).toBeNull()
     expect(screen.queryByRole('option', { name: '0m' })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: '50m' })).toBeInTheDocument()

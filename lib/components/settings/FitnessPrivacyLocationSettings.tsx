@@ -1129,6 +1129,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             <Label htmlFor="privacyHideRadiusMeters">Hide Radius</Label>
             <Select
               id="privacyHideRadiusMeters"
+              className="h-10"
               value={String(draftRadiusMeters)}
               onChange={(event) => {
                 setDraftRadiusMeters(

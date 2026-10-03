@@ -1633,11 +1633,12 @@ legacy shape left to copy.
   raw `<select>` to append it to, and `lib/components/ui/formControlUsage.test.ts`
   fails on one. The post line limit, the admin statistic type, the report
   category, the Wahoo environment, the notification actor and the privacy hide
-  radius are all `Select`. The activity-file switcher in `FitnessStatusDetail`
-  is the one exception: it overlays its own foreground-coloured `ChevronDown`,
-  as the design draws it, and sits in a card of its own beside the activity
-  card (only for a status with more than one fitness file), not nested inside
-  it.
+  radius are all `Select`; the hide radius alone passes `h-10`, because the
+  design's Hide Radius board draws that one select at 40 px. The activity-file
+  switcher in `FitnessStatusDetail` is the one exception: it overlays its own
+  foreground-coloured `ChevronDown`, as the design draws it, and sits in a card
+  of its own beside the activity card (only for a status with more than one
+  fitness file), not nested inside it.
 - A checkbox is the shared `Checkbox` (`@/lib/components/ui/checkbox`): 16 px,
   radius 4, an orange fill and a white tick when checked, instead of the
   browser's blue control. It is still a real `<input type="checkbox">`, so a

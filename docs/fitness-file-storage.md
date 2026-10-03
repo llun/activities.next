@@ -169,11 +169,12 @@ and reads tiles nobody sees. The keyless SVG renderer shades each stroke by visi
 count from the same `heatOpacityForCount` ramp the interactive maps paint with,
 so a road ridden thirty times reads darker than one ridden once, and colours it
 along the same `HEAT_COUNT_COLOR_STOPS` the interactive map blends over, from its
-orange stop (a road ridden once) to its yellow one (twelve or more): the share
-image is the design's orange-to-yellow heat, not the red the interactive map
-starts a single visit at. The Mapbox overlay takes one colour, so it draws every
-stroke in that ramp's orange; the Apple snapshot's flat overlay is the route
-orange (`ROUTE_COLOR`). Neither basemap renderer reads the count.
+orange stop (four visits, so a road ridden one to four times is all orange) to
+its yellow one (twelve or more): the share image is the design's
+orange-to-yellow heat, not the red the interactive map starts a single visit at.
+The Mapbox overlay takes one colour, so it draws every stroke in that ramp's
+orange; the Apple snapshot's flat overlay is the route orange (`ROUTE_COLOR`).
+Neither basemap renderer reads the count.
 
 The image is rendered on each request (and held at the edge for 60 seconds), not
 stored, so a change to these colours reaches every share link at once. A copy

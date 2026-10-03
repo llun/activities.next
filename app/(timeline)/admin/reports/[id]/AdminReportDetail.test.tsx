@@ -144,4 +144,28 @@ describe('AdminReportDetail', () => {
     expect(select).not.toHaveClass('w-full')
     expect(select).toHaveValue('legal')
   })
+
+  it('locks the category select while an action is in flight', async () => {
+    mockGetAdminReport.mockResolvedValue(report({}))
+    let finishUpdate: (value: AdminReport) => void = () => {}
+    mockUpdate.mockReturnValue(
+      new Promise<AdminReport>((resolve) => {
+        finishUpdate = resolve
+      })
+    )
+
+    render(<AdminReportDetail reportId="report-1" />)
+    await waitFor(() =>
+      expect(screen.getByText('troll@evil.example')).toBeInTheDocument()
+    )
+    expect(screen.getByRole('combobox')).toBeEnabled()
+
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: 'legal' }
+    })
+    await waitFor(() => expect(screen.getByRole('combobox')).toBeDisabled())
+
+    finishUpdate(report({ category: 'legal' }))
+    await waitFor(() => expect(screen.getByRole('combobox')).toBeEnabled())
+  })
 })

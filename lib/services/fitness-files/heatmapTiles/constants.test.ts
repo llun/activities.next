@@ -246,12 +246,14 @@ describe('heatColorForCount', () => {
       expected: '#f45c2d'
     }
   ])('answers $expected for $description', ({ count, expected }) => {
-    expect(heatColorForCount(count)).toBe(expected)
+    expect(heatColorForCount(count, HEAT_COUNT_COLOR_STOPS)).toBe(expected)
   })
 
   it('blends over any stop list it is given', () => {
     expect(heatColorForCount(1, [4, '#f97316', 12, '#facc15'])).toBe('#f97316')
     expect(heatColorForCount(8, [4, '#000000', 12, '#ffffff'])).toBe('#808080')
+    // A channel below 0x10 keeps its leading zero: 5 -> '05', not '5'.
+    expect(heatColorForCount(8, [4, '#000000', 12, '#0a141e'])).toBe('#050a0f')
   })
 })
 

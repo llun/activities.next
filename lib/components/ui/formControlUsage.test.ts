@@ -15,9 +15,12 @@ import path from 'path'
 // One raw `<select>` is deliberate: the activity-file switcher on the fitness
 // status page overlays its own foreground-coloured `ChevronDown`, as the
 // design draws it, so it is not the muted-chevron control.
-const RAW_SELECT_ALLOWED = new Set([
-  'lib/components/ui/select.tsx',
-  'app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx'
+//
+// Each file is paired with how many raw `<select>`s it may hold: the status
+// page is 2,200 lines, and a bare file name would let a second one in.
+const RAW_SELECT_ALLOWED = new Map([
+  ['lib/components/ui/select.tsx', 1],
+  ['app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx', 1]
 ])
 const RAW_CHECKBOX_ALLOWED = new Set(['lib/components/ui/checkbox.tsx'])
 
@@ -47,6 +50,8 @@ const withoutComments = (source: string) =>
 const codeOf = (file: string) => withoutComments(fs.readFileSync(file, 'utf8'))
 
 const RAW_SELECT_TAG = /<select[\s>]/
+const rawSelectCount = (file: string) =>
+  [...codeOf(file).matchAll(new RegExp(RAW_SELECT_TAG, 'g'))].length
 const RAW_CHECKBOX_TAG = /<input\b[^>]*\btype=["']checkbox["']/
 
 describe('Form control usage', () => {
@@ -65,14 +70,17 @@ describe('Form control usage', () => {
     expect(offenders).toEqual([])
   })
 
-  it('keeps the deliberate raw switcher in the select allow-list real', () => {
-    // An allow-list entry that no longer has a raw <select> would silently let
-    // the next one in, so each must still contain exactly the case it excuses.
-    for (const file of RAW_SELECT_ALLOWED) {
-      expect(RAW_SELECT_TAG.test(codeOf(path.join(process.cwd(), file)))).toBe(
-        true
-      )
-    }
+  it('keeps the select allow-list exact', () => {
+    // An entry with no raw <select> left would silently let the next one in,
+    // and one holding more than the case it excuses is a second one let in, so
+    // each file must contain exactly its count.
+    const counts = Object.fromEntries(
+      [...RAW_SELECT_ALLOWED.keys()].map((file) => [
+        file,
+        rawSelectCount(path.join(process.cwd(), file))
+      ])
+    )
+    expect(counts).toEqual(Object.fromEntries(RAW_SELECT_ALLOWED))
   })
 
   it('uses the shared Checkbox instead of a raw <input type="checkbox">', () => {

@@ -66,6 +66,54 @@ describe('WahooSettingsForm', () => {
     expect(select).toHaveValue(settings.environment)
   })
 
+  it('follows the environment select: the sandbox hint goes and the choice is saved', async () => {
+    render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    const hint =
+      'Wahoo sandbox applications cannot later be converted to production.'
+    expect(screen.getByText(hint)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Environment'), {
+      target: { value: 'production' }
+    })
+
+    expect(screen.getByLabelText('Environment')).toHaveValue('production')
+    expect(screen.queryByText(hint)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() =>
+      expect(client.saveWahooSettings).toHaveBeenCalledWith({
+        clientId: 'client-example',
+        environment: 'production',
+        defaultVisibility: 'private'
+      })
+    )
+  })
+
+  it('locks the environment select while settings are saving', async () => {
+    let finishSave: (value: { success: true }) => void = () => {}
+    vi.mocked(client.saveWahooSettings).mockReturnValue(
+      new Promise((resolve) => {
+        finishSave = resolve
+      })
+    )
+    render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    expect(screen.getByLabelText('Environment')).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() =>
+      expect(screen.getByLabelText('Environment')).toBeDisabled()
+    )
+
+    finishSave({ success: true })
+    await waitFor(() =>
+      expect(screen.getByLabelText('Environment')).toBeEnabled()
+    )
+  })
+
   it('keeps saved secrets out of the page and omits blank replacements on save', async () => {
     render(<WahooSettingsForm />)
 
