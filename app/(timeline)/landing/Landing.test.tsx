@@ -106,7 +106,7 @@ describe('Landing', () => {
     // equal z-index the later-in-DOM button paints over the bar. Same z as
     // `PageHeader`.
     const bar = screen.getByText('llun.social').closest('.sticky')
-    expect(bar).toHaveClass('z-20')
+    expect(bar).toHaveClass('sticky', 'top-0', 'z-20')
     expect(bar).not.toHaveClass('z-10')
   })
 
