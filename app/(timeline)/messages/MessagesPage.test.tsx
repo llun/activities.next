@@ -994,6 +994,18 @@ describe('MessagesPage', () => {
     expect(sendButton.parentElement).toHaveClass('items-end')
   })
 
+  it('pulls the header row up under the mobile bar to cancel the column gap', () => {
+    renderMessagesPage([], null)
+
+    // The column's flex `gap-5` would open a visible gap between the compact
+    // bar and the heading row that continues it; `max-md:-mt-5` cancels it
+    // below md. The header box is the heading's `max-w-content` row's parent.
+    const header = screen
+      .getByRole('heading', { level: 1, name: 'Messages' })
+      .closest('.max-w-content')?.parentElement
+    expect(header).toHaveClass('max-md:-mt-5')
+  })
+
   it("gives the Send button the design's 16px side padding despite its leading icon", () => {
     renderMessagesPage([], null)
 
