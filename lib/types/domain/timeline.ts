@@ -1,4 +1,5 @@
 import { Status } from '@/lib/types/database'
+import { Tag } from '@/lib/types/domain/tag'
 
 export interface TimelineParentPreview {
   id: string
@@ -12,6 +13,8 @@ export interface TimelineParentPreview {
   }
   contentHtml: string
   text?: string
+  tags?: Tag[]
+  isLocalActor?: boolean
   spoilerText?: string
   isSensitive?: boolean
   createdAt: string

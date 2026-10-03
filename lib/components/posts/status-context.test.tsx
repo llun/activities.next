@@ -78,6 +78,68 @@ describe('StatusContextIndicator', () => {
     expect(screen.queryByText('Sensitive secret body')).not.toBeInTheDocument()
   })
 
+  it('renders HTML content in parent text as styled elements without raw HTML tags', () => {
+    const htmlParent: TimelineParentPreview = {
+      ...mockParentPreview,
+      text: '<p><span class="h-card" translate="no"><a href="https://llun.dev/@null" class="u-url mention">@<span>null</span></a></span> That might be the reason why suddenly Gemini 4 is good. 🤔</p>',
+      contentHtml: ''
+    }
+
+    const { container } = render(
+      <StatusContextIndicator parentPreview={htmlParent} />
+    )
+
+    expect(
+      screen.getByText(/That might be the reason why suddenly Gemini 4 is good/)
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/<p>/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/<span/)).not.toBeInTheDocument()
+
+    // Exactly one link should exist on the entire indicator: the parent post link
+    const links = screen.getAllByRole('link')
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute(
+      'href',
+      'https://activities.local/@alice/parent-1'
+    )
+
+    // Mention should be rendered with text-primary class instead of an anchor
+    const mention = container.querySelector('span.text-primary')
+    expect(mention).not.toBeNull()
+    expect(mention).toHaveTextContent('@null')
+  })
+
+  it('renders custom emojis and formatting for local parent posts', () => {
+    const localParent: TimelineParentPreview = {
+      ...mockParentPreview,
+      isLocalActor: true,
+      text: '**Exciting news** with :party:',
+      tags: [
+        {
+          id: 'tag-emoji',
+          statusId: 'parent-1',
+          type: 'emoji',
+          name: 'party',
+          value: 'https://activities.local/custom-emojis/party.png',
+          createdAt: 1710000000000,
+          updatedAt: 1710000000000
+        }
+      ]
+    }
+
+    const { container } = render(
+      <StatusContextIndicator parentPreview={localParent} />
+    )
+
+    expect(container.querySelector('strong')).toHaveTextContent('Exciting news')
+    const emoji = container.querySelector('img.emoji')
+    expect(emoji).not.toBeNull()
+    expect(emoji).toHaveAttribute(
+      'src',
+      'https://activities.local/custom-emojis/party.png'
+    )
+  })
+
   it('stops propagation when parent link is clicked', () => {
     const outerClick = vi.fn()
     render(

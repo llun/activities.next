@@ -180,11 +180,23 @@ describe('getTimelineContext', () => {
     expect(result.ancestorsById['parent-unreadable']).toBeUndefined()
   })
 
-  it('sets empty preview contentHtml and text for CW or sensitive status', async () => {
+  it('sets empty preview contentHtml, text, and tags for CW or sensitive status', async () => {
     const parentWithSpoiler = createMockStatus({
       id: 'parent-cw',
       text: '<p>Secret content behind CW</p>',
-      summary: 'Content Warning: Spoilers'
+      summary: 'Content Warning: Spoilers',
+      isLocalActor: false,
+      tags: [
+        {
+          id: 'tag-1',
+          statusId: 'parent-cw',
+          type: 'hashtag',
+          name: 'spoiler',
+          value: 'spoiler',
+          createdAt: 1710000000000,
+          updatedAt: 1710000000000
+        }
+      ]
     })
 
     const parentSensitive = createMockStatus({
@@ -193,25 +205,54 @@ describe('getTimelineContext', () => {
       sensitive: true
     })
 
+    const normalTags = [
+      {
+        id: 'tag-2',
+        statusId: 'parent-normal',
+        type: 'hashtag' as const,
+        name: 'activities',
+        value: 'activities',
+        createdAt: 1710000000000,
+        updatedAt: 1710000000000
+      }
+    ]
+
+    const parentNormal = createMockStatus({
+      id: 'parent-normal',
+      text: '<p>Normal text</p>',
+      isLocalActor: true,
+      tags: normalTags
+    })
+
     const child1 = createMockStatus({ id: 'child-1', reply: 'parent-cw' })
     const child2 = createMockStatus({
       id: 'child-2',
       reply: 'parent-sensitive'
     })
+    const child3 = createMockStatus({
+      id: 'child-3',
+      reply: 'parent-normal'
+    })
 
     const database = {
-      getStatusesByIds: vi.fn(async () => [parentWithSpoiler, parentSensitive])
+      getStatusesByIds: vi.fn(async () => [
+        parentWithSpoiler,
+        parentSensitive,
+        parentNormal
+      ])
     } as unknown as Database
 
     const result = await getTimelineContext({
       database,
-      statuses: [child1, child2]
+      statuses: [child1, child2, child3]
     })
 
     const previewCw = result.ancestorsById['parent-cw']
     expect(previewCw).toBeDefined()
     expect(previewCw.contentHtml).toBe('')
     expect(previewCw.text).toBe('')
+    expect(previewCw.tags).toEqual([])
+    expect(previewCw.isLocalActor).toBe(false)
     expect(previewCw.spoilerText).toBe('Content Warning: Spoilers')
     expect(previewCw.isSensitive).toBe(true)
 
@@ -219,7 +260,15 @@ describe('getTimelineContext', () => {
     expect(previewSensitive).toBeDefined()
     expect(previewSensitive.contentHtml).toBe('')
     expect(previewSensitive.text).toBe('')
+    expect(previewSensitive.tags).toEqual([])
     expect(previewSensitive.isSensitive).toBe(true)
+
+    const previewNormal = result.ancestorsById['parent-normal']
+    expect(previewNormal).toBeDefined()
+    expect(previewNormal.contentHtml).toBe('<p>Normal text</p>')
+    expect(previewNormal.text).toBe('<p>Normal text</p>')
+    expect(previewNormal.tags).toEqual(normalTags)
+    expect(previewNormal.isLocalActor).toBe(true)
   })
 
   it('gracefully returns empty ancestors when parent is missing or not found', async () => {
