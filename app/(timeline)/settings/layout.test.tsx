@@ -113,4 +113,14 @@ describe('Settings Layout', () => {
       within(menu).getByRole('menuitem', { name: 'General' })
     ).not.toHaveAttribute('aria-current')
   })
+
+  // Below md the description's own 16px bottom padding is the whole gap to
+  // the dropdown; from md up the section keeps its 16px top padding.
+  it('drops the section top padding below md only', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/settings')
+    renderLayout()
+
+    const nav = screen.getByRole('navigation', { name: 'Settings' })
+    expect(nav.parentElement).toHaveClass('pt-4', 'max-md:pt-0')
+  })
 })
