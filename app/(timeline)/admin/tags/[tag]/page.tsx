@@ -1,7 +1,8 @@
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 
+import { BackLink } from '@/lib/components/back-link'
 import { PageHeader } from '@/lib/components/page-header'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { getConfig } from '@/lib/config'
@@ -48,14 +49,16 @@ const Page = async ({ params, searchParams }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <Link
+      {/* Below md the Back is its own labelled row above the heading; from
+          md up it is the icon beside the heading it always was. */}
+      <div className="flex items-start gap-3 max-md:flex-col max-md:gap-1">
+        <BackLink
           href="/admin/tags"
-          aria-label="Back to hashtags list"
-          className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
+          label="Back to hashtags"
+          accessibleName="Back to hashtags list"
+          iconOnlyFrom="md"
+          className="md:rounded-lg md:p-2 md:hover:bg-muted"
+        />
         <PageHeader
           className="flex-1"
           title={tag.replace(/^#+/, '')}
