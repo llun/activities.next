@@ -42,15 +42,21 @@ export function MobileNavigationDrawer({
   const pathname = usePathname()
   const navigatedRef = useRef(false)
   const initialPathnameRef = useRef(pathname)
+  const wasOpenRef = useRef(false)
 
   const isOpen = nav?.isOpen ?? false
   const setOpen = nav?.setOpen
 
+  // Record where the drawer opened only on the opening render. A route change
+  // while it is open must not overwrite it: this effect runs before the
+  // provider's close-on-route-change effect, so re-recording here would make
+  // the close below read the new pathname as "not navigated".
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       navigatedRef.current = false
       initialPathnameRef.current = pathname
     }
+    wasOpenRef.current = isOpen
   }, [isOpen, pathname])
 
   if (!nav) return null
