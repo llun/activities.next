@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 
 // The translucent bars that sit over the page — the sticky page header, the
-// sidebar and icon rail, the mobile header, and the sticky bars of the public
+// sidebar and icon rail, the mobile compact bar, and the sticky bars of the public
 // shell, the landing page's public feed, the shared heatmap and the status page
 // — all use the design's Surface Chrome
 // (white at 72 % in light, #141414 at 80 % in dark) through the
