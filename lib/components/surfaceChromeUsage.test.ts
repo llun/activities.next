@@ -12,7 +12,9 @@ import path from 'path'
 //
 // Each row is a file and the number of bars in it that must carry the token.
 const CHROME_BARS: Array<[file: string, bars: number]> = [
-  ['lib/components/page-header.tsx', 1],
+  // The desktop box: `md:bg-surface-chrome` under a mobile navigation
+  // provider, plain `bg-surface-chrome` without one.
+  ['lib/components/page-header.tsx', 2],
   ['lib/components/layout/sidebar.tsx', 2],
   ['lib/components/layout/mobile-navigation-header.tsx', 1],
   // The mobile compact page bar's class string (`MOBILE_COMPACT_HEADER_CLASS`).

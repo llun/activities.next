@@ -10,6 +10,9 @@ export const MessagesLoading: FC = () => {
       className="flex min-h-0 flex-1 flex-col gap-5 md:gap-6"
     >
       <PageHeader
+        // The column's flex gap would open between the mobile bar and this
+        // row, which continues it; cancel it below `md`.
+        className="max-md:-mt-5"
         title={<span className="skeleton block h-7 w-28 rounded-md" />}
         description={<span className="skeleton block h-4 w-60 rounded" />}
         actions={<div className="skeleton h-8 w-18 rounded-md" />}

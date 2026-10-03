@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  ArrowLeft,
   Check,
   Copy,
   Eye,
@@ -247,19 +246,12 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
       <PageHeader
-        title={
-          <span className="flex items-center gap-2">
-            {isOwner ? (
-              <Link
-                href="/lists"
-                aria-label="Back to lists and collections"
-                className="text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            ) : null}
-            <span className="truncate">{collection.title}</span>
-          </span>
+        title={collection.title}
+        compactTitle="Collection"
+        back={
+          isOwner
+            ? { href: '/lists', label: 'Back to lists and collections' }
+            : undefined
         }
         description={subtitle}
         actions={

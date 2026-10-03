@@ -157,6 +157,7 @@ export const FollowListPage: FC<FollowListPageProps> = async ({
     users
   )
 
+  const profileHref = `/@${actorProfile.person.preferredUsername}@${actorDomain}`
   const count = config.getCount(actorProfile)
   const countDescription =
     typeof count === 'number' ? `${count.toLocaleString()} accounts` : undefined
@@ -165,19 +166,12 @@ export const FollowListPage: FC<FollowListPageProps> = async ({
     <div className="space-y-6">
       {isLoggedIn ? (
         <PageHeader
-          title={
-            <span className="flex items-center gap-2">
-              <Link
-                href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
-                prefetch={false}
-                aria-label="Back to profile"
-                className="text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-              <span className="truncate">{config.label}</span>
-            </span>
-          }
+          title={config.label}
+          back={{
+            href: profileHref,
+            label: 'Back to profile',
+            prefetch: false
+          }}
           description={countDescription}
         />
       ) : (
