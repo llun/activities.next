@@ -44,13 +44,18 @@ vi.mock('@/lib/components/page-header', () => ({
   PageHeader: ({
     actions,
     bottomSlot,
-    banner
+    banner,
+    mobileIntroRow
   }: {
     actions?: ReactNode
     bottomSlot?: ReactNode
     banner?: ReactNode
+    mobileIntroRow?: boolean
   }) => (
-    <div data-testid="page-header">
+    <div
+      data-testid="page-header"
+      data-mobile-intro-row={String(Boolean(mobileIntroRow))}
+    >
       {banner}
       {actions}
       {bottomSlot}
@@ -456,6 +461,25 @@ describe('MainPageTimeline', () => {
         'announcement-banner'
       )
     ).toBeInTheDocument()
+  })
+
+  // Below md the header's description-and-Refresh row ends on the hairline
+  // the full-bleed composer meets; PageHeader owns that geometry.
+  it('asks the page header for the mobile intro row', () => {
+    render(
+      <MainPageTimeline
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        profile={profile}
+        isMediaUploadEnabled={false}
+        statuses={[]}
+      />
+    )
+
+    expect(screen.getByTestId('page-header')).toHaveAttribute(
+      'data-mobile-intro-row',
+      'true'
+    )
   })
 
   it('removes a direct post from the feed when delete callback is invoked', () => {

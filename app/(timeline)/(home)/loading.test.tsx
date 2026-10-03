@@ -56,6 +56,13 @@ describe('timeline loading', () => {
       'size-9'
     )
 
+    // Below md the header row ends 12px under its content on the hairline the
+    // loaded page draws, so the composer does not jump when the page arrives.
+    expect(stickyHeader).toHaveClass('max-md:border-b')
+    expect(stickyHeader?.querySelector('.max-w-content')).toHaveClass(
+      'max-md:pb-3'
+    )
+
     expect(screen.getByLabelText('Post composer')).toBeInTheDocument()
     const postsSection = screen.getByLabelText('Timeline posts')
     expect(postsSection).toBeInTheDocument()

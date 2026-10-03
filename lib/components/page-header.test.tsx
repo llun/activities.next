@@ -198,6 +198,12 @@ describe('PageHeader', () => {
     expect(screen.getByRole('heading', { name: 'Timeline' })).not.toHaveClass(
       'max-md:hidden'
     )
+    // Nor the mobile description line: it belongs to the bar's intro row.
+    const description = screen.getByText('Latest posts')
+    expect(description).toHaveClass('mt-0.5', 'text-xs')
+    expect(description).not.toHaveClass('max-md:text-sm')
+    expect(description).not.toHaveClass('max-md:min-h-5')
+    expect(description).not.toHaveClass('max-md:mt-0')
   })
 
   describe('mobile compact bar', () => {
@@ -372,6 +378,68 @@ describe('PageHeader', () => {
       expect(children[bannerIndex + 1]).toContainElement(
         container.querySelector('.max-w-content') as HTMLElement
       )
+    })
+
+    it('ends the intro row 12px under its content on a hairline with mobileIntroRow', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Timeline"
+            description="Latest posts"
+            mobileIntroRow
+          />
+        </MobileNavigationProvider>
+      )
+
+      const row = container.querySelector('.max-w-content') as HTMLElement
+      expect(row).toHaveClass('py-4', 'max-md:pb-3')
+      expect(row.parentElement).toHaveClass('max-md:border-b', 'md:border-b')
+    })
+
+    it('keeps the 16px bottom padding and no mobile hairline by default', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader title="Timeline" description="Latest posts" />
+        </MobileNavigationProvider>
+      )
+
+      const row = container.querySelector('.max-w-content') as HTMLElement
+      expect(row).not.toHaveClass('max-md:pb-3')
+      expect(row.parentElement).not.toHaveClass('max-md:border-b')
+    })
+
+    // Below md the description is the intro row's own text on a 20px line,
+    // flush with the row's top padding when the bar carries the title.
+    it('sets the description as a flush 14/20 line when the bar holds the title', () => {
+      render(
+        <MobileNavigationProvider>
+          <PageHeader title="Timeline" description="Latest posts" />
+        </MobileNavigationProvider>
+      )
+
+      expect(screen.getByText('Latest posts')).toHaveClass(
+        'mt-0.5',
+        'text-xs',
+        'max-md:min-h-5',
+        'max-md:text-sm',
+        'max-md:mt-0'
+      )
+    })
+
+    it('keeps the description margin under a visible content heading', () => {
+      render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Morning running crew"
+            compactTitle="Lists"
+            description="12 members"
+          />
+        </MobileNavigationProvider>
+      )
+
+      const description = screen.getByText('12 members')
+      expect(description).toHaveClass('max-md:min-h-5', 'max-md:text-sm')
+      expect(description).not.toHaveClass('max-md:mt-0')
     })
 
     it('hangs bottomSlot under the bar and hides the desktop overlay below md', () => {

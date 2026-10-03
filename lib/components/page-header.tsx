@@ -46,6 +46,12 @@ interface PageHeaderProps {
    * what is on screen at every width. Not rendered in section mode.
    */
   banner?: ReactNode
+  /**
+   * The home timeline's intro row: below `md` the box ends 12px under its
+   * content (not 16px) on a full-width hairline, so a full-bleed surface
+   * directly below meets an edge. No effect from `md` up or in section mode.
+   */
+  mobileIntroRow?: boolean
 }
 
 const PageSubnavContext = createContext<ReactNode>(null)
@@ -98,7 +104,8 @@ export const PageHeader = ({
   bottomSlot,
   back,
   compactTitle,
-  banner
+  banner,
+  mobileIntroRow
 }: PageHeaderProps) => {
   const subnav = useContext(PageSubnavContext)
   const isSection = useContext(PageHeaderSectionContext)
@@ -192,6 +199,7 @@ export const PageHeader = ({
             ? 'md:sticky md:top-0 md:z-20 md:border-b md:bg-surface-chrome md:backdrop-blur'
             : 'sticky top-0 z-20 border-b bg-surface-chrome backdrop-blur',
           isEmptyOnMobile && 'max-md:hidden',
+          mobileIntroRow && 'max-md:border-b',
           className
         )}
         style={breakoutStyle}
@@ -199,7 +207,8 @@ export const PageHeader = ({
         <div
           className={cn(
             'mx-auto max-w-content px-4 py-4',
-            back && hasMobileBar && 'max-md:pt-2'
+            back && hasMobileBar && 'max-md:pt-2',
+            mobileIntroRow && 'max-md:pb-3'
           )}
         >
           <div

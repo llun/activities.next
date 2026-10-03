@@ -399,7 +399,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         // hairline so the borderless, full-bleed composer below meets an edge,
         // as it met the old sticky header's border; the row is 16px above and
         // 12px below its content.
-        className="max-md:border-b max-md:[&>div:first-child]:pb-3"
+        mobileIntroRow
         banner={<AnnouncementBanner currentTime={currentTime} />}
         title="Timeline"
         description="Latest posts from your network."
