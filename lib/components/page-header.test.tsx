@@ -322,6 +322,39 @@ describe('PageHeader', () => {
       expect(getBar(container)).not.toHaveClass('mb-0')
     })
 
+    // Each of these alone gives the box something to show below md, so it
+    // must stay visible and continue the bar (`mb-0`). The all-empty case
+    // above only guards the other direction.
+    it.each([
+      {
+        name: 'back',
+        props: { back: { href: '/lists', label: 'Back to lists' } }
+      },
+      { name: 'description', props: { description: 'Latest posts' } },
+      {
+        name: 'actions',
+        props: { actions: <button type="button">Refresh</button> }
+      },
+      { name: 'compactTitle', props: { compactTitle: 'Lists' } },
+      { name: 'subnav', props: {}, subnav: <nav aria-label="Tabs">Tabs</nav> }
+    ])(
+      'keeps the content box below md when it has only $name',
+      ({ props, subnav }) => {
+        const { container } = render(
+          <MobileNavigationProvider>
+            <PageSubnavProvider subnav={subnav ?? null}>
+              <PageHeader title="Edit list" {...props} />
+            </PageSubnavProvider>
+          </MobileNavigationProvider>
+        )
+
+        const box = container.querySelector('.max-w-content')
+          ?.parentElement as HTMLElement
+        expect(box).not.toHaveClass('max-md:hidden')
+        expect(getBar(container)).toHaveClass('mb-0')
+      }
+    )
+
     it('renders the banner between the bar and the header box', () => {
       const { container } = render(
         <MobileNavigationProvider>
