@@ -11,14 +11,14 @@ export interface StatusContextIndicatorProps {
   parentPreview?: TimelineParentPreview | null
   isReply?: boolean
   className?: string
-  host?: string
+  host: string
 }
 
 export const StatusContextIndicator: FC<StatusContextIndicatorProps> = ({
   parentPreview,
   isReply,
   className,
-  host = ''
+  host
 }) => {
   // Case 1: Known parent preview with permitted context
   if (parentPreview) {

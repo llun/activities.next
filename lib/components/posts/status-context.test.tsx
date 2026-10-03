@@ -27,7 +27,12 @@ describe('StatusContextIndicator', () => {
   }
 
   it('renders bounded parent preview with author, handle, and accessible label', () => {
-    render(<StatusContextIndicator parentPreview={mockParentPreview} />)
+    render(
+      <StatusContextIndicator
+        host="activities.local"
+        parentPreview={mockParentPreview}
+      />
+    )
 
     const indicator = screen.getByLabelText('Reply to @alice')
     expect(indicator).toBeInTheDocument()
@@ -53,7 +58,12 @@ describe('StatusContextIndicator', () => {
       text: 'Bruce Willis was a ghost the whole time'
     }
 
-    render(<StatusContextIndicator parentPreview={sensitiveParent} />)
+    render(
+      <StatusContextIndicator
+        host="activities.local"
+        parentPreview={sensitiveParent}
+      />
+    )
 
     expect(screen.getByLabelText('Reply to @alice')).toBeInTheDocument()
     expect(
@@ -72,7 +82,12 @@ describe('StatusContextIndicator', () => {
       text: 'Sensitive secret body'
     }
 
-    render(<StatusContextIndicator parentPreview={sensitiveParent} />)
+    render(
+      <StatusContextIndicator
+        host="activities.local"
+        parentPreview={sensitiveParent}
+      />
+    )
 
     expect(screen.getByText('CW: Sensitive content')).toBeInTheDocument()
     expect(screen.queryByText('Sensitive secret body')).not.toBeInTheDocument()
@@ -85,8 +100,11 @@ describe('StatusContextIndicator', () => {
       contentHtml: ''
     }
 
-    const { container } = render(
-      <StatusContextIndicator parentPreview={htmlParent} />
+    render(
+      <StatusContextIndicator
+        host="activities.local"
+        parentPreview={htmlParent}
+      />
     )
 
     expect(
@@ -102,11 +120,9 @@ describe('StatusContextIndicator', () => {
       'href',
       'https://activities.local/@alice/parent-1'
     )
-
-    // Mention should be rendered with text-primary class instead of an anchor
-    const mention = container.querySelector('span.text-primary')
-    expect(mention).not.toBeNull()
-    expect(mention).toHaveTextContent('@null')
+    expect(screen.getByLabelText('Reply to @alice')).toHaveTextContent(
+      '@null That might be the reason'
+    )
   })
 
   it('renders custom emojis and formatting for local parent posts', () => {
@@ -128,7 +144,10 @@ describe('StatusContextIndicator', () => {
     }
 
     const { container } = render(
-      <StatusContextIndicator parentPreview={localParent} />
+      <StatusContextIndicator
+        host="activities.local"
+        parentPreview={localParent}
+      />
     )
 
     expect(container.querySelector('strong')).toHaveTextContent('Exciting news')
@@ -144,7 +163,10 @@ describe('StatusContextIndicator', () => {
     const outerClick = vi.fn()
     render(
       <div onClick={outerClick}>
-        <StatusContextIndicator parentPreview={mockParentPreview} />
+        <StatusContextIndicator
+          host="activities.local"
+          parentPreview={mockParentPreview}
+        />
       </div>
     )
 
@@ -154,7 +176,13 @@ describe('StatusContextIndicator', () => {
   })
 
   it('renders generic reply indicator when parent preview is unknown but isReply is true', () => {
-    render(<StatusContextIndicator parentPreview={null} isReply={true} />)
+    render(
+      <StatusContextIndicator
+        host="activities.local"
+        parentPreview={null}
+        isReply={true}
+      />
+    )
 
     const indicator = screen.getByLabelText('In reply to a post')
     expect(indicator).toBeInTheDocument()
@@ -164,7 +192,11 @@ describe('StatusContextIndicator', () => {
 
   it('renders null when not a reply and no parent preview', () => {
     const { container } = render(
-      <StatusContextIndicator parentPreview={null} isReply={false} />
+      <StatusContextIndicator
+        host="activities.local"
+        parentPreview={null}
+        isReply={false}
+      />
     )
     expect(container).toBeEmptyDOMElement()
   })

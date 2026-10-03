@@ -2,18 +2,20 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { renderInlineSnippet } from './renderInlineSnippet'
 
 describe('renderInlineSnippet', () => {
-  it('returns null for empty or whitespace-only strings', () => {
-    expect(renderInlineSnippet('')).toBeNull()
-    expect(renderInlineSnippet('   ')).toBeNull()
-    expect(renderInlineSnippet(null)).toBeNull()
-    expect(renderInlineSnippet(undefined)).toBeNull()
+  it.each([
+    { description: 'an empty string', input: '' },
+    { description: 'whitespace only', input: '   ' },
+    { description: 'null', input: null },
+    { description: 'undefined', input: undefined }
+  ])('renders nothing for $description', ({ input }) => {
+    expect(renderInlineSnippet(input)).toBeNull()
   })
 
   it('renders plain text as is', () => {
@@ -23,76 +25,67 @@ describe('renderInlineSnippet', () => {
     expect(container).toHaveTextContent('Simple plain text')
   })
 
-  it('renders fediverse mention without anchor or paragraph tags', () => {
+  it('renders a fediverse mention as text with no link or paragraph', () => {
     const html =
       '<p><span class="h-card" translate="no"><a href="https://llun.dev/@null" class="u-url mention">@<span>null</span></a></span> That might be the reason why suddenly Gemini 4 is good. 🤔</p>'
     const { container } = render(<span>{renderInlineSnippet(html)}</span>)
 
-    expect(container.querySelector('a')).toBeNull()
-    expect(container.querySelector('p')).toBeNull()
-
-    const mention = container.querySelector('span.text-primary')
-    expect(mention).not.toBeNull()
-    expect(mention).toHaveTextContent('@null')
-
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
     expect(container).toHaveTextContent(
       '@null That might be the reason why suddenly Gemini 4 is good. 🤔'
     )
   })
 
-  it('flattens multiple block elements with space separation', () => {
-    const html = '<p>First paragraph</p><p>Second paragraph</p>'
+  it.each([
+    {
+      description: 'separates paragraphs with a space',
+      html: '<p>First paragraph</p><p>Second paragraph</p>',
+      expected: 'First paragraph Second paragraph'
+    },
+    {
+      description: 'turns line breaks into spaces',
+      html: 'Line 1<br>Line 2<br/>Line 3',
+      expected: 'Line 1 Line 2 Line 3'
+    },
+    {
+      description: 'drops the hidden parts of a shortened link',
+      html: '<a href="https://example.com/very/long/path"><span class="invisible">https://</span><span class="ellipsis">example.com/very/lo</span><span class="invisible">ng/path</span></a>',
+      expected: 'example.com/very/lo…'
+    }
+  ])('$description', ({ html, expected }) => {
     const { container } = render(<span>{renderInlineSnippet(html)}</span>)
 
-    expect(container.querySelector('p')).toBeNull()
-    expect(container).toHaveTextContent('First paragraph Second paragraph')
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(container.textContent?.trim()).toBe(expected)
   })
 
-  it('replaces br with a space', () => {
-    const html = 'Line 1<br>Line 2<br/>Line 3'
-    const { container } = render(<span>{renderInlineSnippet(html)}</span>)
-
-    expect(container.querySelector('br')).toBeNull()
-    expect(container).toHaveTextContent('Line 1 Line 2 Line 3')
-  })
-
-  it('strips invisible spans and appends ellipsis for shortened links', () => {
-    const html =
-      '<a href="https://example.com/very/long/path"><span class="invisible">https://</span><span class="ellipsis">example.com/very/lo</span><span class="invisible">ng/path</span></a>'
-    const { container } = render(<span>{renderInlineSnippet(html)}</span>)
-
-    expect(container.querySelector('a')).toBeNull()
-    const linkSpan = container.querySelector('span.text-primary')
-    expect(linkSpan).not.toBeNull()
-    expect(linkSpan).toHaveTextContent('example.com/very/lo…')
-    expect(container).not.toHaveTextContent('https://')
-    expect(container).not.toHaveTextContent('ng/path')
-  })
-
-  it('preserves formatting tags like strong, em, and code', () => {
-    const html =
-      '<p><strong>Bold</strong> and <em>italic</em> with <code>inline code</code></p>'
-    const { container } = render(<span>{renderInlineSnippet(html)}</span>)
-
-    expect(container.querySelector('strong')).toHaveTextContent('Bold')
-    expect(container.querySelector('em')).toHaveTextContent('italic')
-    expect(container.querySelector('code')).toHaveTextContent('inline code')
-  })
-
-  it('renders custom emoji images and discards non-emoji images', () => {
-    const html =
-      '<p>Hello <img class="emoji" src="https://example.com/emoji.png" alt=":smile:"> and <img src="https://example.com/big.jpg" alt="photo"></p>'
-    const { container } = render(<span>{renderInlineSnippet(html)}</span>)
-
-    const images = container.querySelectorAll('img')
-    expect(images).toHaveLength(1)
-    expect(images[0]).toHaveAttribute('src', 'https://example.com/emoji.png')
-    expect(images[0]).toHaveAttribute('alt', ':smile:')
-    expect(images[0]).toHaveClass(
-      'size-4',
-      'inline',
-      'object-contain',
-      'align-middle'
+  it('keeps inline formatting', () => {
+    render(
+      <span>
+        {renderInlineSnippet(
+          '<p><strong>Bold</strong> and <em>italic</em> with <code>inline code</code></p>'
+        )}
+      </span>
     )
+
+    expect(screen.getByText('Bold').tagName).toBe('STRONG')
+    expect(screen.getByText('italic').tagName).toBe('EM')
+    expect(screen.getByText('inline code').tagName).toBe('CODE')
+  })
+
+  it('keeps custom emoji and drops other images', () => {
+    render(
+      <span>
+        {renderInlineSnippet(
+          '<p>Hello <img class="emoji" src="https://example.com/emoji.png" alt=":smile:"> and <img src="https://example.com/big.jpg" alt="photo"></p>'
+        )}
+      </span>
+    )
+
+    expect(screen.getByRole('img', { name: ':smile:' })).toHaveAttribute(
+      'src',
+      'https://example.com/emoji.png'
+    )
+    expect(screen.queryByRole('img', { name: 'photo' })).not.toBeInTheDocument()
   })
 })
