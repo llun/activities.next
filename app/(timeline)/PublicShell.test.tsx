@@ -17,6 +17,10 @@ vi.mock('@/app/Modal', () => ({
   Modal: () => null
 }))
 
+vi.mock('@/lib/config', () => ({
+  getBaseURL: () => 'https://canonical.example'
+}))
+
 vi.mock('@/lib/services/serverSettings', () => ({
   getResolvedServerSettings: vi.fn()
 }))
@@ -67,6 +71,20 @@ describe('PublicShell', () => {
         name: 'Create account'
       })
     ).not.toBeInTheDocument()
+  })
+
+  // Below md the drawer carries the only logo; root-relative, it is
+  // redirected away on a CDN alias domain.
+  it('gives the drawer the logo on the canonical origin', async () => {
+    await renderShell(true)
+
+    fireEvent.click(screen.getByTestId('page-trigger'))
+    const logo = within(screen.getByRole('dialog')).getByRole('link', {
+      name: 'Activities home'
+    })
+    expect(logo.querySelector('img')?.getAttribute('src')).toContain(
+      encodeURIComponent('https://canonical.example/logo-nav.png')
+    )
   })
 
   it('drops the reading column top padding only below md', async () => {

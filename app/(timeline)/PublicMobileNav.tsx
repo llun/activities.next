@@ -13,6 +13,13 @@ import { PublicAuthActions } from './PublicAuthActions'
 
 export interface PublicMobileNavProps {
   registrationOpen: boolean
+  /**
+   * Absolute logo URL on the canonical origin, built by the server caller from
+   * `getBaseURL()` like `PublicTopBar` and `PublicFooter`: on a CDN alias
+   * domain the root-relative default is redirected away, and below `md` this
+   * drawer carries the page's only logo.
+   */
+  logoSrc?: string
   signinHref?: string
   signupHref?: string
 }
@@ -26,6 +33,7 @@ export interface PublicMobileNavProps {
  */
 export const PublicMobileNav: FC<PublicMobileNavProps> = ({
   registrationOpen,
+  logoSrc,
   signinHref,
   signupHref
 }) => {
@@ -37,7 +45,7 @@ export const PublicMobileNav: FC<PublicMobileNavProps> = ({
       {(onNavigate) => (
         <div className="flex h-full min-h-0 flex-col bg-background">
           <div className="flex p-6 pr-14">
-            <Logo size="md" onNavigate={onNavigate} />
+            <Logo size="md" src={logoSrc} onNavigate={onNavigate} />
           </div>
           <nav aria-label="Public navigation" className="px-3 pt-1">
             <ul className="space-y-1">

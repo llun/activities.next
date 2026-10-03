@@ -2,6 +2,7 @@ import { FC, ReactNode } from 'react'
 
 import { Modal } from '@/app/Modal'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
+import { getBaseURL } from '@/lib/config'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import { PublicFooter } from './PublicFooter'
@@ -31,6 +32,8 @@ export const PublicShell: FC<PublicShellProps> = async ({ children }) => {
   const {
     registrations: { open: registrationOpen }
   } = await getResolvedServerSettings()
+  // The drawer's logo on the canonical origin, as PublicTopBar builds its own.
+  const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
 
   return (
     <MobileNavigationProvider>
@@ -40,7 +43,10 @@ export const PublicShell: FC<PublicShellProps> = async ({ children }) => {
           (lib/components/error-page.tsx). */}
       <div data-shell="public" className="group/shell flex min-h-dvh flex-col">
         <PublicTopBar registrationOpen={registrationOpen} />
-        <PublicMobileNav registrationOpen={registrationOpen} />
+        <PublicMobileNav
+          registrationOpen={registrationOpen}
+          logoSrc={logoSrc}
+        />
         <main className="flex flex-1 flex-col overflow-x-clip">
           {/* Below `md` the reading column widens to the viewport: feed
               frames span the viewport themselves, and dropping the cap keeps

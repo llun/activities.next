@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import { SharedHeatmapPage, SharedHeatmapPageProps } from './SharedHeatmapPage'
 import { SharedHeatmapView } from './sharedHeatmapView'
@@ -43,6 +43,7 @@ const defaultProps: SharedHeatmapPageProps = {
   signupOpen: true,
   signinUrl: '/auth/signin',
   signupUrl: '/auth/signup',
+  logoSrc: 'https://llun.test/logo-nav.png',
   token: 'tok123'
 }
 
@@ -68,6 +69,28 @@ describe('SharedHeatmapPage', () => {
     expect(screen.queryByText('Routes')).not.toBeInTheDocument()
     expect(screen.queryByText('Activity')).not.toBeInTheDocument()
     expect(screen.queryByText('Period')).not.toBeInTheDocument()
+  })
+
+  // On a CDN alias domain the root-relative default logo is redirected away,
+  // so both the desktop top bar and the mobile drawer take the canonical src.
+  it('renders both logos from the canonical-origin src', () => {
+    render(<SharedHeatmapPage {...defaultProps} />)
+
+    const encoded = encodeURIComponent('https://llun.test/logo-nav.png')
+    // Before the drawer opens: once it does, the page behind it is hidden.
+    const topBarLogo = within(screen.getByRole('banner')).getByRole('link', {
+      name: 'Activities home'
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+    const drawerLogo = within(screen.getByRole('dialog')).getByRole('link', {
+      name: 'Activities home'
+    })
+    expect(topBarLogo.querySelector('img')?.getAttribute('src')).toContain(
+      encoded
+    )
+    expect(drawerLogo.querySelector('img')?.getAttribute('src')).toContain(
+      encoded
+    )
   })
 
   it('offers a copy-link control pointing at the public URL', () => {

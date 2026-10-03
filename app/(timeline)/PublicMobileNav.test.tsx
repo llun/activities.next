@@ -69,6 +69,29 @@ describe('PublicMobileNav', () => {
     }
   })
 
+  // Below md the drawer holds the page's only logo, and on a CDN alias domain
+  // the root-relative default is redirected away.
+  it('renders the logo from the canonical-origin src it is given', () => {
+    render(
+      <MobileNavigationProvider>
+        <MobileNavigationTrigger variant="floating" />
+        <PublicMobileNav
+          registrationOpen
+          logoSrc="https://canonical.example/logo-nav.png"
+        />
+      </MobileNavigationProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+
+    const logo = within(screen.getByRole('dialog')).getByRole('link', {
+      name: 'Activities home'
+    })
+    // next/image routes the URL through its optimizer, so match it encoded.
+    expect(logo.querySelector('img')?.getAttribute('src')).toContain(
+      encodeURIComponent('https://canonical.example/logo-nav.png')
+    )
+  })
+
   it('closes when a destination is chosen', () => {
     const drawer = openDrawer(true)
 
