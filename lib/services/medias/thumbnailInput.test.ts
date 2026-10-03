@@ -52,4 +52,38 @@ describe('readValidThumbnail', () => {
       MediaValidationError
     )
   })
+
+  it('decides each image on its own bytes when many are validated at once', async () => {
+    // sharp reports a libvips failure through one process-wide error buffer,
+    // which every sharp call clears as it finishes. One at a time, a truncated
+    // image is refused every time; alongside other sharp calls, a check whose
+    // message was cleared first can resolve as though the image had decoded.
+    // `stats()` let roughly one in ten through here, so with 128 truncated
+    // inputs in flight a check exposed to that race fails on practically
+    // every run.
+    const png = await createPng(400, 300)
+    const truncated = png.subarray(0, Math.floor(png.length * 0.6))
+    const isTruncated = Array.from(
+      { length: 256 },
+      (_, index) => index % 2 === 0
+    )
+
+    const results = await Promise.allSettled(
+      isTruncated.map((truncate) =>
+        readValidThumbnail(asFile(truncate ? truncated : png))
+      )
+    )
+
+    expect(
+      results.map((result) =>
+        result.status === 'fulfilled'
+          ? 'accepted'
+          : result.reason instanceof MediaValidationError
+            ? 'refused'
+            : 'failed'
+      )
+    ).toEqual(
+      isTruncated.map((truncate) => (truncate ? 'refused' : 'accepted'))
+    )
+  })
 })

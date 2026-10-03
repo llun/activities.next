@@ -20,9 +20,18 @@ export const readValidThumbnail = async (thumbnail: File): Promise<Buffer> => {
     // encoder reaches the bytes that are not there — by which point the
     // original is stored and the failure is indistinguishable from a storage
     // fault of ours. Deciding it here keeps unusable input a 422 with nothing
-    // written, and leaves every failure after it a genuine 500. It costs about
-    // a sixth of the encode it precedes.
-    await sharp(buffer).stats()
+    // written, and leaves every failure after it a genuine 500.
+    //
+    // Decoded through the output pipeline, as the encode is, and not with
+    // `stats()`. sharp learns why libvips failed from one process-wide error
+    // buffer that every sharp call clears as it finishes, so under concurrent
+    // load a failure can arrive with its message already gone. The pipeline
+    // rejects regardless; `stats()` resolves with no channels instead, and let
+    // about a third of truncated images through with a few calls in flight.
+    // The decode is also 3-8x faster than `stats()`, which makes several
+    // passes; it holds the decoded pixels until they are collected, about what
+    // `stats()` holds for its passes.
+    await sharp(buffer).raw().toBuffer()
   } catch {
     throw new MediaValidationError('Thumbnail is not a readable image')
   }

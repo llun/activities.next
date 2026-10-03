@@ -1163,6 +1163,14 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   sharp's `fit: 'inside'` **enlarges** by default, so a bare
   `MAX_WIDTH`/`MAX_HEIGHT` box is an upscale, not a cap — it inflates every
   stored image below the cap, silently, with no error and no test failure.
+- A sharp call that decides whether input is usable is a **pipeline output**
+  (`toBuffer`/`toFile`), never `stats()`. sharp learns why libvips failed from
+  one process-wide error buffer that every sharp call clears as it finishes, so
+  with other sharp work in flight a failure can arrive with no message. The
+  pipeline rejects anyway; `stats()` resolves with an empty `channels` instead.
+  `readValidThumbnail` gated on `stats()` and passed about a third of truncated
+  PNGs under concurrent load — each then failed in the encode as a 500, not a
+  422 — while every serial test refused them.
 - `original.metaData`/`original.bytes` describe the **uploaded** file, while
   `thumbnail.*` describes the **stored** WebP (`outputInfo`). Know which one a
   change reads: only the latter moves when the encode pipeline changes, and only
