@@ -80,15 +80,32 @@ describe('Landing', () => {
   it('lets the feed wrapper grow with the feed so the bar sticks the whole scroll', () => {
     renderLanding([{ id: 'p1' }] as unknown as Status[])
 
-    // The bar is `sticky` inside this wrapper, so a viewport-tall wrapper
-    // (`h-full`, or `min-h-full` which a flex item shrinks back to 100 %)
-    // would stop the bar sticking after the first screen at md+.
+    // The bar is `sticky` inside this wrapper, so any height that tracks the
+    // scrolling column (`h-full`, `min-h-full`, `h-dvh`, `min-h-0`,
+    // `max-h-full`, their `md:` forms) shrinks it back to the viewport and the
+    // bar stops sticking after the first screen at md+. jsdom has no layout, so
+    // the contract is "no height utility at all"; nothing here needs even
+    // `h-auto`.
     const wrapper = screen
       .getByText('llun.social')
       .closest('.sticky')?.parentElement
-    expect(wrapper).toHaveClass('flex', 'flex-col')
-    expect(wrapper).not.toHaveClass('h-full')
-    expect(wrapper).not.toHaveClass('min-h-full')
+    // The bar's parent is the element that holds the feed (not a bar-sized box).
+    expect(wrapper).toContainElement(screen.getByTestId('posts'))
+    const heights = Array.from(wrapper?.classList ?? []).filter((name) =>
+      /(?:^|:)!?(?:(?:min-|max-)?h|size)-/.test(name)
+    )
+    expect(heights).toEqual([])
+  })
+
+  it("keeps the sticky feed bar above a post's z-10 media controls", () => {
+    renderLanding([{ id: 'p1' }] as unknown as Status[])
+
+    // `attachments.tsx` draws the GIF play/pause button `absolute z-10`; at
+    // equal z-index the later-in-DOM button paints over the bar. Same z as
+    // `PageHeader`.
+    const bar = screen.getByText('llun.social').closest('.sticky')
+    expect(bar).toHaveClass('z-20')
+    expect(bar).not.toHaveClass('z-10')
   })
 
   it('forwards currentTime to the feed as a number (no in-render Date.now)', () => {

@@ -32,7 +32,7 @@ export const LandingPublicFeed: FC<LandingPublicFeedProps> = ({
     // sticky bar below can stick for the full scroll of the (md+) scrolling
     // column. A viewport-tall wrapper confines the bar to the first screen.
     <div className="flex flex-col">
-      <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b bg-surface-chrome px-5 py-3.5 backdrop-blur">
+      <div className="sticky top-0 z-20 flex items-center gap-2.5 border-b bg-surface-chrome px-5 py-3.5 backdrop-blur">
         <Image
           src={logoSrc}
           alt=""
