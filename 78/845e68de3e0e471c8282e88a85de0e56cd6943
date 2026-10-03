@@ -1,0 +1,33 @@
+.github/scripts/select-sync-commit.mjs
+  s_d3eed9d152eaf2::t_671728cbd73bd6 18-23,35,38,64
+.github/workflows/sync-main-to-prod-dispatch.yml
+  s_d3eed9d152eaf2::t_5082bafd8dab3e 51-54,65-67,80,99,103
+.github/workflows/sync-main-to-prod.test.ts
+  s_82468012d96a9d::t_ba2d7362d152ed 10,20,42-48,50-51,87-119,121-123,125,130,134,138,195-201,203-204
+CONTRIBUTING.md
+  s_d3eed9d152eaf2::t_845fb4dea08ed4 1134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "78845e68de3e0e471c8282e88a85de0e56cd6943",
+  "prompts": {},
+  "sessions": {
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    },
+    "s_d3eed9d152eaf2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb31e680-ae7e-4184-8d7c-b971958e55e6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
