@@ -60,19 +60,15 @@ export const FilterRow: FC<FilterRowProps> = ({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-medium">{filter.title}</span>
-          {/* The two action badges are the shared Badge tones (token labels,
-              dark fills); only the neutral "Expired" pill carries its own
-              colours. */}
+          {/* The action badges and the neutral "Expired" pill are all the shared
+              Badge (token labels, dark fills): a hand-rolled gray pill with no
+              dark variant glared on the dark card. */}
           {filter.filter_action === 'hide' ? (
             <Badge tone="destructive">Hide completely</Badge>
           ) : (
             <Badge tone="primary">Hide with warning</Badge>
           )}
-          {expired && (
-            <span className="inline-flex items-center rounded-full bg-[hsl(0_0%_94%)] px-2.5 py-0.5 text-xs font-medium text-[hsl(0_0%_35%)]">
-              Expired
-            </span>
-          )}
+          {expired && <Badge tone="gray">Expired</Badge>}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>

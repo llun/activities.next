@@ -21,9 +21,8 @@ import {
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
-import { selectChevronClassName } from '@/lib/components/ui/select'
+import { Select } from '@/lib/components/ui/select'
 import type { Visibility } from '@/lib/types/mastodon/visibility'
-import { cn } from '@/lib/utils'
 
 import { WahooFailedImportsSection } from './WahooFailedImportsSection'
 import { WahooHistorySection } from './WahooHistorySection'
@@ -216,21 +215,17 @@ export const WahooSettingsForm = () => {
 
         <div className="space-y-2">
           <Label htmlFor="wahoo-environment">Environment</Label>
-          <select
+          <Select
             id="wahoo-environment"
             value={environment}
             onChange={(event) =>
               setEnvironment(event.target.value as WahooEnvironment)
             }
             disabled={isSaving}
-            className={cn(
-              'border-input bg-background flex h-9 w-full rounded-md border px-3 text-sm',
-              selectChevronClassName
-            )}
           >
             <option value="sandbox">Sandbox</option>
             <option value="production">Production</option>
-          </select>
+          </Select>
           {environment === 'sandbox' && (
             <p className="text-xs text-muted-foreground">
               Wahoo sandbox applications cannot later be converted to

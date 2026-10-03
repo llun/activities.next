@@ -34,6 +34,13 @@ export const supportsFieldSizing = (): boolean => {
  * provides a measured-height fallback: it measures `scrollHeight` on mount,
  * value changes, input events, and container width changes, updating
  * `element.style.height` while preserving `scrollTop` and caret positioning.
+ *
+ * `scrollHeight` is the padding box, but a Tailwind textarea is `border-box`, so
+ * its `height` also has to cover the borders: without them a bordered box is 2px
+ * short (1px a side) and scrolls its last line out of view. The border is read
+ * off the element (`offsetHeight - clientHeight`, which is 0 for the borderless
+ * composers) rather than assumed, so a bordered and an unbordered textarea both
+ * fit exactly.
  */
 export const useAutoResizeTextarea = (
   textareaRef: RefObject<HTMLTextAreaElement | null>,
@@ -49,8 +56,11 @@ export const useAutoResizeTextarea = (
     const previousScrollTop = textarea.scrollTop
     textarea.style.height = 'auto'
     const scrollHeight = textarea.scrollHeight
+    // Nothing laid out (jsdom, a hidden ancestor): keep the `rows` height
+    // rather than collapsing to 0.
     if (scrollHeight > 0) {
-      textarea.style.height = `${scrollHeight}px`
+      const borders = textarea.offsetHeight - textarea.clientHeight
+      textarea.style.height = `${scrollHeight + borders}px`
     }
     textarea.scrollTop = previousScrollTop
   }, [textareaRef])

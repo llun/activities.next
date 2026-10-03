@@ -5,7 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { Select, selectChevronClassName } from './select'
+import { Select } from './select'
 
 describe('Select', () => {
   it('stays a native select with its own options', () => {
@@ -57,14 +57,5 @@ describe('Select', () => {
     render(<Select aria-label="Duration" className="h-8 w-auto px-2" />)
     const select = screen.getByRole('combobox')
     expect(select).toHaveClass('h-8', 'px-2', 'pr-8')
-  })
-
-  it('exports the same chevron for native selects that are not the primitive', () => {
-    render(
-      <select aria-label="Category" className={selectChevronClassName}>
-        <option>spam</option>
-      </select>
-    )
-    expect(screen.getByRole('combobox')).toHaveClass('appearance-none', 'pr-8')
   })
 })

@@ -127,3 +127,69 @@ export const HEAT_COUNT_SATURATION = 6
 export const heatOpacityForCount = (count: number, base: number) =>
   1 -
   (1 - base) ** Math.min(Math.max(Math.round(count), 1), HEAT_COUNT_SATURATION)
+
+/**
+ * The heat ramp's colour stops as a flat `[visit count, colour, …]` list — the
+ * shape a GL `interpolate` expression takes, and what the interactive tiled map
+ * paints with: a road ridden once is red, four times orange, twelve or more
+ * yellow, blending linearly between.
+ *
+ * It lives here, beside `heatOpacityForCount`, because the static share image
+ * has to colour its lines from the same stops and a server module may not read
+ * a constant out of the `'use client'` map (see AGENTS.md → Server/Client
+ * Module Boundary). One list, so the orange and yellow the thumbnail draws are
+ * the map's own; the thumbnail leaves out the red stop.
+ */
+export const HEAT_COUNT_COLOR_STOPS: ReadonlyArray<number | string> = [
+  1,
+  '#ef4444',
+  4,
+  '#f97316',
+  12,
+  '#facc15'
+]
+
+const parseHexColor = (hex: string): [number, number, number] => [
+  parseInt(hex.slice(1, 3), 16),
+  parseInt(hex.slice(3, 5), 16),
+  parseInt(hex.slice(5, 7), 16)
+]
+
+const formatHexColor = (channels: number[]): string =>
+  `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+
+/**
+ * The colour of a line visited `count` times on a `[count, colour, …]` ramp.
+ *
+ * Blends linearly between the two surrounding stops, per RGB channel, and holds
+ * the first or last colour outside the ramp — what a GL `interpolate` over the
+ * same stops does, so the stops a thumbnail draws with this read like the
+ * map's. Colours are `#rrggbb`; the result is lower-case `#rrggbb`.
+ */
+export const heatColorForCount = (
+  count: number,
+  stops: ReadonlyArray<number | string>
+): string => {
+  const ramp: Array<{ count: number; color: [number, number, number] }> = []
+  for (let index = 0; index + 1 < stops.length; index += 2) {
+    ramp.push({
+      count: Number(stops[index]),
+      color: parseHexColor(String(stops[index + 1]))
+    })
+  }
+
+  const first = ramp[0]
+  const last = ramp[ramp.length - 1]
+  if (count <= first.count) return formatHexColor(first.color)
+  if (count >= last.count) return formatHexColor(last.color)
+
+  const upperIndex = ramp.findIndex((stop) => stop.count >= count)
+  const lower = ramp[upperIndex - 1]
+  const upper = ramp[upperIndex]
+  const t = (count - lower.count) / (upper.count - lower.count)
+  return formatHexColor(
+    lower.color.map((channel, i) =>
+      Math.round(channel + (upper.color[i] - channel) * t)
+    )
+  )
+}

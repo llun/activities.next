@@ -3,8 +3,7 @@
 import { FC } from 'react'
 
 import { Label } from '@/lib/components/ui/label'
-import { selectChevronClassName } from '@/lib/components/ui/select'
-import { cn } from '@/lib/utils'
+import { Select } from '@/lib/components/ui/select'
 
 interface ActorSelectorProps {
   actors: Array<{
@@ -25,12 +24,8 @@ export const ActorSelector: FC<ActorSelectorProps> = ({
   return (
     <div className="space-y-2">
       <Label htmlFor="actorSelect">Actor</Label>
-      <select
+      <Select
         id="actorSelect"
-        className={cn(
-          'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-          selectChevronClassName
-        )}
         value={selectedActorId}
         onChange={(e) => {
           const actorId = encodeURIComponent(e.target.value)
@@ -43,7 +38,7 @@ export const ActorSelector: FC<ActorSelectorProps> = ({
             {actorItem.name ? ` (${actorItem.name})` : ''}
           </option>
         ))}
-      </select>
+      </Select>
       <input type="hidden" name="actorId" value={selectedActorId} />
       <p className="text-[0.8rem] text-muted-foreground">
         These settings apply to the selected actor only

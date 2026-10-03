@@ -157,6 +157,26 @@ describe('CollectionDetail', () => {
     expect(posts()).toContain('owner-1')
   })
 
+  it('draws the visibility and topic as the shared gray and primary Badges', () => {
+    render(
+      <CollectionDetail
+        {...baseProps}
+        isOwner
+        currentActor={{} as ActorProfile}
+      />
+    )
+
+    // The topic pill is the shared primary Badge, with its dark tint.
+    const topic = screen.getByText('fediverse')
+    expect(topic).toHaveClass('bg-primary/10', 'text-primary-text', 'px-2.5')
+    expect(topic.className).toContain('dark:bg-[#FA802E]/16')
+
+    // So is the visibility pill beside it, in the gray tone.
+    const visibility = screen.getByText('Public', { selector: 'span' })
+    expect(visibility).toHaveClass('bg-muted', 'text-muted-foreground')
+    expect(visibility.className).toContain('dark:bg-[#383838]')
+  })
+
   it('switches to the public preview, replacing the feed and roster with the approved set', async () => {
     render(
       <CollectionDetail

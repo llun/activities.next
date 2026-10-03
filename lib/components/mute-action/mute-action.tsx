@@ -6,6 +6,7 @@ import { FC, useState } from 'react'
 
 import { mute as muteAccount, unmute as unmuteAccount } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
+import { Checkbox } from '@/lib/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -132,11 +133,9 @@ export const MuteAction: FC<MuteActionProps> = ({
             </DialogDescription>
           </DialogHeader>
           <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={muteNotifications}
               onChange={(event) => setMuteNotifications(event.target.checked)}
-              className="h-4 w-4 rounded border-gray-300"
             />
             Also hide notifications from this actor
           </label>

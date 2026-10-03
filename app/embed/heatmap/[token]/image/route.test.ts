@@ -401,7 +401,9 @@ describe('/embed/heatmap/[token]/image', () => {
     const body = await response.text()
     // The privacy-hidden segment is still drawn (no hole), uniformly coloured.
     expect(body).toContain('<polyline')
-    expect(body).toContain('stroke="#ef4444"')
+    // The heat ramp's orange (a segment with no count), not red.
+    expect(body).toContain('stroke="#f97316"')
+    expect(body).not.toContain('#ef4444')
   })
 
   it.each([

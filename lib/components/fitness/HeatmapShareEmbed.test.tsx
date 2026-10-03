@@ -248,9 +248,60 @@ describe('HeatmapShareEmbed', () => {
       expect(copy.parentElement).toHaveClass('items-start')
     })
 
-    it('grow the snippet box to its whole text instead of scrolling the last line away', () => {
+    it('grow the snippet box to its whole text, and re-fit when the text changes', () => {
+      // A browser without `field-sizing: content` (Safari, Firefox): the shared
+      // hook measures. jsdom reports the property as supported, so say it is not.
+      vi.stubGlobal('CSS', { supports: () => false })
       // jsdom lays nothing out, so give the textarea a measured height: 4 wrapped
       // lines of 17.875px plus 12px padding.
+      const scrollHeight = vi
+        .spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get')
+        .mockReturnValue(83.5)
+      try {
+        const { rerender } = render(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok123"
+            defaultOpen
+          />
+        )
+
+        const snippet = screen.getByRole('textbox', {
+          name: 'Copy embed code'
+        }) as HTMLTextAreaElement
+        // Not capped at `rows`: it follows the content.
+        expect(snippet.style.height).toBe('83.5px')
+        expect(snippet).toHaveClass('resize-none')
+        // The shared hook leaves a browser with `field-sizing: content` to size
+        // the box in CSS, so the box must not pin `field-sizing: fixed` (the old
+        // local hook measured everywhere and did).
+        expect(snippet).not.toHaveClass('field-sizing-fixed')
+        expect(snippet).toHaveClass('field-sizing-content')
+
+        // The embed hands the hook the snippet text, so a new token re-fits.
+        scrollHeight.mockReturnValue(100)
+        rerender(
+          <HeatmapShareEmbed
+            {...defaultProps}
+            shareToken="tok-with-a-much-longer-value"
+            defaultOpen
+          />
+        )
+        expect(snippet.style.height).toBe('100px')
+      } finally {
+        scrollHeight.mockRestore()
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('leaves the box to CSS in a browser with field-sizing: content', () => {
+      // Chrome sizes the textarea natively (the Textarea's `field-sizing-content`),
+      // so the shared hook writes no inline height and the box follows its text
+      // without a JS measurement.
+      vi.stubGlobal('CSS', {
+        supports: (property: string, value: string) =>
+          property === 'field-sizing' && value === 'content'
+      })
       const scrollHeight = vi
         .spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get')
         .mockReturnValue(83.5)
@@ -266,157 +317,12 @@ describe('HeatmapShareEmbed', () => {
         const snippet = screen.getByRole('textbox', {
           name: 'Copy embed code'
         }) as HTMLTextAreaElement
-        // Not capped at `rows`: it follows the content.
-        expect(snippet.style.height).toBe('83.5px')
-        expect(snippet).toHaveClass('field-sizing-fixed', 'resize-none')
+        expect(snippet.style.height).toBe('')
+        expect(snippet).toHaveClass('field-sizing-content')
       } finally {
         scrollHeight.mockRestore()
-      }
-    })
-
-    describe('fitting the snippet box', () => {
-      // jsdom lays nothing out: drive the measurements the hook reads.
-      const layout = {
-        scrollHeight: 0,
-        offsetWidth: 0,
-        offsetHeight: 0,
-        clientHeight: 0
-      }
-      let notifyResize: () => void
-      let observers: number
-      let disconnected: number
-      const observeSpy = vi.fn()
-
-      beforeEach(() => {
-        Object.assign(layout, {
-          scrollHeight: 0,
-          offsetWidth: 0,
-          offsetHeight: 0,
-          clientHeight: 0
-        })
-        observers = 0
-        disconnected = 0
-        notifyResize = () => {}
-        vi.spyOn(
-          HTMLTextAreaElement.prototype,
-          'scrollHeight',
-          'get'
-        ).mockImplementation(() => layout.scrollHeight)
-        vi.spyOn(
-          HTMLElement.prototype,
-          'offsetWidth',
-          'get'
-        ).mockImplementation(() => layout.offsetWidth)
-        vi.spyOn(
-          HTMLElement.prototype,
-          'offsetHeight',
-          'get'
-        ).mockImplementation(() => layout.offsetHeight)
-        vi.spyOn(Element.prototype, 'clientHeight', 'get').mockImplementation(
-          () => layout.clientHeight
-        )
-        class FakeResizeObserver {
-          constructor(callback: ResizeObserverCallback) {
-            observers += 1
-            notifyResize = () => callback([], this as never)
-          }
-          observe = observeSpy
-          unobserve = vi.fn()
-          disconnect = () => {
-            disconnected += 1
-          }
-        }
-        vi.stubGlobal('ResizeObserver', FakeResizeObserver)
-      })
-
-      afterEach(() => {
-        vi.restoreAllMocks()
         vi.unstubAllGlobals()
-      })
-
-      const snippet = () =>
-        screen.getByRole('textbox', {
-          name: 'Copy embed code'
-        }) as HTMLTextAreaElement
-
-      it('keeps the rows height while nothing is laid out, instead of collapsing to 0px', () => {
-        render(
-          <HeatmapShareEmbed
-            {...defaultProps}
-            shareToken="tok123"
-            defaultOpen
-          />
-        )
-
-        expect(snippet().style.height).toBe('auto')
-      })
-
-      it('adds the borders to the measured content height', () => {
-        layout.scrollHeight = 80
-        layout.offsetHeight = 84
-        layout.clientHeight = 82
-
-        render(
-          <HeatmapShareEmbed
-            {...defaultProps}
-            shareToken="tok123"
-            defaultOpen
-          />
-        )
-
-        expect(snippet().style.height).toBe('82px')
-      })
-
-      it('re-fits only when the width changes, and stops observing on unmount', () => {
-        layout.scrollHeight = 80
-        layout.offsetWidth = 500
-        const { unmount } = render(
-          <HeatmapShareEmbed
-            {...defaultProps}
-            shareToken="tok123"
-            defaultOpen
-          />
-        )
-        expect(observers).toBe(1)
-        expect(observeSpy).toHaveBeenCalledWith(snippet())
-        expect(snippet().style.height).toBe('80px')
-
-        // Our own height write fires the observer with the width unchanged.
-        layout.scrollHeight = 120
-        notifyResize()
-        expect(snippet().style.height).toBe('80px')
-
-        // A narrower box wraps to more lines.
-        layout.offsetWidth = 300
-        notifyResize()
-        expect(snippet().style.height).toBe('120px')
-
-        unmount()
-        expect(disconnected).toBeGreaterThan(0)
-      })
-
-      it('re-fits when the snippet text changes', () => {
-        layout.scrollHeight = 80
-        const { rerender } = render(
-          <HeatmapShareEmbed
-            {...defaultProps}
-            shareToken="tok123"
-            defaultOpen
-          />
-        )
-        expect(snippet().style.height).toBe('80px')
-
-        layout.scrollHeight = 100
-        rerender(
-          <HeatmapShareEmbed
-            {...defaultProps}
-            shareToken="tok-with-a-much-longer-value"
-            defaultOpen
-          />
-        )
-
-        expect(snippet().style.height).toBe('100px')
-      })
+      }
     })
 
     it('keep the iframe title attribute while showing the whole snippet', () => {

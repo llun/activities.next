@@ -19,14 +19,13 @@ import {
 
 import { getAllStatsBuckets } from '@/app/(timeline)/admin/actions'
 import { PageHeader } from '@/lib/components/page-header'
-import { selectChevronClassName } from '@/lib/components/ui/select'
+import { Select } from '@/lib/components/ui/select'
 import {
   ALL_COUNTER_TYPES,
   ServiceStatCounterType,
   ServiceStats,
   ServiceStatsBucket
 } from '@/lib/types/database/operations'
-import { cn } from '@/lib/utils'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
 import { MiniChart } from './MiniChart'
@@ -246,23 +245,22 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
       >
         <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <select
+            <Select
               value={selectedCounter}
               onChange={(e) =>
                 setSelectedCounter(e.target.value as ServiceStatCounterType)
               }
               aria-label="Select statistic type"
-              className={cn(
-                'rounded-md border bg-background py-1.5 pl-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary',
-                selectChevronClassName
-              )}
+              // Shares the header row with the trend pill, so it takes its
+              // content width rather than the primitive's full width.
+              className="w-auto font-medium"
             >
               {statCards.map((card) => (
                 <option key={card.counterType} value={card.counterType}>
                   {card.label}
                 </option>
               ))}
-            </select>
+            </Select>
             {selectedTrend !== undefined && (
               <span
                 className={`rounded-full px-2 py-0.5 text-xs font-medium ${

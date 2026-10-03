@@ -24,6 +24,7 @@ import { Posts } from '@/lib/components/posts/posts'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
+import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -311,15 +312,15 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
       {/* Meta panel — visibility, topic, description, share link. */}
       <section className="space-y-3 rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          <Badge tone="gray">
             <VisibilityIcon className="h-3 w-3" />
             {visibility.label}
-          </span>
+          </Badge>
           {collection.topic && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-text">
+            <Badge tone="primary" className="gap-0.5">
               <Hash className="h-3 w-3 text-primary" />
               {collection.topic}
-            </span>
+            </Badge>
           )}
         </div>
         {collection.description && (

@@ -72,6 +72,36 @@ describe('PasskeyManager', () => {
     expect(screen.getByText('Primary')).toBeInTheDocument()
   })
 
+  it('draws the domain pill as the shared gray Badge, like the Primary badge beside it', async () => {
+    mockGetPasskeys.mockResolvedValue([
+      {
+        id: 'pk1',
+        name: 'MacBook',
+        domain: 'llun.social',
+        deviceType: 'multiDevice',
+        backedUp: true,
+        createdAt: '2026-04-12T00:00:00.000Z',
+        aaguid: null
+      }
+    ])
+
+    render(
+      <PasskeyManager
+        domains={MULTI_DOMAINS}
+        currentDomain="llun.social"
+        handlePrefix="anna"
+      />
+    )
+
+    await screen.findByText('MacBook')
+    const pill = screen.getByText('llun.social')
+    expect(pill).toHaveClass('bg-muted', 'text-muted-foreground')
+    // The design's dark gray: without it the pill sat a shade off the Primary
+    // badge next to it on a dark card.
+    expect(pill.className).toContain('dark:bg-[#383838]')
+    expect(pill.className).toContain('dark:text-[#C2C2C2]')
+  })
+
   it('shows the domain chooser in the add dialog when multi-domain', async () => {
     mockGetPasskeys.mockResolvedValue([])
 

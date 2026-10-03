@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import * as client from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { WahooSettingsForm } from './WahooSettingsForm'
 
@@ -52,6 +53,61 @@ describe('WahooSettingsForm', () => {
     expect(screen.getByLabelText('Environment')).toHaveClass(
       'appearance-none',
       'pr-8'
+    )
+  })
+
+  it('draws the environment select with the shared Select, keeping its id and value', async () => {
+    render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    const select = screen.getByLabelText('Environment')
+    expect(select.tagName).toBe('SELECT')
+    expect(select).toHaveAttribute('data-slot', 'select')
+    expect(select).toHaveAttribute('id', 'wahoo-environment')
+    expect(select).toHaveValue(settings.environment)
+  })
+
+  it('follows the environment select: the sandbox hint goes and the choice is saved', async () => {
+    render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    const hint =
+      'Wahoo sandbox applications cannot later be converted to production.'
+    expect(screen.getByText(hint)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Environment'), {
+      target: { value: 'production' }
+    })
+
+    expect(screen.getByLabelText('Environment')).toHaveValue('production')
+    expect(screen.queryByText(hint)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() =>
+      expect(client.saveWahooSettings).toHaveBeenCalledWith({
+        clientId: 'client-example',
+        environment: 'production',
+        defaultVisibility: 'private'
+      })
+    )
+  })
+
+  it('locks the environment select while settings are saving', async () => {
+    const save = createDeferred<{ success: true }>()
+    vi.mocked(client.saveWahooSettings).mockReturnValue(save.promise)
+    render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    expect(screen.getByLabelText('Environment')).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() =>
+      expect(screen.getByLabelText('Environment')).toBeDisabled()
+    )
+
+    save.resolve({ success: true })
+    await waitFor(() =>
+      expect(screen.getByLabelText('Environment')).toBeEnabled()
     )
   })
 

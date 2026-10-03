@@ -28,8 +28,11 @@ export const LandingPublicFeed: FC<LandingPublicFeedProps> = ({
   // domain, where a root-relative `/logo-nav.png` may be redirected away.
   const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
   return (
-    <div className="flex h-full flex-col">
-      <div className="sticky top-0 z-10 flex items-center gap-2.5 border-b bg-background/70 px-5 py-3.5 backdrop-blur">
+    // No `h-full` / `min-h-full`: the wrapper must grow to the whole feed so the
+    // sticky bar below can stick for the full scroll of the (md+) scrolling
+    // column. A viewport-tall wrapper confines the bar to the first screen.
+    <div className="flex flex-col">
+      <div className="sticky top-0 z-20 flex items-center gap-2.5 border-b bg-surface-chrome px-5 py-3.5 backdrop-blur">
         <Image
           src={logoSrc}
           alt=""

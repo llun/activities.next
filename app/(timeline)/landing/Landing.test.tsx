@@ -67,6 +67,49 @@ describe('Landing', () => {
     expect(screen.queryByText('happening next.')).not.toBeInTheDocument()
   })
 
+  it('draws the feed header as Surface Chrome, like the other sticky bars', () => {
+    renderLanding([{ id: 'p1' }] as unknown as Status[])
+
+    // The same translucent chrome the page header and sidebar use (white 72 %
+    // light, #141414 at 80 % dark), not a hand-rolled `bg-background/70`.
+    const bar = screen.getByText('llun.social').closest('.sticky')
+    expect(bar).toHaveClass('bg-surface-chrome', 'backdrop-blur')
+    expect(bar).not.toHaveClass('bg-background/70')
+  })
+
+  it('lets the feed wrapper grow with the feed so the bar sticks the whole scroll', () => {
+    renderLanding([{ id: 'p1' }] as unknown as Status[])
+
+    // The bar is `sticky` inside this wrapper, so any height that tracks the
+    // scrolling column (`h-full`, `min-h-full`, `h-dvh`, `min-h-0`,
+    // `max-h-full`, their `md:` forms) shrinks it back to the viewport and the
+    // bar stops sticking after the first screen at md+. `overflow-*` can too:
+    // `-hidden` clips the feed at md+; unprefixed `-hidden`/`-auto`/`-scroll`
+    // let the bar scroll away below md. `-clip` is harmless, banned anyway.
+    // jsdom has no layout, so the contract is "no height, size or overflow
+    // utility at all"; nothing here needs even `h-auto`.
+    const wrapper = screen
+      .getByText('llun.social')
+      .closest('.sticky')?.parentElement
+    // The bar's parent is the element that holds the feed (not a bar-sized box).
+    expect(wrapper).toContainElement(screen.getByTestId('posts'))
+    const sizing = Array.from(wrapper?.classList ?? []).filter((name) =>
+      /(?:^|:)!?(?:(?:(?:min-|max-)?h|size)-|overflow-)/.test(name)
+    )
+    expect(sizing).toEqual([])
+  })
+
+  it("keeps the sticky feed bar above a post's z-10 media controls", () => {
+    renderLanding([{ id: 'p1' }] as unknown as Status[])
+
+    // `attachments.tsx` draws the GIF play/pause button `absolute z-10`; at
+    // equal z-index the later-in-DOM button paints over the bar. Same z as
+    // `PageHeader`.
+    const bar = screen.getByText('llun.social').closest('.sticky')
+    expect(bar).toHaveClass('sticky', 'top-0', 'z-20')
+    expect(bar).not.toHaveClass('z-10')
+  })
+
   it('forwards currentTime to the feed as a number (no in-render Date.now)', () => {
     renderLanding([{ id: 'p1' }] as unknown as Status[])
 

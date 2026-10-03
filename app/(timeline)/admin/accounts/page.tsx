@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { Badge } from '@/lib/components/ui/badge'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
@@ -59,9 +60,7 @@ const Page = async ({ searchParams }: Props) => {
                     {account.name || account.email}
                   </p>
                   {account.role === 'admin' && (
-                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-text">
-                      Admin
-                    </span>
+                    <Badge tone="primary">Admin</Badge>
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground truncate">

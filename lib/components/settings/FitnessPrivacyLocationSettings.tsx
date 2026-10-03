@@ -25,7 +25,7 @@ import {
 } from '@/lib/components/ui/card'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
-import { selectChevronClassName } from '@/lib/components/ui/select'
+import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import {
   FITNESS_PRIVACY_RADIUS_OPTIONS,
@@ -33,7 +33,6 @@ import {
   sanitizePrivacyLocationSettings,
   sanitizePrivacyRadiusMeters
 } from '@/lib/services/fitness-files/privacy'
-import { cn } from '@/lib/utils'
 import {
   type PublicMapProvider,
   buildGlProviderOptions
@@ -1128,8 +1127,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
 
           <div className="space-y-2">
             <Label htmlFor="privacyHideRadiusMeters">Hide Radius</Label>
-            <select
+            <Select
               id="privacyHideRadiusMeters"
+              className="h-10"
               value={String(draftRadiusMeters)}
               onChange={(event) => {
                 setDraftRadiusMeters(
@@ -1137,17 +1137,13 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                 )
               }}
               disabled={isEditingDisabled}
-              className={cn(
-                'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-                selectChevronClassName
-              )}
             >
               {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
                 <option key={radius} value={radius}>
                   {formatRadiusLabel(radius)}
                 </option>
               ))}
-            </select>
+            </Select>
             <p className="text-xs text-muted-foreground">
               When a route starts or finishes here, that end is hidden from
               other viewers until it leaves the area and has covered this

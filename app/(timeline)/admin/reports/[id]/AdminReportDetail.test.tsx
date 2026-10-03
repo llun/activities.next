@@ -12,6 +12,7 @@ import {
   unassignAdminReport,
   updateAdminReport
 } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { AdminReport } from '@/lib/types/mastodon/admin/report'
 
 import { AdminReportDetail } from './AdminReportDetail'
@@ -52,6 +53,9 @@ const report = (overrides: Partial<AdminReport>): AdminReport =>
 describe('AdminReportDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // clearAllMocks keeps implementations: drop the pending promise the
+    // category-lock test leaves on the mock so it cannot reach a later test.
+    mockUpdate.mockReset()
   })
 
   it('renders the report and drives assign/resolve', async () => {
@@ -127,5 +131,41 @@ describe('AdminReportDetail', () => {
     expect(select.tagName).toBe('SELECT')
     expect(screen.getAllByRole('option')).toHaveLength(4)
     expect(select).toHaveClass('appearance-none', 'pr-8')
+  })
+
+  it('is the shared Select, sized to its content beside the buttons', async () => {
+    mockGetAdminReport.mockResolvedValue(report({ category: 'legal' }))
+
+    render(<AdminReportDetail reportId="report-1" />)
+    await waitFor(() =>
+      expect(screen.getByText('troll@evil.example')).toBeInTheDocument()
+    )
+
+    const select = screen.getByRole('combobox')
+    expect(select).toHaveAttribute('data-slot', 'select')
+    // Not the primitive's full width: it shares a wrapping row with the buttons.
+    expect(select).toHaveClass('w-auto')
+    expect(select).not.toHaveClass('w-full')
+    expect(select).toHaveValue('legal')
+  })
+
+  it('locks the category select while an action is in flight', async () => {
+    mockGetAdminReport.mockResolvedValue(report({}))
+    const update = createDeferred<AdminReport>()
+    mockUpdate.mockReturnValue(update.promise)
+
+    render(<AdminReportDetail reportId="report-1" />)
+    await waitFor(() =>
+      expect(screen.getByText('troll@evil.example')).toBeInTheDocument()
+    )
+    expect(screen.getByRole('combobox')).toBeEnabled()
+
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: 'legal' }
+    })
+    await waitFor(() => expect(screen.getByRole('combobox')).toBeDisabled())
+
+    update.resolve(report({ category: 'legal' }))
+    await waitFor(() => expect(screen.getByRole('combobox')).toBeEnabled())
   })
 })

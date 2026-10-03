@@ -59,10 +59,10 @@ interface PasskeyManagerProps {
 }
 
 const DomainPill: FC<{ domain: string }> = ({ domain }) => (
-  <span className="bg-muted text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
+  <Badge tone="gray">
     <Globe className="size-3" />
     {domain}
-  </span>
+  </Badge>
 )
 
 const PasskeyRow: FC<{
