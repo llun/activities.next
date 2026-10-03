@@ -13,7 +13,6 @@ import {
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
-import { MAX_HEIGHT, MAX_WIDTH, STORED_IMAGE_RESIZE_OPTIONS } from './constants'
 import { MediaValidationError } from './errors'
 import { extractVideoMeta } from './extractVideoMeta'
 import { getStoredMediaExtension } from './fileName'
@@ -27,6 +26,7 @@ import { getMediaFileUrl } from './mediaFileUrl'
 import { checkQuotaAvailable } from './quota'
 import { saveMediaFile } from './saveMediaFile'
 import { assertStorageFilePath, resolveStorageFilePath } from './storagePath'
+import { createStoredImagePipeline } from './storedImagePipeline'
 import { readValidThumbnail } from './thumbnailInput'
 import {
   ImageRenditionOutput,
@@ -248,9 +248,7 @@ export class LocalFileStorage implements MediaStorage {
     const filename = `${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
     const filePath = assertStorageFilePath(uploadPath, filename)
     const resizedImage = encodeImageOutput(
-      sharp(imageBuffer)
-        .resize(MAX_WIDTH, MAX_HEIGHT, STORED_IMAGE_RESIZE_OPTIONS)
-        .rotate(),
+      createStoredImagePipeline(imageBuffer),
       format
     )
     // `metadata()` reports the INPUT image; `toFile()` resolves with the OUTPUT

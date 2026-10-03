@@ -15,12 +15,7 @@ import { getConfig } from '@/lib/config'
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { generateAltText } from '@/lib/services/altText/openai'
-import {
-  MAX_HEIGHT,
-  MAX_WIDTH,
-  PRESIGNED_ANALYSIS_MAX_BYTES,
-  STORED_IMAGE_RESIZE_OPTIONS
-} from '@/lib/services/medias/constants'
+import { PRESIGNED_ANALYSIS_MAX_BYTES } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import {
@@ -42,6 +37,7 @@ import {
 import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import { saveMediaFile } from '@/lib/services/medias/saveMediaFile'
+import { createStoredImagePipeline } from '@/lib/services/medias/storedImagePipeline'
 import { readValidThumbnail } from '@/lib/services/medias/thumbnailInput'
 import {
   ImageRenditionOutput,
@@ -658,9 +654,7 @@ export class S3FileStorage implements MediaStorage {
     const { extension, contentType } = getImageOutputFormatDetail(imageFormat)
 
     const resizedImage = encodeImageOutput(
-      sharp(buffer)
-        .resize(MAX_WIDTH, MAX_HEIGHT, STORED_IMAGE_RESIZE_OPTIONS)
-        .rotate(),
+      createStoredImagePipeline(buffer),
       imageFormat
     )
 
