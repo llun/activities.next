@@ -840,6 +840,24 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `vi.mocked(fn).mockReset()` at the top as a local work-around instead of
   fixing the hook, and pin the reset with a guard test placed last in the block
   so it runs after the tests that dirty the mocks.
+- **A test must pass whichever test in its file ran before it.** Files are
+  isolated from each other, but the tests inside one share every mock handle
+  and every row the file's `beforeAll` built, and two leaks hide there.
+  `vi.clearAllMocks()` empties call history but keeps queued `mock…Once`
+  values, so a `mockResolvedValueOnce` a test queues for a call its path never
+  makes answers the next test's first call instead of that test's own default —
+  reset those module-level `vi.fn()` handles in `beforeEach` and set their
+  defaults again straight after, because `mockReset()` also drops a default
+  given at creation (`vi.fn().mockReturnValue(x)`), while `vi.fn(impl)` keeps
+  `impl`. And a test that announces, blocks, deletes or likes hands those rows
+  to whichever test runs next — build the database in `beforeEach` and destroy
+  it in `afterEach`, or, on the PostgreSQL harness where `prepare` recreates a
+  whole database, have each test seed the rows it asserts on under ids of its
+  own. CI runs tests in declaration order and cannot see either leak, and in
+  that order one had left a route test passing without ever reaching the filter
+  it tests (`app/api/v1/fitness/general/regenerate-maps/route.test.ts`,
+  `returns zero when there are no eligible old statuses`). Check with
+  `yarn test --sequence.shuffle --sequence.seed=<n>` over a few seeds.
 - **`toHaveBeenCalledWith` asks whether a call ever happened, never whether it
   was the only one.** A once-per-run summary asserted that way is equally
   satisfied by one logged per row, because the last row carries the correct
@@ -1218,6 +1236,12 @@ attachment ref guard` is exactly that: it passed with the bug present until
   `beforeEach`. A lone `vi.mocked(fn).mockReset()` at the top of one test is the
   tell: that test noticed the leak and worked around it instead of fixing the
   hook.
+- **No test may depend on which test in its file ran first.** Flag tests that
+  queue `mock…Once` values under a `beforeEach` that relies on
+  `vi.clearAllMocks()` alone (it keeps the queue), a test that mutates rows a
+  `beforeAll` seeded for the whole file, and a test that reads state "the
+  previous case" left. Shuffled runs (`--sequence.shuffle --sequence.seed=<n>`)
+  catch what CI's fixed order cannot.
 - **`toHaveBeenCalledWith` is "was ever called", not "was the only call".** A
   once-per-run summary asserted that way passes when it is logged once per row,
   because the last row's cumulative totals are correct. Pin the count by

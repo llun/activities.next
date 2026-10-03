@@ -878,8 +878,22 @@ describe('TimelineDatabase', () => {
       }, 10000)
 
       it('stops counting at the given limit', async () => {
-        // At least the two public posts from the previous case exist, so a
-        // limit of 1 must short-circuit to exactly 1.
+        // Seed two public posts here rather than lean on another case's: with
+        // at least two to count, a limit of 1 must short-circuit to exactly 1,
+        // and an ignored limit would count them all.
+        for (const suffix of ['limit-1', 'limit-2']) {
+          await database.createNote({
+            actorId: COUNT_ACTOR,
+            cc: [],
+            to: [ACTIVITY_STREAM_PUBLIC],
+            id: `${COUNT_ACTOR}/statuses/count-${suffix}`,
+            text: `Public status ${suffix}`,
+            url: `${COUNT_ACTOR}/statuses/count-${suffix}`,
+            reply: '',
+            createdAt: Date.now()
+          })
+        }
+
         const limited = await database.getLocalPublicStatusesCount(1)
         expect(limited).toBe(1)
       }, 10000)

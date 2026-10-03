@@ -232,8 +232,31 @@ describe('POST /api/users/[username]/inbox', () => {
   beforeEach(() => {
     harness = setupRecordingTracer()
     vi.clearAllMocks()
+    // clearAllMocks keeps queued mock…Once values, so one queued for a call a
+    // test's path never makes would answer the next test that does make it.
+    // Reset every handle; the defaults below are set afresh each time.
+    for (const mock of [
+      mockPublish,
+      mockCanFederateWithDomain,
+      mockAcceptRelayRequest,
+      mockRejectRelayRequest,
+      mockCreateFollower,
+      mockDeleteLike,
+      mockApplyRemoteBlock,
+      mockApplyRemoteUnblock,
+      mockUndoFollowRequest,
+      mockLikeRequest,
+      mockEmojiReactionRequest,
+      mockUndoEmojiReactionRequest,
+      mockHandleQuoteResponse,
+      mockAcceptFollowRequest,
+      mockRejectFollowRequest,
+      mockVerifyAllows,
+      mockGetModerationStatesForActors
+    ]) {
+      mock.mockReset()
+    }
     mockForwarded = false
-    mockPublish.mockReset()
     mockActor = {
       id: 'https://activities.local/users/llun',
       username: 'llun',
@@ -768,7 +791,6 @@ describe('POST /api/users/[username]/inbox', () => {
   })
 
   it('dispatches untyped reference-object Undo of Follow to undoFollowRequest and returns 202', async () => {
-    mockApplyRemoteUnblock.mockResolvedValueOnce(null)
     mockUndoFollowRequest.mockResolvedValueOnce(true)
 
     const response = await POST(

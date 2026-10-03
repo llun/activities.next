@@ -49,14 +49,17 @@ const createRequest = () =>
   })
 
 describe('GET /api/users/[username]/collections/tags', () => {
-  const database = getTestSQLDatabase()
+  // A fresh database per test, so the empty-collection test never sees the
+  // featured tag the other test creates, whichever of them runs first.
+  let database: ReturnType<typeof getTestSQLDatabase>
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    database = getTestSQLDatabase()
     await database.migrate()
     mockDatabase = database
   })
 
-  afterAll(async () => {
+  afterEach(async () => {
     mockDatabase = null
     await database.destroy()
   })

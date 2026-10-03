@@ -1196,12 +1196,16 @@ describe('createOrderedCollectionWriter', () => {
 })
 
 describe('database-backed collectors', () => {
-  const database = getTestSQLDatabase()
   const domain = 'actor-archive-test.llun.test'
+  // A fresh database per test: the forEachActorStatus test asserts an exact
+  // count, so it must not inherit the statuses the forEachLike test creates for
+  // the same actor.
+  let database: ReturnType<typeof getTestSQLDatabase>
   let actorId: string
   let followersUrl: string
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    database = getTestSQLDatabase()
     await database.migrate()
 
     await database.createAccount({
@@ -1221,7 +1225,7 @@ describe('database-backed collectors', () => {
     followersUrl = actor.followersUrl
   })
 
-  afterAll(async () => {
+  afterEach(async () => {
     await database.destroy()
   })
 

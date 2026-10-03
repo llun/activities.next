@@ -1,6 +1,7 @@
 import { applyBlock } from '@/lib/actions/applyBlock'
 import { applyUnblock } from '@/lib/actions/applyUnblock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { Database } from '@/lib/database/types'
 import { SEND_UNDO_FOLLOW_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
@@ -16,19 +17,19 @@ vi.mock('@/lib/services/queue', () => ({
 }))
 
 describe('applyBlock', () => {
-  const database = getTestSQLDatabase()
+  // A fresh seeded database per test, so the unblock test creates its own
+  // block first instead of relying on a block that another test left behind.
+  let database: Database
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    database = getTestSQLDatabase()
     await database.migrate()
     await seedDatabase(database)
   })
 
-  afterAll(async () => {
+  afterEach(async () => {
     await database.destroy()
-  })
-
-  beforeEach(() => {
-    vi.clearAllMocks()
   })
 
   it('creates a block and tears down accepted/requested follows in both directions', async () => {
@@ -87,6 +88,13 @@ describe('applyBlock', () => {
   })
 
   it('unblocks without restoring follows', async () => {
+    await applyBlock({
+      database,
+      actorId: ACTOR2_ID,
+      targetActorId: ACTOR3_ID,
+      uri: `${ACTOR2_ID}#blocks/test-block`
+    })
+
     const block = await applyUnblock({
       database,
       actorId: ACTOR2_ID,
