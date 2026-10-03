@@ -4,7 +4,10 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
+
 import Loading, { ProfileLoading } from './loading'
+import { PROFILE_CARD_MOBILE_CLASS } from './profileLayout'
 
 describe('[actor] loading', () => {
   it('renders loading profile skeleton with accessibility attributes', () => {
@@ -45,5 +48,29 @@ describe('[actor] loading', () => {
     expect(container.querySelector('section')).toHaveClass(
       'max-md:rounded-none'
     )
+  })
+
+  it('makes the card full-bleed and flat below md like the page', () => {
+    const { container } = render(<Loading />)
+    const card = container.querySelector('section')
+    PROFILE_CARD_MOBILE_CLASS.split(' ').forEach((token) =>
+      expect(card).toHaveClass(token)
+    )
+    // The page's card drops its shadow below md; the skeleton must too.
+    expect(card).toHaveClass('max-md:shadow-none')
+  })
+
+  it('floats the menu button where the page does', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <Loading />
+      </MobileNavigationProvider>
+    )
+
+    // The page floats the button over the cover; an in-flow bar variant here
+    // would shift the layout when the page replaces the skeleton.
+    expect(
+      container.querySelector('[data-floating-nav-trigger]')
+    ).toBeInTheDocument()
   })
 })
