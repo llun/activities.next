@@ -36,25 +36,49 @@ describe('extractProfileHref', () => {
     )
   })
 
-  it('rewrites remote Mastodon-style profile URL to local profile route', () => {
-    expect(extractProfileHref('https://mastodon.social/@alice', { host })).toBe(
-      '/@alice@mastodon.social'
-    )
-  })
-
-  it('rewrites remote actor URL (/users/...) to local profile route', () => {
+  it('does not rewrite remote profile URLs without mention evidence', () => {
+    expect(
+      extractProfileHref('https://mastodon.social/@alice', { host })
+    ).toBeUndefined()
     expect(
       extractProfileHref('https://remote.social/users/bob', { host })
+    ).toBeUndefined()
+    expect(
+      extractProfileHref('https://youtube.com/@babylon5', { host })
+    ).toBeUndefined()
+    expect(
+      extractProfileHref('https://www.youtube.com/@babylon5', { host })
+    ).toBeUndefined()
+    expect(
+      extractProfileHref('https://tiktok.com/@creator', { host })
+    ).toBeUndefined()
+  })
+
+  it('rewrites remote Mastodon-style profile URL when marked as a mention', () => {
+    expect(
+      extractProfileHref('https://mastodon.social/@alice', {
+        host,
+        isMention: true
+      })
+    ).toBe('/@alice@mastodon.social')
+  })
+
+  it('rewrites remote actor URL (/users/...) when marked as a mention', () => {
+    expect(
+      extractProfileHref('https://remote.social/users/bob', {
+        host,
+        isMention: true
+      })
     ).toBe('/@bob@remote.social')
   })
 
-  it('rewrites local server profile URL to local route without redundant domain', () => {
+  it('rewrites local server profile URL to local route without redundant domain even without mention flag', () => {
     expect(extractProfileHref(`https://${host}/@charlie`, { host })).toBe(
       '/@charlie'
     )
   })
 
-  it('rewrites local server handle with remote domain to local route', () => {
+  it('rewrites local server handle with remote domain to local route even without mention flag', () => {
     expect(
       extractProfileHref(`https://${host}/@dan@somewhere.test`, { host })
     ).toBe('/@dan@somewhere.test')
@@ -130,7 +154,8 @@ describe('extractProfileHref', () => {
   it('does not match when both host and domain have different explicit ports', () => {
     expect(
       extractProfileHref('https://activities.local:4000/@alice', {
-        host: 'activities.local:3000'
+        host: 'activities.local:3000',
+        isMention: true
       })
     ).toBe('/@alice@activities.local:4000')
   })

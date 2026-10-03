@@ -185,6 +185,24 @@ describe('cleanClassName', () => {
       expect(output).toContain('href="/@dan@special.site"')
       expect(output).not.toContain('target="_blank"')
     })
+
+    it('does not rewrite YouTube @channel links to local profile path', () => {
+      const html =
+        '<a href="https://youtube.com/@babylon5" rel="nofollow">https://youtube.com/@babylon5</a>'
+      const output = renderToHtml(html)
+      expect(output).toContain('href="https://youtube.com/@babylon5"')
+      expect(output).toContain('target="_blank"')
+      expect(output).toContain('rel="nofollow noopener noreferrer"')
+      expect(output).not.toContain('/@babylon5@youtube.com')
+    })
+
+    it('does not rewrite plain external @handle links without mention class', () => {
+      const html = '<a href="https://mastodon.social/@alice">@alice</a>'
+      const output = renderToHtml(html)
+      expect(output).toContain('href="https://mastodon.social/@alice"')
+      expect(output).toContain('target="_blank"')
+      expect(output).not.toContain('/@alice@mastodon.social')
+    })
   })
 
   describe('span transformations', () => {
