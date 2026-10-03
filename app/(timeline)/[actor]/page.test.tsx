@@ -335,6 +335,43 @@ describe('[actor] page header handle link', () => {
     expect(card?.className).not.toMatch(/shadow|bg-background/)
   })
 
+  it('draws the 80px profile avatar initial at 34px, not the 30px its bordered box would give', async () => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://mastodon.social/users/bob',
+        type: 'Person',
+        preferredUsername: 'bob',
+        name: 'Bob',
+        summary: '',
+        url: 'https://mastodon.social/@bob'
+      } as unknown as Actor,
+      statuses: [],
+      statusesCount: 1,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 2,
+      followersCount: 3,
+      isInternalAccount: false,
+      hasFitnessData: false,
+      isPixelfed: false
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@bob@mastodon.social' })
+    })
+    const { container } = render(element)
+
+    // The avatar is 80px wide but carries a 4px border, so the shared 42cqw
+    // initial resolves against a 72px content box (30.24px). The Avatar board
+    // draws the 80px monogram at 34, so the profile sets the size itself.
+    const avatar = container.querySelector('[data-slot="avatar"]')
+    expect(avatar).toHaveClass('h-20', 'w-20', 'border-4')
+    const initial = container.querySelector('[data-slot="avatar-fallback"]')
+    expect(initial).toHaveTextContent('B')
+    expect(initial).toHaveClass('text-[34px]')
+    expect(initial).not.toHaveClass('text-[42cqw]')
+  })
+
   it('renders software name and version under the counts block', async () => {
     mockGetProfileData.mockResolvedValue({
       person: {

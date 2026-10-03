@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import * as clientModule from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -531,6 +537,68 @@ describe('AuthorizeCard', () => {
     // the display name ('Zoe' -> 'Z'), not the email ('rider@…' -> 'R').
     expect(screen.getByText('Z')).toBeInTheDocument()
     expect(screen.queryByText('R')).not.toBeInTheDocument()
+  })
+
+  it('draws the OIDC account monogram on the neutral tokens, not Tailwind grays', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={actors}
+        currentActorId="https://activities.local/users/llun"
+        account={{ email: 'rider@example.com', name: 'Zoe', iconUrl: null }}
+        navigate={mockNavigate}
+      />
+    )
+
+    const monogram = screen.getByText('Z')
+    expect(monogram).toHaveClass(
+      'bg-(--skeleton)',
+      'font-semibold',
+      'text-muted-foreground',
+      'dark:bg-input'
+    )
+    expect(monogram.className).not.toMatch(/gray-/)
+  })
+
+  it('draws the actor picker monograms on the neutral tokens, not Tailwind grays', async () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={signedSearchParams}
+        actors={alternateActors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    const expectNeutralMonogram = (monogram: Element | null) => {
+      expect(monogram).toHaveClass(
+        'bg-(--skeleton)',
+        'font-semibold',
+        'text-muted-foreground',
+        'dark:bg-input'
+      )
+      expect(monogram?.className).not.toMatch(/gray-/)
+    }
+
+    const trigger = screen.getByRole('button', { name: /llun/ })
+    const triggerMonogram = trigger.querySelector(
+      '[data-slot="avatar-fallback"]'
+    )
+    expect(triggerMonogram).toHaveTextContent('L')
+    expectNeutralMonogram(triggerMonogram)
+
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    const menu = await screen.findByRole('menu')
+    const items = within(menu).getAllByRole('menuitem')
+    expect(items).toHaveLength(2)
+    for (const item of items) {
+      const monogram = item.querySelector('[data-slot="avatar-fallback"]')
+      expectNeutralMonogram(monogram)
+      expect(monogram).toHaveClass('text-xs')
+    }
   })
 
   it('derives a Unicode-safe avatar initial for a non-BMP name (OIDC)', () => {

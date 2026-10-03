@@ -253,7 +253,7 @@ export const AuthorizeCard: FC<Props> = ({
               <div className="flex w-full items-center gap-3 rounded-lg border bg-background p-3">
                 <Avatar className="h-10 w-10" aria-hidden="true">
                   {account.iconUrl && <AvatarImage src={account.iconUrl} />}
-                  <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                  <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
                     {getAvatarInitial(accountDisplayName)}
                   </AvatarFallback>
                 </Avatar>
@@ -292,7 +292,7 @@ export const AuthorizeCard: FC<Props> = ({
                       {selectedActor?.iconUrl && (
                         <AvatarImage src={selectedActor.iconUrl} />
                       )}
-                      <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                      <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
                         {getAvatarInitial(selectedActor?.username || '')}
                       </AvatarFallback>
                     </Avatar>
@@ -320,7 +320,7 @@ export const AuthorizeCard: FC<Props> = ({
                     >
                       <Avatar className="h-8 w-8">
                         {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
-                        <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 text-xs">
+                        <AvatarFallback className="bg-(--skeleton) text-xs font-semibold text-muted-foreground dark:bg-input">
                           {getAvatarInitial(actor.username)}
                         </AvatarFallback>
                       </Avatar>

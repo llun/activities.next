@@ -281,11 +281,7 @@ export const NotificationSettings: FC<Props> = ({
           {/* Email master toggle */}
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-0.5">
-              {/* The board draws the channel titles 14/20, not the shared
-                  Label's 14 px line box. */}
-              <Label className="cursor-pointer leading-5">
-                Email ({accountEmail})
-              </Label>
+              <Label className="cursor-pointer">Email ({accountEmail})</Label>
               <p className="text-xs text-muted-foreground">
                 {emailMasterEnabled
                   ? 'Email notifications are enabled.'
@@ -330,9 +326,7 @@ export const NotificationSettings: FC<Props> = ({
           {pushConfigured && (
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-0.5">
-                <Label className="cursor-pointer leading-5">
-                  Push Notifications
-                </Label>
+                <Label className="cursor-pointer">Push Notifications</Label>
                 <p className="text-xs text-muted-foreground">
                   {pushEnabled
                     ? 'Push notifications are active in this browser.'

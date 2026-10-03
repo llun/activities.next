@@ -477,9 +477,19 @@ export function Sidebar({
                   <span className="ml-auto inline-flex items-center gap-1.5 text-xs">
                     {more.length}
                     {isMoreOpen ? (
-                      <ChevronUp className="h-4 w-4" />
+                      <ChevronUp
+                        className={cn(
+                          'h-4 w-4',
+                          isMoreSectionActive && 'text-primary'
+                        )}
+                      />
                     ) : (
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown
+                        className={cn(
+                          'h-4 w-4',
+                          isMoreSectionActive && 'text-primary'
+                        )}
+                      />
                     )}
                   </span>
                 </button>
@@ -574,8 +584,10 @@ export function Sidebar({
       {/* Collapsed sidebar - Tablet */}
       {variant === 'responsive' && (
         <aside className="fixed left-0 top-0 z-40 h-screen w-[72px] border-r bg-surface-chrome backdrop-blur hidden md:flex xl:hidden flex-col items-center">
-          {/* flex for the same reason as the full sidebar's logo wrapper. */}
-          <div className="flex p-4">
+          {/* flex for the same reason as the full sidebar's logo wrapper. The
+              rail draws the logo at y 20 and its first item at y 64, so the
+              extra 4px on top comes off the bottom (20 + 32 + 12 = 64). */}
+          <div className="flex px-4 pt-5 pb-3">
             <Logo showText={false} size="md" />
           </div>
 

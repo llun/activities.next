@@ -266,7 +266,10 @@ const Page: FC<Props> = async ({ params }) => {
         <div className="relative px-6 pb-6">
           <Avatar className="relative -mt-10 h-20 w-20 border-4 border-background">
             <AvatarImage src={iconImageUrl || undefined} />
-            <AvatarFallback>{initials}</AvatarFallback>
+            {/* The 4px border takes the avatar's content box down to 72px, so
+                the shared 42cqw initial would come out 30px; the Avatar board
+                draws the 80px monogram at 34. */}
+            <AvatarFallback className="text-[34px]">{initials}</AvatarFallback>
           </Avatar>
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">

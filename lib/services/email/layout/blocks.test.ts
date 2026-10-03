@@ -8,7 +8,7 @@ import {
   quote,
   statCard
 } from './blocks'
-import { MONOGRAM_PALETTE } from './theme'
+import { INSET_BACKGROUND, MONOGRAM_PALETTE, QUOTE_LINK } from './theme'
 
 const XSS = '"><script>alert(1)</script>'
 
@@ -344,9 +344,30 @@ describe('quote', () => {
       'draws a hashtag or mention link mid blue without an underline (%s)',
       (anchor) => {
         const html = bodyOf(`<p>${anchor}</p>`)
-        expect(html).toContain('style="color:#0284C7;text-decoration:none;"')
+        expect(html).toContain('style="color:#0272AC;text-decoration:none;"')
       }
     )
+
+    it('keeps the hashtag and mention blue above the 4.5:1 AA floor on the quote inset', () => {
+      // WCAG 2.1 contrast ratio. The design's #0284C7 is only 3.76:1 on #F5F5F5.
+      const luminance = (hex: string) => {
+        const [r, g, b] = [1, 3, 5].map((start) => {
+          const channel = parseInt(hex.slice(start, start + 2), 16) / 255
+          return channel <= 0.03928
+            ? channel / 12.92
+            : Math.pow((channel + 0.055) / 1.055, 2.4)
+        })
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+      }
+      const [hi, lo] = [
+        luminance(QUOTE_LINK),
+        luminance(INSET_BACKGROUND)
+      ].sort((a, b) => b - a)
+
+      expect(QUOTE_LINK).toBe('#0272AC')
+      expect(INSET_BACKGROUND).toBe('#f5f5f5')
+      expect((hi + 0.05) / (lo + 0.05)).toBeGreaterThanOrEqual(4.7)
+    })
 
     it('leaves an ordinary link as it was, underline included', () => {
       const html = bodyOf(

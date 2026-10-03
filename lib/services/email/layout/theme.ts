@@ -41,12 +41,15 @@ export const BUTTON_BACKGROUND = '#E55F06'
 export const BUTTON_TEXT = '#ffffff'
 
 /**
- * Hashtag and mention links inside a quoted post: the design's mid blue,
- * `#0284C7`, sampled from the Mention board's raster (the pure text pixels read
- * rgb(2,132,199)), set without an underline. A bare `<a>` would take the mail
- * client's default, `#0000EE`.
+ * Hashtag and mention links inside a quoted post, set without an underline. A
+ * bare `<a>` would take the mail client's default, `#0000EE`.
+ *
+ * The design's mid blue, `#0284C7`, reads 3.76:1 on the `#F5F5F5` inset these
+ * links sit in, under the 4.5:1 AA floor for body text. This is the same hue
+ * and saturation, darkened until it clears the floor with a little margin:
+ * 4.81:1 on the inset, 5.15:1 on the card.
  */
-export const QUOTE_LINK = '#0284C7'
+export const QUOTE_LINK = '#0272AC'
 
 export const CONTENT_WIDTH = 600
 

@@ -172,6 +172,25 @@ describe('Sidebar', () => {
       expect(drawerLogo?.parentElement).toHaveClass('flex')
     })
 
+    it('draws the rail logo at y 20 and keeps the first item at y 64', () => {
+      // The Sidebar board's rail puts the logo 20 from the top; the wrapper
+      // trades the extra 4px of top padding for 4px less below (20 + 32 + 12),
+      // so the first nav item stays at 64 and nothing under the logo moves.
+      const { container } = renderSidebar(<Sidebar lists={[]} user={user} />)
+      const rail = container.querySelectorAll('aside')[1]
+      const wrapper = rail.querySelector(
+        'a[aria-label="Activities home"]'
+      )?.parentElement
+      expect(wrapper).toHaveClass('flex', 'px-4', 'pt-5', 'pb-3')
+      expect(wrapper).not.toHaveClass('p-4')
+
+      // The full sidebar's logo box is untouched.
+      const sidebar = container.querySelectorAll('aside')[0]
+      expect(
+        sidebar.querySelector('a[aria-label="Activities home"]')?.parentElement
+      ).toHaveClass('flex', 'p-6')
+    })
+
     it('spans the whole rail with the footer divider and keeps the avatar centred', () => {
       const { container } = renderSidebar(<Sidebar lists={[]} user={user} />)
       const rail = container.querySelectorAll('aside')[1]
@@ -518,6 +537,42 @@ describe('Sidebar', () => {
       fireEvent.click(more)
       expect(more).toHaveClass('text-primary-text')
       expect(more.querySelector('svg')).toHaveClass('text-primary')
+    })
+
+    it('draws the More chevron in the brand orange while its section is current, muted otherwise', () => {
+      // Same rule as the Lists chevron above: orange whenever the section is
+      // active, in both directions, muted when it is not.
+      mockPathname.mockReturnValue('/favorites')
+      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const more = within(nav).getByRole('button', { name: /^More/ })
+      // Open on its own because the route is inside the group.
+      expect(more).toHaveAttribute('aria-expanded', 'true')
+      expect(more.querySelector('svg.lucide-chevron-up')).toHaveClass(
+        'text-primary'
+      )
+      fireEvent.click(more)
+      expect(more).toHaveAttribute('aria-expanded', 'false')
+      expect(more.querySelector('svg.lucide-chevron-down')).toHaveClass(
+        'text-primary'
+      )
+    })
+
+    it('leaves the More chevron muted when the current page is outside the group', () => {
+      mockPathname.mockReturnValue('/search')
+      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const more = within(nav).getByRole('button', { name: /^More/ })
+      expect(more).toHaveClass('text-muted-foreground')
+      expect(more.querySelector('svg.lucide-chevron-down')).not.toHaveClass(
+        'text-primary'
+      )
+      fireEvent.click(more)
+      expect(more.querySelector('svg.lucide-chevron-up')).not.toHaveClass(
+        'text-primary'
+      )
     })
 
     it('draws the current row of the rail flyout in the same split', async () => {

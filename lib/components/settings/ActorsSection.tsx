@@ -150,7 +150,7 @@ export function ActorsSection({
                 {selectedActor?.iconUrl && (
                   <AvatarImage src={selectedActor.iconUrl} />
                 )}
-                <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
                   {getAvatarInitial(selectedActor?.username || '')}
                 </AvatarFallback>
               </Avatar>
@@ -205,7 +205,7 @@ export function ActorsSection({
                     className={`h-8 w-8 ${reducedOpacity ? 'opacity-60' : ''}`}
                   >
                     {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
-                    <AvatarFallback className="bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300 text-xs">
+                    <AvatarFallback className="bg-(--skeleton) text-xs font-semibold text-muted-foreground dark:bg-input">
                       {getAvatarInitial(actor.username)}
                     </AvatarFallback>
                   </Avatar>
