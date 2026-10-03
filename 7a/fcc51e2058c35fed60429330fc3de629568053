@@ -1,0 +1,21 @@
+docs/architecture.md
+  s_94426ef8ef042a::t_2bb9b4186824a8 1544-1547
+app/(timeline)/PublicFooter.tsx
+  s_94426ef8ef042a::t_bae072b79be142 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7afcc51e2058c35fed60429330fc3de629568053",
+  "prompts": {},
+  "sessions": {
+    "s_94426ef8ef042a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08204b68-8e02-41c3-aa35-385d0860dc9b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
