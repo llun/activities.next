@@ -21,11 +21,12 @@ export const readValidThumbnail = async (thumbnail: File): Promise<Buffer> => {
     // fault of ours. Deciding it here keeps unusable input a 422 with nothing
     // written, and leaves every failure after it a genuine 500.
     //
-    // Decoded to a pipeline output, and not with `stats()`. sharp learns why libvips failed from one process-wide error
-    // buffer that every sharp call clears as it finishes, so under concurrent
-    // load a failure can arrive with its message already gone. The pipeline
-    // rejects regardless; `stats()` resolves with no channels instead, and let
-    // truncated images through whenever other sharp calls were in flight.
+    // Decoded to a pipeline output, and not with `stats()`. sharp learns why
+    // libvips failed from one process-wide error buffer that every sharp call
+    // clears as it finishes, so under concurrent load a failure can arrive
+    // with its message already gone. The pipeline rejects regardless;
+    // `stats()` resolves with no channels instead, and sometimes let
+    // truncated images through while other sharp calls were in flight.
     //
     // It decodes through the encode's own input pipeline, so it rejects what
     // the encode would, and its output is capped at the MAX box, so it does not

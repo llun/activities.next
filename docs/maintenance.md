@@ -1158,11 +1158,13 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
 
 ### Review: Stored media
 
-- Stored-image resizes go through `STORED_IMAGE_RESIZE_OPTIONS`
-  (`lib/services/medias/constants.ts`), never an inline `{ fit: 'inside' }`.
-  sharp's `fit: 'inside'` **enlarges** by default, so a bare
-  `MAX_WIDTH`/`MAX_HEIGHT` box is an upscale, not a cap — it inflates every
-  stored image below the cap, silently, with no error and no test failure.
+- Stored-image pipelines are built with `createStoredImagePipeline`
+  (`lib/services/medias/storedImagePipeline.ts`), never an inline
+  `{ fit: 'inside' }` chain. sharp's `fit: 'inside'` **enlarges** by default, so
+  a bare `MAX_WIDTH`/`MAX_HEIGHT` box is an upscale, not a cap — it inflates
+  every stored image below the cap, silently, with no error and no test
+  failure. The helper owns the `withoutEnlargement` option that makes the box a
+  cap.
 - A sharp call that decides whether input is usable is a **pipeline output**
   (`toBuffer`/`toFile`), never `stats()`, and it decodes through the encode's
   own input chain (`createStoredImagePipeline`, `medias/storedImagePipeline`)

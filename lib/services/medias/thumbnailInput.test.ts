@@ -66,12 +66,13 @@ describe('readValidThumbnail', () => {
   })
 
   it('refuses a tall JPEG truncated near its end, as the encode does', async () => {
-    // A decode that shrinks on load, such as `resize(1, 1)`, skips the last
-    // rows of a tall JPEG and accepts this one, while the encode — which
-    // shrinks far less — rejects it. Validating through the encode's own input
-    // pipeline is what keeps the two answers the same.
-    const jpeg = await createNoisyJpeg(300, 8000)
-    const truncated = jpeg.subarray(0, Math.floor(jpeg.length * 0.99))
+    // A decode that shrinks hard on load, such as `resize(1, 1)` in any fit,
+    // never reads the last rows of a tall JPEG and accepts one cut a little
+    // short, while the encode — which shrinks far less here — rejects it.
+    // Validating through the encode's own input pipeline is what keeps the two
+    // answers the same.
+    const jpeg = await createNoisyJpeg(1000, 8001)
+    const truncated = jpeg.subarray(0, jpeg.length - 1000)
 
     await expect(
       createStoredImagePipeline(truncated).webp().toBuffer()

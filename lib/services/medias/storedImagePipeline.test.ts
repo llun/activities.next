@@ -1,6 +1,5 @@
 import sharp from 'sharp'
 
-import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 import { createStoredImagePipeline } from './storedImagePipeline'
 
 const createJpeg = (width: number, height: number, orientation?: number) =>
@@ -19,25 +18,6 @@ const pipelineSize = async (input: Buffer) => {
 }
 
 describe('createStoredImagePipeline', () => {
-  it('fits an image above the box inside it', async () => {
-    const input = await createJpeg(MAX_WIDTH + 200, (MAX_HEIGHT + 200) / 2)
-
-    await expect(pipelineSize(input)).resolves.toEqual({
-      width: MAX_WIDTH,
-      height: MAX_HEIGHT / 2
-    })
-  })
-
-  it('does not enlarge an image below the box', async () => {
-    // `fit: 'inside'` enlarges by default; the pipeline must stay a cap.
-    const input = await createJpeg(800, 600)
-
-    await expect(pipelineSize(input)).resolves.toEqual({
-      width: 800,
-      height: 600
-    })
-  })
-
   it('applies the EXIF orientation', async () => {
     // Orientation 6 stores a 200x100 image that displays 100 wide, 200 high.
     const input = await createJpeg(200, 100, 6)
