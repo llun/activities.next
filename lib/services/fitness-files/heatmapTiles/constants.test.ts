@@ -1,6 +1,7 @@
 import {
   HEAT_COUNT_COLOR_STOPS,
   HEAT_COUNT_SATURATION,
+  HEAT_COUNT_WIDTH_STOPS,
   HEAT_HIDDEN_BASE_OPACITY,
   HEAT_VISIBLE_BASE_OPACITY,
   TILE_EXTENT,
@@ -10,6 +11,7 @@ import {
   TILE_SIMPLIFY_TOLERANCE_PX,
   heatColorForCount,
   heatOpacityForCount,
+  heatWidthForCount,
   metersPerPixelAtZoom,
   tileToleranceMeters
 } from '@/lib/services/fitness-files/heatmapTiles/constants'
@@ -254,6 +256,32 @@ describe('heatColorForCount', () => {
     expect(heatColorForCount(8, [4, '#000000', 12, '#ffffff'])).toBe('#808080')
     // A channel below 0x10 keeps its leading zero: 5 -> '05', not '5'.
     expect(heatColorForCount(8, [4, '#000000', 12, '#0a141e'])).toBe('#050a0f')
+  })
+})
+
+describe('heatWidthForCount', () => {
+  it.each([
+    { description: 'a count of one', count: 1, expected: 2.8 },
+    { description: 'the orange stop', count: 4, expected: 3.4 },
+    { description: 'the last stop', count: 16, expected: 4.2 },
+    // Below the first stop and past the last hold the end widths, as GL does.
+    { description: 'a count below the ramp', count: 0, expected: 2.8 },
+    { description: 'a count past the ramp', count: 99, expected: 4.2 },
+    // 1 -> 4 is 3 counts wide, so count 2.5 is half way: (2.8 + 3.4) / 2.
+    { description: 'half way to the second stop', count: 2.5, expected: 3.1 },
+    // Width is still growing at 12, where the colour has already stopped:
+    // 4 -> 16 is 12 counts wide, so 12 is two thirds of the way from 3.4 to 4.2.
+    { description: 'the yellow colour stop', count: 12, expected: 3.9333 }
+  ])('answers $expected for $description', ({ count, expected }) => {
+    expect(heatWidthForCount(count)).toBeCloseTo(expected, 4)
+  })
+
+  it('blends over any stop list it is given', () => {
+    expect(heatWidthForCount(8, [4, 2, 12, 6])).toBe(4)
+  })
+
+  it('ships the stops the GL paint interpolates', () => {
+    expect([...HEAT_COUNT_WIDTH_STOPS]).toEqual([1, 2.8, 4, 3.4, 16, 4.2])
   })
 })
 

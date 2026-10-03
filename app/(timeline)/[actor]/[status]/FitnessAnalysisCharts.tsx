@@ -95,6 +95,61 @@ export const Card: FC<{
   </div>
 )
 
+// The time labels under a plot. `buildXAxisLabels` returns labels at equal
+// fractions of the activity, so each one is placed at its own fraction of the
+// plot's width: the first flush left, the last flush right (a label centred on
+// either end would hang out of the card) and the rest centred on their
+// fraction. `justify-between` spread the label boxes evenly instead, which only
+// puts a label under its time when every box is the same width — "0:00" and
+// "1:13:46" are not, so the middle labels drifted by up to ~20px, sometimes
+// right under the scrub highlight of a different time.
+//
+// Placing labels at their fractions costs the even gaps: the flush-right last
+// label sits half its width inside its own fraction, so with six labels (one
+// every fifth of the plot) the one before it collides once the plot is under
+// ~345px for "H:MM:SS" labels (~400px for a ten-hour ride's "10:00:00") — a
+// phone-width plot on any ride over an hour. `dropPenultimateWhenNarrow` hides
+// that one label below 400px, measured on the label row itself (a container
+// query, never the viewport: the plot can be narrow in a wide window). The
+// four-label overview chart does not need it — its last pair stays clear down
+// to the 212px a 320px screen leaves it.
+const ChartTimeLabels: FC<{
+  labels: string[]
+  dropPenultimateWhenNarrow?: boolean
+}> = ({ labels, dropPenultimateWhenNarrow = false }) => {
+  const lastIndex = labels.length - 1
+  return (
+    <div className="@container relative mt-2 h-4 text-[11px] leading-4 tabular-nums text-muted-foreground">
+      {labels.map((label, index) => {
+        const isFirst = index === 0
+        const isLast = index === lastIndex
+        const isDroppedWhenNarrow =
+          dropPenultimateWhenNarrow && lastIndex > 1 && index === lastIndex - 1
+        return (
+          <span
+            key={index}
+            data-testid="chart-time-label"
+            className={cn(
+              'absolute whitespace-nowrap',
+              isFirst && 'left-0',
+              !isFirst && isLast && 'right-0',
+              !isFirst && !isLast && '-translate-x-1/2',
+              isDroppedWhenNarrow && 'hidden @min-[400px]:block'
+            )}
+            style={
+              isFirst || isLast
+                ? undefined
+                : { left: `${(index / lastIndex) * 100}%` }
+            }
+          >
+            {label}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 export interface ChartHoverMarkerProps {
   x: number
   y: number
@@ -245,20 +300,22 @@ export const ElevationProfileChart: FC<ElevationProfileChartProps> = ({
   )
   // Four ticks, not the helper's default six. This card is narrower than the
   // Analysis panel (a `p-5` Card inside the same column, so 212px of content at
-  // the 320px reflow target against that panel's 220px), `justify-between`
-  // gives a label row no way to wrap, and a Card has no `overflow-hidden` to
-  // clip a row that outgrows it the way that panel does — so an over-wide row
-  // here runs its labels together into one unbroken string of digits and then
-  // crosses the card's own border.
+  // the 320px reflow target against that panel's 220px), a label row has no way
+  // to wrap (each label is `whitespace-nowrap`), and a Card has no
+  // `overflow-hidden` to clip a row that outgrows it the way that panel does —
+  // so an over-wide row here lays its labels over each other and then crosses
+  // the card's own border.
   //
   // Worked at 11px tabular-nums, where "0:00" is ~24px and one "H:MM:SS" label
   // ~42px (a five-hour ride, the point at which every tick but the first has
-  // taken the wider form): six labels need 24 + 5x42 = 234px against 212px,
-  // while four need 24 + 3x42 = 150px and keep ~20px between each. Going longer
-  // adds little: `formatFitnessDuration` does not zero-pad the hour, so a
-  // ten-hour ride widens only the labels that reach two digits (~49px) — 241px
-  // at six ticks, a still-comfortable 157px at four. Pinned by a test, since
-  // the failure is silent — nothing errors, the labels just merge.
+  // taken the wider form). The labels sit at their own fraction of the 212px
+  // (0, 1/3, 2/3 and 1, the ends flush), so the tightest pair is the last two:
+  // the 2/3 label ends at 162px and the end label starts at 212 - 42 = 170px.
+  // A ten-hour ride widens only the end label ("10:00:00", ~49px), leaving
+  // them ~1px apart — just clear. Six ticks would put the 4/5 label at
+  // 170px ± 21 over an end label starting at 170px, ~20px of overlap. Pinned
+  // by a test, since the failure is silent — nothing errors, the labels just
+  // overlap.
   const xLabels = useMemo(
     () =>
       durationSeconds
@@ -340,13 +397,7 @@ export const ElevationProfileChart: FC<ElevationProfileChartProps> = ({
           />
         ) : null}
       </div>
-      {xLabels && (
-        <div className="mt-2 flex justify-between text-[11px] tabular-nums text-muted-foreground">
-          {xLabels.map((label, index) => (
-            <span key={index}>{label}</span>
-          ))}
-        </div>
-      )}
+      {xLabels && <ChartTimeLabels labels={xLabels} />}
     </div>
   )
 }
@@ -542,11 +593,7 @@ export const ChartPanel: FC<ChartPanelProps> = ({
         ) : null}
       </div>
       {xLabels && (
-        <div className="mt-2 flex justify-between text-[11px] tabular-nums text-muted-foreground">
-          {xLabels.map((label, i) => (
-            <span key={i}>{label}</span>
-          ))}
-        </div>
+        <ChartTimeLabels labels={xLabels} dropPenultimateWhenNarrow />
       )}
     </div>
   )
@@ -739,11 +786,7 @@ export const CombinedChartPanel: FC<CombinedChartPanelProps> = ({
         ) : null}
       </div>
       {xLabels && (
-        <div className="mt-2 flex justify-between text-[11px] tabular-nums text-muted-foreground">
-          {xLabels.map((label, i) => (
-            <span key={i}>{label}</span>
-          ))}
-        </div>
+        <ChartTimeLabels labels={xLabels} dropPenultimateWhenNarrow />
       )}
       <p className="mt-2 text-xs text-muted-foreground">
         Each graph is scaled to its own range.

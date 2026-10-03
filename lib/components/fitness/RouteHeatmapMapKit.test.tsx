@@ -9,7 +9,12 @@ import type {
   FitnessRouteHeatmapTileRequest
 } from '@/lib/client'
 import { createMapKitTestDouble } from '@/lib/components/fitness/mapkitTestDouble'
-import { TILE_EXTENT } from '@/lib/services/fitness-files/heatmapTiles/constants'
+import {
+  HEAT_COUNT_COLOR_STOPS,
+  TILE_EXTENT,
+  heatColorForCount,
+  heatWidthForCount
+} from '@/lib/services/fitness-files/heatmapTiles/constants'
 import {
   encodeTile,
   tilesForBounds
@@ -454,6 +459,45 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
       expect(colours.has('#facc15')).toBe(true)
       expect(colours.has('#ef4444')).toBe(true)
     })
+  })
+
+  it('blends colour and width between ramp stops, as the GL map does, instead of stepping', async () => {
+    // Counts 5 and 8 sit between the orange stop (4) and the yellow one (12).
+    // The old three-tier rule painted both the flat orange 3.4px; the GL paint
+    // interpolates, so each gets its own blend of colour and width.
+    const midRamp = encodeTile([
+      { count: 5, points: [0, 0, 32, 32] },
+      { count: 8, points: [64, 64, 96, 96] }
+    ])
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+
+    render(
+      <RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchWith(midRamp)} />
+    )
+
+    await waitFor(() => {
+      const styles = double
+        .overlaysOfKind('polyline')
+        .map(
+          (overlay) =>
+            overlay.styleOptions as { strokeColor?: string; lineWidth?: number }
+        )
+      for (const count of [5, 8]) {
+        expect(styles).toContainEqual(
+          expect.objectContaining({
+            strokeColor: heatColorForCount(count, HEAT_COUNT_COLOR_STOPS),
+            lineWidth: heatWidthForCount(count)
+          })
+        )
+      }
+    })
+    // Neither blend is the flat orange tier, and the two differ from each other.
+    expect(heatColorForCount(5, HEAT_COUNT_COLOR_STOPS)).not.toBe('#f97316')
+    expect(heatColorForCount(5, HEAT_COUNT_COLOR_STOPS)).not.toBe(
+      heatColorForCount(8, HEAT_COUNT_COLOR_STOPS)
+    )
+    expect(heatWidthForCount(5)).not.toBe(heatWidthForCount(8))
   })
 
   it('draws the muted standard basemap, so the heat runs stay the brightest thing', async () => {

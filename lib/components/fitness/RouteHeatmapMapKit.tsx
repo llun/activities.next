@@ -25,11 +25,14 @@ import {
   useHeatmapTiles
 } from '@/lib/components/fitness/useHeatmapTiles'
 import {
+  HEAT_COUNT_COLOR_STOPS,
   HEAT_COUNT_SATURATION,
   HEAT_HIDDEN_BASE_OPACITY,
   HEAT_VISIBLE_BASE_OPACITY,
   TILE_MIN_ZOOM,
-  heatOpacityForCount
+  heatColorForCount,
+  heatOpacityForCount,
+  heatWidthForCount
 } from '@/lib/services/fitness-files/heatmapTiles/constants'
 import { simplifySegmentsToBudget } from '@/lib/services/fitness-files/simplifyRoute'
 import { cn } from '@/lib/utils'
@@ -74,27 +77,6 @@ const getMapFallbackError = (error: unknown): MapFallbackError => {
   return {
     message: String(error)
   }
-}
-
-/**
- * The count ramp, as the handful of styles MapKit can express.
- *
- * The GL map interpolates colour, width and opacity over the visit count in a
- * data-driven paint; MapKit has no such thing, so the same ramp is sampled at
- * each count the ramp can distinguish. `heatOpacityForCount` clamps at
- * `HEAT_COUNT_SATURATION`, so that is a SMALL fixed number of styles — built
- * once and shared by every overlay, never one per polyline.
- */
-const TILE_COLOR_FOR_COUNT = (count: number): string => {
-  if (count >= 12) return '#facc15'
-  if (count >= 4) return '#f97316'
-  return '#ef4444'
-}
-
-const TILE_WIDTH_FOR_COUNT = (count: number): number => {
-  if (count >= 12) return 4.2
-  if (count >= 4) return 3.4
-  return 2.8
 }
 
 /**
@@ -377,13 +359,21 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
     const styles = new Map<string, MapKitStyle>()
     const styleFor = (run: HeatmapTileRun) => {
       const count = Math.max(Math.round(run.count), 1)
+      // The GL map interpolates colour, width and opacity over the visit count
+      // in a data-driven paint; MapKit has no such thing, so each run's Style is
+      // sampled from the same ramps at its own count, blended between stops
+      // exactly as GL blends them.
+      //
       // Opacity saturates at HEAT_COUNT_SATURATION; colour and width do NOT —
       // their ramps run to 12 and 16. Clamping before all three would collapse
       // every busy street onto the coolest tier, so only the opacity input is
-      // clamped, and the cache key keys on the resolved tier rather than the
-      // raw count so the style table stays small.
+      // clamped, and the cache key keys on the resolved values rather than the
+      // raw count so the style table stays small: past their last stop colour
+      // and width stop changing, and opacity stops at the saturation count.
       const opacityCount = Math.min(count, HEAT_COUNT_SATURATION)
-      const key = `${run.hidden ? 'h' : 'v'}:${opacityCount}:${TILE_COLOR_FOR_COUNT(count)}:${TILE_WIDTH_FOR_COUNT(count)}`
+      const color = heatColorForCount(count, HEAT_COUNT_COLOR_STOPS)
+      const width = heatWidthForCount(count)
+      const key = `${run.hidden ? 'h' : 'v'}:${opacityCount}:${color}:${width}`
       const existing = styles.get(key)
       if (existing) return existing
       const style = new mapkit.Style(
@@ -397,8 +387,8 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
               )
             }
           : {
-              strokeColor: TILE_COLOR_FOR_COUNT(count),
-              lineWidth: TILE_WIDTH_FOR_COUNT(count),
+              strokeColor: color,
+              lineWidth: width,
               strokeOpacity: heatOpacityForCount(
                 opacityCount,
                 HEAT_VISIBLE_BASE_OPACITY

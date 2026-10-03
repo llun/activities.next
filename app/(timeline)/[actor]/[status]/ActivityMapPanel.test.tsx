@@ -239,6 +239,54 @@ describe('ActivityMapPanel', () => {
       expect(onOpenMap).toHaveBeenCalledTimes(1)
     })
 
+    it('keeps the Apple Maps attribution on the static preview, whose crop cuts the baked-in logo off', () => {
+      render(
+        <ActivityMapPanel
+          mapAttachment={sampleAttachment}
+          routeSamples={[]}
+          routeSegments={[]}
+          mapProvider={{ type: 'apple' }}
+          onOpenMap={vi.fn()}
+        />
+      )
+
+      const chip = screen.getByText('Apple Maps')
+      // Bottom-left is where Apple draws its logo on the image; the chip must
+      // not take clicks away from the preview button it sits over.
+      expect(chip).toHaveClass('bottom-3', 'left-3', 'pointer-events-none')
+      expect(screen.getByTestId('media-attachment')).toBeInTheDocument()
+    })
+
+    it('shows the Apple Maps attribution on the static preview an Apple map falls back to', () => {
+      render(
+        <ActivityMapPanel
+          mapAttachment={sampleAttachment}
+          routeSamples={sampleRoute}
+          mapProvider={{ type: 'apple' }}
+        />
+      )
+      expect(screen.queryByText('Apple Maps')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('mapkit-trigger-unavailable'))
+
+      expect(screen.getByText('Apple Maps')).toBeInTheDocument()
+    })
+
+    it('does not label a static preview as Apple Maps for another provider', () => {
+      render(
+        <ActivityMapPanel
+          mapAttachment={sampleAttachment}
+          routeSamples={[]}
+          routeSegments={[]}
+          mapProvider={{ type: 'osm' }}
+          onOpenMap={vi.fn()}
+        />
+      )
+
+      expect(screen.getByTestId('media-attachment')).toBeInTheDocument()
+      expect(screen.queryByText('Apple Maps')).not.toBeInTheDocument()
+    })
+
     it('renders "Map preview unavailable" when neither route nor attachment is available', () => {
       render(
         <ActivityMapPanel

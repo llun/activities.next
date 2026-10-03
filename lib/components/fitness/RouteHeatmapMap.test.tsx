@@ -11,6 +11,7 @@ import type {
 import {
   HEAT_COUNT_COLOR_STOPS,
   HEAT_COUNT_SATURATION,
+  HEAT_COUNT_WIDTH_STOPS,
   HEAT_VISIBLE_BASE_OPACITY,
   TILE_EXTENT,
   heatOpacityForCount
@@ -399,6 +400,31 @@ describe('RouteHeatmapMap tiled rendering', () => {
       ['linear'],
       ['get', 'count'],
       ...HEAT_COUNT_COLOR_STOPS
+    ])
+  })
+
+  it('sizes the tile layer from the shared width ramp, the one the MapKit map samples', async () => {
+    const { gl, map } = createFakeGl()
+    vi.mocked(loadMapboxModule).mockResolvedValue(gl as never)
+
+    render(
+      <RouteHeatmapMap
+        heatmap={tiled}
+        mapProvider={{ type: 'mapbox', accessToken: 'pk.test' }}
+        fetchTiles={fetchAll()}
+      />
+    )
+
+    await waitFor(() => expect(map.addLayer).toHaveBeenCalled())
+    const layer = map.addLayer.mock.calls
+      .map(([definition]) => definition as { id: string; paint: unknown })
+      .find((definition) => definition.id === 'route-heatmap-tile-lines')
+    const paint = layer?.paint as { 'line-width': unknown[] }
+    expect(paint['line-width'][3]).toEqual([
+      'interpolate',
+      ['linear'],
+      ['get', 'count'],
+      ...HEAT_COUNT_WIDTH_STOPS
     ])
   })
 

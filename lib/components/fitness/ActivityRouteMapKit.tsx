@@ -4,6 +4,7 @@ import { Loader2, Minus, Plus } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { FitnessRouteSample, FitnessRouteSegment } from '@/lib/client'
+import { AppleMapsChip } from '@/lib/components/fitness/AppleMapsChip'
 import {
   ROUTE_PRIVACY_HINT_TAP_TIMEOUT_MS,
   ROUTE_PRIVACY_HINT_TOLERANCE_PX,
@@ -18,7 +19,6 @@ import {
   getScaledCoordinateDistance
 } from '@/lib/components/fitness/mapGeometry'
 import {
-  APPLE_MAPS_LABEL,
   MAPKIT_LOAD_TIMEOUT_MS,
   type MapKitAnnotation,
   type MapKitMapSurface,
@@ -295,7 +295,11 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
         try {
           const map = new mapkit.Map(container, {
             mapType: mutedStandardMapType(mapkit),
-            showsMapTypeControl: false
+            showsMapTypeControl: false,
+            // The component draws its own +/− (see `zoomBy`). MapKit's native
+            // zoom control would be a second pair, partly under the "Apple
+            // Maps" chip, so it is turned off.
+            showsZoomControl: false
           })
           mapkitRef.current = mapkit
           mapRef.current = map
@@ -471,9 +475,7 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
               <Minus className="size-4" />
             </button>
           </div>
-          <div className="pointer-events-none absolute bottom-3 right-3 rounded bg-background/90 px-2 py-1 text-[10px] font-medium text-muted-foreground shadow-sm">
-            {APPLE_MAPS_LABEL}
-          </div>
+          <AppleMapsChip className="bottom-3 right-3" />
           {/* The screen-reader equivalent is rendered once by the parent panel,
               which wraps both renderers — not here, or it would be duplicated
               on the Apple branch. */}
