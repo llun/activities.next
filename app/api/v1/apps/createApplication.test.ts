@@ -123,6 +123,28 @@ describe('createApplication', () => {
     expect(JSON.parse(dbClient.scopes)).toEqual(['read', 'write', 'follow'])
   })
 
+  // This server cannot issue a refresh token (better-auth mints one only for
+  // `offline_access`, which is not in the scope vocabulary), so a registration
+  // must not claim the `refresh_token` grant.
+  test('it registers only the grants the provider serves', async () => {
+    const response = (await createApplication({
+      client_name: 'grantTypesClient',
+      redirect_uris: 'https://test.llun.dev/apps/redirect',
+      scopes: 'read write',
+      website: 'https://test.llun.dev'
+    })) as SuccessResponse
+
+    expect(response.type).toBe('success')
+
+    const dbClient = await knexDatabase('oauthClient')
+      .where({ id: response.id })
+      .first()
+    expect(JSON.parse(dbClient.grantTypes)).toEqual([
+      'authorization_code',
+      'client_credentials'
+    ])
+  })
+
   test('it accepts Mastodon bookmark scopes', async () => {
     const response = (await createApplication({
       client_name: 'bookmarkScopesClient',

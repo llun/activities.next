@@ -58,3 +58,26 @@ export const OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60
 // long after it was issued or last extended, so a busy client costs one UPDATE
 // a day rather than one per request.
 export const OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS = 24 * 60 * 60
+
+// The grants this server's OAuth provider serves. Shared by `auth.ts`
+// (better-auth's `grantTypes`, which is also what its token endpoint accepts),
+// `createApplication` (what a new registration records) and both discovery
+// documents (`grant_types_supported`), so what is advertised is what is served.
+//
+// Deliberately no `refresh_token`. better-auth mints a refresh token only when
+// the granted scopes include `offline_access`, which is not in this server's
+// scope vocabulary, so the grant could never be fulfilled — advertising it sent
+// discovery-driven clients after a token they would never receive. Clients stay
+// signed in through the sliding expiry above instead.
+//
+// Registrations written before this change still record `refresh_token` in
+// `oauthClient.grantTypes` and are left as they are: better-auth checks a
+// client's grants per request (`clientAllowsGrant`) for `authorization_code`
+// and `client_credentials`, which those rows still list, and the only path that
+// re-validates a stored registration against this list — its own update-client
+// endpoints — is unreachable for them (no owning `userId`, no
+// `clientReference`/`clientPrivileges` configured).
+export const OAUTH_GRANT_TYPES = [
+  'authorization_code',
+  'client_credentials'
+] as const

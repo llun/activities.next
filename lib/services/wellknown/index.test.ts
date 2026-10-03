@@ -30,11 +30,7 @@ describe('wellknown services', () => {
         jwks_uri: 'https://test.example.com/api/auth/jwks',
         response_types_supported: ['code'],
         response_modes_supported: ['query'],
-        grant_types_supported: [
-          'authorization_code',
-          'client_credentials',
-          'refresh_token'
-        ],
+        grant_types_supported: ['authorization_code', 'client_credentials'],
         token_endpoint_auth_methods_supported: [
           'client_secret_basic',
           'client_secret_post'
@@ -157,6 +153,23 @@ describe('wellknown services', () => {
       expect(oauth.issuer).toBe('https://test.example.com')
       expect(oidc.issuer).not.toBe(oauth.issuer)
       expect(oidc.issuer).toBe(`${oauth.issuer}/api/auth`)
+    })
+
+    // better-auth mints a refresh token only for the `offline_access` scope,
+    // which this server does not offer, so neither discovery document may
+    // advertise a grant no client can ever be issued.
+    it('advertises only grants the server can fulfil, in both documents', () => {
+      const oidc = getOpenIDConfiguration()
+      const oauth = getOAuthAuthorizationServerMetadata()
+
+      expect(oidc.grant_types_supported).toEqual([
+        'authorization_code',
+        'client_credentials'
+      ])
+      expect(oauth.grant_types_supported).toEqual(oidc.grant_types_supported)
+      expect(oidc.grant_types_supported).not.toContain('refresh_token')
+      expect(oidc.scopes_supported).not.toContain('offline_access')
+      expect(oauth.scopes_supported).not.toContain('offline_access')
     })
 
     it('includes OIDC scopes and claims', () => {
