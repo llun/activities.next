@@ -5,16 +5,24 @@
 // the app to go back to, and must offer a real link instead.
 //
 // The browser does not expose its history entries, so this is a heuristic over
-// the pathnames the `InAppHistoryTracker` observes: a pathname equal to the
-// entry before the current one is read as a Back and pops, anything else
-// pushes. A browser Forward after a Back can therefore be miscounted; the only
-// consequence is that the page shows its fallback link, never that Back leaves
-// the app. The stack lives in module memory, so a full reload starts over —
-// again erring towards the fallback.
+// the pathnames the `InAppHistoryTracker` observes. A pathname already on the
+// stack is read as a return to it — by Back, a multi-step `history.go(-n)`, or
+// a link — and truncates the stack to its first occurrence; anything else
+// pushes. Truncating to the *first* occurrence is what keeps the entry page
+// safe: arriving at P0, visiting X and Y, then jumping back to P0 leaves just
+// [P0], so its Back is the fallback link rather than a `router.back()` out of
+// the app. The stack therefore never holds a pathname twice.
+//
+// It still errs in both directions. Following a link back to a page visited
+// earlier, or a browser Forward after a Back, drops entries the browser still
+// has, so the page shows its fallback link where a Back would have worked. And
+// a `router.replace` on the entry page records a second, different pathname, so
+// that page then offers a Back that leaves the app. The stack lives in module
+// memory, so a full reload starts over — erring towards the fallback.
 //
 // Dependency-free so it can be unit-tested without React.
 
-const MAX_ENTRIES = 50
+export const MAX_ENTRIES = 50
 
 type Listener = () => void
 
@@ -26,30 +34,28 @@ const notify = () => {
 }
 
 export const recordNavigation = (pathname: string) => {
-  const last = stack[stack.length - 1]
-  if (last === pathname) return
+  if (stack[stack.length - 1] === pathname) return
 
-  if (stack.length >= 2 && stack[stack.length - 2] === pathname) {
-    stack = stack.slice(0, -1)
-  } else {
-    stack = [...stack, pathname].slice(-MAX_ENTRIES)
-  }
+  const index = stack.indexOf(pathname)
+  stack =
+    index >= 0
+      ? stack.slice(0, index + 1)
+      : [...stack, pathname].slice(-MAX_ENTRIES)
   notify()
 }
 
 /**
  * Whether an in-app page precedes `currentPathname`.
  *
- * It holds both before and after the tracker records the current pathname, so
- * the first render of a page — which happens before the tracker's effect — and
- * every render after it agree: before the effect the last entry is the page we
- * came from; after it, the page we came from is the entry below the current one.
+ * It answers for the stack as it is once the tracker has recorded
+ * `currentPathname`, so the first render of a page — which happens before the
+ * tracker's effect — and every render after it agree: a pathname already on the
+ * stack will be truncated to, so something precedes it only if it is not the
+ * bottom entry; a new one will be pushed on top of whatever is there.
  */
 export const hasInAppPrevious = (currentPathname: string) => {
-  const last = stack[stack.length - 1]
-  if (last === undefined) return false
-  if (last !== currentPathname) return true
-  return stack.length >= 2
+  const index = stack.indexOf(currentPathname)
+  return index >= 0 ? index >= 1 : stack.length >= 1
 }
 
 export const subscribeToInAppHistory = (listener: Listener) => {
