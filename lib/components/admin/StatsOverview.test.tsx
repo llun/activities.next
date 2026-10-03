@@ -82,12 +82,13 @@ describe('StatsOverview', () => {
       const select = screen.getByRole('combobox', {
         name: 'Select statistic type'
       })
-      fireEvent.change(select, { target: { value: 'accounts' } })
+      fireEvent.change(select, { target: { value: 'actors' } })
 
-      expect(select).toHaveValue('accounts')
-      expect(
-        screen.getByText('Total Accounts', { selector: 'p' })
-      ).toBeInTheDocument()
+      expect(select).toHaveValue('actors')
+      // The grid renders every label, so a label check is true before the
+      // change; the big card's own "— N current total" line only follows the
+      // selected statistic.
+      expect(screen.getByText(/— 34 current total/)).toBeInTheDocument()
     })
   })
 })
