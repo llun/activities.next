@@ -1,0 +1,57 @@
+lib/components/ui/label.test.tsx
+  s_82468012d96a9d::t_31ad72b2f8d32c 1-29
+app/(nosidebar)/auth/select-actor/ActorSelectionList.test.tsx
+  s_82468012d96a9d::t_3d71262c0fcaa7 1-64
+app/(nosidebar)/auth/select-actor/ActorSelectionList.tsx
+  s_82468012d96a9d::t_45a77cde07887c 60
+app/(nosidebar)/auth/signin/CredentialForm.tsx
+  s_82468012d96a9d::t_74786f6c4c254e 93,97
+app/(nosidebar)/oauth/authorize/AuthorizeCard.test.tsx
+  s_82468012d96a9d::t_7cf55eb80273f4 5-11,542-603
+app/(nosidebar)/oauth/authorize/AuthorizeCard.tsx
+  s_82468012d96a9d::t_0cb0a1b75bf977 256,295,323
+app/(timeline)/[actor]/page.test.tsx
+  s_82468012d96a9d::t_86f1ec6b71ece0 338-374
+app/(timeline)/[actor]/page.tsx
+  s_82468012d96a9d::t_6facc8b7fb5984 269-272
+app/(timeline)/account/AccountIdentityCard.test.tsx
+  s_82468012d96a9d::t_614be2268d36ae 61-83
+app/(timeline)/account/AccountIdentityCard.tsx
+  s_82468012d96a9d::t_c6c220f1826b3b 25
+lib/components/filters/FilterRow.test.tsx
+  s_82468012d96a9d::t_336c0c4e81f164 11-27,53-57,62-63,68-73,79
+lib/components/filters/FilterRow.tsx
+  s_82468012d96a9d::t_f10a3625ff548e 28
+lib/components/layout/sidebar.test.tsx
+  s_82468012d96a9d::t_40b11101cde64d 175-193,542-577
+lib/components/layout/sidebar.tsx
+  s_82468012d96a9d::t_84dca2b6c03111 480-485,487-492,587-590
+lib/components/settings/ActorsSection.test.tsx
+  s_82468012d96a9d::t_065ca6d99618d7 5-11,428-464
+lib/components/settings/ActorsSection.tsx
+  s_82468012d96a9d::t_7c6d0e45041352 153,208
+lib/components/settings/NotificationSettings.tsx
+  s_82468012d96a9d::t_2a69d2a2aa44fd 284,329
+lib/components/ui/label.tsx
+  s_82468012d96a9d::t_edf63637be9dcf 16
+lib/services/email/layout/blocks.test.ts
+  s_82468012d96a9d::t_32bbf38a7a9548 11,347,351-371
+lib/services/email/layout/theme.ts
+  s_82468012d96a9d::t_a00e5fdd1d6edb 44-50,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "83fe9460e9056923fb0e8f8e0026b1a59b797075",
+  "prompts": {},
+  "sessions": {
+    "s_82468012d96a9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1772d3-df89-4813-8d33-4cbceee3810d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
