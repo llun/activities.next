@@ -230,6 +230,13 @@ describe('Mobile chrome', () => {
         within(bar).getByRole('heading', { level: 1, name: title })
       ).toBeInTheDocument()
       expect(bar.nextElementSibling).toHaveClass('rounded-2xl')
+      // One menu button per screen: the bar's. The card's Back row must not
+      // bring its own.
+      const triggers = screen.getAllByRole('button', {
+        name: 'Open navigation'
+      })
+      expect(triggers).toHaveLength(1)
+      expect(bar).toContainElement(triggers[0])
       // Direct entry: no in-app page precedes this one in the test, so the
       // Back is the decoded author profile link.
       expect(

@@ -5,7 +5,6 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { type AnchorHTMLAttributes, type ReactNode } from 'react'
 
-import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import {
   recordNavigation,
   resetInAppHistory
@@ -46,16 +45,9 @@ describe('Status Header', () => {
     resetInAppHistory()
   })
 
-  it('renders the desktop back button and post title, and no menu button', () => {
-    render(
-      <MobileNavigationProvider>
-        <Header fallbackHref={FALLBACK} />
-      </MobileNavigationProvider>
-    )
+  it('renders the desktop back button and post title', () => {
+    render(<Header fallbackHref={FALLBACK} />)
 
-    expect(
-      screen.queryByRole('button', { name: 'Open navigation' })
-    ).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Go back' })).toHaveClass(
       'max-md:hidden'
     )
