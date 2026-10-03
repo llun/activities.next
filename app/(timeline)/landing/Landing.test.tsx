@@ -83,9 +83,9 @@ describe('Landing', () => {
     // The bar is `sticky` inside this wrapper, so any height that tracks the
     // scrolling column (`h-full`, `min-h-full`, `h-dvh`, `min-h-0`,
     // `max-h-full`, their `md:` forms) shrinks it back to the viewport and the
-    // bar stops sticking after the first screen at md+. Any non-visible
-    // `overflow-*` breaks it too: it makes the wrapper a scroll container, so
-    // it clips the feed at md+ and the bar scrolls away with the page below it.
+    // bar stops sticking after the first screen at md+. `overflow-*` can too:
+    // `-hidden` clips the feed at md+; unprefixed `-hidden`/`-auto`/`-scroll`
+    // let the bar scroll away below md. `-clip` is harmless, banned anyway.
     // jsdom has no layout, so the contract is "no height, size or overflow
     // utility at all"; nothing here needs even `h-auto`.
     const wrapper = screen
