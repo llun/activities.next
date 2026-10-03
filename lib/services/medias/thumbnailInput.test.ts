@@ -66,20 +66,32 @@ describe('readValidThumbnail', () => {
   })
 
   it('refuses a tall JPEG truncated near its end, as the encode does', async () => {
-    // A decode that shrinks hard on load, such as `resize(1, 1)` in any fit,
-    // never reads the last rows of a tall JPEG and accepts one cut a little
-    // short, while the encode — which shrinks far less here — rejects it.
-    // Validating through the encode's own input pipeline is what keeps the two
-    // answers the same.
+    // Any validator that decodes every row rejects it, as the encode does; one
+    // that shrinks hard on load, such as `resize(1, 1)`, does not. The numbers
+    // are load-bearing: at 8001 rows a shrink-by-8 decode never needs the last
+    // MCU row, which holds only source row 8001. An 8000-row image, or a cut of
+    // 5000+ bytes, would make even `resize(1, 1)` reject.
     const jpeg = await createNoisyJpeg(1000, 8001)
     const truncated = jpeg.subarray(0, jpeg.length - 1000)
 
-    await expect(
-      createStoredImagePipeline(truncated).webp().toBuffer()
-    ).rejects.toThrow()
-    await expect(
-      readValidThumbnail(asFile(truncated, 'image/jpeg', 'thumb.jpg'))
-    ).rejects.toThrow(MediaValidationError)
+    // Each promise is collapsed to its outcome first: a wrongly resolved
+    // promise would otherwise print its whole decoded Buffer into the failure.
+    const encoded = await createStoredImagePipeline(truncated)
+      .webp()
+      .toBuffer()
+      .then(
+        () => 'encoded',
+        (error: unknown) => error
+      )
+    const validated = await readValidThumbnail(
+      asFile(truncated, 'image/jpeg', 'thumb.jpg')
+    ).then(
+      () => 'accepted',
+      (error: unknown) => error
+    )
+
+    expect(encoded).toBeInstanceOf(Error)
+    expect(validated).toBeInstanceOf(MediaValidationError)
   })
 
   it('decides each image on its own bytes when many are validated at once', async () => {

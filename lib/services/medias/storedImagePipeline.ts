@@ -2,10 +2,6 @@ import sharp from 'sharp'
 
 import { MAX_HEIGHT, MAX_WIDTH } from './constants'
 
-// The resize options of every stored-image pipeline. They are applied only
-// through `createStoredImagePipeline` below, so LocalFileStorage and
-// S3FileStorage cannot drift apart.
-//
 // `withoutEnlargement` is load-bearing: sharp's `fit: 'inside'` ENLARGES by
 // default, so without it the MAX_WIDTH/MAX_HEIGHT box stops being a cap and
 // becomes an upscale — every image below 4000x4000 was blown up to fill it. An
