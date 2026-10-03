@@ -77,6 +77,20 @@ describe('Landing', () => {
     expect(bar).not.toHaveClass('bg-background/70')
   })
 
+  it('lets the feed wrapper grow with the feed so the bar sticks the whole scroll', () => {
+    renderLanding([{ id: 'p1' }] as unknown as Status[])
+
+    // The bar is `sticky` inside this wrapper, so a viewport-tall wrapper
+    // (`h-full`, or `min-h-full` which a flex item shrinks back to 100 %)
+    // would stop the bar sticking after the first screen at md+.
+    const wrapper = screen
+      .getByText('llun.social')
+      .closest('.sticky')?.parentElement
+    expect(wrapper).toHaveClass('flex', 'flex-col')
+    expect(wrapper).not.toHaveClass('h-full')
+    expect(wrapper).not.toHaveClass('min-h-full')
+  })
+
   it('forwards currentTime to the feed as a number (no in-render Date.now)', () => {
     renderLanding([{ id: 'p1' }] as unknown as Status[])
 
