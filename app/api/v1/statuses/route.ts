@@ -23,7 +23,7 @@ import {
   resolveStatusIdParams
 } from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
-import { canQuoteStatus } from '@/lib/services/quotes/canQuoteStatus'
+import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCreate'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
@@ -409,55 +409,30 @@ export const POST = traceApiRoute(
 
           // Resolve and authorize the quote target, if any. 404 when it is
           // invisible to the caller; 422 when the quoted author's policy denies.
-          let quotedStatusId: string | undefined
-          if (note.quoted_status_id) {
-            const quotedUrl = await resolveStatusIdParam(
-              database,
-              note.quoted_status_id
-            )
-            const quotedStatus = await database.getStatus({
-              statusId: quotedUrl,
-              withReplies: false
+          // Also defaults an omitted quote_approval_policy to the actor's
+          // configured default (Mastodon 4.5 posting:default:quote_policy).
+          const resolvedQuotedStatusId = note.quoted_status_id
+            ? await resolveStatusIdParam(database, note.quoted_status_id)
+            : undefined
+          const quoteResolution = await resolveQuoteForCreate({
+            database,
+            currentActor,
+            quotedStatusId: resolvedQuotedStatusId,
+            requestedPolicy: note.quote_approval_policy
+          })
+          if (!quoteResolution.ok) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data:
+                quoteResolution.reason === 'not_found'
+                  ? { error: 'Record not found' }
+                  : { error: 'Quoting is not allowed for this post' },
+              responseStatusCode:
+                quoteResolution.reason === 'not_found' ? 404 : 422
             })
-            if (
-              !quotedStatus ||
-              !(await canActorReadStatus({
-                database,
-                status: quotedStatus,
-                currentActor
-              }))
-            ) {
-              return apiResponse({
-                req,
-                allowedMethods: CORS_HEADERS,
-                data: { error: 'Record not found' },
-                responseStatusCode: 404
-              })
-            }
-            const verdict = await canQuoteStatus({
-              database,
-              quotedStatus,
-              quotingActorId: currentActor.id
-            })
-            if (verdict === 'denied') {
-              return apiResponse({
-                req,
-                allowedMethods: CORS_HEADERS,
-                data: { error: 'Quoting is not allowed for this post' },
-                responseStatusCode: 422
-              })
-            }
-            quotedStatusId = quotedUrl
           }
-
-          // Default an omitted quote_approval_policy to the actor's configured
-          // default (Mastodon 4.5 posting:default:quote_policy). A concrete
-          // request value always wins; omitted falls back to the actor setting,
-          // then to the per-status visibility default at consumption.
-          const quoteApprovalPolicy =
-            note.quote_approval_policy ??
-            (await database.getActorSettings({ actorId: currentActor.id }))
-              ?.defaultQuotePolicy
+          const { quotedStatusId, quoteApprovalPolicy } = quoteResolution
 
           status = await createNoteFromUserInput({
             currentActor,

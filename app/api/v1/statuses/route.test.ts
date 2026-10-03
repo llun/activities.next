@@ -13,12 +13,18 @@ import {
 } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
+import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
-import { Status, StatusPoll, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { generatePublicId } from '@/lib/utils/publicId'
@@ -392,6 +398,43 @@ describe('POST /api/v1/statuses', () => {
     )
 
     expect(response.status).toBe(404)
+  })
+
+  it('fetches and quotes an unstored remote public status on demand', async () => {
+    fetchMock.doMock()
+    mockRequests(fetchMock)
+    try {
+      const remoteStatusUrl =
+        'https://somewhere.test/s/remoteuser/remote-quote-test'
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify({
+            status: 'quoting remote post',
+            quoted_status_id: remoteStatusUrl
+          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      const mastodonStatus = await response.json()
+      expect(mastodonStatus.quote?.state).toBe('pending')
+      expect(mastodonStatus.quote?.quoted_status).toBeNull()
+      expect(mastodonStatus.content).toContain(remoteStatusUrl)
+
+      const stored = await database.getStatus({ statusId: remoteStatusUrl })
+      expect(stored).not.toBeNull()
+      expect(stored?.type).toBe(StatusType.enum.Note)
+      expect((stored as StatusNote).text).toBe('This is status')
+    } finally {
+      fetchMock.resetMocks()
+      fetchMock.dontMock()
+    }
   })
 
   it('defaults an omitted quote_approval_policy to the actor setting', async () => {
