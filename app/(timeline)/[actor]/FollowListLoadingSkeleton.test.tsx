@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 
+import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 
 import { FollowListLoadingSkeleton } from './FollowListLoadingSkeleton'
@@ -156,24 +157,30 @@ describe('FollowListLoadingSkeleton', () => {
       expect(box).toHaveClass('max-md:hidden')
       expect(box).toHaveClass('group-data-[shell=public]/shell:hidden')
 
-      // …and the mobile block mirrors it: pt-2, the 44px Back row, then the
-      // mt-0.5 count.
+      // …and the mobile block mirrors it, breaking out of the content column
+      // like the box: pt-2, the 44px Back row, then the count on the flush
+      // 20px line the loaded description draws below md.
       const mobile = box?.nextElementSibling as HTMLElement
       expect(mobile).toHaveClass(
         'md:hidden',
         'group-data-[shell=public]/shell:hidden'
       )
+      expect(mobile.style.marginLeft).toBe(breakoutStyle.marginLeft)
+      expect(mobile.style.marginRight).toBe(breakoutStyle.marginRight)
       const inner = mobile.firstElementChild as HTMLElement
       expect(inner).toHaveClass('px-4', 'pt-2', 'pb-4', 'max-w-content')
-      expect(inner.firstElementChild).toHaveClass(
-        'max-md:min-h-11',
-        'items-center'
-      )
-      expect(inner.lastElementChild).toHaveClass('mt-0.5')
-      expect(inner.lastElementChild?.firstElementChild).toHaveClass(
+      const backRow = inner.firstElementChild as HTMLElement
+      expect(backRow).toHaveClass('max-md:min-h-11', 'items-center')
+      // The label beside the arrow is the mobile row's only; from `md` up the
+      // loaded Back is the bare icon.
+      expect(backRow.lastElementChild).toHaveClass(
         'skeleton',
-        'h-4'
+        'w-28',
+        'md:hidden'
       )
+      const count = inner.lastElementChild as HTMLElement
+      expect(count).toHaveClass('skeleton', 'h-5')
+      expect(count).not.toHaveClass('mt-0.5')
     })
 
     it('mirrors the logged-out mobile header: Back row over the text-sm count', () => {
@@ -192,6 +199,11 @@ describe('FollowListLoadingSkeleton', () => {
       )
       expect(anonHeader.firstElementChild?.firstElementChild).toHaveClass(
         'max-md:size-4'
+      )
+      expect(anonHeader.firstElementChild?.lastElementChild).toHaveClass(
+        'skeleton',
+        'w-28',
+        'md:hidden'
       )
       // The title is the bar's below md, and the count is a 20px line.
       expect(anonHeader.querySelector('.h-7')).toHaveClass('max-md:hidden')

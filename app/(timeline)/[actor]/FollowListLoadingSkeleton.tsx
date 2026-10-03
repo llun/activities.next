@@ -64,16 +64,14 @@ export const FollowListLoadingSkeleton: FC<FollowListLoadingSkeletonProps> = ({
       />
 
       {/* Signed-in, below `md`: the loaded PageHeader box under the bar — a
-          `pt-2` row of Back, then the `mt-0.5 text-xs` count. */}
+          `pt-2` row of Back, then the count on its flush 20px `text-sm` line. */}
       <div
         className="md:hidden group-data-[shell=public]/shell:hidden"
         style={breakoutStyle}
       >
         <div className="mx-auto max-w-content px-4 pb-4 pt-2">
           <MobileBackRowSkeleton />
-          <div className="mt-0.5">
-            <span className="skeleton block h-4 w-24 rounded" />
-          </div>
+          <div className="skeleton h-5 w-24 rounded" />
         </div>
       </div>
 
