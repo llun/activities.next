@@ -2,27 +2,31 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 
 import { FollowListLoadingSkeleton } from './FollowListLoadingSkeleton'
 
-describe('FollowListLoadingSkeleton', () => {
-  it.each([['Loading followers'], ['Loading following']])(
-    'renders with the given aria-label: %s',
-    (label) => {
-      render(<FollowListLoadingSkeleton label={label} />)
+const ANON_HEADER = '.group-data-\\[shell\\=public\\]\\/shell\\:flex'
 
-      const loadingRegion = screen.getByLabelText(label)
-      expect(loadingRegion).toBeInTheDocument()
-      expect(loadingRegion).toHaveAttribute('aria-busy', 'true')
-    }
-  )
+describe('FollowListLoadingSkeleton', () => {
+  it.each([
+    ['Loading followers', 'followers'],
+    ['Loading following', 'following']
+  ] as const)('renders with the given aria-label: %s', (label, route) => {
+    render(<FollowListLoadingSkeleton label={label} route={route} />)
+
+    const loadingRegion = screen.getByLabelText(label)
+    expect(loadingRegion).toBeInTheDocument()
+    expect(loadingRegion).toHaveAttribute('aria-busy', 'true')
+  })
 
   it('renders every placeholder with the shimmer skeleton utility', () => {
     // jsdom paints no CSS so classes are the observable; every leaf in
     // this skeleton is a placeholder (containers always hold further elements).
     const { container } = render(
-      <FollowListLoadingSkeleton label="Loading followers" />
+      <FollowListLoadingSkeleton label="Loading followers" route="followers" />
     )
     const leaves = Array.from(container.querySelectorAll('div, span')).filter(
       (el) => el.children.length === 0
@@ -34,16 +38,14 @@ describe('FollowListLoadingSkeleton', () => {
 
   it('renders dual header variants for signed-in and anonymous shells', () => {
     const { container } = render(
-      <FollowListLoadingSkeleton label="Loading followers" />
+      <FollowListLoadingSkeleton label="Loading followers" route="followers" />
     )
     const stickyHeader = container.querySelector('.sticky')
     expect(stickyHeader).toBeInTheDocument()
     expect(stickyHeader).toHaveClass('top-0')
     expect(stickyHeader).toHaveClass('group-data-[shell=public]/shell:hidden')
 
-    const anonHeader = container.querySelector(
-      '.group-data-\\[shell\\=public\\]\\/shell\\:flex'
-    )
+    const anonHeader = container.querySelector(ANON_HEADER)
     expect(anonHeader).toBeInTheDocument()
     expect(anonHeader).toHaveClass('hidden')
   })
@@ -94,26 +96,99 @@ describe('FollowListLoadingSkeleton', () => {
     const { container } = render(
       <FollowListLoadingSkeleton label="Loading following" route="following" />
     )
-    const anonHeader = container.querySelector(
-      '.group-data-\\[shell\\=public\\]\\/shell\\:flex'
-    )
+    const anonHeader = container.querySelector(ANON_HEADER)
     expect(anonHeader).toBeInTheDocument()
     expect(anonHeader).toHaveClass('items-start', 'gap-2')
 
-    // Back icon skeleton matches ArrowLeft with mt-0.5 and size-5
+    // Back icon skeleton matches ArrowLeft (size-5), its row nudged down by
+    // mt-0.5 from md up like the loaded BackLink
     const backIcon = anonHeader?.querySelector('.size-5')
-    expect(backIcon).toHaveClass('skeleton', 'mt-0.5', 'shrink-0', 'rounded-md')
+    expect(backIcon).toHaveClass('skeleton', 'shrink-0', 'rounded-md')
+    expect(backIcon?.parentElement).toHaveClass('md:mt-0.5')
 
     // Text column contains h-7 title and h-4 description inside space-y-1
     const titleSkeleton = anonHeader?.querySelector('.h-7')
     expect(titleSkeleton).toHaveClass('skeleton', 'w-28', 'rounded-md')
 
-    const descSkeleton = anonHeader?.querySelector('.h-4')
-    expect(descSkeleton).toHaveClass('skeleton', 'w-24', 'rounded')
+    const descSkeleton = anonHeader?.querySelector('.h-4.w-24')
+    expect(descSkeleton).toHaveClass('skeleton', 'rounded')
 
     expect(screen.getByLabelText('Loading following')).toHaveAttribute(
       'data-route',
       'following'
     )
+  })
+
+  // Below `md` the loaded page puts its plain title in the compact bar and
+  // starts the content with a 44px "Back to profile" row. A skeleton title in
+  // the bar, or no row, made the list jump down when it arrived.
+  describe('below md', () => {
+    const renderInShell = (route: 'followers' | 'following') =>
+      render(
+        <MobileNavigationProvider>
+          <FollowListLoadingSkeleton label={`Loading ${route}`} route={route} />
+        </MobileNavigationProvider>
+      )
+
+    it.each([
+      ['followers', 'Followers'],
+      ['following', 'Following']
+    ] as const)(
+      'names the %s page in the compact bar with a plain title',
+      (route, title) => {
+        const { container } = renderInShell(route)
+
+        const bar = container.querySelector(
+          '[data-mobile-compact-header]'
+        ) as HTMLElement
+        expect(bar).toBeInTheDocument()
+        expect(bar).toHaveClass('mb-0')
+        expect(within(bar).getByText(title)).toHaveAttribute('title', title)
+        expect(bar.querySelector('.skeleton')).toBeNull()
+      }
+    )
+
+    it('swaps the signed-in header box for the loaded mobile content', () => {
+      const { container } = renderInShell('followers')
+
+      // The PageHeader box is the desktop header only…
+      const box = container.querySelector('.max-w-content')?.parentElement
+      expect(box).toHaveClass('max-md:hidden')
+      expect(box).toHaveClass('group-data-[shell=public]/shell:hidden')
+
+      // …and the mobile block mirrors it: pt-2, the 44px Back row, then the
+      // mt-0.5 count.
+      const mobile = box?.nextElementSibling as HTMLElement
+      expect(mobile).toHaveClass(
+        'md:hidden',
+        'group-data-[shell=public]/shell:hidden'
+      )
+      const inner = mobile.firstElementChild as HTMLElement
+      expect(inner).toHaveClass('px-4', 'pt-2', 'pb-4', 'max-w-content')
+      expect(inner.firstElementChild).toHaveClass(
+        'max-md:min-h-11',
+        'items-center'
+      )
+      expect(inner.lastElementChild).toHaveClass('mt-0.5')
+      expect(inner.lastElementChild?.firstElementChild).toHaveClass(
+        'skeleton',
+        'h-4'
+      )
+    })
+
+    it('mirrors the logged-out mobile header: Back row over the text-sm count', () => {
+      const { container } = renderInShell('following')
+
+      const anonHeader = container.querySelector(ANON_HEADER) as HTMLElement
+      expect(anonHeader).toHaveClass(
+        'max-md:flex-col',
+        'max-md:gap-0',
+        'max-md:pt-2'
+      )
+      expect(anonHeader.firstElementChild).toHaveClass('max-md:min-h-11')
+      // The title is the bar's below md, and the count is a 20px line.
+      expect(anonHeader.querySelector('.h-7')).toHaveClass('max-md:hidden')
+      expect(anonHeader.querySelector('.h-4.w-24')).toHaveClass('max-md:h-5')
+    })
   })
 })
