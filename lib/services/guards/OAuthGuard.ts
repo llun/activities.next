@@ -183,12 +183,13 @@ const resolveAccountActorId = async (
 }
 
 // Slides a user's opaque access token forward while its client keeps using it,
-// so the token lapses only after OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS with no
-// accepted request at all. This server cannot issue refresh tokens
-// (`offline_access` is not in its scope vocabulary), so without the slide every
-// client was signed out on the seventh day after authorizing, however active it
-// was. An earlier sliding session on the pre-better-auth `tokens` table did
-// this; the move to `oauthAccessToken` dropped it.
+// so the token lapses a full OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS after its
+// last slide — up to one slide interval less after its last accepted request,
+// since a request inside the interval does not write. This server cannot issue
+// refresh tokens (`offline_access` is not in its scope vocabulary), so without
+// the slide every client was signed out on the seventh day after authorizing,
+// however active it was. An earlier sliding session on the pre-better-auth
+// `tokens` table did this; the move to `oauthAccessToken` dropped it.
 //
 // Every guard calls this only after it has accepted the request — past the
 // expiry, scope, actor, moderation and confirmation checks — so a suspended

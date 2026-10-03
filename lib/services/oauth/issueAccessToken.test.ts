@@ -188,7 +188,7 @@ describe('issueAccessToken', () => {
       }
     })
 
-    it('lapses a full window after its last use', async () => {
+    it('lapses a full window after the use that slid it', async () => {
       const issued = await issueAccessToken({
         database: mockDatabase,
         clientId: CLIENT_ID,
@@ -203,6 +203,29 @@ describe('issueAccessToken', () => {
 
       // Idle for a full window after that use: the token has lapsed.
       expect(await verifyAt(issued.token, lastUse + WINDOW_MS + 1000)).toBe(401)
+    })
+
+    it('measures the window from the last slide, not from a use that did not write', async () => {
+      const issued = await issueAccessToken({
+        database: mockDatabase,
+        clientId: CLIENT_ID,
+        accountId,
+        actorId,
+        scopes: [Scope.enum.read, Scope.enum.write]
+      })
+
+      // Under a slide interval after issue: accepted, but not written.
+      const lateUse = issued.createdAt + DAY_MS - 1000
+      expect(await verifyAt(issued.token, lateUse)).toBe(200)
+      expect(await storedExpiresAt(issued.token)).toBe(
+        issued.createdAt + WINDOW_MS
+      )
+
+      // So an idle token lapses a window after issue, a little under a full
+      // window after that last request.
+      expect(
+        await verifyAt(issued.token, issued.createdAt + WINDOW_MS + 1000)
+      ).toBe(401)
     })
   })
 

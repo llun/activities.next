@@ -1132,6 +1132,112 @@ describe('OAuthGuard', () => {
       expect(extendSpy).not.toHaveBeenCalled()
     })
 
+    describe('an account awaiting confirmation', () => {
+      const PENDING_USERNAME = 'pendingslide'
+      const PENDING_ACTOR_ID = `https://llun.test/users/${PENDING_USERNAME}`
+      let pendingAccountId: string
+
+      beforeAll(async () => {
+        pendingAccountId = await database.createAccount({
+          domain: 'llun.test',
+          email: 'pending-slide@llun.test',
+          username: PENDING_USERNAME,
+          passwordHash: 'pending-password-hash',
+          privateKey: 'pending-private-key',
+          publicKey: 'pending-public-key',
+          verificationCode: 'pending-confirmation-code'
+        })
+      })
+
+      const storePendingToken = (token: string) =>
+        storeToken(token, {
+          referenceId: PENDING_ACTOR_ID,
+          userId: pendingAccountId,
+          expiresAt: new Date(NOW + HOUR_MS)
+        })
+
+      test('is refused by OAuthGuard without sliding its token', async () => {
+        await storePendingToken('pending-guard-token')
+
+        const response = await callWith('pending-guard-token')
+
+        expect(response.status).toBe(403)
+        expect(extendSpy).not.toHaveBeenCalled()
+      })
+
+      test('is served anonymously by OptionalOAuthGuard without sliding its token', async () => {
+        await storePendingToken('pending-optional-token')
+        const handler = vi
+          .fn()
+          .mockImplementation((_req, context) =>
+            NextResponse.json(
+              { actor: context.currentActor?.id ?? null },
+              { status: 200 }
+            )
+          )
+
+        const response = await OptionalOAuthGuard([Scope.enum.read], handler)(
+          createRequest({ Authorization: 'Bearer pending-optional-token' }),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({ actor: null })
+        expect(extendSpy).not.toHaveBeenCalled()
+      })
+
+      test('is refused by OAuthAppGuard without sliding its token', async () => {
+        await storePendingToken('pending-app-guard-token')
+
+        const response = await OAuthAppGuard([Scope.enum.read], mockHandler)(
+          createRequest({ Authorization: 'Bearer pending-app-guard-token' }),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(403)
+        expect(extendSpy).not.toHaveBeenCalled()
+      })
+    })
+
+    test('slides a due token accepted by OptionalOAuthGuard', async () => {
+      await storeToken('optional-guard-token', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+
+      const response = await OptionalOAuthGuard([Scope.enum.read], mockHandler)(
+        createRequest({ Authorization: 'Bearer optional-guard-token' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(extendSpy).toHaveBeenCalledWith({
+        hashedToken: hashToken('optional-guard-token'),
+        expiresAt: NOW + WINDOW_MS
+      })
+    })
+
+    test('does not slide the token of a suspended actor polling OAuthAppGuard', async () => {
+      const actor = await storeToken('suspended-app-guard-token', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+      await database.setActorSuspended({ actorId: actor.id, suspended: true })
+
+      try {
+        const response = await OAuthAppGuard([Scope.enum.read], mockHandler)(
+          createRequest({ Authorization: 'Bearer suspended-app-guard-token' }),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(403)
+        expect(extendSpy).not.toHaveBeenCalled()
+      } finally {
+        await database.setActorSuspended({
+          actorId: actor.id,
+          suspended: false
+        })
+      }
+    })
+
     test('does not slide the token of a suspended actor still polling', async () => {
       const actor = await storeToken('suspended-token', {
         expiresAt: new Date(NOW + HOUR_MS)

@@ -31,10 +31,12 @@ export const AUTH_BASE_PATH = '/api/auth'
 // nothing.
 export const AUTH_ERROR_PATH = '/auth/error'
 
-// How long an access token issued for a user lives without being used, and the
-// window `OAuthGuard` slides forward each time it is (see
-// `extendAccessTokenIfDue` there). A token therefore lasts as long as its client
-// keeps using it, and lapses only after this long with no accepted request.
+// How long an access token issued for a user lives from its last slide: the
+// bearer guards move `expiresAt` to now + this window when they accept a
+// request (see `extendAccessTokenIfDue` in `OAuthGuard`), writing at most once
+// per OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS. A token therefore lasts as long
+// as its client keeps using it, and lapses between this window minus one slide
+// interval (6 days) and this window (7 days) after its last accepted request.
 //
 // The sliding half is what keeps Mastodon clients signed in. This server cannot
 // issue a refresh token at all — better-auth only mints one for the
