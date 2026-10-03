@@ -304,9 +304,16 @@ describe('RegionMap', () => {
     })
 
     it('observes the hint itself and stops when the map goes away', async () => {
-      const { gl } = createFakeGl()
+      const { gl, map, handlers } = createFakeGl({ autoLoad: false })
       const { unmount } = renderRegionMap(gl)
-      await screen.findByText('TestMaps')
+      await waitFor(() => expect(map.addControl).toHaveBeenCalled())
+
+      // Load inside act(), which flushes the effect that observes the hint
+      // before the count below. `findByText` resolves on the commit that
+      // renders the hint, and React runs that commit's effects in a later
+      // Scheduler task: on a busy runner the count ran first and saw none.
+      act(() => handlers.load?.())
+      expect(screen.getByText('TestMaps')).toBeInTheDocument()
 
       expect(observers).toHaveLength(1)
       expect(observers[0].observed).toHaveLength(1)
