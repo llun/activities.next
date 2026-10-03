@@ -96,7 +96,14 @@ describe('FollowListPage', () => {
         params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' }),
         direction: 'followers'
       })
-      render(element)
+      const { container } = render(
+        <MobileNavigationProvider>{element}</MobileNavigationProvider>
+      )
+
+      // The card keeps its own heading, so the mobile bar must name the page.
+      expect(
+        container.querySelector('[data-mobile-compact-header]')
+      ).toHaveTextContent('Followers')
 
       expect(
         screen.getByRole('heading', {
@@ -119,8 +126,13 @@ describe('FollowListPage', () => {
         params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' }),
         direction: 'following'
       })
-      render(element)
+      const { container } = render(
+        <MobileNavigationProvider>{element}</MobileNavigationProvider>
+      )
 
+      expect(
+        container.querySelector('[data-mobile-compact-header]')
+      ).toHaveTextContent('Following')
       expect(
         screen.getByRole('heading', {
           level: 1,
