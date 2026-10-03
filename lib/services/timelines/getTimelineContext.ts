@@ -3,6 +3,7 @@ import { filterBlockedStatuses } from '@/lib/services/timelines/blockFilter'
 import { filterMutedStatuses } from '@/lib/services/timelines/muteFilter'
 import { Actor, Database, Status } from '@/lib/types/database'
 import { StatusType } from '@/lib/types/domain/status'
+import { Tag } from '@/lib/types/domain/tag'
 import {
   TimelineContext,
   TimelineParentPreview
@@ -240,6 +241,9 @@ export async function getTimelineContext({
 
     const contentHtml = hideContent ? '' : rawContentHtml
     const text = hideContent ? '' : rawText
+    const rawTags = s.tags as Tag[] | undefined
+    const tags = hideContent ? [] : Array.isArray(rawTags) ? rawTags : []
+    const isLocalActor = Boolean(s.isLocalActor)
 
     const createdAt =
       typeof status.createdAt === 'string'
@@ -284,6 +288,8 @@ export async function getTimelineContext({
       actor,
       contentHtml,
       text,
+      tags,
+      isLocalActor,
       spoilerText,
       isSensitive,
       createdAt,

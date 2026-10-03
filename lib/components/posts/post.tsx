@@ -465,6 +465,7 @@ export const Post: FC<PostProps> = (props) => {
           <StatusContextIndicator
             parentPreview={props.parentPreview}
             isReply={Boolean(actualStatus.reply)}
+            host={host}
           />
         )}
         <div className="flex min-h-0 min-w-0 gap-3">

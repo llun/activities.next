@@ -4,23 +4,21 @@ import { FC } from 'react'
 
 import { TimelineParentPreview } from '@/lib/types/domain/timeline'
 import { cn } from '@/lib/utils'
-
-const stripHtml = (html: string): string =>
-  html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
+import { renderInlineSnippet } from '@/lib/utils/text/renderInlineSnippet'
 
 export interface StatusContextIndicatorProps {
   parentPreview?: TimelineParentPreview | null
   isReply?: boolean
   className?: string
+  host: string
 }
 
 export const StatusContextIndicator: FC<StatusContextIndicatorProps> = ({
   parentPreview,
   isReply,
-  className
+  className,
+  host
 }) => {
   // Case 1: Known parent preview with permitted context
   if (parentPreview) {
@@ -34,9 +32,17 @@ export const StatusContextIndicator: FC<StatusContextIndicatorProps> = ({
     const hasCw = Boolean(
       parentPreview.isSensitive || parentPreview.spoilerText
     )
-    const snippet = hasCw
-      ? null
-      : parentPreview.text || stripHtml(parentPreview.contentHtml || '')
+    const rawSnippet = parentPreview.text || parentPreview.contentHtml || ''
+    const snippetHtml =
+      hasCw || !rawSnippet
+        ? ''
+        : processStatusTextContent(
+            host,
+            rawSnippet,
+            parentPreview.tags ?? [],
+            Boolean(parentPreview.isLocalActor)
+          )
+    const snippet = snippetHtml ? renderInlineSnippet(snippetHtml) : null
 
     const content = (
       <div
