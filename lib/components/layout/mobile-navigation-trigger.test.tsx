@@ -58,6 +58,21 @@ describe('MobileNavigationTrigger', () => {
     )
   })
 
+  it('stacks the floating variant above the page at the 16px safe-area inset', () => {
+    render(
+      <MobileNavigationProvider>
+        <MobileNavigationTrigger variant="floating" />
+      </MobileNavigationProvider>
+    )
+
+    const button = screen.getByRole('button', { name: 'Open navigation' })
+    expect(button).toHaveClass(
+      'z-30',
+      'top-[calc(env(safe-area-inset-top,0px)+16px)]',
+      'left-[calc(env(safe-area-inset-left,0px)+16px)]'
+    )
+  })
+
   it('keeps the orange focus ring and adds a foreground outline to the floating variant', () => {
     render(
       <MobileNavigationProvider>

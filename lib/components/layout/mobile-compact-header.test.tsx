@@ -53,6 +53,23 @@ describe('MobileCompactHeader', () => {
     )
   })
 
+  it('stacks above page content and pads below the notch', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <MobileCompactHeader title="Timeline" />
+      </MobileNavigationProvider>
+    )
+
+    // z-30 keeps the bar over positioned post media and cards (a z-0 bar
+    // paints under them); `safe-area-pt` keeps it from sitting under the
+    // notch, and the translucent surface needs its blur to stay legible.
+    expect(container.querySelector('[data-mobile-compact-header]')).toHaveClass(
+      'z-30',
+      'safe-area-pt',
+      'backdrop-blur'
+    )
+  })
+
   it('renders the title as a paragraph when the content keeps the heading', () => {
     render(
       <MobileNavigationProvider>

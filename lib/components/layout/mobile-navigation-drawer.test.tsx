@@ -63,6 +63,19 @@ describe('MobileNavigationDrawer', () => {
     expect(dialog).toHaveAccessibleName('Navigation drawer')
   })
 
+  it('stacks the close button above the panel at the safe-area top inset', () => {
+    renderDrawer()
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+
+    expect(
+      screen.getByRole('button', { name: 'Close navigation' })
+    ).toHaveClass(
+      'z-50',
+      'top-[calc(env(safe-area-inset-top,0px)+1rem)]',
+      'right-4'
+    )
+  })
+
   it('closes from the close button', () => {
     renderDrawer()
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
