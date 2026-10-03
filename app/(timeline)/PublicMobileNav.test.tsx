@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within
+} from '@testing-library/react'
 
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
@@ -11,15 +17,20 @@ import { NAV_ITEM_IDS } from '@/lib/services/navigation/navPreferences'
 
 import { PublicMobileNav } from './PublicMobileNav'
 
+let mockPathname = '/@alice@example.com'
+
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/@alice@example.com'
+  usePathname: () => mockPathname
 }))
 
-const openDrawer = (registrationOpen: boolean) => {
+const openDrawer = (
+  registrationOpen: boolean,
+  hrefs: { signinHref?: string; signupHref?: string } = {}
+) => {
   render(
     <MobileNavigationProvider>
       <MobileNavigationTrigger variant="floating" />
-      <PublicMobileNav registrationOpen={registrationOpen} />
+      <PublicMobileNav registrationOpen={registrationOpen} {...hrefs} />
     </MobileNavigationProvider>
   )
   fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
@@ -27,6 +38,10 @@ const openDrawer = (registrationOpen: boolean) => {
 }
 
 describe('PublicMobileNav', () => {
+  beforeEach(() => {
+    mockPathname = '/@alice@example.com'
+  })
+
   it('offers Home, Sign in and Create account while registration is open', () => {
     const drawer = openDrawer(true)
 
@@ -40,6 +55,36 @@ describe('PublicMobileNav', () => {
     expect(
       within(drawer).getByRole('link', { name: 'Create account' })
     ).toHaveAttribute('href', '/auth/signup')
+  })
+
+  // The shared heatmap passes its own auth URLs; the drawer must use them.
+  it('uses the sign-in and sign-up hrefs it is given', () => {
+    const drawer = openDrawer(true, {
+      signinHref: '/auth/signin?next=a',
+      signupHref: '/auth/signup?next=a'
+    })
+
+    expect(
+      within(drawer).getByRole('link', { name: 'Sign in' })
+    ).toHaveAttribute('href', '/auth/signin?next=a')
+    expect(
+      within(drawer).getByRole('link', { name: 'Create account' })
+    ).toHaveAttribute('href', '/auth/signup?next=a')
+  })
+
+  it('marks Home as the current page only on /', () => {
+    let drawer = openDrawer(true)
+    expect(
+      within(drawer).getByRole('link', { name: 'Home' })
+    ).not.toHaveAttribute('aria-current')
+    cleanup()
+
+    mockPathname = '/'
+    drawer = openDrawer(true)
+    expect(within(drawer).getByRole('link', { name: 'Home' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
   })
 
   it('hides Create account when registration is closed but keeps Sign in', () => {
@@ -92,10 +137,10 @@ describe('PublicMobileNav', () => {
     )
   })
 
-  it('closes when a destination is chosen', () => {
+  it.each(['Home', 'Sign in'])('closes when %s is chosen', (name) => {
     const drawer = openDrawer(true)
 
-    fireEvent.click(within(drawer).getByRole('link', { name: 'Sign in' }))
+    fireEvent.click(within(drawer).getByRole('link', { name }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
