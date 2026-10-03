@@ -470,7 +470,9 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
     // part is the same for 8, 13 and 16 and only the resolved colour and width
     // keep their Styles apart: 8 and 13 differ in colour (the ramp runs to 12),
     // 13 and 16 only in width (both are the final yellow, the width ramp runs
-    // to 16). A key that dropped either part would share one Style among them.
+    // to 16). A key without the width part would share one Style between 13
+    // and 16. Width alone separates every count up to 16, so the colour part
+    // is not pinned here.
     const midRamp = encodeTile([
       { count: 5, points: [0, 0, 32, 32] },
       { count: 8, points: [64, 64, 96, 96] },
