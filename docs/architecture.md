@@ -513,6 +513,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Better-auth Database Joins](#agents-better-auth-database-joins)
 - [Better-auth Session Refresh](#agents-better-auth-session-refresh)
 - [OAuth Client Registrations](#agents-oauth-client-registrations)
+- [OAuth Access Token Sliding Expiry](#agents-oauth-access-token-sliding-expiry)
 - [Auth Error Page](#agents-auth-error-page)
 - [OAuth Grants Must Resolve an Actor](#agents-oauth-grants-must-resolve-an-actor)
 - [An Unconfirmed Account May Not Act](#agents-an-unconfirmed-account-may-not-act)
@@ -522,6 +523,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Review: Logging](#review-logging)
 - [Review: Auth error page](#review-auth-error-page)
 - [Review: Better-auth session refresh](#review-better-auth-session-refresh)
+- [Review: OAuth access token sliding expiry](#review-oauth-access-token-sliding-expiry)
 - [Review: Unconfirmed accounts & app tokens](#review-unconfirmed-accounts-app-tokens)
 - [Review: Emails](#review-emails)
 - [Review: Post media layout](#review-post-media-layout)
@@ -1250,8 +1252,18 @@ legacy shape left to copy.
 
 - **Never delete or expire rows in `oauthClient`.** Registrations created through `POST /api/v1/apps` are durable. Mastodon-API clients (Phanpy, Elk, Tusky, …) persist the `client_id`/`client_secret` they get from that endpoint indefinitely and only re-register when their stored copy is **missing** — so deleting a registration permanently wedges every client still holding it: it keeps presenting a `client_id` this server no longer knows and has no way to learn it must register again. A time-based cleanup does not help, because any finite TTL eventually deletes a live cached client. Mastodon hit exactly this and **removed its own application "vacuuming" in 4.3**. (A 24h "stale registration" collector used to live in `createApplication.ts` and broke Phanpy sign-in for this reason — the failure surfaced as `invalid_client` / `client_id is required`.) The trade-off is that abandoned registrations accumulate: `createApplication`'s per-source throttle only engages when `ACTIVITIES_TRUST_PROXY_IP_HEADERS` is set, so a default deployment does not bound them. Accept that, or add a guard that **rejects writes** — never one that deletes registrations.
 - **A registration must write `oauthClient.clientCredentialsScopes`, and that is not the same column as `scopes`.** better-auth 1.6 validated a `client_credentials` request against the client's registered `scopes`; 1.7 moved the decision to this separate, server-owned column and denies the grant outright when it is missing or empty — `400 unauthorized_client` / `client has no authorized client_credentials scopes`. The column arrived with the 1.7 schema migration and nothing ever wrote it, so every application on the instance was refused an app token — and a native Mastodon client asks for one **before** it offers to sign a user in (Ivory does, with the credentials `POST /api/v1/apps` just handed it), so the login never started and the only sign of it was that 400 in the token proxy's log. `createApplication` writes the column through `toClientCredentialsScopes` (`lib/services/oauth/clientCredentialsScopes.ts`); that module documents the derivation rule, why its reserved-scope filter is the only thing enforcing it on this path, and how it differs from 1.6 — read it there rather than re-deriving it, and do not simplify the filter away. Fixing the write path is **not sufficient on its own**: registrations are never deleted and clients cache their credentials indefinitely (see the bullet above), so every client already installed would stay wedged — `20260828000000_backfill_oauth_client_credentials_scopes` repairs the existing rows, carrying a second copy of the reserved list because a migration runs through the plain `knex` CLI with no TypeScript loader and no path aliases (`lib/database/sql/oauthClientCredentialsScopesMigration.test.ts` pins the two against each other), plus two gates of its own that refuse public clients and clients not registered for the grant. This grants no new authority: an app token has no user, so only `OAuthAppGuard` accepts one — `apps/verify_credentials` and Mastodon's API account registration, itself gated on `registrations.open` — and every other guard requires an actor that an actor-less token never resolves.
-- **An app token lives one hour, not the 7 days `accessTokenExpiresIn` configures.** `createUserTokens` reads `m2mAccessTokenExpiresIn` for a grant with no user and this server does not set it, so better-auth's 3600s default applies. Unrelated to the scope ceiling above; it is the other thing about app tokens that reads wrongly from `auth.ts`.
+- **An app token lives one hour, not the 7-day sliding window `accessTokenExpiresIn` configures.** It does not slide either (see [OAuth Access Token Sliding Expiry](#agents-oauth-access-token-sliding-expiry)). `createUserTokens` reads `m2mAccessTokenExpiresIn` for a grant with no user and this server does not set it, so better-auth's 3600s default applies. Unrelated to the scope ceiling above; it is the other thing about app tokens that reads wrongly from `auth.ts`.
 - **An unknown `client_id` must fail at `/oauth/authorize`, not be forwarded to Better Auth.** Better Auth's authorize endpoint answers an unregistered client with `invalid_client` / **`client_id is required`** — the same message it uses for a genuinely absent `client_id`, which makes the failure very hard to read — and then redirects to the error page, so a failed login used to look like it silently did nothing (before `onAPIError.errorURL`, better-auth's own `/api/auth/error` 302'd straight on to the home timeline in production — see **Auth Error Page** below). `app/(nosidebar)/oauth/authorize/page.tsx` validates the client (and its `redirect_uri`) up front and returns `notFound()`; keep that check ahead of the Better Auth delegation. Per RFC 6749 §4.1.2.1 an invalid `client_id`/`redirect_uri` must be reported to the user rather than redirected to the requested `redirect_uri`.
+
+<a id="agents-oauth-access-token-sliding-expiry"></a>
+
+### OAuth Access Token Sliding Expiry
+
+- **A user's opaque access token lasts as long as its client keeps using it.** better-auth issues it with `accessTokenExpiresIn` = `OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS` (7 days, `lib/services/auth/constants.ts`), and `OAuthGuard` slides `expiresAt` to now + that window whenever the token authenticates a request (`extendAccessTokenIfDue`). It lapses only after a full window with no request at all.
+- **The slide is what keeps Mastodon clients signed in.** Mastodon's own tokens never expire, so Ivory, Ice Cubes, Tusky, Phanpy, Elk and the rest never request `offline_access` and never receive a refresh token. A fixed lifetime therefore signs every one of them out on schedule: the first request after `expiresAt` is a `401` (`token_expired`), which a client reads as "this account is gone". The slide was first added in llun/activities.next#190 against the old `@jmondi/oauth2-server` `tokens` table, and the move to better-auth's `oauthAccessToken` (llun/activities.next#449) dropped it without a replacement — after which every client was signed out seven days after authorizing, however active it was. With releases going out several times a day, that looked like each deploy logging the apps out; no deploy-time code path touches these rows. Don't remove the slide, and don't make it depend on a refresh token.
+- **It writes at most once a day per token.** The guard only updates a row that has been in use for `OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS` since it was issued or last extended, through `database.extendOAuthAccessToken` (keyed on the token hash, so a row revoked in between stays gone). A failed write is logged and the request still succeeds; the row is still due, so the next request retries.
+- **Only user tokens on the opaque path slide.** App (`client_credentials`) tokens have no `userId` and keep better-auth's one-hour `m2mAccessTokenExpiresIn`; a JWT access token's `exp` is signed into the token and cannot be moved. A token rejected for scope, expiry, or a missing row is never extended.
+- **Every path that mints a user token uses the same window.** better-auth's grants read it through `auth.ts`; `issueAccessToken` (the token `POST /api/v1/accounts` hands back) reads it directly. Revocation still ends a token immediately: Settings → Connected apps and `POST /oauth/revoke` delete its rows.
 
 <a id="agents-auth-error-page"></a>
 
@@ -1630,6 +1642,20 @@ legacy shape left to copy.
   instance: a server-render read leaves a due session untouched, and
   `/get-session` extends it and re-issues the cookie. See
   [Better-auth Session Refresh](#agents-better-auth-session-refresh).
+
+<a id="review-oauth-access-token-sliding-expiry"></a>
+
+### Review: OAuth access token sliding expiry
+
+- `OAuthGuard` still slides a user's opaque token on every authenticated use
+  that is due (`extendAccessTokenIfDue`), after the expiry and scope checks and
+  never for an app token or a JWT. Mastodon clients cannot refresh, so a change
+  that drops or narrows the slide signs them all out after one window.
+- Every path that mints a user token takes its lifetime from
+  `OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS`, never a literal, so the issued
+  expiry and the slide agree.
+- A failed slide write never fails the request. See
+  [OAuth Access Token Sliding Expiry](#agents-oauth-access-token-sliding-expiry).
 
 <a id="review-unconfirmed-accounts-app-tokens"></a>
 

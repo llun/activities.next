@@ -5,6 +5,7 @@ import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   CreateOAuthAccessTokenParams,
+  ExtendOAuthAccessTokenParams,
   GetAccountConnectedAppsParams,
   GetClientFromAccessTokenParams,
   GetClientFromIdParams,
@@ -100,6 +101,18 @@ export const OAuthSQLDatabaseMixin = (database: Knex): OAuthDatabase => ({
       expiresAt: new Date(expiresAt),
       createdAt: new Date()
     })
+  },
+
+  async extendOAuthAccessToken({
+    hashedToken,
+    expiresAt
+  }: ExtendOAuthAccessTokenParams) {
+    // Keyed on the unique `token` hash, the column OAuthGuard has just read the
+    // row by. A row revoked in between is already gone, so this updates nothing
+    // and cannot bring a revoked token back.
+    await database('oauthAccessToken')
+      .where('token', hashedToken)
+      .update({ expiresAt: new Date(expiresAt) })
   },
 
   async getAccountConnectedApps({

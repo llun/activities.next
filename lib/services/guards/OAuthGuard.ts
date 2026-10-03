@@ -4,6 +4,10 @@ import { NextRequest } from 'next/server'
 
 import { getBaseURL } from '@/lib/config'
 import { getDatabase, getKnex } from '@/lib/database'
+import {
+  OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+  OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS
+} from '@/lib/services/auth/constants'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { oauthLogger } from '@/lib/services/oauth/logging'
 import { Scope } from '@/lib/types/database/operations'
@@ -20,6 +24,7 @@ import {
   codeMap
 } from '@/lib/utils/response'
 import { selectAccountActor } from '@/lib/utils/selectAccountActor'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import {
   isActorConfirmationPending,
@@ -167,6 +172,46 @@ const resolveAccountActorId = async (
   return selectAccountActor(actors, account?.defaultActorId)?.id ?? null
 }
 
+// Slides a user's opaque access token forward while its client keeps using it,
+// so the token lapses only after OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS with no
+// request at all. Mastodon clients never request a refresh token, so without
+// this every one of them was signed out on the seventh day after authorizing,
+// however active it was.
+//
+// Writes only once the token has been in use for a slide interval since it was
+// issued or last extended, so a busy client costs one UPDATE a day. A failed
+// write is not fatal and not lost: the request is already authenticated, and
+// the row is still due, so the client's next request tries again.
+//
+// This is the better-auth port of the sliding session llun/activities.next#190 added to the old
+// `tokens` table, which the move to `oauthAccessToken` dropped.
+const extendAccessTokenIfDue = async ({
+  database,
+  hashedToken,
+  storedExpiresAt
+}: {
+  database: GuardDatabase
+  hashedToken: string
+  storedExpiresAt: Date
+}): Promise<void> => {
+  const expiresAt = Date.now() + OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS * 1000
+  if (
+    expiresAt - storedExpiresAt.getTime() <
+    OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS * 1000
+  ) {
+    return
+  }
+
+  try {
+    await database.extendOAuthAccessToken({ hashedToken, expiresAt })
+  } catch (e) {
+    logger.warn({
+      message: 'Failed to extend OAuth access token expiry',
+      err: toLoggableError(e)
+    })
+  }
+}
+
 // Validates a bearer token (JWT or opaque): jwks verification, DB existence
 // (revocation), expiry, and scope checks — but does NOT require or resolve an
 // actor. Callers add the actor-resolution step on top. Precondition: the
@@ -254,8 +299,9 @@ const resolveTokenContext = async ({
     // oauthAccessToken.token column.
     // See: @better-auth/oauth-provider/dist/utils-DgozotLg.mjs storeToken()
     const db = getKnex()
+    const hashedToken = hashToken(token)
     const storedToken = await db('oauthAccessToken')
-      .where('token', hashToken(token))
+      .where('token', hashedToken)
       .first()
     if (!storedToken) {
       return { valid: false, response: rejectBearer('token_not_found', 401) }
@@ -264,7 +310,8 @@ const resolveTokenContext = async ({
     // For opaque tokens, check expiration and scopes manually
     // (JWT verification already handles these for JWT tokens)
     if (!jwtPayload) {
-      if (new Date(storedToken.expiresAt) < new Date()) {
+      const storedExpiresAt = new Date(storedToken.expiresAt)
+      if (storedExpiresAt < new Date()) {
         return { valid: false, response: rejectBearer('token_expired', 401) }
       }
       // Fall back to an empty scope string if the column is null/undefined so
@@ -285,6 +332,17 @@ const resolveTokenContext = async ({
             granted_scopes: storedScopes
           })
         }
+      }
+
+      // Only a user's token slides. An app (client_credentials) token has no
+      // user and keeps its one-hour lifetime; a JWT's `exp` is signed into the
+      // token and cannot be moved, which is why this sits on the opaque branch.
+      if (storedToken.userId) {
+        await extendAccessTokenIfDue({
+          database,
+          hashedToken,
+          storedExpiresAt
+        })
       }
     }
 

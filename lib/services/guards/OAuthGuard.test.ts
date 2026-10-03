@@ -5,6 +5,7 @@ import {
   getTestSQLDatabase,
   getTestSQLDatabaseWithInstance
 } from '@/lib/database/testUtils'
+import { OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS } from '@/lib/services/auth/constants'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Scope } from '@/lib/types/database/operations'
@@ -1005,6 +1006,129 @@ describe('OAuthGuard', () => {
       const response = await guard(req, { params: Promise.resolve({}) })
 
       expect(response.status).toBe(401)
+    })
+  })
+
+  describe('sliding opaque token expiry', () => {
+    const NOW = Date.UTC(2026, 9, 3, 12, 0, 0)
+    const HOUR_MS = 60 * 60 * 1000
+    const DAY_MS = 24 * HOUR_MS
+    const WINDOW_MS = OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS * 1000
+
+    let extendSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      // Only `Date` is faked: the SQLite driver relies on real timers.
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(NOW)
+      extendSpy = vi.spyOn(database, 'extendOAuthAccessToken')
+    })
+
+    afterEach(() => {
+      extendSpy.mockRestore()
+      vi.useRealTimers()
+    })
+
+    const storeToken = async (
+      token: string,
+      fields: Record<string, unknown>
+    ) => {
+      const primaryActor = await database.getActorFromEmail({
+        email: seedActor1.email
+      })
+      if (!primaryActor?.account) throw new Error('Primary actor not found')
+      mockStoredTokens.set(hashToken(token), {
+        token: hashToken(token),
+        referenceId: primaryActor.id,
+        userId: primaryActor.account.id,
+        scopes: JSON.stringify(['read']),
+        ...fields
+      })
+    }
+
+    const callWith = (token: string, scopes: Scope[] = [Scope.enum.read]) =>
+      OAuthGuard(scopes, mockHandler)(
+        createRequest({ Authorization: `Bearer ${token}` }),
+        { params: Promise.resolve({}) }
+      )
+
+    test('slides a user token used more than a day after it was issued', async () => {
+      await storeToken('due-token', {
+        expiresAt: new Date(NOW + WINDOW_MS - DAY_MS - HOUR_MS)
+      })
+
+      const response = await callWith('due-token')
+
+      expect(response.status).toBe(200)
+      expect(extendSpy).toHaveBeenCalledWith({
+        hashedToken: hashToken('due-token'),
+        expiresAt: NOW + WINDOW_MS
+      })
+    })
+
+    test('slides a token in its last hour, the case that used to sign clients out', async () => {
+      await storeToken('last-hour-token', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+
+      const response = await callWith('last-hour-token')
+
+      expect(response.status).toBe(200)
+      expect(extendSpy).toHaveBeenCalledWith({
+        hashedToken: hashToken('last-hour-token'),
+        expiresAt: NOW + WINDOW_MS
+      })
+    })
+
+    test.each([
+      {
+        description: 'a token issued or extended less than a day ago',
+        token: 'fresh-token',
+        fields: { expiresAt: new Date(NOW + WINDOW_MS - DAY_MS + HOUR_MS) },
+        status: 200
+      },
+      {
+        description: 'an app (client_credentials) token, which has no user',
+        token: 'app-token',
+        fields: { userId: null, expiresAt: new Date(NOW + 30 * 60 * 1000) },
+        status: 200
+      },
+      {
+        description: 'an expired token',
+        token: 'lapsed-token',
+        fields: { expiresAt: new Date(NOW - 1000) },
+        status: 401
+      }
+    ])('does not slide $description', async ({ token, fields, status }) => {
+      await storeToken(token, fields)
+
+      const response = await callWith(token)
+
+      expect(response.status).toBe(status)
+      expect(extendSpy).not.toHaveBeenCalled()
+    })
+
+    test('does not slide a token presented without the scope the route needs', async () => {
+      await storeToken('wrong-scope-token', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+
+      const response = await callWith('wrong-scope-token', [Scope.enum.write])
+
+      expect(response.status).toBe(401)
+      expect(extendSpy).not.toHaveBeenCalled()
+    })
+
+    test('still authenticates the request when the slide fails to write', async () => {
+      extendSpy.mockRejectedValueOnce(new Error('database is locked'))
+      await storeToken('write-fails-token', {
+        expiresAt: new Date(NOW + HOUR_MS)
+      })
+
+      const response = await callWith('write-fails-token')
+
+      expect(response.status).toBe(200)
+      expect(mockHandler).toHaveBeenCalled()
     })
   })
 

@@ -1,11 +1,13 @@
 import crypto from 'crypto'
 
 import { Database } from '@/lib/database/types'
+import { OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS } from '@/lib/services/auth/constants'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 
-// Matches `accessTokenExpiresIn` (7 days) in lib/services/auth/auth.ts so
-// directly-issued tokens live as long as better-auth's authorization-code ones.
-const ACCESS_TOKEN_EXPIRES_IN_MS = 7 * 24 * 60 * 60 * 1000
+// The same window better-auth gives its authorization-code tokens
+// (`accessTokenExpiresIn` in lib/services/auth/auth.ts); `OAuthGuard` slides it
+// forward on use exactly as it does theirs.
+const ACCESS_TOKEN_EXPIRES_IN_MS = OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS * 1000
 
 export interface IssueAccessTokenParams {
   database: Database
