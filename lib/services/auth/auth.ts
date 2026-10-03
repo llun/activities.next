@@ -146,9 +146,9 @@ const buildAuth = (baseURL: string) => {
         // accepts exactly the scopes registration validates and metadata
         // advertises. better-auth rejects any requested scope not in this list.
         scopes: [...UsableScopes],
-        // The idle window, not a hard lifetime: OAuthGuard slides a user token
-        // forward each time it is used, because Mastodon clients never request
-        // a refresh token. See OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS. App
+        // The idle window, not a hard lifetime: the bearer guards slide a user
+        // token forward each time they accept it, because this server issues
+        // no refresh tokens. See OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS. App
         // (client_credentials) tokens read `m2mAccessTokenExpiresIn` instead,
         // which stays at better-auth's one-hour default and does not slide.
         accessTokenExpiresIn: OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS,

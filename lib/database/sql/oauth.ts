@@ -108,8 +108,13 @@ export const OAuthSQLDatabaseMixin = (database: Knex): OAuthDatabase => ({
     expiresAt
   }: ExtendOAuthAccessTokenParams) {
     // Keyed on the unique `token` hash, the column OAuthGuard has just read the
-    // row by. A row revoked in between is already gone, so this updates nothing
-    // and cannot bring a revoked token back.
+    // row by. Revoking an app (Settings → Connected apps, `POST /oauth/revoke`)
+    // DELETES its rows, so a token revoked in between matches nothing here and
+    // stays gone. better-auth's own soft revocation — the `revoked` column its
+    // session-delete hook stamps on tokens minted from a web session that is
+    // signed out or expires — is deliberately not honoured, by this or by
+    // OAuthGuard: as on Mastodon, signing out of the web does not sign apps out
+    // (see `detachOAuthTokensFromSessions`).
     await database('oauthAccessToken')
       .where('token', hashedToken)
       .update({ expiresAt: new Date(expiresAt) })

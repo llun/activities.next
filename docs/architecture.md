@@ -1259,11 +1259,13 @@ legacy shape left to copy.
 
 ### OAuth Access Token Sliding Expiry
 
-- **A user's opaque access token lasts as long as its client keeps using it.** better-auth issues it with `accessTokenExpiresIn` = `OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS` (7 days, `lib/services/auth/constants.ts`), and `OAuthGuard` slides `expiresAt` to now + that window whenever the token authenticates a request (`extendAccessTokenIfDue`). It lapses only after a full window with no request at all.
-- **The slide is what keeps Mastodon clients signed in.** Mastodon's own tokens never expire, so Ivory, Ice Cubes, Tusky, Phanpy, Elk and the rest never request `offline_access` and never receive a refresh token. A fixed lifetime therefore signs every one of them out on schedule: the first request after `expiresAt` is a `401` (`token_expired`), which a client reads as "this account is gone". The slide was first added in llun/activities.next#190 against the old `@jmondi/oauth2-server` `tokens` table, and the move to better-auth's `oauthAccessToken` (llun/activities.next#449) dropped it without a replacement — after which every client was signed out seven days after authorizing, however active it was. With releases going out several times a day, that looked like each deploy logging the apps out; no deploy-time code path touches these rows. Don't remove the slide, and don't make it depend on a refresh token.
-- **It writes at most once a day per token.** The guard only updates a row that has been in use for `OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS` since it was issued or last extended, through `database.extendOAuthAccessToken` (keyed on the token hash, so a row revoked in between stays gone). A failed write is logged and the request still succeeds; the row is still due, so the next request retries.
-- **Only user tokens on the opaque path slide.** App (`client_credentials`) tokens have no `userId` and keep better-auth's one-hour `m2mAccessTokenExpiresIn`; a JWT access token's `exp` is signed into the token and cannot be moved. A token rejected for scope, expiry, or a missing row is never extended.
-- **Every path that mints a user token uses the same window.** better-auth's grants read it through `auth.ts`; `issueAccessToken` (the token `POST /api/v1/accounts` hands back) reads it directly. Revocation still ends a token immediately: Settings → Connected apps and `POST /oauth/revoke` delete its rows.
+- **A user's opaque access token lasts as long as its client keeps using it.** better-auth issues it with `accessTokenExpiresIn` = `OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS` (7 days, `lib/services/auth/constants.ts`), and every bearer guard — `OAuthGuard`, `OAuthGuardAnyScope`, `OptionalOAuthGuard` and `OAuthAppGuard` — slides `expiresAt` to now + that window when it accepts a request (`extendAccessTokenIfDue` in `lib/services/guards/OAuthGuard.ts`). The token lapses only after a full window with no accepted request.
+- **The slide is the only thing keeping any OAuth client signed in.** This server cannot issue refresh tokens: better-auth mints one only for the `offline_access` scope, which is not in this server's scope vocabulary. Mastodon clients would not use one anyway — Mastodon's own tokens never expire, so Ivory, Ice Cubes, Tusky, Phanpy, Elk and the rest store the token once. A fixed lifetime therefore signs every client out on schedule: the first request after `expiresAt` is a `401` (`token_expired`), which a client reads as "this account is gone". The pre-better-auth OAuth server's `tokens` table had a sliding session; the move to better-auth's `oauthAccessToken` dropped it, and from then on every client was signed out seven days after authorizing, however active it was. With releases going out several times a day that looked like each deploy logging the apps out — no deploy-time code path touches these rows. Don't remove the slide.
+- **Only a request the guard accepts slides the token.** `resolveTokenContext` checks the row, expiry and scope and hands back what the slide needs; each guard applies it only after its actor, moderation and confirmation checks pass. A token refused for scope or expiry, one whose actor no longer exists, and a suspended account's client polling into `403`s are never extended — otherwise the token would outlive the suspension.
+- **Only user tokens on the opaque path slide.** App (`client_credentials`) tokens have no `userId` and keep better-auth's one-hour `m2mAccessTokenExpiresIn`; a JWT access token's `exp` is signed into the token and cannot be moved.
+- **It writes at most once a day per token.** The guard only updates a row that has been in use for `OAUTH_ACCESS_TOKEN_SLIDE_INTERVAL_SECONDS` since it was issued or last extended, through `database.extendOAuthAccessToken` (keyed on the token hash). A failed write is logged and the request still succeeds; the row is still due, so the next request retries.
+- **Deleting a token is what ends it.** Signing an app out in Settings → Connected apps and `POST /oauth/revoke` delete its rows, so a slide racing a revoke matches nothing. better-auth's soft revocation — the `revoked` column its session-delete hook stamps on tokens minted from a web session that is signed out or expires — is deliberately not honoured, by the guard or by the slide: as on Mastodon, signing out of the web does not sign apps out (see `detachOAuthTokensFromSessions`). Honouring it would bring the weekly sign-out back for most clients.
+- **Every path that mints a user token uses the same window.** better-auth's grants read it through `auth.ts`; `issueAccessToken` (the token `POST /api/v1/accounts` hands back) reads it directly.
 
 <a id="agents-auth-error-page"></a>
 
@@ -1647,14 +1649,19 @@ legacy shape left to copy.
 
 ### Review: OAuth access token sliding expiry
 
-- `OAuthGuard` still slides a user's opaque token on every authenticated use
-  that is due (`extendAccessTokenIfDue`), after the expiry and scope checks and
-  never for an app token or a JWT. Mastodon clients cannot refresh, so a change
-  that drops or narrows the slide signs them all out after one window.
+- Every bearer guard still slides a user's opaque token when it accepts a
+  request (`extendAccessTokenIfDue`), and only then: after the expiry and scope
+  checks in `resolveTokenContext` and the actor, moderation and confirmation
+  checks in the guard. Never for an app token or a JWT. This server issues no
+  refresh tokens, so a change that drops or narrows the slide signs every
+  client out after one window; one that slides a refused request keeps a
+  suspended account's token alive.
 - Every path that mints a user token takes its lifetime from
   `OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS`, never a literal, so the issued
   expiry and the slide agree.
-- A failed slide write never fails the request. See
+- A failed slide write never fails the request, and better-auth's `revoked`
+  column stays unread unless the web-sign-out behaviour is deliberately
+  changed. See
   [OAuth Access Token Sliding Expiry](#agents-oauth-access-token-sliding-expiry).
 
 <a id="review-unconfirmed-accounts-app-tokens"></a>

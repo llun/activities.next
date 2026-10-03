@@ -34,16 +34,18 @@ export const AUTH_ERROR_PATH = '/auth/error'
 // How long an access token issued for a user lives without being used, and the
 // window `OAuthGuard` slides forward each time it is (see
 // `extendAccessTokenIfDue` there). A token therefore lasts as long as its client
-// keeps using it, and lapses only after this long with no request at all.
+// keeps using it, and lapses only after this long with no accepted request.
 //
-// The sliding half is what keeps Mastodon clients signed in. Mastodon's access
-// tokens never expire, so Ivory, Ice Cubes, Tusky, Phanpy, Elk and the rest
-// store the token once and never ask for `offline_access`; with no refresh token
-// there is nothing to renew it with. Without the slide every one of them was
-// signed out on the seventh day after authorizing, however active it was: the
-// first request after `expiresAt` 401s (`token_expired` in `OAuthGuard`) and the
-// client reads that as "this account is gone". With releases going out several
-// times a day it looked as though each deploy logged the apps out.
+// The sliding half is what keeps Mastodon clients signed in. This server cannot
+// issue a refresh token at all — better-auth only mints one for the
+// `offline_access` scope, which is not in this server's scope vocabulary — and
+// Mastodon clients would not use one anyway: Mastodon's access tokens never
+// expire, so Ivory, Ice Cubes, Tusky, Phanpy, Elk and the rest store the token
+// once. Without the slide every one of them was signed out on the seventh day
+// after authorizing, however active it was: the first request after
+// `expiresAt` 401s (`token_expired` in `OAuthGuard`) and the client reads that
+// as "this account is gone". With releases going out several times a day it
+// looked as though each deploy logged the apps out.
 //
 // Shared by `auth.ts` (better-auth's `accessTokenExpiresIn`), `issueAccessToken`
 // (tokens minted directly for an account registered over the API) and the slide

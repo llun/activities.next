@@ -138,6 +138,11 @@ describe('issueAccessToken', () => {
     const DAY_MS = 24 * 60 * 60 * 1000
     const WINDOW_MS = OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS * 1000
 
+    beforeEach(() => {
+      // Only `Date` is faked: knex and better-sqlite3 rely on real timers.
+      vi.useFakeTimers({ toFake: ['Date'] })
+    })
+
     afterEach(() => {
       vi.useRealTimers()
     })
@@ -162,8 +167,6 @@ describe('issueAccessToken', () => {
     }
 
     it('keeps a token valid while its client keeps using it', async () => {
-      // Only `Date` is faked: knex and better-sqlite3 rely on real timers.
-      vi.useFakeTimers({ toFake: ['Date'] })
       const issued = await issueAccessToken({
         database: mockDatabase,
         clientId: CLIENT_ID,
@@ -185,8 +188,7 @@ describe('issueAccessToken', () => {
       }
     })
 
-    it('still lapses after a full window with no request', async () => {
-      vi.useFakeTimers({ toFake: ['Date'] })
+    it('lapses a full window after its last use', async () => {
       const issued = await issueAccessToken({
         database: mockDatabase,
         clientId: CLIENT_ID,
@@ -194,10 +196,13 @@ describe('issueAccessToken', () => {
         actorId,
         scopes: [Scope.enum.read, Scope.enum.write]
       })
+      const lastUse = issued.createdAt + 5 * DAY_MS
 
-      expect(
-        await verifyAt(issued.token, issued.createdAt + WINDOW_MS + 1000)
-      ).toBe(401)
+      expect(await verifyAt(issued.token, lastUse)).toBe(200)
+      expect(await storedExpiresAt(issued.token)).toBe(lastUse + WINDOW_MS)
+
+      // Idle for a full window after that use: the token has lapsed.
+      expect(await verifyAt(issued.token, lastUse + WINDOW_MS + 1000)).toBe(401)
     })
   })
 
