@@ -61,7 +61,6 @@ const nextConfig: NextConfig = {
       './node_modules/@upstash/**/*',
       './node_modules/base64-js/**/*',
       './node_modules/bignumber.js/**/*',
-      './node_modules/crypto-js/**/*',
       './node_modules/duplexify/**/*',
       './node_modules/end-of-stream/**/*',
       './node_modules/extend/**/*',
@@ -83,6 +82,7 @@ const nextConfig: NextConfig = {
       './node_modules/readable-stream/**/*',
       './node_modules/retry-request/**/*',
       './node_modules/stream-shift/**/*',
+      './node_modules/uncrypto/**/*',
       './node_modules/util-deprecate/**/*',
       './node_modules/wrappy/**/*'
     ]
