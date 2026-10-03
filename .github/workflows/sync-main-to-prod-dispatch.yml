@@ -1,125 +1,131 @@
-name: Queue Main to Activities.prod Sync
+name: Daily Main to Activities.prod Sync
 
+# Syncs activities.prod with activities.next once a day instead of after every
+# merge (feature merges and the automatic `Bump version to vX.Y.Z` merges each
+# used to queue a full prod sync).
+#
+# The time is fixed in UTC on purpose, so it does not move with DST: 01:17 UTC is
+# 02:17 in the Netherlands in winter (CET) and 03:17 in summer (CEST). It sits
+# off the top of the hour because GitHub delays or drops more scheduled runs
+# there. Scheduled workflows only run from the default branch.
+#
+# To sync sooner, run `sync-upstream.yml` by hand in activities.prod (optionally
+# with a `main_sha`), or run this workflow by hand to apply the same selection.
 on:
-  workflow_run:
-    workflows:
-      - CI
-      - Package
-      - CodeQL
-    types:
-      - completed
+  schedule:
+    - cron: '17 1 * * *'
+  workflow_dispatch:
 
 permissions:
   actions: read
+  contents: read
 
 concurrency:
-  group: queue-main-to-prod-${{ github.event.workflow_run.head_sha }}
-  cancel-in-progress: true
+  group: daily-main-to-prod
+  cancel-in-progress: false
 
 jobs:
   dispatch:
     name: Dispatch Sync Runner
-    if: >-
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main'
+    # Forks have no PAT_TOKEN and no business dispatching to activities.prod.
+    if: github.repository == 'llun/activities.next'
     runs-on: ubuntu-latest
     steps:
-      - name: Check required workflow results
-        id: check
+      - name: Checkout selection script
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      # Picks the newest main commit on which CI, Package and CodeQL all
+      # succeeded. The newest commit is often still in flight or was cancelled
+      # by CI's cancel-in-progress, so look back through recent history rather
+      # than skipping the day.
+      - name: Select newest green main commit
+        id: select
         uses: actions/github-script@v9
+        env:
+          LOOKBACK_COMMITS: '30'
         with:
           script: |
-            const requiredWorkflows = [
-              'CI',
-              'Package',
-              'CodeQL',
-            ]
+            const { REQUIRED_WORKFLOW_FILES, REQUIRED_WORKFLOWS, selectSyncCommit } =
+              await import(
+                `${process.env.GITHUB_WORKSPACE}/.github/scripts/select-sync-commit.mjs`
+              )
 
             const { owner, repo } = context.repo
-            const headSha = context.payload.workflow_run.head_sha
-            const headBranch = context.payload.workflow_run.head_branch
 
-            const runs = await github.paginate(
-              github.rest.actions.listWorkflowRunsForRepo,
-              {
+            const { data: commits } = await github.rest.repos.listCommits({
+              owner,
+              repo,
+              sha: 'main',
+              per_page: Number(process.env.LOOKBACK_COMMITS),
+            })
+
+            // Each entry is one run at its latest attempt (re-runs do not add
+            // entries), so the 100 most recent push runs per workflow
+            // comfortably cover the lookback window.
+            const runs = []
+            for (const [workflow, file] of Object.entries(REQUIRED_WORKFLOW_FILES)) {
+              const { data } = await github.rest.actions.listWorkflowRuns({
                 owner,
                 repo,
-                branch: headBranch,
+                workflow_id: file,
+                branch: 'main',
                 event: 'push',
-                head_sha: headSha,
                 per_page: 100,
-              }
-            )
-
-            const latestRunsByName = new Map()
-
-            for (const run of runs) {
-              if (!requiredWorkflows.includes(run.name)) {
-                continue
-              }
-
-              const previousRun = latestRunsByName.get(run.name)
-
-              if (
-                !previousRun ||
-                run.run_attempt > previousRun.run_attempt ||
-                (
-                  run.run_attempt === previousRun.run_attempt &&
-                  new Date(run.updated_at) > new Date(previousRun.updated_at)
-                )
-              ) {
-                latestRunsByName.set(run.name, run)
+              })
+              for (const run of data.workflow_runs) {
+                runs.push({
+                  id: run.id,
+                  workflow,
+                  head_sha: run.head_sha,
+                  run_attempt: run.run_attempt,
+                  status: run.status,
+                  conclusion: run.conclusion,
+                })
               }
             }
 
-            const pending = []
-            const failed = []
+            const { sha, evaluated } = selectSyncCommit({
+              commits: commits.map((commit) => commit.sha),
+              runs,
+            })
 
-            core.summary.addHeading('Main-to-Activities.prod Sync Gate')
-            core.summary.addRaw(`Commit: \`${headSha}\`\n\n`)
+            core.summary.addHeading('Daily Main-to-Activities.prod Sync')
+            core.summary.addTable([
+              [
+                { data: 'Commit', header: true },
+                ...REQUIRED_WORKFLOWS.map((workflow) => ({ data: workflow, header: true })),
+              ],
+              ...evaluated.map((entry) => [
+                `<code>${entry.sha.slice(0, 12)}</code>${entry.sha === sha ? ' ✅' : ''}`,
+                ...REQUIRED_WORKFLOWS.map((workflow) => entry.states[workflow]),
+              ]),
+            ])
 
-            for (const workflowName of requiredWorkflows) {
-              const run = latestRunsByName.get(workflowName)
-
-              if (!run) {
-                pending.push(workflowName)
-                core.summary.addRaw(`- ${workflowName}: missing\n`)
-                continue
-              }
-
-              core.summary.addRaw(
-                `- ${workflowName}: ${run.status}/${run.conclusion ?? 'n/a'} ` +
-                `(attempt ${run.run_attempt})\n`
-              )
-
-              if (run.status !== 'completed') {
-                pending.push(workflowName)
-                continue
-              }
-
-              if (run.conclusion !== 'success') {
-                failed.push(workflowName)
-              }
-            }
-
-            await core.summary.write()
-
-            if (pending.length > 0 || failed.length > 0) {
-              core.info(
-                `Skipping dispatch for ${headSha}. ` +
-                `Pending: ${pending.join(', ') || 'none'}. ` +
-                `Failed: ${failed.join(', ') || 'none'}.`
-              )
+            if (!sha) {
+              const message =
+                `No main commit in the last ${commits.length} has CI, Package ` +
+                'and CodeQL all succeeded; skipping today\'s sync.'
+              core.summary.addRaw(`\n${message}\n`)
+              await core.summary.write()
+              core.warning(message)
               core.setOutput('ready', 'false')
               return
             }
 
+            core.summary.addRaw(`\nDispatching \`${sha}\` to activities.prod.\n`)
+            await core.summary.write()
+            core.info(`Selected ${sha}.`)
             core.setOutput('ready', 'true')
-            core.setOutput('head_sha', headSha)
+            core.setOutput('main_sha', sha)
 
       - name: Dispatch sync workflow
-        if: steps.check.outputs.ready == 'true'
+        if: steps.select.outputs.ready == 'true'
         uses: actions/github-script@v9
+        env:
+          MAIN_SHA: ${{ steps.select.outputs.main_sha }}
         with:
           github-token: ${{ secrets.PAT_TOKEN }}
           script: |
@@ -128,6 +134,6 @@ jobs:
               repo: 'activities.prod',
               event_type: 'sync-upstream',
               client_payload: {
-                main_sha: '${{ steps.check.outputs.head_sha }}',
+                main_sha: process.env.MAIN_SHA,
               },
             })
