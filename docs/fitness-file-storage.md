@@ -1186,7 +1186,7 @@ null }` remains the precise "this retirement never happened" — it reopens the
   tables carry `sr-only` spans — `position: absolute` — in cells that are not
   positioned: the "Actions" headers (always on the gear and device tables; on
   the components table once its actions column unpins on a phone), the gear
-  list's phone-hidden "Edit" button text,
+  list's "Edit" button text on a narrow table,
   and the "Install N:" labels in a refitted component's Added/Retired cells.
   `overflow` clips an absolutely positioned descendant only when its containing
   block is the scroller or inside it, so with no positioned scroller those
@@ -1249,12 +1249,18 @@ null }` remains the precise "this retirement never happened" — it reopens the
   hostname takes `text-primary-text` — `text-primary` is 3.37:1 on the card and
   fails AA for text. Only a device's is ever pre-filled: `resolveDeviceGear`
   seeds it from the brand map when the import creates the row.
-- **Gear list tables use fixed column widths, and only the Actions column is shared.** In `app/(timeline)/fitness/gear/GearListView.tsx`, all tables
+- **Gear list tables use fixed column widths, and the three tables line up.** In `app/(timeline)/fitness/gear/GearListView.tsx`, all tables
   (Bikes, Shoes, Devices) use `table-fixed w-full min-w-[560px] text-sm` and define fixed column widths via `<colgroup>`.
   Bikes and Shoes (5 columns) allocate `33.5%` (Name), `22.5%` (Product page), `14.5%` (Default sports), `19.5%` (Distance), and `10%` (Actions);
   Name, Product page and Distance are sized from their widest content and Default sports is the column that gives, truncating its cells (the comment above that `<colgroup>` has the arithmetic).
-  Devices (4 columns) allocates `34%` (Device), `26%` (Product page), `30%` (Activities), and `10%` (Actions).
-  Only the Actions column's width (`10%`) is shared across the tables, so every table's data columns end at `90%`: the Actions column and the right-aligned Distance (Bikes / Shoes) and Activities (Devices) values align vertically, while the Name and Product page edges differ between Bikes / Shoes and Devices.
+  Devices (4 columns) allocates `33.5%` (Device), `22.5%` (Product page), `34%` (Activities), and `10%` (Actions).
+  The first two columns and the Actions column are the same on all three tables, so Name and Product page start at the same edges, and every table's data columns end at `90%`:
+  the right-aligned Distance (Bikes / Shoes) and Activities (Devices) values and the Actions column align vertically.
+  The Actions cell is `px-2` with its button centred (the components table's pinned actions use the same padding), and the **"Edit" label shows only where its own cell has the room for it**.
+  The column is `10%` of the table, so its width follows the table's (56px at the 560px minimum, 90.6px at the 906px maximum) and "pencil + Edit" measures 62.5px:
+  the label is `sr-only @min-[4rem]:not-sr-only` inside an `@container` wrapper that is as wide as the cell's content, so a table of about 800px or more shows it and a narrower one shows the pencil alone, with the accessible name `Edit <gear>` either way.
+  Do not use a viewport breakpoint for it (`sm:` showed the label from 640px and overflowed the column by up to 14px): the table's width follows the page's side navigation, not the viewport.
+  Unlike the components table's, this Actions column is **not pinned right**: these tables do not snap to whole columns (the known gap in the components bullet above), and a pinned cell over a table that overflows its scroller (a scroller under 560px) covers the end of the Distance column until the table is scrolled.
 - **A recording device is a third kind, and almost nothing above applies to it.**
   `kind: 'device'` rows have no components, no default sports, no distance
   total, no service reminder and cannot be retired; a device page reports an

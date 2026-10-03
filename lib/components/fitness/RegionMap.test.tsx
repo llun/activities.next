@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { GlModule, RegionMap } from './RegionMap'
 
@@ -13,9 +13,30 @@ const DEFAULT_BOX = {
   se: { lat: 50, lng: 7 }
 }
 
-const createFakeGl = ({ addSourceThrows = false } = {}) => {
+// Which library's attribution control the fake adds to the map container, in the
+// state that library gives it on load: MapLibre's compact control is open for
+// the first view (`maplibregl-compact-show`); Mapbox's starts folded.
+const ATTRIBUTION_CLASSES = {
+  maplibre:
+    'maplibregl-ctrl maplibregl-ctrl-attrib maplibregl-compact maplibregl-compact-show',
+  mapbox: 'mapboxgl-ctrl mapboxgl-ctrl-attrib mapboxgl-compact'
+}
+
+const createFakeGl = ({
+  addSourceThrows = false,
+  attribution = 'maplibre',
+  autoLoad = true
+}: {
+  addSourceThrows?: boolean
+  attribution?: keyof typeof ATTRIBUTION_CLASSES
+  // Off: the test fires `handlers.load` itself, to look at what came before it.
+  autoLoad?: boolean
+} = {}) => {
   const handlers: Handlers = {}
   const source = { setData: vi.fn() }
+  const attributionEl = document.createElement('details')
+  attributionEl.className = ATTRIBUTION_CLASSES[attribution]
+  let mapContainer: HTMLElement | null = null
   const map = {
     on: vi.fn((event: string, callback: (event?: unknown) => void) => {
       handlers[event] = callback
@@ -26,19 +47,26 @@ const createFakeGl = ({ addSourceThrows = false } = {}) => {
       if (addSourceThrows) throw new Error('addSource failed')
     }),
     addLayer: vi.fn(),
+    // The real control puts its element in the map's container as it is added.
+    addControl: vi.fn(() => mapContainer?.appendChild(attributionEl)),
     getSource: vi.fn(() => source),
     getCanvas: vi.fn(() => ({ style: {} as CSSStyleDeclaration })),
     easeTo: vi.fn(),
     fitBounds: vi.fn(),
     dragPan: { enable: vi.fn(), disable: vi.fn() }
   }
-  const Map = vi.fn(function MapCtor() {
+  const Map = vi.fn(function MapCtor(options: { container: HTMLElement }) {
+    mapContainer = options.container
     // Fire the async 'load' event after the component subscribes to it.
-    Promise.resolve().then(() => handlers.load?.())
+    if (autoLoad) Promise.resolve().then(() => handlers.load?.())
     return map
   })
-  const gl = { Map } as unknown as GlModule
-  return { gl, map, source, handlers }
+  const AttributionControl = vi.fn(function AttributionControlCtor(_options: {
+    compact: boolean
+    customAttribution?: string
+  }) {})
+  const gl = { Map, AttributionControl } as unknown as GlModule
+  return { gl, map, Map, source, handlers, attributionEl, AttributionControl }
 }
 
 const renderRegionMap = (
@@ -89,28 +117,248 @@ describe('RegionMap', () => {
     expect(map.addLayer).toHaveBeenCalledTimes(2)
   })
 
-  it("keeps the library's attribution control, lifted clear of the hint pill", async () => {
-    const { gl } = createFakeGl()
-    const { container } = renderRegionMap(gl)
+  it('adds a compact attribution control to the map instead of the default one', async () => {
+    const { gl, map, Map, AttributionControl } = createFakeGl()
+    renderRegionMap(gl)
 
     await screen.findByText('TestMaps')
-    // The library's own control, with its credits (MapLibre / OpenFreeMap /
-    // OSM): an options object would replace its defaults, so it stays `true`.
+    // Not the Map's own `attributionControl: true`: on Mapbox that option is a
+    // boolean, and its default control folds by the map's width alone — the
+    // picker's map is 846px wide at 1280, so the credit stayed a wide open bar.
+    // The same explicit `compact` control keeps the "i" button on both libraries.
     expect(gl.Map).toHaveBeenCalledWith(
-      expect.objectContaining({ attributionControl: true })
+      expect.objectContaining({ attributionControl: false })
     )
-    // The corner the control lives in is lifted above the hint pill, for both
-    // GL libraries (the Mapbox provider reaches this map through the same
-    // picker). Not observable in jsdom as a layout, so pin the classes that do
-    // it — and their `!`, without which the unlayered GL stylesheet beats the
-    // utility.
-    const mapContainer = container.querySelector('.h-full.w-full')
-    expect(mapContainer?.className).toContain(
-      '[&_.maplibregl-ctrl-bottom-right]:bottom-11!'
+    expect(AttributionControl).toHaveBeenCalledTimes(1)
+    expect(AttributionControl.mock.calls[0][0]).toMatchObject({ compact: true })
+    expect(map.addControl).toHaveBeenCalledTimes(1)
+    expect(map.addControl).toHaveBeenCalledWith(
+      AttributionControl.mock.instances[0]
     )
-    expect(mapContainer?.className).toContain(
-      '[&_.mapboxgl-ctrl-bottom-right]:bottom-11!'
+    // Added after the map exists, and before it can load.
+    expect(Map.mock.invocationCallOrder[0]).toBeLessThan(
+      map.addControl.mock.invocationCallOrder[0]
     )
+  })
+
+  // MapLibre's own default control credits MapLibre ahead of the style's
+  // sources ("MapLibre | OpenFreeMap © OpenMapTiles Data from OpenStreetMap");
+  // a control built by hand does not unless it is given that as
+  // `customAttribution`, so the caller's credit goes through to it. Mapbox has
+  // no such credit and the caller gives none.
+  it('gives the control the library credit the caller passes', async () => {
+    const { gl, AttributionControl } = createFakeGl()
+    const credit =
+      '<a href="https://maplibre.org/" target="_blank">MapLibre</a>'
+    renderRegionMap(gl, { customAttribution: credit })
+
+    await screen.findByText('TestMaps')
+    expect(AttributionControl).toHaveBeenCalledWith({
+      compact: true,
+      customAttribution: credit
+    })
+  })
+
+  it('adds no library credit when the caller has none', async () => {
+    const { gl, AttributionControl } = createFakeGl({ attribution: 'mapbox' })
+    renderRegionMap(gl)
+
+    await screen.findByText('TestMaps')
+    expect(
+      AttributionControl.mock.calls[0][0].customAttribution
+    ).toBeUndefined()
+  })
+
+  // MapLibre 4.7 opens a compact control for the first view and only folds it on
+  // the first drag, so the credit was a wide bar over the map at load. Its own
+  // click handler opens it again from the folded state, so the class is all that
+  // has to go; `maplibregl-compact` is what keeps it the "i" button.
+  it('folds the MapLibre credit to the "i" button once the map loads', async () => {
+    const { gl, attributionEl } = createFakeGl()
+    expect(attributionEl).toHaveClass('maplibregl-compact-show')
+    renderRegionMap(gl)
+
+    await screen.findByText('TestMaps')
+    expect(attributionEl).toHaveClass('maplibregl-compact')
+    expect(attributionEl).not.toHaveClass('maplibregl-compact-show')
+  })
+
+  // The credit is open from the moment the control is added until the map loads
+  // (about 0.7s on a cold start), which is when the "Loading map…" overlay is up:
+  // it is folded as soon as it exists.
+  it('folds the MapLibre credit as soon as the control is added, before the map loads', async () => {
+    const { gl, map, attributionEl, handlers } = createFakeGl({
+      autoLoad: false
+    })
+    renderRegionMap(gl)
+
+    await waitFor(() => expect(map.addControl).toHaveBeenCalled())
+    expect(handlers.load).toBeDefined()
+    expect(screen.getByText(/Loading map/i)).toBeInTheDocument()
+    expect(attributionEl).toHaveClass('maplibregl-compact')
+    expect(attributionEl).not.toHaveClass('maplibregl-compact-show')
+  })
+
+  it('folds the credit again on load when MapLibre opened it in between', async () => {
+    const { gl, map, attributionEl, handlers } = createFakeGl({
+      autoLoad: false
+    })
+    renderRegionMap(gl)
+    await waitFor(() => expect(map.addControl).toHaveBeenCalled())
+
+    // The style's credits arrive, and the control opens itself for them.
+    attributionEl.classList.add('maplibregl-compact-show')
+    act(() => handlers.load?.())
+
+    expect(await screen.findByText('TestMaps')).toBeInTheDocument()
+    expect(attributionEl).not.toHaveClass('maplibregl-compact-show')
+  })
+
+  it('leaves the Mapbox credit as the library folded it', async () => {
+    const { gl, attributionEl } = createFakeGl({ attribution: 'mapbox' })
+    renderRegionMap(gl)
+
+    await screen.findByText('TestMaps')
+    expect(attributionEl.className).toBe(ATTRIBUTION_CLASSES.mapbox)
+  })
+
+  describe('credit lift', () => {
+    // jsdom lays nothing out: hand the hint pill a height, and watch what the
+    // component observes.
+    let hintHeight = 24.5
+    let observers: Array<{
+      callback: () => void
+      observed: Element[]
+      disconnect: () => void
+    }> = []
+
+    class ResizeObserverStub {
+      readonly entry: (typeof observers)[number]
+
+      constructor(callback: () => void) {
+        this.entry = { callback, observed: [], disconnect: vi.fn() }
+        observers.push(this.entry)
+      }
+
+      observe(target: Element) {
+        this.entry.observed.push(target)
+      }
+
+      disconnect() {
+        this.entry.disconnect()
+      }
+    }
+
+    beforeEach(() => {
+      hintHeight = 24.5
+      observers = []
+      vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+      vi.spyOn(
+        HTMLElement.prototype,
+        'getBoundingClientRect'
+      ).mockImplementation(function (this: HTMLElement) {
+        const isHint = this.className.includes('inset-x-2')
+        return { height: isHint ? hintHeight : 0 } as DOMRect
+      })
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    const getLift = (container: HTMLElement) =>
+      (container.firstElementChild as HTMLElement).style.getPropertyValue(
+        '--region-credit-lift'
+      )
+
+    // The credit's bottom edge from the map's: the hint's inset (8) and height,
+    // the 12px the design draws above it, less the control's own 10px margin.
+    it('puts the credit 12px above the hint it measured', async () => {
+      const { gl } = createFakeGl()
+      const { container } = renderRegionMap(gl)
+
+      // Before the hint exists the lift assumes a one-line hint, so the map's
+      // first frame is already in place.
+      expect(getLift(container)).toBe('35px')
+
+      await screen.findByText('TestMaps')
+      // 8 + 24.5 + 12 - 10: the control's 44.5px from the map's bottom edge is
+      // 12px above the hint's top edge, which is 32.5px up.
+      await waitFor(() => expect(getLift(container)).toBe('34.5px'))
+    })
+
+    it('follows the hint to a second line on a phone, and back', async () => {
+      const { gl } = createFakeGl()
+      const { container } = renderRegionMap(gl)
+      await screen.findByText('TestMaps')
+      await waitFor(() => expect(getLift(container)).toBe('34.5px'))
+
+      hintHeight = 41
+      act(() => observers[0].callback())
+      expect(getLift(container)).toBe('51px')
+
+      hintHeight = 24.5
+      act(() => observers[0].callback())
+      expect(getLift(container)).toBe('34.5px')
+    })
+
+    it('observes the hint itself and stops when the map goes away', async () => {
+      const { gl } = createFakeGl()
+      const { unmount } = renderRegionMap(gl)
+      await screen.findByText('TestMaps')
+
+      expect(observers).toHaveLength(1)
+      expect(observers[0].observed).toHaveLength(1)
+      expect(observers[0].observed[0].textContent).toBe(
+        'Pan and zoom, then press Draw to select an area.'
+      )
+
+      unmount()
+      expect(observers[0].disconnect).toHaveBeenCalled()
+    })
+
+    it('keeps the first guess when nothing is laid out', async () => {
+      hintHeight = 0
+      const { gl } = createFakeGl()
+      const { container } = renderRegionMap(gl)
+      await screen.findByText('TestMaps')
+      // Let the measuring effect run, so the check below is not just the first
+      // render's value.
+      await act(async () => {})
+
+      expect(getLift(container)).toBe('35px')
+    })
+
+    it('measures once without a ResizeObserver', async () => {
+      vi.unstubAllGlobals()
+      const { gl } = createFakeGl()
+      const { container } = renderRegionMap(gl)
+      await screen.findByText('TestMaps')
+
+      await waitFor(() => expect(getLift(container)).toBe('34.5px'))
+    })
+
+    // The corner the control lives in is lifted by that variable, for both GL
+    // libraries (the Mapbox provider reaches this map through the same picker).
+    // Not observable in jsdom as a layout, so pin the classes that do it — the
+    // v4 parenthesis form, which `w-[--x]`-style brackets are not, and the `!`,
+    // without which the unlayered GL stylesheet beats the utility. The fixed
+    // 44px they replaced sat 21.5px above a one-line hint and 5px above a
+    // wrapped one.
+    it('lifts the control corner by the variable, for both libraries', async () => {
+      const { gl } = createFakeGl()
+      const { container } = renderRegionMap(gl)
+      await screen.findByText('TestMaps')
+
+      const mapContainer = container.querySelector('.h-full.w-full')
+      expect(mapContainer?.className).toContain(
+        '[&_.maplibregl-ctrl-bottom-right]:bottom-(--region-credit-lift)!'
+      )
+      expect(mapContainer?.className).toContain(
+        '[&_.mapboxgl-ctrl-bottom-right]:bottom-(--region-credit-lift)!'
+      )
+      expect(mapContainer?.className).not.toContain('bottom-11')
+    })
   })
 
   it('disables panning while in draw mode', async () => {

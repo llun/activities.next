@@ -1569,47 +1569,11 @@ export const FitnessStatusDetail: FC<Props> = ({
           ) : null}
 
           {/* Design system order: the caption sits after the date/device
-              metadata, right before the file switcher and stat grid — not
-              immediately under the header row. */}
+              metadata, right before the stat grid — not immediately under the
+              header row. */}
           <div className="mt-3 text-sm leading-relaxed break-words markdown-content">
             {caption}
           </div>
-
-          {fitnessFiles.length > 1 && (
-            // Its own bordered card, as the design draws the switcher (radius
-            // 12, 16 padding), rather than a bare select floating in the header.
-            <div className="mt-4 rounded-xl border p-4">
-              <label
-                htmlFor="activity-file-select"
-                className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-              >
-                Activity file
-              </label>
-              <div className="relative mt-1.5">
-                <select
-                  id="activity-file-select"
-                  value={selectedFitnessFileId ?? ''}
-                  // No need to clear the gear error here — it is keyed to its
-                  // own file, so switching hides it and switching back brings it
-                  // back, which is what actually happened.
-                  onChange={(event) =>
-                    setSelectedFitnessFileId(event.target.value)
-                  }
-                  className="h-9 w-full max-w-full appearance-none rounded-lg border bg-background px-3 py-1.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary truncate"
-                >
-                  {fitnessFiles.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.fileName}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  aria-hidden="true"
-                  className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-foreground"
-                />
-              </div>
-            </div>
-          )}
 
           <FitnessStatGrid className="mt-4">
             <StatTile
@@ -1751,6 +1715,45 @@ export const FitnessStatusDetail: FC<Props> = ({
           </div>
         ) : null}
       </div>
+
+      {/* The file switcher is a card of its own, as the design's "File switcher"
+          board draws it — a sibling of the activity card above, not a
+          bordered box nested inside it, which stacked two borders. It sits
+          between that card and the section sub-navigation because it scopes
+          what follows: the file it selects drives the stat grid above and every
+          section below. Only a status with more than one fitness file shows it.
+          Same card and 16px inset as the page's other `padded={false}` cards. */}
+      {fitnessFiles.length > 1 && (
+        <Card padded={false} className="p-4">
+          <label
+            htmlFor="activity-file-select"
+            className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+          >
+            Activity file
+          </label>
+          <div className="relative mt-1.5">
+            <select
+              id="activity-file-select"
+              value={selectedFitnessFileId ?? ''}
+              // No need to clear the gear error here — it is keyed to its
+              // own file, so switching hides it and switching back brings it
+              // back, which is what actually happened.
+              onChange={(event) => setSelectedFitnessFileId(event.target.value)}
+              className="h-9 w-full max-w-full appearance-none rounded-lg border bg-background px-3 py-1.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary truncate"
+            >
+              {fitnessFiles.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.fileName}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-foreground"
+            />
+          </div>
+        </Card>
+      )}
 
       {/* Section sub-navigation */}
       <SectionNavSelect

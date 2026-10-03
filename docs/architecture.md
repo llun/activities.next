@@ -1596,7 +1596,9 @@ legacy shape left to copy.
   `@/lib/components/ui/select`), which hides the OS arrow and paints the
   design's muted chevron; a bare `<select>` shows the platform arrow. The
   activity-file switcher in `FitnessStatusDetail` is the one exception: it
-  overlays its own foreground-coloured `ChevronDown`, as the design draws it.
+  overlays its own foreground-coloured `ChevronDown`, as the design draws it,
+  and sits in a card of its own beside the activity card (only for a status
+  with more than one fitness file), not nested inside it.
 - The unread-count pill (`NotificationBadge`) is filled `#B7282E` in light — the
   design's count-badge red, darker than the `#EF4444` `--destructive` token that
   white text only reaches 3.8:1 on — and `--destructive` (`#7F1D1D`) in dark.

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { loadMapboxModule } from '@/lib/utils/mapbox'
 import { loadMapKitModule } from '@/lib/utils/mapkit'
@@ -136,6 +136,63 @@ describe('HeatmapRegionPicker', () => {
 
     expect(mockLoadMaplibreModule).toHaveBeenCalled()
     expect(mockLoadMapboxModule).not.toHaveBeenCalled()
+  })
+
+  // The picker builds the map's attribution control by hand, which drops
+  // MapLibre's own credit unless it is handed over: the MapLibre map gets it and
+  // Mapbox, which has none, does not.
+  describe('attribution credit', () => {
+    const createGl = () => {
+      const AttributionControl = vi.fn(
+        function AttributionControlCtor(_options: {
+          compact: boolean
+          customAttribution?: string
+        }) {}
+      )
+      const Map = vi.fn(function MapCtor() {
+        return { on: vi.fn(), remove: vi.fn(), addControl: vi.fn() }
+      })
+      return { gl: { Map, AttributionControl }, AttributionControl }
+    }
+
+    it('gives the MapLibre map its MapLibre credit', async () => {
+      const { gl, AttributionControl } = createGl()
+      mockLoadMaplibreModule.mockImplementationOnce(() => Promise.resolve(gl))
+      render(
+        <HeatmapRegionPicker
+          value={[]}
+          onChange={vi.fn()}
+          mapProvider={{ type: 'osm' }}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
+
+      await waitFor(() =>
+        expect(AttributionControl).toHaveBeenCalledWith({
+          compact: true,
+          customAttribution:
+            '<a href="https://maplibre.org/" target="_blank">MapLibre</a>'
+        })
+      )
+    })
+
+    it('adds no library credit to the Mapbox map', async () => {
+      const { gl, AttributionControl } = createGl()
+      mockLoadMapboxModule.mockImplementationOnce(() => Promise.resolve(gl))
+      render(
+        <HeatmapRegionPicker
+          value={[]}
+          onChange={vi.fn()}
+          mapProvider={{ type: 'mapbox', accessToken: 'pk.test-token' }}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: /Draw area on map/i }))
+
+      await waitFor(() => expect(AttributionControl).toHaveBeenCalledTimes(1))
+      expect(
+        AttributionControl.mock.calls[0][0].customAttribution
+      ).toBeUndefined()
+    })
   })
 
   it('renders the MapKit draw surface for the Apple provider', () => {

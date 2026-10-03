@@ -1649,9 +1649,17 @@ describe('FitnessStatusDetail', () => {
     expect(select.parentElement?.querySelector('svg')).not.toHaveClass(
       'text-muted-foreground'
     )
-    const switcherCard = select.closest('div.rounded-xl')
-    expect(switcherCard).toHaveClass('border', 'p-4')
+    const switcherCard = select.closest('div.rounded-xl') as HTMLElement
+    expect(switcherCard).toHaveClass('border', 'bg-card', 'p-4')
     expect(switcherCard).toContainElement(screen.getByText('Activity file'))
+    // A card of its own, beside the activity card rather than inside it: the
+    // activity card is the one holding the file position in its footer, and the
+    // two share the page's column.
+    const activityCard = switcherCard.previousElementSibling as HTMLElement
+    expect(activityCard).toContainElement(screen.getByText('file 1 of 2'))
+    expect(activityCard).not.toContainElement(select)
+    expect(activityCard).not.toContainElement(switcherCard)
+    expect(switcherCard.parentElement).toBe(activityCard.parentElement)
     expect(within(select).getAllByRole('option')).toHaveLength(2)
     expect(screen.getByText('file 1 of 2')).toBeInTheDocument()
 
@@ -1659,6 +1667,21 @@ describe('FitnessStatusDetail', () => {
     await waitFor(() =>
       expect(screen.getByText('file 2 of 2')).toBeInTheDocument()
     )
+  })
+
+  it('shows no activity-file switcher card for a status with a single fitness file', async () => {
+    mockGetFitnessFilesByStatus.mockResolvedValue([
+      buildFitnessFile({ id: 'fit-1', fileName: 'ride-morning.fit' })
+    ])
+
+    renderDetail()
+
+    // Positive anchor first: the file row is what the loaded file renders, so
+    // the absences below are not just "the files have not arrived yet".
+    expect(await screen.findByText('ride-morning.fit')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Activity file')).not.toBeInTheDocument()
+    expect(screen.queryByText('Activity file')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^file \d+ of \d+$/)).not.toBeInTheDocument()
   })
 
   describe('route privacy hint', () => {

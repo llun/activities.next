@@ -207,7 +207,7 @@ describe('HeatmapShareEmbed', () => {
       expect(field).toHaveClass('px-2.5', 'py-1.5', 'text-[12px]')
     })
 
-    it('stretch a Primary/sm Copy button to the height of the field', () => {
+    it('keeps the Copy button at a normal 36px height, top-aligned with the snippet box', () => {
       render(
         <HeatmapShareEmbed {...defaultProps} shareToken="tok123" defaultOpen />
       )
@@ -217,7 +217,35 @@ describe('HeatmapShareEmbed', () => {
       // 75 wide with a 14px icon, a 6px gap and the "Copy" label.
       expect(copy).toHaveAttribute('data-size', 'sm')
       expect(copy).toHaveAttribute('data-variant', 'default')
-      expect(copy).toHaveClass('self-stretch', 'h-auto')
+      // jsdom lays nothing out, so pin what decides the height: a fixed `h-9`
+      // (36px, not the `sm` size's 32) and no stretching. Stretched, the button
+      // was as tall as the snippet box, which wraps to four or five lines at a
+      // phone's width: 193px at 390px.
+      expect(copy).toHaveClass('h-9')
+      expect(copy).not.toHaveClass('h-auto')
+      expect(copy).not.toHaveClass('self-stretch')
+      // The row starts its children at the top, so a snippet taller than the
+      // button leaves the button level with its first line.
+      const snippet = screen.getByRole('textbox', { name: 'Copy embed code' })
+      expect(copy.parentElement).toBe(snippet.parentElement)
+      expect(copy.parentElement).toHaveClass('flex', 'items-start')
+      expect(copy.parentElement).not.toHaveClass('items-stretch')
+    })
+
+    it('keeps the single-line field at the same 36px as its Copy button', () => {
+      render(
+        <HeatmapShareEmbed {...defaultProps} shareToken="tok123" defaultOpen />
+      )
+      fireEvent.click(screen.getByRole('tab', { name: /Link/i }))
+
+      const field = screen.getByRole('textbox', { name: 'Copy public link' })
+      const copy = screen.getByRole('button', { name: 'Copy public link' })
+      // With the button no longer stretched to the field, a field left at
+      // `h-auto` (33.5px of padding and line height) would sit 2.5px short of it.
+      expect(field).toHaveClass('h-9')
+      expect(field).not.toHaveClass('h-auto')
+      expect(copy).toHaveClass('h-9')
+      expect(copy.parentElement).toHaveClass('items-start')
     })
 
     it('grow the snippet box to its whole text instead of scrolling the last line away', () => {

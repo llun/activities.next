@@ -1,7 +1,7 @@
 'use client'
 
 import { Crosshair, Loader2, LocateFixed } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import { CSSProperties, FC, useEffect, useRef, useState } from 'react'
 
 import {
   Box,
@@ -39,13 +39,28 @@ type GlMap = {
     options?: Record<string, unknown>
   ) => void
   dragPan: { enable: () => void; disable: () => void }
+  addControl: (control: unknown) => void
 }
 
 export type GlModule = {
   Map: new (options: Record<string, unknown>) => GlMap
+  AttributionControl: new (options: {
+    compact: boolean
+    customAttribution?: string
+  }) => unknown
 }
 
 const BOX_SOURCE_ID = 'region-box'
+// What the credit's lift (below) is derived from: the hint pill's `bottom-2`
+// inset, the 10px margin the GL attribution control brings of its own, and the
+// 12px the design draws between the credit and the hint. A one-line hint
+// measures 24.5px; the first paint assumes it, before the hint exists to be
+// measured.
+const HINT_BOTTOM_INSET = 8
+const CONTROL_MARGIN = 10
+const CREDIT_HINT_GAP = 12
+const ONE_LINE_HINT_HEIGHT = 25
+const MAPLIBRE_CREDIT_SELECTOR = '.maplibregl-ctrl-attrib'
 const SELECTION_COLOR = '#ea580c'
 // Fall back to the coordinate fields if the map never finishes loading.
 const MAP_LOAD_TIMEOUT_MS = 20000
@@ -59,6 +74,12 @@ interface RegionMapProps {
   mapOptions: Record<string, unknown>
   /** Short provider name shown on the map badge (e.g. "Mapbox"). */
   providerLabel: string
+  /**
+   * The GL library's own credit (HTML), shown ahead of the style's. MapLibre's
+   * default attribution control adds one; the control built here by hand does
+   * not, so a MapLibre caller passes it. Mapbox has none.
+   */
+  customAttribution?: string
   /** Center on the user's current location when composing a brand-new area. */
   centerOnUser: boolean
   /** Called when the map can't load/render so the caller can fall back. */
@@ -81,14 +102,17 @@ export const RegionMap: FC<RegionMapProps> = ({
   loadModule,
   mapOptions,
   providerLabel,
+  customAttribution,
   centerOnUser,
   onUnavailable,
   height = 260
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const hintRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<GlMap | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [drawMode, setDrawMode] = useState(false)
+  const [hintHeight, setHintHeight] = useState(ONE_LINE_HINT_HEIGHT)
 
   // Latest values read inside long-lived GL event handlers / the mount-once
   // create effect without re-subscribing or recreating the map every render.
@@ -97,6 +121,7 @@ export const RegionMap: FC<RegionMapProps> = ({
   const onUnavailableRef = useRef(onUnavailable)
   const loadModuleRef = useRef(loadModule)
   const mapOptionsRef = useRef(mapOptions)
+  const customAttributionRef = useRef(customAttribution)
   const centerOnUserRef = useRef(centerOnUser)
   const drawModeRef = useRef(drawMode)
   const drawingRef = useRef(false)
@@ -116,8 +141,9 @@ export const RegionMap: FC<RegionMapProps> = ({
   useEffect(() => {
     loadModuleRef.current = loadModule
     mapOptionsRef.current = mapOptions
+    customAttributionRef.current = customAttribution
     centerOnUserRef.current = centerOnUser
-  }, [loadModule, mapOptions, centerOnUser])
+  }, [loadModule, mapOptions, customAttribution, centerOnUser])
 
   const locateUser = (map: GlMap, seedBox: boolean) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
@@ -161,6 +187,16 @@ export const RegionMap: FC<RegionMapProps> = ({
     window.addEventListener('touchend', stopDraw)
     window.addEventListener('touchcancel', stopDraw)
 
+    // MapLibre's compact control opens itself for the first view and folds on
+    // the first drag (`maplibregl-compact-show`). Drop that state, so the credit
+    // is the "i" button and opens on a tap — which is what the control's own
+    // click handler does from the folded state. Mapbox's compact control starts
+    // folded and has nothing to undo.
+    const foldMaplibreCredit = () =>
+      containerRef.current
+        ?.querySelector(MAPLIBRE_CREDIT_SELECTOR)
+        ?.classList.remove('maplibregl-compact-show')
+
     loadModuleRef
       .current()
       .then((gl) => {
@@ -168,16 +204,30 @@ export const RegionMap: FC<RegionMapProps> = ({
 
         const map = new gl.Map({
           container: containerRef.current,
-          // The library's own control, which is already compact: it shows the
-          // credit until the first pan and then folds into an "i" button. The
-          // corner lift on the map container (below) is what keeps it clear of
-          // the hint pill.
-          attributionControl: true,
+          // The control is added below instead: Mapbox's Map option is only a
+          // boolean, and its default control folds by the map's width alone.
+          attributionControl: false,
           center: [0, 20],
           zoom: 1.4,
           ...mapOptionsRef.current
         })
         mapRef.current = map
+        // `compact` keeps the credit behind the "i" button at every width on
+        // both libraries, with the credits their styles declare (OpenFreeMap /
+        // OpenMapTiles / OpenStreetMap, or Mapbox's) and the library's own,
+        // where the default control would have had one. The corner lift on the
+        // map container (below) is what keeps it clear of the hint pill.
+        map.addControl(
+          new gl.AttributionControl({
+            compact: true,
+            customAttribution: customAttributionRef.current
+          })
+        )
+        // Folded as soon as it exists, not only once the map loads: until then
+        // the wide credit would sit over the "Loading map…" overlay. MapLibre
+        // can open it again as the style's credits arrive, hence the fold on
+        // load as well.
+        foldMaplibreCredit()
 
         // If the map never reaches 'load' (e.g. the style fails to fetch), fall
         // back to the coordinate fields instead of showing "Loading map…"
@@ -220,6 +270,7 @@ export const RegionMap: FC<RegionMapProps> = ({
           if (cancelled) return
           if (loadWatchdog) clearTimeout(loadWatchdog)
           try {
+            foldMaplibreCredit()
             map.resize()
             map.addSource(BOX_SOURCE_ID, {
               type: 'geojson',
@@ -288,6 +339,25 @@ export const RegionMap: FC<RegionMapProps> = ({
     mapRef.current?.getSource(BOX_SOURCE_ID)?.setData(boxToPolygon(box))
   }, [box, isReady])
 
+  // The hint wraps to a second line on a narrow map and its text changes with
+  // draw mode, so its height is measured rather than assumed: the credit's lift
+  // follows it (see the container below).
+  useEffect(() => {
+    const hint = hintRef.current
+    if (!hint) return
+
+    const measure = () => {
+      const { height } = hint.getBoundingClientRect()
+      if (height > 0) setHintHeight(height)
+    }
+    measure()
+
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(hint)
+    return () => observer.disconnect()
+  }, [isReady])
+
   // Draw mode disables panning so a drag draws the rectangle instead.
   useEffect(() => {
     drawModeRef.current = drawMode
@@ -302,22 +372,31 @@ export const RegionMap: FC<RegionMapProps> = ({
     }
   }, [drawMode, isReady])
 
+  // Where the credit sits above the map's bottom edge: over the hint (its inset
+  // and its measured height) and the gap the design draws, less the margin the
+  // control already has of its own.
+  const creditLift =
+    HINT_BOTTOM_INSET + hintHeight + CREDIT_HINT_GAP - CONTROL_MARGIN
+
   return (
     <div
       className="relative w-full overflow-hidden rounded-lg border"
-      style={{ height }}
+      style={
+        {
+          height,
+          '--region-credit-lift': `${creditLift}px`
+        } as CSSProperties
+      }
     >
-      {/* The corner the attribution lives in is lifted by the hint pill's
-          height (pill: `bottom-2` + 25px, or 41px once the hint wraps to a
-          second line below ~390px; the control adds its own 10px margin), so
-          the credit sits just above the hint instead of on top of it — as the
-          design draws it. The `!` is
-          needed: the GL stylesheet is injected unlayered, which beats every
-          Tailwind utility (they live in `@layer utilities`) whatever the
-          specificity. */}
+      {/* The corner the attribution lives in is lifted by `--region-credit-lift`
+          so the credit sits 12px above the hint pill — and the lift follows the
+          hint, which wraps to a second line below ~390px, so it clears a
+          two-line hint as well as a one-line one. The `!` is needed: the GL
+          stylesheet is injected unlayered, which beats every Tailwind utility
+          (they live in `@layer utilities`) whatever the specificity. */}
       <div
         ref={containerRef}
-        className="h-full w-full [&_.maplibregl-ctrl-bottom-right]:bottom-11! [&_.mapboxgl-ctrl-bottom-right]:bottom-11!"
+        className="h-full w-full [&_.maplibregl-ctrl-bottom-right]:bottom-(--region-credit-lift)! [&_.mapboxgl-ctrl-bottom-right]:bottom-(--region-credit-lift)!"
       />
 
       {!isReady && (
@@ -361,6 +440,7 @@ export const RegionMap: FC<RegionMapProps> = ({
             </Button>
           </div>
           <div
+            ref={hintRef}
             className={cn(
               'pointer-events-none absolute inset-x-2 bottom-2 rounded bg-background/90 px-2 py-1 text-center text-[11px] shadow-sm',
               drawMode ? 'text-foreground' : 'text-muted-foreground'

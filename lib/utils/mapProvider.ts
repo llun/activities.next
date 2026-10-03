@@ -23,10 +23,22 @@ export type PublicMapProvider =
  */
 export type GlStyleVariant = 'outdoors' | 'light'
 
+// The credit MapLibre GL's own attribution control adds ahead of the style's
+// sources. A control built by hand (`new AttributionControl(...)`) only gets it
+// as `customAttribution`.
+const MAPLIBRE_CUSTOM_ATTRIBUTION =
+  '<a href="https://maplibre.org/" target="_blank">MapLibre</a>'
+
 export interface GlProviderOptions {
   loadModule: () => Promise<unknown>
   mapOptions: Record<string, unknown>
   label: 'Mapbox' | 'OpenFreeMap'
+  /**
+   * The library's own credit, for a map that builds its attribution control by
+   * hand: MapLibre's default control adds it, a control constructed directly
+   * does not. Mapbox has none.
+   */
+  customAttribution?: string
 }
 
 /**
@@ -74,6 +86,7 @@ export const buildGlProviderOptions = (
           ? OPENFREEMAP_HEATMAP_STYLE_URL
           : OPENFREEMAP_STYLE_URL
     },
-    label: 'OpenFreeMap'
+    label: 'OpenFreeMap',
+    customAttribution: MAPLIBRE_CUSTOM_ATTRIBUTION
   }
 }

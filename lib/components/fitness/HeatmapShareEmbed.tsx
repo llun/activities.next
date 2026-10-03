@@ -122,8 +122,11 @@ const useFitTextareaHeight = (
  *
  * The field is the shared `Input` / `Textarea` — the design's "Copy field" is a
  * normal input (border, fill and focus ring from `--input`, `shadow-xs`) with a
- * Primary/sm button stretched to its height — only re-sized to the 12px / 11px
- * mono text and 10px inset the kit draws it with.
+ * Primary/sm button — only re-sized to the 12px / 11px mono text and 10px inset
+ * the kit draws it with. The button keeps a normal 36px height and sits at the
+ * top of the row, level with the first line of the snippet, rather than
+ * stretching to a snippet that wraps to four or five lines; the single-line
+ * field is 36px as well so the two still line up.
  */
 const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
   const { copied, copy } = useCopyToClipboard()
@@ -131,7 +134,7 @@ const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
   useFitTextareaHeight(snippetRef, value)
 
   return (
-    <div className="flex items-stretch gap-2">
+    <div className="flex items-start gap-2">
       {mono ? (
         <Textarea
           ref={snippetRef}
@@ -149,13 +152,13 @@ const CopyField: FC<CopyFieldProps> = ({ value, mono, copyLabel }) => {
           value={value}
           aria-label={copyLabel}
           onFocus={(event) => event.currentTarget.select()}
-          className="h-auto flex-1 px-2.5 py-1.5 text-[12px] leading-relaxed md:text-[12px]"
+          className="flex-1 px-2.5 py-1.5 text-[12px] leading-relaxed md:text-[12px]"
         />
       )}
       <Button
         type="button"
         size="sm"
-        className="h-auto shrink-0 self-stretch"
+        className="h-9 shrink-0"
         onClick={() => copy(value)}
         aria-label={copyLabel}
       >
