@@ -5,7 +5,12 @@ import { FC } from 'react'
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 import { profileName } from '@/lib/components/navigation-history/backDestination'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+import {
+  MOBILE_FEED_SURFACE_CLASS,
+  MOBILE_INSET_CARD_CLASS,
+  MOBILE_INSET_CARD_FRAME_CLASS,
+  MOBILE_INSET_STACK_CLASS
+} from '@/lib/components/posts/feedLayout'
 import { StatusThread } from '@/lib/components/posts/status-thread'
 import { getBaseURL, getConfig } from '@/lib/config'
 import { getPublicMapProvider } from '@/lib/config/mapProvider'
@@ -270,10 +275,9 @@ const Page: FC<Props> = async ({ params }) => {
             // content wrapper has no top padding, so the card sits with a top
             // margin on desktop; on mobile it sits flush under the compact bar
             // rendered above it. Logged-out viewers go through `PublicShell`,
-            // which supplies its own top padding (`py-6`); on desktop that gap
-            // is kept, while on mobile `max-md:-mt-6` pulls the card flush
-            // beneath `PublicTopBar`.
-            currentActorProfile ? 'md:mt-4' : 'max-md:-mt-6',
+            // whose `py-6` is the gap under `PublicTopBar` at every width, so
+            // they take no margin of their own.
+            currentActorProfile && 'md:mt-4',
             // No `overflow-hidden`: this card wraps a post, and a post's
             // non-portalled overlays have to escape it. They all hang off the
             // action row inside `FitnessStatusDetail`'s own card — the
@@ -286,7 +290,12 @@ const Page: FC<Props> = async ({ params }) => {
             // popover are unaffected either way; both portal to the document
             // body.
             'rounded-2xl border bg-background/80 shadow-sm',
-            MOBILE_FEED_SURFACE_CLASS
+            // Below `md` a signed-in page is the full-bleed feed surface. A
+            // logged-out page is not one card but a stack of inset cards (the
+            // activity, then `SignInCallout`), like `PublicFooter` below them.
+            currentActorProfile
+              ? MOBILE_FEED_SURFACE_CLASS
+              : MOBILE_INSET_STACK_CLASS
           )}
         >
           {currentActorProfile ? (
@@ -313,7 +322,7 @@ const Page: FC<Props> = async ({ params }) => {
 
           <div
             className={cn(
-              'border-b bg-background max-md:rounded-none',
+              'border-b bg-background',
               // Unlike the conversation card below, this one's children paint,
               // so with the clip gone each corner they reach has to be rounded
               // here, and reset below `md` where the outer card is square and
@@ -323,7 +332,10 @@ const Page: FC<Props> = async ({ params }) => {
               !currentActorProfile && 'rounded-t-2xl',
               // …and it is the last child unless the logged-out `SignInCallout`
               // follows it, in which case that block takes the bottom corners.
-              currentActorProfile && 'rounded-b-2xl'
+              currentActorProfile && 'rounded-b-2xl max-md:rounded-none',
+              // Below `md` a logged-out activity is a card of its own, framed
+              // all the way round (its `border-b` becomes a full border).
+              !currentActorProfile && MOBILE_INSET_CARD_FRAME_CLASS
             )}
           >
             <StatusBox
@@ -353,7 +365,7 @@ const Page: FC<Props> = async ({ params }) => {
             // so it is what meets the bottom corners on the logged-out view.
             <SignInCallout
               registrationOpen={registrationOpen}
-              className="rounded-b-2xl max-md:rounded-none"
+              className={cn('rounded-b-2xl', MOBILE_INSET_CARD_FRAME_CLASS)}
             />
           ) : null}
         </div>
@@ -369,10 +381,9 @@ const Page: FC<Props> = async ({ params }) => {
           // Signed-in viewers render inside the `(timeline)` layout, whose
           // content wrapper has no top padding on desktop; on mobile the card
           // sits flush under the compact bar rendered above it. Logged-out
-          // viewers go through `PublicShell`, which supplies its own top
-          // padding (`py-6`); on desktop that gap is kept, while on mobile
-          // `max-md:-mt-6` pulls the card flush beneath `PublicTopBar`.
-          currentActorProfile ? 'md:mt-4' : 'max-md:-mt-6',
+          // viewers go through `PublicShell`, whose `py-6` is the gap under
+          // `PublicTopBar` at every width, so they take no margin of their own.
+          currentActorProfile && 'md:mt-4',
           // No `overflow-hidden`: this card contains posts, and a post's
           // non-portalled overlays would be clipped by it — the same reason
           // `Posts` dropped it. The one that reaches this card's edge is the
@@ -398,7 +409,13 @@ const Page: FC<Props> = async ({ params }) => {
           // append a background-painting child last and the bottom corners will
           // need the same treatment.
           'rounded-2xl border bg-background/80 shadow-sm',
-          MOBILE_FEED_SURFACE_CLASS
+          // Below `md` a signed-in page is the full-bleed feed surface. A
+          // logged-out page is not one card but a stack of inset cards (the
+          // thread, then `SignInCallout`), like `PublicFooter` below them; the
+          // thread card is `StatusThread`'s own `className`.
+          currentActorProfile
+            ? MOBILE_FEED_SURFACE_CLASS
+            : MOBILE_INSET_STACK_CLASS
         )}
       >
         {currentActorProfile ? (
@@ -439,6 +456,7 @@ const Page: FC<Props> = async ({ params }) => {
           descendants={replies.map((reply) => cleanJson(reply))}
           currentActor={currentActorProfile}
           currentTime={currentTime}
+          className={currentActorProfile ? undefined : MOBILE_INSET_CARD_CLASS}
           isMediaUploadEnabled={Boolean(mediaStorage)}
           hasMoreAncestors={hasMoreAncestors}
           hasMoreDescendants={hasMoreDescendants}
@@ -453,7 +471,10 @@ const Page: FC<Props> = async ({ params }) => {
         />
 
         {!currentActorProfile ? (
-          <SignInCallout registrationOpen={registrationOpen} />
+          <SignInCallout
+            registrationOpen={registrationOpen}
+            className={MOBILE_INSET_CARD_FRAME_CLASS}
+          />
         ) : null}
       </div>
     </>

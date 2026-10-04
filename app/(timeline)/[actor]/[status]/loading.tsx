@@ -3,6 +3,14 @@ import { FC } from 'react'
 import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 
+// The loaded logged-out page is a stack of inset cards below `md` (see
+// `MOBILE_INSET_STACK_CLASS`), so this single placeholder card, which stands in
+// for its thread card, undoes `MOBILE_FEED_SURFACE_CLASS` there: it takes the
+// card's own width and frame, and with `PublicShell`'s `py-6` as its only top
+// spacing it starts where the loaded card does.
+const PUBLIC_MOBILE_INSET_CARD_CLASS =
+  'group-data-[shell=public]/shell:max-md:mx-0 group-data-[shell=public]/shell:max-md:rounded-2xl group-data-[shell=public]/shell:max-md:border group-data-[shell=public]/shell:max-md:shadow-sm'
+
 export const StatusLoading: FC = () => {
   return (
     <>
@@ -15,7 +23,7 @@ export const StatusLoading: FC = () => {
       <div
         aria-busy="true"
         aria-label="Loading post"
-        className={`md:mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm group-data-[shell=public]/shell:mt-0 group-data-[shell=public]/shell:max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
+        className={`md:mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm group-data-[shell=public]/shell:mt-0 ${MOBILE_FEED_SURFACE_CLASS} ${PUBLIC_MOBILE_INSET_CARD_CLASS}`}
       >
         <div className="flex items-center gap-3 border-b bg-surface-chrome px-5 py-3 group-data-[shell=public]/shell:hidden max-md:bg-transparent max-md:px-4 max-md:py-0.5">
           <div className="skeleton h-8 w-8 rounded-md max-md:hidden" />
