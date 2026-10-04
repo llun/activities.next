@@ -155,8 +155,8 @@ export const PageHeader = ({
   // it: the Back row, description, actions and sub-nav. From `md` up the box
   // keeps the sticky chrome it always had (every chrome class is `md:`
   // prefixed, so the desktop computed style is unchanged) and the bar is
-  // `display: none`. Without a provider (tests) the box renders exactly as
-  // before.
+  // `display: none`. Without a provider — logged-out pages (`PublicShell` has
+  // no mobile navigation) and tests — the box renders exactly as before.
   const hasMobileBar = nav !== null
   // The bar title is the page's h1 below `md` unless the content keeps a more
   // specific heading of its own (`compactTitle`), so exactly one h1 is

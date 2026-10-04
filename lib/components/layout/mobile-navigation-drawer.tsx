@@ -27,10 +27,10 @@ export interface MobileNavigationDrawerProps {
 /**
  * The left drawer shell of the signed-in mobile navigation (`MobileNav`): the
  * overlay, the `min(320px, 100vw - 48px)` panel sliding in from the left, the
- * 44px close button, and the focus rules. Outside tap, the close button and Escape all
- * close it through Radix; focus returns to whichever trigger opened it unless
- * the visitor navigated away or the viewport grew to `md`, where the trigger
- * is hidden.
+ * 44px close button, and the focus rules. An outside tap, the close button and
+ * Escape all close it through Radix; focus returns to whichever trigger opened
+ * it unless the visitor navigated away or the viewport grew to `md`, where the
+ * trigger is hidden.
  */
 export function MobileNavigationDrawer({
   children
