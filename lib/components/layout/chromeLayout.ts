@@ -23,10 +23,11 @@ export const breakoutStyle: CSSProperties = {
 
 // The mobile "Compact B" bar: one 56px row — 55px of content box plus the 1px
 // bottom border (`box-content`, so the top safe-area padding is added on top of
-// it rather than taken out of it) — holding the
-// menu button and a single truncating title. Sticky over the page, on the
-// translucent Surface Chrome token, and gone from `md` up, where the sidebar
-// and the desktop `PageHeader` take over.
+// it rather than taken out of it) — holding the menu button and a single
+// truncating title, plus an optional trailing `actions` slot a page opts into
+// (the home timeline's Refresh, via `PageHeader`'s `actionsInMobileBar`).
+// Sticky over the page, on the translucent Surface Chrome token, and gone from
+// `md` up, where the sidebar and the desktop `PageHeader` take over.
 export const MOBILE_COMPACT_HEADER_CLASS =
   'sticky top-0 z-30 box-content flex h-[55px] items-center gap-2 border-b bg-surface-chrome pl-2 pr-4 safe-area-pt backdrop-blur md:hidden'
 

@@ -35,6 +35,29 @@ describe('MobileCompactHeader', () => {
     expect(bar?.textContent).toBe('Notifications')
   })
 
+  it('ends with the actions a page opts into, after the title', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <MobileCompactHeader
+          title="Timeline"
+          actions={<button type="button">Refresh timeline</button>}
+        />
+      </MobileNavigationProvider>
+    )
+
+    const bar = container.querySelector(
+      '[data-mobile-compact-header]'
+    ) as HTMLElement
+    const buttons = within(bar).getAllByRole('button')
+    expect(
+      buttons.map(
+        (button) => button.getAttribute('aria-label') ?? button.textContent
+      )
+    ).toEqual(['Open navigation', 'Refresh timeline'])
+    expect(buttons[1].parentElement).toHaveClass('shrink-0')
+    expect(bar.lastElementChild).toBe(buttons[1].parentElement)
+  })
+
   it('is a 56px sticky bar hidden from md up', () => {
     const { container } = render(
       <MobileNavigationProvider>

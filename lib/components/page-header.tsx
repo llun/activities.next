@@ -53,6 +53,12 @@ interface PageHeaderProps {
    * without the signed-in mobile navigation.
    */
   mobileIntroRow?: boolean
+  /**
+   * Below `md`, render `actions` at the end of the mobile compact bar instead
+   * of in the content row (the home timeline's Refresh). No effect from `md`
+   * up, in section mode, or without the signed-in mobile navigation.
+   */
+  actionsInMobileBar?: boolean
 }
 
 const PageSubnavContext = createContext<ReactNode>(null)
@@ -106,7 +112,8 @@ export const PageHeader = ({
   back,
   compactTitle,
   banner,
-  mobileIntroRow
+  mobileIntroRow,
+  actionsInMobileBar
 }: PageHeaderProps) => {
   const subnav = useContext(PageSubnavContext)
   const isSection = useContext(PageHeaderSectionContext)
@@ -162,8 +169,14 @@ export const PageHeader = ({
   // specific heading of its own (`compactTitle`), so exactly one h1 is
   // displayed at any width.
   const hidesTitleOnMobile = hasMobileBar && !compactTitle
+  // Actions the bar carries below `md`; the content row then hides its copy.
+  const barActions = hasMobileBar && actionsInMobileBar ? actions : undefined
   const isEmptyOnMobile =
-    hidesTitleOnMobile && !back && !description && !actions && !subnav
+    hidesTitleOnMobile &&
+    !back &&
+    !description &&
+    (!actions || Boolean(barActions)) &&
+    !subnav
 
   const heading = (
     <h1
@@ -187,6 +200,7 @@ export const PageHeader = ({
           title={compactTitle ?? title}
           as={compactTitle ? 'p' : 'h1'}
           bottomSlot={bottomSlot}
+          actions={barActions}
           // The box below continues the bar, so the parent's vertical rhythm
           // (`space-y-*`) belongs after the box, not between the two — unless
           // the box has nothing to show on mobile and is hidden.
@@ -259,7 +273,8 @@ export const PageHeader = ({
                   'shrink-0',
                   stackActionsOnMobile
                     ? 'self-start sm:self-center'
-                    : 'self-center'
+                    : 'self-center',
+                  barActions && 'max-md:hidden'
                 )}
               >
                 {actions}

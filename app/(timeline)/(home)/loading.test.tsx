@@ -91,9 +91,20 @@ describe('timeline loading', () => {
 
     // Below md the header row ends 12px under its content on the hairline the
     // loaded page draws, so the composer does not jump when the page arrives.
-    const box = container.querySelector('[data-mobile-compact-header]')
-      ?.nextElementSibling as HTMLElement
+    const bar = container.querySelector(
+      '[data-mobile-compact-header]'
+    ) as HTMLElement
+    const box = bar.nextElementSibling as HTMLElement
     expect(box).toHaveClass('max-md:border-b')
     expect(box.querySelector('.max-w-content')).toHaveClass('max-md:pb-3')
+    // The Refresh placeholder sits at the end of the bar, as the loaded
+    // page's button does, and the content row's copy is hidden below md.
+    expect(bar.lastElementChild?.firstElementChild).toHaveClass(
+      'skeleton',
+      'size-9'
+    )
+    expect(box.querySelector('.shrink-0.self-center')).toHaveClass(
+      'max-md:hidden'
+    )
   })
 })

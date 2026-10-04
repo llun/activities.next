@@ -460,6 +460,66 @@ describe('PageHeader', () => {
       expect(description).not.toHaveClass('max-md:mt-0')
     })
 
+    it('moves actions into the bar below md with actionsInMobileBar', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Timeline"
+            description="Latest posts"
+            actions={<button type="button">Refresh timeline</button>}
+            actionsInMobileBar
+          />
+        </MobileNavigationProvider>
+      )
+
+      const [barButton, boxButton] = screen.getAllByRole('button', {
+        name: 'Refresh timeline'
+      })
+      const bar = getBar(container)
+      expect(bar).toContainElement(barButton)
+      // After the title, so it sits at the bar's end.
+      expect(
+        within(bar)
+          .getByRole('heading', { level: 1, name: 'Timeline' })
+          .compareDocumentPosition(barButton) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(bar).not.toContainElement(boxButton)
+      expect(boxButton.parentElement).toHaveClass('shrink-0', 'max-md:hidden')
+    })
+
+    it('hides the content box below md when the bar carries its only actions', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Timeline"
+            actions={<button type="button">Refresh timeline</button>}
+            actionsInMobileBar
+          />
+        </MobileNavigationProvider>
+      )
+
+      const box = container.querySelector('.max-w-content')
+        ?.parentElement as HTMLElement
+      expect(box).toHaveClass('max-md:hidden')
+      expect(getBar(container)).not.toHaveClass('mb-0')
+    })
+
+    // Without the signed-in mobile navigation there is no bar, so the
+    // actions stay where they always were.
+    it('ignores actionsInMobileBar without the signed-in mobile navigation', () => {
+      render(
+        <PageHeader
+          title="Timeline"
+          actions={<button type="button">Refresh timeline</button>}
+          actionsInMobileBar
+        />
+      )
+
+      const button = screen.getByRole('button', { name: 'Refresh timeline' })
+      expect(button.parentElement).toHaveClass('shrink-0')
+      expect(button.parentElement).not.toHaveClass('max-md:hidden')
+    })
+
     it('hangs bottomSlot under the bar and hides the desktop overlay below md', () => {
       const { container } = render(
         <MobileNavigationProvider>
