@@ -8,9 +8,11 @@ import { Knex } from 'knex'
  * reporting different numbers for the same activities.
  *
  * Not quite identical to that query, deliberately: the summary additionally
- * requires a non-null `activityType` and `activityStartTime` because it groups
- * and buckets by them. Gear totals count an activity whatever it is and whenever
- * it happened, so a timestamp-less GPX contributes here and is invisible there.
+ * requires a non-null `activityStartTime` because it buckets by it, but it does
+ * NOT require an `activityType`: an untyped activity is counted as its own
+ * group, so the overview totals equal the calendar's. Gear totals count an
+ * activity whatever it is and whenever it happened, so a timestamp-less GPX
+ * contributes here and is invisible there.
  *
  * `isPrimary` is the one clause that does not transfer unchanged to devices, and
  * `forDeviceLink` is what replaces it.
