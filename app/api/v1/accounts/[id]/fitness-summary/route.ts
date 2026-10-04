@@ -1,12 +1,16 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import {
+  FitnessCalendarRangeQuery,
+  describeCalendarQueryError
+} from '@/lib/services/fitness-files/calendarQuery'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_401,
@@ -15,6 +19,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -25,13 +30,16 @@ interface Params {
   id: string
 }
 
-const MIN_DATE_RANGE_MS = 7 * 24 * 60 * 60 * 1000
-
-const FitnessSummaryQueryParams = z.object({
-  start_date: z.coerce.number(),
-  end_date: z.coerce.number()
-})
-
+/**
+ * Per-activity-type totals for the signed-in actor's local days `from` to `to`
+ * (inclusive) in `time_zone`. Untyped activities are their own
+ * `activityType: null` group, so the totals equal the calendar's sum for the
+ * same range.
+ *
+ * There is no minimum span: the 7-day rule for custom ranges lives in the
+ * client's range validator, and This month and Year to date must load on
+ * their first day.
+ */
 export const GET = traceApiRoute(
   'getAccountFitnessSummary',
   async (req: NextRequest, params: AppRouterParams<Params>) => {
@@ -86,34 +94,38 @@ export const GET = traceApiRoute(
     }
 
     const url = new URL(req.url)
-    const queryParams = Object.fromEntries(url.searchParams.entries())
-    const parsed = FitnessSummaryQueryParams.safeParse(queryParams)
+    const parsed = FitnessCalendarRangeQuery.safeParse(
+      Object.fromEntries(url.searchParams.entries())
+    )
     if (!parsed.success) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
+        data: { error: describeCalendarQueryError(parsed.error) },
         responseStatusCode: 400
       })
     }
 
-    const { start_date: startDate, end_date: endDate } = parsed.data
-    if (endDate - startDate < MIN_DATE_RANGE_MS) {
+    try {
+      const summary = await database.getFitnessActivitySummary({
+        actorId: currentActor.id,
+        startDate: parsed.data.startMs,
+        endDate: parsed.data.endMs
+      })
+      return apiResponse({ req, allowedMethods: CORS_HEADERS, data: summary })
+    } catch (error) {
+      logger.error({
+        message: 'Failed to load fitness summary',
+        actorId: currentActor.id,
+        err: toLoggableError(error)
+      })
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
-        responseStatusCode: 400
+        data: ERROR_500,
+        responseStatusCode: 500
       })
     }
-
-    const summary = await database.getFitnessActivitySummary({
-      actorId: id,
-      startDate,
-      endDate
-    })
-
-    return apiResponse({ req, allowedMethods: CORS_HEADERS, data: summary })
   },
   {
     addAttributes: async (_req, context) => {
