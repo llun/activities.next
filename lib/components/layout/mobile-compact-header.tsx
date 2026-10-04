@@ -25,19 +25,25 @@ export interface MobileCompactHeaderProps {
    * because the bar is sticky.
    */
   bottomSlot?: ReactNode
+  /**
+   * Controls at the end of the bar, after the title (the home timeline's
+   * Refresh). Every other page keeps its actions in the content below.
+   */
+  actions?: ReactNode
   className?: string
 }
 
 /**
- * The mobile "Compact B" bar: the menu button and one truncating title,
- * nothing else — no logo, subtitle, breadcrumb, unread badge or Back. Page
- * actions, counts, descriptions, filters and Back live in the content below
- * it. Renders only under a `MobileNavigationProvider` and only below `md`.
+ * The mobile "Compact B" bar: the menu button and one truncating title —
+ * no logo, subtitle, breadcrumb, unread badge or Back. Page actions, counts,
+ * descriptions, filters and Back live in the content below it, except an
+ * `actions` slot a page opts into (the home timeline's Refresh). Renders only under a `MobileNavigationProvider` and only below `md`.
  */
 export function MobileCompactHeader({
   title,
   as: Title = 'h1',
   bottomSlot,
+  actions,
   className
 }: MobileCompactHeaderProps) {
   const nav = useMobileNavigation()
@@ -58,6 +64,7 @@ export function MobileCompactHeader({
       >
         {title}
       </Title>
+      {actions ? <div className="shrink-0">{actions}</div> : null}
       {bottomSlot ? (
         <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center px-4 pt-2">
           {bottomSlot}

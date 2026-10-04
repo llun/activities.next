@@ -395,11 +395,12 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
       <PageHeader
-        // Below `md` the description and Refresh row ends on a full-width
-        // hairline so the borderless, full-bleed composer below meets an edge,
-        // as it met the old sticky header's border; the row is 16px above and
-        // 12px below its content.
+        // Below `md` Refresh sits at the end of the compact bar, and the
+        // description row ends on a full-width hairline so the borderless,
+        // full-bleed composer below meets an edge, as it met the old sticky
+        // header's border; the row is 16px above and 12px below its content.
         mobileIntroRow
+        actionsInMobileBar
         banner={<AnnouncementBanner currentTime={currentTime} />}
         title="Timeline"
         description="Latest posts from your network."
