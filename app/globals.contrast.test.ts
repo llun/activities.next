@@ -316,6 +316,121 @@ describe('design palette tokens', () => {
   })
 })
 
+describe('fitness heat tokens', () => {
+  // The calendar's heat fills are locked by the design; what is free is the
+  // numeral drawn on a month cell, which has to clear AA on its own fill. The
+  // blocks are read the way `parseBlock` reads any other, but their values are
+  // hex, which the design specifies, so they get their own parser.
+  const heat = {
+    light: parseBlock('.fitness-heat'),
+    dark: parseBlock('.dark .fitness-heat')
+  } as const
+
+  const hexToRgb = (value: string): Rgb => {
+    const match = value.match(/^#([0-9a-f]{6})$/i)
+    if (!match) throw new Error(`Not a 6-digit hex colour: ${value}`)
+    const n = parseInt(match[1], 16)
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  }
+
+  const levels = [0, 1, 2, 3, 4] as const
+  const heatRgb = (theme: 'light' | 'dark', name: string) =>
+    hexToRgb(heat[theme][name])
+
+  it.each([
+    ['light', ['#f2f3f4', '#c3e6c7', '#93cd9f', '#6ab07b', '#428656']],
+    ['dark', ['#26272b', '#2f6b47', '#4c9a68', '#7fcb98', '#b6ebc6']]
+  ] as const)('pins the locked %s heat fills', (theme, fills) => {
+    expect(levels.map((level) => heat[theme][`--heat-${level}`])).toEqual(fills)
+  })
+
+  it.each([
+    ['light', '#c9ccd1'],
+    ['dark', '#4a4c52']
+  ] as const)('pins the %s upcoming outline', (theme, outline) => {
+    expect(heat[theme]['--heat-upcoming']).toBe(outline)
+  })
+
+  it('draws the light Heat 4 numeral in black, not the prototype white', () => {
+    // White on #428656 is 4.40:1, under the 4.5:1 floor for 13-18px numerals.
+    expect(heat.light['--heat-4-fg']).toBe('#000000')
+  })
+
+  const pairs = (['light', 'dark'] as const).flatMap((theme) =>
+    levels.map((level) => ({ theme, level }))
+  )
+
+  it.each(pairs)(
+    '$theme --heat-$level-fg on --heat-$level meets 4.5:1',
+    ({ theme, level }) => {
+      const fg = heatRgb(theme, `--heat-${level}-fg`)
+      const bg = heatRgb(theme, `--heat-${level}`)
+      const ratio = contrastRatio(fg, bg)
+      expect(
+        ratio,
+        `${theme} heat ${level} numeral ${JSON.stringify(fg)} on ${JSON.stringify(bg)} = ${ratio.toFixed(3)}:1`
+      ).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  )
+
+  // Intensity is the only thing a fill says, so the two ends of the ramp have to
+  // stay clearly apart.
+  it.each(['light', 'dark'] as const)(
+    '%s keeps Heat 0 visibly apart from Heat 4',
+    (theme) => {
+      const ratio = contrastRatio(
+        heatRgb(theme, '--heat-0'),
+        heatRgb(theme, '--heat-4')
+      )
+      expect(ratio).toBeGreaterThanOrEqual(3)
+    }
+  )
+
+  // Month day numbers are read, so the upcoming muted numeral must stay legible
+  // on the page it sits on even though the cell itself is outlined and disabled.
+  it.each(['light', 'dark'] as const)(
+    '%s muted numerals on an upcoming cell meet 4.5:1 on the page',
+    (theme) => {
+      const ratio = contrastRatio(
+        rgbOf(themes[theme], '--muted-foreground'),
+        rgbOf(themes[theme], '--background')
+      )
+      expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  )
+})
+
+describe('fitness motion tokens', () => {
+  const root = css.slice(css.lastIndexOf(':root'))
+  const duration = (name: string) => {
+    const match = root.match(new RegExp(`${name}:\\s*(\\d+)ms`))
+    return match ? Number(match[1]) : null
+  }
+
+  it.each([
+    ['--fitness-t-xfade-half', 75],
+    ['--fitness-t-color', 150],
+    ['--fitness-t-dim', 150],
+    ['--fitness-t-detail', 150],
+    ['--fitness-t-sheet', 200],
+    ['--fitness-t-select', 100],
+    ['--fitness-t-edge', 100],
+    ['--fitness-t-tip-in', 100],
+    ['--fitness-t-tip-out', 75]
+  ])('%s is the approved %ims', (name, ms) => {
+    expect(duration(name)).toBe(ms)
+  })
+
+  it.each(['--fitness-fade-start', '--fitness-fade-end'])(
+    'registers %s so the edge fade can transition',
+    (name) => {
+      expect(css).toMatch(
+        new RegExp(`@property ${name}\\s*\\{[^}]*syntax:\\s*'<number>'`)
+      )
+    }
+  )
+})
+
 describe('@theme utility mappings', () => {
   // Tailwind v4 emits a `bg-<name>` / `text-<name>` utility only for a
   // `--color-<name>` in @theme; without it the class compiles to no rule at all.
