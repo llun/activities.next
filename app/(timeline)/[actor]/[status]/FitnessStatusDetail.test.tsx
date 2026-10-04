@@ -841,6 +841,12 @@ describe('FitnessStatusDetail', () => {
 
     expect(screen.getByTestId('comment-composer')).toBeInTheDocument()
     expect(screen.getByTestId('reply-post')).toHaveTextContent('reply-1')
+    // Signed in, the page is a full-bleed card below `md` and the comment list
+    // spans it.
+    expect(screen.getByTestId('reply-post').closest('.divide-y')).toHaveClass(
+      'max-md:mx-[calc(50%_-_50vw)]',
+      'max-md:w-auto'
+    )
   })
 
   it('omits the comments tab for logged-out viewers with no replies', async () => {
@@ -878,6 +884,11 @@ describe('FitnessStatusDetail', () => {
     )
     // No composer for logged-out viewers.
     expect(screen.queryByTestId('comment-composer')).not.toBeInTheDocument()
+    // The logged-out page is an inset card below `md`; a viewport-wide list
+    // would run out past that card's edges, so it keeps the card's own width.
+    const list = screen.getByTestId('reply-post').closest('.divide-y')
+    expect(list).not.toHaveClass('max-md:mx-[calc(50%_-_50vw)]')
+    expect(list).not.toHaveClass('max-md:w-auto')
   })
 
   it('navigates to reply status detail when reply openStatus is triggered', async () => {

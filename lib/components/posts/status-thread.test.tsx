@@ -145,6 +145,82 @@ describe('StatusThread', () => {
     expect(headerRow(`status-${descendant.id}`)).not.toHaveClass('mt-2.5')
   })
 
+  // A signed-in thread sits in the full-bleed feed surface below `md`, so each
+  // row that rounds its top corner on desktop resets to square there. A
+  // logged-out thread is an inset card at every width, so its first row keeps
+  // the card's top corners below `md` too: a reset would let its square
+  // `bg-background` bleed past the card's rounded border.
+  describe('mobile corner reset', () => {
+    const buildThread = () => {
+      const root = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/root',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        text: 'Ancestor Root',
+        createdAt: BASE_TIME
+      })
+      const focused = createMockNote({
+        id: 'https://activities.local/users/alice/statuses/focused',
+        actor: mockAlice,
+        actorId: mockAlice.id,
+        reply: root.id,
+        text: 'Focused Status',
+        createdAt: BASE_TIME + 60000
+      })
+      return { root, focused }
+    }
+
+    it('keeps the ancestor and focused rows rounded when logged out', () => {
+      const { root, focused } = buildThread()
+      const { rerender } = render(
+        <StatusThread
+          host={host}
+          status={focused}
+          ancestors={[root]}
+          currentTime={BASE_TIME + 200000}
+        />
+      )
+
+      const ancestorRow = screen.getAllByTestId('ancestor-status')[0]
+      expect(ancestorRow).toHaveClass('rounded-t-2xl')
+      expect(ancestorRow).not.toHaveClass('max-md:rounded-none')
+      expect(screen.getByTestId('focused-status')).not.toHaveClass(
+        'max-md:rounded-none'
+      )
+
+      rerender(
+        <StatusThread
+          host={host}
+          status={focused}
+          currentTime={BASE_TIME + 200000}
+        />
+      )
+      const focusedRow = screen.getByTestId('focused-status')
+      expect(focusedRow).toHaveClass('rounded-t-2xl')
+      expect(focusedRow).not.toHaveClass('max-md:rounded-none')
+    })
+
+    it('squares the ancestor and focused rows below md when signed in', () => {
+      const { root, focused } = buildThread()
+      render(
+        <StatusThread
+          host={host}
+          status={focused}
+          ancestors={[root]}
+          currentActor={mockAlice}
+          currentTime={BASE_TIME + 200000}
+        />
+      )
+
+      expect(screen.getAllByTestId('ancestor-status')[0]).toHaveClass(
+        'max-md:rounded-none'
+      )
+      expect(screen.getByTestId('focused-status')).toHaveClass(
+        'max-md:rounded-none'
+      )
+    })
+  })
+
   it('renders empty state when there are no replies', () => {
     const focused = createMockNote({
       id: 'https://activities.local/users/alice/statuses/lonely',

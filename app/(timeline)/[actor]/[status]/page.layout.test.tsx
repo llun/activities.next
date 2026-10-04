@@ -5,6 +5,12 @@ import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
+import {
+  MOBILE_FEED_SURFACE_CLASS,
+  MOBILE_INSET_CARD_CLASS,
+  MOBILE_INSET_CARD_FRAME_CLASS,
+  MOBILE_INSET_STACK_CLASS
+} from '@/lib/components/posts/feedLayout'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
@@ -416,12 +422,53 @@ describe('Conversation card chrome', () => {
     expect(card).not.toHaveClass('max-md:-mt-6')
   })
 
-  it('pulls flush under PublicTopBar with max-md:-mt-6 on mobile when logged out', async () => {
+  it('takes no margin of its own when logged out, leaving PublicShell the gap under the top bar', async () => {
     const card = await renderPage()
 
-    expect(card).toHaveClass('max-md:-mt-6')
+    expect(card).not.toHaveClass('max-md:-mt-6')
     expect(card).not.toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
+  })
+
+  // Below md a signed-in page is the full-bleed feed surface; a logged-out one
+  // is a stack of inset cards (thread, then sign-in callout) level with the
+  // footer's. Asserting both sides keeps either from leaking into the other.
+  it('is a stack of inset cards below md when logged out, not the full-bleed surface', async () => {
+    const card = await renderPage()
+
+    expect(card).toHaveClass(...MOBILE_INSET_STACK_CLASS.split(' '))
+    for (const token of ['max-md:mx-[calc(50%_-_50vw)]', 'max-md:w-auto']) {
+      expect(card).not.toHaveClass(token)
+    }
+    // The thread is the first card…
+    const thread = rowFor('focused')?.parentElement as HTMLElement
+    expect(thread).toHaveClass(...MOBILE_INSET_CARD_CLASS.split(' '))
+    expect(thread.parentElement).toBe(card)
+    // …its first row meets the card's rounded top corners at every width…
+    expect(rowFor('focused')).toHaveClass('rounded-t-2xl')
+    expect(rowFor('focused')).not.toHaveClass('max-md:rounded-none')
+    // …and the sign-in callout is the second, framed like it.
+    const callout = screen
+      .getByText('Join the conversation')
+      .closest('div.bg-primary\\/5')
+    expect(callout).toHaveClass(...MOBILE_INSET_CARD_FRAME_CLASS.split(' '))
+    expect(callout?.parentElement).toBe(card)
+    expect(card.lastElementChild).toBe(callout)
+  })
+
+  it('keeps the full-bleed surface below md when signed in, with no inset card', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    const card = await renderPage()
+
+    expect(card).toHaveClass(...MOBILE_FEED_SURFACE_CLASS.split(' '))
+    MOBILE_INSET_STACK_CLASS.split(' ')
+      .filter((token) => !MOBILE_FEED_SURFACE_CLASS.split(' ').includes(token))
+      .forEach((token) => expect(card).not.toHaveClass(token))
+    const thread = rowFor('focused')?.parentElement as HTMLElement
+    expect(thread).not.toHaveClass('max-md:rounded-2xl')
+    expect(thread).not.toHaveClass('max-md:border')
+    expect(rowFor('focused')).toHaveClass('max-md:rounded-none')
   })
 
   it('rounds the focused post instead when logged out, which has no header', async () => {
@@ -573,12 +620,47 @@ describe('Fitness activity card chrome', () => {
     expect(card).not.toHaveClass('max-md:-mt-6')
   })
 
-  it('pulls flush under PublicTopBar with max-md:-mt-6 on mobile when logged out', async () => {
+  it('takes no margin of its own when logged out, leaving PublicShell the gap under the top bar', async () => {
     const card = await renderPage()
 
-    expect(card).toHaveClass('max-md:-mt-6')
+    expect(card).not.toHaveClass('max-md:-mt-6')
     expect(card).not.toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
+  })
+
+  it('is a stack of inset cards below md when logged out, not the full-bleed surface', async () => {
+    const card = await renderPage()
+
+    expect(card).toHaveClass(...MOBILE_INSET_STACK_CLASS.split(' '))
+    for (const token of ['max-md:mx-[calc(50%_-_50vw)]', 'max-md:w-auto']) {
+      expect(card).not.toHaveClass(token)
+    }
+    // The activity is the first card, framed all the way round…
+    const activity = rowFor('ride-1') as HTMLElement
+    expect(activity).toHaveClass(...MOBILE_INSET_CARD_FRAME_CLASS.split(' '))
+    expect(activity).not.toHaveClass('max-md:rounded-none')
+    expect(activity.parentElement).toBe(card)
+    // …and the sign-in callout the second, framed like it.
+    const callout = screen
+      .getByText('Join the conversation')
+      .closest('div.bg-primary\\/5')
+    expect(callout).toHaveClass(...MOBILE_INSET_CARD_FRAME_CLASS.split(' '))
+    expect(callout).not.toHaveClass('max-md:rounded-none')
+    expect(callout?.parentElement).toBe(card)
+  })
+
+  it('keeps the full-bleed surface below md when signed in, with no inset card', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    const card = await renderPage()
+
+    expect(card).toHaveClass(...MOBILE_FEED_SURFACE_CLASS.split(' '))
+    MOBILE_INSET_STACK_CLASS.split(' ')
+      .filter((token) => !MOBILE_FEED_SURFACE_CLASS.split(' ').includes(token))
+      .forEach((token) => expect(card).not.toHaveClass(token))
+    expect(rowFor('ride-1')).toHaveClass('max-md:rounded-none')
+    expect(rowFor('ride-1')).not.toHaveClass('max-md:rounded-2xl')
+    expect(rowFor('ride-1')).not.toHaveClass('max-md:border')
   })
 
   it('gives the post block the top corners when logged out, which has no header', async () => {
