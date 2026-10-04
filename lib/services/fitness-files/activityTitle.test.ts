@@ -20,7 +20,9 @@ describe('getFirstTextLine', () => {
     ['several leading emoji', '🚴‍♂️🔥 Ride', 'Ride'],
     ['an emoji-only first line', '<p>🏃</p><p>Easy jog</p>', 'Easy jog'],
     ['an emoji later in the line', 'Run 🏃 home', 'Run 🏃 home'],
-    ['script content', '<p><script>alert(1)</script>Run</p>', 'Run']
+    ['script content', '<p><script>alert(1)</script>Run</p>', 'Run'],
+    ['an invisible-only first line', '<p>\u200b</p><p>Second</p>', 'Second'],
+    ['a Thai line with combining vowels', 'วิ่งเช้า', 'วิ่งเช้า']
   ])('reads %s', (_label, text, expected) => {
     expect(getFirstTextLine(text)).toBe(expected)
   })
@@ -29,7 +31,9 @@ describe('getFirstTextLine', () => {
     ['null', null],
     ['undefined', undefined],
     ['an empty string', ''],
-    ['whitespace and empty blocks', ' <p> </p><br>\n']
+    ['whitespace and empty blocks', ' <p> </p><br>\n'],
+    ['zero-width and format characters only', '\u200b\u200d\u2060\u00ad'],
+    ['a lone combining mark', '\u0301']
   ])('returns null for %s', (_label, text) => {
     expect(getFirstTextLine(text)).toBeNull()
   })
@@ -86,6 +90,21 @@ describe('getActivityTitle', () => {
       description: 'a warning with no plain text',
       postSummary: '<script>alert(1)</script>',
       title: CONTENT_WARNING_TITLE
+    },
+    {
+      description: 'a zero-width-only warning',
+      postSummary: '\u200b',
+      title: CONTENT_WARNING_TITLE
+    },
+    {
+      description: 'a zero-width entity warning',
+      postSummary: '&#8203;',
+      title: CONTENT_WARNING_TITLE
+    },
+    {
+      description: 'a warning with an invisible first line',
+      postSummary: '\u200b\nSpoiler',
+      title: 'Spoiler'
     }
   ])(
     'never shows the hidden body for $description',
@@ -100,6 +119,17 @@ describe('getActivityTitle', () => {
       ).toBe(title)
     }
   )
+
+  it('truncates a long emoji-only warning at the limit', () => {
+    const title = getActivityTitle({
+      postSummary: '⚠️'.repeat(MAX_ACTIVITY_TITLE_LENGTH),
+      postText: '<p>Knee details</p>',
+      fileName
+    })
+    expect(Array.from(title)).toHaveLength(MAX_ACTIVITY_TITLE_LENGTH)
+    expect(title.endsWith('…')).toBe(true)
+    expect(title).not.toContain('Knee')
+  })
 
   it.each([
     { description: 'whitespace only', postSummary: '   ' },

@@ -23,6 +23,12 @@ const LINE_BREAK_PATTERN =
 const LEADING_EMOJI_PATTERN =
   /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*)*\s*)+/u
 
+// Zero-width and other format characters, and bare combining marks, survive
+// `trim()` and whitespace collapsing but draw nothing: a line made only of them
+// reads as blank. A letter carrying combining marks still matches, because the
+// letter itself is visible.
+const VISIBLE_CHARACTER_PATTERN = /[^\s\p{Cf}\p{M}]/u
+
 const truncate = (value: string) => {
   // By code point, so an emoji or other astral character is never cut in half.
   const characters = Array.from(value)
@@ -34,8 +40,9 @@ const truncate = (value: string) => {
 }
 
 /**
- * The first non-empty line of some post or description text, as plain text,
- * with a leading emoji removed. `null` when there is no such line.
+ * The first line of some post or description text with a visible character,
+ * as plain text, with a leading emoji removed. `null` when there is no such
+ * line.
  */
 export const getFirstTextLine = (
   text: string | null | undefined
@@ -43,7 +50,7 @@ export const getFirstTextLine = (
   if (!text) return null
   for (const segment of text.split(LINE_BREAK_PATTERN)) {
     const line = htmlToPlainText(segment).replace(LEADING_EMOJI_PATTERN, '')
-    if (line) return truncate(line)
+    if (VISIBLE_CHARACTER_PATTERN.test(line)) return truncate(line)
   }
   return null
 }
@@ -72,7 +79,8 @@ export const CONTENT_WARNING_TITLE = 'Content warning'
  * the post is unavailable instead of inventing a name.
  *
  * A post with a content warning never yields its body, even when the warning
- * is only emoji ("⚠️"), which `getFirstTextLine` strips to nothing.
+ * is only emoji ("⚠️"), which `getFirstTextLine` strips to nothing, or only
+ * invisible characters, which give `CONTENT_WARNING_TITLE`.
  */
 export const getActivityTitle = ({
   postSummary,
@@ -82,9 +90,10 @@ export const getActivityTitle = ({
 }: ActivityTitleSources): string => {
   const warning = postSummary?.trim()
   if (warning) {
+    const plain = truncate(htmlToPlainText(warning))
     return (
       getFirstTextLine(warning) ??
-      (truncate(htmlToPlainText(warning)) || CONTENT_WARNING_TITLE)
+      (VISIBLE_CHARACTER_PATTERN.test(plain) ? plain : CONTENT_WARNING_TITLE)
     )
   }
   return (
