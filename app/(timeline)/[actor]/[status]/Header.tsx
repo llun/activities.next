@@ -23,7 +23,7 @@ interface Props {
   fallbackHref: string
   /**
    * The author's display name (or `@user@domain`) for the fallback's
-   * accessible name, "Back to <name>'s profile".
+   * accessible name, "Back to profile, <name>".
    */
   fallbackName: string
 }
@@ -40,7 +40,7 @@ interface Props {
  * Its visible text is "Back", or "Back to profile" whenever it returns to a
  * profile — the fallback always, the history Back when the page it came from
  * was one. Its accessible name names that page ("Back to Notifications",
- * "Back to #running", "Back to Anna Nowak's profile"); see `backDestination`.
+ * "Back to #running", "Back to profile, Anna Nowak"); see `backDestination`.
  */
 export const Header: FC<Props> = ({
   isFitnessDashboard = false,

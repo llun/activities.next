@@ -1,6 +1,5 @@
 import {
   BACK_LABEL,
-  PROFILE_BACK_LABEL,
   profileBack,
   profileName,
   resolveBackDestination
@@ -53,8 +52,8 @@ describe('resolveBackDestination', () => {
     'shows "Back to profile" for the profile %s, named by its handle',
     (pathname) => {
       expect(resolveBackDestination(pathname)).toEqual({
-        label: PROFILE_BACK_LABEL,
-        accessibleName: "Back to @anna@llun.social's profile"
+        label: 'Back to profile',
+        accessibleName: 'Back to profile, @anna@llun.social'
       })
     }
   )
@@ -64,12 +63,13 @@ describe('resolveBackDestination', () => {
     [''],
     ['/somewhere/else'],
     ['/tags'],
+    ['/tags/running/extra'],
     ['/constructor'],
     ['/toString'],
     ['/@anna'],
     ['/@anna@llun.social/123/extra'],
     ['/%E0%A4%A'],
-    ['relative/path']
+    ['lists/42']
   ])('falls back to "Back to previous page" for %s', (pathname) => {
     expect(resolveBackDestination(pathname)).toEqual({
       label: BACK_LABEL,
@@ -82,7 +82,7 @@ describe('profileBack', () => {
   it('shows "Back to profile" and names the person', () => {
     expect(profileBack('Anna Nowak')).toEqual({
       label: 'Back to profile',
-      accessibleName: "Back to Anna Nowak's profile"
+      accessibleName: 'Back to profile, Anna Nowak'
     })
   })
 
@@ -99,8 +99,59 @@ describe('profileBack', () => {
       { name: null, username: 'anna', domain: 'llun.social' },
       '@anna@llun.social'
     ],
-    [{ username: 'anna', domain: 'llun.social' }, '@anna@llun.social']
+    [{ username: 'anna', domain: 'llun.social' }, '@anna@llun.social'],
+    // The name is spoken: a custom-emoji shortcode is dropped, not read aloud.
+    [
+      { name: 'Anna :blobcat: Nowak', username: 'anna', domain: 'llun.social' },
+      'Anna Nowak'
+    ],
+    [
+      { name: ':blobcat: :fox:', username: 'anna', domain: 'llun.social' },
+      '@anna@llun.social'
+    ],
+    // …but a clock time in a name is not a shortcode.
+    [
+      { name: 'Anna 10:30:45', username: 'anna', domain: 'llun.social' },
+      'Anna 10:30:45'
+    ]
   ])('names %o "%s"', (actor, name) => {
     expect(profileName(actor)).toBe(name)
   })
+})
+
+// WCAG 2.5.3 (Label in Name): speech-control users say the visible words, so
+// every Back's accessible name has to contain its visible label as written.
+describe('every Back', () => {
+  const pathnames = [
+    null,
+    '/',
+    '/notifications',
+    '/lists',
+    '/lists/42',
+    '/collections/7',
+    '/tags/running',
+    '/fitness',
+    '/settings',
+    '/@anna@llun.social',
+    '/%40anna%40llun.social',
+    '/@anna@llun.social/followers',
+    '/@anna@llun.social/123',
+    '/somewhere/else'
+  ]
+
+  it.each(pathnames)(
+    'names the history Back from %s with its visible label',
+    (pathname) => {
+      const { label, accessibleName } = resolveBackDestination(pathname)
+      expect(accessibleName).toContain(label)
+    }
+  )
+
+  it.each(['Anna Nowak', '@anna@llun.social', "O'Brien's"])(
+    'names the profile Back for %s with its visible label',
+    (name) => {
+      const { label, accessibleName } = profileBack(name)
+      expect(accessibleName).toContain(label)
+    }
+  )
 })

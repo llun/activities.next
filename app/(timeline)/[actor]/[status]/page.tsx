@@ -243,7 +243,7 @@ const Page: FC<Props> = async ({ params }) => {
   // first '@', so `/%2F%2Fx%40u%40evil.example/<any public status url>` renders
   // a real post, and `/${segment}` would be the off-site `///x@u@evil.example`.
   const authorProfileHref = `/@${pathActor.username}@${pathActor.domain}`
-  // …and its accessible name, "Back to <name>'s profile": the display name
+  // …and its accessible name, "Back to profile, <name>": the display name
   // when the status is that actor's own (or their boost), else the handle.
   const isPathActorStatus =
     status.actor?.username.toLowerCase() === pathActor.username.toLowerCase() &&

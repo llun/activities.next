@@ -9,8 +9,8 @@ export interface BackLinkProps {
   /** The parent route this Back returns to. */
   href: string
   /**
-   * Names the destination for assistive tech ("Back to lists", "Back to Anna
-   * Nowak's profile"). It must contain the visible `label`.
+   * Names the destination for assistive tech ("Back to lists", "Back to
+   * profile, Anna Nowak"). It must contain the visible `label`.
    */
   accessibleName: string
   /**

@@ -320,7 +320,7 @@ describe('[actor] followers page', () => {
     expect(screen.getByText('42 accounts')).toBeInTheDocument()
     expect(
       screen.getByRole('link', {
-        name: "Back to @llun@llun.test's profile"
+        name: 'Back to profile, @llun@llun.test'
       })
     ).toHaveAttribute('href', '/@llun@llun.test')
   })

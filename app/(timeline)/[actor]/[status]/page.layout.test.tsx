@@ -244,7 +244,7 @@ describe('Mobile chrome', () => {
       // Back is the decoded author profile link, named by the handle when the
       // status carries no author profile.
       const back = screen.getByRole('link', {
-        name: "Back to @anna@activities.local's profile"
+        name: 'Back to profile, @anna@activities.local'
       })
       expect(back).toHaveAttribute('href', '/@anna@activities.local')
       expect(back).toHaveTextContent(/^Back to profile$/)
@@ -257,11 +257,11 @@ describe('Mobile chrome', () => {
   it.each([
     [
       { username: 'Anna', domain: 'activities.local' },
-      "Back to Anna Nowak's profile"
+      'Back to profile, Anna Nowak'
     ],
     [
       { username: 'someone', domain: 'elsewhere.example' },
-      "Back to @anna@activities.local's profile"
+      'Back to profile, @anna@activities.local'
     ]
   ])(
     'names the direct-entry Back after the author (%o)',
@@ -330,7 +330,7 @@ describe('Back to profile fallback from an untrusted actor segment', () => {
       expect(screen.getByTestId('status-focused')).toBeInTheDocument()
       expect(
         screen.getByRole('link', {
-          name: "Back to @u@attacker.example's profile"
+          name: 'Back to profile, @u@attacker.example'
         })
       ).toHaveAttribute('href', '/@u@attacker.example')
     }

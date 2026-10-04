@@ -81,7 +81,7 @@ describe('Status Header', () => {
 
     // Visible "Back to profile"; the accessible name carries the person.
     const link = screen.getByRole('link', {
-      name: "Back to Alice Liddell's profile"
+      name: 'Back to profile, Alice Liddell'
     })
     expect(link).toHaveTextContent(/^Back to profile$/)
     expect(link).toHaveAttribute('href', FALLBACK)
@@ -131,7 +131,7 @@ describe('Status Header', () => {
     ['/tags/running', 'Back to #running', 'Back'],
     [
       '/@bob@example.com',
-      "Back to @bob@example.com's profile",
+      'Back to profile, @bob@example.com',
       'Back to profile'
     ],
     ['/somewhere/unknown', 'Back to previous page', 'Back']

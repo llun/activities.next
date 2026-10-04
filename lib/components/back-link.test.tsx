@@ -79,7 +79,7 @@ describe('BackLink', () => {
     )
 
     const link = screen.getByRole('link', {
-      name: "Back to Anna Nowak's profile"
+      name: 'Back to profile, Anna Nowak'
     })
     expect(link).toHaveTextContent(/^Back to profile$/)
     expect(link).toHaveAttribute('data-prefetch', 'false')

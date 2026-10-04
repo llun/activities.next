@@ -240,8 +240,8 @@ describe('FollowListPage', () => {
 
     // Signed in: visible "Back to profile", named after the person.
     it.each([
-      ['Someone', "Back to Someone's profile"],
-      ['', "Back to @someone@llun.social's profile"]
+      ['Someone', 'Back to profile, Someone'],
+      ['', 'Back to profile, @someone@llun.social']
     ])(
       'names the signed-in Back after the profile owner (%j)',
       async (name, accessibleName) => {
