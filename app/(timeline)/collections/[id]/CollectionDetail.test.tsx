@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { ReactNode } from 'react'
 
 import { CollectionMember } from '@/app/(timeline)/collections/CollectionEditor'
@@ -286,7 +293,13 @@ describe('CollectionDetail', () => {
   })
 
   it('renders a read-only public view for non-owners', () => {
-    render(<CollectionDetail {...baseProps} isOwner={false} />)
+    render(
+      <CollectionDetail
+        {...baseProps}
+        isOwner={false}
+        currentActor={{} as ActorProfile}
+      />
+    )
 
     expect(
       screen.queryByRole('button', { name: /public preview/i })
@@ -304,39 +317,28 @@ describe('CollectionDetail', () => {
     expect(header).toHaveAttribute('data-compact-title', 'Collection')
   })
 
-  // A non-owner has no Back, so `PageHeader` would not truncate a plain title:
-  // from `md` up the heading stays the truncating one it always was, signed in
-  // or not. Signed in it additionally wraps below `md`, under the bar.
-  it.each([
-    [undefined, false],
-    [{} as ActorProfile, true]
-  ])(
-    'truncates a non-owner heading at every width, wrapping below md only when signed in (%#)',
-    (currentActor, wrapsOnMobile) => {
-      render(
-        <CollectionDetail
-          {...baseProps}
-          isOwner={false}
-          currentActor={currentActor}
-        />
-      )
+  // A signed-in non-owner has no Back, so `PageHeader` would not truncate a
+  // plain title: from `md` up the heading stays the truncating one it always
+  // was, and below `md` (under the bar) it wraps.
+  it('truncates a signed-in non-owner heading from md and wraps it below', () => {
+    render(
+      <CollectionDetail
+        {...baseProps}
+        isOwner={false}
+        currentActor={{} as ActorProfile}
+      />
+    )
 
-      const title = screen.getByText('Fediverse builders', {
-        selector: '[data-testid="page-header"] *'
-      })
-      expect(title).toHaveClass('truncate')
-      expect(title.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
-      if (wrapsOnMobile) {
-        expect(title).toHaveClass(
-          'max-md:break-words',
-          'max-md:whitespace-normal'
-        )
-      } else {
-        expect(title).not.toHaveClass('max-md:break-words')
-        expect(title).not.toHaveClass('max-md:whitespace-normal')
-      }
-    }
-  )
+    const title = screen.getByText('Fediverse builders', {
+      selector: '[data-testid="page-header"] *'
+    })
+    expect(title).toHaveClass(
+      'truncate',
+      'max-md:break-words',
+      'max-md:whitespace-normal'
+    )
+    expect(title.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
+  })
 
   it('leaves the owner heading plain for PageHeader to truncate beside its Back', () => {
     render(
@@ -380,5 +382,83 @@ describe('CollectionDetail', () => {
     const feed = screen.getByTestId('posts')
     expect(feed).toHaveAttribute('data-show-actions', showActions)
     expect(feed).toHaveAttribute('data-read-only-stats', readOnlyStats)
+  })
+
+  describe('logged-out visitor', () => {
+    const renderLoggedOut = (props = {}) =>
+      render(<CollectionDetail {...baseProps} isOwner={false} {...props} />)
+
+    it('renders the title as plain text in the cards column, not a header band', () => {
+      renderLoggedOut()
+
+      // No `PageHeader`: that is the band with its own background, divider
+      // and wider title row.
+      expect(screen.queryByTestId('page-header')).not.toBeInTheDocument()
+      const title = screen.getByRole('heading', {
+        level: 1,
+        name: 'Fediverse builders'
+      })
+      expect(title).toHaveClass('truncate', 'text-xl', 'font-semibold')
+      // The heading and the subtitle share one wrapper that sits in the same
+      // stack as the cards, with 16px (not the stack's 24px) under it.
+      const block = title.parentElement as HTMLElement
+      expect(block).toHaveClass('mb-4')
+      expect(block.className).not.toMatch(/sticky|border|bg-/)
+      expect(block.parentElement).toBe(
+        screen.getByText('people I read').closest('section')?.parentElement
+      )
+      expect(within(block).getByText('by anna@llun.social')).toHaveClass(
+        'text-xs',
+        'text-muted-foreground'
+      )
+    })
+
+    it('shows the empty state as an inset card below md, not the full-bleed surface', () => {
+      renderLoggedOut({ statuses: [], totalCount: 0, publicRoster: [] })
+
+      const card = screen
+        .getByRole('heading', { name: 'No one in this collection yet' })
+        .closest('div.rounded-xl') as HTMLElement
+      expect(card).toHaveClass('rounded-xl', 'border', 'shadow-sm')
+      expect(card.className).not.toContain('max-md:')
+    })
+
+    it('aligns "Curated by" with the card edge below md', () => {
+      renderLoggedOut()
+
+      expect(screen.getByText(/Curated by/)).toHaveClass('px-1', 'max-md:px-0')
+    })
+  })
+
+  describe('signed-in visitor keeps the full-bleed empty state and inset byline', () => {
+    it.each([
+      { description: 'non-owner', isOwner: false },
+      { description: 'owner', isOwner: true }
+    ])('$description', ({ isOwner }) => {
+      render(
+        <CollectionDetail
+          {...baseProps}
+          isOwner={isOwner}
+          currentActor={{} as ActorProfile}
+          statuses={[]}
+          totalCount={0}
+          publicRoster={[]}
+          ownerRoster={[]}
+        />
+      )
+
+      const card = screen
+        .getByRole('heading', { name: 'No one in this collection yet' })
+        .closest('div.rounded-xl') as HTMLElement
+      expect(card).toHaveClass(
+        'max-md:mx-[calc(50%_-_50vw)]',
+        'max-md:rounded-none',
+        'max-md:border-0'
+      )
+      expect(screen.getByTestId('page-header')).toBeInTheDocument()
+      if (!isOwner) {
+        expect(screen.getByText(/Curated by/)).not.toHaveClass('max-md:px-0')
+      }
+    })
   })
 })
