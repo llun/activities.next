@@ -25,10 +25,17 @@ import { cn } from '@/lib/utils'
  *   four cells still fit in 424px (the kit derives that from 4×100px + 3×8px of
  *   gap) and it never drops to a single column — a 4-row chip in a feed is a
  *   worse trade than a slightly tight cell.
+ * - `summary` — the fitness overview's totals (Activities, Distance, Duration,
+ *   Elevation). Values are `text-xl`, with a 20px icon beside them only when
+ *   four across, and a long total such as "1,234h 56m" then needs ~175px a
+ *   cell, so it is 2×2 and 4-up only from 700px: the tablet's 715px column
+ *   and the 908px desktop one are 4-up, a phone is 2×2. The 1px gap over a
+ *   border-coloured track draws the hairline dividers.
  */
 const VARIANT_CLASS_NAMES = {
   detail: 'gap-3 grid-cols-1 @min-[420px]:grid-cols-2 @min-[780px]:grid-cols-4',
-  chip: 'gap-2 grid-cols-2 @min-[424px]:grid-cols-4'
+  chip: 'gap-2 grid-cols-2 @min-[424px]:grid-cols-4',
+  summary: 'gap-px grid-cols-2 @min-[700px]:grid-cols-4'
 } as const
 
 export type FitnessStatGridVariant = keyof typeof VARIANT_CLASS_NAMES

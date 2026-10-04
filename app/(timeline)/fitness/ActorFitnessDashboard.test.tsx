@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -12,22 +13,38 @@ import {
 import { AnchorHTMLAttributes, ReactNode } from 'react'
 
 import {
-  FitnessActivitySummary,
-  FitnessCalendarDay,
+  ApiRequestError,
   getFitnessCalendarData,
+  getFitnessCalendarDayActivities,
   getFitnessSummary
 } from '@/lib/client'
+import type {
+  FitnessActivitySummary,
+  FitnessCalendarDay,
+  FitnessDayActivitiesPage
+} from '@/lib/fitness/calendar/types'
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 
-import { ActorFitnessDashboard } from './ActorFitnessDashboard'
+import {
+  ActorFitnessDashboard,
+  INLINE_DETAILS_MIN_WIDTH
+} from './ActorFitnessDashboard'
 
-vi.mock('@/lib/client', () => ({
-  getFitnessSummary: vi.fn(),
-  getFitnessCalendarData: vi.fn()
-}))
+vi.mock('@/lib/client', async () => {
+  const http =
+    await vi.importActual<typeof import('@/lib/client/http')>(
+      '@/lib/client/http'
+    )
+  return {
+    ApiRequestError: http.ApiRequestError,
+    getFitnessSummary: vi.fn(),
+    getFitnessCalendarData: vi.fn(),
+    getFitnessCalendarDayActivities: vi.fn()
+  }
+})
 
 // next/link swallows `prefetch` and `scroll` instead of reflecting them in the
-// DOM, so the only way to assert on them is to render them ourselves. Neither
-// may be spread onto the `<a>`: they are not valid DOM attributes.
+// DOM, so render them ourselves to assert on them.
 vi.mock('next/link', () => ({
   default: ({
     children,
@@ -52,12 +69,14 @@ vi.mock('next/link', () => ({
   )
 }))
 
-const mockedGetFitnessSummary = vi.mocked(getFitnessSummary)
-const mockedGetFitnessCalendarData = vi.mocked(getFitnessCalendarData)
+const mockedSummary = vi.mocked(getFitnessSummary)
+const mockedCalendar = vi.mocked(getFitnessCalendarData)
+const mockedDay = vi.mocked(getFitnessCalendarDayActivities)
 
 const ACTOR_ID = 'https://activities.local/users/llun'
-const FIXED_CURRENT_TIME = new Date('2026-04-30T10:05:00.000Z').getTime()
-const DAY_MS = 24 * 60 * 60 * 1000
+// Sunday 4 October 2026, 10:00 UTC. The suite runs in UTC, so the viewer's
+// zone is UTC unless a test says otherwise.
+const CURRENT_TIME = Date.UTC(2026, 9, 4, 10)
 
 const summary: FitnessActivitySummary[] = [
   {
@@ -68,360 +87,534 @@ const summary: FitnessActivitySummary[] = [
     totalElevationGainMeters: 120
   },
   {
-    activityType: 'gravel_ride',
-    count: 2,
-    totalDistanceMeters: 42000,
-    totalDurationSeconds: 7500,
-    totalElevationGainMeters: 300
-  }
-]
-
-// An actor holding both the canonical form and the spelling Strava sent before
-// it was applied on write. Capitalising is case-insensitive, so both rows would
-// otherwise read "Run".
-const collidingSummary: FitnessActivitySummary[] = [
-  {
-    activityType: 'run',
-    count: 3,
-    totalDistanceMeters: 15000,
-    totalDurationSeconds: 5400,
-    totalElevationGainMeters: 120
-  },
-  {
-    activityType: 'Run',
-    count: 2,
-    totalDistanceMeters: 9000,
-    totalDurationSeconds: 3000,
-    totalElevationGainMeters: 60
+    activityType: null,
+    count: 1,
+    totalDistanceMeters: 0,
+    totalDurationSeconds: 1800,
+    totalElevationGainMeters: 0
   }
 ]
 
 const calendarDays: FitnessCalendarDay[] = [
   {
-    date: '2026-04-29',
+    date: '2026-10-01',
+    count: 2,
+    totalDistanceMeters: 16800,
+    totalDurationSeconds: 4440,
+    totalElevationGainMeters: 80
+  },
+  {
+    date: '2026-09-24',
     count: 1,
     totalDistanceMeters: 5000,
-    totalDurationSeconds: 1800
+    totalDurationSeconds: 1800,
+    totalElevationGainMeters: 40
   }
 ]
 
-// Mirror the component's local-calendar formatter so the expected query window
-// is computed the same way regardless of the host machine timezone.
-const formatLocalDateInput = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+const dayPage = (date: string): FitnessDayActivitiesPage => ({
+  date,
+  timeZone: 'UTC',
+  activities: [
+    {
+      id: `${date}-a`,
+      activityType: 'run',
+      startTime: Date.parse(`${date}T07:05:00Z`),
+      totalDistanceMeters: 9600,
+      totalDurationSeconds: 1980,
+      elevationGainMeters: 40,
+      title: 'Morning run',
+      statusPath: '/@llun/1'
+    }
+  ],
+  hasMore: false,
+  nextOffset: 1
+})
+
+const renderDashboard = (props: { selectedActivityType?: string } = {}) =>
+  render(
+    <ActorFitnessDashboard
+      actorId={ACTOR_ID}
+      currentTime={CURRENT_TIME}
+      earliestActivityTime={Date.UTC(2023, 4, 1)}
+      {...props}
+    />
+  )
+
+const text = (element: Element | null) =>
+  element?.textContent?.replace(/\u00a0/g, ' ')
+
+/** The period heading below "Overview". */
+const periodHeading = () =>
+  within(screen.getByTestId('fitness-overview-header')).getByRole('heading', {
+    level: 2
+  })
+
+const lastRange = (mock: typeof mockedSummary | typeof mockedCalendar) => {
+  const call = mock.mock.calls[mock.mock.calls.length - 1]?.[0]
+  return call ? { from: call.from, to: call.to } : null
 }
 
-// Reproduce the start/end millisecond bounds the dashboard sends for a preset:
-// a local-calendar YYYY-MM-DD parsed back as UTC midnight, end-exclusive.
-const expectedWindow = (now: number, days: number) => {
-  const startMs = new Date(
-    formatLocalDateInput(new Date(now - days * DAY_MS))
-  ).getTime()
-  const endMs = new Date(formatLocalDateInput(new Date(now))).getTime()
-  return { startDate: startMs, endDate: endMs + DAY_MS }
+const cell = (date: string) => {
+  const element = document.querySelector<HTMLElement>(`[data-date="${date}"]`)
+  if (!element) throw new Error(`No cell for ${date}`)
+  return element
 }
 
-const expectedYearWindow = (now: number) => {
-  const year = new Date(now).getFullYear()
-  const startMs = new Date(formatLocalDateInput(new Date(year, 0, 1))).getTime()
-  const endMs = new Date(formatLocalDateInput(new Date(year, 11, 31))).getTime()
-  return { startDate: startMs, endDate: endMs + DAY_MS }
+const waitForLoaded = () =>
+  waitFor(() =>
+    expect(
+      document.querySelector('[data-slot$="-calendar"] [aria-busy="true"]')
+    ).toBeNull()
+  )
+
+/** Gives the dashboard root a width, and a ResizeObserver that can change it. */
+const stubDashboardWidth = (initial: number) => {
+  let width = initial
+  const observers = new Set<{
+    callback: ResizeObserverCallback
+    targets: Set<Element>
+    observer: ResizeObserver
+  }>()
+  class ResizeObserverStub {
+    private readonly entry
+    constructor(callback: ResizeObserverCallback) {
+      this.entry = {
+        callback,
+        targets: new Set<Element>(),
+        observer: this as unknown as ResizeObserver
+      }
+      observers.add(this.entry)
+    }
+    observe(target: Element) {
+      this.entry.targets.add(target)
+    }
+    unobserve(target: Element) {
+      this.entry.targets.delete(target)
+    }
+    disconnect() {
+      observers.delete(this.entry)
+    }
+  }
+  vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+  const isRoot = (element: Element) =>
+    element.getAttribute('data-testid') === 'fitness-overview'
+  const isSheet = (element: Element) =>
+    element.getAttribute('data-testid') === 'day-details-sheet'
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+    function (this: HTMLElement) {
+      const w = isRoot(this) ? width : 0
+      const h = isSheet(this) ? 240 : 0
+      return {
+        width: w,
+        height: h,
+        left: 0,
+        top: 0,
+        right: w,
+        bottom: h,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect
+    }
+  )
+  return {
+    resize(next: number) {
+      width = next
+      act(() => {
+        for (const { callback, targets, observer } of observers) {
+          for (const target of targets) {
+            if (!isRoot(target)) continue
+            callback(
+              [{ target, contentRect: { width: next } } as ResizeObserverEntry],
+              observer
+            )
+          }
+        }
+      })
+    }
+  }
 }
 
 describe('ActorFitnessDashboard', () => {
   beforeEach(() => {
-    // Pin Date.now() (read by the hydration effect + applyPreset) so the query
-    // window is deterministic. shouldAdvanceTime keeps the real clock ticking so
-    // waitFor polling and promise microtasks still resolve.
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    vi.setSystemTime(FIXED_CURRENT_TIME)
-    mockedGetFitnessSummary.mockResolvedValue(summary)
-    mockedGetFitnessCalendarData.mockResolvedValue(calendarDays)
+    vi.setSystemTime(CURRENT_TIME)
+    mockedSummary.mockReset()
+    mockedCalendar.mockReset()
+    mockedDay.mockReset()
+    mockedSummary.mockResolvedValue(summary)
+    mockedCalendar.mockResolvedValue(calendarDays)
+    mockedDay.mockImplementation(async ({ date }) => dayPage(date))
+    Element.prototype.scrollIntoView = vi.fn()
   })
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.clearAllMocks()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    document.documentElement.style.scrollPaddingBottom = ''
   })
 
-  it('renders exactly the YTD/1Y/5Y/10Y presets and no 30D/90D presets', () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'YTD' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '1Y' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '5Y' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '10Y' })).toBeInTheDocument()
-
-    expect(screen.queryByRole('button', { name: '2Y' })).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: '30D' })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: '90D' })
-    ).not.toBeInTheDocument()
-  })
-
-  it('marks YTD as the initially selected preset', () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
-    )
-
-    const activeClasses = ['bg-foreground', 'text-background']
-    expect(screen.getByRole('button', { name: 'YTD' })).toHaveClass(
-      ...activeClasses
-    )
-    for (const label of ['1Y', '5Y', '10Y']) {
-      expect(screen.getByRole('button', { name: label })).not.toHaveClass(
-        ...activeClasses
+  it('renders a dateless skeleton on the server and hydrates it without a mismatch', async () => {
+    const { serverHtml, container, onRecoverableError, unmount } =
+      await hydrateServerHtml(
+        <ActorFitnessDashboard actorId={ACTOR_ID} currentTime={CURRENT_TIME} />
       )
+    try {
+      // The server cannot know the viewer's days: no year, no month, no range.
+      expect(serverHtml).toContain('fitness-overview-skeleton')
+      expect(serverHtml).not.toMatch(/2026|Oct|Jan|Year to date/)
+      expect(onRecoverableError).not.toHaveBeenCalled()
+
+      // The first client render after hydration switches to the real overview.
+      await waitFor(() =>
+        expect(
+          container.querySelector('[data-testid="fitness-overview"]')
+        ).not.toBeNull()
+      )
+      expect(container.textContent).toContain('2026 · Year to date')
+    } finally {
+      unmount()
     }
   })
 
-  it('requests the full calendar year window for the default YTD preset on load', async () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
-    )
+  it('requests year to date through today in the viewer zone by default', async () => {
+    renderDashboard()
 
-    const windowYtd = expectedYearWindow(FIXED_CURRENT_TIME)
-    await waitFor(() => {
-      expect(mockedGetFitnessSummary).toHaveBeenLastCalledWith({
-        actorId: ACTOR_ID,
-        ...windowYtd
-      })
-    })
-    expect(mockedGetFitnessCalendarData).toHaveBeenLastCalledWith({
+    await waitFor(() => expect(mockedSummary).toHaveBeenCalled())
+    const expected = {
       actorId: ACTOR_ID,
-      ...windowYtd
-    })
-  })
-
-  it.each([
-    { label: '1Y', days: 365 },
-    { label: '5Y', days: 1825 },
-    { label: '10Y', days: 3650 }
-  ])(
-    'requests a $days-day window when the $label preset is selected',
-    async ({ label, days }) => {
-      render(
-        <ActorFitnessDashboard
-          actorId={ACTOR_ID}
-          currentTime={FIXED_CURRENT_TIME}
-        />
-      )
-
-      fireEvent.click(screen.getByRole('button', { name: label }))
-
-      const window = expectedWindow(FIXED_CURRENT_TIME, days)
-      await waitFor(() => {
-        expect(mockedGetFitnessSummary).toHaveBeenLastCalledWith({
-          actorId: ACTOR_ID,
-          ...window
-        })
-      })
-      expect(mockedGetFitnessCalendarData).toHaveBeenLastCalledWith({
-        actorId: ACTOR_ID,
-        ...window
-      })
+      from: '2026-01-01',
+      to: '2026-10-04',
+      timeZone: 'UTC',
+      signal: expect.any(AbortSignal)
     }
-  )
-
-  it('requests the full calendar year window when switching back to YTD', async () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
+    expect(mockedSummary).toHaveBeenCalledWith(expected)
+    expect(mockedCalendar).toHaveBeenCalledWith(expected)
+    // The overview never narrows by the feed's `?activity=` filter.
+    expect(Object.hasOwn(mockedCalendar.mock.calls[0][0], 'activityType')).toBe(
+      false
     )
-
-    fireEvent.click(screen.getByRole('button', { name: '1Y' }))
-
-    const window365 = expectedWindow(FIXED_CURRENT_TIME, 365)
-    await waitFor(() => {
-      expect(mockedGetFitnessSummary).toHaveBeenLastCalledWith({
-        actorId: ACTOR_ID,
-        ...window365
-      })
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'YTD' }))
-
-    const windowYtd = expectedYearWindow(FIXED_CURRENT_TIME)
-    await waitFor(() => {
-      expect(mockedGetFitnessSummary).toHaveBeenLastCalledWith({
-        actorId: ACTOR_ID,
-        ...windowYtd
-      })
-    })
-    expect(mockedGetFitnessCalendarData).toHaveBeenLastCalledWith({
-      actorId: ACTOR_ID,
-      ...windowYtd
-    })
-  })
-  it('titles the activity breakdown card Activities', async () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
-    )
-
+    expect(text(periodHeading())).toBe('2026 · Year to date')
     expect(
-      await screen.findByRole('heading', { name: 'Activities' })
+      within(screen.getByTestId('fitness-overview-header')).getByText(
+        '1 Jan – 4 Oct 2026'
+      )
     ).toBeInTheDocument()
+  })
+
+  it("derives today from the server clock in the viewer's own zone", async () => {
+    // Fake timers replace `Intl.DateTimeFormat`, and the zone is stubbed on the
+    // real one; this test reads no clock but the `currentTime` it passes.
+    vi.useRealTimers()
+    const realResolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions
+    vi.spyOn(
+      Intl.DateTimeFormat.prototype,
+      'resolvedOptions'
+    ).mockImplementation(function (this: Intl.DateTimeFormat) {
+      const real = realResolvedOptions.call(this)
+      return real.timeZone === 'UTC'
+        ? { ...real, timeZone: 'Pacific/Auckland' }
+        : real
+    })
+
+    // 12:00 UTC on 4 October 2026 is 01:00 on the 5th in Auckland (NZDT).
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={Date.UTC(2026, 9, 4, 12)}
+      />
+    )
+
+    await waitFor(() =>
+      expect(mockedSummary).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: '2026-01-01',
+          to: '2026-10-05',
+          timeZone: 'Pacific/Auckland'
+        })
+      )
+    )
+  })
+
+  it('moves today forward when the page regains focus after midnight', async () => {
+    vi.setSystemTime(Date.UTC(2026, 9, 4, 23, 59))
+    render(
+      <ActorFitnessDashboard
+        actorId={ACTOR_ID}
+        currentTime={Date.UTC(2026, 9, 4, 23, 59)}
+      />
+    )
+    await waitFor(() =>
+      expect(lastRange(mockedSummary)).toEqual({
+        from: '2026-01-01',
+        to: '2026-10-04'
+      })
+    )
+
+    vi.setSystemTime(Date.UTC(2026, 9, 5, 0, 1))
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+
     expect(
-      screen.queryByRole('heading', { name: 'Activity Mix' })
+      within(screen.getByTestId('fitness-overview-header')).getByText(
+        '1 Jan – 5 Oct 2026'
+      )
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(lastRange(mockedSummary)).toEqual({
+        from: '2026-01-01',
+        to: '2026-10-05'
+      })
+    )
+  })
+
+  it('keeps the grid and says so when the range has no activity', async () => {
+    mockedSummary.mockResolvedValue([])
+    mockedCalendar.mockResolvedValue([])
+    renderDashboard()
+
+    expect(
+      await screen.findByText(/No activities recorded in 1 Jan – 4 Oct 2026/)
+    ).toBeInTheDocument()
+    // The calendar's structure stays: today is still a selectable cell.
+    expect(cell('2026-10-04')).toBeEnabled()
+    expect(cell('2026-10-04')).toHaveAccessibleName(
+      'Sunday, 4 October 2026: No activities'
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps the previous results, labelled, when a new range fails, and retries it', async () => {
+    renderDashboard()
+    await waitFor(() =>
+      expect(screen.getByText('Activities', { selector: 'dt' })).toBeVisible()
+    )
+    await waitForLoaded()
+
+    mockedSummary.mockRejectedValueOnce(
+      new ApiRequestError('Service Unavailable', 503)
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(text(alert)).toContain(
+      'Showing previous results for 1 Jan – 4 Oct 2026'
+    )
+    expect(text(alert)).toContain('We couldn’t load 1 Jan – 31 Dec 2025')
+    expect(text(alert)).toContain('Service Unavailable')
+    // The heading names the range that was asked for; the numbers below are
+    // the previous range's, never zeros.
+    expect(text(periodHeading())).toBe('2025')
+    expect(
+      text(
+        screen
+          .getByText('Activities', { selector: 'dt' })
+          .parentElement?.querySelector('dd') ?? null
+      )
+    ).toBe('4')
+
+    fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    )
+    expect(lastRange(mockedSummary)).toEqual({
+      from: '2025-01-01',
+      to: '2025-12-31'
+    })
+  })
+
+  it('never shows a failed first read as an empty range', async () => {
+    mockedCalendar.mockRejectedValue(new ApiRequestError('Bad Gateway', 502))
+    renderDashboard()
+
+    const alert = await screen.findByRole('alert')
+    expect(text(alert)).toContain('We couldn’t load 1 Jan – 4 Oct 2026')
+    expect(within(alert).getByRole('button', { name: 'Retry' })).toBeEnabled()
+    expect(screen.queryByText(/No activities recorded/)).not.toBeInTheDocument()
+    expect(
+      screen
+        .getByText('Activities', { selector: 'dt' })
+        .parentElement?.querySelector('dd')
+    ).toHaveTextContent('Unavailable')
+  })
+
+  it('lists the activity types below the calendar with their filter links', async () => {
+    renderDashboard({ selectedActivityType: 'run' })
+
+    const run = await screen.findByRole('link', { name: 'Run' })
+    expect(run).toHaveAttribute('href', '/fitness')
+    expect(run).toHaveAttribute('aria-current', 'true')
+    // Untyped activities count, on a row that is not a filter.
+    expect(screen.getByText('Workout').closest('a')).toBeNull()
+
+    const calendarHeading = screen.getByRole('heading', {
+      name: 'Training calendar'
+    })
+    const typesHeading = screen.getByRole('heading', { name: 'Activity types' })
+    expect(
+      calendarHeading.compareDocumentPosition(typesHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('opens a month from its label and goes back to the same year', async () => {
+    renderDashboard()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show September 2026' }))
+
+    expect(text(periodHeading())).toBe('September 2026')
+    await waitFor(() =>
+      expect(lastRange(mockedSummary)).toEqual({
+        from: '2026-09-01',
+        to: '2026-09-30'
+      })
+    )
+    expect(
+      await screen.findByRole('group', { name: 'September 2026' })
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Back to year/ }))
+
+    expect(text(periodHeading())).toBe('2026 · Year to date')
+    await waitFor(() =>
+      expect(lastRange(mockedSummary)).toEqual({
+        from: '2026-01-01',
+        to: '2026-10-04'
+      })
+    )
+  })
+
+  it('disables the steps that would land wholly in the future', async () => {
+    renderDashboard()
+
+    expect(screen.getByRole('button', { name: 'Next year' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Previous year' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+
+    // The latest month of year to date is the current month.
+    expect(text(periodHeading())).toBe('October 2026')
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+    expect(text(periodHeading())).toBe('September 2026')
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeEnabled()
+  })
+
+  it('reads a selected day without touching the range or the totals', async () => {
+    renderDashboard()
+    await waitForLoaded()
+    const summaryCalls = mockedSummary.mock.calls.length
+    const calendarCalls = mockedCalendar.mock.calls.length
+
+    fireEvent.click(cell('2026-10-01'))
+
+    const details = await screen.findByTestId('day-details')
+    expect(
+      within(details).getByRole('heading', { name: 'Thursday, 1 October 2026' })
+    ).toBeInTheDocument()
+    // The header totals come from the calendar bucket for the day.
+    expect(text(details)).toContain('2 activities · 16.8 km · 1h 14m')
+    expect(await within(details).findByText('Morning run')).toBeInTheDocument()
+    expect(mockedDay).toHaveBeenCalledWith(
+      expect.objectContaining({ date: '2026-10-01', timeZone: 'UTC' })
+    )
+    expect(mockedSummary).toHaveBeenCalledTimes(summaryCalls)
+    expect(mockedCalendar).toHaveBeenCalledTimes(calendarCalls)
+    expect(text(periodHeading())).toBe('2026 · Year to date')
+  })
+
+  it('closes the day details on Escape and puts focus back on the day', async () => {
+    renderDashboard()
+    await waitForLoaded()
+
+    fireEvent.click(cell('2026-09-24'))
+    const details = await screen.findByTestId('day-details')
+    const close = within(details).getByRole('button', {
+      name: 'Close day details'
+    })
+    close.focus()
+    fireEvent.keyDown(close, { key: 'Escape' })
+
+    expect(screen.queryByTestId('day-details')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(cell('2026-09-24'))
+    expect(cell('2026-09-24')).toHaveAttribute('aria-pressed', 'false')
+
+    // Escape from the grid itself does the same.
+    fireEvent.click(cell('2026-09-24'))
+    await screen.findByTestId('day-details')
+    fireEvent.keyDown(cell('2026-09-24'), { key: 'Escape' })
+    expect(screen.queryByTestId('day-details')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(cell('2026-09-24'))
+  })
+
+  it('keeps the range, day, metric and view across a resize to the phone sheet', async () => {
+    const viewport = stubDashboardWidth(908)
+    renderDashboard()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Distance' }))
+    await waitForLoaded()
+    fireEvent.click(cell('2026-10-01'))
+    expect(await screen.findByTestId('day-details')).toBeInTheDocument()
+    const summaryCalls = mockedSummary.mock.calls.length
+
+    viewport.resize(INLINE_DETAILS_MIN_WIDTH - 210)
+
+    const sheet = await screen.findByTestId('day-details-sheet')
+    expect(screen.queryByTestId('day-details')).not.toBeInTheDocument()
+    expect(
+      within(sheet).getByRole('heading', { name: 'Thursday, 1 October 2026' })
+    ).toBeInTheDocument()
+    expect(text(periodHeading())).toBe('October 2026')
+    expect(screen.getByRole('radio', { name: 'Distance' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(cell('2026-10-01')).toHaveAttribute('aria-pressed', 'true')
+    expect(mockedSummary).toHaveBeenCalledTimes(summaryCalls)
+
+    // The sheet's height pads the page's scroll, and the selected day is
+    // scrolled clear of it.
+    await waitFor(() =>
+      expect(document.documentElement.style.scrollPaddingBottom).toBe('256px')
+    )
+    expect(cell('2026-10-01').scrollIntoView).toHaveBeenCalled()
+
+    viewport.resize(908)
+    expect(await screen.findByTestId('day-details')).toBeInTheDocument()
+    expect(screen.queryByTestId('day-details-sheet')).not.toBeInTheDocument()
+    expect(text(periodHeading())).toBe('October 2026')
+    expect(document.documentElement.style.scrollPaddingBottom).toBe('')
+  })
+
+  it('offers a day list in place of the month grid where cells would be under 44px', async () => {
+    const viewport = stubDashboardWidth(320)
+    renderDashboard()
+    await waitForLoaded()
+    expect(
+      screen.queryByRole('group', { name: 'Show the month as' })
     ).not.toBeInTheDocument()
-  })
 
-  it('sets the section headings 16/24 semibold', async () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
-    )
+    fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+    const toggle = screen.getByRole('group', { name: 'Show the month as' })
+    fireEvent.click(within(toggle).getByRole('button', { name: 'List' }))
 
-    for (const name of ['Training Calendar', 'Activities']) {
-      expect(await screen.findByRole('heading', { name })).toHaveClass(
-        'text-base',
-        'font-semibold'
-      )
-    }
-  })
-
-  it('reports a duration column beside the count and distance', async () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
-    )
-
-    // The header ORDER, not just its presence: Duration lands between two
-    // right-aligned tabular-nums columns, so swapping two header labels while
-    // leaving the cells alone is invisible to a per-header existence check and
-    // would file every duration under "Distance".
     expect(
-      (await screen.findAllByRole('columnheader')).map(
-        (header) => header.textContent
-      )
-    ).toEqual(['Activity', 'Count', 'Duration', 'Distance'])
+      await screen.findByRole('list', { name: 'October 2026, day by day' })
+    ).toBeInTheDocument()
 
-    const row = screen.getByRole('link', { name: 'Run' }).closest('tr')
-    expect(row).not.toBeNull()
-    const cells = within(row as HTMLElement).getAllByRole('cell')
-    expect(cells[1]).toHaveTextContent('3')
-    expect(cells[2]).toHaveTextContent('1h 30m')
-    expect(cells[3]).toHaveTextContent('15.0 km')
-  })
-
-  it('names each activity with the emoji its posts are captioned with', async () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
-    )
-
-    const runRow = (await screen.findByRole('link', { name: 'Run' })).closest(
-      'tr'
-    )
-    expect(runRow).toHaveTextContent('\u{1F3C3}')
-    // A qualified bike sport keeps its own glyph rather than taking the
-    // generic-workout fallback, which is what a raw-string-only lookup gave it.
+    // Wider again: the grid comes back, the month is unchanged.
+    viewport.resize(700)
     expect(
-      screen.getByRole('link', { name: 'Gravel Ride' }).closest('tr')
-    ).toHaveTextContent('\u{1F6B4}')
-  })
-
-  it('links each activity name to that type filter without prefetching it', async () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
-    )
-
-    const link = await screen.findByRole('link', { name: 'Gravel Ride' })
-    // The stored value, encoded — the page matches `?activity=` against the
-    // column verbatim.
-    expect(link).toHaveAttribute('href', '/fitness?activity=gravel_ride')
-    expect(link).toHaveAttribute('title', 'Show recent Gravel Ride activities')
-    expect(link).toHaveAttribute('data-prefetch', 'false')
-    // `scroll={false}` is the premise the whole announcement design rests on:
-    // the filter navigation must move nothing, which is why the live region is
-    // the only signal a screen reader gets. Without this assertion the prop can
-    // be deleted and every test still passes, while the page silently jumps to
-    // the top on each filter click.
-    expect(link).toHaveAttribute('data-scroll', 'false')
-    expect(link).not.toHaveAttribute('aria-current')
-  })
-
-  it('turns the selected activity into a link that clears the filter', async () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-        selectedActivityType="run"
-      />
-    )
-
-    const selected = await screen.findByRole('link', { name: 'Run' })
-    expect(selected).toHaveAttribute('href', '/fitness')
-    expect(selected).toHaveAttribute('title', 'Clear filter')
-    expect(selected).toHaveAttribute('aria-current', 'true')
-
-    expect(screen.getByRole('link', { name: 'Gravel Ride' })).toHaveAttribute(
-      'href',
-      '/fitness?activity=gravel_ride'
-    )
-  })
-  it('tells apart two stored spellings that differ only in case', async () => {
-    // Both rows carry different numbers and link to different filters, so an
-    // identical name makes two controls the reader cannot choose between — and
-    // whichever they pick silently omits the other half of their runs.
-    mockedGetFitnessSummary.mockResolvedValue(collidingSummary)
-
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
-    )
-
-    const lowercase = await screen.findByRole('link', { name: 'Run (run)' })
-    const capitalised = screen.getByRole('link', { name: 'Run (Run)' })
-
-    expect(lowercase).toHaveAttribute('href', '/fitness?activity=run')
-    expect(capitalised).toHaveAttribute('href', '/fitness?activity=Run')
-    expect(screen.queryByRole('link', { name: 'Run' })).not.toBeInTheDocument()
-  })
-
-  it('leaves an unambiguous label unqualified', async () => {
-    render(
-      <ActorFitnessDashboard
-        actorId={ACTOR_ID}
-        currentTime={FIXED_CURRENT_TIME}
-      />
-    )
-
-    expect(await screen.findByRole('link', { name: 'Run' })).toBeInTheDocument()
+      screen.queryByRole('list', { name: 'October 2026, day by day' })
+    ).not.toBeInTheDocument()
     expect(
-      screen.getByRole('link', { name: 'Gravel Ride' })
+      await screen.findByRole('group', { name: 'October 2026' })
     ).toBeInTheDocument()
   })
 })

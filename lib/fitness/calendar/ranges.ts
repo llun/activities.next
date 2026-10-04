@@ -296,7 +296,7 @@ export const DRAFT_ERROR_MESSAGES: Record<DraftErrorCode, string> = {
   to_malformed: 'Enter a valid date',
   to_before_minimum: `End date can't be before ${MIN_YEAR}`,
   to_after_today: "End date can't be after today",
-  range_inverted: 'Start date must be on or before the end date',
+  range_inverted: 'End date must be on or after the start date',
   range_too_short: `Choose at least ${MIN_CUSTOM_RANGE_DAYS} days, or use This month or Year to date`
 }
 

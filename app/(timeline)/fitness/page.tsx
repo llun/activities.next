@@ -29,6 +29,10 @@ export const metadata: Metadata = {
 
 const RECENT_LIMIT = 5
 
+// The range is the viewer's to choose (year to date by default), so the
+// description names what the page holds, not a fixed span.
+const OVERVIEW_DESCRIPTION = 'Your totals and training calendar'
+
 interface Props {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
@@ -54,10 +58,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
   if (!hasFitnessData) {
     return (
       <div className="space-y-6">
-        <PageHeader
-          title="Overview"
-          description="Your last 12 months of activity"
-        />
+        <PageHeader title="Overview" description={OVERVIEW_DESCRIPTION} />
         <Card className="flex flex-col items-start gap-4 p-6">
           <div className="space-y-1">
             <h2 className="text-base font-semibold">No activity yet</h2>
@@ -128,20 +129,24 @@ const Page: FC<Props> = async ({ searchParams }) => {
     (status): status is Status => status !== null
   )
 
+  // Bounds the year chooser: the earliest year with a countable activity. An
+  // epoch-millisecond number, not a Date, because it crosses into a Client
+  // Component.
+  const { earliest: earliestActivityTime } =
+    await database.getFitnessActivityTimeBounds({ actorId: currentActor.id })
+
   const currentTime = Date.now()
   const host = getConfig().host
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Overview"
-        description="Your last 12 months of activity"
-      />
+      <PageHeader title="Overview" description={OVERVIEW_DESCRIPTION} />
 
       <ActorFitnessDashboard
         actorId={currentActor.id}
         currentTime={currentTime}
         selectedActivityType={activityType}
+        earliestActivityTime={earliestActivityTime}
       />
 
       {/* `getActorProfile`, never the raw `Actor` and never `cleanJson`, which

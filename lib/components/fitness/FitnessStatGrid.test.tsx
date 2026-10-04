@@ -26,7 +26,7 @@ describe('FitnessStatGrid', () => {
     expect(grid.parentElement).toHaveClass('@container')
   })
 
-  it.each(['detail', 'chip'] as const)(
+  it.each(['detail', 'chip', 'summary'] as const)(
     'sizes the %s variant without a viewport breakpoint',
     (variant) => {
       renderGrid({ variant, children: <div data-testid="cell" /> })
@@ -68,5 +68,17 @@ describe('FitnessStatGrid', () => {
     expect(detail).toContain('grid-cols-1')
     expect(getGrid()).toHaveClass('grid-cols-2')
     expect(getGrid()).not.toHaveClass('grid-cols-1')
+  })
+
+  it('keeps the overview summary 2×2 below its four-up container width', () => {
+    renderGrid({ variant: 'summary', children: <div data-testid="cell" /> })
+
+    // Two columns at the narrowest, never one: four totals as a 4-row stack
+    // on a phone is the layout the design replaces with a 2×2 card. Four-up
+    // is a container query only, so a narrow column on a wide window stays
+    // 2×2. The 1px gap is the contract the dividers rely on.
+    expect(getGrid()).toHaveClass('grid-cols-2', 'gap-px')
+    expect(getGrid()).not.toHaveClass('grid-cols-1')
+    expect(getGrid().className).toMatch(/(^|\s)@min-\[\d+px\]:grid-cols-4/)
   })
 })

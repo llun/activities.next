@@ -1,5 +1,6 @@
 import { ReactElement, isValidElement } from 'react'
 
+import { PageHeader } from '@/lib/components/page-header'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -38,6 +39,7 @@ vi.mock('./RecentFitnessActivities', () => ({
 }))
 
 const currentTime = new Date('2026-05-17T12:00:00.000Z').getTime()
+const EARLIEST_ACTIVITY_TIME = new Date('2021-03-02T07:30:00.000Z').getTime()
 
 const currentActor = {
   id: 'https://example.com/users/me',
@@ -152,7 +154,10 @@ const createDatabase = () => ({
     .mockResolvedValue([fitnessFile('https://example.com/users/me/s/1')]),
   getStatus: vi
     .fn()
-    .mockResolvedValue(status('https://example.com/users/me/s/1'))
+    .mockResolvedValue(status('https://example.com/users/me/s/1')),
+  getFitnessActivityTimeBounds: vi
+    .fn()
+    .mockResolvedValue({ earliest: EARLIEST_ACTIVITY_TIME })
 })
 
 describe('fitness page', () => {
@@ -265,4 +270,56 @@ describe('fitness page', () => {
       findElementByType(element, ActorFitnessDashboard)?.props
     ).toMatchObject({ selectedActivityType: undefined })
   })
+
+  it('hands the dashboard the server clock and the earliest activity time', async () => {
+    const database = createDatabase()
+    mockGetDatabase.mockReturnValue(database)
+
+    const element = await Page({ searchParams: Promise.resolve({}) })
+
+    expect(database.getFitnessActivityTimeBounds).toHaveBeenCalledWith({
+      actorId: currentActor.id
+    })
+    const props = findElementByType(element, ActorFitnessDashboard)?.props as
+      Record<string, unknown> | undefined
+    expect(props).toMatchObject({
+      actorId: currentActor.id,
+      earliestActivityTime: EARLIEST_ACTIVITY_TIME
+    })
+    // A number, not a Date: it crosses into a Client Component.
+    expect(typeof props?.currentTime).toBe('number')
+  })
+
+  it('passes a null earliest time through when the actor has no countable activity', async () => {
+    const database = createDatabase()
+    database.getFitnessActivityTimeBounds.mockResolvedValue({ earliest: null })
+    mockGetDatabase.mockReturnValue(database)
+
+    const element = await Page({ searchParams: Promise.resolve({}) })
+
+    expect(
+      findElementByType(element, ActorFitnessDashboard)?.props
+    ).toMatchObject({ earliestActivityTime: null })
+  })
+
+  // The default range is year to date and the viewer can choose any other, so
+  // a fixed span in the description would contradict the page below it.
+  it.each([
+    { description: 'with activity', hasFitnessData: true },
+    { description: 'in the empty state', hasFitnessData: false }
+  ])(
+    'describes the overview without a fixed span $description',
+    async ({ hasFitnessData }) => {
+      const database = createDatabase()
+      database.getActorHasFitnessData.mockResolvedValue(hasFitnessData)
+      mockGetDatabase.mockReturnValue(database)
+
+      const element = await Page({ searchParams: Promise.resolve({}) })
+
+      const header = findElementByType(element, PageHeader)?.props as
+        { title: string; description: string } | undefined
+      expect(header?.title).toBe('Overview')
+      expect(header?.description).not.toMatch(/12 months/i)
+    }
+  )
 })
