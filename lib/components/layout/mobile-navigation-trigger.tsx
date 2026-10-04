@@ -1,7 +1,7 @@
 'use client'
 
 import { Menu } from 'lucide-react'
-import { forwardRef } from 'react'
+import { forwardRef, useEffect, useState } from 'react'
 
 import { useMobileNavigation } from '@/lib/components/layout/mobile-navigation-context'
 import { DialogTrigger } from '@/lib/components/ui/dialog'
@@ -15,14 +15,51 @@ export type MobileNavigationTriggerProps =
      * inset: it has no bar behind it, so it carries its own solid,
      * theme-aware surface, hairline border and shadow to stay legible over a
      * bright or dark cover and over the feed once the cover scrolls away.
+     * It fades while the page is actively scrolling, so it does not sit over
+     * the text being read, and returns once scrolling stops; it stays at full
+     * opacity while it has keyboard focus or the drawer is open, and it is
+     * clickable throughout.
      */
     variant?: 'bar' | 'floating'
   }
 
+// How long the page must stop scrolling before the floating button returns to
+// full opacity.
+export const FLOATING_TRIGGER_SCROLL_IDLE_MS = 200
+
+/**
+ * Whether the window is being scrolled right now: true from a scroll event
+ * until `FLOATING_TRIGGER_SCROLL_IDLE_MS` pass without another. Listens only
+ * while `enabled`, passively, and cleans up its listener and timer.
+ */
+const useIsScrolling = (enabled: boolean) => {
+  const [isScrolling, setIsScrolling] = useState(false)
+
+  useEffect(() => {
+    if (!enabled) return
+    let idleTimer: ReturnType<typeof setTimeout> | undefined
+    const onScroll = () => {
+      setIsScrolling(true)
+      clearTimeout(idleTimer)
+      idleTimer = setTimeout(
+        () => setIsScrolling(false),
+        FLOATING_TRIGGER_SCROLL_IDLE_MS
+      )
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      clearTimeout(idleTimer)
+    }
+  }, [enabled])
+
+  return isScrolling
+}
+
 const VARIANT_CLASS = {
   bar: 'relative flex h-11 w-11 items-center justify-center rounded-lg text-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
   floating:
-    'fixed top-[calc(env(safe-area-inset-top,0px)+16px)] left-[calc(env(safe-area-inset-left,0px)+16px)] z-30 flex size-11 items-center justify-center rounded-full border bg-popover text-popover-foreground shadow-md hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-foreground'
+    'fixed top-[calc(env(safe-area-inset-top,0px)+16px)] left-[calc(env(safe-area-inset-left,0px)+16px)] z-30 flex size-11 items-center justify-center rounded-full border bg-popover text-popover-foreground shadow-md transition-opacity duration-200 hover:bg-muted focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-foreground motion-reduce:transition-none'
 } as const
 
 /**
@@ -41,7 +78,13 @@ export const MobileNavigationTrigger = forwardRef<
   ref
 ) {
   const nav = useMobileNavigation()
+  const isFloating = variant === 'floating'
+  const isScrolling = useIsScrolling(isFloating && nav !== null)
   if (!nav) return null
+
+  // Faded only while scrolling with the drawer closed; `focus-visible`
+  // restores full opacity in CSS, and `opacity` never blocks the click.
+  const isFaded = isFloating && isScrolling && !nav.isOpen
 
   return (
     <DialogTrigger asChild>
@@ -49,8 +92,14 @@ export const MobileNavigationTrigger = forwardRef<
         ref={ref}
         type="button"
         aria-label="Open navigation"
-        data-floating-nav-trigger={variant === 'floating' ? '' : undefined}
-        className={cn(VARIANT_CLASS[variant], 'md:hidden', className)}
+        data-floating-nav-trigger={isFloating ? '' : undefined}
+        data-scroll-faded={isFaded ? '' : undefined}
+        className={cn(
+          VARIANT_CLASS[variant],
+          isFaded && 'opacity-40',
+          'md:hidden',
+          className
+        )}
         {...props}
       >
         <Menu className="h-5 w-5" aria-hidden="true" />
