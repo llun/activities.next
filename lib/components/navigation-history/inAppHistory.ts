@@ -6,20 +6,23 @@
 // stays in the app, name the page it returns to (`backDestination`).
 //
 // The browser does not expose its history entries, so this is a heuristic over
-// the pathnames the `InAppHistoryTracker` observes. A pathname already on the
-// stack is read as a return to it — by Back, a multi-step `history.go(-n)`, or
-// a link — and truncates the stack to its first occurrence; anything else
-// pushes. Truncating to the *first* occurrence is what keeps the entry page
-// safe: arriving at P0, visiting X and Y, then jumping back to P0 leaves just
-// [P0], so its Back is the fallback link rather than a `router.back()` out of
-// the app. The stack therefore never holds a pathname twice.
+// what the `InAppHistoryTracker` observes, and it models the one thing a
+// pathname cannot tell apart: a push and a pop. A new pathname is a push (a
+// link, `router.push`), and `router.back()` from the page it lands on returns
+// to the page just left — even when that pathname is already on the stack, as
+// in [Notifications, A, Profile] followed by a link back to A. A `popstate`
+// (browser Back or Forward, `history.go`) is a pop: it truncates the stack to
+// the nearest earlier entry for the pathname it landed on, so the stack
+// mirrors the browser's own entries and its top is always the current page.
 //
-// It still errs in both directions. Following a link back to a page visited
-// earlier, or a browser Forward after a Back, drops entries the browser still
-// has, so the page shows its fallback link where a Back would have worked. And
-// a `router.replace` on the entry page records a second, different pathname, so
-// that page then offers a Back that leaves the app. The stack lives in module
-// memory, so a full reload starts over — erring towards the fallback.
+// It still errs. `history.go(-n)` is read as the nearest earlier entry, so a
+// multi-step jump over a repeated pathname leaves entries the browser no
+// longer has (on the entry page that is a Back that leaves the app); a Forward
+// to a pathname already below the top is read as a pop; and a `router.replace`
+// records a second pathname for one entry. A pop to a pathname not on the stack
+// (Forward after Back) pushes, which errs towards a Back that exists. The stack
+// lives in module memory, so a full reload starts over — erring towards the
+// fallback link.
 //
 // Dependency-free so it can be unit-tested without React.
 
@@ -34,14 +37,26 @@ const notify = () => {
   for (const listener of listeners) listener()
 }
 
+/** The tab rendered `pathname`: a push, unless it is already the top. */
 export const recordNavigation = (pathname: string) => {
   if (stack[stack.length - 1] === pathname) return
 
-  const index = stack.indexOf(pathname)
-  stack =
-    index >= 0
-      ? stack.slice(0, index + 1)
-      : [...stack, pathname].slice(-MAX_ENTRIES)
+  stack = [...stack, pathname].slice(-MAX_ENTRIES)
+  notify()
+}
+
+/**
+ * The browser traversed history (`popstate`) and landed on `pathname`: drop
+ * the entries above its nearest earlier occurrence. A pathname that is not on
+ * the stack below the top is left for `recordNavigation` to push.
+ */
+export const recordPop = (pathname: string) => {
+  if (stack[stack.length - 1] === pathname) return
+
+  const index = stack.slice(0, -1).lastIndexOf(pathname)
+  if (index < 0) return
+
+  stack = stack.slice(0, index + 1)
   notify()
 }
 
@@ -51,14 +66,16 @@ export const recordNavigation = (pathname: string) => {
  *
  * It answers for the stack as it is once the tracker has recorded
  * `currentPathname`, so the first render of a page — which happens before the
- * tracker's effect — and every render after it agree: a pathname already on the
- * stack will be truncated to, so the entry below it precedes it (none for the
- * bottom entry); a new one will be pushed on top of whatever is there.
+ * tracker's effect — and every render after it agree: the top of the stack is
+ * the current page and the entry below it precedes it; a page not yet recorded
+ * is about to be pushed on top of whatever is there. (A pop is already on the
+ * stack when the page renders: the tracker records it from `popstate`, ahead
+ * of the render.)
  */
 export const getInAppPrevious = (currentPathname: string): string | null => {
-  const index = stack.indexOf(currentPathname)
-  if (index >= 0) return index >= 1 ? stack[index - 1] : null
-  return stack.length >= 1 ? stack[stack.length - 1] : null
+  const top = stack.length - 1
+  if (stack[top] === currentPathname) return top >= 1 ? stack[top - 1] : null
+  return top >= 0 ? stack[top] : null
 }
 
 export const subscribeToInAppHistory = (listener: Listener) => {

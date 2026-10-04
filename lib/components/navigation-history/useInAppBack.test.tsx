@@ -79,4 +79,54 @@ describe('useInAppBack', () => {
     })
     expect(mockBack).toHaveBeenCalled()
   })
+
+  // [Notifications, A, Profile], then a link from the Profile back to A: that
+  // is a push, so `router.back()` returns to the Profile, and a browser Back
+  // from there returns to A with Notifications behind it.
+  it('names the page just left after a link, then follows popstate back', () => {
+    // A fresh element per render: an identical one would bail out.
+    const tree = () => (
+      <>
+        <InAppHistoryTracker />
+        <Probe />
+      </>
+    )
+    const visit = (pathname: string, pop = false) => {
+      mockPathname.mockReturnValue(pathname)
+      if (pop) {
+        // The browser has already changed the URL when it fires `popstate`.
+        window.history.pushState({}, '', pathname)
+        act(() => {
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        })
+      }
+      rerender(tree())
+    }
+    mockPathname.mockReturnValue('/notifications')
+    const { rerender } = render(tree())
+    visit('/a')
+    visit('/profile')
+    visit('/a')
+    expect(screen.getByRole('button')).toHaveAttribute(
+      'data-previous',
+      '/profile'
+    )
+
+    visit('/profile', true)
+    expect(screen.getByRole('button')).toHaveAttribute('data-previous', '/a')
+
+    visit('/a', true)
+    expect(screen.getByRole('button')).toHaveAttribute(
+      'data-previous',
+      '/notifications'
+    )
+  })
+
+  it('stops listening for popstate when unmounted', () => {
+    const remove = vi.spyOn(window, 'removeEventListener')
+    const { unmount } = render(<InAppHistoryTracker />)
+    unmount()
+    expect(remove).toHaveBeenCalledWith('popstate', expect.any(Function))
+    remove.mockRestore()
+  })
 })

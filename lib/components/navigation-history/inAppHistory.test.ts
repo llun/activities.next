@@ -2,6 +2,7 @@ import {
   MAX_ENTRIES,
   getInAppPrevious,
   recordNavigation,
+  recordPop,
   resetInAppHistory,
   subscribeToInAppHistory
 } from './inAppHistory'
@@ -25,61 +26,102 @@ describe('inAppHistory', () => {
     expect(getInAppPrevious('/@alice@example.com/1')).toBe('/notifications')
   })
 
-  it('reads a return to the previous entry as a back navigation and pops', () => {
+  it('reads a popstate to the previous entry as a Back and pops', () => {
     recordNavigation('/@alice@example.com/1')
     recordNavigation('/@alice@example.com')
     // Browser Back to the post: the post is the entry below the profile.
-    recordNavigation('/@alice@example.com/1')
+    recordPop('/@alice@example.com/1')
     // The post was the first page in this tab, so nothing precedes it now.
     expect(getInAppPrevious('/@alice@example.com/1')).toBeNull()
   })
 
-  // A multi-step jump back to the entry page, e.g. `history.go(-2)`. A record
-  // that read only a return to the entry directly below the top as a Back
-  // would push here, leaving [P0, X, Y, P0] and offering a `router.back()`
-  // that leaves the app. What this guards is the rule that a recorded
-  // pathname has something before it only when it is not the bottom entry.
-  it('offers no Back after a multi-step return to the entry page', () => {
+  // The case a pathname alone cannot settle: a link back to a page already on
+  // the stack. Reading it as a return would name Notifications, but the link
+  // pushed a new entry and `router.back()` goes to the Profile just left.
+  it('names the page just left after a link to a page already on the stack', () => {
+    recordNavigation('/notifications')
+    recordNavigation('/a')
+    recordNavigation('/profile')
+    // First render of A, before the tracker's effect, and after it.
+    expect(getInAppPrevious('/a')).toBe('/profile')
+    recordNavigation('/a')
+    expect(getInAppPrevious('/a')).toBe('/profile')
+  })
+
+  it('unwinds the entries a link pushed as the browser pops them', () => {
+    recordNavigation('/notifications')
+    recordNavigation('/a')
+    recordNavigation('/profile')
+    recordNavigation('/a')
+    // Back to the Profile: the stack is [notifications, a, profile].
+    recordPop('/profile')
+    expect(getInAppPrevious('/profile')).toBe('/a')
+    // Back again to A: [notifications, a].
+    recordPop('/a')
+    expect(getInAppPrevious('/a')).toBe('/notifications')
+  })
+
+  it('pops to the nearest earlier entry for a repeated pathname', () => {
+    recordNavigation('/x')
+    recordNavigation('/a')
+    recordNavigation('/b')
+    recordNavigation('/a')
+    recordNavigation('/c')
+    recordPop('/a')
+    expect(getInAppPrevious('/a')).toBe('/b')
+  })
+
+  // A multi-step jump back to the entry page, e.g. `history.go(-2)`.
+  it('offers no Back after a multi-step popstate to the entry page', () => {
     recordNavigation('/p0')
     recordNavigation('/x')
     recordNavigation('/y')
-    expect(getInAppPrevious('/p0')).toBeNull()
-    recordNavigation('/p0')
-    expect(getInAppPrevious('/p0')).toBeNull()
-  })
-
-  // The entry page reached again by link, then by a jump back. The stack reads
-  // every visit to P0 as the bottom entry — on the linked one that errs
-  // towards the fallback link, but on the jump it is what keeps Back in the
-  // app.
-  it('offers no Back on the entry page however often it was revisited', () => {
-    recordNavigation('/p0')
-    recordNavigation('/x')
-    recordNavigation('/p0')
-    recordNavigation('/y')
-    recordNavigation('/p0')
+    recordPop('/p0')
     expect(getInAppPrevious('/p0')).toBeNull()
   })
 
-  it('still offers Back on a page returned to that is not the entry page', () => {
+  it('pushes a popstate to a pathname that is not on the stack', () => {
+    recordNavigation('/a')
+    recordNavigation('/b')
+    recordPop('/a')
+    // Browser Forward after a Back: B is no longer on the stack.
+    recordPop('/b')
+    recordNavigation('/b')
+    expect(getInAppPrevious('/b')).toBe('/a')
+  })
+
+  it('ignores a popstate to the current page', () => {
+    recordNavigation('/a')
+    recordNavigation('/b')
+    recordPop('/b')
+    expect(getInAppPrevious('/b')).toBe('/a')
+  })
+
+  it('names the page below a returned-to page that is not the entry page', () => {
     recordNavigation('/p0')
     recordNavigation('/x')
     recordNavigation('/y')
     recordNavigation('/z')
-    // The page below a revisited one is what it returns to, not the top.
+    recordPop('/x')
     expect(getInAppPrevious('/x')).toBe('/p0')
-    recordNavigation('/x')
-    expect(getInAppPrevious('/x')).toBe('/p0')
-    // …and the entry page, reached again, still has nothing before it.
-    recordNavigation('/p0')
+    recordPop('/p0')
     expect(getInAppPrevious('/p0')).toBeNull()
+  })
+
+  it('names the previous page from a stack of several entries', () => {
+    recordNavigation('/a')
+    recordNavigation('/b')
+    // Not yet recorded: `/c` will be pushed on top of `/b`.
+    expect(getInAppPrevious('/c')).toBe('/b')
+    recordNavigation('/c')
+    expect(getInAppPrevious('/c')).toBe('/b')
   })
 
   it(`keeps only the latest ${MAX_ENTRIES} pages`, () => {
     for (let i = 0; i <= MAX_ENTRIES; i++) recordNavigation(`/p${i}`)
     // `/p0` fell off the bottom, so `/p1` is the oldest page recorded and a
     // return to it has nothing before it.
-    recordNavigation('/p1')
+    recordPop('/p1')
     expect(getInAppPrevious('/p1')).toBeNull()
   })
 
