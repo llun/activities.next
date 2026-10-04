@@ -49,7 +49,8 @@ interface PageHeaderProps {
   /**
    * The home timeline's intro row: below `md` the box ends 12px under its
    * content (not 16px) on a full-width hairline, so a full-bleed surface
-   * directly below meets an edge. No effect from `md` up or in section mode.
+   * directly below meets an edge. No effect from `md` up, in section mode, or
+   * without the signed-in mobile navigation.
    */
   mobileIntroRow?: boolean
 }
@@ -199,7 +200,7 @@ export const PageHeader = ({
             ? 'md:sticky md:top-0 md:z-20 md:border-b md:bg-surface-chrome md:backdrop-blur'
             : 'sticky top-0 z-20 border-b bg-surface-chrome backdrop-blur',
           isEmptyOnMobile && 'max-md:hidden',
-          mobileIntroRow && 'max-md:border-b',
+          mobileIntroRow && hasMobileBar && 'max-md:border-b',
           className
         )}
         style={breakoutStyle}
@@ -208,7 +209,7 @@ export const PageHeader = ({
           className={cn(
             'mx-auto max-w-content px-4 py-4',
             back && hasMobileBar && 'max-md:pt-2',
-            mobileIntroRow && 'max-md:pb-3'
+            mobileIntroRow && hasMobileBar && 'max-md:pb-3'
           )}
         >
           <div

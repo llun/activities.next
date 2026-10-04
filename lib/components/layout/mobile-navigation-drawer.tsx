@@ -22,21 +22,18 @@ export interface MobileNavigationDrawerProps {
    * the (possibly unmounted) menu button.
    */
   children: (onNavigate: () => void) => ReactNode
-  description?: string
 }
 
 /**
- * The left drawer shell shared by the signed-in navigation (`MobileNav`) and
- * the logged-out one (`PublicMobileNav`): the overlay, the
- * `min(320px, 100vw - 48px)` panel sliding in from the left, the 44px close
- * button, and the focus rules. Outside tap, the close button and Escape all
+ * The left drawer shell of the signed-in mobile navigation (`MobileNav`): the
+ * overlay, the `min(320px, 100vw - 48px)` panel sliding in from the left, the
+ * 44px close button, and the focus rules. Outside tap, the close button and Escape all
  * close it through Radix; focus returns to whichever trigger opened it unless
  * the visitor navigated away or the viewport grew to `md`, where the trigger
  * is hidden.
  */
 export function MobileNavigationDrawer({
-  children,
-  description = 'Main site navigation'
+  children
 }: MobileNavigationDrawerProps) {
   const nav = useMobileNavigation()
   const pathname = usePathname()
@@ -89,7 +86,9 @@ export function MobileNavigationDrawer({
         )}
       >
         <DialogTitle className="sr-only">Navigation drawer</DialogTitle>
-        <DialogDescription className="sr-only">{description}</DialogDescription>
+        <DialogDescription className="sr-only">
+          Main site navigation
+        </DialogDescription>
         <DialogClose
           aria-label="Close navigation"
           className="absolute top-[calc(env(safe-area-inset-top,0px)+1rem)] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-lg text-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"

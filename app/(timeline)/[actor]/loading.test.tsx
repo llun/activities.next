@@ -45,19 +45,35 @@ describe('[actor] loading', () => {
     expect(root).toHaveClass('md:pt-8')
     expect(root).not.toHaveClass('pt-6')
     expect(root).toHaveClass('group-data-[shell=public]/shell:pt-0')
-    expect(container.querySelector('section')).toHaveClass(
-      'max-md:rounded-none'
-    )
   })
 
-  it('makes the card full-bleed and flat below md like the page', () => {
-    const { container } = render(<Loading />)
+  it('makes the card full-bleed and flat below md like the signed-in page', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <Loading />
+      </MobileNavigationProvider>
+    )
     const card = container.querySelector('section')
     PROFILE_CARD_MOBILE_CLASS.split(' ').forEach((token) =>
       expect(card).toHaveClass(token)
     )
     // The page's card drops its shadow below md; the skeleton must too.
     expect(card).toHaveClass('max-md:shadow-none')
+  })
+
+  // Logged out (PublicShell provides no mobile navigation) the skeleton is the
+  // framed card under the public top bar, as on every width.
+  it('keeps the framed card and no menu button when logged out', () => {
+    const { container } = render(<Loading />)
+    const card = container.querySelector('section')
+    PROFILE_CARD_MOBILE_CLASS.split(' ').forEach((token) =>
+      expect(card).not.toHaveClass(token)
+    )
+    expect(card).not.toHaveClass('max-md:shadow-none')
+    expect(card).toHaveClass('rounded-2xl', 'border', 'shadow-sm')
+    expect(
+      container.querySelector('[data-floating-nav-trigger]')
+    ).not.toBeInTheDocument()
   })
 
   it('floats the menu button where the page does', () => {

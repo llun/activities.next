@@ -101,18 +101,16 @@ describe('FollowListLoadingSkeleton', () => {
     expect(anonHeader).toBeInTheDocument()
     expect(anonHeader).toHaveClass('items-start', 'gap-2')
 
-    // Back icon skeleton matches ArrowLeft (size-5), its row nudged down by
-    // mt-0.5 from md up like the loaded BackLink
+    // Back icon skeleton matches ArrowLeft with mt-0.5 and size-5
     const backIcon = anonHeader?.querySelector('.size-5')
-    expect(backIcon).toHaveClass('skeleton', 'shrink-0', 'rounded-md')
-    expect(backIcon?.parentElement).toHaveClass('md:mt-0.5')
+    expect(backIcon).toHaveClass('skeleton', 'mt-0.5', 'shrink-0', 'rounded-md')
 
     // Text column contains h-7 title and h-4 description inside space-y-1
     const titleSkeleton = anonHeader?.querySelector('.h-7')
     expect(titleSkeleton).toHaveClass('skeleton', 'w-28', 'rounded-md')
 
-    const descSkeleton = anonHeader?.querySelector('.h-4.w-24')
-    expect(descSkeleton).toHaveClass('skeleton', 'rounded')
+    const descSkeleton = anonHeader?.querySelector('.h-4')
+    expect(descSkeleton).toHaveClass('skeleton', 'w-24', 'rounded')
 
     expect(screen.getByLabelText('Loading following')).toHaveAttribute(
       'data-route',
@@ -120,8 +118,8 @@ describe('FollowListLoadingSkeleton', () => {
     )
   })
 
-  // Below `md` the loaded page puts its plain title in the compact bar and
-  // starts the content with a 44px "Back to profile" row. A skeleton title in
+  // Signed in, below `md` the loaded page puts its plain title in the compact
+  // bar and starts the content with a 44px Back row. A skeleton title in
   // the bar, or no row, made the list jump down when it arrived.
   describe('below md', () => {
     const renderInShell = (route: 'followers' | 'following') =>
@@ -183,31 +181,17 @@ describe('FollowListLoadingSkeleton', () => {
       expect(count).not.toHaveClass('mt-0.5')
     })
 
-    it('mirrors the logged-out mobile header: Back row over the text-sm count', () => {
+    // Logged-out followers/following keep the public header at every width:
+    // no mobile-only Back row, and the title stays in the content.
+    it('keeps the logged-out header identical at every width', () => {
       const { container } = renderInShell('following')
 
       const anonHeader = container.querySelector(ANON_HEADER) as HTMLElement
-      expect(anonHeader).toHaveClass(
-        'max-md:flex-col',
-        'max-md:gap-0',
-        'max-md:pt-2'
-      )
-      expect(anonHeader.firstElementChild).toHaveClass('max-md:min-h-11')
-      // The row's arrow is the 16px, gutter-aligned one the loaded page draws.
-      expect(anonHeader.firstElementChild?.className).not.toContain(
-        'max-md:-ml-1'
-      )
-      expect(anonHeader.firstElementChild?.firstElementChild).toHaveClass(
-        'max-md:size-4'
-      )
-      expect(anonHeader.firstElementChild?.lastElementChild).toHaveClass(
-        'skeleton',
-        'w-28',
-        'md:hidden'
-      )
-      // The title is the bar's below md, and the count is a 20px line.
-      expect(anonHeader.querySelector('.h-7')).toHaveClass('max-md:hidden')
-      expect(anonHeader.querySelector('.h-4.w-24')).toHaveClass('max-md:h-5')
+      expect(anonHeader.className).not.toMatch(/max-md:/)
+      expect(anonHeader.querySelector('.h-7')?.className).not.toMatch(/max-md:/)
+      expect(
+        anonHeader.querySelector('.min-h-11, .max-md\\:min-h-11')
+      ).toBeNull()
     })
   })
 })

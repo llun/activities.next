@@ -3,7 +3,7 @@ import { FC } from 'react'
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 
-import { PROFILE_CARD_MOBILE_CLASS } from './profileLayout'
+import { ProfileCardSection } from './ProfileCardSection'
 
 export const ProfileLoading: FC = () => {
   return (
@@ -13,8 +13,9 @@ export const ProfileLoading: FC = () => {
       className="flex flex-col gap-6 md:pt-8 group-data-[shell=public]/shell:pt-0"
     >
       <MobileNavigationTrigger variant="floating" />
-      <section
-        className={`overflow-hidden rounded-2xl border bg-background/80 shadow-sm max-md:shadow-none ${PROFILE_CARD_MOBILE_CLASS}`}
+      <ProfileCardSection
+        className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm"
+        signedInClassName="max-md:shadow-none"
       >
         <div className="skeleton h-36 md:h-52" />
 
@@ -40,7 +41,7 @@ export const ProfileLoading: FC = () => {
             <div className="skeleton h-4 w-20 rounded" />
           </div>
         </div>
-      </section>
+      </ProfileCardSection>
 
       <div className="space-y-4">
         <div className="flex gap-2">

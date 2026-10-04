@@ -6,6 +6,8 @@ import { render, screen } from '@testing-library/react'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
+
 import Loading, { TimelineLoading } from './loading'
 
 describe('timeline loading', () => {
@@ -56,10 +58,9 @@ describe('timeline loading', () => {
       'size-9'
     )
 
-    // Below md the header row ends 12px under its content on the hairline the
-    // loaded page draws, so the composer does not jump when the page arrives.
-    expect(stickyHeader).toHaveClass('max-md:border-b')
-    expect(stickyHeader?.querySelector('.max-w-content')).toHaveClass(
+    // Without the signed-in mobile navigation (the logged-out home route)
+    // the header keeps the geometry it always had.
+    expect(stickyHeader?.querySelector('.max-w-content')).not.toHaveClass(
       'max-md:pb-3'
     )
 
@@ -79,5 +80,20 @@ describe('timeline loading', () => {
       'app/(timeline)/loading.tsx'
     )
     expect(fs.existsSync(rootTimelineLoadingPath)).toBe(false)
+  })
+
+  it('ends the signed-in mobile header row on the hairline the loaded page draws', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <Loading />
+      </MobileNavigationProvider>
+    )
+
+    // Below md the header row ends 12px under its content on the hairline the
+    // loaded page draws, so the composer does not jump when the page arrives.
+    const box = container.querySelector('[data-mobile-compact-header]')
+      ?.nextElementSibling as HTMLElement
+    expect(box).toHaveClass('max-md:border-b')
+    expect(box.querySelector('.max-w-content')).toHaveClass('max-md:pb-3')
   })
 })

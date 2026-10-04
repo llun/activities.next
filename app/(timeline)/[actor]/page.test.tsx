@@ -576,4 +576,42 @@ describe('[actor] page header handle link', () => {
     expect(card).toHaveClass('max-md:rounded-none', 'max-md:border-t-0')
     expect(card.parentElement).not.toHaveClass('pt-6')
   })
+  // Logged out the profile lives in PublicShell, which provides no mobile
+  // navigation: the top bar stays at every width, so there is no floating
+  // button and the card keeps its frame.
+  it('renders no menu button and keeps the framed card without the signed-in provider', async () => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://mastodon.social/users/bob',
+        type: 'Person',
+        preferredUsername: 'bob',
+        name: 'Bob',
+        summary: '',
+        url: 'https://mastodon.social/@bob'
+      } as unknown as Actor,
+      statuses: [],
+      statusesCount: 10,
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      followingCount: 5,
+      followersCount: 15,
+      isInternalAccount: false,
+      hasFitnessData: false,
+      isPixelfed: false,
+      serverSoftware: null
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@bob@mastodon.social' })
+    })
+    const { container } = render(element)
+
+    expect(
+      screen.queryByRole('button', { name: 'Open navigation' })
+    ).not.toBeInTheDocument()
+    const card = container.querySelector('section') as HTMLElement
+    expect(card).toHaveClass('rounded-2xl', 'border')
+    expect(card).not.toHaveClass('max-md:rounded-none')
+    expect(card).not.toHaveClass('max-md:border-t-0')
+  })
 })

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 import { SharedHeatmapPage, SharedHeatmapPageProps } from './SharedHeatmapPage'
 import { SharedHeatmapView } from './sharedHeatmapView'
@@ -72,75 +72,45 @@ describe('SharedHeatmapPage', () => {
   })
 
   // On a CDN alias domain the root-relative default logo is redirected away,
-  // so both the desktop top bar and the mobile drawer take the canonical src.
-  it('renders both logos from the canonical-origin src', () => {
+  // so the top bar takes the canonical-origin src.
+  it('renders the top bar logo from the canonical-origin src', () => {
     render(<SharedHeatmapPage {...defaultProps} />)
 
-    const encoded = encodeURIComponent('https://llun.test/logo-nav.png')
-    // Before the drawer opens: once it does, the page behind it is hidden.
-    const topBarLogo = within(screen.getByRole('banner')).getByRole('link', {
+    const logo = within(screen.getByRole('banner')).getByRole('link', {
       name: 'Activities home'
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
-    const drawerLogo = within(screen.getByRole('dialog')).getByRole('link', {
-      name: 'Activities home'
-    })
-    expect(topBarLogo.querySelector('img')?.getAttribute('src')).toContain(
-      encoded
-    )
-    expect(drawerLogo.querySelector('img')?.getAttribute('src')).toContain(
-      encoded
+    expect(logo.querySelector('img')?.getAttribute('src')).toContain(
+      encodeURIComponent('https://llun.test/logo-nav.png')
     )
   })
 
-  // Below md the branded top bar steps aside for the public compact bar and
-  // drawer, which carry this page's own auth links and registration rule.
-  it('swaps the top bar for the compact bar and public drawer below md', () => {
+  // Logged-out chrome is the branded top bar at every width: no compact bar,
+  // menu button or drawer (the mobile redesign is for signed-in viewers).
+  it('keeps the branded top bar at every width with no mobile menu', () => {
     const { container, rerender } = render(
-      <SharedHeatmapPage
-        {...defaultProps}
-        signinUrl="/auth/signin?callbackUrl=%2Fu%2Fheatmaps%2Ftok123"
-        signupUrl="/auth/signup?callbackUrl=%2Fu%2Fheatmaps%2Ftok123"
-      />
+      <SharedHeatmapPage {...defaultProps} />
     )
 
-    expect(screen.getByRole('banner')).toHaveClass('max-md:hidden')
-    const bar = container.querySelector(
-      '[data-mobile-compact-header]'
-    ) as HTMLElement
-    expect(within(bar).getByText('Shared heatmap')).toBeInTheDocument()
-
-    fireEvent.click(
-      within(bar).getByRole('button', { name: 'Open navigation' })
-    )
-    let drawer = screen.getByRole('dialog')
+    const banner = screen.getByRole('banner')
+    expect(banner).not.toHaveClass('max-md:hidden')
     expect(
-      within(drawer).getByRole('link', { name: 'Sign in' })
-    ).toHaveAttribute(
-      'href',
-      '/auth/signin?callbackUrl=%2Fu%2Fheatmaps%2Ftok123'
-    )
-    expect(
-      within(drawer).getByRole('link', { name: 'Create account' })
-    ).toHaveAttribute(
-      'href',
-      '/auth/signup?callbackUrl=%2Fu%2Fheatmaps%2Ftok123'
-    )
-
-    rerender(
-      <SharedHeatmapPage
-        {...defaultProps}
-        signupOpen={false}
-        signinUrl="/auth/signin?callbackUrl=%2Fu%2Fheatmaps%2Ftok123"
-        signupUrl="/auth/signup?callbackUrl=%2Fu%2Fheatmaps%2Ftok123"
-      />
-    )
-    drawer = screen.getByRole('dialog')
-    expect(
-      within(drawer).getByRole('link', { name: 'Sign in' })
+      within(banner).getByRole('link', { name: 'Sign in' })
     ).toBeInTheDocument()
     expect(
-      within(drawer).queryByRole('link', { name: 'Create account' })
+      within(banner).getByRole('link', { name: 'Create account' })
+    ).toBeInTheDocument()
+    expect(
+      container.querySelector('[data-mobile-compact-header]')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Open navigation' })
+    ).not.toBeInTheDocument()
+
+    rerender(<SharedHeatmapPage {...defaultProps} signupOpen={false} />)
+    expect(
+      within(screen.getByRole('banner')).queryByRole('link', {
+        name: 'Create account'
+      })
     ).not.toBeInTheDocument()
   })
 

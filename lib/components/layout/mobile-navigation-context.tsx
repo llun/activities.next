@@ -30,8 +30,9 @@ export interface MobileNavigationProviderProps {
 /**
  * Owns the open state of the mobile navigation drawer and wraps its children
  * in the drawer's Radix Dialog root, so any `MobileNavigationTrigger` below it
- * opens the same drawer. Mounted by the signed-in `(timeline)` layout and by
- * the public shells, each with its own drawer content. Unread counts are not
+ * opens the same drawer. Mounted only by the signed-in `(timeline)` layout:
+ * logged-out pages keep the public top bar at every width, so without a
+ * provider every trigger and compact bar renders nothing. Unread counts are not
  * part of it: they render on the drawer's rows, never on the menu button.
  */
 export function MobileNavigationProvider({

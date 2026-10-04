@@ -12,8 +12,8 @@ interface FollowListLoadingSkeletonProps {
   route: 'followers' | 'following'
 }
 
-// The loaded page's labelled "Back to profile" row below `md`: a 44px row with
-// the arrow and the label.
+// The signed-in page's labelled Back row below `md`: a 44px row with the arrow
+// and the label.
 const MobileBackRowSkeleton: FC<{ className?: string }> = ({ className }) => (
   <div className={cn('flex items-center', MOBILE_BACK_ROW_CLASS, className)}>
     <div className="skeleton size-5 shrink-0 rounded-md max-md:size-4" />
@@ -30,9 +30,10 @@ const MobileBackRowSkeleton: FC<{ className?: string }> = ({ className }) => (
  * shape is required rather than importing this component directly as the
  * route's loading state.
  *
- * Below `md` it mirrors `FollowListPage` in both shells: the compact bar names
- * the page with the same plain title, and the content starts with the
- * "Back to profile" row, so nothing shifts when the list arrives.
+ * Signed in, below `md` it mirrors `FollowListPage`: the compact bar names the
+ * page with the same plain title, and the content starts with the Back row, so
+ * nothing shifts when the list arrives. Logged out it is the public header it
+ * always was.
  */
 export const FollowListLoadingSkeleton: FC<FollowListLoadingSkeletonProps> = ({
   label,
@@ -75,14 +76,12 @@ export const FollowListLoadingSkeleton: FC<FollowListLoadingSkeletonProps> = ({
         </div>
       </div>
 
-      {/* Anonymous header: mirrors FollowListPage's logged-out header inside
-          PublicShell — the arrow beside the title and count from `md` up; below
-          it the Back row over the `text-sm` count, the bar holding the title. */}
-      <div className="hidden items-start gap-2 group-data-[shell=public]/shell:flex max-md:flex-col max-md:gap-0 max-md:pt-2">
-        <MobileBackRowSkeleton className="md:mt-0.5" />
+      {/* Anonymous header: mirrors the non-sticky header inside PublicShell */}
+      <div className="hidden items-start gap-2 group-data-[shell=public]/shell:flex">
+        <div className="skeleton mt-0.5 size-5 shrink-0 rounded-md" />
         <div className="space-y-1">
-          <div className="skeleton h-7 w-28 rounded-md max-md:hidden" />
-          <div className="skeleton h-4 w-24 rounded max-md:h-5" />
+          <div className="skeleton h-7 w-28 rounded-md" />
+          <div className="skeleton h-4 w-24 rounded" />
         </div>
       </div>
 

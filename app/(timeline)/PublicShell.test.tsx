@@ -2,16 +2,26 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import { ReactElement } from 'react'
 
+import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 
 import { PublicShell } from './PublicShell'
+import type * as PublicTopBarModule from './PublicTopBar'
 
-vi.mock('next/navigation', () => ({
-  usePathname: () => '/tags/fediverse'
+// PublicTopBar is an async server component, which the shell renders as an
+// element; the shell test swaps in a stub and the top bar tests below load the
+// real one.
+vi.mock('./PublicTopBar', () => ({
+  PublicTopBar: () => <header data-testid="public-top-bar" />
 }))
+
+const loadPublicTopBar = async () =>
+  (await vi.importActual<typeof PublicTopBarModule>('./PublicTopBar'))
+    .PublicTopBar
 
 vi.mock('@/app/Modal', () => ({
   Modal: () => null
@@ -27,70 +37,75 @@ vi.mock('@/lib/services/serverSettings', () => ({
 
 const mockSettings = vi.mocked(getResolvedServerSettings)
 
-const renderShell = async (registrationOpen: boolean) => {
+const mockRegistration = (open: boolean) =>
   mockSettings.mockResolvedValue({
-    registrations: { open: registrationOpen }
+    registrations: { open }
   } as Awaited<ReturnType<typeof getResolvedServerSettings>>)
-  render(
-    await PublicShell({
-      children: <MobileNavigationTrigger data-testid="page-trigger" />
-    })
-  )
-}
 
-describe('PublicShell', () => {
+// The redesigned mobile chrome (compact bar, floating profile button, drawer)
+// is for signed-in viewers only. Logged out, every width keeps the branded
+// top bar with the sign-in CTAs.
+describe('PublicTopBar', () => {
   beforeEach(() => {
     mockSettings.mockReset()
   })
 
-  it('hides the desktop top bar below md and lets pages open the public drawer', async () => {
-    await renderShell(true)
+  it('shows the logo and both CTAs at every width', async () => {
+    mockRegistration(true)
+    const PublicTopBar = await loadPublicTopBar()
+    render(await PublicTopBar())
 
-    expect(screen.getByRole('banner')).toHaveClass('max-md:hidden')
-
-    // A page's own trigger works because the shell provides the drawer.
-    fireEvent.click(screen.getByTestId('page-trigger'))
-    const drawer = screen.getByRole('dialog')
+    const banner = screen.getByRole('banner')
+    expect(banner).not.toHaveClass('max-md:hidden')
+    expect(banner).not.toHaveClass('hidden')
     expect(
-      within(drawer).getByRole('link', { name: 'Create account' })
+      within(banner).getByRole('link', { name: 'Activities home' })
     ).toBeInTheDocument()
+    expect(
+      within(banner).getByRole('link', { name: 'Sign in' })
+    ).toHaveAttribute('href', '/auth/signin')
+    expect(
+      within(banner).getByRole('link', { name: 'Create account' })
+    ).toHaveAttribute('href', '/auth/signup')
   })
 
-  it('applies closed registration to both the top bar and the drawer', async () => {
-    await renderShell(false)
+  it('hides Create account while registration is closed', async () => {
+    mockRegistration(false)
+    const PublicTopBar = await loadPublicTopBar()
+    render(await PublicTopBar())
 
+    const banner = screen.getByRole('banner')
     expect(
-      within(screen.getByRole('banner')).queryByRole('link', {
-        name: 'Create account'
-      })
-    ).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByTestId('page-trigger'))
+      within(banner).getByRole('link', { name: 'Sign in' })
+    ).toBeInTheDocument()
     expect(
-      within(screen.getByRole('dialog')).queryByRole('link', {
-        name: 'Create account'
-      })
+      within(banner).queryByRole('link', { name: 'Create account' })
     ).not.toBeInTheDocument()
   })
+})
 
-  // Below md the drawer carries the only logo; root-relative, it is
-  // redirected away on a CDN alias domain.
-  it('gives the drawer the logo on the canonical origin', async () => {
-    await renderShell(true)
-
-    fireEvent.click(screen.getByTestId('page-trigger'))
-    const logo = within(screen.getByRole('dialog')).getByRole('link', {
-      name: 'Activities home'
-    })
-    expect(logo.querySelector('img')?.getAttribute('src')).toContain(
-      encodeURIComponent('https://canonical.example/logo-nav.png')
+describe('PublicShell', () => {
+  it('provides no mobile navigation, so page chrome renders no menu, bar or drawer', () => {
+    const { container } = render(
+      PublicShell({
+        children: (
+          <>
+            <MobileCompactHeader title="Post" />
+            <MobileNavigationTrigger variant="floating" />
+            <p>content</p>
+          </>
+        )
+      }) as ReactElement
     )
-  })
 
-  it('drops the reading column top padding only below md', async () => {
-    await renderShell(true)
-
-    const column = screen.getByTestId('page-trigger').parentElement
-    expect(column).toHaveClass('py-6', 'max-md:pt-0')
+    expect(screen.getByTestId('public-top-bar')).toBeInTheDocument()
+    expect(screen.getByText('content')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Open navigation' })
+    ).not.toBeInTheDocument()
+    expect(
+      container.querySelector('[data-mobile-compact-header]')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

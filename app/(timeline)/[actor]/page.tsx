@@ -24,10 +24,10 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorRedirectCard } from './ActorRedirectCard'
 import { ActorTimelines } from './ActorTimelines'
+import { ProfileCardSection } from './ProfileCardSection'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
 import { ProfileRelationshipActions } from './ProfileRelationshipActions'
 import { getProfileData } from './getProfileData'
-import { PROFILE_CARD_MOBILE_CLASS } from './profileLayout'
 import { getNonLocalActorRedirectTarget } from './resolveActorRedirect'
 
 interface Props {
@@ -256,17 +256,15 @@ const Page: FC<Props> = async ({ params }) => {
     : null
 
   return (
-    // Below `md` the profile has no page bar at all: the cover runs flush to
-    // the top of the viewport and full-bleed, and the menu button floats over
-    // its top-left corner (fixed, so it stays put while the page scrolls).
+    // Signed in, below `md` the profile has no page bar at all: the cover runs
+    // flush to the top of the viewport and full-bleed, and the menu button
+    // floats over its top-left corner (fixed, so it stays put while the page
+    // scrolls). Logged out, `PublicShell` keeps its top bar and the framed
+    // card at every width; the trigger and full-bleed frame need the signed-in
+    // layout's mobile navigation and render nothing there.
     <div className={cn('flex flex-col gap-6', isLoggedIn && 'md:pt-8')}>
       <MobileNavigationTrigger variant="floating" />
-      <section
-        className={cn(
-          'overflow-hidden rounded-2xl border bg-card',
-          PROFILE_CARD_MOBILE_CLASS
-        )}
-      >
+      <ProfileCardSection className="overflow-hidden rounded-2xl border bg-card">
         <ProfileHeaderImage
           actorId={person.id}
           imageUrl={headerImageUrl}
@@ -380,7 +378,7 @@ const Page: FC<Props> = async ({ params }) => {
 
           <FeaturedTagsBlock tags={featuredTags} />
         </div>
-      </section>
+      </ProfileCardSection>
 
       <ActorTimelines
         key={person.id}

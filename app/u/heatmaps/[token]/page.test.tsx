@@ -105,9 +105,9 @@ describe('shared heatmap page', () => {
     expect(mockNotFound).not.toHaveBeenCalled()
   })
 
-  // Below md the drawer carries the page's only logo; a root-relative src is
-  // redirected away on a CDN alias domain, so it must be the canonical origin.
-  it('hands the drawer an absolute canonical-origin logo', async () => {
+  // A root-relative logo src is redirected away on a CDN alias domain, so the
+  // top bar takes one on the canonical origin.
+  it('hands the top bar an absolute canonical-origin logo', async () => {
     mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(heatmap(''))
 
     const element = (await render()) as { props: { logoSrc: string } }

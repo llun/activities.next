@@ -6,7 +6,8 @@ import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 export const StatusLoading: FC = () => {
   return (
     <>
-      {/* The loaded page's mobile bar; its title ("Post" or "Activity") is
+      {/* The loaded page's mobile bar (signed in only — the public shell
+          provides no mobile navigation); its title ("Post" or "Activity") is
           not known until the status loads. */}
       <MobileCompactHeader
         title={<span className="skeleton block h-5 w-16 rounded-md" />}
@@ -14,11 +15,11 @@ export const StatusLoading: FC = () => {
       <div
         aria-busy="true"
         aria-label="Loading post"
-        className={`md:mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm group-data-[shell=public]/shell:mt-0 ${MOBILE_FEED_SURFACE_CLASS}`}
+        className={`md:mt-4 overflow-hidden rounded-2xl border bg-background/80 shadow-sm group-data-[shell=public]/shell:mt-0 group-data-[shell=public]/shell:max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         <div className="flex items-center gap-3 border-b bg-surface-chrome px-5 py-3 group-data-[shell=public]/shell:hidden max-md:bg-transparent max-md:px-4 max-md:py-0.5">
           <div className="skeleton h-8 w-8 rounded-md max-md:hidden" />
-          {/* Mobile: the labelled Back row ("Back" / "Back to profile"). */}
+          {/* Mobile: the labelled Back row. */}
           <div className="flex h-11 items-center gap-2 md:hidden">
             <div className="skeleton size-4 rounded-md" />
             <div className="skeleton h-4 w-24 rounded" />

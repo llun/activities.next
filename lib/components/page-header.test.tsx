@@ -396,6 +396,22 @@ describe('PageHeader', () => {
       expect(row.parentElement).toHaveClass('max-md:border-b', 'md:border-b')
     })
 
+    // Without the signed-in mobile navigation (the logged-out home route's
+    // loading state) the header keeps the geometry it had before the redesign.
+    it('ignores mobileIntroRow without the signed-in mobile navigation', () => {
+      const { container } = render(
+        <PageHeader
+          title="Timeline"
+          description="Latest posts"
+          mobileIntroRow
+        />
+      )
+
+      const row = container.querySelector('.max-w-content') as HTMLElement
+      expect(row).not.toHaveClass('max-md:pb-3')
+      expect(row.parentElement).not.toHaveClass('max-md:border-b')
+    })
+
     it('keeps the 16px bottom padding and no mobile hairline by default', () => {
       const { container } = render(
         <MobileNavigationProvider>
