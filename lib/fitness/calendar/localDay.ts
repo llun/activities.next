@@ -226,6 +226,22 @@ export const isValidTimeZone = (timeZone: string): boolean => {
   }
 }
 
+/**
+ * Named IANA zones only, the form the fitness routes accept and the browser
+ * sends. `Intl` also accepts offset forms such as `+05:30`, but those carry no
+ * daylight-saving rules, so a calendar built on one would put activities on
+ * the wrong day for half the year. The leading letter rules them out;
+ * `Etc/GMT+12` still passes because the sign sits after the area.
+ */
+export const NAMED_TIME_ZONE_PATTERN =
+  /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/
+
+/** True for a named IANA zone (see `NAMED_TIME_ZONE_PATTERN`) that `Intl` knows. */
+export const isNamedTimeZone = (timeZone: string): boolean =>
+  typeof timeZone === 'string' &&
+  NAMED_TIME_ZONE_PATTERN.test(timeZone) &&
+  isValidTimeZone(timeZone)
+
 /** The canonical spelling of a zone (`Asia/Calcutta`, `europe/amsterdam`). */
 export const canonicalTimeZone = (timeZone: string): string => {
   if (typeof timeZone !== 'string' || timeZone.length === 0) {

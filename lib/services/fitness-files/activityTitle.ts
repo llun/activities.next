@@ -61,19 +61,35 @@ export interface ActivityTitleSources {
   fileName: string
 }
 
+/** Shown for a content warning with no plain text of its own. */
+export const CONTENT_WARNING_TITLE = 'Content warning'
+
 /**
- * The title for an activity whose post is available: the post's first line,
- * else the file's description, else the file name. Callers whose post is
- * missing or not visible show no title at all rather than calling this, so
- * the UI can say the post is unavailable instead of inventing a name.
+ * The title for an activity whose post is available: the post's content
+ * warning when it has one, else the post's first line, else the file's
+ * description, else the file name. Callers whose post is missing or not
+ * visible show no title at all rather than calling this, so the UI can say
+ * the post is unavailable instead of inventing a name.
+ *
+ * A post with a content warning never yields its body, even when the warning
+ * is only emoji ("⚠️"), which `getFirstTextLine` strips to nothing.
  */
 export const getActivityTitle = ({
   postSummary,
   postText,
   description,
   fileName
-}: ActivityTitleSources): string =>
-  getFirstTextLine(postSummary) ??
-  getFirstTextLine(postText) ??
-  getFirstTextLine(description) ??
-  truncate(fileName.trim())
+}: ActivityTitleSources): string => {
+  const warning = postSummary?.trim()
+  if (warning) {
+    return (
+      getFirstTextLine(warning) ??
+      (truncate(htmlToPlainText(warning)) || CONTENT_WARNING_TITLE)
+    )
+  }
+  return (
+    getFirstTextLine(postText) ??
+    getFirstTextLine(description) ??
+    truncate(fileName.trim())
+  )
+}

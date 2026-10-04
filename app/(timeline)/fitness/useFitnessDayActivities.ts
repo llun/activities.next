@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { getFitnessCalendarDayActivities } from '@/lib/client'
 import type { FitnessDayActivity } from '@/lib/fitness/calendar/types'
+import { isAbortError } from '@/lib/utils/isAbortError'
 
 /** Rows per page of a day's activities. */
 export const DAY_ACTIVITIES_PAGE_SIZE = 20
@@ -37,11 +38,6 @@ interface MoreState {
   loading: boolean
   error: boolean
 }
-
-const isAbortError = (error: unknown) =>
-  error instanceof DOMException
-    ? error.name === 'AbortError'
-    : error instanceof Error && error.name === 'AbortError'
 
 const appendUnique = (
   existing: readonly FitnessDayActivity[],
@@ -82,6 +78,11 @@ export const useFitnessDayActivities = ({
     date === null ? null : [actorId, timeZone, date, attempt].join('\u0000')
 
   useEffect(() => {
+    // A further page belongs to the first page it extends. Re-selecting a day
+    // reproduces its key, so a further page that was aborted or failed before
+    // would otherwise still read as loading (a disabled Load more) or as
+    // failed (a Retry that fetches the next page, not this first one).
+    setMore(null)
     if (date === null) {
       // Deselecting abandons whatever was loading.
       ++requestId.current

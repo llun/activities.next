@@ -123,6 +123,14 @@ describe('MiniMonthCalendar', () => {
     ).toBeDisabled()
   })
 
+  it('renders December 9999 with its next arrow disabled', () => {
+    render(<Harness start={{ year: 9999, month: 12 }} from={null} to={null} />)
+    expect(screen.getByTestId('mini-month-title')).toHaveTextContent(
+      'December 9999'
+    )
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeDisabled()
+  })
+
   it('marks the ends of the range and washes the days between', () => {
     render(
       <Harness
@@ -202,6 +210,21 @@ describe('MiniMonthCalendar', () => {
       fireEvent.keyDown(document.activeElement as Element, { key: 'PageUp' })
       expect(day(/^Friday, 4 September 2026/)).toHaveFocus()
     })
+
+    it.each(['altKey', 'ctrlKey', 'metaKey', 'shiftKey'])(
+      'leaves an arrow with %s held to the browser',
+      (modifier) => {
+        render(<Harness />)
+        const start = day(/^Sunday, 4 October 2026/)
+        start.focus()
+        const proceeded = fireEvent.keyDown(start, {
+          key: 'ArrowLeft',
+          [modifier]: true
+        })
+        expect(proceeded).toBe(true)
+        expect(start).toHaveFocus()
+      }
+    )
 
     it('ignores other keys', () => {
       render(<Harness />)

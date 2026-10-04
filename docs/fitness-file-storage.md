@@ -297,14 +297,14 @@ An activity with no `activityStartTime` — a GPX carrying no timestamps — cou
 
 - `GET /api/v1/accounts/:id/fitness-summary?from=YYYY-MM-DD&to=YYYY-MM-DD&time_zone=<IANA>` returns per-activity-type totals for the viewer-local days `from` to `to`, inclusive. Untyped activities are their own `activityType: null` group, so the totals equal the calendar's sum for the same range.
 - `GET /api/v1/accounts/:id/fitness-calendar?from=…&to=…&time_zone=…[&activity_type=…]` returns per-local-day totals (`date`, `count`, distance, duration, elevation gain), ascending, with no entry for a day without a countable activity.
-- `GET /api/v1/accounts/:id/fitness-calendar/day?date=YYYY-MM-DD&time_zone=…[&limit&offset]` returns one page of the activities behind a calendar day, oldest first: `{ date, timeZone, activities, hasMore, nextOffset }`. Each row carries only what the day details render, and `title` and `statusPath` are `null` when the post behind it is gone. `limit` defaults to 20 and is clamped to 1–50, an odd `limit` or `offset` is clamped rather than rejected, and `nextOffset` counts activity rows, not posts. Owner only, like its siblings.
+- `GET /api/v1/accounts/:id/fitness-calendar/day?date=YYYY-MM-DD&time_zone=…[&limit&offset]` returns one page of the activities behind a calendar day, oldest first: `{ date, timeZone, activities, hasMore, nextOffset }`. Each row carries only what the day details render, and `title` and `statusPath` are `null` when the post behind it is gone. A post with a content warning is titled by the warning, never by its body, even when the warning is only emoji. `limit` defaults to 20 and is clamped to 1–50, an odd `limit` or `offset` is clamped rather than rejected, and `nextOffset` counts activity rows, not posts. Owner only, like its siblings.
 - `GET /api/v1/accounts/:id/fitness-activity-types`
 - `GET` and `DELETE /api/v1/accounts/:id/fitness-route-heatmaps`
 - `GET`, `POST`, and `DELETE /api/v1/accounts/:id/fitness-route-heatmap`
 - `GET /api/v1/accounts/:id/fitness-route-heatmap/tiles` returns the owner's own pyramid tiles for a view. Owner only, bounded per request.
 - `POST` and `DELETE /api/v1/accounts/:id/fitness-route-heatmap/share` mint and revoke the share token the public views are reached by.
 
-The summary, calendar and day routes share one query contract (`lib/services/fitness-files/calendarQuery.ts`). The client sends calendar days and its IANA zone, never instants: `from`/`to` are real `YYYY-MM-DD` dates from 1970 on (`to` inclusive and not before `from`), and `time_zone` is a named IANA zone (offset forms such as `+05:30` are rejected because they carry no daylight-saving rules). The route turns the days into one half-open instant window with `localDayWindow`. There is deliberately no server-side minimum span: the 7-day minimum for custom ranges is the client's range validator, and the This month and Year to date presets must load on their first day. A malformed or impossible value answers `400` with `{ "error": "Invalid <param>: <reason>" }` naming the first bad parameter; the client throws an `ApiRequestError` carrying that message for any non-OK response (and a plain error for a malformed body), so a failed read shows an error with a retry rather than an empty calendar.
+The summary, calendar and day routes share one query contract (`lib/services/fitness-files/calendarQuery.ts`). The client sends calendar days and its IANA zone, never instants: `from`/`to` are real `YYYY-MM-DD` dates from 1970 on (`to` inclusive and not before `from`), and `time_zone` is a named IANA zone (offset forms such as `+05:30` are rejected because they carry no daylight-saving rules; the route and the browser share one pattern, `NAMED_TIME_ZONE_PATTERN` in `lib/fitness/calendar/localDay.ts`). The calendar's `activity_type` is at most 255 characters and must not contain a NUL byte, which PostgreSQL rejects in a bound parameter. The route turns the days into one half-open instant window with `localDayWindow`. There is deliberately no server-side minimum span: the 7-day minimum for custom ranges is the client's range validator, and the This month and Year to date presets must load on their first day. A malformed or impossible value answers `400` with `{ "error": "Invalid <param>: <reason>" }` naming the first bad parameter; the client throws an `ApiRequestError` carrying that message for any non-OK response (and a plain error for a malformed body), so a failed read shows an error with a retry rather than an empty calendar.
 
 The `POST /api/v1/accounts/:id/fitness-route-heatmap` body takes an optional `retry` flag to restart a run and a `cancel` flag to stop an in-flight (`pending`/`generating`) generation. Cancelling moves the run to a terminal `cancelled` state (resetting its progress so a later Generate/Retry starts clean) and returns `{ cancelled }`; the region detail view surfaces Cancel while generating and Retry once cancelled.
 
@@ -451,9 +451,12 @@ Read the applicable rules and review checks below before changing this subsystem
   (`text-sm` values fit four cells in 4×100px + 3×8px of gap) and never drops to
   one column — a 4-row chip in a feed is a worse trade than a slightly tight
   cell. `summary` (the overview's Activities / Distance / Duration / Elevation)
-  is 2×2 and 4-up from **700px**: its values are `text-xl` and a long total such
-  as "1,234h 56m" needs ~175px a cell. A 1px gap over a border-coloured track
-  draws its hairline dividers.
+  is 1-up below **16rem**, 2×2 from **16rem** and 4-up from **43.75rem**
+  (256px and 700px at the default text size): its values are `text-xl` and a
+  long total such as "1,234h 56m" needs ~175px a cell. Its thresholds alone are
+  `rem`, not `px`, so they follow the reader's text size: at 200% text a narrow
+  column stacks to one column rather than clipping "22.2 km". A 1px gap over a
+  border-coloured track draws its hairline dividers.
 - The detail page's two strips measure **separately** — the header one sits
   inside the card's `p-5` and is 42px narrower than the one under the map — so
   they can legitimately differ by one step in a narrow band of window widths.

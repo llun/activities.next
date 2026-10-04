@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import {
   DateKey,
+  NAMED_TIME_ZONE_PATTERN,
   canonicalTimeZone,
   compareDateKeys,
   dateKeyParts,
@@ -23,11 +24,6 @@ import {
  * is a validation issue, so the route answers 400 rather than throwing.
  */
 
-// Named IANA zones only. `Intl` also accepts offset forms such as `+05:30`, but
-// those carry no daylight-saving rules, so a calendar built on one would put
-// activities on the wrong day for half the year. The leading letter rules them
-// out; `Etc/GMT+12` still passes because the sign sits after the area.
-const TIME_ZONE_PATTERN = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/
 const MAX_TIME_ZONE_LENGTH = 64
 
 const MIN_DATE_YEAR = 1970
@@ -39,7 +35,7 @@ export const MAX_DAY_ACTIVITIES_LIMIT = 50
 export const TimeZoneParam = z
   .string()
   .max(MAX_TIME_ZONE_LENGTH)
-  .regex(TIME_ZONE_PATTERN, 'Expected a named IANA time zone')
+  .regex(NAMED_TIME_ZONE_PATTERN, 'Expected a named IANA time zone')
   .refine(isValidTimeZone, 'Unknown time zone')
   .transform((value) => canonicalTimeZone(value))
 
@@ -134,7 +130,17 @@ export interface FitnessCalendarQueryValue extends FitnessCalendarRange {
 export const FitnessCalendarQuery = z
   .object({
     ...rangeShape,
-    activity_type: z.string().max(255).optional()
+    // PostgreSQL rejects a NUL byte in a bound text parameter (22021), so one
+    // would turn this read into a 500 there while SQLite matched nothing. A
+    // stored type cannot hold one, so it is a malformed value: answer 400.
+    activity_type: z
+      .string()
+      .max(255)
+      .refine(
+        (value) => !value.includes('\u0000'),
+        'Must not contain a NUL byte'
+      )
+      .optional()
   })
   .transform((value, context): FitnessCalendarQueryValue => {
     const range = toRange(value, context)

@@ -88,6 +88,21 @@ describe('RangePicker', () => {
     vi.restoreAllMocks()
   })
 
+  it.each([
+    ['9999-12-15', 'October 2026'],
+    ['2030-01-15', 'October 2026'],
+    ['0001-01-05', 'January 1970']
+  ])(
+    'keeps the grid on an offered month when From is typed as %s',
+    (typed, title) => {
+      render(<Harness />)
+      open()
+      fireEvent.change(from(), { target: { value: typed } })
+      expect(from()).toHaveValue(typed)
+      expect(screen.getByTestId('mini-month-title')).toHaveTextContent(title)
+    }
+  )
+
   describe('trigger', () => {
     const range = (kind: AppliedRange['kind'], from: string, to: string) =>
       ({
@@ -271,9 +286,42 @@ describe('RangePicker', () => {
       )
       expect(from()).toHaveValue('2026-10-01')
       fireEvent.click(
-        screen.getByRole('button', { name: /^Sunday, 4 October 2026/ })
+        screen.getByRole('button', { name: /^Friday, 2 October 2026/ })
       )
-      expect(to()).toHaveValue('2026-10-04')
+      // To held 2026-10-04 before this tap (the year-to-date default), so
+      // only an actual edit of To can make it 2026-10-02.
+      expect(from()).toHaveValue('2026-10-01')
+      expect(to()).toHaveValue('2026-10-02')
+    })
+
+    it('goes back to editing From after a preset is chosen', () => {
+      render(<Harness presentation={mode} />)
+      open()
+      fireEvent.click(
+        screen.getByRole('button', { name: /^Thursday, 1 October 2026/ })
+      )
+      // The next tap would edit To; a preset resets it to From.
+      fireEvent.click(screen.getByRole('button', { name: 'This month' }))
+      fireEvent.click(
+        screen.getByRole('button', { name: /^Friday, 2 October 2026/ })
+      )
+      expect(from()).toHaveValue('2026-10-02')
+    })
+
+    it('shows the preset month again after browsing away and choosing it', () => {
+      render(<Harness presentation={mode} />)
+      open()
+      const calendar = screen.getByTestId('mini-month-calendar')
+      fireEvent.click(
+        within(calendar).getByRole('button', { name: 'Previous month' })
+      )
+      expect(screen.getByTestId('mini-month-title')).toHaveTextContent(
+        'September 2026'
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'This month' }))
+      expect(screen.getByTestId('mini-month-title')).toHaveTextContent(
+        'October 2026'
+      )
     })
 
     it('disables days after today and the next arrow in the current month', () => {

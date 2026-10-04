@@ -176,4 +176,144 @@ describe('useFitnessDayActivities', () => {
     expect(result.current.error).toBe(false)
     expect(ids(result.current.activities)).toEqual(['a', 'b'])
   })
+
+  it('lets Load more run again after a day is left mid-page and selected again', async () => {
+    mockedDay.mockImplementation(({ date, offset, signal }) => {
+      if (offset) {
+        // A further page that only ends when the day is left.
+        return new Promise((_resolve, reject) =>
+          signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError'))
+          )
+        )
+      }
+      return Promise.resolve(page(date, [date], date === '2026-09-24', 1))
+    })
+    const { result, rerender } = renderDay('2026-09-24')
+    await waitFor(() => expect(result.current.hasMore).toBe(true))
+    act(() => result.current.loadMore())
+    expect(result.current.loadingMore).toBe(true)
+
+    rerender({ selected: '2026-09-25' })
+    await waitFor(() =>
+      expect(ids(result.current.activities)).toEqual(['2026-09-25'])
+    )
+    rerender({ selected: '2026-09-24' })
+    await waitFor(() =>
+      expect(ids(result.current.activities)).toEqual(['2026-09-24'])
+    )
+
+    expect(result.current.hasMore).toBe(true)
+    expect(result.current.loadingMore).toBe(false)
+    act(() => result.current.loadMore())
+    expect(mockedDay).toHaveBeenLastCalledWith(
+      expect.objectContaining({ date: '2026-09-24', offset: 1 })
+    )
+  })
+
+  it('forgets a failed further page once the day is selected again', async () => {
+    mockedDay
+      .mockResolvedValueOnce(page('2026-09-24', ['a'], true, 1))
+      .mockRejectedValueOnce(new Error('Gateway Timeout'))
+      .mockResolvedValueOnce(page('2026-09-25', ['x']))
+      .mockResolvedValueOnce(page('2026-09-24', ['a'], true, 1))
+    const { result, rerender } = renderDay('2026-09-24')
+    await waitFor(() => expect(result.current.hasMore).toBe(true))
+    act(() => result.current.loadMore())
+    await waitFor(() => expect(result.current.error).toBe(true))
+
+    rerender({ selected: '2026-09-25' })
+    await waitFor(() => expect(ids(result.current.activities)).toEqual(['x']))
+    rerender({ selected: '2026-09-24' })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.error).toBe(false)
+    expect(ids(result.current.activities)).toEqual(['a'])
+  })
+
+  it('does not request another page once the day has no more', async () => {
+    mockedDay.mockResolvedValueOnce(page('2026-09-24', ['a'], false, 1))
+    const { result } = renderDay('2026-09-24')
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => result.current.loadMore())
+
+    expect(mockedDay).toHaveBeenCalledTimes(1)
+    expect(result.current.loadingMore).toBe(false)
+  })
+
+  it('ignores Load more while a page is already loading', async () => {
+    const more = createDeferred<FitnessDayActivitiesPage>()
+    mockedDay
+      .mockResolvedValueOnce(page('2026-09-24', ['a'], true, 1))
+      .mockReturnValueOnce(more.promise)
+    const { result } = renderDay('2026-09-24')
+    await waitFor(() => expect(result.current.hasMore).toBe(true))
+
+    act(() => result.current.loadMore())
+    expect(result.current.loadingMore).toBe(true)
+    act(() => result.current.loadMore())
+
+    expect(mockedDay).toHaveBeenCalledTimes(2)
+    await act(async () => more.resolve(page('2026-09-24', ['b'], false, 2)))
+    expect(ids(result.current.activities)).toEqual(['a', 'b'])
+  })
+
+  it('drops a further page that lands after another day was selected', async () => {
+    const staleMore = createDeferred<FitnessDayActivitiesPage>()
+    const nextDayMore = createDeferred<FitnessDayActivitiesPage>()
+    mockedDay
+      .mockResolvedValueOnce(page('2026-09-24', ['a'], true, 1))
+      .mockReturnValueOnce(staleMore.promise)
+      .mockResolvedValueOnce(page('2026-09-25', ['x'], true, 1))
+      .mockReturnValueOnce(nextDayMore.promise)
+    const { result, rerender } = renderDay('2026-09-24')
+    await waitFor(() => expect(result.current.hasMore).toBe(true))
+    act(() => result.current.loadMore())
+
+    rerender({ selected: '2026-09-25' })
+    await waitFor(() => expect(ids(result.current.activities)).toEqual(['x']))
+    act(() => result.current.loadMore())
+    expect(result.current.loadingMore).toBe(true)
+
+    // The transport is mocked and ignores the abort, so the hook itself has
+    // to drop the first day's page.
+    await act(async () =>
+      staleMore.resolve(page('2026-09-24', ['stale'], false, 2))
+    )
+
+    expect(ids(result.current.activities)).toEqual(['x'])
+    expect(result.current.loadingMore).toBe(true)
+    expect(result.current.hasMore).toBe(true)
+  })
+
+  it('aborts a further page when the day is deselected', async () => {
+    const more = createDeferred<FitnessDayActivitiesPage>()
+    mockedDay
+      .mockResolvedValueOnce(page('2026-09-24', ['a'], true, 1))
+      .mockReturnValueOnce(more.promise)
+    const { result, rerender } = renderDay('2026-09-24')
+    await waitFor(() => expect(result.current.hasMore).toBe(true))
+    act(() => result.current.loadMore())
+    const moreSignal = mockedDay.mock.calls[1][0].signal
+    expect(moreSignal?.aborted).toBe(false)
+
+    rerender({ selected: null })
+    expect(moreSignal?.aborted).toBe(true)
+    expect(result.current.activities).toEqual([])
+  })
+
+  it('aborts a further page when unmounted', async () => {
+    mockedDay
+      .mockResolvedValueOnce(page('2026-09-24', ['a'], true, 1))
+      .mockReturnValueOnce(new Promise(() => {}))
+    const { result, unmount } = renderDay('2026-09-24')
+    await waitFor(() => expect(result.current.hasMore).toBe(true))
+    act(() => result.current.loadMore())
+    const moreSignal = mockedDay.mock.calls[1][0].signal
+
+    unmount()
+
+    expect(moreSignal?.aborted).toBe(true)
+  })
 })

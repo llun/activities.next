@@ -1,4 +1,5 @@
 import {
+  CONTENT_WARNING_TITLE,
   MAX_ACTIVITY_TITLE_LENGTH,
   getActivityTitle,
   getFirstTextLine
@@ -67,6 +68,51 @@ describe('getActivityTitle', () => {
         fileName
       })
     ).toBe('Injury update')
+  })
+
+  it.each([
+    { description: 'an emoji-only warning', postSummary: '⚠️', title: '⚠️' },
+    {
+      description: 'a warning of several emoji',
+      postSummary: '❤️ 🔥',
+      title: '❤️ 🔥'
+    },
+    {
+      description: 'a warning that opens with an emoji',
+      postSummary: '⚠️ Spoiler',
+      title: 'Spoiler'
+    },
+    {
+      description: 'a warning with no plain text',
+      postSummary: '<script>alert(1)</script>',
+      title: CONTENT_WARNING_TITLE
+    }
+  ])(
+    'never shows the hidden body for $description',
+    ({ postSummary, title }) => {
+      expect(
+        getActivityTitle({
+          postSummary,
+          postText: '<p>Knee details</p>',
+          description: 'From the watch',
+          fileName
+        })
+      ).toBe(title)
+    }
+  )
+
+  it.each([
+    { description: 'whitespace only', postSummary: '   ' },
+    { description: 'empty', postSummary: '' },
+    { description: 'null', postSummary: null }
+  ])('reads the body when the warning is $description', ({ postSummary }) => {
+    expect(
+      getActivityTitle({
+        postSummary,
+        postText: '<p>Knee details</p>',
+        fileName
+      })
+    ).toBe('Knee details')
   })
 
   it('falls back to the description when the post has no text', () => {

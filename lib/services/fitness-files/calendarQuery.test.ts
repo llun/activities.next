@@ -157,6 +157,36 @@ describe('FitnessCalendarQuery', () => {
   })
 })
 
+describe('FitnessCalendarQuery activity_type', () => {
+  it.each([
+    ['a bare NUL byte', '\u0000'],
+    ['a NUL byte inside a type', 'run\u0000ning']
+  ])('rejects %s with a message that names the parameter', (_label, value) => {
+    const parsed = FitnessCalendarQuery.safeParse({
+      from: '2026-10-01',
+      to: '2026-10-04',
+      time_zone: 'UTC',
+      activity_type: value
+    })
+    expect(parsed.success).toBe(false)
+    if (parsed.success) return
+    expect(describeCalendarQueryError(parsed.error)).toBe(
+      'Invalid activity_type: Must not contain a NUL byte'
+    )
+  })
+
+  it('accepts other control characters, which a stored type may hold', () => {
+    expect(
+      FitnessCalendarQuery.safeParse({
+        from: '2026-10-01',
+        to: '2026-10-04',
+        time_zone: 'UTC',
+        activity_type: 'run\tning'
+      }).data?.activityType
+    ).toBe('run\tning')
+  })
+})
+
 describe('FitnessCalendarDayQuery', () => {
   it('covers exactly one local day, 23 hours on the spring-forward day', () => {
     const parsed = FitnessCalendarDayQuery.safeParse({

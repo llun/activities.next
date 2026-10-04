@@ -11,7 +11,6 @@ import {
   addMonthsClamped,
   compareDateKeys,
   dateKeyParts,
-  toDateKey,
   weekdayMon0
 } from '@/lib/fitness/calendar/localDay'
 import { MIN_DATE_KEY } from '@/lib/fitness/calendar/ranges'
@@ -99,12 +98,12 @@ export function MiniMonthCalendar({
   const [focusDate, setFocusDate] = useState<DateKey | null>(null)
 
   const first = grid.days[0].date
-  const nextMonthFirst = toDateKey(
-    visible.month === 12 ? visible.year + 1 : visible.year,
-    visible.month === 12 ? 1 : visible.month + 1,
-    1
-  )
-  const nextDisabled = compareDateKeys(nextMonthFirst, today) > 0
+  // The next month is entirely in the future once this one is today's month
+  // or later. Compared as month indices, so December 9999 never has to build
+  // a date key for the year after it.
+  const todayMonth = dateKeyParts(today)
+  const nextDisabled =
+    visible.year * 12 + visible.month >= todayMonth.year * 12 + todayMonth.month
   const previousDisabled = compareDateKeys(first, MIN_DATE_KEY) <= 0
 
   const isEnabled = (date: DateKey) =>
@@ -155,6 +154,11 @@ export function MiniMonthCalendar({
   }
 
   const onDayKeyDown = (event: KeyboardEvent, date: DateKey) => {
+    // Leave shortcuts such as Alt+Arrow (history back and forward) to the
+    // browser, as the calendars' roving focus does.
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
+      return
+    }
     const target = keyTarget(event.key, date)
     if (target === null) return
     event.preventDefault()

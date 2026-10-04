@@ -4,15 +4,11 @@ import { useSyncExternalStore } from 'react'
 
 import {
   canonicalTimeZone,
-  isValidTimeZone
+  isNamedTimeZone
 } from '@/lib/fitness/calendar/localDay'
 
 /** The zone the overview falls back to when the browser reports none it can use. */
 export const FALLBACK_TIME_ZONE = 'UTC'
-
-// Named IANA zones only, as the fitness routes accept them: an offset form such
-// as `+05:30` carries no daylight-saving rules, so the routes reject it.
-const NAMED_ZONE = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/
 
 /**
  * The browser's IANA zone in its canonical spelling, or `UTC` when the browser
@@ -21,7 +17,8 @@ const NAMED_ZONE = /^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z0-9_+-]+)*$/
 export const readViewerTimeZone = (): string => {
   try {
     const zone = new Intl.DateTimeFormat().resolvedOptions().timeZone
-    if (zone && NAMED_ZONE.test(zone) && isValidTimeZone(zone)) {
+    // Named zones only, the form the fitness routes accept.
+    if (zone && isNamedTimeZone(zone)) {
       return canonicalTimeZone(zone)
     }
   } catch {

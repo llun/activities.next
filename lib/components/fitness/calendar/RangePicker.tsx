@@ -25,7 +25,11 @@ import {
   parseDateKey
 } from '@/lib/fitness/calendar/localDay'
 import { PickerDraft } from '@/lib/fitness/calendar/overviewState'
-import { AppliedRange, PresetKind } from '@/lib/fitness/calendar/ranges'
+import {
+  AppliedRange,
+  MIN_YEAR,
+  PresetKind
+} from '@/lib/fitness/calendar/ranges'
 import { cn } from '@/lib/utils'
 
 import { VisibleMonth } from './MiniMonthCalendar'
@@ -86,6 +90,22 @@ export interface RangePickerProps {
 const monthOf = (key: DateKey): VisibleMonth => {
   const { year, month } = dateKeyParts(key)
   return { year, month }
+}
+
+/**
+ * Keeps the grid on a month the picker can offer, January of `MIN_YEAR`
+ * through today's month. A typed From or To may be any valid date key, say
+ * 9999-12-15, and its own month has no selectable day to show.
+ */
+const clampVisibleMonth = (
+  visible: VisibleMonth,
+  today: DateKey
+): VisibleMonth => {
+  const latest = monthOf(today)
+  const index = visible.year * 12 + visible.month
+  if (index > latest.year * 12 + latest.month) return latest
+  if (index < MIN_YEAR * 12 + 1) return { year: MIN_YEAR, month: 1 }
+  return visible
 }
 
 const otherField = (field: DraftField): DraftField =>
@@ -227,7 +247,10 @@ export function RangePicker({
   const toKey = draft ? parseDateKey(draft.toText) : null
   const defaultKey =
     draft?.kind === 'custom' ? (fromKey ?? toKey) : (toKey ?? fromKey)
-  const visibleMonth = viewMonth ?? monthOf(defaultKey ?? today)
+  const visibleMonth = clampVisibleMonth(
+    viewMonth ?? monthOf(defaultKey ?? today),
+    today
+  )
 
   const handleTrigger = () => {
     if (open) {

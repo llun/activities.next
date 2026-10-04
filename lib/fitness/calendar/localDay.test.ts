@@ -9,6 +9,7 @@ import {
   daysInMonth,
   inclusiveDayCount,
   instantAtLocalWallTime,
+  isNamedTimeZone,
   isValidTimeZone,
   localDateKeyAt,
   localDayWindow,
@@ -119,8 +120,15 @@ describe('daysInMonth', () => {
     [2100, 2, 28],
     [2000, 2, 29],
     [2026, 1, 31],
+    [2026, 3, 31],
     [2026, 4, 30],
+    [2026, 5, 31],
+    [2026, 6, 30],
+    [2026, 7, 31],
+    [2026, 8, 31],
     [2026, 9, 30],
+    [2026, 10, 31],
+    [2026, 11, 30],
     [2026, 12, 31]
   ])('year %i month %i has %i days', (year, month, expected) => {
     expect(daysInMonth(year, month)).toBe(expected)
@@ -241,7 +249,22 @@ describe('time zone validation', () => {
     }
   )
 
+  it.each(['UTC', 'Europe/Amsterdam', 'Etc/GMT+12', 'america/los_angeles'])(
+    'accepts %s as a named zone',
+    (timeZone) => {
+      expect(isNamedTimeZone(timeZone)).toBe(true)
+    }
+  )
+
+  it.each(['+05:30', '-08:00', 'Not/AZone', '', '../etc/passwd'])(
+    'rejects %j as a named zone',
+    (timeZone) => {
+      expect(isNamedTimeZone(timeZone)).toBe(false)
+    }
+  )
+
   it('rejects a value that is not a string', () => {
+    expect(isNamedTimeZone(undefined as unknown as string)).toBe(false)
     expect(isValidTimeZone(undefined as unknown as string)).toBe(false)
     expect(isValidTimeZone(null as unknown as string)).toBe(false)
   })

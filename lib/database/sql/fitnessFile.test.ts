@@ -1400,6 +1400,7 @@ describe('FitnessFileDatabase', () => {
         primary?: boolean
         deleted?: boolean
         statusId?: string
+        actorId?: string
       }
 
       let sequence = 0
@@ -1412,11 +1413,12 @@ describe('FitnessFileDatabase', () => {
         processingStatus = 'completed',
         primary = true,
         deleted = false,
-        statusId
+        statusId,
+        actorId = actors.extra.id
       }: SeedActivity) => {
         sequence += 1
         const created = await database.createFitnessFile({
-          actorId: actors.extra.id,
+          actorId,
           path: `fitness/overview-window-${sequence}.fit`,
           fileName: `overview-window-${sequence}.fit`,
           fileType: 'fit',
@@ -1761,6 +1763,38 @@ describe('FitnessFileDatabase', () => {
 
         const rows = await readWindow('2032-09-01', '2032-09-30', AMSTERDAM)
         expect(rows.map((row) => row.id)).toEqual([counted])
+      })
+
+      it('reads only the requested actor, in the summary, calendar and day window', async () => {
+        const startTime = at('2033-03-10', '10:00', AMSTERDAM)
+        const mine = await seedActivity({ startTime, distance: 1000 })
+        await seedActivity({
+          startTime,
+          distance: 7000,
+          actorId: actors.primary.id
+        })
+
+        const days = await calendar('2033-03-01', '2033-03-31', AMSTERDAM)
+        expect(
+          days.map((day) => [day.date, day.count, day.totalDistanceMeters])
+        ).toEqual([['2033-03-10', 1, 1000]])
+
+        const { startMs, endMs } = windowOf(
+          '2033-03-01',
+          '2033-03-31',
+          AMSTERDAM
+        )
+        const summary = await database.getFitnessActivitySummary({
+          actorId: actors.extra.id,
+          startDate: startMs,
+          endDate: endMs
+        })
+        expect(summary).toEqual([
+          expect.objectContaining({ count: 1, totalDistanceMeters: 1000 })
+        ])
+
+        const rows = await readWindow('2033-03-01', '2033-03-31', AMSTERDAM)
+        expect(rows.map((row) => row.id)).toEqual([mine])
       })
 
       it('counts untyped activities as their own group, never as the string "null"', async () => {
