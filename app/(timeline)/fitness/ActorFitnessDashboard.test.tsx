@@ -23,12 +23,14 @@ import type {
   FitnessCalendarDay,
   FitnessDayActivitiesPage
 } from '@/lib/fitness/calendar/types'
+import { createDeferred } from '@/lib/testing/deferred'
 import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 
 import {
   ActorFitnessDashboard,
   INLINE_DETAILS_MIN_WIDTH
 } from './ActorFitnessDashboard'
+import { OverviewHeaderSlot } from './FitnessOverviewHeader'
 
 vi.mock('@/lib/client', async () => {
   const http =
@@ -144,11 +146,27 @@ const renderDashboard = (props: { selectedActivityType?: string } = {}) =>
 const text = (element: Element | null) =>
   element?.textContent?.replace(/\u00a0/g, ' ')
 
-/** The period heading below "Overview". */
-const periodHeading = () =>
-  within(screen.getByTestId('fitness-overview-header')).getByRole('heading', {
-    level: 2
-  })
+/** The exact dates of the range on screen. */
+const shownDates = () => text(screen.getByTestId('fitness-overview-dates'))
+
+/** The range picker trigger's name, which names the range on screen. */
+const rangeTrigger = () => screen.getByTestId('range-picker-trigger')
+
+/** The period heading of the narrow-container (phone) header. */
+const phoneHeading = () =>
+  text(
+    within(screen.getByTestId('fitness-overview-header')).getByRole('heading', {
+      level: 2
+    })
+  )
+
+/** The month heading row's month (wide containers, month view). */
+const monthHeading = () =>
+  text(
+    within(screen.getByTestId('month-heading-row')).getByRole('heading', {
+      level: 3
+    })
+  )
 
 const lastRange = (mock: typeof mockedSummary | typeof mockedCalendar) => {
   const call = mock.mock.calls[mock.mock.calls.length - 1]?.[0]
@@ -273,7 +291,7 @@ describe('ActorFitnessDashboard', () => {
           container.querySelector('[data-testid="fitness-overview"]')
         ).not.toBeNull()
       )
-      expect(container.textContent).toContain('2026 · Year to date')
+      expect(container.textContent).toContain('1 Jan – 4 Oct 2026')
     } finally {
       unmount()
     }
@@ -296,12 +314,8 @@ describe('ActorFitnessDashboard', () => {
     expect(Object.hasOwn(mockedCalendar.mock.calls[0][0], 'activityType')).toBe(
       false
     )
-    expect(text(periodHeading())).toBe('2026 · Year to date')
-    expect(
-      within(screen.getByTestId('fitness-overview-header')).getByText(
-        '1 Jan – 4 Oct 2026'
-      )
-    ).toBeInTheDocument()
+    expect(shownDates()).toBe('1 Jan – 4 Oct 2026')
+    expect(rangeTrigger()).toHaveAccessibleName('Date range: Year to date')
   })
 
   it("derives today from the server clock in the viewer's own zone", async () => {
@@ -358,11 +372,7 @@ describe('ActorFitnessDashboard', () => {
       window.dispatchEvent(new Event('focus'))
     })
 
-    expect(
-      within(screen.getByTestId('fitness-overview-header')).getByText(
-        '1 Jan – 5 Oct 2026'
-      )
-    ).toBeInTheDocument()
+    expect(shownDates()).toBe('1 Jan – 5 Oct 2026')
     await waitFor(() =>
       expect(lastRange(mockedSummary)).toEqual({
         from: '2026-01-01',
@@ -405,9 +415,14 @@ describe('ActorFitnessDashboard', () => {
     )
     expect(text(alert)).toContain('We couldn’t load 1 Jan – 31 Dec 2025')
     expect(text(alert)).toContain('Service Unavailable')
-    // The heading names the range that was asked for; the numbers below are
-    // the previous range's, never zeros.
-    expect(text(periodHeading())).toBe('2025')
+    // Everything on screen describes the data on screen: the dates, the
+    // picker and the toolbar stay on the previous range, and the numbers are
+    // that range's, never zeros. Only the banner names the failed one.
+    expect(shownDates()).toBe('1 Jan – 4 Oct 2026')
+    expect(rangeTrigger()).toHaveAccessibleName('Date range: Year to date')
+    expect(
+      screen.getByRole('button', { name: 'Calendar year: 2026' })
+    ).toBeInTheDocument()
     expect(
       text(
         screen
@@ -424,6 +439,7 @@ describe('ActorFitnessDashboard', () => {
       from: '2025-01-01',
       to: '2025-12-31'
     })
+    expect(shownDates()).toBe('1 Jan – 31 Dec 2025')
   })
 
   it('never shows a failed first read as an empty range', async () => {
@@ -466,7 +482,7 @@ describe('ActorFitnessDashboard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Show September 2026' }))
 
-    expect(text(periodHeading())).toBe('September 2026')
+    expect(monthHeading()).toBe('September 2026')
     await waitFor(() =>
       expect(lastRange(mockedSummary)).toEqual({
         from: '2026-09-01',
@@ -479,7 +495,7 @@ describe('ActorFitnessDashboard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Back to year/ }))
 
-    expect(text(periodHeading())).toBe('2026 · Year to date')
+    expect(shownDates()).toBe('1 Jan – 4 Oct 2026')
     await waitFor(() =>
       expect(lastRange(mockedSummary)).toEqual({
         from: '2026-01-01',
@@ -497,10 +513,10 @@ describe('ActorFitnessDashboard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
 
     // The latest month of year to date is the current month.
-    expect(text(periodHeading())).toBe('October 2026')
+    expect(monthHeading()).toBe('October 2026')
     expect(screen.getByRole('button', { name: 'Next month' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
-    expect(text(periodHeading())).toBe('September 2026')
+    expect(monthHeading()).toBe('September 2026')
     expect(screen.getByRole('button', { name: 'Next month' })).toBeEnabled()
   })
 
@@ -524,7 +540,7 @@ describe('ActorFitnessDashboard', () => {
     )
     expect(mockedSummary).toHaveBeenCalledTimes(summaryCalls)
     expect(mockedCalendar).toHaveBeenCalledTimes(calendarCalls)
-    expect(text(periodHeading())).toBe('2026 · Year to date')
+    expect(shownDates()).toBe('1 Jan – 4 Oct 2026')
   })
 
   it('closes the day details on Escape and puts focus back on the day', async () => {
@@ -570,7 +586,9 @@ describe('ActorFitnessDashboard', () => {
     expect(
       within(sheet).getByRole('heading', { name: 'Thursday, 1 October 2026' })
     ).toBeInTheDocument()
-    expect(text(periodHeading())).toBe('October 2026')
+    // The phone placement: the month heads the period block above the totals.
+    expect(phoneHeading()).toBe('October 2026')
+    expect(screen.queryByTestId('month-heading-row')).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Distance' })).toHaveAttribute(
       'aria-checked',
       'true'
@@ -588,7 +606,7 @@ describe('ActorFitnessDashboard', () => {
     viewport.resize(908)
     expect(await screen.findByTestId('day-details')).toBeInTheDocument()
     expect(screen.queryByTestId('day-details-sheet')).not.toBeInTheDocument()
-    expect(text(periodHeading())).toBe('October 2026')
+    expect(monthHeading()).toBe('October 2026')
     expect(document.documentElement.style.scrollPaddingBottom).toBe('')
   })
 
@@ -616,5 +634,130 @@ describe('ActorFitnessDashboard', () => {
     expect(
       await screen.findByRole('group', { name: 'October 2026' })
     ).toBeInTheDocument()
+  })
+
+  it('lays the controls out as the wide designs do: dates and Range in the page header, steps in the toolbar', async () => {
+    render(
+      <>
+        <header data-testid="page-header">
+          <h1>Overview</h1>
+          <OverviewHeaderSlot slot="dates" />
+          <OverviewHeaderSlot slot="range" />
+        </header>
+        <ActorFitnessDashboard actorId={ACTOR_ID} currentTime={CURRENT_TIME} />
+      </>
+    )
+    await waitForLoaded()
+
+    const pageHeader = screen.getByTestId('page-header')
+    expect(
+      within(pageHeader).getByTestId('fitness-overview-dates')
+    ).toHaveTextContent('1 Jan – 4 Oct 2026')
+    expect(pageHeader).toContainElement(rangeTrigger())
+    expect(
+      screen.queryByTestId('fitness-overview-header')
+    ).not.toBeInTheDocument()
+
+    const toolbar = screen.getByTestId('training-calendar-toolbar')
+    expect(
+      within(toolbar).getByRole('button', { name: 'Calendar year: 2026' })
+    ).toBeInTheDocument()
+    expect(
+      within(toolbar).getByRole('button', { name: 'Previous year' })
+    ).toBeEnabled()
+    expect(
+      within(toolbar).getByRole('button', { name: 'Next year' })
+    ).toBeDisabled()
+
+    fireEvent.click(within(toolbar).getByRole('button', { name: /Month view/ }))
+
+    // Month view: Back to year and the arrows move to the month's own row,
+    // which is exactly as wide as the grid; the toolbar keeps only its title.
+    expect(within(toolbar).queryAllByRole('button')).toHaveLength(0)
+    const monthRow = screen.getByTestId('month-heading-row')
+    expect(
+      within(monthRow).getByRole('button', { name: /Back to year/ })
+    ).toBeInTheDocument()
+    expect(
+      within(monthRow).getByRole('button', { name: 'Previous month' })
+    ).toBeEnabled()
+    expect(monthRow.style.maxWidth).toContain('100cqw')
+    expect(rangeTrigger()).toHaveAccessibleName('Date range: This month')
+  })
+
+  it('lays the controls out as the phone designs do on a narrow container', async () => {
+    stubDashboardWidth(358)
+    renderDashboard()
+    await waitForLoaded()
+
+    const header = screen.getByTestId('fitness-overview-header')
+    expect(phoneHeading()).toBe('2026 · Year to date')
+    expect(
+      within(header).getByRole('button', { name: 'Previous year' })
+    ).toBeEnabled()
+    expect(header).toContainElement(rangeTrigger())
+
+    const toolbar = screen.getByTestId('training-calendar-toolbar')
+    expect(
+      within(toolbar).queryByRole('button', { name: /Calendar year/ })
+    ).not.toBeInTheDocument()
+    fireEvent.click(within(toolbar).getByRole('button', { name: /Month view/ }))
+
+    expect(phoneHeading()).toBe('October 2026')
+    expect(
+      within(screen.getByTestId('training-calendar-toolbar')).getByRole(
+        'button',
+        { name: /Back to year/ }
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByTestId('month-heading-row')).not.toBeInTheDocument()
+  })
+
+  it('applies a calendar year from the toolbar year chooser', async () => {
+    renderDashboard()
+    await waitForLoaded()
+
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: 'Calendar year: 2026' }),
+      { button: 0, pointerType: 'mouse' }
+    )
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: '2024' }))
+
+    await waitFor(() =>
+      expect(lastRange(mockedSummary)).toEqual({
+        from: '2024-01-01',
+        to: '2024-12-31'
+      })
+    )
+    expect(rangeTrigger()).toHaveAccessibleName('Date range: Year 2024')
+  })
+
+  it('paints a new data set at once and fades only a change to the same cells', async () => {
+    const calendar = createDeferred<FitnessCalendarDay[]>()
+    mockedCalendar.mockReturnValueOnce(calendar.promise)
+    renderDashboard()
+    const region = screen.getByTestId('calendar-region')
+
+    // Loading, then the first data set: no fade from the skeleton's grey.
+    expect(region).toHaveAttribute('data-instant-colour', 'true')
+    await act(async () => calendar.resolve(calendarDays))
+    await waitForLoaded()
+    expect(region).toHaveAttribute('data-instant-colour', 'true')
+    expect(region.style.getPropertyValue('--fitness-t-color')).toBe('0ms')
+
+    // Once it has painted, the same cells fade on a metric switch.
+    await waitFor(() =>
+      expect(region).not.toHaveAttribute('data-instant-colour')
+    )
+    fireEvent.click(screen.getByRole('radio', { name: 'Distance' }))
+    expect(region).not.toHaveAttribute('data-instant-colour')
+    expect(region.style.getPropertyValue('--fitness-t-color')).toBe('')
+
+    // A new range is a new data set: instant again.
+    fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
+    expect(screen.getByTestId('calendar-region')).toHaveAttribute(
+      'data-instant-colour',
+      'true'
+    )
   })
 })

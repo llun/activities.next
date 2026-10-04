@@ -202,7 +202,7 @@ describe('RangePicker', () => {
       fireEvent.change(to(), { target: { value: '2026-09-12' } })
 
       const message = screen.getByText(
-        'Start date must be on or before the end date'
+        'End date must be on or after the start date'
       )
       expect(message).toBeInTheDocument()
       expect(to()).toHaveAttribute('aria-invalid', 'true')

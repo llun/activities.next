@@ -15,6 +15,7 @@ import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorFitnessDashboard } from './ActorFitnessDashboard'
+import { OverviewHeaderSlot } from './FitnessOverviewHeader'
 import { RecentFitnessActivities } from './RecentFitnessActivities'
 import {
   readActivityTypeParam,
@@ -29,8 +30,8 @@ export const metadata: Metadata = {
 
 const RECENT_LIMIT = 5
 
-// The range is the viewer's to choose (year to date by default), so the
-// description names what the page holds, not a fixed span.
+// The range is the viewer's to choose (year to date by default), so the empty
+// state's description names what the page holds, not a fixed span.
 const OVERVIEW_DESCRIPTION = 'Your totals and training calendar'
 
 interface Props {
@@ -140,7 +141,15 @@ const Page: FC<Props> = async ({ searchParams }) => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Overview" description={OVERVIEW_DESCRIPTION} />
+      {/* On wide containers the dashboard fills these slots with the applied
+          dates and the range picker, as the desktop and tablet designs lay
+          out the heading. They are empty here: the dates are the viewer's
+          local days, which only the client knows. */}
+      <PageHeader
+        title="Overview"
+        description={<OverviewHeaderSlot slot="dates" />}
+        actions={<OverviewHeaderSlot slot="range" />}
+      />
 
       <ActorFitnessDashboard
         actorId={currentActor.id}

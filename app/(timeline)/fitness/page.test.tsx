@@ -6,6 +6,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { ActorFitnessDashboard } from './ActorFitnessDashboard'
+import { OverviewHeaderSlot } from './FitnessOverviewHeader'
 import { RecentFitnessActivities } from './RecentFitnessActivities'
 import Page from './page'
 
@@ -304,22 +305,34 @@ describe('fitness page', () => {
 
   // The default range is year to date and the viewer can choose any other, so
   // a fixed span in the description would contradict the page below it.
-  it.each([
-    { description: 'with activity', hasFitnessData: true },
-    { description: 'in the empty state', hasFitnessData: false }
-  ])(
-    'describes the overview without a fixed span $description',
-    async ({ hasFitnessData }) => {
-      const database = createDatabase()
-      database.getActorHasFitnessData.mockResolvedValue(hasFitnessData)
-      mockGetDatabase.mockReturnValue(database)
+  it('describes the empty state without a fixed span', async () => {
+    const database = createDatabase()
+    database.getActorHasFitnessData.mockResolvedValue(false)
+    mockGetDatabase.mockReturnValue(database)
 
-      const element = await Page({ searchParams: Promise.resolve({}) })
+    const element = await Page({ searchParams: Promise.resolve({}) })
 
-      const header = findElementByType(element, PageHeader)?.props as
-        { title: string; description: string } | undefined
-      expect(header?.title).toBe('Overview')
-      expect(header?.description).not.toMatch(/12 months/i)
-    }
-  )
+    const header = findElementByType(element, PageHeader)?.props as
+      { title: string; description: string } | undefined
+    expect(header?.title).toBe('Overview')
+    expect(header?.description).not.toMatch(/12 months/i)
+  })
+
+  // The dates are the viewer's local days, which the server cannot know, so
+  // the header carries empty slots the dashboard fills on wide containers.
+  it('gives the dashboard the header slots for the dates and the range picker', async () => {
+    const database = createDatabase()
+    mockGetDatabase.mockReturnValue(database)
+
+    const element = await Page({ searchParams: Promise.resolve({}) })
+
+    const header = findElementByType(element, PageHeader)?.props as
+      | { title: string; description: ReactElement; actions: ReactElement }
+      | undefined
+    expect(header?.title).toBe('Overview')
+    expect(header?.description.type).toBe(OverviewHeaderSlot)
+    expect(header?.description.props).toEqual({ slot: 'dates' })
+    expect(header?.actions.type).toBe(OverviewHeaderSlot)
+    expect(header?.actions.props).toEqual({ slot: 'range' })
+  })
 })

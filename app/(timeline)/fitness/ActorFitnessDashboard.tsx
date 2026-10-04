@@ -1,8 +1,15 @@
 'use client'
 
-import { AlertTriangle, CalendarDays, RefreshCw } from 'lucide-react'
+import {
+  AlertTriangle,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw
+} from 'lucide-react'
 import Link from 'next/link'
 import {
+  CSSProperties,
   FC,
   KeyboardEvent,
   useCallback,
@@ -31,8 +38,17 @@ import { RangePicker } from '@/lib/components/fitness/calendar/RangePicker'
 import { scrollBehavior } from '@/lib/components/fitness/calendar/calendarShared'
 import { useElementWidth } from '@/lib/components/fitness/calendar/useElementWidth'
 import { Button } from '@/lib/components/ui/button'
-import { formatMonthShort, formatRange } from '@/lib/fitness/calendar/format'
-import { monthNeedsListAlternative } from '@/lib/fitness/calendar/geometry'
+import {
+  formatMonthShort,
+  formatMonthYear,
+  formatRange
+} from '@/lib/fitness/calendar/format'
+import {
+  MONTH_CELL_GAP,
+  MONTH_CELL_MAX,
+  MONTH_COLUMNS,
+  monthNeedsListAlternative
+} from '@/lib/fitness/calendar/geometry'
 import {
   DateKey,
   dateKeyParts,
@@ -40,11 +56,13 @@ import {
 } from '@/lib/fitness/calendar/localDay'
 import {
   createOverviewState,
-  getStepTarget,
   overviewReducer
 } from '@/lib/fitness/calendar/overviewState'
 import {
   AppliedRange,
+  StepDirection,
+  latestMonthIn,
+  stepTarget,
   viewFor,
   yearsForChooser
 } from '@/lib/fitness/calendar/ranges'
@@ -52,7 +70,14 @@ import type { FitnessCalendarDay } from '@/lib/fitness/calendar/types'
 import { cn } from '@/lib/utils'
 
 import { ActivityTypeBreakdown } from './ActivityTypeBreakdown'
-import { FitnessOverviewHeader } from './FitnessOverviewHeader'
+import {
+  CalendarYearMenu,
+  FitnessOverviewHeader,
+  InOverviewHeaderSlot,
+  OverviewDates,
+  StepButtons,
+  calendarYearOf
+} from './FitnessOverviewHeader'
 import { FitnessSummaryStrip, summaryTotals } from './FitnessSummaryStrip'
 import { useFitnessDayActivities } from './useFitnessDayActivities'
 import { useFitnessOverviewData } from './useFitnessOverviewData'
@@ -129,6 +154,30 @@ function OverviewSkeleton() {
 
 type MonthLayout = 'grid' | 'list'
 
+/** The month grid's own width: seven cells and six gaps (geometry.ts). */
+const MONTH_GRID_WIDTH = `calc(min(${MONTH_CELL_MAX}px, (100cqw - ${(MONTH_COLUMNS - 1) * MONTH_CELL_GAP}px) / ${MONTH_COLUMNS}) * ${MONTH_COLUMNS} + ${(MONTH_COLUMNS - 1) * MONTH_CELL_GAP}px)`
+
+const TEXT_ACTION =
+  'text-primary-text focus-visible:ring-ring/50 inline-flex h-11 items-center gap-1 rounded-md px-1 text-sm font-medium outline-none hover:underline focus-visible:ring-[3px]'
+
+const INSTANT_COLOUR_STYLE = { '--fitness-t-color': '0ms' } as CSSProperties
+
+/** Runs `callback` once the next frame has painted; returns a canceller. */
+const afterNextPaint = (callback: () => void) => {
+  if (typeof requestAnimationFrame !== 'function') {
+    const timer = setTimeout(callback, 0)
+    return () => clearTimeout(timer)
+  }
+  let inner = 0
+  const outer = requestAnimationFrame(() => {
+    inner = requestAnimationFrame(callback)
+  })
+  return () => {
+    cancelAnimationFrame(outer)
+    cancelAnimationFrame(inner)
+  }
+}
+
 const NO_DAYS: readonly FitnessCalendarDay[] = []
 
 /** "Activity through 4 Oct" for the current month, else its exact dates. */
@@ -151,7 +200,6 @@ function FitnessOverview({
     createOverviewState(localDateKeyAt(currentTime, timeZone))
   )
   const { applied, today, selectedDate, metric } = state
-  const view = viewFor(applied)
 
   // "Today" moves at midnight and with the viewer's zone: re-derive it when
   // the page comes back into view (a tab left open overnight), and at once if
@@ -183,7 +231,6 @@ function FitnessOverview({
   const compact = width !== null && width < INLINE_DETAILS_MIN_WIDTH
   const listAvailable = width !== null && monthNeedsListAlternative(width)
   const [monthLayout, setMonthLayout] = useState<MonthLayout>('grid')
-  const showList = view === 'month' && listAvailable && monthLayout === 'list'
 
   const data = useFitnessOverviewData({ actorId, range: applied, timeZone })
   const { status, result } = data
@@ -195,9 +242,32 @@ function FitnessOverview({
   const shown = status === 'success' || status === 'error' ? result : null
   const showingPrevious = status === 'error' && result !== null
   const unavailable = status === 'error' && result === null
-  const gridRange = shown?.range ?? applied
-  const gridView = viewFor(gridRange)
+  // The range everything visible describes: the heading, the dates, the
+  // picker's label, the toolbar, the grid and the totals. It is the applied
+  // range, except after a failed read that kept the previous results, when it
+  // is that previous range (the banner names both). A deliberate departure
+  // from architecture §2.4, so nothing on screen contradicts the data.
+  const displayRange = shown?.range ?? applied
+  const gridView = viewFor(displayRange)
   const gridDays = shown?.days ?? NO_DAYS
+  const showList =
+    gridView === 'month' && listAvailable && monthLayout === 'list'
+
+  // Steps, Month view and the year chooser move from what is on screen.
+  const canStep = {
+    previous: stepTarget(displayRange, 'previous', today) !== null,
+    next: stepTarget(displayRange, 'next', today) !== null
+  }
+  const step = (direction: StepDirection) => {
+    const target = stepTarget(displayRange, direction, today)
+    if (target) dispatch({ type: 'APPLY_RANGE', range: target })
+  }
+  const openLatestMonth = () =>
+    dispatch({
+      type: 'APPLY_RANGE',
+      range: latestMonthIn(displayRange, today)
+    })
+  const backToYear = () => dispatch({ type: 'BACK_TO_YEAR' })
 
   // The day's totals come from the calendar bucket, from the latest committed
   // read: it is the same day either way, so a selection kept across a reload
@@ -284,23 +354,39 @@ function FitnessOverview({
     }
   }, [sheetOpen, sheetHeight, selectedDate])
 
+  // Cell colours fade (150ms) only when cells that are already showing data
+  // change level, as on a metric switch. A new data set (the first paint, a
+  // new range, the end of a reload) appears at once: fading in from the
+  // skeleton's grey reads as a flash. The custom property is inherited by every
+  // cell; it is restored two frames after the new set has painted.
+  const colourKey =
+    shown !== null && !loading
+      ? `${displayRange.kind}|${displayRange.from}|${displayRange.to}`
+      : null
+  const [animatedKey, setAnimatedKey] = useState<string | null>(null)
+  useEffect(() => {
+    if (colourKey === null) return
+    return afterNextPaint(() => setAnimatedKey(colourKey))
+  }, [colourKey])
+  const instantColour = colourKey === null || animatedKey !== colourKey
+
   const calendarHeadingId = useId()
   const isEmpty = status === 'success' && totals !== null && totals.count === 0
 
   const legend = (
     <CalendarLegend
       metric={metric}
-      showUpcoming={gridView === 'month' && gridRange.kind === 'this_month'}
+      showUpcoming={gridView === 'month' && displayRange.kind === 'this_month'}
     />
   )
-  const monthParts = dateKeyParts(gridRange.from)
+  const monthParts = dateKeyParts(displayRange.from)
   const monthFooter = (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <p className="text-muted-foreground text-[13px]">
         <span className="text-foreground font-semibold">
           {formatMonthShort(monthParts.month)} {monthParts.year}
         </span>{' '}
-        · {loading ? 'Loading activity…' : monthCaption(gridRange, today)}
+        · {loading ? 'Loading activity…' : monthCaption(displayRange, today)}
       </p>
       {legend}
     </div>
@@ -320,43 +406,68 @@ function FitnessOverview({
     onClose: closeDetails
   }
 
+  const rangePicker = (
+    <RangePicker
+      applied={displayRange}
+      today={today}
+      draft={state.picker}
+      years={years}
+      compact={compact}
+      className="h-11 pointer-coarse:h-11"
+      onOpen={() => dispatch({ type: 'OPEN_PICKER' })}
+      onChoosePreset={(preset) => dispatch({ type: 'CHOOSE_PRESET', preset })}
+      onEditDraft={(field, text) =>
+        dispatch({ type: 'EDIT_DRAFT', field, text })
+      }
+      onCancel={() => dispatch({ type: 'CANCEL_PICKER' })}
+      onApply={() => dispatch({ type: 'APPLY_PICKER' })}
+      onSelectYear={(year) => dispatch({ type: 'APPLY_YEAR', year })}
+    />
+  )
+
+  // Month view / Back to year: on a phone a text action beside the calendar
+  // heading; on wider containers Month view sits in the toolbar and Back to
+  // year in the month's own heading row.
+  const viewAction =
+    gridView === 'annual' ? (
+      <button type="button" className={TEXT_ACTION} onClick={openLatestMonth}>
+        Month view
+        <ChevronRight className="size-4" aria-hidden="true" />
+      </button>
+    ) : (
+      <button type="button" className={TEXT_ACTION} onClick={backToYear}>
+        <ChevronLeft className="size-4" aria-hidden="true" />
+        Back to year
+      </button>
+    )
+
   return (
     <div
       ref={rootRef}
       data-testid="fitness-overview"
       className="@container/fitness space-y-6"
     >
-      <FitnessOverviewHeader
-        applied={applied}
-        canStep={{
-          previous: getStepTarget(state, 'previous') !== null,
-          next: getStepTarget(state, 'next') !== null
-        }}
-        loading={loading}
-        onStep={(direction) => dispatch({ type: 'STEP', direction })}
-        onOpenLatestMonth={() => dispatch({ type: 'OPEN_LATEST_MONTH' })}
-        onBackToYear={() => dispatch({ type: 'BACK_TO_YEAR' })}
-        rangePicker={
-          <RangePicker
-            applied={applied}
-            today={today}
-            draft={state.picker}
-            years={years}
-            compact={compact}
-            className="h-11 pointer-coarse:h-11"
-            onOpen={() => dispatch({ type: 'OPEN_PICKER' })}
-            onChoosePreset={(preset) =>
-              dispatch({ type: 'CHOOSE_PRESET', preset })
-            }
-            onEditDraft={(field, text) =>
-              dispatch({ type: 'EDIT_DRAFT', field, text })
-            }
-            onCancel={() => dispatch({ type: 'CANCEL_PICKER' })}
-            onApply={() => dispatch({ type: 'APPLY_PICKER' })}
-            onSelectYear={(year) => dispatch({ type: 'APPLY_YEAR', year })}
-          />
-        }
-      />
+      {compact ? (
+        <FitnessOverviewHeader
+          range={displayRange}
+          canStep={canStep}
+          loading={loading}
+          onStep={step}
+          rangePicker={rangePicker}
+        />
+      ) : (
+        // The page's own "Overview" header carries the dates and the range
+        // picker on wide containers. `contents`, so nothing here takes space
+        // in this column once they have moved there.
+        <div className="contents">
+          <InOverviewHeaderSlot slot="dates">
+            <OverviewDates range={displayRange} loading={loading} />
+          </InOverviewHeaderSlot>
+          <InOverviewHeaderSlot slot="range">
+            {rangePicker}
+          </InOverviewHeaderSlot>
+        </div>
+      )}
 
       {status === 'error' && (
         <div
@@ -402,9 +513,35 @@ function FitnessOverview({
       />
 
       <section aria-labelledby={calendarHeadingId} className="space-y-4">
-        <h2 id={calendarHeadingId} className="text-base font-semibold">
-          Training calendar
-        </h2>
+        <div
+          data-testid="training-calendar-toolbar"
+          className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
+        >
+          <h2 id={calendarHeadingId} className="text-base font-semibold">
+            Training calendar
+          </h2>
+          {compact
+            ? viewAction
+            : gridView === 'annual' && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <CalendarYearMenu
+                    years={years}
+                    value={calendarYearOf(displayRange)}
+                    onSelect={(year) => dispatch({ type: 'APPLY_YEAR', year })}
+                  />
+                  <StepButtons view="annual" canStep={canStep} onStep={step} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 gap-1"
+                    onClick={openLatestMonth}
+                  >
+                    Month view
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
+              )}
+        </div>
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <MetricSelector
@@ -413,7 +550,7 @@ function FitnessOverview({
                 dispatch({ type: 'SET_METRIC', metric: next })
               }
             />
-            {view === 'month' && listAvailable && (
+            {gridView === 'month' && listAvailable && (
               <div
                 role="group"
                 aria-label="Show the month as"
@@ -439,13 +576,45 @@ function FitnessOverview({
             )}
           </div>
 
+          {!compact && gridView === 'month' && (
+            // The month's heading row: Back to year, the month, and the arrows
+            // on the grid's right edge (the row is exactly the grid's width).
+            <div
+              data-testid="month-heading-row"
+              className="mt-4 flex items-center gap-3"
+              style={{ maxWidth: MONTH_GRID_WIDTH }}
+            >
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 gap-1"
+                onClick={backToYear}
+              >
+                <ChevronLeft className="size-4" aria-hidden="true" />
+                Back to year
+              </Button>
+              <h3 className="min-w-0 truncate text-lg font-semibold">
+                {formatMonthYear(monthParts.year, monthParts.month)}
+              </h3>
+              <StepButtons
+                view="month"
+                canStep={canStep}
+                onStep={step}
+                className="ml-auto"
+              />
+            </div>
+          )}
+
           {/* A failed first read keeps the grid's shape but carries no data, so
             it is inert: nothing to select, nothing announced as a rest day.
             No margin above the annual grid: its month-label band already
             carries 27px. */}
           <div
             ref={calendarRegion}
+            data-testid="calendar-region"
+            data-instant-colour={instantColour || undefined}
             className={gridView === 'annual' ? undefined : 'mt-4'}
+            style={instantColour ? INSTANT_COLOUR_STYLE : undefined}
             onKeyDown={onCalendarKeyDown}
             inert={unavailable || undefined}
             aria-hidden={unavailable || undefined}
@@ -453,7 +622,7 @@ function FitnessOverview({
             {gridView === 'annual' ? (
               <AnnualCalendar
                 ref={annualRef}
-                range={gridRange}
+                range={displayRange}
                 today={today}
                 days={gridDays}
                 metric={metric}
@@ -469,7 +638,7 @@ function FitnessOverview({
                   year={monthParts.year}
                   month={monthParts.month}
                   today={today}
-                  range={gridRange}
+                  range={displayRange}
                   days={gridDays}
                   metric={metric}
                   selectedDate={selectedDate}
@@ -484,7 +653,7 @@ function FitnessOverview({
                 year={monthParts.year}
                 month={monthParts.month}
                 today={today}
-                range={gridRange}
+                range={displayRange}
                 days={gridDays}
                 metric={metric}
                 selectedDate={selectedDate}

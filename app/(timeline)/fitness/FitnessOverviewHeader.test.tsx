@@ -2,12 +2,20 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { DateKey } from '@/lib/fitness/calendar/localDay'
 import { AppliedRange, RangeKind } from '@/lib/fitness/calendar/ranges'
 
-import { FitnessOverviewHeader, overviewHeading } from './FitnessOverviewHeader'
+import {
+  CalendarYearMenu,
+  FitnessOverviewHeader,
+  InOverviewHeaderSlot,
+  OverviewHeaderSlot,
+  StepButtons,
+  calendarYearOf,
+  overviewHeading
+} from './FitnessOverviewHeader'
 
 const range = (kind: RangeKind, from: string, to: string): AppliedRange => ({
   kind,
@@ -19,17 +27,13 @@ const YTD = range('ytd', '2026-01-01', '2026-10-04')
 const SEPTEMBER = range('month', '2026-09-01', '2026-09-30')
 
 const renderHeader = (
-  applied: AppliedRange,
+  shown: AppliedRange,
   canStep = { previous: true, next: true }
 ) => {
-  const callbacks = {
-    onStep: vi.fn(),
-    onOpenLatestMonth: vi.fn(),
-    onBackToYear: vi.fn()
-  }
+  const callbacks = { onStep: vi.fn() }
   render(
     <FitnessOverviewHeader
-      applied={applied}
+      range={shown}
       canStep={canStep}
       rangePicker={<button type="button">Date range</button>}
       {...callbacks}
@@ -79,40 +83,46 @@ describe('overviewHeading', () => {
   })
 })
 
+describe('calendarYearOf', () => {
+  it.each([
+    { kind: 'ytd', from: '2026-01-01', to: '2026-10-04', expected: 2026 },
+    { kind: 'year', from: '2025-01-01', to: '2025-12-31', expected: 2025 },
+    { kind: 'month', from: '2026-09-01', to: '2026-09-30', expected: null },
+    {
+      kind: 'last_12_months',
+      from: '2025-10-05',
+      to: '2026-10-04',
+      expected: null
+    }
+  ] as const)(
+    'reads a $kind range as $expected',
+    ({ kind, from, to, expected }) => {
+      expect(calendarYearOf(range(kind, from, to))).toBe(expected)
+    }
+  )
+})
+
 describe('FitnessOverviewHeader', () => {
-  it('heads the applied range with its exact inclusive dates', () => {
+  it('heads the range with its exact inclusive dates', () => {
     renderHeader(YTD)
 
     expect(
       screen.getByRole('heading', { level: 2, name: '2026 · Year to date' })
     ).toBeInTheDocument()
-    expect(normalized(screen.getByText(/1 Jan/).textContent)).toBe(
-      '1 Jan – 4 Oct 2026'
-    )
+    expect(
+      normalized(screen.getByTestId('fitness-overview-dates').textContent)
+    ).toBe('1 Jan – 4 Oct 2026')
   })
 
-  it('steps years in annual view and offers Month view', () => {
+  it('steps years for an annual range and months for a month', () => {
     const callbacks = renderHeader(YTD)
-
     fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
     expect(callbacks.onStep).toHaveBeenCalledWith('previous')
-    fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
-    expect(callbacks.onOpenLatestMonth).toHaveBeenCalled()
-    expect(
-      screen.queryByRole('button', { name: /Back to year/ })
-    ).not.toBeInTheDocument()
-  })
+    cleanup()
 
-  it('steps months in month view and offers Back to year', () => {
-    const callbacks = renderHeader(SEPTEMBER)
-
+    const monthly = renderHeader(SEPTEMBER)
     fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
-    expect(callbacks.onStep).toHaveBeenCalledWith('next')
-    fireEvent.click(screen.getByRole('button', { name: /Back to year/ }))
-    expect(callbacks.onBackToYear).toHaveBeenCalled()
-    expect(
-      screen.queryByRole('button', { name: /Month view/ })
-    ).not.toBeInTheDocument()
+    expect(monthly.onStep).toHaveBeenCalledWith('next')
   })
 
   it('disables a step whose target is wholly in the future', () => {
@@ -131,5 +141,86 @@ describe('FitnessOverviewHeader', () => {
     expect(
       screen.getByRole('button', { name: 'Date range' })
     ).toBeInTheDocument()
+  })
+})
+
+describe('StepButtons', () => {
+  it('names its targets by view and stays 44px', () => {
+    render(
+      <StepButtons
+        view="annual"
+        canStep={{ previous: true, next: true }}
+        onStep={() => {}}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Previous year' })).toHaveClass(
+      'size-11'
+    )
+    expect(screen.getByRole('button', { name: 'Next year' })).toHaveClass(
+      'size-11'
+    )
+  })
+})
+
+describe('InOverviewHeaderSlot', () => {
+  it("moves its content into the page header's slot", () => {
+    render(
+      <>
+        <header data-testid="page-header">
+          <OverviewHeaderSlot slot="range" />
+        </header>
+        <main data-testid="dashboard">
+          <InOverviewHeaderSlot slot="range">
+            <button type="button">Date range</button>
+          </InOverviewHeaderSlot>
+        </main>
+      </>
+    )
+
+    const button = screen.getByRole('button', { name: 'Date range' })
+    expect(screen.getByTestId('page-header')).toContainElement(button)
+    expect(screen.getByTestId('dashboard')).not.toContainElement(button)
+  })
+
+  it('renders in place where the page has no such slot', () => {
+    render(
+      <main data-testid="dashboard">
+        <InOverviewHeaderSlot slot="dates">
+          <span>1 Jan – 4 Oct 2026</span>
+        </InOverviewHeaderSlot>
+      </main>
+    )
+
+    expect(screen.getByTestId('dashboard')).toHaveTextContent(
+      '1 Jan – 4 Oct 2026'
+    )
+  })
+})
+
+describe('CalendarYearMenu', () => {
+  it('shows the chosen year and applies another from its menu', async () => {
+    const onSelect = vi.fn()
+    render(
+      <CalendarYearMenu
+        years={[2026, 2025, 2024]}
+        value={2026}
+        onSelect={onSelect}
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: 'Calendar year: 2026' })
+    fireEvent.pointerDown(trigger, { button: 0, pointerType: 'mouse' })
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: '2025' }))
+
+    expect(onSelect).toHaveBeenCalledWith(2025)
+  })
+
+  it('says no year is chosen for a range that is not one calendar year', () => {
+    render(<CalendarYearMenu years={[2026]} value={null} onSelect={() => {}} />)
+
+    expect(
+      screen.getByRole('button', { name: 'Calendar year: none chosen' })
+    ).toHaveTextContent('Year')
   })
 })
