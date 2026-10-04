@@ -2,6 +2,7 @@ import {
   MOBILE_FEED_SURFACE_CLASS,
   MOBILE_INSET_CARD_CLASS,
   MOBILE_INSET_CARD_FRAME_CLASS,
+  MOBILE_INSET_FEED_CLASS,
   MOBILE_INSET_STACK_CLASS
 } from './feedLayout'
 
@@ -33,7 +34,8 @@ describe('mobile inset card contract', () => {
     for (const value of [
       MOBILE_INSET_STACK_CLASS,
       MOBILE_INSET_CARD_FRAME_CLASS,
-      MOBILE_INSET_CARD_CLASS
+      MOBILE_INSET_CARD_CLASS,
+      MOBILE_INSET_FEED_CLASS
     ]) {
       tokens(value).forEach((token) => expect(token).toMatch(/^max-md:/))
     }
@@ -60,6 +62,15 @@ describe('mobile inset card contract', () => {
     expect(tokens(MOBILE_INSET_CARD_CLASS)).toEqual([
       ...tokens(MOBILE_INSET_CARD_FRAME_CLASS),
       'max-md:bg-background/80'
+    ])
+  })
+
+  it('turns a feed surface into a card in the column: no viewport margin, the card frame', () => {
+    // Merged after `MOBILE_FEED_SURFACE_CLASS`, so every token here must be on
+    // a utility that class sets — otherwise nothing is taken back.
+    expect(tokens(MOBILE_INSET_FEED_CLASS)).toEqual([
+      'max-md:mx-0',
+      ...tokens(MOBILE_INSET_CARD_FRAME_CLASS)
     ])
   })
 

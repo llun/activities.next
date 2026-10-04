@@ -14,6 +14,11 @@ import { ReactNode } from 'react'
 
 import { CollectionMember } from '@/app/(timeline)/collections/CollectionEditor'
 import { getCollectionFeed, getCollectionTimeline } from '@/lib/client'
+import {
+  MOBILE_FEED_SURFACE_CLASS,
+  MOBILE_INSET_CARD_FRAME_CLASS,
+  MOBILE_INSET_FEED_CLASS
+} from '@/lib/components/posts/feedLayout'
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
@@ -63,14 +68,17 @@ vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({
     statuses,
     showActions,
-    showReadOnlyStats
+    showReadOnlyStats,
+    className
   }: {
     statuses: Status[]
     showActions?: boolean
     showReadOnlyStats?: boolean
+    className?: string
   }) => (
     <div
       data-testid="posts"
+      className={className}
       data-show-actions={String(Boolean(showActions))}
       data-read-only-stats={String(Boolean(showReadOnlyStats))}
     >
@@ -423,12 +431,53 @@ describe('CollectionDetail', () => {
       expect(card.className).not.toContain('max-md:')
     })
 
+    // `Posts` frames itself with the full-bleed feed surface; the class the
+    // page passes is merged after it (see posts.test.tsx), so it has to carry
+    // the shared inset card frame and take the viewport-wide margin back. The
+    // real `Posts` is mocked here, so this pins what the page asks for.
+    it('asks for the feed as an inset card below md, in the same column as the cards', () => {
+      renderLoggedOut()
+
+      const feed = screen.getByTestId('posts')
+      expect(feed).toHaveClass(...MOBILE_INSET_FEED_CLASS.split(' '))
+      expect(feed).toHaveClass(
+        'max-md:mx-0',
+        ...MOBILE_INSET_CARD_FRAME_CLASS.split(' ')
+      )
+      // Nothing of the viewport-wide surface comes back, and nothing is
+      // unscoped: from md the feed keeps the frame `Posts` gives it.
+      for (const token of MOBILE_FEED_SURFACE_CLASS.split(' ')) {
+        expect(feed).not.toHaveClass(token)
+      }
+      feed.className
+        .split(' ')
+        .forEach((token) => expect(token).toMatch(/^max-md:/))
+    })
+
     it('aligns "Curated by" with the card edge below md', () => {
       renderLoggedOut()
 
       expect(screen.getByText(/Curated by/)).toHaveClass('px-1', 'max-md:px-0')
     })
   })
+
+  it.each([
+    { description: 'non-owner', isOwner: false },
+    { description: 'owner', isOwner: true }
+  ])(
+    'leaves the signed-in $description feed to the full-bleed surface Posts applies',
+    ({ isOwner }) => {
+      render(
+        <CollectionDetail
+          {...baseProps}
+          isOwner={isOwner}
+          currentActor={{} as ActorProfile}
+        />
+      )
+
+      expect(screen.getByTestId('posts')).not.toHaveAttribute('class')
+    }
+  )
 
   describe('signed-in visitor keeps the full-bleed empty state and inset byline', () => {
     it.each([
