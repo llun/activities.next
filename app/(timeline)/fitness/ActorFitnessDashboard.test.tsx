@@ -1075,6 +1075,130 @@ describe('ActorFitnessDashboard', () => {
         })
       )
     })
+
+    it('reads again when Back to year is pressed after that year failed', async () => {
+      renderDashboard()
+      await waitForLoaded()
+      fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+      await waitFor(() =>
+        expect(lastRange(mockedSummary)).toEqual({
+          from: '2026-10-01',
+          to: '2026-10-04'
+        })
+      )
+      await waitForLoaded()
+      mockedSummary.mockRejectedValueOnce(
+        new ApiRequestError('Service Unavailable', 503)
+      )
+      fireEvent.click(screen.getByRole('button', { name: /Back to year/ }))
+      await screen.findByRole('alert')
+      mockedSummary.mockClear()
+
+      // October is still on screen, so Back to year targets year to date again.
+      fireEvent.click(screen.getByRole('button', { name: /Back to year/ }))
+
+      await waitFor(() =>
+        expect(lastRange(mockedSummary)).toEqual({
+          from: '2026-01-01',
+          to: '2026-10-04'
+        })
+      )
+      await waitFor(() =>
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      )
+    })
+
+    it('reads again when a month label is pressed after that month failed', async () => {
+      renderDashboard()
+      await waitForLoaded()
+      mockedSummary.mockRejectedValueOnce(
+        new ApiRequestError('Service Unavailable', 503)
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Show March 2026' }))
+      await screen.findByRole('alert')
+      mockedSummary.mockClear()
+
+      // Year to date is still on screen, so its March label targets March again.
+      fireEvent.click(screen.getByRole('button', { name: 'Show March 2026' }))
+
+      await waitFor(() =>
+        expect(lastRange(mockedSummary)).toEqual({
+          from: '2026-03-01',
+          to: '2026-03-31'
+        })
+      )
+      await waitFor(() =>
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      )
+    })
+
+    it('reads again when the picker applies the range that failed', async () => {
+      renderDashboard()
+      await waitForLoaded()
+      mockedSummary.mockRejectedValueOnce(
+        new ApiRequestError('Service Unavailable', 503)
+      )
+      fireEvent.click(rangeTrigger())
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Last 12 months' })
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+      await screen.findByRole('alert')
+      mockedSummary.mockClear()
+
+      // The picker opens on the applied range, the one that failed.
+      fireEvent.click(rangeTrigger())
+      fireEvent.click(await screen.findByRole('button', { name: 'Apply' }))
+
+      await waitFor(() =>
+        expect(lastRange(mockedSummary)).toEqual({
+          from: '2025-10-05',
+          to: '2026-10-04'
+        })
+      )
+      await waitFor(() =>
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      )
+    })
+
+    it('reads again when the picker year chooser picks the year that failed', async () => {
+      await failSecondRange()
+      mockedSummary.mockClear()
+
+      // The picker opens on the applied range, 2024, the one that failed.
+      fireEvent.click(rangeTrigger())
+      fireEvent.pointerDown(
+        await screen.findByRole('button', { name: 'Calendar year 2024' }),
+        { button: 0, pointerType: 'mouse' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: '2024' })
+      )
+
+      await waitFor(() =>
+        expect(lastRange(mockedSummary)).toEqual({
+          from: '2024-01-01',
+          to: '2024-12-31'
+        })
+      )
+    })
+
+    it('does not read again when Apply keeps a range that loaded', async () => {
+      renderDashboard()
+      await waitForLoaded()
+      mockedSummary.mockClear()
+      mockedCalendar.mockClear()
+
+      fireEvent.click(rangeTrigger())
+      fireEvent.click(await screen.findByRole('button', { name: 'Apply' }))
+      await waitFor(() =>
+        expect(rangeTrigger()).not.toHaveAttribute('aria-expanded', 'true')
+      )
+      await act(async () => {})
+
+      expect(mockedSummary).not.toHaveBeenCalled()
+      expect(mockedCalendar).not.toHaveBeenCalled()
+    })
   })
 
   it('does not redraw the year rows while the picker draft is edited', async () => {
