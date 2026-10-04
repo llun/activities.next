@@ -22,7 +22,12 @@ describe('getFirstTextLine', () => {
     ['an emoji later in the line', 'Run 🏃 home', 'Run 🏃 home'],
     ['script content', '<p><script>alert(1)</script>Run</p>', 'Run'],
     ['an invisible-only first line', '<p>\u200b</p><p>Second</p>', 'Second'],
-    ['a Thai line with combining vowels', 'วิ่งเช้า', 'วิ่งเช้า']
+    ['a Thai line with combining vowels', 'วิ่งเช้า', 'วิ่งเช้า'],
+    [
+      'a line after a long invisible run',
+      `${'\u200b'.repeat(MAX_ACTIVITY_TITLE_LENGTH + 80)}X`,
+      'X'
+    ]
   ])('reads %s', (_label, text, expected) => {
     expect(getFirstTextLine(text)).toBe(expected)
   })
@@ -33,7 +38,13 @@ describe('getFirstTextLine', () => {
     ['an empty string', ''],
     ['whitespace and empty blocks', ' <p> </p><br>\n'],
     ['zero-width and format characters only', '\u200b\u200d\u2060\u00ad'],
-    ['a lone combining mark', '\u0301']
+    ['a lone combining mark', '\u0301'],
+    ['zero-width characters split by a space', '\u200b \u200b'],
+    ['a Hangul choseong filler', '\u115f'],
+    ['a Hangul jungseong filler', '\u1160'],
+    ['a blank Braille pattern', '\u2800'],
+    ['a Hangul filler', '\u3164'],
+    ['a halfwidth Hangul filler', '\uffa0']
   ])('returns null for %s', (_label, text) => {
     expect(getFirstTextLine(text)).toBeNull()
   })
@@ -105,6 +116,31 @@ describe('getActivityTitle', () => {
       description: 'a warning with an invisible first line',
       postSummary: '\u200b\nSpoiler',
       title: 'Spoiler'
+    },
+    {
+      description: 'a long zero-width-only warning',
+      postSummary: '\u200b'.repeat(MAX_ACTIVITY_TITLE_LENGTH + 5),
+      title: CONTENT_WARNING_TITLE
+    },
+    {
+      description: 'a warning after a long invisible run',
+      postSummary: `${'\u200b'.repeat(MAX_ACTIVITY_TITLE_LENGTH + 80)}X`,
+      title: 'X'
+    },
+    {
+      description: 'an emoji-only line after a long invisible line',
+      postSummary: `${'\u200b'.repeat(MAX_ACTIVITY_TITLE_LENGTH + 80)}\n⚠️`,
+      title: '⚠️'
+    },
+    {
+      description: 'a zero-width and space warning',
+      postSummary: '\u200b \u200b',
+      title: CONTENT_WARNING_TITLE
+    },
+    {
+      description: 'a Hangul filler warning',
+      postSummary: '\u3164',
+      title: CONTENT_WARNING_TITLE
     }
   ])(
     'never shows the hidden body for $description',

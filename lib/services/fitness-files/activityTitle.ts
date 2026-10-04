@@ -23,11 +23,18 @@ const LINE_BREAK_PATTERN =
 const LEADING_EMOJI_PATTERN =
   /^(?:\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*(?:‍\p{Extended_Pictographic}(?:️|\p{Emoji_Modifier})*)*\s*)+/u
 
-// Zero-width and other format characters, and bare combining marks, survive
-// `trim()` and whitespace collapsing but draw nothing: a line made only of them
-// reads as blank. A letter carrying combining marks still matches, because the
-// letter itself is visible.
-const VISIBLE_CHARACTER_PATTERN = /[^\s\p{Cf}\p{M}]/u
+// Characters that survive `trim()` and whitespace collapsing but draw nothing:
+// zero-width and other format characters, bare combining marks, and some known
+// blank characters (the Hangul fillers U+115F, U+1160, U+3164 and U+FFA0, and
+// the blank Braille pattern U+2800). The list of blank characters is not
+// exhaustive. A line made only of these reads as blank. A letter carrying
+// combining marks still counts as visible, because the letter itself is.
+const INVISIBLE_CHARACTERS = String.raw`\s\p{Cf}\p{M}\u115F\u1160\u2800\u3164\uFFA0`
+const VISIBLE_CHARACTER_PATTERN = new RegExp(`[^${INVISIBLE_CHARACTERS}]`, 'u')
+
+// A leading run of them, stripped before truncating so a long invisible prefix
+// cannot push every visible character past the limit and leave a bare "…".
+const LEADING_INVISIBLE_PATTERN = new RegExp(`^[${INVISIBLE_CHARACTERS}]+`, 'u')
 
 const truncate = (value: string) => {
   // By code point, so an emoji or other astral character is never cut in half.
@@ -49,7 +56,9 @@ export const getFirstTextLine = (
 ): string | null => {
   if (!text) return null
   for (const segment of text.split(LINE_BREAK_PATTERN)) {
-    const line = htmlToPlainText(segment).replace(LEADING_EMOJI_PATTERN, '')
+    const line = htmlToPlainText(segment)
+      .replace(LEADING_EMOJI_PATTERN, '')
+      .replace(LEADING_INVISIBLE_PATTERN, '')
     if (VISIBLE_CHARACTER_PATTERN.test(line)) return truncate(line)
   }
   return null
@@ -90,11 +99,17 @@ export const getActivityTitle = ({
 }: ActivityTitleSources): string => {
   const warning = postSummary?.trim()
   if (warning) {
-    const plain = truncate(htmlToPlainText(warning))
-    return (
-      getFirstTextLine(warning) ??
-      (VISIBLE_CHARACTER_PATTERN.test(plain) ? plain : CONTENT_WARNING_TITLE)
+    const firstLine = getFirstTextLine(warning)
+    if (firstLine) return firstLine
+    // Test visibility before truncating: the ellipsis `truncate` appends is
+    // itself visible.
+    const plain = htmlToPlainText(warning).replace(
+      LEADING_INVISIBLE_PATTERN,
+      ''
     )
+    return VISIBLE_CHARACTER_PATTERN.test(plain)
+      ? truncate(plain)
+      : CONTENT_WARNING_TITLE
   }
   return (
     getFirstTextLine(postText) ??

@@ -1258,6 +1258,20 @@ describe('ActorFitnessDashboard', () => {
     expect(region).not.toHaveAttribute('aria-hidden')
   })
 
+  it('relabels the legend when the metric changes', async () => {
+    renderDashboard()
+    await waitForLoaded()
+    expect(
+      screen.getByRole('list', { name: 'Legend: activities per day' })
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Distance' }))
+
+    expect(
+      screen.getByRole('list', { name: 'Legend: distance per day' })
+    ).toBeInTheDocument()
+  })
+
   it('shows the Upcoming legend swatch for this month only, not for a past month', async () => {
     renderDashboard()
     await waitForLoaded()

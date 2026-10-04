@@ -6,8 +6,8 @@
  *
  * Layout, spacing and typography stay in Tailwind at the use site. State is
  * read from data attributes (`data-level`, `data-state`, `data-loading`,
- * `aria-pressed` and the like), not from classes, so a test can assert what a cell is
- * without knowing a hashed class name.
+ * `aria-pressed` and the like), not from classes, so a test can assert what a
+ * cell is without knowing a hashed class name.
  *
  * Colours come from the scoped `--heat-*` tokens in app/globals.css (set by the
  * `fitness-heat` class on each calendar root) and the theme tokens. Durations
