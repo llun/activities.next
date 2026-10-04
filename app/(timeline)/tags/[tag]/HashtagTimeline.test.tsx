@@ -351,13 +351,18 @@ describe('HashtagTimeline', () => {
         screen.getByTestId('post-reactions-https://activities.local/s/1')
       ).toHaveTextContent('1')
     })
+  })
 
-    it('renders the compact bar titled with the tag under MobileNavigationProvider', () => {
-      const { container } = render(
+  describe('page heading', () => {
+    const renderSignedIn = (props = {}) =>
+      render(
         <MobileNavigationProvider>
-          <HashtagTimeline {...baseProps} />
+          <HashtagTimeline {...baseProps} {...props} />
         </MobileNavigationProvider>
       )
+
+    it('renders the compact bar titled with the tag under MobileNavigationProvider', () => {
+      const { container } = renderSignedIn()
 
       const bar = container.querySelector(
         '[data-mobile-compact-header]'
@@ -374,20 +379,95 @@ describe('HashtagTimeline', () => {
       expect(
         screen.queryByRole('link', { name: 'Activities home' })
       ).not.toBeInTheDocument()
-      // The in-content heading row steps aside below md; the count stays.
-      expect(
-        screen.getByRole('heading', { level: 1, name: baseProps.tag })
-          .parentElement
-      ).toHaveClass('max-md:hidden')
     })
 
-    it('keeps the in-content heading on every width without a navigation provider', () => {
-      render(<HashtagTimeline {...baseProps} />)
+    it('uses the standard PageHeader chrome from md up when signed in', () => {
+      const { container } = renderSignedIn()
+
+      const bar = container.querySelector(
+        '[data-mobile-compact-header]'
+      ) as HTMLElement
+      const [, boxHeading] = screen.getAllByRole('heading', {
+        level: 1,
+        name: `#${baseProps.tag}`
+      })
+      expect(bar).not.toContainElement(boxHeading)
+
+      // The sticky, bordered, blurred box and its centered `max-w-content`
+      // row with the standard `py-4`: the 79px header every other page has,
+      // not a bare heading flush with the top edge.
+      const box = boxHeading.closest('[class*="md:sticky"]') as HTMLElement
+      expect(box).toHaveClass(
+        'md:sticky',
+        'md:top-0',
+        'md:z-20',
+        'md:border-b',
+        'md:bg-surface-chrome',
+        'md:backdrop-blur'
+      )
+      expect(box.firstElementChild).toHaveClass(
+        'mx-auto',
+        'max-w-content',
+        'px-4',
+        'py-4'
+      )
+      expect(boxHeading).toHaveClass('text-xl', 'font-semibold')
+      expect(within(box).getByText('1 post')).toHaveClass(
+        'mt-0.5',
+        'text-xs',
+        'text-muted-foreground'
+      )
+    })
+
+    it('keeps the phone layout: bar, then the plain count, and no box', () => {
+      const { container } = renderSignedIn()
+
+      const bar = container.querySelector(
+        '[data-mobile-compact-header]'
+      ) as HTMLElement
+      const [boxHeading] = screen
+        .getAllByRole('heading', { level: 1 })
+        .filter((heading) => !bar.contains(heading))
+      const box = boxHeading.closest('[class*="md:sticky"]') as HTMLElement
+      // The box steps aside below md, so exactly one h1 is displayed there.
+      expect(box).toHaveClass('max-md:hidden')
+
+      const count = screen
+        .getAllByText('1 post')
+        .find((element) => !box.contains(element)) as HTMLElement
+      expect(count).toHaveClass('text-sm', 'md:hidden')
+      // The bar and the count are siblings in the page's own 24px stack, as
+      // they were before the box replaced the old heading row.
+      expect(count.parentElement).toBe(bar.parentElement)
+      expect(bar.parentElement).toHaveClass('flex', 'flex-col', 'gap-6')
+    })
+
+    it.each([
+      { postCount: 0, label: '0 posts' },
+      { postCount: 1, label: '1 post' },
+      { postCount: 2, label: '2 posts' }
+    ])('pluralises the count ($label)', ({ postCount, label }) => {
+      renderSignedIn({ postCount })
+
+      expect(screen.getAllByText(label)).toHaveLength(2)
+    })
+
+    it('keeps the in-content heading and no chrome without a navigation provider', () => {
+      const { container } = render(<HashtagTimeline {...baseProps} />)
 
       expect(
-        screen.getByRole('heading', { level: 1, name: baseProps.tag })
-          .parentElement
-      ).not.toHaveClass('max-md:hidden')
+        container.querySelector('[data-mobile-compact-header]')
+      ).not.toBeInTheDocument()
+      // Logged out is `PublicShell`'s column at every width: no sticky box.
+      expect(container.querySelector('[class*="sticky"]')).toBeNull()
+      const heading = screen.getByRole('heading', {
+        level: 1,
+        name: baseProps.tag
+      })
+      expect(heading).toHaveClass('text-2xl', 'font-semibold')
+      expect(heading.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
+      expect(heading.parentElement).not.toHaveClass('max-md:hidden')
+      expect(screen.getByText('1 post')).not.toHaveClass('md:hidden')
     })
   })
 })
