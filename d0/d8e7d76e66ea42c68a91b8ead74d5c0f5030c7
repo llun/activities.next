@@ -1,0 +1,27 @@
+lib/client.test.ts
+  s_a7418d31ae2421::t_296f436a2d8489 54-55,135,247-257
+lib/client/fitnessCalendar.test.ts
+  s_a7418d31ae2421::t_e9c62f85fd4617 4-35,43-46,50-52,55-58,60-63,66,71-88,92-93,102-104,108-136,138-187,190-232,237-316,318-319,322-405
+lib/client/fitnessCalendar.ts
+  s_a7418d31ae2421::t_94357236846075 7-12,15-70,73-78,81-85,88-90,92,98-100,104-158
+lib/client/fitnessRoutes.test.ts
+  s_a7418d31ae2421::t_c5c8946745160d 126-138,140-141,143-145,147,152-153,158-206,208-221,223-226,228-266
+lib/client/fitnessRoutes.ts
+  s_a7418d31ae2421::t_aa2ce24f7541fe 1-3,96-104,108-114,117-122,125-128,134-136,141-142,145-148,150-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0d8e7d76e66ea42c68a91b8ead74d5c0f5030c7",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
