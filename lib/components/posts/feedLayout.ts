@@ -45,3 +45,14 @@ export const MOBILE_INSET_CARD_FRAME_CLASS =
   'max-md:rounded-2xl max-md:border max-md:shadow-sm'
 
 export const MOBILE_INSET_CARD_CLASS = `${MOBILE_INSET_CARD_FRAME_CLASS} max-md:bg-background/80`
+
+/**
+ * A `Posts` feed that is one more inset card below `md`, for a logged-out
+ * page whose other blocks are inset cards (the shared collection). `Posts`
+ * frames itself with `MOBILE_FEED_SURFACE_CLASS`; pass this as its `className`,
+ * which is merged after it, so each token takes back what the surface dropped:
+ * `max-md:mx-0` the viewport-wide margin (`w-auto` stays and fills the column),
+ * the card frame the rounding, border and shadow. The rows and their media rows
+ * then end at the card's inner edge, in the page's own 16px column.
+ */
+export const MOBILE_INSET_FEED_CLASS = `max-md:mx-0 ${MOBILE_INSET_CARD_FRAME_CLASS}`

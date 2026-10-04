@@ -18,7 +18,10 @@ import { CollectionMember } from '@/app/(timeline)/collections/CollectionEditor'
 import { getCollectionFeed, getCollectionTimeline } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+import {
+  MOBILE_FEED_SURFACE_CLASS,
+  MOBILE_INSET_FEED_CLASS
+} from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
@@ -378,6 +381,9 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
           currentActor={currentActor}
           showActions={Boolean(currentActor)}
           showReadOnlyStats={!currentActor}
+          // A logged-out visitor's feed is an inset card below `md`, like the
+          // cards around it; signed in it stays the full-bleed surface.
+          className={isLoggedOutVisitor ? MOBILE_INSET_FEED_CLASS : undefined}
           isMediaUploadEnabled={isMediaUploadEnabled}
           postLineLimit={postLineLimit}
           onPostDeleted={removeStatus}
