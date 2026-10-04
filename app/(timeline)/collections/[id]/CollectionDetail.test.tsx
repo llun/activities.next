@@ -304,14 +304,15 @@ describe('CollectionDetail', () => {
     expect(header).toHaveAttribute('data-compact-title', 'Collection')
   })
 
-  // Logged out (no currentActor) the heading is the one the public view
-  // always had: the title truncating on one line.
+  // A non-owner has no Back, so `PageHeader` would not truncate a plain title:
+  // from `md` up the heading stays the truncating one it always was, signed in
+  // or not. Signed in it additionally wraps below `md`, under the bar.
   it.each([
-    [undefined, true],
-    [{} as ActorProfile, false]
+    [undefined, false],
+    [{} as ActorProfile, true]
   ])(
-    'truncates the heading only for a logged-out visitor (%#)',
-    (currentActor, truncates) => {
+    'truncates a non-owner heading at every width, wrapping below md only when signed in (%#)',
+    (currentActor, wrapsOnMobile) => {
       render(
         <CollectionDetail
           {...baseProps}
@@ -323,14 +324,31 @@ describe('CollectionDetail', () => {
       const title = screen.getByText('Fediverse builders', {
         selector: '[data-testid="page-header"] *'
       })
-      if (truncates) {
-        expect(title).toHaveClass('truncate')
-        expect(title.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
+      expect(title).toHaveClass('truncate')
+      expect(title.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
+      if (wrapsOnMobile) {
+        expect(title).toHaveClass('max-md:whitespace-normal')
       } else {
-        expect(title).not.toHaveClass('truncate')
+        expect(title).not.toHaveClass('max-md:whitespace-normal')
       }
     }
   )
+
+  it('leaves the owner heading plain for PageHeader to truncate beside its Back', () => {
+    render(
+      <CollectionDetail
+        {...baseProps}
+        isOwner
+        currentActor={{} as ActorProfile}
+      />
+    )
+
+    const title = screen.getByText('Fediverse builders', {
+      selector: '[data-testid="page-header"] *'
+    })
+    expect(title).not.toHaveClass('truncate')
+    expect(title.parentElement).not.toHaveClass('flex')
+  })
 
   it.each([
     {

@@ -247,13 +247,23 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
       />
       <PageHeader
         title={
-          currentActor ? (
+          isOwner ? (
+            // `PageHeader` truncates it beside the desktop Back arrow.
             collection.title
           ) : (
-            // Logged out (PublicShell): the heading the public view always
-            // had, truncating on one line.
+            // Everyone else has no Back, so no `back` to make `PageHeader`
+            // truncate: keep the heading this page always had, truncating on
+            // one line. Signed in, below `md` it is the content's own heading
+            // under the "Collection" bar, so a long title wraps instead.
             <span className="flex items-center gap-2">
-              <span className="truncate">{collection.title}</span>
+              <span
+                className={cn(
+                  'truncate',
+                  currentActor && 'max-md:break-words max-md:whitespace-normal'
+                )}
+              >
+                {collection.title}
+              </span>
             </span>
           )
         }
