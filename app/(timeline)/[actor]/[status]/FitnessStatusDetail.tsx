@@ -1,7 +1,5 @@
 'use client'
 
-import { UTCDate } from '@date-fns/utc'
-import { format } from 'date-fns/format'
 import {
   Activity,
   AlertCircle,
@@ -90,6 +88,7 @@ import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 
 import { ActivityMapPanel } from './ActivityMapPanel'
+import { ActivityStartTime } from './ActivityStartTime'
 import {
   ANALYSIS_GRAPH_OPTIONS,
   type AnalysisGraphKey,
@@ -143,10 +142,6 @@ const VISIBILITY_META: Record<
   unlisted: { label: 'Unlisted', icon: Unlock },
   private: { label: 'Followers only', icon: Lock },
   direct: { label: 'Direct', icon: Mail }
-}
-
-const formatUtcDate = (timestamp: number, pattern: string) => {
-  return format(new UTCDate(timestamp), pattern)
 }
 
 const getActivityLabel = (activityType?: string) => {
@@ -659,8 +654,8 @@ export const FitnessStatusDetail: FC<Props> = ({
         // began, so a post-time stand-in dates the activity wrongly until the
         // by-status fetch below replaces this placeholder. The `??` arm is only
         // a shape default — the single fallback that actually renders is the one
-        // on `activityDate` further down, which this deliberately mirrors rather
-        // than pre-empts.
+        // on `activityStartTime` further down, which this deliberately mirrors
+        // rather than pre-empts.
         activityStartTime: status.fitness.activityStartTime ?? status.createdAt,
         hasMapData: status.fitness.hasMapData ?? false,
         description: status.fitness.description ?? null,
@@ -1027,10 +1022,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       }),
     [host, status]
   )
-  const activityDate = formatUtcDate(
-    fitness?.activityStartTime ?? status.createdAt,
-    'p, MMMM d, yyyy'
-  )
+  const activityStartTime = fitness?.activityStartTime ?? status.createdAt
   const visibilityMeta =
     VISIBILITY_META[getVisibility(status.to, status.cc)] ??
     VISIBILITY_META.public
@@ -1520,7 +1512,8 @@ export const FitnessStatusDetail: FC<Props> = ({
 
           <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
-              <Calendar className="size-3.5" /> {activityDate}
+              <Calendar className="size-3.5" />{' '}
+              <ActivityStartTime timestamp={activityStartTime} />
             </span>
             <span aria-hidden="true">·</span>
             <span
