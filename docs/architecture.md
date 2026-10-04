@@ -1410,6 +1410,13 @@ legacy shape left to copy.
   edit-history panel and quote cards print date-fns' `formatDistance`, and the
   fitness heatmap chrome prints `formatRelativeTime`
   (`lib/fitness/relativeTime.ts`).
+- A Client Component that prints a clock time or date in the viewer's own time
+  zone renders a zone-fixed value (UTC) until `useHasHydrated`
+  (`lib/hooks/useHasHydrated.ts`) turns true, then the local one. The server
+  cannot know the viewer's zone, and `suppressHydrationWarning` only silences
+  the mismatch — React keeps the server's text, so the reader never sees their
+  local time. The fitness activity detail page's `ActivityStartTime` is the
+  reference; its test hydrates server HTML under `withTimeZone`.
 - Status posts render through the shared `Posts`/`Post` components with the same
   action set on every surface. A page turns actions on with `currentActor` +
   `showActions`; it must not pass per-status action callbacks (`onReply`/`onQuote`/
