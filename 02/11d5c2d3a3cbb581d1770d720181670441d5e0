@@ -1,0 +1,22 @@
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  s_94426ef8ef042a::t_f5998b1bbe9eca 257,259
+  s_94426ef8ef042a::t_2267c01885f437 239-241,251-256,258,260-280,282-305,388-394,470-476
+docs/architecture.md
+  s_94426ef8ef042a::t_4bc24303bb2251 631,733,736
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0211d5c2d3a3cbb581d1770d720181670441d5e0",
+  "prompts": {},
+  "sessions": {
+    "s_94426ef8ef042a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08204b68-8e02-41c3-aa35-385d0860dc9b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
