@@ -123,48 +123,147 @@ describe('fitnessRoutes client module', () => {
   })
 
   describe('getFitnessSummary', () => {
-    it('fetches fitness summary with query parameters', async () => {
-      const mockSummary = [
-        {
-          activityType: 'running',
-          count: 5,
-          totalDistanceMeters: 25000,
-          totalDurationSeconds: 7200,
-          totalElevationGainMeters: 150
-        }
-      ]
-      fetchMock.mockResponseOnce(JSON.stringify(mockSummary), { status: 200 })
+    const params = {
+      actorId: 'https://llun.test/users/test-user',
+      from: '2026-01-01',
+      to: '2026-10-04',
+      timeZone: 'Asia/Bangkok'
+    }
+    const summaryRow = {
+      activityType: 'running',
+      count: 5,
+      totalDistanceMeters: 25000,
+      totalDurationSeconds: 7200,
+      totalElevationGainMeters: 150
+    }
 
-      const result = await getFitnessSummary({
-        actorId: 'https://llun.test/users/test-user',
-        startDate: 1700000000,
-        endDate: 1700086400
-      })
+    it('fetches the summary from the exact URL', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify([summaryRow]), { status: 200 })
 
-      expect(result).toEqual(mockSummary)
+      const result = await getFitnessSummary(params)
+
+      expect(result).toEqual([summaryRow])
       expect(fetchMock).toHaveBeenCalledWith(
-        'http://llun.test/api/v1/accounts/llun.test:users:test-user/fitness-summary?start_date=1700000000&end_date=1700086400',
+        'http://llun.test/api/v1/accounts/llun.test:users:test-user/fitness-summary?from=2026-01-01&to=2026-10-04&time_zone=Asia%2FBangkok',
         {
           method: 'GET',
           headers: {
             Accept: 'application/json'
-          }
+          },
+          signal: undefined
         }
       )
     })
 
-    it('throws error when response is not ok', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401
+    it('does not send the removed start_date and end_date params', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify([]), { status: 200 })
+
+      await getFitnessSummary(params)
+
+      const url = new URL(fetchMock.mock.calls[0][0] as string)
+      expect(url.searchParams.has('start_date')).toBe(false)
+      expect(url.searchParams.has('end_date')).toBe(false)
+    })
+
+    it('keeps a null activityType as null', async () => {
+      const untyped = { ...summaryRow, activityType: null }
+      fetchMock.mockResponseOnce(JSON.stringify([untyped]), { status: 200 })
+
+      const result = await getFitnessSummary(params)
+
+      expect(result).toEqual([untyped])
+      expect(result[0].activityType).toBeNull()
+    })
+
+    it('returns an empty array for a range with no activities', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify([]), { status: 200 })
+
+      await expect(getFitnessSummary(params)).resolves.toEqual([])
+    })
+
+    it('forwards the abort signal to fetch', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify([]), { status: 200 })
+      const controller = new AbortController()
+
+      await getFitnessSummary({ ...params, signal: controller.signal })
+
+      expect(fetchMock.mock.calls[0][1]?.signal).toBe(controller.signal)
+    })
+
+    it('rejects with the abort reason when the request is aborted', async () => {
+      const controller = new AbortController()
+      fetchMock.mockImplementationOnce(
+        (_url, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () =>
+              reject(new DOMException('Aborted', 'AbortError'))
+            )
+          })
+      )
+
+      const request = getFitnessSummary({
+        ...params,
+        signal: controller.signal
+      })
+      controller.abort()
+
+      await expect(request).rejects.toMatchObject({ name: 'AbortError' })
+    })
+
+    it.each([400, 401, 403, 500])(
+      'throws an ApiRequestError with the server message on %i',
+      async (status) => {
+        fetchMock.mockResponseOnce(
+          JSON.stringify({ error: `Server said ${status}` }),
+          { status }
+        )
+
+        const request = getFitnessSummary(params)
+
+        await expect(request).rejects.toBeInstanceOf(ApiRequestError)
+        await expect(request).rejects.toMatchObject({
+          message: `Server said ${status}`,
+          status
+        })
+      }
+    )
+
+    it('falls back to a message when the error body is empty', async () => {
+      fetchMock.mockResponseOnce('', { status: 500, statusText: '' })
+
+      await expect(getFitnessSummary(params)).rejects.toMatchObject({
+        message: 'Failed to fetch fitness summary.',
+        status: 500
+      })
+    })
+
+    it('throws on a 200 whose body is not an array', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ summary: [] }), {
+        status: 200
       })
 
-      await expect(
-        getFitnessSummary({
-          actorId: 'test-user',
-          startDate: 100,
-          endDate: 200
-        })
-      ).rejects.toThrow('Failed to fetch fitness summary: 401')
+      await expect(getFitnessSummary(params)).rejects.toThrow(
+        'Fitness summary response is invalid'
+      )
+    })
+
+    it('throws on a 200 whose row is malformed', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify([{ ...summaryRow, count: 'five' }]),
+        { status: 200 }
+      )
+
+      await expect(getFitnessSummary(params)).rejects.toThrow(
+        'Fitness summary response is invalid'
+      )
+    })
+
+    it('throws on a 200 whose body is not JSON', async () => {
+      fetchMock.mockResponseOnce('<html>proxy error</html>', { status: 200 })
+
+      await expect(getFitnessSummary(params)).rejects.toThrow(
+        'Fitness summary response is invalid'
+      )
     })
   })
 
