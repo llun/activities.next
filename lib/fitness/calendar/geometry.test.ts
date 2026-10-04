@@ -110,7 +110,7 @@ describe('annualYearGrid', () => {
 
     it('right-aligns a trailing label that would overrun the grid', () => {
       expect(grid.monthLabels[9]).toMatchObject({ span: 1, alignEnd: true })
-      expect(grid.monthLabels[8]).toMatchObject({ span: 3, alignEnd: false })
+      expect(grid.monthLabels[8]).toMatchObject({ span: 4, alignEnd: false })
     })
   })
 

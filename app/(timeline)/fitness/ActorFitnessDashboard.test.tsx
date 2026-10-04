@@ -414,7 +414,10 @@ describe('ActorFitnessDashboard', () => {
       'Showing previous results for 1 Jan – 4 Oct 2026'
     )
     expect(text(alert)).toContain('We couldn’t load 1 Jan – 31 Dec 2025')
-    expect(text(alert)).toContain('Service Unavailable')
+    // Friendly copy, never the reason the read failed.
+    expect(text(alert)).toContain('Check your connection and try again.')
+    expect(text(alert)).not.toContain('Service Unavailable')
+    expect(text(alert)).toContain('from the previous range')
     // Everything on screen describes the data on screen: the dates, the
     // picker and the toolbar stay on the previous range, and the numbers are
     // that range's, never zeros. Only the banner names the failed one.
@@ -455,6 +458,103 @@ describe('ActorFitnessDashboard', () => {
         .getByText('Activities', { selector: 'dt' })
         .parentElement?.querySelector('dd')
     ).toHaveTextContent('Unavailable')
+  })
+
+  it.each([
+    ['an HTTP failure body', new ApiRequestError('boom', 500)],
+    ['the browser’s own words', new TypeError('Failed to fetch')]
+  ])('never shows raw error text from %s', async (_name, error) => {
+    mockedCalendar.mockRejectedValue(error)
+    renderDashboard()
+
+    const alert = await screen.findByRole('alert')
+    expect(text(alert)).toContain(
+      'We couldn’t load 1 Jan – 4 Oct 2026. Check your connection and try again.'
+    )
+    expect(text(alert)).not.toMatch(/boom|Failed to fetch/)
+  })
+
+  it('offers a Choose a range button on an empty range, which opens the picker', async () => {
+    mockedSummary.mockResolvedValue([])
+    mockedCalendar.mockResolvedValue([])
+    renderDashboard()
+
+    const choose = await screen.findByRole('button', { name: 'Choose a range' })
+    expect(choose).toHaveClass('h-11')
+    expect(screen.queryByRole('dialog', { name: 'Date range' })).toBeNull()
+
+    fireEvent.click(choose)
+
+    expect(rangeTrigger()).toHaveAttribute('aria-expanded', 'true')
+    expect(await screen.findByLabelText('From')).toBeInTheDocument()
+  })
+
+  describe('year controls', () => {
+    const applyPreset = async (name: string) => {
+      fireEvent.click(rangeTrigger())
+      fireEvent.click(await screen.findByRole('button', { name }))
+      fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+      await waitFor(() =>
+        expect(rangeTrigger()).not.toHaveAttribute('aria-expanded', 'true')
+      )
+    }
+
+    it('shows the year chooser and year arrows for year to date', () => {
+      renderDashboard()
+
+      expect(
+        screen.getByRole('button', { name: 'Calendar year: 2026' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Previous year' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Next year' })
+      ).toBeInTheDocument()
+    })
+
+    it('shows only Month view for Last 12 months', async () => {
+      renderDashboard()
+      await applyPreset('Last 12 months')
+      await waitForLoaded()
+
+      expect(rangeTrigger()).toHaveAccessibleName('Date range: Last 12 months')
+      expect(screen.queryByRole('button', { name: /Calendar year/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Previous year' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Next year' })).toBeNull()
+      expect(
+        screen.getByRole('button', { name: /Month view/ })
+      ).toBeInTheDocument()
+    })
+
+    it('shows only Month view for a custom range across years', async () => {
+      renderDashboard()
+      fireEvent.click(rangeTrigger())
+      fireEvent.click(await screen.findByRole('button', { name: 'Custom' }))
+      fireEvent.change(screen.getByLabelText('From'), {
+        target: { value: '2024-03-15' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+      await waitFor(() =>
+        expect(rangeTrigger()).toHaveAccessibleName('Date range: Custom range')
+      )
+
+      expect(screen.queryByRole('button', { name: /Calendar year/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Previous year' })).toBeNull()
+      expect(
+        screen.getByRole('button', { name: /Month view/ })
+      ).toBeInTheDocument()
+    })
+  })
+
+  it('writes the current month’s dates with the month once: 1 – 4 Oct 2026', async () => {
+    renderDashboard()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+
+    expect(monthHeading()).toBe('October 2026')
+    expect(shownDates()).toBe('1 – 4 Oct 2026')
   })
 
   it('lists the activity types below the calendar with their filter links', async () => {

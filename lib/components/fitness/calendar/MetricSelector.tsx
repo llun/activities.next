@@ -24,9 +24,16 @@ export interface MetricSelectorProps {
  * summary, not the selection).
  *
  * A radio group, so a screen reader announces "Distance, radio button, 2 of 3"
- * and the arrow keys move and choose; one tab stop. The segments are 44px tall
- * on every pointer, and orange marks the active one (orange = interaction;
- * the green in the cells is intensity only).
+ * and the arrow keys move and choose; one tab stop. Each segment IS 44px tall
+ * (the element itself, not a pseudo-element, so a measurement of the control
+ * agrees with what a finger can hit); the visible pill is inset 4px inside it
+ * by a transparent border, so the track still reads as a 36px pill on a 44px
+ * track. Orange marks the active one (orange = interaction; the green in the
+ * cells is intensity only).
+ *
+ * It wraps instead of clipping: at 200% text three segments no longer fit one
+ * row of a phone, so they flow onto further rows (one segment each at 390px)
+ * and stay inside the container and reachable.
  */
 export const MetricSelector = ({
   value,
@@ -63,7 +70,7 @@ export const MetricSelector = ({
       aria-disabled={disabled || undefined}
       onKeyDown={onKeyDown}
       className={cn(
-        'bg-muted border-border flex h-11 w-full items-stretch gap-0.5 rounded-lg border p-1 @min-[40rem]:inline-flex @min-[40rem]:w-auto',
+        'bg-muted flex min-h-11 w-full flex-wrap items-stretch gap-0.5 rounded-lg shadow-[inset_0_0_0_1px_var(--border)] @min-[40rem]:inline-flex @min-[40rem]:w-auto',
         disabled && 'opacity-50',
         className
       )}
@@ -81,9 +88,9 @@ export const MetricSelector = ({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(metric)}
             className={cn(
-              // The segment is 36px tall inside a 44px track; the pseudo
-              // element extends the hit area to the track's full height.
-              'relative flex flex-1 cursor-pointer items-center justify-center rounded-md px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none before:absolute before:-inset-y-1 before:inset-x-0 before:content-[""] focus-visible:ring-[3px] focus-visible:ring-offset-1 @min-[40rem]:flex-none',
+              // 44px tall; the transparent border insets the painted pill (and
+              // the clipped background) to 36px, 1px from the track's sides.
+              'flex min-h-11 flex-[1_1_auto] cursor-pointer items-center justify-center rounded-lg border-x border-y-4 border-transparent bg-clip-padding px-4 text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-[3px] focus-visible:ring-offset-1 @min-[40rem]:flex-none',
               'focus-visible:ring-ring/50 disabled:cursor-default',
               active
                 ? 'bg-primary text-primary-foreground'

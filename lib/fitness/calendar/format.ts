@@ -101,12 +101,18 @@ const dayMonth = (key: DateKey) => {
 /**
  * An inclusive range of days: "1 Jan – 4 Oct 2026". The year is given once when
  * both ends share it and on both ends when they do not
- * ("5 Oct 2025 – 4 Oct 2026"); a single day is "4 Oct 2026".
+ * ("5 Oct 2025 – 4 Oct 2026"); a single day is "4 Oct 2026". Within one month
+ * the month is given once too: "1 – 4 Oct 2026", not "1 Oct – 4 Oct 2026".
  */
 export const formatRange = (from: DateKey, to: DateKey): string => {
-  const fromYear = dateKeyParts(from).year
-  const toYear = dateKeyParts(to).year
+  const fromParts = dateKeyParts(from)
+  const toParts = dateKeyParts(to)
+  const fromYear = fromParts.year
+  const toYear = toParts.year
   if (from === to) return `${dayMonth(to)} ${toYear}`
+  if (fromYear === toYear && fromParts.month === toParts.month) {
+    return `${fromParts.day} ${EN_DASH} ${dayMonth(to)} ${toYear}`
+  }
   if (fromYear === toYear) {
     return `${dayMonth(from)} ${EN_DASH} ${dayMonth(to)} ${toYear}`
   }

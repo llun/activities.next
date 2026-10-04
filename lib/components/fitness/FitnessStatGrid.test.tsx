@@ -70,15 +70,19 @@ describe('FitnessStatGrid', () => {
     expect(getGrid()).not.toHaveClass('grid-cols-1')
   })
 
-  it('keeps the overview summary 2×2 below its four-up container width', () => {
+  it('keeps the overview summary 2×2 at the default text size, in rem so it follows text zoom', () => {
     renderGrid({ variant: 'summary', children: <div data-testid="cell" /> })
 
-    // Two columns at the narrowest, never one: four totals as a 4-row stack
-    // on a phone is the layout the design replaces with a 2×2 card. Four-up
-    // is a container query only, so a narrow column on a wide window stays
-    // 2×2. The 1px gap is the contract the dividers rely on.
-    expect(getGrid()).toHaveClass('grid-cols-2', 'gap-px')
-    expect(getGrid()).not.toHaveClass('grid-cols-1')
-    expect(getGrid().className).toMatch(/(^|\s)@min-\[\d+px\]:grid-cols-4/)
+    // 2×2 on a phone (16rem = 256px, so even a 320px phone's 288px column),
+    // four-up from 43.75rem (700px). Both thresholds are `rem`: at 200% text
+    // 16rem is 512px, so a 358px column stacks to ONE column instead of
+    // clipping "22.2 km" to "22.2 kr", and four-up waits for 1400px. A `px`
+    // threshold here is the regression. The 1px gap is the contract the
+    // dividers rely on.
+    const classes = getGrid().className
+    expect(getGrid()).toHaveClass('gap-px', 'grid-cols-1')
+    expect(classes).toMatch(/(^|\s)@min-\[16rem\]:grid-cols-2/)
+    expect(classes).toMatch(/(^|\s)@min-\[43\.75rem\]:grid-cols-4/)
+    expect(classes).not.toMatch(/@min-\[\d+px\]/)
   })
 })

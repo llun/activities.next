@@ -76,7 +76,8 @@ import {
   InOverviewHeaderSlot,
   OverviewDates,
   StepButtons,
-  calendarYearOf
+  calendarYearOf,
+  stepsApply
 } from './FitnessOverviewHeader'
 import { FitnessSummaryStrip, summaryTotals } from './FitnessSummaryStrip'
 import { useFitnessDayActivities } from './useFitnessDayActivities'
@@ -133,10 +134,10 @@ function OverviewSkeleton() {
       </p>
       <div aria-hidden="true" className="flex flex-wrap items-end gap-3">
         <div className="flex-[1_1_16rem] space-y-2">
-          <span className="skeleton block h-6 w-44 rounded" />
-          <span className="skeleton block h-4 w-32 rounded" />
+          <span className="block h-6 w-44 rounded bg-(--skeleton)" />
+          <span className="block h-4 w-32 rounded bg-(--skeleton)" />
         </div>
-        <span className="skeleton block h-11 w-56 rounded-md" />
+        <span className="block h-11 w-56 rounded-md bg-(--skeleton)" />
       </div>
       <FitnessSummaryStrip
         totals={null}
@@ -144,9 +145,9 @@ function OverviewSkeleton() {
         className="bg-border overflow-hidden rounded-lg border"
       />
       <div aria-hidden="true" className="space-y-4">
-        <span className="skeleton block h-5 w-36 rounded" />
-        <span className="skeleton block h-11 w-full max-w-80 rounded-lg" />
-        <span className="skeleton block h-40 w-full rounded-lg" />
+        <span className="block h-5 w-36 rounded bg-(--skeleton)" />
+        <span className="block h-11 w-full max-w-80 rounded-lg bg-(--skeleton)" />
+        <span className="block h-40 w-full rounded-lg bg-(--skeleton)" />
       </div>
     </div>
   )
@@ -177,6 +178,9 @@ const afterNextPaint = (callback: () => void) => {
     cancelAnimationFrame(inner)
   }
 }
+
+/** Room kept above a pinned cell for the page's sticky header. */
+const STICKY_HEADER_ROOM = 64
 
 const NO_DAYS: readonly FitnessCalendarDay[] = []
 
@@ -296,6 +300,7 @@ function FitnessOverview({
   const annualRef = useRef<AnnualCalendarHandle>(null)
   const monthRef = useRef<MonthCalendarHandle>(null)
   const calendarRegion = useRef<HTMLDivElement>(null)
+  const calendarSection = useRef<HTMLElement>(null)
 
   const focusDay = useCallback(
     (date: DateKey) => {
@@ -354,6 +359,32 @@ function FitnessOverview({
     }
   }, [sheetOpen, sheetHeight, selectedDate])
 
+  // Inline details (a container of 600px or more, which includes a phone held
+  // sideways) open BELOW the grid, where a short window shows only the grid: a
+  // tap would pin a day with nothing to see. Scroll the page just far enough to
+  // bring the details into view, but never so far that the pinned cell leaves
+  // the top of the window (it stays visible, under the sticky header's room).
+  useEffect(() => {
+    if (compact || selectedDate === null) return
+    return afterNextPaint(() => {
+      const section = calendarSection.current
+      const cell = calendarRegion.current?.querySelector<HTMLElement>(
+        `[data-date="${selectedDate}"]`
+      )
+      const details = section?.querySelector<HTMLElement>(
+        '[data-testid="day-details"], [data-testid="day-details-loading"]'
+      )
+      if (!cell || !details) return
+      const toBring =
+        details.getBoundingClientRect().bottom - (window.innerHeight - 16)
+      const toKeepCell = cell.getBoundingClientRect().top - STICKY_HEADER_ROOM
+      const delta = Math.min(toBring, toKeepCell)
+      if (delta > 1) {
+        window.scrollBy({ top: delta, behavior: scrollBehavior() })
+      }
+    })
+  }, [compact, selectedDate])
+
   // Cell colours fade (150ms) only when cells that are already showing data
   // change level, as on a metric switch. A new data set (the first paint, a
   // new range, the end of a reload) appears at once: fading in from the
@@ -369,6 +400,14 @@ function FitnessOverview({
     return afterNextPaint(() => setAnimatedKey(colourKey))
   }, [colourKey])
   const instantColour = colourKey === null || animatedKey !== colourKey
+
+  // The toolbar's own controls dim while a range loads (the designs' D10, T06
+  // and M08) but stay operable: the stale-response guard makes a change
+  // mid-load safe, so there is nothing to disable.
+  const dimWhileLoading = cn(
+    'transition-opacity duration-150',
+    loading && 'opacity-60'
+  )
 
   const calendarHeadingId = useId()
   const isEmpty = status === 'success' && totals !== null && totals.count === 0
@@ -484,11 +523,15 @@ function FitnessOverview({
                 ? `Showing previous results for ${formatRange(result.range.from, result.range.to)}`
                 : `We couldn’t load ${formatRange(applied.from, applied.to)}`}
             </p>
+            {/* Friendly copy only. The reason a read failed is a status
+                line or the browser's own words ("Failed to fetch"); neither
+                belongs in front of the viewer, and neither says what to do. */}
             <p className="text-muted-foreground break-words">
+              We couldn’t load {formatRange(applied.from, applied.to)}. Check
+              your connection and try again.
               {showingPrevious
-                ? `We couldn’t load ${formatRange(applied.from, applied.to)}. Totals and calendar below are from the previous range.`
-                : 'Nothing is shown for this range until it loads.'}{' '}
-              {data.error}
+                ? ' Totals and calendar below are from the previous range.'
+                : ' Nothing is shown for this range until it loads.'}
             </p>
           </div>
           <Button
@@ -512,7 +555,11 @@ function FitnessOverview({
         )}
       />
 
-      <section aria-labelledby={calendarHeadingId} className="space-y-4">
+      <section
+        ref={calendarSection}
+        aria-labelledby={calendarHeadingId}
+        className="space-y-4"
+      >
         <div
           data-testid="training-calendar-toolbar"
           className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
@@ -520,27 +567,47 @@ function FitnessOverview({
           <h2 id={calendarHeadingId} className="text-base font-semibold">
             Training calendar
           </h2>
-          {compact
-            ? viewAction
-            : gridView === 'annual' && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <CalendarYearMenu
-                    years={years}
-                    value={calendarYearOf(displayRange)}
-                    onSelect={(year) => dispatch({ type: 'APPLY_YEAR', year })}
-                  />
-                  <StepButtons view="annual" canStep={canStep} onStep={step} />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 gap-1"
-                    onClick={openLatestMonth}
-                  >
-                    Month view
-                    <ChevronRight className="size-4" aria-hidden="true" />
-                  </Button>
-                </div>
-              )}
+          {compact ? (
+            <div className={dimWhileLoading}>{viewAction}</div>
+          ) : (
+            gridView === 'annual' && (
+              <div
+                className={cn(
+                  'flex flex-wrap items-center gap-2',
+                  dimWhileLoading
+                )}
+              >
+                {/* The year chooser and the year arrows only mean something
+                    for ONE calendar year (year to date or a past year). Last
+                    12 months and a custom span offer "Month view" alone. */}
+                {stepsApply(displayRange) && (
+                  <>
+                    <CalendarYearMenu
+                      years={years}
+                      value={calendarYearOf(displayRange)}
+                      onSelect={(year) =>
+                        dispatch({ type: 'APPLY_YEAR', year })
+                      }
+                    />
+                    <StepButtons
+                      view="annual"
+                      canStep={canStep}
+                      onStep={step}
+                    />
+                  </>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 gap-1"
+                  onClick={openLatestMonth}
+                >
+                  Month view
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </Button>
+              </div>
+            )
+          )}
         </div>
         <div>
           <div className="flex flex-wrap items-center gap-3">
@@ -581,7 +648,7 @@ function FitnessOverview({
             // on the grid's right edge (the row is exactly the grid's width).
             <div
               data-testid="month-heading-row"
-              className="mt-4 flex items-center gap-3"
+              className={cn('mt-4 flex items-center gap-3', dimWhileLoading)}
               style={{ maxWidth: MONTH_GRID_WIDTH }}
             >
               <Button
@@ -695,6 +762,14 @@ function FitnessOverview({
               </Link>
               .
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-3 h-11"
+              onClick={() => dispatch({ type: 'OPEN_PICKER' })}
+            >
+              Choose a range
+            </Button>
           </div>
         </div>
       ) : unavailable ? null : (

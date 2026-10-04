@@ -52,6 +52,16 @@ export const calendarYearOf = (range: AppliedRange): number | null =>
     ? dateKeyParts(range.from).year
     : null
 
+/**
+ * Whether previous/next steps (and the year chooser) apply to a range: month
+ * view steps calendar months, and annual view steps calendar YEARS, which only
+ * means something for one calendar year (year to date or a past year). Last 12
+ * months and a custom span cross year boundaries, so they offer "Month view"
+ * alone, as the designs (D08, D19) draw them.
+ */
+export const stepsApply = (range: AppliedRange): boolean =>
+  viewFor(range) === 'month' || calendarYearOf(range) !== null
+
 // ---------------------------------------------------------------- slots ---
 
 export type OverviewHeaderSlotName = 'dates' | 'range'
@@ -178,7 +188,7 @@ export const CalendarYearMenu: FC<{
   </DropdownMenu>
 )
 
-/** The exact inclusive dates of a range: "1 Jan – 4 Oct 2026". */
+/** The exact inclusive dates of a range: "1 Jan – 4 Oct 2026", "1 – 4 Oct 2026". */
 export const OverviewDates: FC<{ range: AppliedRange; loading?: boolean }> = ({
   range,
   loading = false
@@ -237,8 +247,18 @@ export const FitnessOverviewHeader: FC<Props> = ({
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <StepButtons view={viewFor(range)} canStep={canStep} onStep={onStep} />
-        {rangePicker}
+        {stepsApply(range) && (
+          <StepButtons
+            view={viewFor(range)}
+            canStep={canStep}
+            onStep={onStep}
+            className={cn(
+              'transition-opacity duration-150',
+              loading && 'opacity-60'
+            )}
+          />
+        )}
+        <div className="ml-auto">{rangePicker}</div>
       </div>
     </section>
   )

@@ -253,24 +253,43 @@
   box-shadow: 3px 0 0 0 var(--fitness-calendar-surface, var(--background));
 }
 
-/* A month label is 14px of text with a 44px hit band. The band reaches up into
-   the scroller's own top padding and down into the gap above Monday, so it
-   never overlaps the metric control above or a cell below, and it is clipped by
-   the scroller at the edge. */
+/* A month label is 14px of text in a 44px-tall button. The button itself is
+   44px (so a measurement of it agrees with what a finger hits): it reaches 27px
+   up into the scroller's own top padding, where nothing else is, and 3px down
+   into the gap above Monday, so it never overlaps the metric control above or a
+   cell below, and the scroller clips it at its edge. Negative margins make its
+   44px margin box exactly the 14px label row, so the grid does not move.
+
+   It is as wide as the label's column span (four week columns, never reaching
+   the next month's own label). The one exception is the last label when it is
+   right-aligned inside a span of fewer than four columns at the grid's end (the
+   current month near today): it keeps only the width of its text, since a wider
+   target would have to reach back over the previous month's. */
 .monthLabel {
   position: relative;
+  box-sizing: border-box;
+  height: 44px;
+  margin: -27px 0 -3px;
+  padding: 27px 0 3px;
 }
 
-.monthLabel::before {
-  content: '';
-  position: absolute;
-  inset: -27px -2px -3px;
+.monthLabelEnd {
+  padding-inline: 2px;
 }
 
-.monthLabel:focus-visible {
+.monthLabelText {
+  display: inline-block;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.monthLabel:hover .monthLabelText {
+  background-color: var(--muted);
+}
+
+.monthLabel:focus-visible .monthLabelText {
   outline: 2px dotted var(--primary);
   outline-offset: 1px;
-  border-radius: 3px;
 }
 
 /* ---------------------------------------------------------------- misc ----- */

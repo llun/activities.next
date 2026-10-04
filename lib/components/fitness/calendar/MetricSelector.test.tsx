@@ -59,13 +59,26 @@ describe('MetricSelector', () => {
     expect(onChange).toHaveBeenCalledWith(to)
   })
 
-  it('has 44px segments: a 44px track, with each segment filling its height', () => {
+  it('has 44px segments: each segment is itself 44px tall, not a pseudo-element hit area', () => {
     render(<MetricSelector value="count" onChange={() => {}} />)
 
-    expect(screen.getByRole('radiogroup')).toHaveClass('h-11')
     for (const segment of screen.getAllByRole('radio')) {
-      // 36px of fill plus a 4px hit extension above and below the segment.
-      expect(segment).toHaveClass('before:-inset-y-1')
+      expect(segment).toHaveClass('min-h-11')
+      expect(segment.className).not.toMatch(/before:/)
+    }
+  })
+
+  it('wraps instead of clipping at large text: a growing track, no fixed height', () => {
+    render(<MetricSelector value="count" onChange={() => {}} />)
+
+    // 200% text: three segments exceed a phone's row. A fixed `h-11` track
+    // with nowrap segments pushed Distance and Duration out past the page's
+    // `overflow-x: hidden` where they could not be reached.
+    const group = screen.getByRole('radiogroup')
+    expect(group).toHaveClass('flex-wrap', 'min-h-11')
+    expect(group).not.toHaveClass('h-11')
+    for (const segment of screen.getAllByRole('radio')) {
+      expect(segment).toHaveClass('flex-[1_1_auto]')
     }
   })
 

@@ -67,6 +67,17 @@ describe('FitnessSummaryStrip', () => {
     }
   })
 
+  it('draws a static skeleton: no shimmer class', () => {
+    const { container } = render(<FitnessSummaryStrip totals={null} loading />)
+
+    // The shared `.skeleton` sweeps a shimmer band; loading here is a dim and
+    // still bars (decisions.md: no shimmer).
+    expect(container.querySelector('.skeleton')).toBeNull()
+    expect(
+      container.querySelectorAll('[aria-hidden="true"].block')
+    ).toHaveLength(4)
+  })
+
   it('never shows zeros for totals it does not have', () => {
     render(<FitnessSummaryStrip totals={null} />)
 
@@ -88,9 +99,9 @@ describe('FitnessSummaryStrip', () => {
     )
 
     // The shared strip's container-queried columns, not a hand-rolled grid.
-    expect(container.querySelector('.grid')).toHaveClass(
-      'grid-cols-2',
-      'gap-px'
+    expect(container.querySelector('.grid')).toHaveClass('gap-px')
+    expect(container.querySelector('.grid')?.className).toMatch(
+      /@min-\[16rem\]:grid-cols-2/
     )
   })
 })

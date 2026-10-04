@@ -109,6 +109,12 @@ export const ActivityTypeBreakdown: FC<Props> = ({
             </tr>
           </thead>
           <tbody>
+            {/* Static skeleton bars (`--skeleton`, no shimmer). Their widths
+                are PERCENTAGES capped at the old pixel widths: a percentage
+                width adds nothing to a table cell's minimum width, so the
+                skeleton table is never wider than its header and the card (a
+                fixed `w-28 + w-6 + w-14 + w-16` made it 368px and clipped
+                "Distance" in a 358px phone column). */}
             {loading
               ? Array.from({ length: SKELETON_ROWS }, (_, index) => (
                   <tr
@@ -117,16 +123,16 @@ export const ActivityTypeBreakdown: FC<Props> = ({
                     className="border-b last:border-b-0"
                   >
                     <td className="px-4 py-3.5">
-                      <span className="skeleton block h-3.5 w-28 rounded" />
+                      <span className="block h-3.5 w-3/4 max-w-28 rounded bg-(--skeleton)" />
                     </td>
                     <td className="px-3 py-3.5">
-                      <span className="skeleton ml-auto block h-3.5 w-6 rounded" />
+                      <span className="ml-auto block h-3.5 w-full max-w-6 rounded bg-(--skeleton)" />
                     </td>
                     <td className="px-3 py-3.5">
-                      <span className="skeleton ml-auto block h-3.5 w-14 rounded" />
+                      <span className="ml-auto block h-3.5 w-full max-w-14 rounded bg-(--skeleton)" />
                     </td>
                     <td className="px-4 py-3.5">
-                      <span className="skeleton ml-auto block h-3.5 w-16 rounded" />
+                      <span className="ml-auto block h-3.5 w-full max-w-16 rounded bg-(--skeleton)" />
                     </td>
                   </tr>
                 ))

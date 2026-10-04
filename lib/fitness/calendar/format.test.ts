@@ -39,6 +39,26 @@ describe('formatRange', () => {
     )
   })
 
+  it('gives the month once for a range inside one month', () => {
+    expect(formatRange(key('2026-10-01'), key('2026-10-04'))).toBe(
+      '1 – 4 Oct 2026'
+    )
+    expect(formatRange(key('2026-09-01'), key('2026-09-30'))).toBe(
+      '1 – 30 Sep 2026'
+    )
+    expect(formatRange(key('2024-02-01'), key('2024-02-29'))).toBe(
+      '1 – 29 Feb 2024'
+    )
+    // The same month number in another year is not the same month.
+    expect(formatRange(key('2025-10-05'), key('2026-10-04'))).toBe(
+      '5 Oct 2025 – 4 Oct 2026'
+    )
+    // Adjacent months keep both names.
+    expect(formatRange(key('2026-09-30'), key('2026-10-01'))).toBe(
+      '30 Sep – 1 Oct 2026'
+    )
+  })
+
   it('collapses a single day', () => {
     expect(formatRange(key('2026-10-04'), key('2026-10-04'))).toBe('4 Oct 2026')
   })

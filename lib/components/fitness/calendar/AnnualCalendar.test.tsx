@@ -519,6 +519,32 @@ describe('AnnualCalendar', () => {
       expect(scroller).toHaveClass('overflow-y-hidden')
     })
 
+    it('lays each month label over four week columns, so its target is wider than 44px', () => {
+      const { container } = renderCalendar()
+
+      const january = container.querySelector<HTMLElement>(
+        '[data-slot="month-label"][data-month="1"]'
+      )
+      const september = container.querySelector<HTMLElement>(
+        '[data-slot="month-label"][data-month="9"]'
+      )
+      // Four columns is 4 x 12 + 3 x 3 = 57px at the smallest cell; the label
+      // never reaches the next month's own column (month starts are 4+ apart).
+      expect(january?.style.gridColumn).toBe('1 / span 4')
+      expect(september?.style.gridColumn).toBe('36 / span 4')
+      expect(january?.style.justifySelf).toBe('')
+    })
+
+    it('says how to use the phone grid: tap a month label, scroll for earlier months', () => {
+      const { container } = renderCalendar()
+
+      const hint = container.querySelector('[data-slot="annual-hint"]')
+      expect(hint).toHaveTextContent('Tap a month label to open it')
+      expect(hint).toHaveTextContent('Scroll for earlier months')
+      // Narrow containers only: a wide one fits the year and needs neither.
+      expect(hint?.className).toMatch(/@min-\[600px\]:hidden/)
+    })
+
     it('right-aligns a label that would overrun the end of the grid', () => {
       const { container } = renderCalendar()
 

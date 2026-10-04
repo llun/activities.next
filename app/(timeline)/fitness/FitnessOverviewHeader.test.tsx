@@ -14,7 +14,8 @@ import {
   OverviewHeaderSlot,
   StepButtons,
   calendarYearOf,
-  overviewHeading
+  overviewHeading,
+  stepsApply
 } from './FitnessOverviewHeader'
 
 const range = (kind: RangeKind, from: string, to: string): AppliedRange => ({
@@ -83,6 +84,29 @@ describe('overviewHeading', () => {
   })
 })
 
+describe('stepsApply', () => {
+  it.each([
+    { kind: 'ytd', from: '2026-01-01', to: '2026-10-04', expected: true },
+    { kind: 'year', from: '2025-01-01', to: '2025-12-31', expected: true },
+    { kind: 'month', from: '2026-09-01', to: '2026-09-30', expected: true },
+    {
+      kind: 'this_month',
+      from: '2026-10-01',
+      to: '2026-10-04',
+      expected: true
+    },
+    {
+      kind: 'last_12_months',
+      from: '2025-10-05',
+      to: '2026-10-04',
+      expected: false
+    },
+    { kind: 'custom', from: '2024-03-15', to: '2026-10-04', expected: false }
+  ] as const)('$kind: $expected', ({ kind, from, to, expected }) => {
+    expect(stepsApply(range(kind, from, to))).toBe(expected)
+  })
+})
+
 describe('calendarYearOf', () => {
   it.each([
     { kind: 'ytd', from: '2026-01-01', to: '2026-10-04', expected: 2026 },
@@ -123,6 +147,20 @@ describe('FitnessOverviewHeader', () => {
     const monthly = renderHeader(SEPTEMBER)
     fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
     expect(monthly.onStep).toHaveBeenCalledWith('next')
+  })
+
+  it('shows no previous/next arrows for Last 12 months or a custom span', () => {
+    for (const shown of [
+      range('last_12_months', '2025-10-05', '2026-10-04'),
+      range('custom', '2024-03-15', '2026-10-04')
+    ]) {
+      cleanup()
+      renderHeader(shown)
+      expect(screen.queryByRole('button', { name: 'Previous year' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Next year' })).toBeNull()
+      // The range picker is still there, on the right.
+      expect(screen.getByRole('button', { name: 'Date range' })).toBeVisible()
+    }
   })
 
   it('disables a step whose target is wholly in the future', () => {

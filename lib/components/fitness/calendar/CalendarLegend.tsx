@@ -24,9 +24,12 @@ export interface CalendarLegendProps {
  * range): count is exactly 0, 1, 2, 3 and 4+, and distance and duration show
  * their thresholds with units (<10 km … 50+ km, <30m … 2h+).
  *
- * Wraps cleanly: five equal swatches on one row where the container allows
- * (container query, not the viewport), else a three-column grid that breaks
- * into two even rows instead of stranding one swatch.
+ * Wraps cleanly: a flex row that breaks at item boundaries, so it is one row
+ * where everything fits (count with or without "Upcoming" at 390px) and never
+ * more than two on a phone, two at 320px even with the distance or duration
+ * thresholds and "Upcoming" (the design's M16 breaks the same way, four then
+ * one). The divider before "Upcoming" is for the wide, one-row case only: at a
+ * wrap it would sit at the start of a row.
  */
 export const CalendarLegend = ({
   metric,
@@ -37,7 +40,7 @@ export const CalendarLegend = ({
     aria-label={`Legend: ${METRIC_NAMES[metric]}`}
     data-metric={metric}
     className={cn(
-      'fitness-heat text-muted-foreground m-0 grid list-none grid-cols-3 gap-x-4 gap-y-2 p-0 text-[13px] @min-[28rem]:flex @min-[28rem]:flex-wrap @min-[28rem]:items-center @min-[28rem]:gap-x-3.5 @min-[28rem]:gap-y-1.5',
+      'fitness-heat text-muted-foreground m-0 flex list-none flex-wrap items-center gap-x-3.5 gap-y-1.5 p-0 text-[13px]',
       className
     )}
   >

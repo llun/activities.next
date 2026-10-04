@@ -59,13 +59,15 @@ describe('CalendarLegend', () => {
     expect(labels()).toEqual(['0', '1', '2', '3', '4+', 'Upcoming'])
   })
 
-  it('wraps into three columns on a narrow container and one row when wide', () => {
-    render(<CalendarLegend metric="distance" />)
+  it('wraps as a flex row at item boundaries (at most two rows on a phone), not a fixed grid', () => {
+    render(<CalendarLegend metric="distance" showUpcoming />)
 
-    // Container queries, never viewport breakpoints.
+    // A three-column grid stranded "Upcoming" on a third row at 320px; a
+    // wrapping flex row breaks only where the next item does not fit. Real
+    // widths are asserted in the browser; here the structure.
     const list = screen.getByRole('list')
-    expect(list).toHaveClass('grid-cols-3')
-    expect(list).toHaveClass('@min-[28rem]:flex')
+    expect(list).toHaveClass('flex', 'flex-wrap')
+    expect(list.className).not.toMatch(/grid/)
     expect(list.className).not.toMatch(/(^|\s)(sm|md|lg):/)
   })
 

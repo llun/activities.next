@@ -85,7 +85,9 @@ interface Props {
 /**
  * Activities, Distance, Duration and Elevation for the applied range, on the
  * shared `FitnessStatGrid` (`summary` variant): four across only where the
- * container is wide enough for every value on one line, 2×2 otherwise.
+ * container is wide enough for every value on one line, 2×2 otherwise, and one
+ * column at large text sizes. A value is never clipped: if its cell is ever too
+ * narrow it breaks inside the cell rather than overflowing it.
  */
 export const FitnessSummaryStrip: FC<Props> = ({
   totals,
@@ -99,16 +101,18 @@ export const FitnessSummaryStrip: FC<Props> = ({
         className="bg-background flex min-w-0 items-center gap-3 px-4 py-3"
       >
         {/* Four across there is room for the icon; in the 2×2 card (a phone)
-            the value needs the whole cell, as in the designs. */}
+            the value needs the whole cell, as in the designs. The skeleton is
+            a STATIC block (`--skeleton`), never the shared shimmering
+            `.skeleton`: loading is a 0.6 dim and still bars, no motion. */}
         <Icon
-          className="text-muted-foreground hidden size-5 shrink-0 @min-[700px]:block"
+          className="text-muted-foreground hidden size-5 shrink-0 @min-[43.75rem]:block"
           aria-hidden="true"
         />
         <dl className="flex min-w-0 flex-col-reverse">
           <dt className="text-muted-foreground text-sm">{label}</dt>
           <dd
             className={cn(
-              'text-xl font-semibold whitespace-nowrap tabular-nums',
+              'text-xl font-semibold tabular-nums break-words',
               loading && 'text-transparent'
             )}
           >
@@ -117,7 +121,7 @@ export const FitnessSummaryStrip: FC<Props> = ({
                 <span className="sr-only">Loading</span>
                 <span
                   aria-hidden="true"
-                  className="skeleton my-1 block h-5 w-20 rounded"
+                  className="my-1 block h-5 w-20 rounded bg-(--skeleton)"
                 />
               </>
             ) : totals === null ? (

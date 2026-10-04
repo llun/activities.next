@@ -161,7 +161,7 @@ describe('RangePicker', () => {
       expect(applied()).toBe('ytd:1 Jan – 4 Oct 2026')
 
       fireEvent.click(apply())
-      expect(applied()).toBe('this_month:1 Oct – 4 Oct 2026')
+      expect(applied()).toBe('this_month:1 – 4 Oct 2026')
       expect(screen.queryByLabelText('From')).not.toBeInTheDocument()
     })
 
@@ -495,6 +495,78 @@ describe('RangePicker', () => {
       render(<Harness presentation="auto" />)
       open()
       expect(screen.getByTestId('range-picker-sheet')).toBeInTheDocument()
+    })
+
+    describe('inside the main column (real measured geometry)', () => {
+      // `main` spans the viewport and reserves the 72px rail as padding; the
+      // Range button sits in the page header 16px in from the right edge.
+      const renderInMain = (viewportWidth: number, height: number) => {
+        setViewport(viewportWidth, height)
+        vi.mocked(
+          HTMLElement.prototype.getBoundingClientRect
+        ).mockImplementation(function (this: HTMLElement) {
+          const box =
+            this.dataset.testid === 'range-picker-trigger'
+              ? {
+                  left: viewportWidth - 169,
+                  right: viewportWidth - 16,
+                  top: 155,
+                  bottom: 199
+                }
+              : this.tagName === 'MAIN'
+                ? { left: 0, right: viewportWidth, top: 0, bottom: 2100 }
+                : { left: 0, right: 0, top: 0, bottom: 0 }
+          return {
+            ...box,
+            x: box.left,
+            y: box.top,
+            width: box.right - box.left,
+            height: box.bottom - box.top,
+            toJSON: () => ({})
+          }
+        })
+        render(
+          <main style={{ paddingLeft: '72px' }}>
+            <Harness presentation="auto" />
+          </main>
+        )
+        open()
+      }
+
+      it('uses the sheet at 834 x 1194, where the column is 762px', () => {
+        renderInMain(834, 1194)
+        expect(screen.getByTestId('range-picker-sheet')).toBeInTheDocument()
+      })
+
+      it('anchors the popover at 1194 x 834, where the column is 1122px', () => {
+        renderInMain(1194, 834)
+        expect(
+          screen.queryByTestId('range-picker-sheet')
+        ).not.toBeInTheDocument()
+        expect(
+          screen.getByRole('dialog', { name: 'Date range' })
+        ).toHaveAttribute('data-slot', 'popover-content')
+      })
+    })
+
+    it('gives the popover’s month column room for 44px day cells on a coarse pointer', () => {
+      setViewport(1194, 834)
+      render(<Harness presentation="auto" />)
+      open()
+
+      // 7 x 44 = 308px: the two left columns narrow (and the paddings tighten)
+      // on a coarse pointer, or the 44px day buttons were squeezed to 38px.
+      const grid = screen
+        .getByLabelText('From')
+        .closest('form')
+        ?.querySelector<HTMLElement>(':scope > div')
+      expect(grid?.className).toMatch(
+        /pointer-coarse:grid-cols-\[11rem_11rem_minmax\(0,1fr\)\]/
+      )
+      const day = document.querySelector<HTMLElement>(
+        '[data-date="2026-10-01"]'
+      )
+      expect(day).toHaveClass('pointer-coarse:size-11')
     })
 
     it('keeps the draft, the visible month and the focused field when the presentation switches', async () => {

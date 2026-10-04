@@ -261,13 +261,17 @@ export function RangePickerPanel({
           {calendar}
         </div>
       ) : (
-        <div className="grid grid-cols-[13.25rem_12.25rem_minmax(0,1fr)]">
+        // On a coarse pointer (a tablet's popover) the month grid's days are
+        // 44px, so its column must hold 7 x 44 = 308px: the two left columns
+        // narrow to 11rem and the paddings to 12px, which leaves it 334px.
+        // Otherwise the 44px day buttons were squeezed to 38px wide.
+        <div className="grid grid-cols-[13.25rem_12.25rem_minmax(0,1fr)] pointer-coarse:grid-cols-[11rem_11rem_minmax(0,1fr)]">
           <Column className="gap-4 border-r p-3">
             {presets}
             {chooser}
           </Column>
-          <Column className="border-r p-4">{fields}</Column>
-          <Column className="p-4">{calendar}</Column>
+          <Column className="border-r p-4 pointer-coarse:p-3">{fields}</Column>
+          <Column className="p-4 pointer-coarse:p-3">{calendar}</Column>
         </div>
       )}
       {footer}

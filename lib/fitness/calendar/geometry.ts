@@ -40,10 +40,12 @@ export const WEEKDAYS = [
 
 const DAYS_PER_WEEK = 7
 
-// A month label is wide enough for three week columns. Consecutive month
-// starts are at least four columns apart (the shortest month is 28 days), so
-// labels laid out at their own column never overlap.
-const MONTH_LABEL_SPAN = 3
+// A month label (and its 44px tap target) spans four week columns. Consecutive
+// month starts are at least four columns apart (the shortest month is 28 days),
+// so labels laid out at their own column never overlap. Four columns is 57px at
+// the smallest cell, so the target is wider than 44px everywhere but the last
+// label, which is clamped by the grid's end.
+const MONTH_LABEL_SPAN = 4
 
 /* -------------------------------------------------------------------------- */
 /* Annual grid                                                                 */
@@ -81,7 +83,7 @@ export interface AnnualMonthLabel {
   month: number
   /** The week column that contains the 1st of the month. */
   col: number
-  /** Columns the label may occupy, 1-3: fewer only at the end of the grid. */
+  /** Columns the label may occupy, 1-4: fewer only at the end of the grid. */
   span: number
   /** The label would overrun the grid, so it is right-aligned inside its span. */
   alignEnd: boolean

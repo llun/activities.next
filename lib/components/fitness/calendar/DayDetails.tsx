@@ -213,10 +213,10 @@ function LoadingRows() {
       <span className="sr-only">Loading activities</span>
       {[0, 1].map((index) => (
         <div key={index} className="flex items-center gap-3" aria-hidden="true">
-          <span className="skeleton size-10 shrink-0 rounded-lg" />
+          <span className="size-10 shrink-0 rounded-lg bg-(--skeleton)" />
           <span className="flex flex-1 flex-col gap-1.5">
-            <span className="skeleton block h-4 w-40 rounded" />
-            <span className="skeleton block h-3 w-24 rounded" />
+            <span className="block h-4 w-40 rounded bg-(--skeleton)" />
+            <span className="block h-3 w-24 rounded bg-(--skeleton)" />
           </span>
         </div>
       ))}

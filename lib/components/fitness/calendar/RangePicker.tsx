@@ -168,7 +168,19 @@ export function RangePicker({
   const measure = useCallback((): PickerPresentation => {
     const trigger = triggerRef.current
     if (!trigger || typeof window === 'undefined') return 'sheet'
-    const boundary = trigger.closest('main, [data-range-picker-boundary]')
+    // The main column's content box: `main` reserves the navigation rail as
+    // padding, so its border box would count the rail as room.
+    const boundary = trigger.closest<HTMLElement>(
+      'main, [data-range-picker-boundary]'
+    )
+    const box = boundary?.getBoundingClientRect()
+    const style = boundary ? window.getComputedStyle(boundary) : null
+    const boundaryLeft = box
+      ? box.left + (Number.parseFloat(style?.paddingLeft ?? '') || 0)
+      : undefined
+    const boundaryRight = box
+      ? box.right - (Number.parseFloat(style?.paddingRight ?? '') || 0)
+      : undefined
     // The popover's real height (an inline error can grow it); the sheet's
     // height says nothing about the popover.
     const panelHeight = popoverShownRef.current
@@ -180,7 +192,8 @@ export function RangePicker({
         height: window.innerHeight
       },
       trigger: trigger.getBoundingClientRect(),
-      boundaryLeft: boundary?.getBoundingClientRect().left ?? 0,
+      boundaryLeft,
+      boundaryRight,
       panel: {
         width: POPOVER_WIDTH,
         height: Math.max(POPOVER_HEIGHT, panelHeight)

@@ -299,11 +299,14 @@ const MonthStart = ({
           onClick={() => onOpenMonth(year, label.month)}
           className={cn(
             styles.monthLabel,
-            'text-muted-foreground hover:bg-muted hover:text-foreground h-[14px] cursor-pointer rounded-[3px] border-0 bg-transparent p-0 text-left text-[10px] leading-[14px] whitespace-nowrap outline-none'
+            label.alignEnd && styles.monthLabelEnd,
+            'text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent text-left text-[10px] leading-[14px] whitespace-nowrap outline-none'
           )}
           style={placement}
         >
-          {formatMonthShort(label.month)}
+          <span className={styles.monthLabelText}>
+            {formatMonthShort(label.month)}
+          </span>
         </button>
       ) : (
         <span

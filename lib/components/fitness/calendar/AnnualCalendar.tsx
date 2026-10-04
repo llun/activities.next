@@ -232,6 +232,17 @@ export const AnnualCalendar = ({
         Use the arrow keys to move between days, Home and End for the first and
         last day of the year, and Enter to select a day.
       </p>
+      {/* Narrow containers only (the phone designs, M01): the grid scrolls
+          inside itself there and the 12px cells are too small to be the way in,
+          so say how to scroll and that a month label opens that month. Wide
+          containers fit the whole year and need neither. */}
+      <p
+        data-slot="annual-hint"
+        className="text-muted-foreground mt-2 mb-1 flex flex-wrap justify-between gap-x-4 text-xs @min-[600px]:hidden"
+      >
+        <span>Tap a month label to open it</span>
+        <span>Scroll for earlier months</span>
+      </p>
       {/* Rows sit 4px apart: each already carries 27px above its month labels
           (their hit band), which is what separates one year from the next and
           the first year from the metric control above. */}
