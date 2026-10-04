@@ -1,0 +1,31 @@
+lib/fitness/calendar/format.processZone.test.ts
+  s_a7418d31ae2421::t_302337999d91e4 1-71
+lib/fitness/calendar/format.test.ts
+  s_a7418d31ae2421::t_391c59fcb239c6 1-182
+lib/fitness/calendar/format.ts
+  s_a7418d31ae2421::t_41d4aec211ffe3 1-175
+lib/fitness/calendar/geometry.test.ts
+  s_a7418d31ae2421::t_cb7a60f678be5b 1-523
+lib/fitness/calendar/geometry.ts
+  s_a7418d31ae2421::t_1a5a8eca866727 1-383
+lib/fitness/calendar/heatLevels.test.ts
+  s_a7418d31ae2421::t_5e55608b2089d8 1-165
+lib/fitness/calendar/heatLevels.ts
+  s_a7418d31ae2421::t_9ff9a7a91321cd 1-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0881d73ced4d916de83a6769e70a8421f29237b",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
