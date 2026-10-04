@@ -1,0 +1,45 @@
+lib/components/back-link.test.tsx
+  s_94426ef8ef042a::t_e1c17aecc0369d 82
+app/(timeline)/[actor]/[status]/Header.tsx
+  s_94426ef8ef042a::t_72c9a320ae2db9 26,43
+lib/components/navigation-history/backDestination.ts
+  s_94426ef8ef042a::t_8e1ae43abe29f8 5-10,22,24,34,36,48-50,54,57-61,70,109-111
+  s_94426ef8ef042a::t_54cf19c3774cf1 71-72
+app/(timeline)/[actor]/[status]/Header.test.tsx
+  s_94426ef8ef042a::t_72c9a320ae2db9 84,134
+app/(timeline)/[actor]/[status]/page.layout.test.tsx
+  s_94426ef8ef042a::t_72c9a320ae2db9 247,260,264,333
+app/(timeline)/[actor]/FollowListPage.test.tsx
+  s_94426ef8ef042a::t_72c9a320ae2db9 243-244
+app/(timeline)/[actor]/followers/page.test.tsx
+  s_94426ef8ef042a::t_72c9a320ae2db9 323
+lib/components/back-link.tsx
+  s_94426ef8ef042a::t_72c9a320ae2db9 12-13
+lib/components/navigation-history/backDestination.test.ts
+  s_94426ef8ef042a::t_54cf19c3774cf1 109,150-156
+  s_94426ef8ef042a::t_e1c17aecc0369d 55-56,66,72,85,102-108,110-116,121-149
+  s_94426ef8ef042a::t_dccdec319c02c3 157
+app/(timeline)/[actor]/[status]/page.tsx
+  s_94426ef8ef042a::t_72c9a320ae2db9 246
+app/(timeline)/[actor]/following/page.test.tsx
+  s_94426ef8ef042a::t_72c9a320ae2db9 326
+docs/architecture.md
+  s_94426ef8ef042a::t_72c9a320ae2db9 725
+  s_94426ef8ef042a::t_99a921cdd8d305 716
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b8682b7d56d068f3f130c70b3b0a9d8af4bc6ef",
+  "prompts": {},
+  "sessions": {
+    "s_94426ef8ef042a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08204b68-8e02-41c3-aa35-385d0860dc9b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
