@@ -17,6 +17,8 @@ import {
   SessionActor
 } from '@/app/(timeline)/account/sessions/AccountSessions'
 import { createDeferred } from '@/lib/testing/deferred'
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
+import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 const deleteSession = vi.fn()
 const revokeOtherSessions = vi.fn()
@@ -387,5 +389,38 @@ describe('AccountSessions', () => {
     await waitFor(() =>
       expect(screen.queryByText('Client Credentials')).not.toBeInTheDocument()
     )
+  })
+
+  it("hydrates the server's UTC sign-in time without a mismatch, then shows the reader's own", async () => {
+    // 02:30 UTC on 28 Jun is 22:30 on 27 Jun in New York (EDT, UTC-4), so the
+    // zone moves both the clock and the day formatRelative names.
+    const element = (
+      <AccountSessions
+        currentTime={NOW}
+        sessions={[
+          {
+            token: 'anna-current',
+            actor: anna,
+            createdAt: Date.parse('2026-06-28T02:30:00.000Z'),
+            expireAt: NOW + 7 * DAY,
+            current: true
+          }
+        ]}
+        apps={[]}
+      />
+    )
+
+    await withTimeZone('America/New_York', async () => {
+      const { serverHtml, container, onRecoverableError, unmount } =
+        await hydrateServerHtml(element)
+
+      try {
+        expect(serverHtml).toContain('today at 2:30 AM')
+        expect(onRecoverableError).not.toHaveBeenCalled()
+        expect(container).toHaveTextContent('Signed in yesterday at 10:30 PM')
+      } finally {
+        unmount()
+      }
+    })
   })
 })

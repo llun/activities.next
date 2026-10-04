@@ -2,9 +2,10 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
-import { hydrateRoot } from 'react-dom/client'
+import { render, screen } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
+
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 
 import { useHasHydrated } from './useHasHydrated'
 
@@ -22,20 +23,15 @@ describe('useHasHydrated', () => {
   })
 
   it('hydrates as false without a mismatch, then turns true', async () => {
-    const container = document.createElement('div')
-    container.innerHTML = renderToString(<Probe />)
-    document.body.appendChild(container)
-    const onRecoverableError = vi.fn()
+    const { container, onRecoverableError, unmount } = await hydrateServerHtml(
+      <Probe />
+    )
 
     try {
-      await act(async () => {
-        hydrateRoot(container, <Probe />, { onRecoverableError })
-      })
-
       expect(onRecoverableError).not.toHaveBeenCalled()
       expect(container).toHaveTextContent('client')
     } finally {
-      container.remove()
+      unmount()
     }
   })
 })

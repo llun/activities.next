@@ -1416,7 +1416,20 @@ legacy shape left to copy.
   cannot know the viewer's zone, and `suppressHydrationWarning` only silences
   the mismatch — React keeps the server's text, so the reader never sees their
   local time. The fitness activity detail page's `ActivityStartTime` is the
-  reference; its test hydrates server HTML under `withTimeZone`.
+  reference; its test hydrates server HTML under `withTimeZone`. A formatter
+  that follows the viewer's locale as well (`Intl.DateTimeFormat(undefined, …)`,
+  `toLocaleString(undefined, …)`) pins the locale too until then, because the
+  server's default locale is no more the reader's than its zone is. That
+  pre-hydration value must come from a formatter that is identical in every
+  engine — date-fns `format` on a `UTCDate`, as `useMessageTimeFormat`
+  (`app/(timeline)/messages/useMessageTimeFormat.ts`) does for the
+  direct-message list and bubbles — not from `Intl` with a fixed locale, whose
+  output varies with the engine's ICU (Safari renders `Oct 4 at 3:05 PM` where
+  Node renders `Oct 4, 3:05 PM`) and would mismatch on hydration. Build the
+  reader-locale `Intl.DateTimeFormat` once per component (`useMemo`), not per
+  render. A date that only appears after a client-side fetch (the announcement
+  banner and the admin announcements list) is never in the server HTML, so it
+  needs neither.
 - Status posts render through the shared `Posts`/`Post` components with the same
   action set on every surface. A page turns actions on with `currentActor` +
   `showActions`; it must not pass per-status action callbacks (`onReply`/`onQuote`/

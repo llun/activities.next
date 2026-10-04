@@ -2,10 +2,10 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
-import { hydrateRoot } from 'react-dom/client'
-import { renderToString } from 'react-dom/server'
+import { render, screen } from '@testing-library/react'
+import type { MockInstance } from 'vitest'
 
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 import { ActivityStartTime } from './ActivityStartTime'
@@ -48,28 +48,25 @@ describe('ActivityStartTime', () => {
       const element = <ActivityStartTime timestamp={NEW_YORK_LATE_RUN} />
       // The server cannot know the viewer's zone, so it renders UTC; the
       // hydrating client must render the same text before it switches.
-      const serverHtml = renderToString(element)
-      expect(serverHtml).toContain('3:30 AM, September 25, 2026')
-
-      const container = document.createElement('div')
-      container.innerHTML = serverHtml
-      document.body.appendChild(container)
-      const onRecoverableError = vi.fn()
-      const consoleError = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {})
+      // Declared ahead of the try so the finally can clean up whichever of
+      // them exists when something throws; the console spy has to be live
+      // before the helper runs because React logs a mismatch during hydration.
+      let consoleError: MockInstance<typeof console.error> | undefined
+      let hydrated: Awaited<ReturnType<typeof hydrateServerHtml>> | undefined
 
       try {
-        await act(async () => {
-          hydrateRoot(container, element, { onRecoverableError })
-        })
+        consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+        hydrated = await hydrateServerHtml(element)
 
-        expect(onRecoverableError).not.toHaveBeenCalled()
+        expect(hydrated.serverHtml).toContain('3:30 AM, September 25, 2026')
+        expect(hydrated.onRecoverableError).not.toHaveBeenCalled()
         expect(consoleError).not.toHaveBeenCalled()
-        expect(container).toHaveTextContent('11:30 PM, September 24, 2026')
+        expect(hydrated.container).toHaveTextContent(
+          '11:30 PM, September 24, 2026'
+        )
       } finally {
-        consoleError.mockRestore()
-        container.remove()
+        consoleError?.mockRestore()
+        hydrated?.unmount()
       }
     })
   })
