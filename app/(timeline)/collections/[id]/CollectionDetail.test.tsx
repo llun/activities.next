@@ -327,8 +327,12 @@ describe('CollectionDetail', () => {
       expect(title).toHaveClass('truncate')
       expect(title.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
       if (wrapsOnMobile) {
-        expect(title).toHaveClass('max-md:whitespace-normal')
+        expect(title).toHaveClass(
+          'max-md:break-words',
+          'max-md:whitespace-normal'
+        )
       } else {
+        expect(title).not.toHaveClass('max-md:break-words')
         expect(title).not.toHaveClass('max-md:whitespace-normal')
       }
     }
