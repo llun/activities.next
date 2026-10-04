@@ -1357,6 +1357,11 @@ export const FitnessStatusDetail: FC<Props> = ({
     powerSeries.length > 0 || typeof fitness?.avgPower === 'number'
   const hasPhotos = mediaWithoutMap.length > 0
   const hasComments = replies.length > 0 || Boolean(currentActor)
+  // The comment list spans the viewport below `md` inside the signed-in page's
+  // full-bleed card. A logged-out page is an inset card there, and a
+  // viewport-wide list would run out past that card's edges, so it keeps the
+  // card's own width.
+  const commentsSurfaceClass = currentActor ? MOBILE_FEED_SURFACE_CLASS : ''
 
   const tabs = useMemo<SectionTab[]>(() => {
     const items: SectionTab[] = [
@@ -2240,13 +2245,13 @@ export const FitnessStatusDetail: FC<Props> = ({
 
             {threadTree.totalDescendants > 0 ? (
               <div
-                className={`divide-y rounded-xl border bg-card shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+                className={`divide-y rounded-xl border bg-card shadow-sm ${commentsSurfaceClass}`}
               >
                 {threadTree.descendants.map((node) => renderCommentNode(node))}
               </div>
             ) : (
               <p
-                className={`rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
+                className={`rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground ${commentsSurfaceClass}`}
               >
                 No comments yet.
               </p>

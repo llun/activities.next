@@ -105,6 +105,15 @@ describe('shared heatmap page', () => {
     expect(mockNotFound).not.toHaveBeenCalled()
   })
 
+  // A root-relative logo src is redirected away on a CDN alias domain, so the
+  // top bar takes one on the canonical origin.
+  it('hands the top bar an absolute canonical-origin logo', async () => {
+    mockDb.getFitnessRouteHeatmapByShareToken.mockResolvedValue(heatmap(''))
+
+    const element = (await render()) as { props: { logoSrc: string } }
+    expect(element.props.logoSrc).toBe('https://llun.test/logo-nav.png')
+  })
+
   it('still renders when the pyramid read fails, and records it', async () => {
     // Tile work must never cost the reader the untiled map. Degrading silently
     // would make a pyramid-table outage look identical to an actor with no

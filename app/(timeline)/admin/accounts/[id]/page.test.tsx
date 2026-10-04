@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 import Page from './page'
 
@@ -75,5 +75,21 @@ describe('/admin/accounts/[id]', () => {
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('User')
     expect(screen.queryByText('Admin', { selector: 'span' })).toBeNull()
+  })
+
+  it('puts a "Back" to the accounts list in the first content row', async () => {
+    getAccountWithActors.mockResolvedValue({
+      account: account({ role: null }),
+      actors: []
+    })
+
+    await renderPage()
+
+    const back = screen.getByRole('link', { name: 'Back to accounts list' })
+    expect(back).toHaveAttribute('href', '/admin/accounts')
+    // Visible "Back" below md, sr-only from md up where the arrow stands
+    // alone; the accessible name names the list.
+    expect(within(back).getByText('Back')).toHaveClass('md:sr-only')
+    expect(screen.getByRole('heading', { level: 1 })).not.toContainElement(back)
   })
 })

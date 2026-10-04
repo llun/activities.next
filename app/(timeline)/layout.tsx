@@ -134,7 +134,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
           initialOrder={actorSettings?.navOrder}
           initialHidden={actorSettings?.navHidden}
         >
-          <MobileNavigationProvider unreadCount={unreadCount}>
+          <MobileNavigationProvider>
             <div className="min-h-dvh">
               <Sidebar
                 user={user}

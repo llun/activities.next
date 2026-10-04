@@ -2,11 +2,23 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { ReactNode } from 'react'
 
 import { CollectionMember } from '@/app/(timeline)/collections/CollectionEditor'
 import { getCollectionFeed, getCollectionTimeline } from '@/lib/client'
+import {
+  MOBILE_FEED_SURFACE_CLASS,
+  MOBILE_INSET_CARD_FRAME_CLASS,
+  MOBILE_INSET_FEED_CLASS
+} from '@/lib/components/posts/feedLayout'
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
@@ -19,17 +31,28 @@ vi.mock('@/lib/client', () => ({
   getCollectionTimeline: vi.fn()
 }))
 
+// `back` and `compactTitle` surface as data attributes, so the mobile chrome
+// the page asks for is observable without rendering the real header.
 vi.mock('@/lib/components/page-header', () => ({
   PageHeader: ({
     title,
     description,
-    actions
+    actions,
+    back,
+    compactTitle
   }: {
     title: ReactNode
     description: ReactNode
     actions: ReactNode
+    back?: { href: string; accessibleName: string }
+    compactTitle?: string
   }) => (
-    <div>
+    <div
+      data-testid="page-header"
+      data-back-href={back?.href}
+      data-back-name={back?.accessibleName}
+      data-compact-title={compactTitle}
+    >
       <div>{title}</div>
       <div>{description}</div>
       <div>{actions}</div>
@@ -45,14 +68,17 @@ vi.mock('@/lib/components/posts/posts', () => ({
   Posts: ({
     statuses,
     showActions,
-    showReadOnlyStats
+    showReadOnlyStats,
+    className
   }: {
     statuses: Status[]
     showActions?: boolean
     showReadOnlyStats?: boolean
+    className?: string
   }) => (
     <div
       data-testid="posts"
+      className={className}
       data-show-actions={String(Boolean(showActions))}
       data-read-only-stats={String(Boolean(showReadOnlyStats))}
     >
@@ -155,6 +181,14 @@ describe('CollectionDetail', () => {
     expect(screen.getByText('Ben')).toBeInTheDocument()
     expect(screen.getByText('Highlighted accounts · 2')).toBeInTheDocument()
     expect(posts()).toContain('owner-1')
+    // The owner came from /lists; the mobile bar names the section.
+    const header = screen.getByTestId('page-header')
+    expect(header).toHaveAttribute('data-back-href', '/lists')
+    expect(header).toHaveAttribute(
+      'data-back-name',
+      'Back to lists and collections'
+    )
+    expect(header).toHaveAttribute('data-compact-title', 'Collection')
   })
 
   it('draws the visibility and topic as the shared gray and primary Badges', () => {
@@ -267,7 +301,13 @@ describe('CollectionDetail', () => {
   })
 
   it('renders a read-only public view for non-owners', () => {
-    render(<CollectionDetail {...baseProps} isOwner={false} />)
+    render(
+      <CollectionDetail
+        {...baseProps}
+        isOwner={false}
+        currentActor={{} as ActorProfile}
+      />
+    )
 
     expect(
       screen.queryByRole('button', { name: /public preview/i })
@@ -279,6 +319,49 @@ describe('CollectionDetail', () => {
     // Public viewers see only the approved roster.
     expect(screen.getByText('Ben')).toBeInTheDocument()
     expect(screen.queryByText('Ada')).not.toBeInTheDocument()
+    // /lists is the owner's index, so a visitor gets no Back to it.
+    const header = screen.getByTestId('page-header')
+    expect(header).not.toHaveAttribute('data-back-href')
+    expect(header).toHaveAttribute('data-compact-title', 'Collection')
+  })
+
+  // A signed-in non-owner has no Back, so `PageHeader` would not truncate a
+  // plain title: from `md` up the heading stays the truncating one it always
+  // was, and below `md` (under the bar) it wraps.
+  it('truncates a signed-in non-owner heading from md and wraps it below', () => {
+    render(
+      <CollectionDetail
+        {...baseProps}
+        isOwner={false}
+        currentActor={{} as ActorProfile}
+      />
+    )
+
+    const title = screen.getByText('Fediverse builders', {
+      selector: '[data-testid="page-header"] *'
+    })
+    expect(title).toHaveClass(
+      'truncate',
+      'max-md:break-words',
+      'max-md:whitespace-normal'
+    )
+    expect(title.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
+  })
+
+  it('leaves the owner heading plain for PageHeader to truncate beside its Back', () => {
+    render(
+      <CollectionDetail
+        {...baseProps}
+        isOwner
+        currentActor={{} as ActorProfile}
+      />
+    )
+
+    const title = screen.getByText('Fediverse builders', {
+      selector: '[data-testid="page-header"] *'
+    })
+    expect(title).not.toHaveClass('truncate')
+    expect(title.parentElement).not.toHaveClass('flex')
   })
 
   it.each([
@@ -307,5 +390,124 @@ describe('CollectionDetail', () => {
     const feed = screen.getByTestId('posts')
     expect(feed).toHaveAttribute('data-show-actions', showActions)
     expect(feed).toHaveAttribute('data-read-only-stats', readOnlyStats)
+  })
+
+  describe('logged-out visitor', () => {
+    const renderLoggedOut = (props = {}) =>
+      render(<CollectionDetail {...baseProps} isOwner={false} {...props} />)
+
+    it('renders the title as plain text in the cards column, not a header band', () => {
+      renderLoggedOut()
+
+      // No `PageHeader`: that is the band with its own background, divider
+      // and wider title row.
+      expect(screen.queryByTestId('page-header')).not.toBeInTheDocument()
+      const title = screen.getByRole('heading', {
+        level: 1,
+        name: 'Fediverse builders'
+      })
+      expect(title).toHaveClass('truncate', 'text-xl', 'font-semibold')
+      // The heading and the subtitle share one wrapper that sits in the same
+      // stack as the cards, with 16px (not the stack's 24px) under it.
+      const block = title.parentElement as HTMLElement
+      expect(block).toHaveClass('mb-4')
+      expect(block.className).not.toMatch(/sticky|border|bg-/)
+      expect(block.parentElement).toBe(
+        screen.getByText('people I read').closest('section')?.parentElement
+      )
+      expect(within(block).getByText('by anna@llun.social')).toHaveClass(
+        'text-xs',
+        'text-muted-foreground'
+      )
+    })
+
+    it('shows the empty state as an inset card below md, not the full-bleed surface', () => {
+      renderLoggedOut({ statuses: [], totalCount: 0, publicRoster: [] })
+
+      const card = screen
+        .getByRole('heading', { name: 'No one in this collection yet' })
+        .closest('div.rounded-xl') as HTMLElement
+      expect(card).toHaveClass('rounded-xl', 'border', 'shadow-sm')
+      expect(card.className).not.toContain('max-md:')
+    })
+
+    // `Posts` frames itself with the full-bleed feed surface; the class the
+    // page passes is merged after it (see posts.test.tsx), so it has to carry
+    // the shared inset card frame and take the viewport-wide margin back. The
+    // real `Posts` is mocked here, so this pins what the page asks for.
+    it('asks for the feed as an inset card below md, in the same column as the cards', () => {
+      renderLoggedOut()
+
+      const feed = screen.getByTestId('posts')
+      expect(feed).toHaveClass(...MOBILE_INSET_FEED_CLASS.split(' '))
+      expect(feed).toHaveClass(
+        'max-md:mx-0',
+        ...MOBILE_INSET_CARD_FRAME_CLASS.split(' ')
+      )
+      // Nothing of the viewport-wide surface comes back, and nothing is
+      // unscoped: from md the feed keeps the frame `Posts` gives it.
+      for (const token of MOBILE_FEED_SURFACE_CLASS.split(' ')) {
+        expect(feed).not.toHaveClass(token)
+      }
+      feed.className
+        .split(' ')
+        .forEach((token) => expect(token).toMatch(/^max-md:/))
+    })
+
+    it('aligns "Curated by" with the card edge below md', () => {
+      renderLoggedOut()
+
+      expect(screen.getByText(/Curated by/)).toHaveClass('px-1', 'max-md:px-0')
+    })
+  })
+
+  it.each([
+    { description: 'non-owner', isOwner: false },
+    { description: 'owner', isOwner: true }
+  ])(
+    'leaves the signed-in $description feed to the full-bleed surface Posts applies',
+    ({ isOwner }) => {
+      render(
+        <CollectionDetail
+          {...baseProps}
+          isOwner={isOwner}
+          currentActor={{} as ActorProfile}
+        />
+      )
+
+      expect(screen.getByTestId('posts')).not.toHaveAttribute('class')
+    }
+  )
+
+  describe('signed-in visitor keeps the full-bleed empty state and inset byline', () => {
+    it.each([
+      { description: 'non-owner', isOwner: false },
+      { description: 'owner', isOwner: true }
+    ])('$description', ({ isOwner }) => {
+      render(
+        <CollectionDetail
+          {...baseProps}
+          isOwner={isOwner}
+          currentActor={{} as ActorProfile}
+          statuses={[]}
+          totalCount={0}
+          publicRoster={[]}
+          ownerRoster={[]}
+        />
+      )
+
+      const card = screen
+        .getByRole('heading', { name: 'No one in this collection yet' })
+        .closest('div.rounded-xl') as HTMLElement
+      expect(card).toHaveClass(
+        'max-md:mx-[calc(50%_-_50vw)]',
+        'max-md:rounded-none',
+        'max-md:border-0'
+      )
+      expect(screen.getByTestId('page-header')).toBeInTheDocument()
+      if (!isOwner) {
+        expect(screen.getByText(/Curated by/)).not.toHaveClass('max-md:px-0')
+      }
+    })
   })
 })

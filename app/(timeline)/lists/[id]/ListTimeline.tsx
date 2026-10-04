@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useCallback, useRef, useState } from 'react'
 
@@ -154,18 +154,9 @@ export const ListTimeline: FC<ListTimelineProps> = ({
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
       <PageHeader
-        title={
-          <span className="flex items-center gap-2">
-            <Link
-              href="/lists"
-              aria-label="Back to lists"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <span className="truncate">{list.title}</span>
-          </span>
-        }
+        title={list.title}
+        compactTitle="Lists"
+        back={{ href: '/lists', accessibleName: 'Back to lists' }}
         description={listSubtitle(list, memberCount)}
         actions={
           <Button asChild variant="outline" size="sm">

@@ -1062,7 +1062,7 @@ each ends with the Definition of Done gate.
 
 ### Adding a page in the `(timeline)` group
 
-1. Create `app/(timeline)/<name>/page.tsx`; render `<PageHeader title="…" />` and inherit the unified `max-w-content` width — no per-page width classes (see **Page Header & Sub-Navigation**).
+1. Create `app/(timeline)/<name>/page.tsx`; render `<PageHeader title="…" />` and inherit the unified `max-w-content` width — no per-page width classes (see **Page Header & Sub-Navigation**). `PageHeader` also renders the mobile compact bar below 768px; a page without a `PageHeader` renders `MobileCompactHeader` itself (or, for a cover-led page like the profile, the floating `MobileNavigationTrigger`). Never put a back arrow or a logo in a title — pass `back` to `PageHeader` or use `BackLink` (see **Mobile chrome** in `docs/architecture.md`).
 2. Settings-style sections use the shared `SectionNavDropdown` on every breakpoint; never a vertical nav rail or in-header tabs.
 3. Pass timestamps as `Date.now()` numbers from Server Components; Client Components accept `currentTime: number` and never call `Date.now()`/`new Date()` during render (see **Date Serialization**).
 4. If the page shows status posts, render them through the shared `Posts`/`Post` components and turn actions on with `currentActor` + `showActions` — never a bespoke post/action row or per-status action callbacks (see **Status Posts & Actions**).

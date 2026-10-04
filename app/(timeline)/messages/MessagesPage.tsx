@@ -705,6 +705,9 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 md:gap-6">
       <PageHeader
+        // The column's flex gap would open between the mobile bar and this
+        // row, which continues it; cancel it below `md`.
+        className="max-md:-mt-5"
         title="Messages"
         description="Direct conversations with people you follow."
         actions={

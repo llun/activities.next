@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 
 // The translucent bars that sit over the page — the sticky page header, the
-// sidebar and icon rail, the mobile header, and the sticky bars of the public
+// sidebar and icon rail, the mobile compact bar, and the sticky bars of the public
 // shell, the landing page's public feed, the shared heatmap and the status page
 // — all use the design's Surface Chrome
 // (white at 72 % in light, #141414 at 80 % in dark) through the
@@ -12,9 +12,12 @@ import path from 'path'
 //
 // Each row is a file and the number of bars in it that must carry the token.
 const CHROME_BARS: Array<[file: string, bars: number]> = [
-  ['lib/components/page-header.tsx', 1],
+  // The desktop box: `md:bg-surface-chrome` under a mobile navigation
+  // provider, plain `bg-surface-chrome` without one.
+  ['lib/components/page-header.tsx', 2],
   ['lib/components/layout/sidebar.tsx', 2],
-  ['lib/components/layout/mobile-navigation-header.tsx', 1],
+  // The mobile compact page bar's class string (`MOBILE_COMPACT_HEADER_CLASS`).
+  ['lib/components/layout/chromeLayout.ts', 1],
   ['app/(timeline)/PublicTopBar.tsx', 1],
   ['app/(timeline)/landing/LandingPublicFeed.tsx', 1],
   ['app/u/heatmaps/[token]/SharedHeatmapPage.tsx', 1],

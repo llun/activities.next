@@ -402,7 +402,12 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 key={ancestor.id}
                 data-testid="ancestor-status"
                 className={cn(
-                  'border-b bg-background p-4 last:border-b-0 max-md:rounded-none',
+                  'border-b bg-background p-4 last:border-b-0',
+                  // Signed-in viewers get the full-bleed feed surface below
+                  // `md`, so every row is square there; a logged-out thread is
+                  // an inset card at every width and its first row meets the
+                  // card's top corners.
+                  currentActor && 'max-md:rounded-none',
                   !currentActor && index === 0 && 'rounded-t-2xl'
                 )}
               >
@@ -485,7 +490,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
       <div
         data-testid="focused-status"
         className={cn(
-          'border-b bg-background p-4 max-md:rounded-none',
+          'border-b bg-background p-4',
+          currentActor && 'max-md:rounded-none',
           !currentActor && tree.ancestors.length === 0 && 'rounded-t-2xl'
         )}
       >

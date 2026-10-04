@@ -61,7 +61,7 @@ const Layout: FC<Props> = ({ children }) => {
         description="Manage your account and preferences"
       />
       <PageHeaderSectionProvider>
-        <div className="w-full pt-4">
+        <div className="w-full pt-4 max-md:pt-0">
           {/* Dropdown sub-navigation on every breakpoint (desktop included) so
               the content always gets the full width — no vertical rail. */}
           <SectionNavDropdown label="Settings" tabs={tabs} />

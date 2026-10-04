@@ -2,8 +2,15 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
+import {
+  MOBILE_FEED_SURFACE_CLASS,
+  MOBILE_INSET_CARD_CLASS,
+  MOBILE_INSET_CARD_FRAME_CLASS,
+  MOBILE_INSET_STACK_CLASS
+} from '@/lib/components/posts/feedLayout'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
@@ -17,7 +24,8 @@ vi.mock('next/navigation', async () => ({
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND')
   }),
-  useRouter: vi.fn(() => ({ back: vi.fn(), push: vi.fn(), refresh: vi.fn() }))
+  useRouter: vi.fn(() => ({ back: vi.fn(), push: vi.fn(), refresh: vi.fn() })),
+  usePathname: vi.fn(() => '/@alice@example.com/status-1')
 }))
 
 vi.mock('@/lib/config', async () => ({
@@ -37,6 +45,10 @@ vi.mock('@/lib/database', async () => ({
     getStatus: mockGetStatus,
     getStatusReplies: mockGetStatusReplies,
     getAcceptedOrRequestedFollow: mockGetAcceptedOrRequestedFollow,
+    // Read only by the real resolver, which the off-site Back test runs.
+    getActorFromUsername: vi.fn(async () => null),
+    getStatusFromUrlHash: vi.fn(async () => null),
+    getStatusFromPublicId: vi.fn(async () => null),
     // Without this the page's settings read throws and every test logs an
     // error while quietly exercising the env/default fallback path.
     getAllServerSettings: vi.fn(async () => [])
@@ -80,6 +92,8 @@ vi.mock('./StatusLikes', async () => ({
 }))
 
 const mockResolveStatusFromPath = vi.mocked(resolveStatusFromPath)
+// The handle the mocked resolver reports for the `actor` segment.
+const PATH_ACTOR = { username: 'anna', domain: 'activities.local' }
 const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
 const mockGetActorFromSession = vi.mocked(getActorFromSession)
 
@@ -187,6 +201,161 @@ const clipsBetween = (card: HTMLElement, statusId: string) => {
 const rowFor = (statusId: string) =>
   screen.getByTestId(`status-${statusId}`).parentElement
 
+describe('Mobile chrome', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetStatus.mockReset()
+    mockGetServerAuthSession.mockResolvedValue(null)
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+    mockGetStatusReplies.mockResolvedValue([])
+  })
+
+  it.each([
+    { note: buildNote({ id: 'focused' }), title: 'Post' },
+    { note: buildFitnessNote(), title: 'Activity' }
+  ])(
+    'renders the compact bar titled $title above the card, and points Back at the author',
+    async ({ note, title }) => {
+      mockResolveStatusFromPath.mockResolvedValue({
+        pathActor: PATH_ACTOR,
+        status: note,
+        statusId: note.id,
+        fullStatusId: note.url,
+        isStatusHash: true
+      })
+      const element = await Page({
+        params: Promise.resolve({
+          actor: '%40anna%40activities.local',
+          status: 'hash'
+        })
+      })
+      const { container } = render(
+        <MobileNavigationProvider>{element}</MobileNavigationProvider>
+      )
+
+      const bar = container.firstElementChild as HTMLElement
+      expect(bar).toHaveAttribute('data-mobile-compact-header')
+      expect(
+        within(bar).getByRole('heading', { level: 1, name: title })
+      ).toBeInTheDocument()
+      expect(bar.nextElementSibling).toHaveClass('rounded-2xl')
+      // One menu button per screen: the bar's. The card's Back row must not
+      // bring its own.
+      const triggers = screen.getAllByRole('button', {
+        name: 'Open navigation'
+      })
+      expect(triggers).toHaveLength(1)
+      expect(bar).toContainElement(triggers[0])
+      // Direct entry: no in-app page precedes this one in the test, so the
+      // Back is the decoded author profile link, named by the handle when the
+      // status carries no author profile.
+      const back = screen.getByRole('link', {
+        name: 'Back to profile, @anna@activities.local'
+      })
+      expect(back).toHaveAttribute('href', '/@anna@activities.local')
+      expect(back).toHaveTextContent(/^Back to profile$/)
+    }
+  )
+
+  // The fallback's accessible name carries the author's display name when the
+  // status is theirs; a status by someone else (a mismatched path) names the
+  // handle from the path instead.
+  it.each([
+    {
+      description: 'the author',
+      author: { username: 'Anna', domain: 'activities.local' },
+      accessibleName: 'Back to profile, Anna Nowak'
+    },
+    {
+      description: 'the author (domain in other case)',
+      author: { username: 'Anna', domain: 'Activities.Local' },
+      accessibleName: 'Back to profile, Anna Nowak'
+    },
+    {
+      description: 'someone else (handle from the path)',
+      author: { username: 'someone', domain: 'elsewhere.example' },
+      accessibleName: 'Back to profile, @anna@activities.local'
+    },
+    // The same username on another server is someone else.
+    {
+      description: 'the same username on another server',
+      author: { username: 'anna', domain: 'elsewhere.example' },
+      accessibleName: 'Back to profile, @anna@activities.local'
+    }
+  ])(
+    'names the direct-entry Back after $description',
+    async ({ author, accessibleName }) => {
+      const note = buildNote({
+        id: 'focused',
+        actor: {
+          ...author,
+          name: 'Anna Nowak'
+        } as unknown as StatusNote['actor']
+      })
+      mockResolveStatusFromPath.mockResolvedValue({
+        pathActor: PATH_ACTOR,
+        status: note,
+        statusId: note.id,
+        fullStatusId: note.url,
+        isStatusHash: true
+      })
+      const element = await Page({
+        params: Promise.resolve({
+          actor: '%40anna%40activities.local',
+          status: 'hash'
+        })
+      })
+      render(<MobileNavigationProvider>{element}</MobileNavigationProvider>)
+
+      const back = screen.getByRole('link', { name: accessibleName })
+      expect(back).toHaveAttribute('href', '/@anna@activities.local')
+      expect(back).toHaveTextContent(/^Back to profile$/)
+    }
+  )
+})
+
+// The resolver reads only the two parts after the first '@', so a segment that
+// decodes to `//x@u@attacker.example` (or `\x@…`) still resolves any public
+// status by its full URL. The Back fallback must come from the parsed handle:
+// `/${segment}` would be `///x@…`, which next/link treats as off-site.
+describe('Back to profile fallback from an untrusted actor segment', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    mockGetStatus.mockReset()
+    mockGetServerAuthSession.mockResolvedValue(null)
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+    mockGetStatusReplies.mockResolvedValue([])
+    // The real resolver, so the test proves such a path renders at all.
+    const actual = await vi.importActual<
+      typeof import('./resolveStatusFromPath')
+    >('./resolveStatusFromPath')
+    mockResolveStatusFromPath.mockImplementation(actual.resolveStatusFromPath)
+  })
+
+  it.each(['%2F%2Fx%40u%40attacker.example', '%5Cx%40u%40attacker.example'])(
+    'stays on this site for %s',
+    async (actor) => {
+      const note = buildNote({ id: 'focused' })
+      mockGetStatus.mockResolvedValue(note)
+
+      const element = await Page({
+        params: Promise.resolve({
+          actor,
+          status: encodeURIComponent(note.url)
+        })
+      })
+      render(<MobileNavigationProvider>{element}</MobileNavigationProvider>)
+
+      expect(screen.getByTestId('status-focused')).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', {
+          name: 'Back to profile, @u@attacker.example'
+        })
+      ).toHaveAttribute('href', '/@u@attacker.example')
+    }
+  )
+})
+
 describe('Conversation card chrome', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -197,6 +366,7 @@ describe('Conversation card chrome', () => {
 
     const focused = buildNote({ id: 'focused' })
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -252,12 +422,53 @@ describe('Conversation card chrome', () => {
     expect(card).not.toHaveClass('max-md:-mt-6')
   })
 
-  it('pulls flush under PublicTopBar with max-md:-mt-6 on mobile when logged out', async () => {
+  it('takes no margin of its own when logged out, leaving PublicShell the gap under the top bar', async () => {
     const card = await renderPage()
 
-    expect(card).toHaveClass('max-md:-mt-6')
+    expect(card).not.toHaveClass('max-md:-mt-6')
     expect(card).not.toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
+  })
+
+  // Below md a signed-in page is the full-bleed feed surface; a logged-out one
+  // is a stack of inset cards (thread, then sign-in callout) level with the
+  // footer's. Asserting both sides keeps either from leaking into the other.
+  it('is a stack of inset cards below md when logged out, not the full-bleed surface', async () => {
+    const card = await renderPage()
+
+    expect(card).toHaveClass(...MOBILE_INSET_STACK_CLASS.split(' '))
+    for (const token of ['max-md:mx-[calc(50%_-_50vw)]', 'max-md:w-auto']) {
+      expect(card).not.toHaveClass(token)
+    }
+    // The thread is the first card…
+    const thread = rowFor('focused')?.parentElement as HTMLElement
+    expect(thread).toHaveClass(...MOBILE_INSET_CARD_CLASS.split(' '))
+    expect(thread.parentElement).toBe(card)
+    // …its first row meets the card's rounded top corners at every width…
+    expect(rowFor('focused')).toHaveClass('rounded-t-2xl')
+    expect(rowFor('focused')).not.toHaveClass('max-md:rounded-none')
+    // …and the sign-in callout is the second, framed like it.
+    const callout = screen
+      .getByText('Join the conversation')
+      .closest('div.bg-primary\\/5')
+    expect(callout).toHaveClass(...MOBILE_INSET_CARD_FRAME_CLASS.split(' '))
+    expect(callout?.parentElement).toBe(card)
+    expect(card.lastElementChild).toBe(callout)
+  })
+
+  it('keeps the full-bleed surface below md when signed in, with no inset card', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    const card = await renderPage()
+
+    expect(card).toHaveClass(...MOBILE_FEED_SURFACE_CLASS.split(' '))
+    MOBILE_INSET_STACK_CLASS.split(' ')
+      .filter((token) => !MOBILE_FEED_SURFACE_CLASS.split(' ').includes(token))
+      .forEach((token) => expect(card).not.toHaveClass(token))
+    const thread = rowFor('focused')?.parentElement as HTMLElement
+    expect(thread).not.toHaveClass('max-md:rounded-2xl')
+    expect(thread).not.toHaveClass('max-md:border')
+    expect(rowFor('focused')).toHaveClass('max-md:rounded-none')
   })
 
   it('rounds the focused post instead when logged out, which has no header', async () => {
@@ -266,12 +477,16 @@ describe('Conversation card chrome', () => {
     // The logged-out branch leads with an `sr-only` heading, which is out of
     // flow and paints nothing — the post below it is what meets the corners.
     expect(card.firstElementChild).toHaveClass('sr-only')
+    // …and stays in the accessibility tree at every width: a logged-out
+    // visitor has no mobile bar to carry the page's h1.
+    expect(card.firstElementChild).not.toHaveClass('max-md:hidden')
     expect(rowFor('focused')).toHaveClass('rounded-t-2xl')
   })
 
   it('rounds the first ancestor row when logged out and the post is a reply', async () => {
     const focused = buildNote({ id: 'focused', reply: 'parent' })
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -293,6 +508,7 @@ describe('Conversation card chrome', () => {
   it('rounds only the topmost ancestor when the chain is longer than one', async () => {
     const focused = buildNote({ id: 'focused', reply: 'parent' })
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -320,6 +536,7 @@ describe('Conversation card chrome', () => {
     mockGetActorFromSession.mockResolvedValue(buildViewer())
     const focused = buildNote({ id: 'focused', reply: 'parent' })
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'focused',
       fullStatusId: focused.url,
@@ -351,6 +568,7 @@ describe('Fitness activity card chrome', () => {
 
     const focused = buildFitnessNote()
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: focused,
       statusId: 'ride-1',
       fullStatusId: focused.url,
@@ -402,12 +620,47 @@ describe('Fitness activity card chrome', () => {
     expect(card).not.toHaveClass('max-md:-mt-6')
   })
 
-  it('pulls flush under PublicTopBar with max-md:-mt-6 on mobile when logged out', async () => {
+  it('takes no margin of its own when logged out, leaving PublicShell the gap under the top bar', async () => {
     const card = await renderPage()
 
-    expect(card).toHaveClass('max-md:-mt-6')
+    expect(card).not.toHaveClass('max-md:-mt-6')
     expect(card).not.toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
+  })
+
+  it('is a stack of inset cards below md when logged out, not the full-bleed surface', async () => {
+    const card = await renderPage()
+
+    expect(card).toHaveClass(...MOBILE_INSET_STACK_CLASS.split(' '))
+    for (const token of ['max-md:mx-[calc(50%_-_50vw)]', 'max-md:w-auto']) {
+      expect(card).not.toHaveClass(token)
+    }
+    // The activity is the first card, framed all the way round…
+    const activity = rowFor('ride-1') as HTMLElement
+    expect(activity).toHaveClass(...MOBILE_INSET_CARD_FRAME_CLASS.split(' '))
+    expect(activity).not.toHaveClass('max-md:rounded-none')
+    expect(activity.parentElement).toBe(card)
+    // …and the sign-in callout the second, framed like it.
+    const callout = screen
+      .getByText('Join the conversation')
+      .closest('div.bg-primary\\/5')
+    expect(callout).toHaveClass(...MOBILE_INSET_CARD_FRAME_CLASS.split(' '))
+    expect(callout).not.toHaveClass('max-md:rounded-none')
+    expect(callout?.parentElement).toBe(card)
+  })
+
+  it('keeps the full-bleed surface below md when signed in, with no inset card', async () => {
+    mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+    const card = await renderPage()
+
+    expect(card).toHaveClass(...MOBILE_FEED_SURFACE_CLASS.split(' '))
+    MOBILE_INSET_STACK_CLASS.split(' ')
+      .filter((token) => !MOBILE_FEED_SURFACE_CLASS.split(' ').includes(token))
+      .forEach((token) => expect(card).not.toHaveClass(token))
+    expect(rowFor('ride-1')).toHaveClass('max-md:rounded-none')
+    expect(rowFor('ride-1')).not.toHaveClass('max-md:rounded-2xl')
+    expect(rowFor('ride-1')).not.toHaveClass('max-md:border')
   })
 
   it('gives the post block the top corners when logged out, which has no header', async () => {
@@ -416,6 +669,9 @@ describe('Fitness activity card chrome', () => {
     // The logged-out branch leads with an `sr-only` heading, which is out of
     // flow and paints nothing — the post block below it meets the corners.
     expect(card.firstElementChild).toHaveClass('sr-only')
+    // …and stays in the accessibility tree at every width: a logged-out
+    // visitor has no mobile bar to carry the page's h1.
+    expect(card.firstElementChild).not.toHaveClass('max-md:hidden')
     expect(rowFor('ride-1')).toHaveClass('rounded-t-2xl')
     // …but not the bottom ones: the sign-in callout renders below it.
     expect(rowFor('ride-1')).not.toHaveClass('rounded-b-2xl')

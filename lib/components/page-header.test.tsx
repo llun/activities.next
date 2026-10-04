@@ -2,13 +2,35 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import { type AnchorHTMLAttributes, type ReactNode } from 'react'
 
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import {
   PageHeader,
-  PageHeaderSectionProvider
+  PageHeaderSectionProvider,
+  PageSubnavProvider
 } from '@/lib/components/page-header'
+
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    prefetch,
+    ...rest
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+    prefetch?: boolean | 'auto' | null
+    children: ReactNode
+  }) => (
+    <a href={href} data-prefetch={String(prefetch)} {...rest}>
+      {children}
+    </a>
+  )
+}))
+
+const getBar = (container: HTMLElement) =>
+  container.querySelector('[data-mobile-compact-header]') as HTMLElement
 
 describe('PageHeader', () => {
   it('centers the sticky header title row at the unified max-w-content width', () => {
@@ -156,5 +178,303 @@ describe('PageHeader', () => {
     )
 
     expect(screen.getByText('Section notice')).toBeInTheDocument()
+  })
+
+  it('renders the original sticky header, and no mobile bar, without a navigation provider', () => {
+    const { container } = render(
+      <PageHeader title="Timeline" description="Latest posts" />
+    )
+
+    expect(getBar(container)).toBeNull()
+    const box = container.firstElementChild as HTMLElement
+    expect(box).toHaveClass(
+      'sticky',
+      'top-0',
+      'z-20',
+      'border-b',
+      'bg-surface-chrome',
+      'backdrop-blur'
+    )
+    expect(screen.getByRole('heading', { name: 'Timeline' })).not.toHaveClass(
+      'max-md:hidden'
+    )
+    // Nor the mobile description line: it belongs to the bar's intro row.
+    const description = screen.getByText('Latest posts')
+    expect(description).toHaveClass('mt-0.5', 'text-xs')
+    expect(description).not.toHaveClass('max-md:text-sm')
+    expect(description).not.toHaveClass('max-md:min-h-5')
+    expect(description).not.toHaveClass('max-md:mt-0')
+  })
+
+  describe('mobile compact bar', () => {
+    it('puts only the title in the bar and keeps description, actions and sub-nav in the content', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageSubnavProvider subnav={<nav aria-label="Filters">Tabs</nav>}>
+            <PageHeader
+              title="Notifications"
+              description="Recent activity"
+              actions={<button type="button">Mark all read</button>}
+            />
+          </PageSubnavProvider>
+        </MobileNavigationProvider>
+      )
+
+      const bar = getBar(container)
+      expect(
+        within(bar).getByRole('heading', { name: 'Notifications' })
+      ).toBeInTheDocument()
+      expect(within(bar).queryByText('Recent activity')).toBeNull()
+      expect(
+        within(bar).queryByRole('button', { name: 'Mark all read' })
+      ).toBeNull()
+      expect(within(bar).queryByRole('navigation')).toBeNull()
+
+      expect(screen.getByText('Recent activity')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Mark all read' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('navigation', { name: 'Filters' })
+      ).toBeInTheDocument()
+    })
+
+    it('shows exactly one h1 per breakpoint: the bar below md, the header from md up', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader title="Timeline" description="Latest posts" />
+        </MobileNavigationProvider>
+      )
+
+      const headings = screen.getAllByRole('heading', {
+        level: 1,
+        name: 'Timeline'
+      })
+      expect(headings).toHaveLength(2)
+      const [barHeading, boxHeading] = headings
+      expect(getBar(container)).toContainElement(barHeading)
+      // The class is the contract: CSS decides which one is displayed.
+      expect(getBar(container)).toHaveClass('md:hidden')
+      expect(boxHeading).toHaveClass('max-md:hidden')
+    })
+
+    it('keeps the desktop chrome on md-prefixed classes only', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader title="Timeline" description="Latest posts" />
+        </MobileNavigationProvider>
+      )
+
+      const box = container.querySelector('.max-w-content')
+        ?.parentElement as HTMLElement
+      expect(box).toHaveClass(
+        'md:sticky',
+        'md:top-0',
+        'md:z-20',
+        'md:border-b',
+        'md:bg-surface-chrome'
+      )
+      expect(box).not.toHaveClass('sticky')
+      expect(box).not.toHaveClass('bg-surface-chrome')
+    })
+
+    it('renders back as a labelled link outside the heading', () => {
+      render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Morning running crew"
+            back={{ href: '/lists', accessibleName: 'Back to lists' }}
+          />
+        </MobileNavigationProvider>
+      )
+
+      // Visible "Back"; the accessible name names the destination.
+      const link = screen.getByRole('link', { name: 'Back to lists' })
+      expect(link).toHaveAttribute('href', '/lists')
+      expect(link).toHaveTextContent(/^Back$/)
+      for (const heading of screen.getAllByRole('heading')) {
+        expect(heading).not.toContainElement(link)
+      }
+    })
+
+    it('keeps the content heading visible when the bar carries a compact title', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Morning running crew"
+            compactTitle="Lists"
+            back={{ href: '/lists', accessibleName: 'Back to lists' }}
+          />
+        </MobileNavigationProvider>
+      )
+
+      expect(within(getBar(container)).getByText('Lists').tagName).toBe('P')
+      const heading = screen.getByRole('heading', {
+        level: 1,
+        name: 'Morning running crew'
+      })
+      expect(heading).not.toHaveClass('max-md:hidden')
+    })
+
+    it('hides the content box below md when it would be empty', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader title="Edit list" />
+        </MobileNavigationProvider>
+      )
+
+      const box = container.querySelector('.max-w-content')
+        ?.parentElement as HTMLElement
+      expect(box).toHaveClass('max-md:hidden')
+      // With the box gone, the bar keeps the parent's spacing to the content.
+      expect(getBar(container)).not.toHaveClass('mb-0')
+    })
+
+    // Each of these alone gives the box something to show below md, so it
+    // must stay visible and continue the bar (`mb-0`). The all-empty case
+    // above only guards the other direction.
+    it.each([
+      {
+        name: 'back',
+        props: { back: { href: '/lists', accessibleName: 'Back to lists' } }
+      },
+      { name: 'description', props: { description: 'Latest posts' } },
+      {
+        name: 'actions',
+        props: { actions: <button type="button">Refresh</button> }
+      },
+      { name: 'compactTitle', props: { compactTitle: 'Lists' } },
+      { name: 'subnav', props: {}, subnav: <nav aria-label="Tabs">Tabs</nav> }
+    ])(
+      'keeps the content box below md when it has only $name',
+      ({ props, subnav }) => {
+        const { container } = render(
+          <MobileNavigationProvider>
+            <PageSubnavProvider subnav={subnav ?? null}>
+              <PageHeader title="Edit list" {...props} />
+            </PageSubnavProvider>
+          </MobileNavigationProvider>
+        )
+
+        const box = container.querySelector('.max-w-content')
+          ?.parentElement as HTMLElement
+        expect(box).not.toHaveClass('max-md:hidden')
+        expect(getBar(container)).toHaveClass('mb-0')
+      }
+    )
+
+    it('renders the banner between the bar and the header box', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Timeline"
+            description="Latest posts"
+            banner={<div data-testid="banner">Maintenance tonight</div>}
+          />
+        </MobileNavigationProvider>
+      )
+
+      const children = Array.from(container.children)
+      const bannerIndex = children.indexOf(screen.getByTestId('banner'))
+      expect(children.indexOf(getBar(container))).toBe(bannerIndex - 1)
+      expect(children[bannerIndex + 1]).toContainElement(
+        container.querySelector('.max-w-content') as HTMLElement
+      )
+    })
+
+    it('ends the intro row 12px under its content on a hairline with mobileIntroRow', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Timeline"
+            description="Latest posts"
+            mobileIntroRow
+          />
+        </MobileNavigationProvider>
+      )
+
+      const row = container.querySelector('.max-w-content') as HTMLElement
+      expect(row).toHaveClass('py-4', 'max-md:pb-3')
+      expect(row.parentElement).toHaveClass('max-md:border-b', 'md:border-b')
+    })
+
+    // Without the signed-in mobile navigation (the logged-out home route's
+    // loading state) the header keeps the geometry it had before the redesign.
+    it('ignores mobileIntroRow without the signed-in mobile navigation', () => {
+      const { container } = render(
+        <PageHeader
+          title="Timeline"
+          description="Latest posts"
+          mobileIntroRow
+        />
+      )
+
+      const row = container.querySelector('.max-w-content') as HTMLElement
+      expect(row).not.toHaveClass('max-md:pb-3')
+      expect(row.parentElement).not.toHaveClass('max-md:border-b')
+    })
+
+    it('keeps the 16px bottom padding and no mobile hairline by default', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader title="Timeline" description="Latest posts" />
+        </MobileNavigationProvider>
+      )
+
+      const row = container.querySelector('.max-w-content') as HTMLElement
+      expect(row).not.toHaveClass('max-md:pb-3')
+      expect(row.parentElement).not.toHaveClass('max-md:border-b')
+    })
+
+    // Below md the description is the intro row's own text on a 20px line,
+    // flush with the row's top padding when the bar carries the title.
+    it('sets the description as a flush 14/20 line when the bar holds the title', () => {
+      render(
+        <MobileNavigationProvider>
+          <PageHeader title="Timeline" description="Latest posts" />
+        </MobileNavigationProvider>
+      )
+
+      expect(screen.getByText('Latest posts')).toHaveClass(
+        'mt-0.5',
+        'text-xs',
+        'max-md:min-h-5',
+        'max-md:text-sm',
+        'max-md:mt-0'
+      )
+    })
+
+    it('keeps the description margin under a visible content heading', () => {
+      render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Morning running crew"
+            compactTitle="Lists"
+            description="12 members"
+          />
+        </MobileNavigationProvider>
+      )
+
+      const description = screen.getByText('12 members')
+      expect(description).toHaveClass('max-md:min-h-5', 'max-md:text-sm')
+      expect(description).not.toHaveClass('max-md:mt-0')
+    })
+
+    it('hangs bottomSlot under the bar and hides the desktop overlay below md', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Timeline"
+            bottomSlot={<button type="button">2 new posts ↑</button>}
+          />
+        </MobileNavigationProvider>
+      )
+
+      const [barPill, boxPill] = screen.getAllByRole('button', {
+        name: '2 new posts ↑'
+      })
+      expect(getBar(container)).toContainElement(barPill)
+      expect(boxPill.closest('.top-full')).toHaveClass('max-md:hidden')
+    })
   })
 })

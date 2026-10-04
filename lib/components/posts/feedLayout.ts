@@ -22,3 +22,37 @@
  */
 export const MOBILE_FEED_SURFACE_CLASS =
   'max-md:mx-[calc(50%_-_50vw)] max-md:w-auto max-md:rounded-none max-md:border-0 max-md:shadow-none'
+
+/**
+ * The logged-out status page is the one place below `md` where the thread is
+ * not full-bleed: its post, its replies and the "Join the conversation" block
+ * are separate inset cards, level with the cards of `PublicFooter`, instead of
+ * one frame spanning the viewport. Every class is `max-md:`-scoped, so from
+ * `md` up the single desktop frame is untouched.
+ *
+ * The page's outer frame takes `MOBILE_INSET_STACK_CLASS` in place of
+ * `MOBILE_FEED_SURFACE_CLASS`: it stops painting a frame of its own and stacks
+ * the cards 24px apart, the same 24px `PublicShell`'s `py-6` leaves between the
+ * top bar and the first card (so the page no longer pulls itself up under the
+ * bar with a negative margin). Each card then takes
+ * `MOBILE_INSET_CARD_FRAME_CLASS`; a card that has no background of its own
+ * adds the background through `MOBILE_INSET_CARD_CLASS`.
+ */
+export const MOBILE_INSET_STACK_CLASS =
+  'max-md:flex max-md:flex-col max-md:gap-6 max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:shadow-none'
+
+export const MOBILE_INSET_CARD_FRAME_CLASS =
+  'max-md:rounded-2xl max-md:border max-md:shadow-sm'
+
+export const MOBILE_INSET_CARD_CLASS = `${MOBILE_INSET_CARD_FRAME_CLASS} max-md:bg-background/80`
+
+/**
+ * A `Posts` feed that is one more inset card below `md`, for a logged-out
+ * page whose other blocks are inset cards (the shared collection). `Posts`
+ * frames itself with `MOBILE_FEED_SURFACE_CLASS`; pass this as its `className`,
+ * which is merged after it, so each token takes back what the surface dropped:
+ * `max-md:mx-0` the viewport-wide margin (`w-auto` stays and fills the column),
+ * the card frame the rounding, border and shadow. The rows and their media rows
+ * then end at the card's inner edge, in the page's own 16px column.
+ */
+export const MOBILE_INSET_FEED_CLASS = `max-md:mx-0 ${MOBILE_INSET_CARD_FRAME_CLASS}`

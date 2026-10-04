@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 
 import { SharedHeatmapPage, SharedHeatmapPageProps } from './SharedHeatmapPage'
 import { SharedHeatmapView } from './sharedHeatmapView'
@@ -43,6 +43,7 @@ const defaultProps: SharedHeatmapPageProps = {
   signupOpen: true,
   signinUrl: '/auth/signin',
   signupUrl: '/auth/signup',
+  logoSrc: 'https://llun.test/logo-nav.png',
   token: 'tok123'
 }
 
@@ -68,6 +69,49 @@ describe('SharedHeatmapPage', () => {
     expect(screen.queryByText('Routes')).not.toBeInTheDocument()
     expect(screen.queryByText('Activity')).not.toBeInTheDocument()
     expect(screen.queryByText('Period')).not.toBeInTheDocument()
+  })
+
+  // On a CDN alias domain the root-relative default logo is redirected away,
+  // so the top bar takes the canonical-origin src.
+  it('renders the top bar logo from the canonical-origin src', () => {
+    render(<SharedHeatmapPage {...defaultProps} />)
+
+    const logo = within(screen.getByRole('banner')).getByRole('link', {
+      name: 'Activities home'
+    })
+    expect(logo.querySelector('img')?.getAttribute('src')).toContain(
+      encodeURIComponent('https://llun.test/logo-nav.png')
+    )
+  })
+
+  // Logged-out chrome is the branded top bar at every width: no compact bar,
+  // menu button or drawer (the mobile redesign is for signed-in viewers).
+  it('keeps the branded top bar at every width with no mobile menu', () => {
+    const { container, rerender } = render(
+      <SharedHeatmapPage {...defaultProps} />
+    )
+
+    const banner = screen.getByRole('banner')
+    expect(banner).not.toHaveClass('max-md:hidden')
+    expect(
+      within(banner).getByRole('link', { name: 'Sign in' })
+    ).toBeInTheDocument()
+    expect(
+      within(banner).getByRole('link', { name: 'Create account' })
+    ).toBeInTheDocument()
+    expect(
+      container.querySelector('[data-mobile-compact-header]')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Open navigation' })
+    ).not.toBeInTheDocument()
+
+    rerender(<SharedHeatmapPage {...defaultProps} signupOpen={false} />)
+    expect(
+      within(screen.getByRole('banner')).queryByRole('link', {
+        name: 'Create account'
+      })
+    ).not.toBeInTheDocument()
   })
 
   it('offers a copy-link control pointing at the public URL', () => {

@@ -93,19 +93,13 @@ vi.mock('@/lib/components/session-keep-alive', () => ({
   SessionKeepAlive: () => <div data-testid="session-keep-alive" />
 }))
 vi.mock('@/lib/components/layout/mobile-nav', () => ({
-  MobileNav: () => <div data-testid="mobile-nav" />
+  MobileNav: ({ unreadCount }: { unreadCount?: number }) => (
+    <div data-testid="mobile-nav" data-unread={unreadCount} />
+  )
 }))
 vi.mock('@/lib/components/layout/mobile-navigation-context', () => ({
-  MobileNavigationProvider: ({
-    children,
-    unreadCount
-  }: {
-    children: ReactNode
-    unreadCount?: number
-  }) => (
-    <div data-testid="mobile-nav-provider" data-unread={unreadCount}>
-      {children}
-    </div>
+  MobileNavigationProvider: ({ children }: { children: ReactNode }) => (
+    <div data-testid="mobile-nav-provider">{children}</div>
   )
 }))
 
@@ -152,6 +146,9 @@ describe('(timeline) Layout', () => {
     expect(screen.getByTestId('child')).toBeInTheDocument()
     expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
     expect(screen.queryByTestId('mobile-nav')).not.toBeInTheDocument()
+    // No provider either: a mounted one would put the compact bar and the
+    // floating menu button on pages that must render as they did on main.
+    expect(screen.queryByTestId('mobile-nav-provider')).not.toBeInTheDocument()
     expect(screen.queryByTestId('session-keep-alive')).not.toBeInTheDocument()
   })
 
@@ -229,14 +226,16 @@ describe('(timeline) Layout', () => {
     )
   })
 
-  it('wraps signed-in content in MobileNavigationProvider with unread count', async () => {
+  it('wraps signed-in content in MobileNavigationProvider and hands the unread count to the drawer', async () => {
     mockGetActorFromSession.mockResolvedValue(signedInActor as never)
     mockGetNotificationsCount.mockResolvedValue(5)
 
     await renderLayout()
 
     const provider = screen.getByTestId('mobile-nav-provider')
-    expect(provider).toBeInTheDocument()
-    expect(provider).toHaveAttribute('data-unread', '5')
+    expect(provider).toContainElement(screen.getByTestId('mobile-nav'))
+    // The count belongs to the drawer's Notifications row, not the menu
+    // button, so it reaches the drawer and nothing else.
+    expect(screen.getByTestId('mobile-nav')).toHaveAttribute('data-unread', '5')
   })
 })

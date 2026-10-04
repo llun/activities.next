@@ -21,7 +21,6 @@ const TestConsumer: FC = () => {
   return (
     <div>
       <div data-testid="is-open">{String(nav.isOpen)}</div>
-      <div data-testid="unread-count">{nav.unreadCount}</div>
       <button onClick={() => nav.setOpen(true)} data-testid="open-btn">
         Open
       </button>
@@ -44,13 +43,12 @@ describe('MobileNavigationContext', () => {
 
   it('provides state and allows toggling open state', () => {
     render(
-      <MobileNavigationProvider unreadCount={3}>
+      <MobileNavigationProvider>
         <TestConsumer />
       </MobileNavigationProvider>
     )
 
     expect(screen.getByTestId('is-open')).toHaveTextContent('false')
-    expect(screen.getByTestId('unread-count')).toHaveTextContent('3')
 
     fireEvent.click(screen.getByTestId('open-btn'))
     expect(screen.getByTestId('is-open')).toHaveTextContent('true')

@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { type AnchorHTMLAttributes, ReactElement, type ReactNode } from 'react'
 
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
@@ -40,15 +47,22 @@ vi.mock('@/lib/client', () => ({
 const renderMobileNav = (
   ui: ReactElement,
   {
-    unreadCount = 0,
     order,
-    hidden
-  }: { unreadCount?: number; order?: string[]; hidden?: string[] } = {}
+    hidden,
+    variant = 'bar'
+  }: {
+    order?: string[]
+    hidden?: string[]
+    variant?: 'bar' | 'floating'
+  } = {}
 ) =>
   render(
     <NavPreferencesProvider initialOrder={order} initialHidden={hidden}>
-      <MobileNavigationProvider unreadCount={unreadCount}>
-        <MobileNavigationTrigger data-testid="mobile-trigger" />
+      <MobileNavigationProvider>
+        <MobileNavigationTrigger
+          data-testid="mobile-trigger"
+          variant={variant}
+        />
         {ui}
       </MobileNavigationProvider>
     </NavPreferencesProvider>
@@ -125,26 +139,53 @@ describe('MobileNav', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('falls back to context unreadCount when unreadCount prop is omitted', () => {
-    renderMobileNav(<MobileNav />, { unreadCount: 3 })
+  it('shows the unread count on the drawer Notifications row and never on the menu button', () => {
+    renderMobileNav(<MobileNav unreadCount={4} />)
 
-    fireEvent.click(screen.getByTestId('mobile-trigger'))
+    const trigger = screen.getByTestId('mobile-trigger')
+    expect(trigger).toHaveAttribute('aria-label', 'Open navigation')
+    expect(trigger.textContent).toBe('')
 
-    expect(screen.getAllByText('3')).toHaveLength(2)
+    fireEvent.click(trigger)
+
+    const notifications = screen.getByRole('link', { name: /Notifications/ })
+    expect(within(notifications).getByText('4')).toBeInTheDocument()
+    expect(screen.getAllByText('4')).toHaveLength(1)
   })
 
-  it('renders unread count on both trigger and drawer Notifications item', () => {
-    renderMobileNav(<MobileNav unreadCount={4} />, { unreadCount: 4 })
+  it.each([
+    { variant: 'bar' as const, description: 'the bar menu button' },
+    { variant: 'floating' as const, description: 'the floating profile button' }
+  ])(
+    'returns focus to $description when Escape closes the drawer',
+    async ({ variant }) => {
+      renderMobileNav(<MobileNav />, { variant })
 
-    expect(screen.getByTestId('mobile-trigger')).toHaveAttribute(
-      'aria-label',
-      'Open navigation, 4 unread notifications'
-    )
+      const trigger = screen.getByTestId('mobile-trigger')
+      trigger.focus()
+      fireEvent.click(trigger)
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByTestId('mobile-trigger'))
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
 
-    // The Notifications link inside the drawer should display badge with 4
-    expect(screen.getAllByText('4')).toHaveLength(2) // trigger badge + drawer row badge
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      // Radix restores focus on a timer after the content unmounts.
+      await waitFor(() => expect(trigger).toHaveFocus())
+    }
+  )
+
+  it('does not return focus to the menu button after a destination is selected', async () => {
+    renderMobileNav(<MobileNav />)
+
+    const trigger = screen.getByTestId('mobile-trigger')
+    trigger.focus()
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('link', { name: 'Timeline' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // Let Radix's focus-restore timer run before asserting it did nothing.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(trigger).not.toHaveFocus()
   })
 
   it('renders fallback user profile link when provided', () => {

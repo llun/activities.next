@@ -19,6 +19,11 @@ export interface SharedHeatmapPageProps {
   signupOpen: boolean
   signinUrl: string
   signupUrl: string
+  /**
+   * Absolute logo URL on the canonical origin (`getBaseURL()`): on a CDN alias
+   * domain the root-relative default is redirected away.
+   */
+  logoSrc: string
   /** The share token this page was reached by; addresses its tiles. */
   token: string
 }
@@ -36,6 +41,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
   signupOpen,
   signinUrl,
   signupUrl,
+  logoSrc,
   token
 }) => {
   const { title, isWorld, bboxLabel, owner, generatedLabel, publicUrl } = view
@@ -58,7 +64,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
       {/* public top bar */}
       <header className="sticky top-0 z-30 border-b bg-surface-chrome backdrop-blur">
         <div className="mx-auto flex h-14 max-w-[840px] items-center gap-3 px-4 sm:px-6">
-          <Logo size="md" />
+          <Logo size="md" src={logoSrc} />
           <div className="ml-auto flex items-center gap-2">
             <Button asChild variant="outline" size="sm">
               <Link href={signinUrl}>Sign in</Link>

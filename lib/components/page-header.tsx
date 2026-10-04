@@ -1,9 +1,23 @@
 'use client'
 
-import { CSSProperties, ReactNode, createContext, useContext } from 'react'
+import { ReactNode, createContext, useContext } from 'react'
 
-import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
+import { BackLink } from '@/lib/components/back-link'
+import { breakoutStyle } from '@/lib/components/layout/chromeLayout'
+import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
+import { useMobileNavigation } from '@/lib/components/layout/mobile-navigation-context'
 import { cn } from '@/lib/utils'
+
+export interface PageHeaderBack {
+  /** The parent route Back returns to. */
+  href: string
+  /** Names the destination, e.g. "Back to lists"; contains `label`. */
+  accessibleName: string
+  /** Visible text; "Back" unless the destination is a profile. */
+  label?: string
+  /** `false` for a per-user `[actor]` route. */
+  prefetch?: boolean
+}
 
 interface PageHeaderProps {
   title: ReactNode
@@ -12,19 +26,33 @@ interface PageHeaderProps {
   className?: string
   stackActionsOnMobile?: boolean
   bottomSlot?: ReactNode
-}
-
-// Break out of the content column (`max-w-content`) so the chrome spans the
-// full area to the right of the fixed sidebar. The inner row stays centered at
-// `max-w-content` so the title aligns above the content column.
-//
-// 50% here is half of the parent's content-box width (Tailwind's `px-4` is part
-// of the box, not the content area). The horizontal pair therefore collapses to
-// `(parent content width) + 2*M = 100vw - sidebar-w`, which is exactly the
-// available area beside the fixed sidebar at any viewport size.
-const breakoutStyle: CSSProperties = {
-  marginLeft: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)',
-  marginRight: 'calc(-50vw + 50% + var(--sidebar-w, 0px) / 2)'
+  /**
+   * A parent-route Back. Below `md` it is a labelled row at the top of the
+   * content; from `md` up it is the arrow beside the title it always was.
+   * Not rendered in section mode: there the section layout owns the bar, and
+   * a detail page renders its own `BackLink` above the section heading.
+   */
+  back?: PageHeaderBack
+  /**
+   * A short section title for the mobile bar when the page's own heading is
+   * longer or more specific (a list's name, a collection's title). The page
+   * heading then stays visible in the content below the bar. Not rendered in
+   * section mode, where the section layout's bar carries the section name.
+   */
+  compactTitle?: string
+  /**
+   * Content that sits above the header on desktop and directly below the
+   * mobile bar (the home timeline's announcements), so the DOM order matches
+   * what is on screen at every width. Not rendered in section mode.
+   */
+  banner?: ReactNode
+  /**
+   * The home timeline's intro row: below `md` the box ends 12px under its
+   * content (not 16px) on a full-width hairline, so a full-bleed surface
+   * directly below meets an edge. No effect from `md` up, in section mode, or
+   * without the signed-in mobile navigation.
+   */
+  mobileIntroRow?: boolean
 }
 
 const PageSubnavContext = createContext<ReactNode>(null)
@@ -74,10 +102,15 @@ export const PageHeader = ({
   actions,
   className,
   stackActionsOnMobile,
-  bottomSlot
+  bottomSlot,
+  back,
+  compactTitle,
+  banner,
+  mobileIntroRow
 }: PageHeaderProps) => {
   const subnav = useContext(PageSubnavContext)
   const isSection = useContext(PageHeaderSectionContext)
+  const nav = useMobileNavigation()
 
   if (isSection) {
     return (
@@ -117,56 +150,137 @@ export const PageHeader = ({
     )
   }
 
-  return (
-    <div
+  // Below `md` a page under the mobile navigation gets the compact bar — menu
+  // button and one title — and this header box becomes plain content under
+  // it: the Back row, description, actions and sub-nav. From `md` up the box
+  // keeps the sticky chrome it always had (every chrome class is `md:`
+  // prefixed, so the desktop computed style is unchanged) and the bar is
+  // `display: none`. Without a provider — logged-out pages (`PublicShell` has
+  // no mobile navigation) and tests — the box renders exactly as before.
+  const hasMobileBar = nav !== null
+  // The bar title is the page's h1 below `md` unless the content keeps a more
+  // specific heading of its own (`compactTitle`), so exactly one h1 is
+  // displayed at any width.
+  const hidesTitleOnMobile = hasMobileBar && !compactTitle
+  const isEmptyOnMobile =
+    hidesTitleOnMobile && !back && !description && !actions && !subnav
+
+  const heading = (
+    <h1
       className={cn(
-        'sticky top-0 z-20 border-b bg-surface-chrome backdrop-blur',
-        className
+        'text-xl font-semibold tracking-tight',
+        // Beside the desktop arrow the title truncates on one line, as it did
+        // inside the old heading; below `md` it is the content's own heading
+        // under the Back row, and a long list or collection name wraps.
+        back && 'min-w-0 truncate max-md:whitespace-normal max-md:break-words',
+        hidesTitleOnMobile && 'max-md:hidden'
       )}
-      style={breakoutStyle}
     >
-      <div className="mx-auto max-w-content px-4 py-4">
+      {title}
+    </h1>
+  )
+
+  return (
+    <>
+      {hasMobileBar ? (
+        <MobileCompactHeader
+          title={compactTitle ?? title}
+          as={compactTitle ? 'p' : 'h1'}
+          bottomSlot={bottomSlot}
+          // The box below continues the bar, so the parent's vertical rhythm
+          // (`space-y-*`) belongs after the box, not between the two — unless
+          // the box has nothing to show on mobile and is hidden.
+          className={isEmptyOnMobile ? undefined : 'mb-0'}
+        />
+      ) : null}
+      {banner}
+      <div
+        className={cn(
+          hasMobileBar
+            ? 'md:sticky md:top-0 md:z-20 md:border-b md:bg-surface-chrome md:backdrop-blur'
+            : 'sticky top-0 z-20 border-b bg-surface-chrome backdrop-blur',
+          isEmptyOnMobile && 'max-md:hidden',
+          mobileIntroRow && hasMobileBar && 'max-md:border-b',
+          className
+        )}
+        style={breakoutStyle}
+      >
         <div
           className={cn(
-            'flex gap-4',
-            stackActionsOnMobile
-              ? 'flex-col sm:flex-row sm:items-start sm:justify-between'
-              : 'items-start justify-between'
+            'mx-auto max-w-content px-4 py-4',
+            back && hasMobileBar && 'max-md:pt-2',
+            mobileIntroRow && hasMobileBar && 'max-md:pb-3'
           )}
         >
-          <div className="flex min-w-0 items-center gap-3">
-            <MobileNavigationTrigger className="-ml-2 shrink-0" />
-            <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-              {description && (
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  {description}
-                </div>
-              )}
+          <div
+            className={cn(
+              'flex gap-4',
+              stackActionsOnMobile
+                ? 'flex-col sm:flex-row sm:items-start sm:justify-between'
+                : 'items-start justify-between'
+            )}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="min-w-0">
+                {back ? (
+                  <div className="flex items-center gap-2 max-md:flex-col max-md:items-start max-md:gap-1">
+                    <BackLink
+                      href={back.href}
+                      label={back.label}
+                      accessibleName={back.accessibleName}
+                      prefetch={back.prefetch}
+                      iconOnlyFrom="md"
+                    />
+                    {heading}
+                  </div>
+                ) : (
+                  heading
+                )}
+                {description && (
+                  <div
+                    className={cn(
+                      'mt-0.5 text-xs text-muted-foreground',
+                      // Below `md` the description is the intro row's own
+                      // text: 14px on a 20px line (a skeleton fills the same
+                      // line), flush with the row's 16px top padding when the
+                      // bar already carries the title.
+                      hasMobileBar && 'max-md:min-h-5 max-md:text-sm',
+                      hidesTitleOnMobile && 'max-md:mt-0'
+                    )}
+                  >
+                    {description}
+                  </div>
+                )}
+              </div>
+            </div>
+            {actions && (
+              <div
+                className={cn(
+                  'shrink-0',
+                  stackActionsOnMobile
+                    ? 'self-start sm:self-center'
+                    : 'self-center'
+                )}
+              >
+                {actions}
+              </div>
+            )}
+          </div>
+          {subnav && <div className="mt-3">{subnav}</div>}
+        </div>
+        {bottomSlot && (
+          <div
+            className={cn(
+              'pointer-events-none absolute left-0 right-0 top-full pt-2',
+              hasMobileBar && 'max-md:hidden'
+            )}
+          >
+            <div className="mx-auto flex max-w-content justify-center px-4">
+              {bottomSlot}
             </div>
           </div>
-          {actions && (
-            <div
-              className={cn(
-                'shrink-0',
-                stackActionsOnMobile
-                  ? 'self-start sm:self-center'
-                  : 'self-center'
-              )}
-            >
-              {actions}
-            </div>
-          )}
-        </div>
-        {subnav && <div className="mt-3">{subnav}</div>}
+        )}
       </div>
-      {bottomSlot && (
-        <div className="pointer-events-none absolute left-0 right-0 top-full pt-2">
-          <div className="mx-auto flex max-w-content justify-center px-4">
-            {bottomSlot}
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   )
 }

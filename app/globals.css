@@ -272,6 +272,20 @@
     @apply h-full;
   }
 
+  /* Below md the page chrome is fixed or sticky over the content: the 56px
+     compact bar (+ its 1px border) on most pages, the floating 44px menu
+     button at a 16px inset on the profile. Pad the scroll snapport so a
+     keyboard focus or an in-page jump never lands under it (WCAG 2.4.11). */
+  @media (width < 48rem) {
+    html:has([data-mobile-compact-header]) {
+      scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 4rem);
+    }
+
+    html:has([data-floating-nav-trigger]) {
+      scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 4.75rem);
+    }
+  }
+
   body {
     @apply min-h-screen bg-background text-foreground font-sans antialiased;
     background-image:

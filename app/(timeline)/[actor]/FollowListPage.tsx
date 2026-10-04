@@ -9,6 +9,10 @@ import { FollowList } from '@/app/(timeline)/[actor]/FollowList'
 import { getFollowListBlockedActorIds } from '@/app/(timeline)/[actor]/getFollowListBlockedActorIds'
 import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
 import { getNonLocalActorRedirectTarget } from '@/app/(timeline)/[actor]/resolveActorRedirect'
+import {
+  profileBack,
+  profileName
+} from '@/lib/components/navigation-history/backDestination'
 import { PageHeader } from '@/lib/components/page-header'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
@@ -128,6 +132,7 @@ export const FollowListPage: FC<FollowListPageProps> = async ({
         targetUrl={targetUrl}
         domain={actorDomain}
         username={actorUsername}
+        pageTitle={config.label}
       />
     )
   }
@@ -157,6 +162,7 @@ export const FollowListPage: FC<FollowListPageProps> = async ({
     users
   )
 
+  const profileHref = `/@${actorProfile.person.preferredUsername}@${actorDomain}`
   const count = config.getCount(actorProfile)
   const countDescription =
     typeof count === 'number' ? `${count.toLocaleString()} accounts` : undefined
@@ -165,25 +171,24 @@ export const FollowListPage: FC<FollowListPageProps> = async ({
     <div className="space-y-6">
       {isLoggedIn ? (
         <PageHeader
-          title={
-            <span className="flex items-center gap-2">
-              <Link
-                href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
-                prefetch={false}
-                aria-label="Back to profile"
-                className="text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-              <span className="truncate">{config.label}</span>
-            </span>
-          }
+          title={config.label}
+          back={{
+            href: profileHref,
+            ...profileBack(
+              profileName({
+                name: actorProfile.person.name,
+                username: actorProfile.person.preferredUsername,
+                domain: actorDomain
+              })
+            ),
+            prefetch: false
+          }}
           description={countDescription}
         />
       ) : (
         <div className="flex items-start gap-2">
           <Link
-            href={`/@${actorProfile.person.preferredUsername}@${actorDomain}`}
+            href={profileHref}
             prefetch={false}
             aria-label="Back to profile"
             className="mt-0.5 text-muted-foreground transition-colors hover:text-foreground"

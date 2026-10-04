@@ -394,8 +394,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
-      <AnnouncementBanner currentTime={currentTime} />
       <PageHeader
+        // Below `md` the description and Refresh row ends on a full-width
+        // hairline so the borderless, full-bleed composer below meets an edge,
+        // as it met the old sticky header's border; the row is 16px above and
+        // 12px below its content.
+        mobileIntroRow
+        banner={<AnnouncementBanner currentTime={currentTime} />}
         title="Timeline"
         description="Latest posts from your network."
         actions={

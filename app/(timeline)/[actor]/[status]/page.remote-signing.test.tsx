@@ -97,6 +97,11 @@ vi.mock('./StatusBox', async () => ({ StatusBox: () => null }))
 vi.mock('./StatusLikes', async () => ({ StatusLikes: () => null }))
 
 const mockResolveStatusFromPath = vi.mocked(resolveStatusFromPath)
+// The handle the mocked resolver reports for the `actor` segment.
+const PATH_ACTOR = {
+  username: 'gemeenteamsterdam',
+  domain: 'social.amsterdam.nl'
+}
 const mockGetRemoteStatus = vi.mocked(getRemoteStatus)
 const mockGetFederationSigningActor = vi.mocked(getFederationSigningActor)
 const mockGetServerAuthSession = vi.mocked(getServerAuthSession)
@@ -186,6 +191,7 @@ describe('Page remote-status fetch signing', () => {
     } as never)
     // The status is not in our database, so the page live-fetches it.
     mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
       status: null,
       statusId: '',
       fullStatusId: REMOTE_STATUS_URL,

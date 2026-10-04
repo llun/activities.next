@@ -172,4 +172,16 @@ describe('SectionNavDropdown', () => {
       groupedTabs.length
     )
   })
+
+  // The child page's heading sits 20px under the dropdown below md (16px from
+  // md up), the design's section spacing.
+  it('leaves 20px under the dropdown below md and 16px from md up', () => {
+    ;(usePathname as jest.Mock).mockReturnValue('/fitness')
+    renderDropdown()
+
+    expect(screen.getByRole('navigation', { name: 'Fitness' })).toHaveClass(
+      'mb-4',
+      'max-md:mb-5'
+    )
+  })
 })

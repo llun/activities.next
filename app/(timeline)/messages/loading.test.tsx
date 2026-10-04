@@ -43,6 +43,9 @@ describe('messages loading', () => {
     expect(stickyHeader).toBeInTheDocument()
     expect(stickyHeader).toHaveClass('top-0')
     expect(stickyHeader?.querySelector('.max-w-content')).toBeInTheDocument()
+    // The same mobile pull-up as the page, so the skeleton does not shift when
+    // the page replaces it.
+    expect(stickyHeader).toHaveClass('max-md:-mt-5')
 
     // Skeletons in the header mirror PageHeader font and action metrics
     // (text-xl 28px -> h-7, text-xs 16px -> h-4, action button -> h-8 w-18 with self-center)

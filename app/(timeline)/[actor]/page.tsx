@@ -8,7 +8,7 @@ import { getActorEmojiTags } from '@/lib/actions/utils'
 import { getUrl } from '@/lib/activities/note'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Bio } from '@/lib/components/bio/Bio'
-import { MobileNavigationHeader } from '@/lib/components/layout/mobile-navigation-header'
+import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { FeaturedTagsBlock } from '@/lib/components/profile/FeaturedTagsBlock'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
@@ -24,6 +24,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorRedirectCard } from './ActorRedirectCard'
 import { ActorTimelines } from './ActorTimelines'
+import { ProfileCardSection } from './ProfileCardSection'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
 import { ProfileRelationshipActions } from './ProfileRelationshipActions'
 import { getProfileData } from './getProfileData'
@@ -134,6 +135,7 @@ const Page: FC<Props> = async ({ params }) => {
           targetUrl={targetUrl}
           domain={actorDomain}
           username={actorUsername}
+          pageTitle="Profile"
         />
       )
     }
@@ -254,9 +256,15 @@ const Page: FC<Props> = async ({ params }) => {
     : null
 
   return (
-    <div className={cn('flex flex-col gap-6', isLoggedIn && 'pt-6 sm:pt-8')}>
-      <MobileNavigationHeader className="-mt-6" />
-      <section className="overflow-hidden rounded-2xl border bg-card">
+    // Signed in, below `md` the profile has no page bar at all: the cover runs
+    // flush to the top of the viewport and full-bleed, and the menu button
+    // floats over its top-left corner (fixed, so it stays put while the page
+    // scrolls). Logged out, `PublicShell` keeps its top bar and the framed
+    // card at every width; the trigger and full-bleed frame need the signed-in
+    // layout's mobile navigation and render nothing there.
+    <div className={cn('flex flex-col gap-6', isLoggedIn && 'md:pt-8')}>
+      <MobileNavigationTrigger variant="floating" />
+      <ProfileCardSection className="overflow-hidden rounded-2xl border bg-card">
         <ProfileHeaderImage
           actorId={person.id}
           imageUrl={headerImageUrl}
@@ -370,7 +378,7 @@ const Page: FC<Props> = async ({ params }) => {
 
           <FeaturedTagsBlock tags={featuredTags} />
         </div>
-      </section>
+      </ProfileCardSection>
 
       <ActorTimelines
         key={person.id}

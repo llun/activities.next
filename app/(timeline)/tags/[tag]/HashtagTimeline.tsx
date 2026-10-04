@@ -4,8 +4,9 @@ import { Hash } from 'lucide-react'
 import { FC, useCallback, useRef, useState } from 'react'
 
 import { getHashtagTimeline } from '@/lib/client'
-import { MobileNavigationHeader } from '@/lib/components/layout/mobile-navigation-header'
+import { useMobileNavigation } from '@/lib/components/layout/mobile-navigation-context'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { PageHeader } from '@/lib/components/page-header'
 import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import {
@@ -42,6 +43,7 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
   isMediaUploadEnabled,
   postLineLimit
 }) => {
+  const nav = useMobileNavigation()
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [hasMoreStatuses, setHasMoreStatuses] = useState<boolean>(
     statuses.length > 0 || Boolean(nextMaxStatusId)
@@ -143,21 +145,40 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
     onLoadMore: loadMoreStatuses
   })
 
+  const postCountLabel = `${postCount} ${postCount === 1 ? 'post' : 'posts'}`
+
   return (
     <div className="flex flex-col gap-6">
-      <MobileNavigationHeader />
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
-      <div>
-        <div className="flex items-center gap-2">
-          <Hash className="size-6 text-muted-foreground" />
-          <h1 className="text-2xl font-semibold">{tag}</h1>
+      {nav ? (
+        <>
+          {/* Signed in: `PageHeader` is the heading, so from `md` up it has the
+              same sticky 79px chrome as every other page. Below `md` it
+              renders the compact bar ("#tag") and its own box steps aside
+              (`max-md:hidden`) for the plain count below, which keeps the
+              spacing this page had under the bar. */}
+          <PageHeader
+            title={`#${tag}`}
+            description={postCountLabel}
+            className="max-md:hidden"
+          />
+          <p className="text-sm text-muted-foreground md:hidden">
+            {postCountLabel}
+          </p>
+        </>
+      ) : (
+        // Logged out: no navigation provider, so no compact bar and no sticky
+        // chrome; the heading sits in `PublicShell`'s column at every width.
+        <div>
+          <div className="flex items-center gap-2">
+            <Hash className="size-6 text-muted-foreground" />
+            <h1 className="text-2xl font-semibold">{tag}</h1>
+          </div>
+          <p className="text-sm text-muted-foreground">{postCountLabel}</p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {postCount} {postCount === 1 ? 'post' : 'posts'}
-        </p>
-      </div>
+      )}
 
       {currentStatuses.length > 0 ? (
         <Posts

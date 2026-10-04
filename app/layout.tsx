@@ -1,6 +1,7 @@
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import type { Metadata, Viewport } from 'next'
 
+import { InAppHistoryTracker } from '@/lib/components/navigation-history/InAppHistoryTracker'
 import { ThemeProvider } from '@/lib/components/theme'
 import { THEME_INIT_SCRIPT } from '@/lib/components/theme/theme-core'
 
@@ -44,7 +45,12 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {/* Lets a history-based Back tell an in-app return from a direct
+              entry; spans every route group, renders nothing. */}
+          <InAppHistoryTracker />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )

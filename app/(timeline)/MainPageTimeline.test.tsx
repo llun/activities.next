@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { ReactNode } from 'react'
 
 import { getTimeline } from '@/lib/client'
@@ -30,18 +37,26 @@ vi.mock('@/lib/client', () => ({
 }))
 
 vi.mock('@/lib/components/announcements/AnnouncementBanner', () => ({
-  AnnouncementBanner: () => null
+  AnnouncementBanner: () => <div data-testid="announcement-banner" />
 }))
 
 vi.mock('@/lib/components/page-header', () => ({
   PageHeader: ({
     actions,
-    bottomSlot
+    bottomSlot,
+    banner,
+    mobileIntroRow
   }: {
     actions?: ReactNode
     bottomSlot?: ReactNode
+    banner?: ReactNode
+    mobileIntroRow?: boolean
   }) => (
-    <div>
+    <div
+      data-testid="page-header"
+      data-mobile-intro-row={String(Boolean(mobileIntroRow))}
+    >
+      {banner}
       {actions}
       {bottomSlot}
     </div>
@@ -426,6 +441,45 @@ describe('MainPageTimeline', () => {
     } finally {
       dateNowSpy.mockRestore()
     }
+  })
+
+  // PageHeader places the banner between the mobile bar and the header box;
+  // the page has to hand it over rather than render it on its own.
+  it('hands the announcement banner to the page header', () => {
+    render(
+      <MainPageTimeline
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        profile={profile}
+        isMediaUploadEnabled={false}
+        statuses={[]}
+      />
+    )
+
+    expect(
+      within(screen.getByTestId('page-header')).getByTestId(
+        'announcement-banner'
+      )
+    ).toBeInTheDocument()
+  })
+
+  // Below md the header's description-and-Refresh row ends on the hairline
+  // the full-bleed composer meets; PageHeader owns that geometry.
+  it('asks the page header for the mobile intro row', () => {
+    render(
+      <MainPageTimeline
+        host="activities.local"
+        currentTime={FIXED_CURRENT_TIME}
+        profile={profile}
+        isMediaUploadEnabled={false}
+        statuses={[]}
+      />
+    )
+
+    expect(screen.getByTestId('page-header')).toHaveAttribute(
+      'data-mobile-intro-row',
+      'true'
+    )
   })
 
   it('removes a direct post from the feed when delete callback is invoked', () => {

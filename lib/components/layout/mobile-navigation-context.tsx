@@ -14,7 +14,6 @@ import { Dialog } from '@/lib/components/ui/dialog'
 export interface MobileNavigationContextValue {
   isOpen: boolean
   setOpen: (open: boolean) => void
-  unreadCount: number
 }
 
 const MobileNavigationContext =
@@ -26,12 +25,18 @@ export function useMobileNavigation() {
 
 export interface MobileNavigationProviderProps {
   children: ReactNode
-  unreadCount?: number
 }
 
+/**
+ * Owns the open state of the mobile navigation drawer and wraps its children
+ * in the drawer's Radix Dialog root, so any `MobileNavigationTrigger` below it
+ * opens the same drawer. Mounted only by the signed-in `(timeline)` layout:
+ * logged-out pages keep the public top bar at every width, so without a
+ * provider every trigger and compact bar renders nothing. Unread counts are not
+ * part of it: they render on the drawer's rows, never on the menu button.
+ */
 export function MobileNavigationProvider({
-  children,
-  unreadCount = 0
+  children
 }: MobileNavigationProviderProps) {
   const [isOpen, setOpen] = useState(false)
   const pathname = usePathname()
@@ -65,7 +70,7 @@ export function MobileNavigationProvider({
   }, [])
 
   return (
-    <MobileNavigationContext.Provider value={{ isOpen, setOpen, unreadCount }}>
+    <MobileNavigationContext.Provider value={{ isOpen, setOpen }}>
       <Dialog open={isOpen} onOpenChange={setOpen}>
         {children}
       </Dialog>

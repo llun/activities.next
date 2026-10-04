@@ -2,7 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 
 import { ActorRedirectCard } from './ActorRedirectCard'
 
@@ -47,5 +49,25 @@ describe('ActorRedirectCard', () => {
     expect(
       screen.getByText('@clairenony@pouet.chapril.org · external profile')
     ).toBeInTheDocument()
+  })
+
+  it('names the page in the mobile compact bar without adding a second heading', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <ActorRedirectCard
+          host="llun.social"
+          targetUrl="https://pouet.chapril.org/@clairenony"
+          domain="pouet.chapril.org"
+          username="clairenony"
+          pageTitle="Followers"
+        />
+      </MobileNavigationProvider>
+    )
+
+    const bar = container.querySelector(
+      '[data-mobile-compact-header]'
+    ) as HTMLElement
+    expect(within(bar).getByText('Followers').tagName).toBe('P')
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
 })

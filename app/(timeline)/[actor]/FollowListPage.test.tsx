@@ -6,6 +6,7 @@ import { render, screen } from '@testing-library/react'
 import { notFound } from 'next/navigation'
 
 import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -32,7 +33,8 @@ vi.mock('@/lib/database', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  notFound: vi.fn()
+  notFound: vi.fn(),
+  usePathname: () => '/@someone@llun.social/followers'
 }))
 
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -94,7 +96,14 @@ describe('FollowListPage', () => {
         params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' }),
         direction: 'followers'
       })
-      render(element)
+      const { container } = render(
+        <MobileNavigationProvider>{element}</MobileNavigationProvider>
+      )
+
+      // The card keeps its own heading, so the mobile bar must name the page.
+      expect(
+        container.querySelector('[data-mobile-compact-header]')
+      ).toHaveTextContent('Followers')
 
       expect(
         screen.getByRole('heading', {
@@ -117,8 +126,13 @@ describe('FollowListPage', () => {
         params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' }),
         direction: 'following'
       })
-      render(element)
+      const { container } = render(
+        <MobileNavigationProvider>{element}</MobileNavigationProvider>
+      )
 
+      expect(
+        container.querySelector('[data-mobile-compact-header]')
+      ).toHaveTextContent('Following')
       expect(
         screen.getByRole('heading', {
           level: 1,
@@ -190,6 +204,69 @@ describe('FollowListPage', () => {
         'No followers yet'
       )
     })
+
+    // Logged out the page sits in PublicShell, which keeps its top bar at
+    // every width and provides no mobile navigation: the header is the icon
+    // Back beside the title it always was, with no compact bar.
+    it('keeps the logged-out header as it always was: icon Back beside the title', async () => {
+      mockIsLocalFederationDomain.mockResolvedValue(true)
+      mockGetProfileData.mockResolvedValue(mockProfile as never)
+      mockDatabase.getFollowers.mockResolvedValue([])
+      mockDatabase.getActorsFromIds.mockResolvedValue([])
+
+      const element = await FollowListPage({
+        params: Promise.resolve({ actor: '@someone@llun.social' }),
+        direction: 'followers'
+      })
+      const { container } = render(element)
+
+      expect(
+        container.querySelector('[data-mobile-compact-header]')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Open navigation' })
+      ).not.toBeInTheDocument()
+      const heading = screen.getByRole('heading', {
+        level: 1,
+        name: 'Followers'
+      })
+      expect(heading.className).not.toMatch(/max-md:/)
+
+      const back = screen.getByRole('link', { name: 'Back to profile' })
+      expect(back).toHaveAttribute('href', '/@someone@llun.social')
+      expect(back).toHaveTextContent('')
+      expect(back.parentElement?.className).not.toMatch(/max-md:/)
+    })
+
+    // Signed in: visible "Back to profile", named after the person.
+    it.each([
+      ['Someone', 'Back to profile, Someone'],
+      ['', 'Back to profile, @someone@llun.social']
+    ])(
+      'names the signed-in Back after the profile owner (%j)',
+      async (name, accessibleName) => {
+        mockGetServerAuthSession.mockResolvedValue({
+          user: { email: 'viewer@llun.social' }
+        } as never)
+        mockIsLocalFederationDomain.mockResolvedValue(true)
+        mockGetProfileData.mockResolvedValue({
+          ...mockProfile,
+          person: { ...mockProfile.person, name }
+        } as never)
+        mockDatabase.getFollowers.mockResolvedValue([])
+        mockDatabase.getActorsFromIds.mockResolvedValue([])
+
+        const element = await FollowListPage({
+          params: Promise.resolve({ actor: '@someone@llun.social' }),
+          direction: 'followers'
+        })
+        render(<MobileNavigationProvider>{element}</MobileNavigationProvider>)
+
+        const back = screen.getByRole('link', { name: accessibleName })
+        expect(back).toHaveAttribute('href', '/@someone@llun.social')
+        expect(back).toHaveTextContent(/^Back to profile$/)
+      }
+    )
 
     it('renders authenticated PageHeader shell for logged-in user', async () => {
       mockGetServerAuthSession.mockResolvedValue({

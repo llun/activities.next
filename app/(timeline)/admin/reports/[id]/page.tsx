@@ -1,7 +1,6 @@
-import { ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
+import { BackLink } from '@/lib/components/back-link'
 import { PageHeader } from '@/lib/components/page-header'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -27,14 +26,15 @@ const Page = async ({ params }: Props) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-3">
-        <Link
+      {/* Below md the Back is its own "Back" row above the heading; from md
+          up it is the icon beside the heading it always was. */}
+      <div className="flex items-start gap-3 max-md:flex-col max-md:gap-1">
+        <BackLink
           href="/admin/reports"
-          aria-label="Back to reports list"
-          className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
+          accessibleName="Back to reports list"
+          iconOnlyFrom="md"
+          className="md:rounded-lg md:p-2 md:hover:bg-muted"
+        />
         <PageHeader className="flex-1" title="Report" />
       </div>
       <AdminReportDetail reportId={id} />
