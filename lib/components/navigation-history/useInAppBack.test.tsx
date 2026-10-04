@@ -17,9 +17,13 @@ vi.mock('next/navigation', () => ({
 }))
 
 const Probe = () => {
-  const { canGoBack, goBack } = useInAppBack()
+  const { canGoBack, previousPathname, goBack } = useInAppBack()
   return (
-    <button type="button" onClick={goBack}>
+    <button
+      type="button"
+      onClick={goBack}
+      data-previous={previousPathname ?? undefined}
+    >
       {canGoBack ? 'history' : 'fallback'}
     </button>
   )
@@ -46,6 +50,7 @@ describe('useInAppBack', () => {
       </>
     )
     expect(screen.getByRole('button')).toHaveTextContent('fallback')
+    expect(screen.getByRole('button')).not.toHaveAttribute('data-previous')
   })
 
   it('offers history Back after an in-app navigation and calls router.back', () => {
@@ -66,6 +71,8 @@ describe('useInAppBack', () => {
       </>
     )
     expect(screen.getByRole('button')).toHaveTextContent('history')
+    // The page it returns to, for the Back's accessible name.
+    expect(screen.getByRole('button')).toHaveAttribute('data-previous', '/')
 
     act(() => {
       screen.getByRole('button').click()

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { notFound } from 'next/navigation'
 
 import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
@@ -205,9 +205,10 @@ describe('FollowListPage', () => {
       )
     })
 
-    // Inside PublicShell, which always provides the public drawer: the bar
-    // carries the title below md and the Back is the content's first row.
-    it('gives a logged-out visitor the compact bar and a labelled Back row below md', async () => {
+    // Logged out the page sits in PublicShell, which keeps its top bar at
+    // every width and provides no mobile navigation: the header is the icon
+    // Back beside the title it always was, with no compact bar.
+    it('keeps the logged-out header as it always was: icon Back beside the title', async () => {
       mockIsLocalFederationDomain.mockResolvedValue(true)
       mockGetProfileData.mockResolvedValue(mockProfile as never)
       mockDatabase.getFollowers.mockResolvedValue([])
@@ -217,28 +218,55 @@ describe('FollowListPage', () => {
         params: Promise.resolve({ actor: '@someone@llun.social' }),
         direction: 'followers'
       })
-      const { container } = render(
-        <MobileNavigationProvider>{element}</MobileNavigationProvider>
-      )
+      const { container } = render(element)
 
-      const bar = container.querySelector(
-        '[data-mobile-compact-header]'
-      ) as HTMLElement
-      const barHeading = within(bar).getByRole('heading', {
+      expect(
+        container.querySelector('[data-mobile-compact-header]')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Open navigation' })
+      ).not.toBeInTheDocument()
+      const heading = screen.getByRole('heading', {
         level: 1,
         name: 'Followers'
       })
-      // Exactly one h1 is displayed per width: the bar's below md, the
-      // content's from md up.
-      const contentHeading = screen
-        .getAllByRole('heading', { level: 1, name: 'Followers' })
-        .find((heading) => heading !== barHeading)
-      expect(contentHeading).toHaveClass('max-md:hidden')
+      expect(heading.className).not.toMatch(/max-md:/)
 
       const back = screen.getByRole('link', { name: 'Back to profile' })
       expect(back).toHaveAttribute('href', '/@someone@llun.social')
-      expect(back.parentElement).toHaveClass('max-md:flex-col', 'max-md:pt-2')
+      expect(back).toHaveTextContent('')
+      expect(back.parentElement?.className).not.toMatch(/max-md:/)
     })
+
+    // Signed in: visible "Back to profile", named after the person.
+    it.each([
+      ['Someone', "Back to Someone's profile"],
+      ['', "Back to @someone@llun.social's profile"]
+    ])(
+      'names the signed-in Back after the profile owner (%j)',
+      async (name, accessibleName) => {
+        mockGetServerAuthSession.mockResolvedValue({
+          user: { email: 'viewer@llun.social' }
+        } as never)
+        mockIsLocalFederationDomain.mockResolvedValue(true)
+        mockGetProfileData.mockResolvedValue({
+          ...mockProfile,
+          person: { ...mockProfile.person, name }
+        } as never)
+        mockDatabase.getFollowers.mockResolvedValue([])
+        mockDatabase.getActorsFromIds.mockResolvedValue([])
+
+        const element = await FollowListPage({
+          params: Promise.resolve({ actor: '@someone@llun.social' }),
+          direction: 'followers'
+        })
+        render(<MobileNavigationProvider>{element}</MobileNavigationProvider>)
+
+        const back = screen.getByRole('link', { name: accessibleName })
+        expect(back).toHaveAttribute('href', '/@someone@llun.social')
+        expect(back).toHaveTextContent(/^Back to profile$/)
+      }
+    )
 
     it('renders authenticated PageHeader shell for logged-in user', async () => {
       mockGetServerAuthSession.mockResolvedValue({

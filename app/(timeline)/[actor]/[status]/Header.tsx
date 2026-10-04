@@ -5,6 +5,10 @@ import { FC } from 'react'
 
 import { BackLink } from '@/lib/components/back-link'
 import { MOBILE_BACK_ROW_CLASS } from '@/lib/components/layout/chromeLayout'
+import {
+  profileBack,
+  resolveBackDestination
+} from '@/lib/components/navigation-history/backDestination'
 import { useInAppBack } from '@/lib/components/navigation-history/useInAppBack'
 import { Button } from '@/lib/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -17,6 +21,11 @@ interface Props {
    * author's profile.
    */
   fallbackHref: string
+  /**
+   * The author's display name (or `@user@domain`) for the fallback's
+   * accessible name, "Back to <name>'s profile".
+   */
+  fallbackName: string
 }
 
 /**
@@ -24,15 +33,23 @@ interface Props {
  *
  * From `md` up it is the bar it always was: an icon Back (`router.back()`)
  * beside "Post" / "Activity". Below `md` the page title lives in the mobile
- * compact bar above the card, so this row is only a labelled Back: "Back"
- * through browser history when this tab arrived from a page inside the app,
- * otherwise a real link "Back to profile" — never a Back that leaves the app.
+ * compact bar above the card, so this row is only a labelled Back, never one
+ * that leaves the app: through browser history when this tab arrived from a
+ * page inside the app, otherwise a real link to the author's profile.
+ *
+ * Its visible text is "Back", or "Back to profile" whenever it returns to a
+ * profile — the fallback always, the history Back when the page it came from
+ * was one. Its accessible name names that page ("Back to Notifications",
+ * "Back to #running", "Back to Anna Nowak's profile"); see `backDestination`.
  */
 export const Header: FC<Props> = ({
   isFitnessDashboard = false,
-  fallbackHref
+  fallbackHref,
+  fallbackName
 }) => {
-  const { canGoBack, goBack } = useInAppBack()
+  const { canGoBack, previousPathname, goBack } = useInAppBack()
+  const destination = resolveBackDestination(previousPathname)
+  const fallback = profileBack(fallbackName)
 
   return (
     <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-surface-chrome px-5 py-3 backdrop-blur max-md:bg-transparent max-md:px-4 max-md:py-0.5 max-md:backdrop-blur-none">
@@ -41,7 +58,9 @@ export const Header: FC<Props> = ({
         size="icon"
         onClick={goBack}
         className="h-8 w-8 max-md:hidden"
-        aria-label="Go back"
+        // On a direct entry this still calls `router.back()`, as it always has
+        // on desktop, so it cannot name where that goes.
+        aria-label={canGoBack ? destination.accessibleName : 'Go back'}
       >
         <ArrowLeft className="h-4 w-4" />
       </Button>
@@ -49,18 +68,20 @@ export const Header: FC<Props> = ({
         <button
           type="button"
           onClick={goBack}
+          aria-label={destination.accessibleName}
           className={cn(
             'inline-flex items-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring md:hidden',
             MOBILE_BACK_ROW_CLASS
           )}
         >
           <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
-          <span>Back</span>
+          <span>{destination.label}</span>
         </button>
       ) : (
         <BackLink
           href={fallbackHref}
-          label="Back to profile"
+          label={fallback.label}
+          accessibleName={fallback.accessibleName}
           prefetch={false}
           className="md:hidden"
         />

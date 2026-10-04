@@ -49,12 +49,11 @@ const Page = async ({ params, searchParams }: Props) => {
 
   return (
     <div className="space-y-6">
-      {/* Below md the Back is its own labelled row above the heading; from
-          md up it is the icon beside the heading it always was. */}
+      {/* Below md the Back is its own "Back" row above the heading; from md
+          up it is the icon beside the heading it always was. */}
       <div className="flex items-start gap-3 max-md:flex-col max-md:gap-1">
         <BackLink
           href="/admin/tags"
-          label="Back to hashtags"
           accessibleName="Back to hashtags list"
           iconOnlyFrom="md"
           className="md:rounded-lg md:p-2 md:hover:bg-muted"

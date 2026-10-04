@@ -11,10 +11,10 @@ import { cn } from '@/lib/utils'
 export interface PageHeaderBack {
   /** The parent route Back returns to. */
   href: string
-  /** Descriptive visible label, e.g. "Back to lists". */
-  label: string
-  /** A longer accessible name that contains `label`. */
-  accessibleName?: string
+  /** Names the destination, e.g. "Back to lists"; contains `label`. */
+  accessibleName: string
+  /** Visible text; "Back" unless the destination is a profile. */
+  label?: string
   /** `false` for a per-user `[actor]` route. */
   prefetch?: boolean
 }

@@ -32,13 +32,13 @@ vi.mock('@/lib/components/page-header', () => ({
     title: ReactNode
     description: ReactNode
     actions: ReactNode
-    back?: { href: string; label: string }
+    back?: { href: string; accessibleName: string }
     compactTitle?: string
   }) => (
     <div
       data-testid="page-header"
       data-back-href={back?.href}
-      data-back-label={back?.label}
+      data-back-name={back?.accessibleName}
       data-compact-title={compactTitle}
     >
       <div>{title}</div>
@@ -170,7 +170,7 @@ describe('CollectionDetail', () => {
     const header = screen.getByTestId('page-header')
     expect(header).toHaveAttribute('data-back-href', '/lists')
     expect(header).toHaveAttribute(
-      'data-back-label',
+      'data-back-name',
       'Back to lists and collections'
     )
     expect(header).toHaveAttribute('data-compact-title', 'Collection')
@@ -303,6 +303,34 @@ describe('CollectionDetail', () => {
     expect(header).not.toHaveAttribute('data-back-href')
     expect(header).toHaveAttribute('data-compact-title', 'Collection')
   })
+
+  // Logged out (no currentActor) the heading is the one the public view
+  // always had: the title truncating on one line.
+  it.each([
+    [undefined, true],
+    [{} as ActorProfile, false]
+  ])(
+    'truncates the heading only for a logged-out visitor (%#)',
+    (currentActor, truncates) => {
+      render(
+        <CollectionDetail
+          {...baseProps}
+          isOwner={false}
+          currentActor={currentActor}
+        />
+      )
+
+      const title = screen.getByText('Fediverse builders', {
+        selector: '[data-testid="page-header"] *'
+      })
+      if (truncates) {
+        expect(title).toHaveClass('truncate')
+        expect(title.parentElement).toHaveClass('flex', 'items-center', 'gap-2')
+      } else {
+        expect(title).not.toHaveClass('truncate')
+      }
+    }
+  )
 
   it.each([
     {

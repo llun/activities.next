@@ -36,12 +36,12 @@ vi.mock('./AdminReportDetail', () => ({
 }))
 
 describe('/admin/reports/[id]', () => {
-  it('puts a labelled Back to the reports list beside the Report heading', async () => {
+  it('puts a "Back" to the reports list beside the Report heading', async () => {
     render(await Page({ params: Promise.resolve({ id: 'report-1' }) }))
 
     const back = screen.getByRole('link', { name: 'Back to reports list' })
     expect(back).toHaveAttribute('href', '/admin/reports')
-    expect(within(back).getByText('Back to reports')).toHaveClass('md:sr-only')
+    expect(within(back).getByText('Back')).toHaveClass('md:sr-only')
     expect(
       screen.getByRole('heading', { level: 1, name: 'Report' })
     ).not.toContainElement(back)

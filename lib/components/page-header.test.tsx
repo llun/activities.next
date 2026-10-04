@@ -282,14 +282,16 @@ describe('PageHeader', () => {
       render(
         <MobileNavigationProvider>
           <PageHeader
-            title="Followers"
-            back={{ href: '/@alice@example.com', label: 'Back to profile' }}
+            title="Morning running crew"
+            back={{ href: '/lists', accessibleName: 'Back to lists' }}
           />
         </MobileNavigationProvider>
       )
 
-      const link = screen.getByRole('link', { name: 'Back to profile' })
-      expect(link).toHaveAttribute('href', '/@alice@example.com')
+      // Visible "Back"; the accessible name names the destination.
+      const link = screen.getByRole('link', { name: 'Back to lists' })
+      expect(link).toHaveAttribute('href', '/lists')
+      expect(link).toHaveTextContent(/^Back$/)
       for (const heading of screen.getAllByRole('heading')) {
         expect(heading).not.toContainElement(link)
       }
@@ -301,7 +303,7 @@ describe('PageHeader', () => {
           <PageHeader
             title="Morning running crew"
             compactTitle="Lists"
-            back={{ href: '/lists', label: 'Back to lists' }}
+            back={{ href: '/lists', accessibleName: 'Back to lists' }}
           />
         </MobileNavigationProvider>
       )
@@ -334,7 +336,7 @@ describe('PageHeader', () => {
     it.each([
       {
         name: 'back',
-        props: { back: { href: '/lists', label: 'Back to lists' } }
+        props: { back: { href: '/lists', accessibleName: 'Back to lists' } }
       },
       { name: 'description', props: { description: 'Latest posts' } },
       {

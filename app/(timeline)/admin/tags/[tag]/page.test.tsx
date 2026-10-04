@@ -46,7 +46,7 @@ vi.mock('./AdminHashtagPosts', () => ({
 }))
 
 describe('/admin/tags/[tag]', () => {
-  it('puts a labelled Back to the hashtags list beside the tag heading', async () => {
+  it('puts a "Back" to the hashtags list beside the tag heading', async () => {
     render(
       await Page({
         params: Promise.resolve({ tag: 'fediverse' }),
@@ -56,7 +56,7 @@ describe('/admin/tags/[tag]', () => {
 
     const back = screen.getByRole('link', { name: 'Back to hashtags list' })
     expect(back).toHaveAttribute('href', '/admin/tags')
-    expect(within(back).getByText('Back to hashtags')).toHaveClass('md:sr-only')
+    expect(within(back).getByText('Back')).toHaveClass('md:sr-only')
     expect(
       screen.getByRole('heading', { level: 1, name: 'fediverse' })
     ).not.toContainElement(back)

@@ -77,7 +77,7 @@ describe('/admin/accounts/[id]', () => {
     expect(screen.queryByText('Admin', { selector: 'span' })).toBeNull()
   })
 
-  it('puts a labelled Back to the accounts list in the first content row', async () => {
+  it('puts a "Back" to the accounts list in the first content row', async () => {
     getAccountWithActors.mockResolvedValue({
       account: account({ role: null }),
       actors: []
@@ -87,8 +87,9 @@ describe('/admin/accounts/[id]', () => {
 
     const back = screen.getByRole('link', { name: 'Back to accounts list' })
     expect(back).toHaveAttribute('href', '/admin/accounts')
-    // Visible below md, sr-only from md up where the arrow stands alone.
-    expect(within(back).getByText('Back to accounts')).toHaveClass('md:sr-only')
+    // Visible "Back" below md, sr-only from md up where the arrow stands
+    // alone; the accessible name names the list.
+    expect(within(back).getByText('Back')).toHaveClass('md:sr-only')
     expect(screen.getByRole('heading', { level: 1 })).not.toContainElement(back)
   })
 })

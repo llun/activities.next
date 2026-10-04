@@ -2,7 +2,8 @@
 // so a history-based Back (the status page's "Back") can tell whether
 // `router.back()` would return somewhere inside the app or leave it — a
 // permalink opened from another site, a bookmark or a fresh tab has nothing in
-// the app to go back to, and must offer a real link instead.
+// the app to go back to, and must offer a real link instead — and, when it
+// stays in the app, name the page it returns to (`backDestination`).
 //
 // The browser does not expose its history entries, so this is a heuristic over
 // the pathnames the `InAppHistoryTracker` observes. A pathname already on the
@@ -45,17 +46,19 @@ export const recordNavigation = (pathname: string) => {
 }
 
 /**
- * Whether an in-app page precedes `currentPathname`.
+ * The in-app pathname that precedes `currentPathname`, or `null` when nothing
+ * in the app does (a direct entry).
  *
  * It answers for the stack as it is once the tracker has recorded
  * `currentPathname`, so the first render of a page — which happens before the
  * tracker's effect — and every render after it agree: a pathname already on the
- * stack will be truncated to, so something precedes it only if it is not the
- * bottom entry; a new one will be pushed on top of whatever is there.
+ * stack will be truncated to, so the entry below it precedes it (none for the
+ * bottom entry); a new one will be pushed on top of whatever is there.
  */
-export const hasInAppPrevious = (currentPathname: string) => {
+export const getInAppPrevious = (currentPathname: string): string | null => {
   const index = stack.indexOf(currentPathname)
-  return index >= 0 ? index >= 1 : stack.length >= 1
+  if (index >= 0) return index >= 1 ? stack[index - 1] : null
+  return stack.length >= 1 ? stack[stack.length - 1] : null
 }
 
 export const subscribeToInAppHistory = (listener: Listener) => {

@@ -241,10 +241,56 @@ describe('Mobile chrome', () => {
       expect(triggers).toHaveLength(1)
       expect(bar).toContainElement(triggers[0])
       // Direct entry: no in-app page precedes this one in the test, so the
-      // Back is the decoded author profile link.
-      expect(
-        screen.getByRole('link', { name: 'Back to profile' })
-      ).toHaveAttribute('href', '/@anna@activities.local')
+      // Back is the decoded author profile link, named by the handle when the
+      // status carries no author profile.
+      const back = screen.getByRole('link', {
+        name: "Back to @anna@activities.local's profile"
+      })
+      expect(back).toHaveAttribute('href', '/@anna@activities.local')
+      expect(back).toHaveTextContent(/^Back to profile$/)
+    }
+  )
+
+  // The fallback's accessible name carries the author's display name when the
+  // status is theirs; a status by someone else (a mismatched path) names the
+  // handle from the path instead.
+  it.each([
+    [
+      { username: 'Anna', domain: 'activities.local' },
+      "Back to Anna Nowak's profile"
+    ],
+    [
+      { username: 'someone', domain: 'elsewhere.example' },
+      "Back to @anna@activities.local's profile"
+    ]
+  ])(
+    'names the direct-entry Back after the author (%o)',
+    async (author, accessibleName) => {
+      const note = buildNote({
+        id: 'focused',
+        actor: {
+          ...author,
+          name: 'Anna Nowak'
+        } as unknown as StatusNote['actor']
+      })
+      mockResolveStatusFromPath.mockResolvedValue({
+        pathActor: PATH_ACTOR,
+        status: note,
+        statusId: note.id,
+        fullStatusId: note.url,
+        isStatusHash: true
+      })
+      const element = await Page({
+        params: Promise.resolve({
+          actor: '%40anna%40activities.local',
+          status: 'hash'
+        })
+      })
+      render(<MobileNavigationProvider>{element}</MobileNavigationProvider>)
+
+      const back = screen.getByRole('link', { name: accessibleName })
+      expect(back).toHaveAttribute('href', '/@anna@activities.local')
+      expect(back).toHaveTextContent(/^Back to profile$/)
     }
   )
 })
@@ -283,7 +329,9 @@ describe('Back to profile fallback from an untrusted actor segment', () => {
 
       expect(screen.getByTestId('status-focused')).toBeInTheDocument()
       expect(
-        screen.getByRole('link', { name: 'Back to profile' })
+        screen.getByRole('link', {
+          name: "Back to @u@attacker.example's profile"
+        })
       ).toHaveAttribute('href', '/@u@attacker.example')
     }
   )
@@ -355,13 +403,10 @@ describe('Conversation card chrome', () => {
     expect(card).not.toHaveClass('max-md:-mt-6')
   })
 
-  it('adds no top margin of its own when logged out, where PublicShell spaces it', async () => {
+  it('pulls flush under PublicTopBar with max-md:-mt-6 on mobile when logged out', async () => {
     const card = await renderPage()
 
-    // The public shell keeps its column padding on desktop and drops it
-    // below md, where the card sits flush under the compact bar; an extra
-    // negative margin here would pull it under that bar.
-    expect(card).not.toHaveClass('max-md:-mt-6')
+    expect(card).toHaveClass('max-md:-mt-6')
     expect(card).not.toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
   })
@@ -512,13 +557,10 @@ describe('Fitness activity card chrome', () => {
     expect(card).not.toHaveClass('max-md:-mt-6')
   })
 
-  it('adds no top margin of its own when logged out, where PublicShell spaces it', async () => {
+  it('pulls flush under PublicTopBar with max-md:-mt-6 on mobile when logged out', async () => {
     const card = await renderPage()
 
-    // The public shell keeps its column padding on desktop and drops it
-    // below md, where the card sits flush under the compact bar; an extra
-    // negative margin here would pull it under that bar.
-    expect(card).not.toHaveClass('max-md:-mt-6')
+    expect(card).toHaveClass('max-md:-mt-6')
     expect(card).not.toHaveClass('md:mt-4')
     expect(card).not.toHaveClass('mt-4')
   })

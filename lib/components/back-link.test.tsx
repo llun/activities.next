@@ -5,6 +5,8 @@ import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 import { type AnchorHTMLAttributes, type ReactNode } from 'react'
 
+import { profileBack } from '@/lib/components/navigation-history/backDestination'
+
 import { BackLink } from './back-link'
 
 vi.mock('next/link', () => ({
@@ -25,18 +27,31 @@ vi.mock('next/link', () => ({
 }))
 
 describe('BackLink', () => {
-  it('is named by its visible label and points at the parent route', () => {
-    render(<BackLink href="/lists" label="Back to lists" iconOnlyFrom="md" />)
+  it('shows "Back" and names the destination for assistive tech', () => {
+    render(
+      <BackLink
+        href="/lists"
+        accessibleName="Back to lists"
+        iconOnlyFrom="md"
+      />
+    )
 
     const link = screen.getByRole('link', { name: 'Back to lists' })
     expect(link).toHaveAttribute('href', '/lists')
-    // The label is a real text node: visible below md, sr-only from md up,
-    // so the desktop arrow keeps the same accessible name.
-    expect(screen.getByText('Back to lists')).toHaveClass('md:sr-only')
+    // The visible word is a real text node contained in the accessible name
+    // (Label in Name): visible below md, sr-only from md up.
+    expect(link).toHaveTextContent(/^Back$/)
+    expect(screen.getByText('Back')).toHaveClass('md:sr-only')
   })
 
   it('puts the arrow on the content gutter in a 44px row below md', () => {
-    render(<BackLink href="/lists" label="Back to lists" iconOnlyFrom="md" />)
+    render(
+      <BackLink
+        href="/lists"
+        accessibleName="Back to lists"
+        iconOnlyFrom="md"
+      />
+    )
 
     // No negative margin and no horizontal padding: the 16px arrow sits on
     // the 16px content gutter and the label follows after an 8px gap.
@@ -54,32 +69,19 @@ describe('BackLink', () => {
     expect(link.querySelector('svg')).toHaveClass('size-5', 'max-md:size-4')
   })
 
-  it('keeps a longer accessible name that contains the visible label', () => {
+  it('shows "Back to profile" for a profile and names the person', () => {
     render(
       <BackLink
-        href="/admin/accounts"
-        label="Back to accounts"
-        accessibleName="Back to accounts list"
-        iconOnlyFrom="md"
-      />
-    )
-
-    expect(
-      screen.getByRole('link', { name: 'Back to accounts list' })
-    ).toHaveTextContent('Back to accounts')
-  })
-
-  it('passes prefetch through for per-user profile targets', () => {
-    render(
-      <BackLink
-        href="/@alice@example.com"
-        label="Back to profile"
+        href="/@anna@llun.social"
+        {...profileBack('Anna Nowak')}
         prefetch={false}
       />
     )
 
-    expect(
-      screen.getByRole('link', { name: 'Back to profile' })
-    ).toHaveAttribute('data-prefetch', 'false')
+    const link = screen.getByRole('link', {
+      name: "Back to Anna Nowak's profile"
+    })
+    expect(link).toHaveTextContent(/^Back to profile$/)
+    expect(link).toHaveAttribute('data-prefetch', 'false')
   })
 })

@@ -1,6 +1,6 @@
 import {
   MAX_ENTRIES,
-  hasInAppPrevious,
+  getInAppPrevious,
   recordNavigation,
   resetInAppHistory,
   subscribeToInAppHistory
@@ -12,17 +12,17 @@ describe('inAppHistory', () => {
   })
 
   it('has no previous page on direct entry, before or after the page is recorded', () => {
-    expect(hasInAppPrevious('/@alice@example.com/1')).toBe(false)
+    expect(getInAppPrevious('/@alice@example.com/1')).toBeNull()
     recordNavigation('/@alice@example.com/1')
-    expect(hasInAppPrevious('/@alice@example.com/1')).toBe(false)
+    expect(getInAppPrevious('/@alice@example.com/1')).toBeNull()
   })
 
-  it('sees the page navigated from before and after the new page is recorded', () => {
-    recordNavigation('/')
+  it('names the page navigated from before and after the new page is recorded', () => {
+    recordNavigation('/notifications')
     // The first render of the post happens before the tracker's effect.
-    expect(hasInAppPrevious('/@alice@example.com/1')).toBe(true)
+    expect(getInAppPrevious('/@alice@example.com/1')).toBe('/notifications')
     recordNavigation('/@alice@example.com/1')
-    expect(hasInAppPrevious('/@alice@example.com/1')).toBe(true)
+    expect(getInAppPrevious('/@alice@example.com/1')).toBe('/notifications')
   })
 
   it('reads a return to the previous entry as a back navigation and pops', () => {
@@ -31,7 +31,7 @@ describe('inAppHistory', () => {
     // Browser Back to the post: the post is the entry below the profile.
     recordNavigation('/@alice@example.com/1')
     // The post was the first page in this tab, so nothing precedes it now.
-    expect(hasInAppPrevious('/@alice@example.com/1')).toBe(false)
+    expect(getInAppPrevious('/@alice@example.com/1')).toBeNull()
   })
 
   // A multi-step jump back to the entry page, e.g. `history.go(-2)`. A record
@@ -43,9 +43,9 @@ describe('inAppHistory', () => {
     recordNavigation('/p0')
     recordNavigation('/x')
     recordNavigation('/y')
-    expect(hasInAppPrevious('/p0')).toBe(false)
+    expect(getInAppPrevious('/p0')).toBeNull()
     recordNavigation('/p0')
-    expect(hasInAppPrevious('/p0')).toBe(false)
+    expect(getInAppPrevious('/p0')).toBeNull()
   })
 
   // The entry page reached again by link, then by a jump back. The stack reads
@@ -58,7 +58,7 @@ describe('inAppHistory', () => {
     recordNavigation('/p0')
     recordNavigation('/y')
     recordNavigation('/p0')
-    expect(hasInAppPrevious('/p0')).toBe(false)
+    expect(getInAppPrevious('/p0')).toBeNull()
   })
 
   it('still offers Back on a page returned to that is not the entry page', () => {
@@ -66,12 +66,13 @@ describe('inAppHistory', () => {
     recordNavigation('/x')
     recordNavigation('/y')
     recordNavigation('/z')
-    expect(hasInAppPrevious('/x')).toBe(true)
+    // The page below a revisited one is what it returns to, not the top.
+    expect(getInAppPrevious('/x')).toBe('/p0')
     recordNavigation('/x')
-    expect(hasInAppPrevious('/x')).toBe(true)
+    expect(getInAppPrevious('/x')).toBe('/p0')
     // …and the entry page, reached again, still has nothing before it.
     recordNavigation('/p0')
-    expect(hasInAppPrevious('/p0')).toBe(false)
+    expect(getInAppPrevious('/p0')).toBeNull()
   })
 
   it(`keeps only the latest ${MAX_ENTRIES} pages`, () => {
@@ -79,13 +80,13 @@ describe('inAppHistory', () => {
     // `/p0` fell off the bottom, so `/p1` is the oldest page recorded and a
     // return to it has nothing before it.
     recordNavigation('/p1')
-    expect(hasInAppPrevious('/p1')).toBe(false)
+    expect(getInAppPrevious('/p1')).toBeNull()
   })
 
   it('ignores a repeated record of the current page', () => {
     recordNavigation('/a')
     recordNavigation('/a')
-    expect(hasInAppPrevious('/a')).toBe(false)
+    expect(getInAppPrevious('/a')).toBeNull()
   })
 
   it('notifies subscribers when the stack changes and stops after unsubscribe', () => {

@@ -592,6 +592,8 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
       id: 'remote-followers-only',
       actorId: REMOTE_AUTHOR_ID,
       actor: {
+        username: 'remote',
+        domain: 'remote.example',
         followersUrl: customFollowersUrl
       } as unknown as Status['actor'],
       isLocalActor: false,

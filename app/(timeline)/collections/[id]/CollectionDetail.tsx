@@ -246,11 +246,24 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
       <PageHeader
-        title={collection.title}
+        title={
+          currentActor ? (
+            collection.title
+          ) : (
+            // Logged out (PublicShell): the heading the public view always
+            // had, truncating on one line.
+            <span className="flex items-center gap-2">
+              <span className="truncate">{collection.title}</span>
+            </span>
+          )
+        }
         compactTitle="Collection"
         back={
           isOwner
-            ? { href: '/lists', label: 'Back to lists and collections' }
+            ? {
+                href: '/lists',
+                accessibleName: 'Back to lists and collections'
+              }
             : undefined
         }
         description={subtitle}

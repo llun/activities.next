@@ -42,13 +42,13 @@ vi.mock('@/lib/components/page-header', () => ({
     title: ReactNode
     description: ReactNode
     actions: ReactNode
-    back?: { href: string; label: string }
+    back?: { href: string; accessibleName: string }
     compactTitle?: string
   }) => (
     <div
       data-testid="page-header"
       data-back-href={back?.href}
-      data-back-label={back?.label}
+      data-back-name={back?.accessibleName}
       data-compact-title={compactTitle}
     >
       <div>{title}</div>
@@ -301,7 +301,7 @@ describe('ListTimeline', () => {
     const header = screen.getByTestId('page-header')
     expect(header).toHaveAttribute('data-compact-title', 'Lists')
     expect(header).toHaveAttribute('data-back-href', '/lists')
-    expect(header).toHaveAttribute('data-back-label', 'Back to lists')
+    expect(header).toHaveAttribute('data-back-name', 'Back to lists')
   })
 
   it('appends the next page of statuses on load more', async () => {

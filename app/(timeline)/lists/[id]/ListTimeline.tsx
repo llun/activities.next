@@ -156,7 +156,7 @@ export const ListTimeline: FC<ListTimelineProps> = ({
       <PageHeader
         title={list.title}
         compactTitle="Lists"
-        back={{ href: '/lists', label: 'Back to lists' }}
+        back={{ href: '/lists', accessibleName: 'Back to lists' }}
         description={listSubtitle(list, memberCount)}
         actions={
           <Button asChild variant="outline" size="sm">

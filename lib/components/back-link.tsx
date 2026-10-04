@@ -2,18 +2,22 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
 import { MOBILE_BACK_ROW_CLASS } from '@/lib/components/layout/chromeLayout'
+import { BACK_LABEL } from '@/lib/components/navigation-history/backDestination'
 import { cn } from '@/lib/utils'
 
 export interface BackLinkProps {
   /** The parent route this Back returns to. */
   href: string
-  /** Descriptive visible label, e.g. "Back to profile". */
-  label: string
   /**
-   * Accessible name when it should say more than the visible label (it must
-   * still contain it). Defaults to the label.
+   * Names the destination for assistive tech ("Back to lists", "Back to Anna
+   * Nowak's profile"). It must contain the visible `label`.
    */
-  accessibleName?: string
+  accessibleName: string
+  /**
+   * The visible text: "Back" by default; "Back to profile" when the
+   * destination is a profile (`profileBack` in `backDestination`).
+   */
+  label?: string
   /**
    * From this breakpoint up the label is visually hidden and only the arrow
    * shows — the desktop look these links always had. Below it, the link is a
@@ -28,13 +32,14 @@ export interface BackLinkProps {
 
 /**
  * A parent-route Back link that sits in the first content row, never in a
- * page bar. A history-based Back (the post page) is a different control — see
- * the status `Header`.
+ * page bar. Its visible text is short ("Back", or "Back to profile" for a
+ * profile) and its accessible name names the destination. A history-based Back
+ * (the post page) is a different control — see the status `Header`.
  */
 export function BackLink({
   href,
-  label,
   accessibleName,
+  label = BACK_LABEL,
   iconOnlyFrom,
   className,
   iconClassName = 'size-5 max-md:size-4',
