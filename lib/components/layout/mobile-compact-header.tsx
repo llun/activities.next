@@ -37,7 +37,8 @@ export interface MobileCompactHeaderProps {
  * The mobile "Compact B" bar: the menu button and one truncating title —
  * no logo, subtitle, breadcrumb, unread badge or Back. Page actions, counts,
  * descriptions, filters and Back live in the content below it, except an
- * `actions` slot a page opts into (the home timeline's Refresh). Renders only under a `MobileNavigationProvider` and only below `md`.
+ * `actions` slot a page opts into (the home timeline's Refresh). Renders only
+ * under a `MobileNavigationProvider` and only below `md`.
  */
 export function MobileCompactHeader({
   title,
