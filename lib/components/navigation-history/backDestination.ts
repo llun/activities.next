@@ -39,7 +39,7 @@ const PREVIOUS_PAGE_BACK: BackDestination = {
 }
 
 /** A Back to a section or page: visible "Back", named "Back to <name>". */
-export const backTo = (name: string): BackDestination => ({
+const backTo = (name: string): BackDestination => ({
   label: BACK_LABEL,
   accessibleName: `Back to ${name}`
 })
@@ -107,8 +107,8 @@ export const resolveBackDestination = (
     return second && !third ? backTo(`#${second}`) : PREVIOUS_PAGE_BACK
   }
   // Every other first segment that is a navigation item id (`/notifications`,
-  // `/settings`, ...) is that section; `timeline` is `/`, handled above.
-  if (first !== 'timeline' && isNavItemId(first)) return sectionBack(first)
+  // `/settings`, ...) is that section; the timeline is `/`, handled above.
+  if (isNavItemId(first)) return sectionBack(first)
 
   if (HANDLE_PATTERN.test(first)) {
     if (!second) return profileBack(first)
