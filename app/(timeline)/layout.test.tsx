@@ -146,6 +146,9 @@ describe('(timeline) Layout', () => {
     expect(screen.getByTestId('child')).toBeInTheDocument()
     expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument()
     expect(screen.queryByTestId('mobile-nav')).not.toBeInTheDocument()
+    // No provider either: a mounted one would put the compact bar and the
+    // floating menu button on pages that must render as they did on main.
+    expect(screen.queryByTestId('mobile-nav-provider')).not.toBeInTheDocument()
     expect(screen.queryByTestId('session-keep-alive')).not.toBeInTheDocument()
   })
 

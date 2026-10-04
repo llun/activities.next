@@ -58,9 +58,12 @@ describe('PublicTopBar', () => {
     const banner = screen.getByRole('banner')
     expect(banner).not.toHaveClass('max-md:hidden')
     expect(banner).not.toHaveClass('hidden')
-    expect(
-      within(banner).getByRole('link', { name: 'Activities home' })
-    ).toBeInTheDocument()
+    const home = within(banner).getByRole('link', { name: 'Activities home' })
+    // The logo is on the canonical origin, so it resolves when the page is
+    // served from a CDN alias domain.
+    expect(home.querySelector('img')?.getAttribute('src')).toContain(
+      encodeURIComponent('https://canonical.example/logo-nav.png')
+    )
     expect(
       within(banner).getByRole('link', { name: 'Sign in' })
     ).toHaveAttribute('href', '/auth/signin')

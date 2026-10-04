@@ -260,7 +260,16 @@ describe('Mobile chrome', () => {
       'Back to profile, Anna Nowak'
     ],
     [
+      { username: 'Anna', domain: 'Activities.Local' },
+      'Back to profile, Anna Nowak'
+    ],
+    [
       { username: 'someone', domain: 'elsewhere.example' },
+      'Back to profile, @anna@activities.local'
+    ],
+    // The same username on another server is someone else.
+    [
+      { username: 'anna', domain: 'elsewhere.example' },
       'Back to profile, @anna@activities.local'
     ]
   ])(
@@ -417,6 +426,9 @@ describe('Conversation card chrome', () => {
     // The logged-out branch leads with an `sr-only` heading, which is out of
     // flow and paints nothing — the post below it is what meets the corners.
     expect(card.firstElementChild).toHaveClass('sr-only')
+    // …and stays in the accessibility tree at every width: a logged-out
+    // visitor has no mobile bar to carry the page's h1.
+    expect(card.firstElementChild).not.toHaveClass('max-md:hidden')
     expect(rowFor('focused')).toHaveClass('rounded-t-2xl')
   })
 
@@ -571,6 +583,9 @@ describe('Fitness activity card chrome', () => {
     // The logged-out branch leads with an `sr-only` heading, which is out of
     // flow and paints nothing — the post block below it meets the corners.
     expect(card.firstElementChild).toHaveClass('sr-only')
+    // …and stays in the accessibility tree at every width: a logged-out
+    // visitor has no mobile bar to carry the page's h1.
+    expect(card.firstElementChild).not.toHaveClass('max-md:hidden')
     expect(rowFor('ride-1')).toHaveClass('rounded-t-2xl')
     // …but not the bottom ones: the sign-in callout renders below it.
     expect(rowFor('ride-1')).not.toHaveClass('rounded-b-2xl')

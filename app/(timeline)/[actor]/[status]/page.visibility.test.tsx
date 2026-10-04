@@ -396,9 +396,11 @@ describe('Page visibility for logged-out visitors', () => {
 
     // The back-button Header is gated to signed-in users; logged-out keeps only
     // a visually-hidden top-level heading for the document outline.
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'Activity' })
-    ).toBeInTheDocument()
+    const heading = screen.getByRole('heading', { level: 1, name: 'Activity' })
+    expect(heading).toBeInTheDocument()
+    // Logged out has no mobile bar, so the heading is not hidden below md.
+    expect(heading).toHaveClass('sr-only')
+    expect(heading).not.toHaveClass('max-md:hidden')
     expect(screen.getByTestId('status-fitness-status')).toBeInTheDocument()
     expect(
       screen.getByRole('group', { name: 'Engagement' })
