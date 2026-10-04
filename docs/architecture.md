@@ -1612,12 +1612,12 @@ legacy shape left to copy.
   `SectionNavDropdown` on every breakpoint — no re-inlined dropdown markup and no
   desktop vertical icon rail. Sentence-case labels ("Blocked accounts").
 - Fitness stat strips (the activity detail's header strip, the strip under its
-  map, the inline chip in a post) render through `FitnessStatGrid` and size
-  themselves with **container** queries — no hand-rolled `grid-cols-*` strip and
-  no `sm:`/viewport breakpoint, which cannot see a narrow column on a wide
-  window. `@container` belongs on a wrapper, never on the grid it sizes. Two
-  older strips (gear detail, fitness overview) are not migrated yet — see
-  **Fitness Stat Strips** in `AGENTS.md`.
+  map, the inline chip in a post, the overview's totals) render through
+  `FitnessStatGrid` and size themselves with **container** queries — no
+  hand-rolled `grid-cols-*` strip and no `sm:`/viewport breakpoint, which cannot
+  see a narrow column on a wide window. `@container` belongs on a wrapper, never on the grid it sizes. One
+  older strip (gear detail) is not migrated yet — see **Fitness Stat Strips** in
+  `AGENTS.md`.
 - A gear's activities render through the shared `GearActivitiesFeed` → `Posts`,
   never a bespoke row list, and the endpoint's `nextOffset` counts activity rows
   rather than the statuses in the page (an activity whose post was deleted still

@@ -477,6 +477,20 @@ node scripts/run.cjs scripts/mock/createMockFitnessData.ts [username]
 
 Defaults to `testuser` if omitted. Run after `createMockUser.ts`.
 
+### Create Mock Fitness Calendar Data
+
+Seeds a deterministic set of fitness activities for a local test user so the `/fitness` Overview's calendar, summary and day details can be checked against the same edge cases every time: viewer-local day boundaries (a 23:45 and a 00:10 activity either side of local midnight), the two daylight-saving days, a leap day, month and year edges, a 22-activity day for day-details pagination, mixed types including an untyped one, and rows the Overview must not count (deleted, non-primary, pending or failed). Nothing is random, so two runs with the same flags write identical rows.
+
+```bash
+set -a; . ./.env.local; set +a
+node scripts/run.cjs scripts/mock/createMockFitnessCalendarData.ts \
+  --anchor 2026-10-04 --time-zone Europe/Amsterdam [--username testuser]
+```
+
+`--anchor` is "today" for the seed (nothing is written after the start of that day, plus five minutes) and `--time-zone` is the IANA zone the seed's wall-clock times are read in. Pass both or neither; the defaults are `2026-10-04` and `Europe/Amsterdam`. Open the Overview with the browser in the same zone to see the days where the seed meant them to land. `--username` defaults to `testuser`; run `createMockUser.ts` first.
+
+It **refuses to run against anything but a local database** (local SQLite, or PostgreSQL on `localhost`, `127.0.0.1`, `::1`, `activities.local`, `host.docker.internal` or `postgres`) and prints which database it is about to touch first. Like the other mock scripts it does not load `.env.local`, so export the variables as shown. It is idempotent: every row it writes has a file path under `mock-calendar/` and every post carries the `mock-calendar` application name, so a run deletes the actor's earlier rows under that prefix and inserts the set again, leaving other activities untouched.
+
 ### Render Email Previews
 
 Renders every email template to standalone HTML files so a template change can
