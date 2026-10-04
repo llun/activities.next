@@ -15,6 +15,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -276,22 +277,27 @@ function FitnessOverview({
   // Month view, a month label, the year chooser or the picker can target the
   // range that just failed, which is still the applied one. Applying it again
   // changes nothing the read depends on, so read it again instead. Every
-  // control that applies a range goes through here. Stable between renders
-  // that change none of its inputs, so the memoized year rows that get
-  // `openMonth` are not redrawn for, say, a day's activities loading.
+  // control that applies a range goes through here. It reads the state,
+  // status and retry of the latest commit from a ref, so it keeps one identity
+  // for the component's life: the memoized year rows that get `openMonth` are
+  // not redrawn for a picker edit, a day's activities loading or anything else
+  // that changes the state. The ref is written in a layout effect, so a click
+  // that lands before passive effects run still sees the committed values.
   const { retry } = data
-  const applyRange = useCallback(
-    (action: OverviewAction) => {
-      dispatch(action)
-      if (
-        status === 'error' &&
-        rangesEqual(overviewReducer(state, action).applied, state.applied)
-      ) {
-        retry()
-      }
-    },
-    [state, status, retry]
-  )
+  const latest = useRef({ state, status, retry })
+  useLayoutEffect(() => {
+    latest.current = { state, status, retry }
+  })
+  const applyRange = useCallback((action: OverviewAction) => {
+    const { state, status, retry } = latest.current
+    dispatch(action)
+    if (
+      status === 'error' &&
+      rangesEqual(overviewReducer(state, action).applied, state.applied)
+    ) {
+      retry()
+    }
+  }, [])
   const step = (direction: StepDirection) => {
     const target = stepTarget(displayRange, direction, today)
     if (target) applyRange({ type: 'APPLY_RANGE', range: target })
@@ -442,11 +448,13 @@ function FitnessOverview({
   const calendarHeadingId = useId()
   const isEmpty = status === 'success' && totals !== null && totals.count === 0
 
-  const legend = (
-    <CalendarLegend
-      metric={metric}
-      showUpcoming={gridView === 'month' && displayRange.kind === 'this_month'}
-    />
+  // Memoized: the annual calendar hands it to the last year row as
+  // `trailing`, and a new element on every render would redraw that row.
+  const showUpcoming =
+    gridView === 'month' && displayRange.kind === 'this_month'
+  const legend = useMemo(
+    () => <CalendarLegend metric={metric} showUpcoming={showUpcoming} />,
+    [metric, showUpcoming]
   )
   const monthParts = dateKeyParts(displayRange.from)
   const monthFooter = (

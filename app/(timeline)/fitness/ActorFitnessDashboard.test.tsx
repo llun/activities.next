@@ -10,7 +10,7 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
-import { AnchorHTMLAttributes, ReactNode } from 'react'
+import { AnchorHTMLAttributes, ReactNode, memo } from 'react'
 
 import {
   ApiRequestError,
@@ -18,6 +18,7 @@ import {
   getFitnessCalendarDayActivities,
   getFitnessSummary
 } from '@/lib/client'
+import type { AnnualYearRowProps } from '@/lib/components/fitness/calendar/AnnualYearRow'
 import type {
   FitnessActivitySummary,
   FitnessCalendarDay,
@@ -44,6 +45,32 @@ vi.mock('@/lib/client', async () => {
     getFitnessCalendarDayActivities: vi.fn()
   }
 })
+
+// Counts the annual calendar's year-row renders, split into the last row (the
+// one given the legend as `trailing`) and the others. The wrapper is memoized
+// like the real row, so a count is a render the real row's memo let through.
+const yearRowRenders = vi.hoisted(() => ({ last: 0, others: 0 }))
+
+vi.mock(
+  '@/lib/components/fitness/calendar/AnnualYearRow',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@/lib/components/fitness/calendar/AnnualYearRow')
+      >()
+    const Real = actual.AnnualYearRow
+    return {
+      ...actual,
+      AnnualYearRow: memo(function CountingAnnualYearRow(
+        props: AnnualYearRowProps
+      ) {
+        if (props.trailing === undefined) yearRowRenders.others += 1
+        else yearRowRenders.last += 1
+        return <Real {...props} />
+      })
+    }
+  }
+)
 
 // next/link swallows `prefetch` and `scroll` instead of reflecting them in the
 // DOM, so render them ourselves to assert on them.
@@ -1048,6 +1075,44 @@ describe('ActorFitnessDashboard', () => {
         })
       )
     })
+  })
+
+  it('does not redraw the year rows while the picker draft is edited', async () => {
+    renderDashboard()
+    await waitForLoaded()
+    // A custom range across four calendar years: four year rows.
+    fireEvent.click(rangeTrigger())
+    fireEvent.click(await screen.findByRole('button', { name: 'Custom' }))
+    fireEvent.change(screen.getByLabelText('From'), {
+      target: { value: '2023-01-01' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    await waitFor(() =>
+      expect(lastRange(mockedSummary)).toEqual({
+        from: '2023-01-01',
+        to: '2026-10-04'
+      })
+    )
+    await waitForLoaded()
+    expect(
+      screen.getAllByRole('group', { name: /^Training calendar, \d{4}$/ })
+    ).toHaveLength(4)
+
+    fireEvent.click(rangeTrigger())
+    const from = await screen.findByLabelText('From')
+    const before = { ...yearRowRenders }
+    for (const value of [
+      '2024-03-1',
+      '2024-03-15',
+      '2024-03-1',
+      '2024-03-12'
+    ]) {
+      fireEvent.change(from, { target: { value } })
+    }
+
+    // Each edit changes the overview state, and nothing a year row reads.
+    expect(yearRowRenders.others - before.others).toBe(0)
+    expect(yearRowRenders.last - before.last).toBe(0)
   })
 
   it('makes the calendar inert and hidden when the first read failed', async () => {
