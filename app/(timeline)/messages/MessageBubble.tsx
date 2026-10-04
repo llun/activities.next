@@ -24,6 +24,7 @@ import {
 
 import { useMessageTimeFormat } from './useMessageTimeFormat'
 
+// Keep the date-fns pattern and the Intl options naming the same fields; order and separators follow the reader's locale by design.
 const TIME_PATTERN = 'h:mm a'
 const TIME_FORMAT: Intl.DateTimeFormatOptions = {
   hour: 'numeric',

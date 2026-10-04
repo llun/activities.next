@@ -109,6 +109,7 @@ const conversationSubtitleCacheKey = (conversation: DirectConversationView) => {
   )
 }
 
+// Keep the date-fns pattern and the Intl options naming the same fields; order and separators follow the reader's locale by design.
 const TIMESTAMP_PATTERN = 'MMM d, h:mm a'
 const TIMESTAMP_FORMAT: Intl.DateTimeFormatOptions = {
   month: 'short',
