@@ -1,0 +1,35 @@
+lib/hooks/useHasHydrated.ts
+  s_e469a19b574997::t_3303ae9aae44f8 1-22
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.tsx
+  s_e469a19b574997::t_495d8d88d5876c 657-658
+  s_e469a19b574997::t_7d15c6d885ae33 91,1025,1515-1516
+app/(timeline)/[actor]/[status]/FitnessStatusDetail.test.tsx
+  s_e469a19b574997::t_5dd72ff5a542a7 511-514,516-521
+app/(timeline)/[actor]/[status]/ActivityStartTime.tsx
+  s_e469a19b574997::t_b7671ff8410bc0 1-31
+lib/hooks/useHasHydrated.test.tsx
+  s_e469a19b574997::t_b0a9f6268ad58d 1-41
+docs/fitness-file-storage.md
+  s_e469a19b574997::t_7f7f5bd1679033 542-550
+app/(timeline)/[actor]/[status]/ActivityStartTime.test.tsx
+  s_e469a19b574997::t_70e2788b6cffe5 1-22,24-28,32-33,35-76
+  s_e469a19b574997::t_7d15c6d885ae33 23,29-31,34
+docs/architecture.md
+  s_e469a19b574997::t_7f7f5bd1679033 1413-1419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "122e9353797dccfc39e4a4daeb1c344571c56c39",
+  "prompts": {},
+  "sessions": {
+    "s_e469a19b574997": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbed236c-cd14-4851-ad7e-33538c23d09c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
