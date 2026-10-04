@@ -3,7 +3,6 @@ import { FC, MouseEvent } from 'react'
 
 import { Media } from '@/lib/components/posts/media'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
-import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
 import {
   Attachment,
   isFitnessAttachment,
@@ -23,8 +22,9 @@ import {
   processStatusText
 } from '@/lib/utils/text/processStatusText'
 
-import { formatMessageTime } from './formatMessageTime'
+import { useMessageTimeFormat } from './useMessageTimeFormat'
 
+const TIME_PATTERN = 'h:mm a'
 const TIME_FORMAT: Intl.DateTimeFormatOptions = {
   hour: 'numeric',
   minute: '2-digit'
@@ -83,7 +83,7 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
   isOwn,
   onShowAttachment
 }) => {
-  const hasHydrated = useHasHydrated()
+  const formatTime = useMessageTimeFormat(TIME_PATTERN, TIME_FORMAT)
   const actualStatus = getActualStatus(status)
   const actor = actualStatus.actor
   const authorName = actor?.name || actor?.username || ''
@@ -103,11 +103,7 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
         tags: actualStatus.tags
       })
     : null
-  const time = formatMessageTime(
-    actualStatus.createdAt,
-    TIME_FORMAT,
-    hasHydrated
-  )
+  const time = formatTime(actualStatus.createdAt)
 
   const fitnessMeta = fitnessFile
     ? [

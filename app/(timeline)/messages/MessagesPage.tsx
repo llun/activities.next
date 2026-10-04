@@ -35,7 +35,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Textarea } from '@/lib/components/ui/textarea'
-import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
@@ -45,7 +44,7 @@ import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 import { MessageBubble } from './MessageBubble'
 import { INITIAL_CONVERSATIONS_LIMIT } from './constants'
-import { formatMessageTime } from './formatMessageTime'
+import { useMessageTimeFormat } from './useMessageTimeFormat'
 
 interface MessagesPageProps {
   host: string
@@ -110,6 +109,7 @@ const conversationSubtitleCacheKey = (conversation: DirectConversationView) => {
   )
 }
 
+const TIMESTAMP_PATTERN = 'MMM d, h:mm a'
 const TIMESTAMP_FORMAT: Intl.DateTimeFormatOptions = {
   month: 'short',
   day: 'numeric',
@@ -126,7 +126,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   currentActor,
   initialHasMoreConversations = false
 }) => {
-  const hasHydrated = useHasHydrated()
+  const formatTimestamp = useMessageTimeFormat(
+    TIMESTAMP_PATTERN,
+    TIMESTAMP_FORMAT
+  )
   const [currentConversations, setCurrentConversations] =
     useState<DirectConversationView[]>(conversations)
   const [selectedConversationId, setSelectedConversationId] = useState<
@@ -781,11 +784,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                           : preview}
                       </span>
                       <span className="block text-xs text-muted-foreground md:mt-1">
-                        {formatMessageTime(
-                          conversation.lastStatusCreatedAt,
-                          TIMESTAMP_FORMAT,
-                          hasHydrated
-                        )}
+                        {formatTimestamp(conversation.lastStatusCreatedAt)}
                       </span>
                     </span>
                   </button>

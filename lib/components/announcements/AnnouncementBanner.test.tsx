@@ -10,9 +10,8 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
-import { hydrateRoot } from 'react-dom/client'
-import { renderToString } from 'react-dom/server'
 
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 import type { Announcement } from '@/lib/types/mastodon/announcement'
 
@@ -144,19 +143,11 @@ describe('AnnouncementBanner', () => {
     await withTimeZone('America/New_York', async () => {
       // Announcements load after mount, so the server HTML carries no date
       // for hydration to keep.
-      const serverHtml = renderToString(element)
-      expect(serverHtml).toBe('')
-
-      const container = document.createElement('div')
-      container.innerHTML = serverHtml
-      document.body.appendChild(container)
-      const onRecoverableError = vi.fn()
+      const { serverHtml, container, onRecoverableError, unmount } =
+        await hydrateServerHtml(element)
 
       try {
-        await act(async () => {
-          hydrateRoot(container, element, { onRecoverableError })
-        })
-
+        expect(serverHtml).toBe('')
         expect(
           await within(container).findByText('Fri Jun 12, 22:00 – 22:10 EDT')
         ).toBeInTheDocument()
@@ -171,7 +162,7 @@ describe('AnnouncementBanner', () => {
         )
         expect(onRecoverableError).not.toHaveBeenCalled()
       } finally {
-        container.remove()
+        unmount()
       }
     })
   })

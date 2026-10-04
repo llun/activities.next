@@ -3,15 +3,12 @@
  */
 import '@testing-library/jest-dom'
 import {
-  act,
   fireEvent,
   render,
   screen,
   waitFor,
   within
 } from '@testing-library/react'
-import { hydrateRoot } from 'react-dom/client'
-import { renderToString } from 'react-dom/server'
 
 import {
   AccountAppRow,
@@ -20,6 +17,7 @@ import {
   SessionActor
 } from '@/app/(timeline)/account/sessions/AccountSessions'
 import { createDeferred } from '@/lib/testing/deferred'
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 const deleteSession = vi.fn()
@@ -413,23 +411,15 @@ describe('AccountSessions', () => {
     )
 
     await withTimeZone('America/New_York', async () => {
-      const serverHtml = renderToString(element)
-      expect(serverHtml).toContain('today at 2:30 AM')
-
-      const container = document.createElement('div')
-      container.innerHTML = serverHtml
-      document.body.appendChild(container)
-      const onRecoverableError = vi.fn()
+      const { serverHtml, container, onRecoverableError, unmount } =
+        await hydrateServerHtml(element)
 
       try {
-        await act(async () => {
-          hydrateRoot(container, element, { onRecoverableError })
-        })
-
+        expect(serverHtml).toContain('today at 2:30 AM')
         expect(onRecoverableError).not.toHaveBeenCalled()
         expect(container).toHaveTextContent('Signed in yesterday at 10:30 PM')
       } finally {
-        container.remove()
+        unmount()
       }
     })
   })

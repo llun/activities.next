@@ -2,10 +2,8 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act } from '@testing-library/react'
-import { hydrateRoot } from 'react-dom/client'
-import { renderToString } from 'react-dom/server'
 
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
@@ -51,19 +49,11 @@ describe('MessageBubble', () => {
     )
 
     await withTimeZone('America/New_York', async () => {
-      const serverHtml = renderToString(element)
-      expect(serverHtml).toMatch(/2:30\sAM/)
-
-      const container = document.createElement('div')
-      container.innerHTML = serverHtml
-      document.body.appendChild(container)
-      const onRecoverableError = vi.fn()
+      const { serverHtml, container, onRecoverableError, unmount } =
+        await hydrateServerHtml(element)
 
       try {
-        await act(async () => {
-          hydrateRoot(container, element, { onRecoverableError })
-        })
-
+        expect(serverHtml).toContain('2:30 AM')
         expect(onRecoverableError).not.toHaveBeenCalled()
         // In the reader's own locale, which the suite does not pin.
         expect(container.textContent).toContain(
@@ -75,7 +65,7 @@ describe('MessageBubble', () => {
         )
         expect(container).not.toHaveTextContent('2:30 AM')
       } finally {
-        container.remove()
+        unmount()
       }
     })
   })

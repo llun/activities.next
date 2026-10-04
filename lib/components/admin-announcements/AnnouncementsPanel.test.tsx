@@ -10,10 +10,9 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
-import { hydrateRoot } from 'react-dom/client'
-import { renderToString } from 'react-dom/server'
 
 import type { ServerAnnouncement } from '@/lib/client'
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 import { AnnouncementsPanel } from './AnnouncementsPanel'
@@ -86,18 +85,11 @@ describe('AnnouncementsPanel', () => {
     await withTimeZone('America/New_York', async () => {
       // The list loads after mount, so the server HTML carries no schedule
       // time for hydration to keep.
-      const serverHtml = renderToString(element)
-      expect(serverHtml).not.toContain('Starts')
-
-      const container = document.createElement('div')
-      container.innerHTML = serverHtml
-      document.body.appendChild(container)
-      const onRecoverableError = vi.fn()
+      const { serverHtml, container, onRecoverableError, unmount } =
+        await hydrateServerHtml(element)
 
       try {
-        await act(async () => {
-          hydrateRoot(container, element, { onRecoverableError })
-        })
+        expect(serverHtml).not.toContain('Starts')
 
         // In the reader's own locale, which the suite does not pin.
         const readerTime = new Date(startsAt).toLocaleString(undefined, {
@@ -112,7 +104,7 @@ describe('AnnouncementsPanel', () => {
         })
         expect(onRecoverableError).not.toHaveBeenCalled()
       } finally {
-        container.remove()
+        unmount()
       }
     })
   })
