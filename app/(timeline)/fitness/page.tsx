@@ -89,52 +89,60 @@ const Page: FC<Props> = async ({ searchParams }) => {
   // request that asked for a filter; the unfiltered page runs the same two
   // queries it always did.
   const requestedActivityType = readActivityTypeParam(await searchParams)
-  const activityType = requestedActivityType
-    ? resolveActivityTypeFilter(
-        requestedActivityType,
-        await database.getDistinctActivityTypesForActor({
-          actorId: currentActor.id
-        })
+  const readRecentStatuses = async () => {
+    const activityType = requestedActivityType
+      ? resolveActivityTypeFilter(
+          requestedActivityType,
+          await database.getDistinctActivityTypesForActor({
+            actorId: currentActor.id
+          })
+        )
+      : undefined
+    const recentFiles = await database.getFitnessFilesByActor({
+      actorId: currentActor.id,
+      limit: RECENT_LIMIT,
+      processingStatus: 'completed',
+      isPrimary: true,
+      // Spread rather than a plain key so "no filter" passes no `activityType` at
+      // all. The database method happens to read an explicit `undefined` the same
+      // way, but `null` means something else entirely there — "activities with no
+      // recorded type" — so the narrowing stays something this call states only
+      // when it means it.
+      ...(activityType ? { activityType } : {})
+    })
+    const statusIds = Array.from(
+      new Set(
+        recentFiles
+          .map((file) => file.statusId)
+          .filter((id): id is string => Boolean(id))
       )
-    : undefined
-  const recentFiles = await database.getFitnessFilesByActor({
-    actorId: currentActor.id,
-    limit: RECENT_LIMIT,
-    processingStatus: 'completed',
-    isPrimary: true,
-    // Spread rather than a plain key so "no filter" passes no `activityType` at
-    // all. The database method happens to read an explicit `undefined` the same
-    // way, but `null` means something else entirely there — "activities with no
-    // recorded type" — so the narrowing stays something this call states only
-    // when it means it.
-    ...(activityType ? { activityType } : {})
-  })
-  const statusIds = Array.from(
-    new Set(
-      recentFiles
-        .map((file) => file.statusId)
-        .filter((id): id is string => Boolean(id))
     )
-  )
-  const loadedStatuses = await Promise.all(
-    statusIds.map((statusId) =>
-      database
-        // This page is signed-in only, and these statuses render the same
-        // interactive chips as everywhere else — without the viewer their
-        // reaction (and like/bookmark) state reads false.
-        .getStatus({ statusId, currentActorId: currentActor.id })
-        .catch(() => null)
+    const loadedStatuses = await Promise.all(
+      statusIds.map((statusId) =>
+        database
+          // This page is signed-in only, and these statuses render the same
+          // interactive chips as everywhere else — without the viewer their
+          // reaction (and like/bookmark) state reads false.
+          .getStatus({ statusId, currentActorId: currentActor.id })
+          .catch(() => null)
+      )
     )
-  )
-  const statuses = loadedStatuses.filter(
-    (status): status is Status => status !== null
-  )
+    const statuses = loadedStatuses.filter(
+      (status): status is Status => status !== null
+    )
+    return { activityType, statuses }
+  }
 
-  // Bounds the year chooser: the earliest year with a countable activity. An
-  // epoch-millisecond number, not a Date, because it crosses into a Client
-  // Component.
-  const { earliest: earliestActivityTime } =
-    await database.getFitnessActivityTimeBounds({ actorId: currentActor.id })
+  // The year chooser's bounds do not depend on the recent activities, so the
+  // two are read together rather than one round trip after the other.
+  const [{ activityType, statuses }, { earliest: earliestActivityTime }] =
+    await Promise.all([
+      readRecentStatuses(),
+      // Bounds the year chooser: the earliest year with a countable activity.
+      // An epoch-millisecond number, not a Date, because it crosses into a
+      // Client Component.
+      database.getFitnessActivityTimeBounds({ actorId: currentActor.id })
+    ])
 
   const currentTime = Date.now()
   const host = getConfig().host
@@ -144,7 +152,12 @@ const Page: FC<Props> = async ({ searchParams }) => {
       {/* On wide containers the dashboard fills these slots with the applied
           dates and the range picker, as the desktop and tablet designs lay
           out the heading. They are empty here: the dates are the viewer's
-          local days, which only the client knows. */}
+          local days, which only the client knows. On a compact container the
+          dashboard keeps its own heading and leaves them empty for good.
+          PageHeader cannot tell an empty slot from a filled one, so its
+          description and actions wrappers still render: about 4px under
+          "Overview" and one unused gap in the row. Accepted; hiding them
+          would need the client's width on the server. */}
       <PageHeader
         title="Overview"
         description={<OverviewHeaderSlot slot="dates" />}

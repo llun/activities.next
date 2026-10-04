@@ -5,7 +5,8 @@ import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import {
   formatDistance,
   formatDuration,
-  formatElevation
+  formatElevation,
+  formatInteger
 } from '@/lib/fitness/calendar/format'
 import type { FitnessActivitySummary } from '@/lib/fitness/calendar/types'
 import { cn } from '@/lib/utils'
@@ -38,10 +39,6 @@ export const summaryTotals = (
     }
   )
 
-const countFormatter = new Intl.NumberFormat('en-GB', {
-  maximumFractionDigits: 0
-})
-
 interface Stat {
   label: string
   icon: LucideIcon
@@ -52,7 +49,7 @@ const STATS: readonly Stat[] = [
   {
     label: 'Activities',
     icon: Activity,
-    value: (totals) => countFormatter.format(totals.count)
+    value: (totals) => formatInteger(totals.count)
   },
   {
     label: 'Distance',

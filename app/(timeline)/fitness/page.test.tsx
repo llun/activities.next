@@ -1,6 +1,7 @@
 import { ReactElement, isValidElement } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { createDeferred } from '@/lib/testing/deferred'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
@@ -289,6 +290,40 @@ describe('fitness page', () => {
     })
     // A number, not a Date: it crosses into a Client Component.
     expect(typeof props?.currentTime).toBe('number')
+  })
+
+  it('reads the earliest activity time alongside the recent activities', async () => {
+    const database = createDatabase()
+    const files = createDeferred<FitnessFile[]>()
+    database.getFitnessFilesByActor.mockReturnValue(files.promise)
+    mockGetDatabase.mockReturnValue(database)
+
+    const page = Page({ searchParams: Promise.resolve({ activity: 'run' }) })
+    await vi.waitFor(() =>
+      expect(database.getFitnessFilesByActor).toHaveBeenCalled()
+    )
+
+    // The recent activities are still loading; the bounds did not wait.
+    expect(database.getFitnessActivityTimeBounds).toHaveBeenCalledWith({
+      actorId: currentActor.id
+    })
+    files.resolve([fitnessFile('https://example.com/users/me/s/1')])
+    const element = await page
+    expect(
+      findElementByType(element, ActorFitnessDashboard)?.props
+    ).toMatchObject({ earliestActivityTime: EARLIEST_ACTIVITY_TIME })
+  })
+
+  it('still fails the page when the earliest activity time cannot be read', async () => {
+    const database = createDatabase()
+    database.getFitnessActivityTimeBounds.mockRejectedValue(
+      new Error('connection reset')
+    )
+    mockGetDatabase.mockReturnValue(database)
+
+    await expect(Page({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      'connection reset'
+    )
   })
 
   it('passes a null earliest time through when the actor has no countable activity', async () => {

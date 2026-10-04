@@ -283,6 +283,12 @@ describe('ActorFitnessDashboard', () => {
       // The server cannot know the viewer's days: no year, no month, no range.
       expect(serverHtml).toContain('fitness-overview-skeleton')
       expect(serverHtml).not.toMatch(/2026|Oct|Jan|Year to date/)
+      // The heading placeholder stands in for the compact header only: from
+      // the width where the overview moves it into the page header it is
+      // hidden, so the summary strip does not jump on hydration.
+      expect(serverHtml).toContain(
+        `@min-[${INLINE_DETAILS_MIN_WIDTH}px]:hidden`
+      )
       expect(onRecoverableError).not.toHaveBeenCalled()
 
       // The first client render after hydration switches to the real overview.
@@ -468,9 +474,12 @@ describe('ActorFitnessDashboard', () => {
     renderDashboard()
 
     const alert = await screen.findByRole('alert')
+    expect(text(alert)).toContain('We couldn’t load 1 Jan – 4 Oct 2026')
     expect(text(alert)).toContain(
-      'We couldn’t load 1 Jan – 4 Oct 2026. Check your connection and try again.'
+      'Check your connection and try again. Nothing is shown for this range until it loads.'
     )
+    // Named once: the alert is announced, and a repeated sentence is heard twice.
+    expect(text(alert)?.match(/We couldn’t load/g)).toHaveLength(1)
     expect(text(alert)).not.toMatch(/boom|Failed to fetch/)
   })
 
@@ -859,5 +868,253 @@ describe('ActorFitnessDashboard', () => {
       'data-instant-colour',
       'true'
     )
+  })
+
+  it('re-derives today at once when the viewer zone changes, without waiting for another focus', async () => {
+    // As in the zone test above: the zone is stubbed on the real
+    // `Intl.DateTimeFormat`, and the clock is read from Date.now.
+    vi.useRealTimers()
+    const at = Date.UTC(2026, 9, 4, 12)
+    vi.spyOn(Date, 'now').mockReturnValue(at)
+    let zone = 'UTC'
+    const realResolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions
+    vi.spyOn(
+      Intl.DateTimeFormat.prototype,
+      'resolvedOptions'
+    ).mockImplementation(function (this: Intl.DateTimeFormat) {
+      const real = realResolvedOptions.call(this)
+      return { ...real, timeZone: zone }
+    })
+    render(<ActorFitnessDashboard actorId={ACTOR_ID} currentTime={at} />)
+    await waitFor(() =>
+      expect(mockedSummary).toHaveBeenCalledWith(
+        expect.objectContaining({ to: '2026-10-04', timeZone: 'UTC' })
+      )
+    )
+
+    // A traveller lands in Auckland, where 12:00 UTC is already the 5th; the
+    // browser reports it on the next focus, and only that one focus happens.
+    zone = 'Pacific/Auckland'
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    await waitFor(() =>
+      expect(mockedSummary).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          from: '2026-01-01',
+          to: '2026-10-05',
+          timeZone: 'Pacific/Auckland'
+        })
+      )
+    )
+    expect(shownDates()).toBe('1 Jan – 5 Oct 2026')
+  })
+
+  it('keeps the selected day’s totals while a new range loads', async () => {
+    renderDashboard()
+    await waitForLoaded()
+    fireEvent.click(cell('2026-10-01'))
+    const details = await screen.findByTestId('day-details')
+    expect(text(details)).toContain('2 activities · 16.8 km · 1h 14m')
+
+    // Last 12 months still contains the day, so the selection survives; its
+    // read is held open to look at the details mid-reload.
+    const calendar = createDeferred<FitnessCalendarDay[]>()
+    mockedCalendar.mockReturnValueOnce(calendar.promise)
+    fireEvent.click(rangeTrigger())
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Last 12 months' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    await waitFor(() =>
+      expect(lastRange(mockedSummary)).toEqual({
+        from: '2025-10-05',
+        to: '2026-10-04'
+      })
+    )
+
+    expect(cell('2026-10-01')).toHaveAttribute('aria-pressed', 'true')
+    const during = screen.getByTestId('day-details')
+    expect(text(during)).toContain('2 activities · 16.8 km · 1h 14m')
+    expect(text(during)).not.toContain('0 activities')
+
+    await act(async () => calendar.resolve(calendarDays))
+  })
+
+  describe('after a failed read that kept the previous results', () => {
+    const failSecondRange = async () => {
+      renderDashboard()
+      await waitForLoaded()
+      // Year 2025 is the displayed range; the step to 2024 fails.
+      fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
+      await waitFor(() => expect(shownDates()).toBe('1 Jan – 31 Dec 2025'))
+      await waitForLoaded()
+      mockedSummary.mockRejectedValueOnce(
+        new ApiRequestError('Service Unavailable', 503)
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
+      const alert = await screen.findByRole('alert')
+      expect(text(alert)).toContain(
+        'Showing previous results for 1 Jan – 31 Dec 2025'
+      )
+    }
+
+    it('steps from the range on screen, not from the one that failed', async () => {
+      await failSecondRange()
+      mockedSummary.mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Next year' }))
+
+      // From the 2025 on screen, next is 2026 year to date; from the failed
+      // 2024 it would be 2025.
+      await waitFor(() =>
+        expect(lastRange(mockedSummary)).toEqual({
+          from: '2026-01-01',
+          to: '2026-10-04'
+        })
+      )
+    })
+
+    it('reads again when the same step is pressed after it failed', async () => {
+      await failSecondRange()
+      mockedSummary.mockClear()
+
+      // 2025 is on screen and 2024 failed, so Previous year targets 2024 again.
+      fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
+
+      await waitFor(() =>
+        expect(lastRange(mockedSummary)).toEqual({
+          from: '2024-01-01',
+          to: '2024-12-31'
+        })
+      )
+    })
+
+    it('reads again when the year chooser picks the year that failed', async () => {
+      await failSecondRange()
+      mockedSummary.mockClear()
+
+      fireEvent.pointerDown(
+        screen.getByRole('button', { name: 'Calendar year: 2025' }),
+        { button: 0, pointerType: 'mouse' }
+      )
+      fireEvent.click(
+        await screen.findByRole('menuitemradio', { name: '2024' })
+      )
+
+      await waitFor(() =>
+        expect(lastRange(mockedSummary)).toEqual({
+          from: '2024-01-01',
+          to: '2024-12-31'
+        })
+      )
+    })
+
+    it('reads again when Month view is pressed after that month failed', async () => {
+      renderDashboard()
+      await waitForLoaded()
+      mockedSummary.mockRejectedValueOnce(
+        new ApiRequestError('Service Unavailable', 503)
+      )
+      fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+      await screen.findByRole('alert')
+      mockedSummary.mockClear()
+
+      // Year to date is still on screen, so Month view targets October again.
+      fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+
+      await waitFor(() =>
+        expect(lastRange(mockedSummary)).toEqual({
+          from: '2026-10-01',
+          to: '2026-10-04'
+        })
+      )
+      await waitFor(() =>
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      )
+    })
+
+    it('opens the latest month of the range on screen', async () => {
+      await failSecondRange()
+      mockedSummary.mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+
+      await waitFor(() =>
+        expect(lastRange(mockedSummary)).toEqual({
+          from: '2025-12-01',
+          to: '2025-12-31'
+        })
+      )
+    })
+  })
+
+  it('makes the calendar inert and hidden when the first read failed', async () => {
+    mockedCalendar.mockRejectedValue(new ApiRequestError('Bad Gateway', 502))
+    renderDashboard()
+    await screen.findByRole('alert')
+
+    const region = screen.getByTestId('calendar-region')
+    expect(region).toHaveAttribute('inert')
+    expect(region).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('leaves the calendar operable once it has loaded', async () => {
+    renderDashboard()
+    await waitForLoaded()
+
+    const region = screen.getByTestId('calendar-region')
+    expect(region).not.toHaveAttribute('inert')
+    expect(region).not.toHaveAttribute('aria-hidden')
+  })
+
+  it('shows the Upcoming legend swatch for this month only, not for a past month', async () => {
+    renderDashboard()
+    await waitForLoaded()
+    expect(screen.queryByText('Upcoming')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+    expect(await screen.findByText('Upcoming')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+    expect(monthHeading()).toBe('September 2026')
+    await waitForLoaded()
+    expect(screen.queryByText('Upcoming')).toBeNull()
+  })
+
+  it('opens the month as a grid at 320px and offers the list as a choice', async () => {
+    stubDashboardWidth(320)
+    renderDashboard()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+
+    const toggle = screen.getByRole('group', { name: 'Show the month as' })
+    expect(
+      within(toggle).getByRole('button', { name: 'Grid' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      within(toggle).getByRole('button', { name: 'List' })
+    ).toHaveAttribute('aria-pressed', 'false')
+    expect(
+      screen.getByRole('group', { name: 'October 2026' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('list', { name: 'October 2026, day by day' })
+    ).not.toBeInTheDocument()
+  })
+
+  it.each([
+    [INLINE_DETAILS_MIN_WIDTH, 'day-details'],
+    [INLINE_DETAILS_MIN_WIDTH - 1, 'day-details-sheet']
+  ])('places the day details for a %ipx container as %s', async (width, id) => {
+    stubDashboardWidth(width)
+    renderDashboard()
+    await waitForLoaded()
+
+    fireEvent.click(cell('2026-10-01'))
+
+    expect(await screen.findByTestId(id)).toBeInTheDocument()
   })
 })

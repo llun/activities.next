@@ -35,7 +35,10 @@ import {
 } from '@/lib/components/fitness/calendar/MonthCalendar'
 import { MonthDayList } from '@/lib/components/fitness/calendar/MonthDayList'
 import { RangePicker } from '@/lib/components/fitness/calendar/RangePicker'
-import { scrollBehavior } from '@/lib/components/fitness/calendar/calendarShared'
+import {
+  indexDays,
+  scrollBehavior
+} from '@/lib/components/fitness/calendar/calendarShared'
 import { useElementWidth } from '@/lib/components/fitness/calendar/useElementWidth'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -55,6 +58,7 @@ import {
   localDateKeyAt
 } from '@/lib/fitness/calendar/localDay'
 import {
+  OverviewAction,
   createOverviewState,
   overviewReducer
 } from '@/lib/fitness/calendar/overviewState'
@@ -62,6 +66,7 @@ import {
   AppliedRange,
   StepDirection,
   latestMonthIn,
+  rangesEqual,
   stepTarget,
   viewFor,
   yearsForChooser
@@ -132,12 +137,17 @@ function OverviewSkeleton() {
       <p role="status" className="sr-only">
         Loading your fitness overview
       </p>
-      <div aria-hidden="true" className="flex flex-wrap items-end gap-3">
-        <div className="flex-[1_1_16rem] space-y-2">
-          <span className="block h-6 w-44 rounded bg-(--skeleton)" />
+      {/* The compact header's shape: its 48px title and dates, then the
+          44px picker row. From a column of INLINE_DETAILS_MIN_WIDTH (600px,
+          in px as the overview measures it) the overview moves both into the
+          page header, so nothing is drawn here. Fixed heights, not margins,
+          so the strip below stays put when the overview replaces this. */}
+      <div aria-hidden="true" className="space-y-3 @min-[600px]:hidden">
+        <div className="h-12 space-y-1.5 pt-1">
+          <span className="block h-5 w-44 rounded bg-(--skeleton)" />
           <span className="block h-4 w-32 rounded bg-(--skeleton)" />
         </div>
-        <span className="block h-11 w-56 rounded-md bg-(--skeleton)" />
+        <span className="ml-auto block h-11 w-56 rounded-md bg-(--skeleton)" />
       </div>
       <FitnessSummaryStrip
         totals={null}
@@ -262,22 +272,42 @@ function FitnessOverview({
     previous: stepTarget(displayRange, 'previous', today) !== null,
     next: stepTarget(displayRange, 'next', today) !== null
   }
+  // After a failed read the range on screen is the previous one, so a step,
+  // Month view, a month label, the year chooser or the picker can target the
+  // range that just failed, which is still the applied one. Applying it again
+  // changes nothing the read depends on, so read it again instead. Every
+  // control that applies a range goes through here. Stable between renders
+  // that change none of its inputs, so the memoized year rows that get
+  // `openMonth` are not redrawn for, say, a day's activities loading.
+  const { retry } = data
+  const applyRange = useCallback(
+    (action: OverviewAction) => {
+      dispatch(action)
+      if (
+        status === 'error' &&
+        rangesEqual(overviewReducer(state, action).applied, state.applied)
+      ) {
+        retry()
+      }
+    },
+    [state, status, retry]
+  )
   const step = (direction: StepDirection) => {
     const target = stepTarget(displayRange, direction, today)
-    if (target) dispatch({ type: 'APPLY_RANGE', range: target })
+    if (target) applyRange({ type: 'APPLY_RANGE', range: target })
   }
   const openLatestMonth = () =>
-    dispatch({
+    applyRange({
       type: 'APPLY_RANGE',
       range: latestMonthIn(displayRange, today)
     })
-  const backToYear = () => dispatch({ type: 'BACK_TO_YEAR' })
+  const backToYear = () => applyRange({ type: 'BACK_TO_YEAR' })
 
   // The day's totals come from the calendar bucket, from the latest committed
   // read: it is the same day either way, so a selection kept across a reload
   // never flashes "0 activities".
   const bucketIndex = useMemo(
-    () => new Map((result?.days ?? NO_DAYS).map((day) => [day.date, day])),
+    () => indexDays(result?.days ?? NO_DAYS),
     [result]
   )
   const selectedTotals =
@@ -320,8 +350,8 @@ function FitnessOverview({
   )
   const openMonth = useCallback(
     (year: number, month: number) =>
-      dispatch({ type: 'OPEN_MONTH', year, month }),
-    []
+      applyRange({ type: 'OPEN_MONTH', year, month }),
+    [applyRange]
   )
 
   // Close and Escape put focus back on the day's cell.
@@ -459,8 +489,8 @@ function FitnessOverview({
         dispatch({ type: 'EDIT_DRAFT', field, text })
       }
       onCancel={() => dispatch({ type: 'CANCEL_PICKER' })}
-      onApply={() => dispatch({ type: 'APPLY_PICKER' })}
-      onSelectYear={(year) => dispatch({ type: 'APPLY_YEAR', year })}
+      onApply={() => applyRange({ type: 'APPLY_PICKER' })}
+      onSelectYear={(year) => applyRange({ type: 'APPLY_YEAR', year })}
     />
   )
 
@@ -526,12 +556,12 @@ function FitnessOverview({
             {/* Friendly copy only. The reason a read failed is a status
                 line or the browser's own words ("Failed to fetch"); neither
                 belongs in front of the viewer, and neither says what to do. */}
+            {/* With nothing to fall back on, the line above already names
+                the range that failed. */}
             <p className="text-muted-foreground break-words">
-              We couldn’t load {formatRange(applied.from, applied.to)}. Check
-              your connection and try again.
               {showingPrevious
-                ? ' Totals and calendar below are from the previous range.'
-                : ' Nothing is shown for this range until it loads.'}
+                ? `We couldn’t load ${formatRange(applied.from, applied.to)}. Check your connection and try again. Totals and calendar below are from the previous range.`
+                : 'Check your connection and try again. Nothing is shown for this range until it loads.'}
             </p>
           </div>
           <Button
@@ -586,7 +616,7 @@ function FitnessOverview({
                       years={years}
                       value={calendarYearOf(displayRange)}
                       onSelect={(year) =>
-                        dispatch({ type: 'APPLY_YEAR', year })
+                        applyRange({ type: 'APPLY_YEAR', year })
                       }
                     />
                     <StepButtons

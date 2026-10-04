@@ -873,6 +873,34 @@ describe('AnnualCalendar', () => {
       expect(screen.getByText(/1 Jan – 31 Dec 2024/)).toBeInTheDocument()
     })
 
+    it('clips the first and last row of a multi-year range to the range', () => {
+      renderCalendar({
+        range: { from: key('2025-10-05'), to: TODAY }
+      })
+
+      expect(screen.getByText(/5 Oct – 31 Dec 2025/)).toBeInTheDocument()
+      expect(screen.getByText(/Activity through 4 Oct/)).toBeInTheDocument()
+      expect(screen.queryByText(/1 Jan – 31 Dec 2025/)).toBeNull()
+    })
+
+    it('captions each year of a past multi-year range with the days it covers', () => {
+      renderCalendar({
+        range: { from: key('2024-03-01'), to: key('2025-06-30') }
+      })
+
+      expect(screen.getByText(/1 Mar – 31 Dec 2024/)).toBeInTheDocument()
+      expect(screen.getByText(/1 Jan – 30 Jun 2025/)).toBeInTheDocument()
+    })
+
+    it('does not say "through today" for a range of this year that ended earlier', () => {
+      renderCalendar({
+        range: { from: key('2026-03-01'), to: key('2026-06-30') }
+      })
+
+      expect(screen.getByText(/1 Mar – 30 Jun 2026/)).toBeInTheDocument()
+      expect(screen.queryByText(/Activity through/)).toBeNull()
+    })
+
     it('shows the legend beside the last row only', () => {
       renderCalendar({
         range: { from: key('2025-10-05'), to: TODAY },

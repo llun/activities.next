@@ -116,7 +116,6 @@ describe('useFitnessOverviewData', () => {
     await act(async () => calendar.reject(new ApiRequestError('Boom', 500)))
     expect(result.current.status).toBe('error')
     expect(result.current.result).toBeNull()
-    expect(result.current.error).toBe('Boom')
   })
 
   it('ignores a response that lands after a newer request', async () => {
@@ -158,6 +157,25 @@ describe('useFitnessOverviewData', () => {
     })
   })
 
+  it('reads again when only the kind changes, as This month and Year to date on 1-20 January', async () => {
+    const YTD_JAN = range('2026-01-01', '2026-01-20', 'ytd')
+    const THIS_MONTH_JAN = range('2026-01-01', '2026-01-20', 'this_month')
+    mockedSummary.mockResolvedValue([summaryRow(3)])
+    mockedCalendar.mockResolvedValue([calendarDay('2026-01-05')])
+
+    const { result, rerender } = renderData(YTD_JAN)
+    await waitFor(() => expect(result.current.status).toBe('success'))
+    expect(result.current.result?.range.kind).toBe('ytd')
+
+    rerender({ applied: THIS_MONTH_JAN })
+    expect(result.current.status).toBe('loading')
+    await waitFor(() => expect(result.current.status).toBe('success'))
+
+    expect(mockedSummary).toHaveBeenCalledTimes(2)
+    expect(mockedCalendar).toHaveBeenCalledTimes(2)
+    expect(result.current.result?.range).toEqual(THIS_MONTH_JAN)
+  })
+
   it('aborts the read in flight when the range changes', async () => {
     mockedSummary.mockReturnValue(new Promise(() => {}))
     mockedCalendar.mockReturnValue(new Promise(() => {}))
@@ -183,7 +201,6 @@ describe('useFitnessOverviewData', () => {
     await act(async () => {})
 
     expect(result.current.status).toBe('loading')
-    expect(result.current.error).toBeNull()
   })
 
   it('keeps the previous result after a failure and retries the same range', async () => {
@@ -203,7 +220,6 @@ describe('useFitnessOverviewData', () => {
     // its own range, for the caller to label.
     expect(result.current.result?.range).toEqual(YTD)
     expect(result.current.result?.summary).toEqual([summaryRow(3)])
-    expect(result.current.error).toBe('Service Unavailable')
 
     mockedSummary.mockResolvedValueOnce([summaryRow(1)])
     mockedCalendar.mockResolvedValueOnce([calendarDay('2026-09-02')])

@@ -8,6 +8,7 @@ import type {
   FitnessActivitySummary,
   FitnessCalendarDay
 } from '@/lib/fitness/calendar/types'
+import { isAbortError } from '@/lib/utils/isAbortError'
 
 /** One committed read: the summary and the calendar for the same range. */
 export interface OverviewResult {
@@ -31,25 +32,28 @@ export interface OverviewData {
    * the new dates.
    */
   result: OverviewResult | null
-  /** Why the latest read failed, on `error`. */
-  error: string | null
   /** Re-issues the read for the requested range. */
   retry: () => void
 }
-
-export const OVERVIEW_ERROR_FALLBACK = "We couldn't load your fitness overview."
-
-const isAbortError = (error: unknown) =>
-  error instanceof DOMException
-    ? error.name === 'AbortError'
-    : error instanceof Error && error.name === 'AbortError'
 
 interface Settled {
   /** The request this settles: range, zone, actor and attempt. */
   key: string
   ok: boolean
-  error: string | null
 }
+
+// The kind is part of the request: on 1-20 January "This month" and "Year to
+// date" are the same days but different views, and the committed result names
+// the view it was read for. One builder for the render's key and the effect's,
+// which must match exactly for a settled read to leave `loading`.
+const requestKeyOf = (
+  actorId: string,
+  timeZone: string,
+  kind: AppliedRange['kind'],
+  from: string,
+  to: string,
+  attempt: number
+) => [actorId, timeZone, kind, from, to, attempt].join('\u0000')
 
 /**
  * Reads the overview's summary and calendar for one range, together.
@@ -82,18 +86,13 @@ export const useFitnessOverviewData = ({
   const [settled, setSettled] = useState<Settled | null>(null)
   const requestId = useRef(0)
 
-  // The kind is part of the request: on 1-20 January "This month" and "Year
-  // to date" are the same days but different views, and the committed result
-  // names the view it was read for.
-  const key = [actorId, timeZone, kind, from, to, attempt].join('\u0000')
+  const key = requestKeyOf(actorId, timeZone, kind, from, to, attempt)
 
   useEffect(() => {
     const id = ++requestId.current
     const controller = new AbortController()
     const { signal } = controller
-    const requestKey = [actorId, timeZone, kind, from, to, attempt].join(
-      '\u0000'
-    )
+    const requestKey = requestKeyOf(actorId, timeZone, kind, from, to, attempt)
     Promise.all([
       getFitnessSummary({ actorId, from, to, timeZone, signal }),
       getFitnessCalendarData({ actorId, from, to, timeZone, signal })
@@ -101,21 +100,15 @@ export const useFitnessOverviewData = ({
       ([summary, days]) => {
         if (id !== requestId.current || signal.aborted) return
         setResult({ range: { kind, from, to }, summary, days })
-        setSettled({ key: requestKey, ok: true, error: null })
+        setSettled({ key: requestKey, ok: true })
       },
       (error: unknown) => {
         if (id !== requestId.current || signal.aborted) return
         // The other read has no use any more.
         controller.abort()
         if (isAbortError(error)) return
-        setSettled({
-          key: requestKey,
-          ok: false,
-          error:
-            error instanceof Error && error.message
-              ? error.message
-              : OVERVIEW_ERROR_FALLBACK
-        })
+        // The banner shows fixed copy, never the reason, so none is kept.
+        setSettled({ key: requestKey, ok: false })
       }
     )
     return () => controller.abort()
@@ -127,7 +120,6 @@ export const useFitnessOverviewData = ({
   return {
     status: current === null ? 'loading' : current.ok ? 'success' : 'error',
     result,
-    error: current && !current.ok ? current.error : null,
     retry
   }
 }
