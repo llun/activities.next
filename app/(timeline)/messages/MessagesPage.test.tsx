@@ -10,6 +10,8 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
+import { hydrateRoot } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
 
 import {
   createDirectMessage,
@@ -21,6 +23,7 @@ import {
 } from '@/lib/client'
 import type { DirectConversationView } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
+import { withTimeZone } from '@/lib/testing/withTimeZone'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
@@ -179,6 +182,60 @@ describe('MessagesPage', () => {
     expect(conversationButton).not.toHaveTextContent('<p>')
     expect(conversationButton).not.toHaveTextContent('</strong>')
     expect(conversationButton).not.toHaveTextContent('&amp;')
+  })
+
+  it("hydrates the server's UTC conversation time without a mismatch, then shows the reader's own", async () => {
+    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
+      statuses: [],
+      nextMaxStatusId: null
+    })
+    // 02:30 UTC on 17 May is 22:30 on 16 May in New York (EDT, UTC-4).
+    const lateConversation = {
+      ...conversation({ id: 'first', participantName: 'Ada' }),
+      lastStatusCreatedAt: Date.parse('2026-05-17T02:30:00.000Z')
+    }
+    const element = (
+      <MessagesPage
+        host="example.com"
+        conversations={[lateConversation]}
+        initialConversationId={null}
+        initialStatuses={[]}
+        initialNextMaxStatusId={null}
+        currentActor={currentActor}
+      />
+    )
+
+    await withTimeZone('America/New_York', async () => {
+      const serverHtml = renderToString(element)
+      expect(serverHtml).toMatch(/May 17, 2:30\sAM/)
+
+      const container = document.createElement('div')
+      container.innerHTML = serverHtml
+      document.body.appendChild(container)
+      const onRecoverableError = vi.fn()
+
+      try {
+        await act(async () => {
+          hydrateRoot(container, element, { onRecoverableError })
+        })
+
+        expect(onRecoverableError).not.toHaveBeenCalled()
+        // In the reader's own locale, which the suite does not pin.
+        expect(
+          within(container).getByRole('button', { name: /Ada/i }).textContent
+        ).toContain(
+          new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            timeZone: 'America/New_York'
+          }).format(lateConversation.lastStatusCreatedAt)
+        )
+      } finally {
+        container.remove()
+      }
+    })
   })
 
   it('keeps stale thread requests from overwriting the selected conversation', async () => {

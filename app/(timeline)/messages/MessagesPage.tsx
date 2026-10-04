@@ -35,6 +35,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Textarea } from '@/lib/components/ui/textarea'
+import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Status } from '@/lib/types/domain/status'
@@ -44,6 +45,7 @@ import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 import { MessageBubble } from './MessageBubble'
 import { INITIAL_CONVERSATIONS_LIMIT } from './constants'
+import { formatMessageTime } from './formatMessageTime'
 
 interface MessagesPageProps {
   host: string
@@ -108,13 +110,12 @@ const conversationSubtitleCacheKey = (conversation: DirectConversationView) => {
   )
 }
 
-const formatTimestamp = (timestamp: number) =>
-  new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  }).format(new Date(timestamp))
+const TIMESTAMP_FORMAT: Intl.DateTimeFormatOptions = {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit'
+}
 
 export const MessagesPage: FC<MessagesPageProps> = ({
   host,
@@ -125,6 +126,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   currentActor,
   initialHasMoreConversations = false
 }) => {
+  const hasHydrated = useHasHydrated()
   const [currentConversations, setCurrentConversations] =
     useState<DirectConversationView[]>(conversations)
   const [selectedConversationId, setSelectedConversationId] = useState<
@@ -778,11 +780,12 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                           ? `You: ${preview}`
                           : preview}
                       </span>
-                      <span
-                        className="block text-xs text-muted-foreground md:mt-1"
-                        suppressHydrationWarning
-                      >
-                        {formatTimestamp(conversation.lastStatusCreatedAt)}
+                      <span className="block text-xs text-muted-foreground md:mt-1">
+                        {formatMessageTime(
+                          conversation.lastStatusCreatedAt,
+                          TIMESTAMP_FORMAT,
+                          hasHydrated
+                        )}
                       </span>
                     </span>
                   </button>

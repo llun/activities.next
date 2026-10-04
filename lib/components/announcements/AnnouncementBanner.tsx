@@ -448,13 +448,11 @@ export const AnnouncementBanner: FC<AnnouncementBannerProps> = () => {
       {!isCollapsed && (
         <div className="space-y-3 border-t px-4 pt-3 pb-4">
           <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <span suppressHydrationWarning>
-              {formatPublishedDate(current.published_at)}
-            </span>
+            <span>{formatPublishedDate(current.published_at)}</span>
             {eventTime && (
               <span className="text-primary-text flex items-center gap-1 font-medium">
                 <Clock className="size-3 text-primary" />
-                <span suppressHydrationWarning>{eventTime}</span>
+                <span>{eventTime}</span>
               </span>
             )}
             {current.read === false && (

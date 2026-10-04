@@ -1,5 +1,6 @@
 'use client'
 
+import { UTCDate } from '@date-fns/utc'
 import { formatDistance } from 'date-fns/formatDistance'
 import { formatRelative } from 'date-fns/formatRelative'
 import { Clock, Monitor, Trash2 } from 'lucide-react'
@@ -16,6 +17,7 @@ import { PageHeader } from '@/lib/components/page-header'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
+import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
 import { cn } from '@/lib/utils'
 
 export interface SessionActor {
@@ -131,6 +133,7 @@ const groupSummary = (group: Group) => {
 }
 
 export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
+  const hasHydrated = useHasHydrated()
   const [sessionList, setSessionList] = useState(sessions)
   const [appList, setAppList] = useState(apps)
   const [error, setError] = useState<string>()
@@ -342,17 +345,18 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                       )}
                       {soon && <Badge tone="destructive">Expiring soon</Badge>}
                     </div>
-                    {/* formatRelative renders a localized clock time, which
-                        differs between the server and client timezones.
-                        suppressHydrationWarning only silences the warning
-                        (matching MessageBubble / AnnouncementBanner); React
-                        keeps the server-rendered text. The fix to migrate to is
-                        the useHasHydrated rule in docs/architecture.md. */}
-                    <div
-                      className="mt-0.5 text-xs text-muted-foreground"
-                      suppressHydrationWarning
-                    >
-                      Signed in {formatRelative(session.createdAt, currentTime)}
+                    {/* formatRelative prints a clock time and picks "today"
+                        or "yesterday" by calendar day, both in a time zone the
+                        server does not know: UTC until hydrated, then the
+                        reader's own. */}
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      Signed in{' '}
+                      {hasHydrated
+                        ? formatRelative(session.createdAt, currentTime)
+                        : formatRelative(
+                            new UTCDate(session.createdAt),
+                            new UTCDate(currentTime)
+                          )}
                     </div>
                     <div
                       className={cn(

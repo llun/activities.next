@@ -3,6 +3,7 @@ import { FC, MouseEvent } from 'react'
 
 import { Media } from '@/lib/components/posts/media'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
+import { useHasHydrated } from '@/lib/hooks/useHasHydrated'
 import {
   Attachment,
   isFitnessAttachment,
@@ -22,10 +23,12 @@ import {
   processStatusText
 } from '@/lib/utils/text/processStatusText'
 
-const timeFormatter = new Intl.DateTimeFormat(undefined, {
+import { formatMessageTime } from './formatMessageTime'
+
+const TIME_FORMAT: Intl.DateTimeFormatOptions = {
   hour: 'numeric',
   minute: '2-digit'
-})
+}
 
 const getInitial = (value: string) => {
   const trimmed = value.trim()
@@ -80,6 +83,7 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
   isOwn,
   onShowAttachment
 }) => {
+  const hasHydrated = useHasHydrated()
   const actualStatus = getActualStatus(status)
   const actor = actualStatus.actor
   const authorName = actor?.name || actor?.username || ''
@@ -99,7 +103,11 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
         tags: actualStatus.tags
       })
     : null
-  const time = timeFormatter.format(new Date(actualStatus.createdAt))
+  const time = formatMessageTime(
+    actualStatus.createdAt,
+    TIME_FORMAT,
+    hasHydrated
+  )
 
   const fitnessMeta = fitnessFile
     ? [
@@ -253,12 +261,7 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
           </div>
         )}
 
-        <div
-          className="px-1 text-[11px] text-muted-foreground"
-          suppressHydrationWarning
-        >
-          {time}
-        </div>
+        <div className="px-1 text-[11px] text-muted-foreground">{time}</div>
       </div>
     </div>
   )

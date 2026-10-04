@@ -2,8 +2,18 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
+import { hydrateRoot } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
 
+import { withTimeZone } from '@/lib/testing/withTimeZone'
 import type { Announcement } from '@/lib/types/mastodon/announcement'
 
 import { AnnouncementBanner } from './AnnouncementBanner'
@@ -117,6 +127,53 @@ describe('AnnouncementBanner', () => {
         /^[A-Z][a-z]{2} [A-Z][a-z]{2} \d{1,2}, \d{2}:\d{2} – \d{2}:\d{2} \S+$/
       )
     ).toBeInTheDocument()
+  })
+
+  it("renders its dates only after loading on the client, in the reader's own time zone", async () => {
+    // 02:00 UTC on 13 Jun is 22:00 on 12 Jun in New York (EDT, UTC-4).
+    const published = '2026-06-13T02:00:00.000Z'
+    mockGetAnnouncements.mockResolvedValue([
+      buildAnnouncement({
+        published_at: published,
+        starts_at: published,
+        ends_at: '2026-06-13T02:10:00.000Z'
+      })
+    ])
+    const element = <AnnouncementBanner currentTime={1735689600000} />
+
+    await withTimeZone('America/New_York', async () => {
+      // Announcements load after mount, so the server HTML carries no date
+      // for hydration to keep.
+      const serverHtml = renderToString(element)
+      expect(serverHtml).toBe('')
+
+      const container = document.createElement('div')
+      container.innerHTML = serverHtml
+      document.body.appendChild(container)
+      const onRecoverableError = vi.fn()
+
+      try {
+        await act(async () => {
+          hydrateRoot(container, element, { onRecoverableError })
+        })
+
+        expect(
+          await within(container).findByText('Fri Jun 12, 22:00 – 22:10 EDT')
+        ).toBeInTheDocument()
+        // In the reader's own locale, which the suite does not pin.
+        expect(container.textContent).toContain(
+          new Date(published).toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            timeZone: 'America/New_York'
+          })
+        )
+        expect(onRecoverableError).not.toHaveBeenCalled()
+      } finally {
+        container.remove()
+      }
+    })
   })
 
   it('renders an all-day event as dates only', async () => {
