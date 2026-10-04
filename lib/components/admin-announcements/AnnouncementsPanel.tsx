@@ -354,14 +354,12 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                   </FilterField>
                   <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                     {announcement.starts_at !== null && (
-                      <span suppressHydrationWarning>
+                      <span>
                         Starts {formatDateTime(announcement.starts_at)}
                       </span>
                     )}
                     {announcement.ends_at !== null && (
-                      <span suppressHydrationWarning>
-                        Ends {formatDateTime(announcement.ends_at)}
-                      </span>
+                      <span>Ends {formatDateTime(announcement.ends_at)}</span>
                     )}
                     {announcement.all_day && <span>All day</span>}
                   </div>

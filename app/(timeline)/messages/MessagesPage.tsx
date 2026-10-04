@@ -44,6 +44,7 @@ import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 import { MessageBubble } from './MessageBubble'
 import { INITIAL_CONVERSATIONS_LIMIT } from './constants'
+import { useMessageTimeFormat } from './useMessageTimeFormat'
 
 interface MessagesPageProps {
   host: string
@@ -108,13 +109,15 @@ const conversationSubtitleCacheKey = (conversation: DirectConversationView) => {
   )
 }
 
-const formatTimestamp = (timestamp: number) =>
-  new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  }).format(new Date(timestamp))
+// Keep the date-fns pattern and the Intl options naming the same fields;
+// order and separators follow the reader's locale by design.
+const TIMESTAMP_PATTERN = 'MMM d, h:mm a'
+const TIMESTAMP_FORMAT: Intl.DateTimeFormatOptions = {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit'
+}
 
 export const MessagesPage: FC<MessagesPageProps> = ({
   host,
@@ -125,6 +128,10 @@ export const MessagesPage: FC<MessagesPageProps> = ({
   currentActor,
   initialHasMoreConversations = false
 }) => {
+  const formatTimestamp = useMessageTimeFormat(
+    TIMESTAMP_PATTERN,
+    TIMESTAMP_FORMAT
+  )
   const [currentConversations, setCurrentConversations] =
     useState<DirectConversationView[]>(conversations)
   const [selectedConversationId, setSelectedConversationId] = useState<
@@ -778,10 +785,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
                           ? `You: ${preview}`
                           : preview}
                       </span>
-                      <span
-                        className="block text-xs text-muted-foreground md:mt-1"
-                        suppressHydrationWarning
-                      >
+                      <span className="block text-xs text-muted-foreground md:mt-1">
                         {formatTimestamp(conversation.lastStatusCreatedAt)}
                       </span>
                     </span>

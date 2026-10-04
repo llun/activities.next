@@ -21,11 +21,11 @@ const integerFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0
 })
 
-// Rendered in UTC, like every other instant in the fitness area (see
-// `formatUtcDate` on the activity detail page). A gear or component date is a
-// calendar day, not a moment: `<input type="date">` hands over "2024-03-01",
-// which the spec parses as UTC midnight, so formatting it in the reader's local
-// zone renders "Feb 29, 2024" for everyone west of UTC.
+// Rendered in UTC. A gear or component date is a calendar day, not a moment
+// (unlike `ActivityStartTime`, which shows a moment in the viewer's zone after
+// hydration): `<input type="date">` hands over "2024-03-01", which the spec
+// parses as UTC midnight, so formatting it in the reader's local zone renders
+// "Feb 29, 2024" for everyone west of UTC.
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: 'UTC',
   month: 'short',

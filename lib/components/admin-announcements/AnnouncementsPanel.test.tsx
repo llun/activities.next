@@ -2,9 +2,18 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import type { ServerAnnouncement } from '@/lib/client'
+import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
+import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 import { AnnouncementsPanel } from './AnnouncementsPanel'
 
@@ -63,6 +72,41 @@ describe('AnnouncementsPanel', () => {
 
   afterEach(() => {
     Reflect.deleteProperty(globalThis, 'ResizeObserver')
+  })
+
+  it("renders schedule times only after loading on the client, in the reader's own time zone", async () => {
+    // 02:00 UTC on 13 Jun is 22:00 on 12 Jun in New York (EDT, UTC-4).
+    const startsAt = Date.parse('2026-06-13T02:00:00.000Z')
+    mockGetServerAnnouncements.mockResolvedValue([
+      buildServerAnnouncement({ starts_at: startsAt })
+    ])
+    const element = <AnnouncementsPanel currentTime={NOW} />
+
+    await withTimeZone('America/New_York', async () => {
+      // The list loads after mount, so the server HTML carries no schedule
+      // time for hydration to keep.
+      const { serverHtml, container, onRecoverableError, unmount } =
+        await hydrateServerHtml(element)
+
+      try {
+        expect(serverHtml).not.toContain('Starts')
+
+        // In the reader's own locale, which the suite does not pin.
+        const readerTime = new Date(startsAt).toLocaleString(undefined, {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: 'America/New_York'
+        })
+        await waitFor(() => {
+          expect(within(container).getByText(/^Starts /).textContent).toBe(
+            `Starts ${readerTime}`
+          )
+        })
+        expect(onRecoverableError).not.toHaveBeenCalled()
+      } finally {
+        unmount()
+      }
+    })
   })
 
   it('sends ends_at: null when All-day is on, even after an end value was typed', async () => {

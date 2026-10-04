@@ -1221,6 +1221,11 @@ A full sub-agent review round yields no new actionable comments, or you have run
   state passes whether or not the code under test is correct. `PostBox
 attachment ref guard` is exactly that: it passed with the bug present until
   the two picker batches were sequenced.
+- A test that shows a client component hydrates the server's HTML without a
+  mismatch calls `hydrateServerHtml` from `@/lib/testing/hydrateServerHtml`
+  rather than repeating the `renderToString` / `hydrateRoot` / `act()`
+  boilerplate, and calls the `unmount()` it returns in a `finally` — an
+  abandoned root keeps its effects' timers and listeners alive into later tests.
 - A test for a React `cache()`d helper stands a request scope up with
   `runInReactCacheScope` from `@/lib/testing/reactCacheScope` and swaps that
   module's `serverCache` in via `vi.mock('react', …)`. Vitest resolves React's

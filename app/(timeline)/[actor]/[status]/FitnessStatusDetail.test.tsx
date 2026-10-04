@@ -508,10 +508,17 @@ describe('FitnessStatusDetail', () => {
       } as Partial<StatusNote>)
     })
 
-    expect(
-      screen.getByText('10:42 AM, May 27, 2026', { exact: false })
-    ).toBeInTheDocument()
+    const activityDate = screen.getByText('10:42 AM, May 27, 2026', {
+      exact: false
+    })
+    expect(activityDate).toBeInTheDocument()
     expect(screen.queryByText('2:05 PM, May 27, 2026')).not.toBeInTheDocument()
+    // Rendered through `ActivityStartTime`, which switches to the viewer's own
+    // zone after hydration (proved in its own test, which moves the zone).
+    expect(activityDate.closest('time')).toHaveAttribute(
+      'datetime',
+      '2026-05-27T10:42:00.000Z'
+    )
   })
 
   it('renders summary metrics and elevation chart on overview without fetching route data, and defers route data to analysis', async () => {

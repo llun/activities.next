@@ -22,10 +22,15 @@ import {
   processStatusText
 } from '@/lib/utils/text/processStatusText'
 
-const timeFormatter = new Intl.DateTimeFormat(undefined, {
+import { useMessageTimeFormat } from './useMessageTimeFormat'
+
+// Keep the date-fns pattern and the Intl options naming the same fields;
+// order and separators follow the reader's locale by design.
+const TIME_PATTERN = 'h:mm a'
+const TIME_FORMAT: Intl.DateTimeFormatOptions = {
   hour: 'numeric',
   minute: '2-digit'
-})
+}
 
 const getInitial = (value: string) => {
   const trimmed = value.trim()
@@ -80,6 +85,7 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
   isOwn,
   onShowAttachment
 }) => {
+  const formatTime = useMessageTimeFormat(TIME_PATTERN, TIME_FORMAT)
   const actualStatus = getActualStatus(status)
   const actor = actualStatus.actor
   const authorName = actor?.name || actor?.username || ''
@@ -99,7 +105,7 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
         tags: actualStatus.tags
       })
     : null
-  const time = timeFormatter.format(new Date(actualStatus.createdAt))
+  const time = formatTime(actualStatus.createdAt)
 
   const fitnessMeta = fitnessFile
     ? [
@@ -253,12 +259,7 @@ export const MessageBubble: FC<MessageBubbleProps> = ({
           </div>
         )}
 
-        <div
-          className="px-1 text-[11px] text-muted-foreground"
-          suppressHydrationWarning
-        >
-          {time}
-        </div>
+        <div className="px-1 text-[11px] text-muted-foreground">{time}</div>
       </div>
     </div>
   )
