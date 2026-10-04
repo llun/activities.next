@@ -67,6 +67,7 @@ import {
   AppliedRange,
   StepDirection,
   latestMonthIn,
+  rangeContains,
   rangesEqual,
   stepTarget,
   viewFor,
@@ -214,7 +215,7 @@ function FitnessOverview({
   const [state, dispatch] = useReducer(overviewReducer, undefined, () =>
     createOverviewState(localDateKeyAt(currentTime, timeZone))
   )
-  const { applied, today, selectedDate, metric } = state
+  const { applied, today, metric } = state
 
   // "Today" moves at midnight and with the viewer's zone: re-derive it when
   // the page comes back into view (a tab left open overnight), and at once if
@@ -264,6 +265,14 @@ function FitnessOverview({
   // from architecture §2.4, so nothing on screen contradicts the data.
   const displayRange = shown?.range ?? applied
   const gridView = viewFor(displayRange)
+  // A day picked on the previous results (see SELECT_DAY's `within`) lies
+  // outside `applied`. It belongs to what is on screen, so it is shown there
+  // and nowhere else: not while the applied range loads, and not after it has.
+  const selectedDate =
+    state.selectedDate !== null &&
+    rangeContains(displayRange, state.selectedDate)
+      ? state.selectedDate
+      : null
   const gridDays = shown?.days ?? NO_DAYS
   const showList =
     gridView === 'month' && listAvailable && monthLayout === 'list'
@@ -284,10 +293,21 @@ function FitnessOverview({
   // that changes the state. The ref is written in a layout effect, so a click
   // that lands before passive effects run still sees the committed values.
   const { retry } = data
-  const latest = useRef({ state, status, retry })
+  const latest = useRef({ state, status, retry, displayRange })
   useLayoutEffect(() => {
-    latest.current = { state, status, retry }
+    latest.current = { state, status, retry, displayRange }
   })
+  // The day was picked on a range that is not the applied one; once the applied
+  // range has loaded the day no longer belongs to anything on screen.
+  useEffect(() => {
+    if (
+      status === 'success' &&
+      state.selectedDate !== null &&
+      !rangeContains(applied, state.selectedDate)
+    ) {
+      dispatch({ type: 'CLEAR_DAY' })
+    }
+  }, [status, applied, state.selectedDate])
   const applyRange = useCallback((action: OverviewAction) => {
     const { state, status, retry } = latest.current
     dispatch(action)
@@ -351,7 +371,12 @@ function FitnessOverview({
   )
 
   const selectDay = useCallback(
-    (date: DateKey) => dispatch({ type: 'SELECT_DAY', date }),
+    (date: DateKey) =>
+      dispatch({
+        type: 'SELECT_DAY',
+        date,
+        within: latest.current.displayRange
+      }),
     []
   )
   const openMonth = useCallback(

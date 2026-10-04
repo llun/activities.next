@@ -273,6 +273,43 @@ describe('day selection', () => {
     expect(run(state, { type: 'SELECT_DAY', date: key(date) })).toBe(state)
   })
 
+  it('selects a day inside `within` although `applied` does not contain it', () => {
+    // After a failed read the grid draws the previous range.
+    const state = stateWith(range('year', '2024-01-01', '2024-12-31'))
+    const selected = run(state, {
+      type: 'SELECT_DAY',
+      date: key('2025-06-10'),
+      within: range('year', '2025-01-01', '2025-12-31')
+    })
+    expect(selected.selectedDate).toBe('2025-06-10')
+    expect(selected.applied).toBe(state.applied)
+    expect(selected.annualReturn).toBe(state.annualReturn)
+  })
+
+  it('ignores a day outside `within`, even inside `applied`', () => {
+    const state = stateWith(range('year', '2024-01-01', '2024-12-31'))
+    expect(
+      run(state, {
+        type: 'SELECT_DAY',
+        date: key('2024-06-10'),
+        within: range('year', '2025-01-01', '2025-12-31')
+      })
+    ).toBe(state)
+  })
+
+  it('clears a day picked on `within` when a range that excludes it is applied', () => {
+    const state = run(
+      stateWith(range('year', '2024-01-01', '2024-12-31')),
+      {
+        type: 'SELECT_DAY',
+        date: key('2025-06-10'),
+        within: range('year', '2025-01-01', '2025-12-31')
+      },
+      { type: 'STEP', direction: 'previous' }
+    )
+    expect(state.selectedDate).toBeNull()
+  })
+
   it('ignores a value that is not a date key', () => {
     const state = initial()
     expect(

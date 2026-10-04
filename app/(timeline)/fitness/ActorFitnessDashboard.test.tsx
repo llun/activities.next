@@ -1199,6 +1199,153 @@ describe('ActorFitnessDashboard', () => {
       expect(mockedSummary).not.toHaveBeenCalled()
       expect(mockedCalendar).not.toHaveBeenCalled()
     })
+
+    describe('day inspection on the retained results', () => {
+      it('selects a day on the annual grid that is on screen', async () => {
+        await failSecondRange()
+        // The grid still draws 2025; the applied range that failed is 2024.
+        const calendarCalls = mockedCalendar.mock.calls.length
+        const summaryCalls = mockedSummary.mock.calls.length
+
+        fireEvent.click(cell('2025-10-01'))
+
+        expect(cell('2025-10-01')).toHaveAttribute('aria-pressed', 'true')
+        expect(await screen.findByTestId('day-details')).toBeInTheDocument()
+        expect(mockedDay).toHaveBeenCalledWith(
+          expect.objectContaining({ date: '2025-10-01' })
+        )
+        // Selecting reads nothing for the range and keeps the banner.
+        expect(mockedSummary).toHaveBeenCalledTimes(summaryCalls)
+        expect(mockedCalendar).toHaveBeenCalledTimes(calendarCalls)
+        expect(shownDates()).toBe('1 Jan – 31 Dec 2025')
+        expect(text(screen.getByRole('alert'))).toContain(
+          'We couldn’t load 1 Jan – 31 Dec 2024'
+        )
+      })
+
+      it('selects a day on the month grid that is on screen', async () => {
+        renderDashboard()
+        await waitForLoaded()
+        fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+        await waitFor(() => expect(monthHeading()).toBe('October 2026'))
+        await waitForLoaded()
+        mockedSummary.mockRejectedValueOnce(
+          new ApiRequestError('Service Unavailable', 503)
+        )
+        fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+        await screen.findByRole('alert')
+        expect(monthHeading()).toBe('October 2026')
+
+        fireEvent.click(cell('2026-10-01'))
+
+        expect(cell('2026-10-01')).toHaveAttribute('aria-pressed', 'true')
+        expect(await screen.findByTestId('day-details')).toBeInTheDocument()
+        expect(text(screen.getByTestId('day-details'))).toContain(
+          '2 activities · 16.8 km · 1h 14m'
+        )
+      })
+
+      it('clears a day outside the range once a retry loads that range', async () => {
+        renderDashboard()
+        await waitForLoaded()
+        mockedSummary.mockRejectedValueOnce(
+          new ApiRequestError('Service Unavailable', 503)
+        )
+        // Year to date stays on screen; October is the applied range.
+        fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+        const alert = await screen.findByRole('alert')
+        fireEvent.click(cell('2026-09-24'))
+        expect(cell('2026-09-24')).toHaveAttribute('aria-pressed', 'true')
+        await screen.findByTestId('day-details')
+
+        fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+
+        await waitFor(() => expect(monthHeading()).toBe('October 2026'))
+        await waitFor(() =>
+          expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        )
+        expect(screen.queryByTestId('day-details')).not.toBeInTheDocument()
+      })
+
+      it('keeps a day that the retried range also contains', async () => {
+        renderDashboard()
+        await waitForLoaded()
+        mockedSummary.mockRejectedValueOnce(
+          new ApiRequestError('Service Unavailable', 503)
+        )
+        fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+        const alert = await screen.findByRole('alert')
+        fireEvent.click(cell('2026-10-01'))
+        await screen.findByTestId('day-details')
+
+        fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+
+        await waitFor(() => expect(monthHeading()).toBe('October 2026'))
+        await waitFor(() =>
+          expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        )
+        expect(cell('2026-10-01')).toHaveAttribute('aria-pressed', 'true')
+        expect(screen.getByTestId('day-details')).toBeInTheDocument()
+      })
+
+      it('clears a day outside the range when the failed range is stepped to and loads', async () => {
+        await failSecondRange()
+        fireEvent.click(cell('2025-10-01'))
+        await screen.findByTestId('day-details')
+
+        // Previous year targets the failed 2024 again; this time it loads.
+        fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
+
+        await waitFor(() => expect(shownDates()).toBe('1 Jan – 31 Dec 2024'))
+        await waitFor(() =>
+          expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        )
+        expect(screen.queryByTestId('day-details')).not.toBeInTheDocument()
+      })
+
+      it('does not bring the day back when its range is opened again', async () => {
+        await failSecondRange()
+        fireEvent.click(cell('2025-10-01'))
+        await screen.findByTestId('day-details')
+        fireEvent.click(
+          within(screen.getByRole('alert')).getByRole('button', {
+            name: 'Retry'
+          })
+        )
+        await waitFor(() => expect(shownDates()).toBe('1 Jan – 31 Dec 2024'))
+        await waitForLoaded()
+        await waitFor(() =>
+          expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Next year' }))
+
+        await waitFor(() => expect(shownDates()).toBe('1 Jan – 31 Dec 2025'))
+        await waitForLoaded()
+        expect(cell('2025-10-01')).toHaveAttribute('aria-pressed', 'false')
+        expect(screen.queryByTestId('day-details')).not.toBeInTheDocument()
+      })
+
+      it('keeps the day while a retry that fails again leaves the previous results', async () => {
+        await failSecondRange()
+        fireEvent.click(cell('2025-10-01'))
+        await screen.findByTestId('day-details')
+        mockedSummary.mockRejectedValueOnce(
+          new ApiRequestError('Service Unavailable', 503)
+        )
+
+        fireEvent.click(
+          within(screen.getByRole('alert')).getByRole('button', {
+            name: 'Retry'
+          })
+        )
+
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(4))
+        await screen.findByRole('alert')
+        expect(cell('2025-10-01')).toHaveAttribute('aria-pressed', 'true')
+        expect(screen.getByTestId('day-details')).toBeInTheDocument()
+      })
+    })
   })
 
   it('does not redraw the year rows while the picker draft is edited', async () => {

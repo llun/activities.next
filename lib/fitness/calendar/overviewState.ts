@@ -7,8 +7,11 @@
  *   it, so resizing can never change it.
  * - `annualReturn` is the most recent applied range that was in annual view
  *   (year to date at the start). "Back to year" restores it exactly.
- * - `selectedDate` is always inside `applied`. Selecting a day never changes
- *   the range, and a range change clears a selection it no longer contains.
+ * - `selectedDate` is inside `applied`, except for a day picked on the previous
+ *   results that stay on screen after a failed read (`SELECT_DAY` with
+ *   `within`); the dashboard shows no selection outside `applied` once that
+ *   read has loaded and clears it. Selecting a day never changes the range or
+ *   the totals, and a range change clears a selection it no longer contains.
  * - The picker draft changes nothing but itself until `APPLY_PICKER`, and
  *   `APPLY_PICKER` commits only a valid draft. Cancel and Escape discard.
  *
@@ -73,7 +76,13 @@ export type OverviewAction =
   | { type: 'OPEN_LATEST_MONTH' }
   | { type: 'STEP'; direction: StepDirection }
   | { type: 'BACK_TO_YEAR' }
-  | { type: 'SELECT_DAY'; date: DateKey }
+  /**
+   * Selects a day. `within` is the range the day was picked from when that is
+   * not `applied`: after a failed read the grid still draws the previous
+   * results, and a day on it is selectable although `applied` (the range that
+   * failed) does not contain it.
+   */
+  | { type: 'SELECT_DAY'; date: DateKey; within?: AppliedRange }
   | { type: 'CLEAR_DAY' }
   | { type: 'SET_METRIC'; metric: OverviewMetric }
   /** The viewer's local date changed, for example at midnight. */
@@ -207,7 +216,7 @@ export const overviewReducer = (
     case 'SELECT_DAY':
       if (
         parseDateKey(action.date) === null ||
-        !rangeContains(state.applied, action.date) ||
+        !rangeContains(action.within ?? state.applied, action.date) ||
         state.selectedDate === action.date
       ) {
         return state
