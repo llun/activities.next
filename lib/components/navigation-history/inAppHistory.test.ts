@@ -97,6 +97,16 @@ describe('inAppHistory', () => {
     expect(getInAppPrevious('/b')).toBe('/a')
   })
 
+  // A repeated pathname makes the "already on top" check observable: without
+  // it the pop would truncate to the earlier `/a` and drop `/b`.
+  it('ignores a popstate to the current page that is also earlier on the stack', () => {
+    recordNavigation('/a')
+    recordNavigation('/b')
+    recordNavigation('/a')
+    recordPop('/a')
+    expect(getInAppPrevious('/a')).toBe('/b')
+  })
+
   it('names the page below a returned-to page that is not the entry page', () => {
     recordNavigation('/p0')
     recordNavigation('/x')
@@ -140,5 +150,19 @@ describe('inAppHistory', () => {
     unsubscribe()
     recordNavigation('/b')
     expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('notifies subscribers when a popstate unwinds the stack, and not when it changes nothing', () => {
+    recordNavigation('/a')
+    recordNavigation('/b')
+    const listener = vi.fn()
+    const unsubscribe = subscribeToInAppHistory(listener)
+    // To the current page, then to a page that is not on the stack: no change.
+    recordPop('/b')
+    recordPop('/elsewhere')
+    expect(listener).not.toHaveBeenCalled()
+    recordPop('/a')
+    expect(listener).toHaveBeenCalledTimes(1)
+    unsubscribe()
   })
 })
