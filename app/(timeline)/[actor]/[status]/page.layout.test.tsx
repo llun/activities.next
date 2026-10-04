@@ -255,26 +255,30 @@ describe('Mobile chrome', () => {
   // status is theirs; a status by someone else (a mismatched path) names the
   // handle from the path instead.
   it.each([
-    [
-      { username: 'Anna', domain: 'activities.local' },
-      'Back to profile, Anna Nowak'
-    ],
-    [
-      { username: 'Anna', domain: 'Activities.Local' },
-      'Back to profile, Anna Nowak'
-    ],
-    [
-      { username: 'someone', domain: 'elsewhere.example' },
-      'Back to profile, @anna@activities.local'
-    ],
+    {
+      description: 'the author',
+      author: { username: 'Anna', domain: 'activities.local' },
+      accessibleName: 'Back to profile, Anna Nowak'
+    },
+    {
+      description: 'the author (domain in other case)',
+      author: { username: 'Anna', domain: 'Activities.Local' },
+      accessibleName: 'Back to profile, Anna Nowak'
+    },
+    {
+      description: 'someone else (handle from the path)',
+      author: { username: 'someone', domain: 'elsewhere.example' },
+      accessibleName: 'Back to profile, @anna@activities.local'
+    },
     // The same username on another server is someone else.
-    [
-      { username: 'anna', domain: 'elsewhere.example' },
-      'Back to profile, @anna@activities.local'
-    ]
+    {
+      description: 'the same username on another server',
+      author: { username: 'anna', domain: 'elsewhere.example' },
+      accessibleName: 'Back to profile, @anna@activities.local'
+    }
   ])(
-    'names the direct-entry Back after the author (%o)',
-    async (author, accessibleName) => {
+    'names the direct-entry Back after $description',
+    async ({ author, accessibleName }) => {
       const note = buildNote({
         id: 'focused',
         actor: {
