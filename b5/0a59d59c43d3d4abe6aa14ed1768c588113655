@@ -1,0 +1,87 @@
+app/(timeline)/admin/accounts/[id]/page.test.tsx
+  s_94426ef8ef042a::t_31fe236f90a83c 80,90-92
+lib/components/back-link.tsx
+  s_94426ef8ef042a::t_0ad44e833add09 5,12-13,15-20,35-37,42
+app/(timeline)/lists/[id]/ListTimeline.tsx
+  s_94426ef8ef042a::t_e13248d39c86ae 159
+lib/components/page-header.tsx
+  s_94426ef8ef042a::t_0ad44e833add09 14-17
+app/(timeline)/[actor]/followers/page.test.tsx
+  s_94426ef8ef042a::t_75f5c3b4f84938 322-324
+app/(timeline)/[actor]/[status]/Header.test.tsx
+  s_94426ef8ef042a::t_a7af8a45748f9e 105-109
+  s_94426ef8ef042a::t_29243c77945888 7,42,51,62,69-71,80,82-86,94,96-97,100,102-104,110,129-160,162-164
+app/(timeline)/collections/[id]/CollectionDetail.tsx
+  s_94426ef8ef042a::t_27c59b5b8f1504 249-259,263-266
+app/(timeline)/[actor]/[status]/Header.tsx
+  s_94426ef8ef042a::t_e17a709257fd47 8-11,24-28,36-43,47-48,50-52,61-63,71,78,83-84
+lib/components/navigation-history/backDestination.ts
+  s_94426ef8ef042a::t_a1c3d3468681f9 1-99,101-109,111-121
+  s_94426ef8ef042a::t_2f295016baa19b 100
+  s_94426ef8ef042a::t_567882b307381b 110
+lib/components/navigation-history/backDestination.test.ts
+  s_94426ef8ef042a::t_2f295016baa19b 90-101
+  s_94426ef8ef042a::t_a7af8a45748f9e 1-89,102-106
+lib/components/page-header.test.tsx
+  s_94426ef8ef042a::t_d6dc7481eaaaae 285-286,291-294,306,339
+app/(timeline)/[actor]/FollowListPage.test.tsx
+  s_94426ef8ef042a::t_63a31d0c383b30 208-211,221,223-229,233,237-238,241-269
+  s_94426ef8ef042a::t_829305eff68df4 5
+  s_94426ef8ef042a::t_4e0187064cb7ed 270
+lib/components/navigation-history/useInAppBack.ts
+  s_94426ef8ef042a::t_567882b307381b 6,9-13,18,20-21,24
+app/(timeline)/admin/tags/[tag]/page.tsx
+  s_94426ef8ef042a::t_e13248d39c86ae 52-53
+app/(timeline)/admin/accounts/[id]/page.tsx
+  s_94426ef8ef042a::t_e13248d39c86ae 37-38
+lib/components/navigation-history/inAppHistory.test.ts
+  s_94426ef8ef042a::t_e6d0ae64faa92a 3,15,17,20-21,23,25,34,46,48,61,69-70,72,75,83,89
+app/(timeline)/[actor]/FollowListPage.tsx
+  s_94426ef8ef042a::t_7270e77fe2dd59 1,3,189-206,208
+  s_94426ef8ef042a::t_e13248d39c86ae 12-15,177-183
+lib/components/navigation-history/useInAppBack.test.tsx
+  s_94426ef8ef042a::t_03fedacf19e46b 20,22-26,53,74-75
+app/(timeline)/admin/tags/[tag]/page.test.tsx
+  s_94426ef8ef042a::t_31fe236f90a83c 49,59
+app/(timeline)/[actor]/[status]/page.tsx
+  s_94426ef8ef042a::t_c5c3b7f678f795 7,246-255,302-306,426
+  s_94426ef8ef042a::t_e8027c3dc3f3f8 271-276,311,372-375,432
+app/(timeline)/collections/[id]/CollectionDetail.test.tsx
+  s_94426ef8ef042a::t_f04efb34ea96e3 307-333
+  s_94426ef8ef042a::t_31fe236f90a83c 35,41,173
+  s_94426ef8ef042a::t_9e69d73915b148 334
+lib/components/navigation-history/inAppHistory.ts
+  s_94426ef8ef042a::t_567882b307381b 5-6,49-50,55-56,58,60-61
+app/(timeline)/[actor]/[status]/page.visibility.test.tsx
+  s_94426ef8ef042a::t_77ab52b73939c2 595-596
+app/(timeline)/admin/reports/[id]/page.tsx
+  s_94426ef8ef042a::t_e13248d39c86ae 29-30
+app/(timeline)/lists/[id]/ListTimeline.test.tsx
+  s_94426ef8ef042a::t_31fe236f90a83c 45,51,304
+app/(timeline)/[actor]/following/page.test.tsx
+  s_94426ef8ef042a::t_75f5c3b4f84938 325-327
+app/(timeline)/admin/reports/[id]/page.test.tsx
+  s_94426ef8ef042a::t_31fe236f90a83c 39,44
+app/(timeline)/[actor]/[status]/page.layout.test.tsx
+  s_94426ef8ef042a::t_5b28d623ea17c1 244-293,332-334
+  s_94426ef8ef042a::t_9dc9e7477e8bdf 406,409,560,563
+lib/components/back-link.test.tsx
+  s_94426ef8ef042a::t_2f295016baa19b 32-36,49-53
+  s_94426ef8ef042a::t_a7f63bfb42d989 8-9,30-31,37,41-44,48,54,72,75-76,81-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b50a59d59c43d3d4abe6aa14ed1768c588113655",
+  "prompts": {},
+  "sessions": {
+    "s_94426ef8ef042a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08204b68-8e02-41c3-aa35-385d0860dc9b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
