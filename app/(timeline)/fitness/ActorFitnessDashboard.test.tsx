@@ -1433,6 +1433,41 @@ describe('ActorFitnessDashboard', () => {
     expect(screen.queryByText('Upcoming')).toBeNull()
   })
 
+  it('captions the month footer through today, and gives a past month its dates', async () => {
+    renderDashboard()
+    await waitForLoaded()
+    fireEvent.click(screen.getByRole('button', { name: /Month view/ }))
+    expect(
+      await screen.findByText(/Activity through 4 Oct/)
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+    expect(monthHeading()).toBe('September 2026')
+    await waitForLoaded()
+    expect(screen.queryByText(/Activity through/)).toBeNull()
+    expect(screen.getAllByText(/1 – 30 Sep 2026/).length).toBeGreaterThan(0)
+  })
+
+  it('marks the grid busy while the range reads', async () => {
+    const busy = () =>
+      document.querySelector('[data-slot="annual-calendar"] [aria-busy="true"]')
+    const calendar = createDeferred<FitnessCalendarDay[]>()
+    mockedCalendar.mockReturnValueOnce(calendar.promise)
+    renderDashboard()
+    expect(busy()).not.toBeNull()
+    await act(async () => calendar.resolve(calendarDays))
+    await waitFor(() => expect(busy()).toBeNull())
+  })
+
+  it('keeps the grid busy when the first read fails', async () => {
+    mockedCalendar.mockRejectedValueOnce(new Error('boom'))
+    renderDashboard()
+    await screen.findByRole('alert')
+    expect(
+      document.querySelector('[data-slot="annual-calendar"] [aria-busy="true"]')
+    ).not.toBeNull()
+  })
+
   it('opens the month as a grid at 320px and offers the list as a choice', async () => {
     stubDashboardWidth(320)
     renderDashboard()

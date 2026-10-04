@@ -133,6 +133,22 @@ describe('MonthDayList', () => {
     ])
   })
 
+  it('lists the last day of the applied range', () => {
+    const current = renderList({
+      range: { from: key('2026-10-01'), to: TODAY }
+    })
+    expect(rowButtons().map((row) => row.textContent)).toContainEqual(
+      expect.stringContaining('Sun 4 Oct')
+    )
+    current.unmount()
+
+    renderList({
+      month: 9,
+      range: { from: key('2026-09-01'), to: key('2026-09-30') }
+    })
+    expect(rowButtons()).toHaveLength(30)
+  })
+
   it('names the list by month', () => {
     renderList()
 

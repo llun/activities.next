@@ -1486,6 +1486,30 @@ describe('FitnessFileDatabase', () => {
         }
       }
 
+      it('keeps a missing distance, duration and elevation null in the window read', async () => {
+        const created = await database.createFitnessFile({
+          actorId: actors.extra.id,
+          path: 'fitness/null-totals.fit',
+          fileName: 'null-totals.fit',
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 256
+        })
+        await database.updateFitnessFileActivityData(created!.id, {
+          activityType: 'strength',
+          activityStartTime: new Date(at('2035-05-10', '09:00', AMSTERDAM))
+        })
+        await database.updateFitnessFileProcessingStatus(
+          created!.id,
+          'completed'
+        )
+        const rows = await readWindow('2035-05-10', '2035-05-10', AMSTERDAM)
+        expect(rows).toHaveLength(1)
+        expect(rows[0].totalDistanceMeters).toBeNull()
+        expect(rows[0].totalDurationSeconds).toBeNull()
+        expect(rows[0].elevationGainMeters).toBeNull()
+      })
+
       it('buckets early-morning and late-night activities by the local day', async () => {
         await seedActivity({ startTime: at('2031-06-10', '00:30', AMSTERDAM) })
         await seedActivity({ startTime: at('2031-06-10', '23:30', AMSTERDAM) })

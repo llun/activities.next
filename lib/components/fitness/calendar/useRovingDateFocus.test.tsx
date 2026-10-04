@@ -268,18 +268,21 @@ describe('useRovingDateFocus', () => {
     expect(tabNotPrevented).toBe(true)
   })
 
-  it('leaves modified arrows to the browser', () => {
-    render(<Harness dates={october} preferred={key('2026-10-04')} />)
-    cell('2026-10-04').focus()
+  it.each(['altKey', 'ctrlKey', 'metaKey', 'shiftKey'])(
+    'leaves arrows pressed with %s to the browser',
+    (modifier) => {
+      render(<Harness dates={october} preferred={key('2026-10-04')} />)
+      cell('2026-10-04').focus()
 
-    const notPrevented = fireEvent.keyDown(cell('2026-10-04'), {
-      key: 'ArrowRight',
-      altKey: true
-    })
+      const notPrevented = fireEvent.keyDown(cell('2026-10-04'), {
+        key: 'ArrowRight',
+        [modifier]: true
+      })
 
-    expect(notPrevented).toBe(true)
-    expect(cell('2026-10-04')).toHaveFocus()
-  })
+      expect(notPrevented).toBe(true)
+      expect(cell('2026-10-04')).toHaveFocus()
+    }
+  )
 
   it('moves the tab stop to a cell focused another way', () => {
     render(<Harness dates={october} preferred={key('2026-10-04')} />)

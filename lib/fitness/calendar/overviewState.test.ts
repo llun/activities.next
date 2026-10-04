@@ -424,6 +424,30 @@ describe('APPLY_RANGE and APPLY_YEAR', () => {
   })
 
   it.each([
+    [
+      'a one-day range on the first of a month',
+      key('2026-11-01'),
+      range('this_month', '2026-11-01', '2026-11-01')
+    ],
+    [
+      'a range that ends today',
+      TODAY,
+      range('custom', '2026-09-20', '2026-10-04')
+    ],
+    [
+      'a range that starts on the first day offered',
+      TODAY,
+      range('custom', '1970-01-01', '1970-01-31')
+    ]
+  ])('applies %s', (_name, today, applied) => {
+    const state = run(createOverviewState(today), {
+      type: 'APPLY_RANGE',
+      range: applied
+    })
+    expect(state.applied).toEqual(applied)
+  })
+
+  it.each([
     [2025, range('year', '2025-01-01', '2025-12-31')],
     [2024, range('year', '2024-01-01', '2024-12-31')],
     [2026, range('ytd', '2026-01-01', '2026-10-04')]

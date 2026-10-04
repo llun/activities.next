@@ -230,6 +230,20 @@ describe('MonthCalendar', () => {
       expect(onSelectDate).not.toHaveBeenCalled()
     })
 
+    it('keeps the first and last day of the range selectable', () => {
+      const current = renderMonth({
+        range: { from: key('2026-10-01'), to: TODAY }
+      })
+      expect(current.cell('2026-10-04')).toBeEnabled()
+      current.unmount()
+      const past = renderMonth({
+        month: 9,
+        range: { from: key('2026-09-01'), to: key('2026-09-30') }
+      })
+      expect(past.cell('2026-09-30')).toBeEnabled()
+      expect(past.cell('2026-09-01')).toBeEnabled()
+    })
+
     it('selects on click', () => {
       const { cell, onSelectDate } = renderMonth()
 

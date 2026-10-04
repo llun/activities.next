@@ -704,6 +704,17 @@ describe('bucketByLocalDay', () => {
     ])
   })
 
+  it('keeps two rows at the same instant in one bucket', () => {
+    const ms = Date.UTC(2026, 9, 4, 12)
+    const rows: Row[] = [
+      { id: 'a', ms },
+      { id: 'b', ms }
+    ]
+    expect(summarize(bucketByLocalDay(rows, 'UTC', getMs))).toEqual([
+      ['2026-10-04', ['a', 'b']]
+    ])
+  })
+
   it('gives a spring-forward day its 23 hours and a fall-back day its 25', () => {
     const springZone = 'Europe/Amsterdam'
     const spring = [

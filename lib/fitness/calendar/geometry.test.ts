@@ -313,6 +313,35 @@ describe('annualYearGrid', () => {
       expect(grid.cells[0]).toMatchObject({ col: 0, row: 3, state: 'today' })
       expect(grid.trailingPadding).toBe(3)
     })
+
+    it('labels a month whose first day is the last day shown', () => {
+      const first = key('2026-11-01')
+      const grid = annualYearGrid({
+        year: 2026,
+        range: { from: key('2026-01-01'), to: first },
+        today: first
+      })
+      expect(grid.monthLabels).toHaveLength(11)
+      expect(grid.monthLabels[10]).toMatchObject({
+        month: 11,
+        span: 1,
+        alignEnd: true,
+        inRange: true
+      })
+      expect(grid.monthStartColumns).toHaveLength(11)
+    })
+
+    it('keeps a month label in range when the range touches only its edge day', () => {
+      const grid = annualYearGrid({
+        year: 2026,
+        range: { from: key('2026-09-30'), to: key('2026-10-01') },
+        today: key('2026-12-31')
+      })
+      const inRange = grid.monthLabels
+        .filter((label) => label.inRange)
+        .map((label) => label.month)
+      expect(inRange).toEqual([9, 10])
+    })
   })
 })
 

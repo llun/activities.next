@@ -241,3 +241,15 @@ describe('FitnessCalendarDayQuery', () => {
     expect(FitnessCalendarDayQuery.safeParse(query).success).toBe(false)
   })
 })
+
+describe('FitnessCalendarRangeQuery first day', () => {
+  it('accepts 1970-01-01, the first day the range picker offers', () => {
+    expect(
+      FitnessCalendarRangeQuery.safeParse({
+        from: '1970-01-01',
+        to: '1970-01-31',
+        time_zone: 'UTC'
+      }).success
+    ).toBe(true)
+  })
+})
