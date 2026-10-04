@@ -41,11 +41,6 @@ export type DayIndex = ReadonlyMap<string, FitnessCalendarDay>
 export const indexDays = (days: readonly FitnessCalendarDay[]): DayIndex =>
   new Map(days.map((day) => [day.date, day]))
 
-const NO_DAYS: readonly FitnessCalendarDay[] = []
-
-/** An empty index, for a calendar that has no data yet. */
-export const EMPTY_DAY_INDEX: DayIndex = indexDays(NO_DAYS)
-
 export const toHeatDay = (day: FitnessCalendarDay | undefined): HeatDay => ({
   count: day?.count ?? 0,
   distanceMeters: day?.totalDistanceMeters ?? 0,

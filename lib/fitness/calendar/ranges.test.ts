@@ -7,7 +7,6 @@ import {
   MIN_DATE_KEY,
   PresetKind,
   RangeKind,
-  annualYears,
   latestMonthIn,
   monthRange,
   normalizeCustom,
@@ -168,7 +167,9 @@ describe('normalizeCustom', () => {
     ['2025-02-01', '2025-03-31', 'custom'],
     ['2024-01-01', '2024-12-30', 'custom'],
     ['2025-01-01', '2026-01-01', 'custom'],
-    ['2025-12-01', '2026-01-31', 'custom']
+    ['2025-12-01', '2026-01-31', 'custom'],
+    ['2024-03-01', '2025-03-31', 'custom'],
+    ['2024-01-01', '2025-12-31', 'custom']
   ])('%s to %s is %s', (from, to, kind) => {
     expect(normalizeCustom(key(from), key(to), TODAY)).toEqual(
       range(kind as RangeKind, from, to)
@@ -346,17 +347,6 @@ describe('latestMonthIn', () => {
     ]
   ] as const)('%j', (applied, expected) => {
     expect(latestMonthIn(applied, TODAY)).toEqual(expected)
-  })
-})
-
-describe('annualYears', () => {
-  it.each([
-    [range('ytd', '2026-01-01', '2026-10-04'), [2026]],
-    [range('year', '2024-01-01', '2024-12-31'), [2024]],
-    [range('last_12_months', '2025-10-05', '2026-10-04'), [2025, 2026]],
-    [range('custom', '2023-12-31', '2025-01-01'), [2023, 2024, 2025]]
-  ] as const)('%j', (applied, years) => {
-    expect(annualYears(applied)).toEqual(years)
   })
 })
 

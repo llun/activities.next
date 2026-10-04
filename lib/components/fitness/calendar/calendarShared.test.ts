@@ -8,7 +8,6 @@ import type { FitnessCalendarDay } from '@/lib/fitness/calendar/types'
 
 import {
   CALENDAR_MOTION,
-  EMPTY_DAY_INDEX,
   describeDay,
   indexDays,
   levelOfDay,
@@ -65,7 +64,6 @@ describe('day index', () => {
     expect(index.get('2026-09-24')).toBe(ride)
     expect(levelOfDay('count', index.get('2026-09-24'))).toBe(2)
     expect(levelOfDay('count', index.get('2026-09-25'))).toBe(0)
-    expect(EMPTY_DAY_INDEX.size).toBe(0)
   })
 
   it('shades by the chosen metric with fixed thresholds', () => {

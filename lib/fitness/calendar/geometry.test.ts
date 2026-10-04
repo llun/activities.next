@@ -2,7 +2,6 @@ import {
   ANNUAL_CELL_MAX,
   ANNUAL_CELL_MIN,
   annualCellSize,
-  annualGridScrolls,
   annualYearGrid,
   annualYearGrids,
   monthCellSize,
@@ -477,15 +476,6 @@ describe('annualCellSize', () => {
     expect(annualCellSize(908, 0)).toBe(ANNUAL_CELL_MIN)
     expect(annualCellSize(Number.NaN, 40)).toBe(ANNUAL_CELL_MIN)
     expect(annualCellSize(10000, 1)).toBe(ANNUAL_CELL_MAX)
-  })
-
-  it('reports when the grid must scroll inside its container', () => {
-    expect(annualGridScrolls(390, 40)).toBe(true)
-    expect(annualGridScrolls(908, 53)).toBe(false)
-    // (avail - 28 - 3N) / N is exactly 12 at avail = 28 + 15N.
-    expect(annualGridScrolls(28 + 15 * 40, 40)).toBe(false)
-    expect(annualGridScrolls(28 + 15 * 40 - 1, 40)).toBe(true)
-    expect(annualGridScrolls(500, 0)).toBe(false)
   })
 })
 

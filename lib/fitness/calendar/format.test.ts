@@ -1,16 +1,14 @@
 import {
   formatActivityCount,
-  formatDateRange,
   formatDistance,
   formatDuration,
   formatElevation,
   formatFullDate,
+  formatInteger,
   formatLocalTime,
-  formatMonthLong,
   formatMonthShort,
   formatMonthYear,
   formatRange,
-  formatShortDate,
   formatWeekdayDayMonth
 } from './format'
 import { DateKey, parseDateKey } from './localDay'
@@ -71,10 +69,6 @@ describe('formatRange', () => {
       '29 Feb – 1 Mar 2024'
     )
   })
-
-  it('is also exported under the architecture name', () => {
-    expect(formatDateRange).toBe(formatRange)
-  })
 })
 
 describe('date text', () => {
@@ -87,18 +81,10 @@ describe('date text', () => {
     expect(formatFullDate(key('2026-03-02'))).toBe('Monday, 2 March 2026')
   })
 
-  it('formats a short date with non-breaking spaces so it cannot wrap', () => {
-    const short = formatShortDate(key('2026-10-01'))
-    expect(short).toBe(`Thu,${NBSP}1${NBSP}Oct${NBSP}2026`)
-    expect(short).not.toContain(' ')
-    expect(short.replaceAll(NBSP, ' ')).toBe('Thu, 1 Oct 2026')
-  })
-
   it('formats a list row date and month text', () => {
     expect(formatWeekdayDayMonth(key('2026-09-24'))).toBe('Thu 24 Sep')
     expect(formatMonthYear(2026, 9)).toBe('September 2026')
     expect(formatMonthShort(10)).toBe('Oct')
-    expect(formatMonthLong(2)).toBe('February')
   })
 
   it('has the right weekday for the first and last day of 2026', () => {
@@ -169,6 +155,12 @@ describe('formatElevation and counts', () => {
     expect(formatElevation(24_680)).toBe(`24,680${NBSP}m`)
     expect(formatElevation(412.4)).toBe(`412${NBSP}m`)
     expect(formatElevation(0)).toBe(`0${NBSP}m`)
+  })
+
+  it('formats a whole number with thousands separators', () => {
+    expect(formatInteger(0)).toBe('0')
+    expect(formatInteger(1200)).toBe('1,200')
+    expect(formatInteger(12.6)).toBe('13')
   })
 
   it('pluralises the activity count', () => {

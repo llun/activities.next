@@ -50,6 +50,10 @@ const integerFormatter = new Intl.NumberFormat('en-GB', {
   maximumFractionDigits: 0
 })
 
+/** A whole number with thousands separators: "1,024". */
+export const formatInteger = (value: number): string =>
+  integerFormatter.format(value)
+
 const oneDecimalFormatter = new Intl.NumberFormat('en-GB', {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1
@@ -63,28 +67,10 @@ export const formatMonthYear = (year: number, month1: number): string =>
 export const formatMonthShort = (month1: number): string =>
   MONTHS_SHORT[month1 - 1]
 
-/** "September". */
-export const formatMonthLong = (month1: number): string =>
-  MONTHS_LONG[month1 - 1]
-
 /** "Thursday, 24 September 2026". */
 export const formatFullDate = (key: DateKey): string => {
   const { year, month, day } = dateKeyParts(key)
   return `${WEEKDAYS_LONG[weekdayMon0(key)]}, ${day} ${MONTHS_LONG[month - 1]} ${year}`
-}
-
-/**
- * "Thu, 1 Oct 2026", with non-breaking spaces so a date in a narrow tooltip or
- * row never splits across lines.
- */
-export const formatShortDate = (key: DateKey): string => {
-  const { year, month, day } = dateKeyParts(key)
-  return [
-    `${WEEKDAYS_SHORT[weekdayMon0(key)]},`,
-    String(day),
-    MONTHS_SHORT[month - 1],
-    String(year)
-  ].join(NBSP)
 }
 
 /** "Thu 24 Sep": a row in the month list, where the year is the heading's. */
@@ -118,9 +104,6 @@ export const formatRange = (from: DateKey, to: DateKey): string => {
   }
   return `${dayMonth(from)} ${fromYear} ${EN_DASH} ${dayMonth(to)} ${toYear}`
 }
-
-/** The same as `formatRange`, under the name the architecture document uses. */
-export const formatDateRange = formatRange
 
 const finite = (value: number) => (Number.isFinite(value) ? value : 0)
 

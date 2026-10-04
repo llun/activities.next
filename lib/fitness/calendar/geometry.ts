@@ -359,15 +359,6 @@ export const annualCellSize = (avail: number, weeks: number): number => {
   )
 }
 
-/**
- * True when the grid would need cells below 12px: they stay 12px and the grid
- * scrolls inside its own container instead.
- */
-export const annualGridScrolls = (avail: number, weeks: number): boolean =>
-  weeks > 0 &&
-  Number.isFinite(avail) &&
-  annualRawCellSize(avail, weeks) < ANNUAL_CELL_MIN
-
 /** Side of a month cell: `min(92, (avail - 24) / 7)`, never below 0. */
 export const monthCellSize = (avail: number): number => {
   if (!Number.isFinite(avail)) return 0

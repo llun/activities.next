@@ -17,6 +17,16 @@ import { DateKey } from '@/lib/fitness/calendar/localDay'
 
 import { CALENDAR_MOTION, dateOfElement } from './calendarShared'
 
+/*
+ * One tooltip for a whole calendar, rather than `ui/tooltip`. A Radix tooltip
+ * is a root and a trigger per element, which is hundreds of them for a year of
+ * cells, and it can neither be held back for touch or for the pinned day nor
+ * be placed to keep clear of the month labels and weekday header. Here the
+ * cells stay the focus targets, one floating box follows the hovered or
+ * focused cell (after a hover delay; at once for focus), and the box is
+ * `aria-hidden` because every cell's accessible name already carries its text.
+ */
+
 /* -------------------------------------------------------------------------- */
 /* Placement (pure)                                                            */
 /* -------------------------------------------------------------------------- */

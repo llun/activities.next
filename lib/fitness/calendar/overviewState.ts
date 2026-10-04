@@ -112,10 +112,6 @@ export const getDraftValidation = (
 ): DraftValidation | null =>
   state.picker === null ? null : validateDraft(state.picker, state.today)
 
-/** Whether Apply is enabled. */
-export const canApplyDraft = (state: OverviewState): boolean =>
-  getDraftValidation(state)?.ok === true
-
 const draftFromRange = (range: AppliedRange): PickerDraft => ({
   kind:
     range.kind === 'this_month' ||

@@ -6,7 +6,6 @@ import {
   formatFullDate,
   formatLocalTime,
   formatRange,
-  formatShortDate,
   formatWeekdayDayMonth
 } from './format'
 import { annualYearGrid, monthGrid } from './geometry'
@@ -28,7 +27,6 @@ const TODAY = key('2026-10-04')
 const evaluate = () => ({
   full: formatFullDate(key('2026-09-24')),
   fullLeap: formatFullDate(key('2024-02-29')),
-  short: formatShortDate(key('2026-10-01')),
   row: formatWeekdayDayMonth(key('2026-03-29')),
   range: formatRange(key('2025-10-05'), TODAY),
   distance: formatDistance(1_024_300),

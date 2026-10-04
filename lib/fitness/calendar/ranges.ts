@@ -229,13 +229,6 @@ export const latestMonthIn = (
   return monthRange(year, month, today) ?? presetRange('this_month', today)
 }
 
-/** One entry per calendar year the range touches, oldest first. */
-export const annualYears = (range: AppliedRange): number[] => {
-  const first = dateKeyParts(range.from).year
-  const last = dateKeyParts(range.to).year
-  return Array.from({ length: last - first + 1 }, (_, index) => first + index)
-}
-
 /**
  * Years the chooser offers, newest first: from the local year of the actor's
  * earliest activity (never before `MIN_YEAR`) through the current year. With no

@@ -3,7 +3,6 @@ import {
   OverviewAction,
   OverviewMetric,
   OverviewState,
-  canApplyDraft,
   createOverviewState,
   getDraftValidation,
   getStepTarget,
@@ -527,6 +526,26 @@ describe('SET_TODAY', () => {
     )
   })
 
+  it('keeps a still-annual return, such as a past year, when midnight passes in month view', () => {
+    const inMonth = run(stateWith(range('year', '2024-01-01', '2024-12-31')), {
+      type: 'OPEN_MONTH',
+      year: 2024,
+      month: 3
+    })
+    expect(getView(inMonth)).toBe('month')
+    expect(inMonth.annualReturn).toEqual(
+      range('year', '2024-01-01', '2024-12-31')
+    )
+
+    const rolled = run(inMonth, { type: 'SET_TODAY', today: key('2026-10-05') })
+    expect(rolled.annualReturn).toEqual(
+      range('year', '2024-01-01', '2024-12-31')
+    )
+    expect(run(rolled, { type: 'BACK_TO_YEAR' }).applied).toEqual(
+      range('year', '2024-01-01', '2024-12-31')
+    )
+  })
+
   it('clears a selection that the re-derived range drops', () => {
     const monthStart = stateWith(
       range('this_month', '2026-10-01', '2026-10-31'),
@@ -618,7 +637,7 @@ describe('picker draft', () => {
         toText: applied.to
       })
       expect(state.applied).toBe(closed.applied)
-      expect(canApplyDraft(state)).toBe(true)
+      expect(getDraftValidation(state)?.ok).toBe(true)
     })
 
     it('keeps the draft when opened again, as when the presentation switches', () => {
@@ -766,7 +785,7 @@ describe('picker draft', () => {
         { type: 'OPEN_PICKER' },
         { type: 'EDIT_DRAFT', field: 'to', text: '2026-01-03' }
       )
-      expect(canApplyDraft(invalid)).toBe(false)
+      expect(getDraftValidation(invalid)?.ok).toBe(false)
       expect(draftCodes(invalid)).toEqual(['range_too_short'])
       expect(run(invalid, { type: 'APPLY_PICKER' })).toBe(invalid)
     })
@@ -799,13 +818,12 @@ describe('picker draft', () => {
         { type: 'OPEN_PICKER' },
         { type: 'EDIT_DRAFT', field, text }
       )
-      expect(canApplyDraft(state)).toBe(false)
+      expect(getDraftValidation(state)?.ok).toBe(false)
       expect(draftCodes(state)).toEqual(codes)
     })
 
     it('has no validation while the picker is closed', () => {
       expect(getDraftValidation(initial())).toBeNull()
-      expect(canApplyDraft(initial())).toBe(false)
     })
   })
 
