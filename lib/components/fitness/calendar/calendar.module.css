@@ -1,11 +1,12 @@
 /*
- * Fitness calendar visuals that Tailwind utilities cannot express: the cell
- * state marks (selection ring, focus brackets, slashed out-of-range cell,
- * skeleton) and the annual scroller's edge-fade mask.
+ * Fitness calendar visuals that Tailwind utilities cannot express, such as the
+ * cell state marks (selection ring, focus brackets, slashed out-of-range cell,
+ * skeleton), the annual scroller's edge-fade mask, the today marks, the legend
+ * swatch and the month-label hit band.
  *
  * Layout, spacing and typography stay in Tailwind at the use site. State is
  * read from data attributes (`data-level`, `data-state`, `data-loading`,
- * `aria-pressed`), not from classes, so a test can assert what a cell is
+ * `aria-pressed` and the like), not from classes, so a test can assert what a cell is
  * without knowing a hashed class name.
  *
  * Colours come from the scoped `--heat-*` tokens in app/globals.css (set by the
