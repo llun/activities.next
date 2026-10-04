@@ -1,0 +1,27 @@
+app/(timeline)/fitness/gear/gearUi.ts
+  s_e469a19b574997::t_c1f2a304f12e37 24-28
+docs/fitness-file-storage.md
+  s_e469a19b574997::t_c1f2a304f12e37 542-546
+app/(timeline)/account/sessions/AccountSessions.tsx
+  s_e469a19b574997::t_c1f2a304f12e37 346-350
+app/(timeline)/[actor]/[status]/ActivityStartTime.test.tsx
+  s_e469a19b574997::t_c1f2a304f12e37 13-14
+app/(timeline)/[actor]/[status]/ActivityStartTime.tsx
+  s_e469a19b574997::t_c1f2a304f12e37 16-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "249da0649eeecad216220af7a524cfedf68d3f26",
+  "prompts": {},
+  "sessions": {
+    "s_e469a19b574997": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbed236c-cd14-4851-ad7e-33538c23d09c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
