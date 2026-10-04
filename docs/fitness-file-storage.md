@@ -539,10 +539,11 @@ Read the applicable rules and review checks below before changing this subsystem
   diverged. The post's own `createdAt` remains correct for what it means: when
   the post was published, which is what the timeline, the relative timestamp and
   the ActivityPub `published` should show.
-- **The detail page shows that start time in the viewer's own time zone**, the
-  same zone the fitness dashboard's training calendar buckets days in, so a
-  23:30 run in New York is dated the 24th on both rather than the 25th (its UTC
-  date) on the detail page. The server does not know the viewer's zone, so
+- **The detail page shows that start time in the viewer's own time zone**, and
+  any surface that files an activity under a day (such as the training
+  calendar) must bucket by the viewer's zone too: otherwise a 23:30 run in New
+  York is dated the 24th on one and the 25th (its UTC date) on the other. The
+  server does not know the viewer's zone, so
   `ActivityStartTime` (`app/(timeline)/[actor]/[status]/ActivityStartTime.tsx`)
   renders UTC on the server and during hydration and switches to local time on
   the next render via `useHasHydrated` (`lib/hooks/useHasHydrated.ts`). Do not

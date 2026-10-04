@@ -10,8 +10,8 @@ import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 import { ActivityStartTime } from './ActivityStartTime'
 
-// 23:30 on 24 Sep in New York (EDT, UTC-4) is 03:30 on 25 Sep in UTC — the run
-// the training calendar files under the 24th, which this page has to agree with.
+// 23:30 on 24 Sep in New York (EDT, UTC-4) is 03:30 on 25 Sep in UTC, so the
+// UTC date and the viewer's local date differ for this run.
 const NEW_YORK_LATE_RUN = Date.parse('2026-09-25T03:30:00Z')
 
 describe('ActivityStartTime', () => {

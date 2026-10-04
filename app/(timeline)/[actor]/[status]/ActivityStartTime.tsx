@@ -13,11 +13,9 @@ interface Props {
 }
 
 /**
- * When the activity started, in the viewer's own time zone — the zone the
- * fitness training calendar buckets days in, so a 23:30 run is dated the same
- * day on both. The server does not know that zone and renders UTC; hydration
- * repeats that text and the local one replaces it straight after, so there is
- * no hydration mismatch.
+ * When the activity started, in the viewer's own time zone. The server does
+ * not know that zone and renders UTC; hydration repeats that text and the
+ * local one replaces it straight after, so there is no hydration mismatch.
  */
 export const ActivityStartTime: FC<Props> = ({ timestamp }) => {
   const hasHydrated = useHasHydrated()

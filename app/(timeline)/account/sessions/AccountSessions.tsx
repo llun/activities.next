@@ -343,9 +343,11 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                       {soon && <Badge tone="destructive">Expiring soon</Badge>}
                     </div>
                     {/* formatRelative renders a localized clock time, which
-                        differs between the server and client timezones; suppress
-                        the hydration warning (matching MessageBubble /
-                        AnnouncementBanner) so the client's local time wins. */}
+                        differs between the server and client timezones.
+                        suppressHydrationWarning only silences the warning
+                        (matching MessageBubble / AnnouncementBanner); React
+                        keeps the server-rendered text. The fix to migrate to is
+                        the useHasHydrated rule in docs/architecture.md. */}
                     <div
                       className="mt-0.5 text-xs text-muted-foreground"
                       suppressHydrationWarning
