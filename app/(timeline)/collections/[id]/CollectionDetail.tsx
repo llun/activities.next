@@ -236,6 +236,9 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
   const visibility = VISIBILITY_META[collection.visibility]
   const VisibilityIcon = visibility.icon
   const roster = projection === 'owner' ? ownerRoster : publicRoster
+  // Only a logged-out visitor opens the page without the signed-in chrome (the
+  // owner is always signed in).
+  const isLoggedOutVisitor = !isOwner && !currentActor
   const subtitle = isOwner
     ? `${totalCount} ${totalCount === 1 ? 'person' : 'people'} · ${approvedCount} featured publicly`
     : `by ${ownerHandle}`
@@ -245,49 +248,61 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
       <ScrollToTopButton
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
-      <PageHeader
-        title={
-          isOwner ? (
-            // `PageHeader` truncates it beside the desktop Back arrow.
-            collection.title
-          ) : (
-            // Everyone else has no Back, so no `back` to make `PageHeader`
-            // truncate: keep the heading this page always had, truncating on
-            // one line. Signed in, below `md` it is the content's own heading
-            // under the "Collection" bar, so a long title wraps instead.
-            <span className="flex items-center gap-2">
-              <span
-                className={cn(
-                  'truncate',
-                  currentActor && 'max-md:break-words max-md:whitespace-normal'
-                )}
-              >
-                {collection.title}
+      {isLoggedOutVisitor ? (
+        // A logged-out visitor has no navigation, so `PageHeader` would be a
+        // full-width band with its own background and divider between the top
+        // bar and the first card, and its title row is centred in a column
+        // wider than `PublicShell`'s. The heading is plain text in the same
+        // column as the cards instead, 24px under the top bar (`PublicShell`'s
+        // `py-6`) and 16px above the first card (`mb-4` in place of the
+        // stack's 24px).
+        <div className="mb-4">
+          <h1 className="truncate text-xl font-semibold tracking-tight">
+            {collection.title}
+          </h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+      ) : (
+        <PageHeader
+          title={
+            isOwner ? (
+              // `PageHeader` truncates it beside the desktop Back arrow.
+              collection.title
+            ) : (
+              // A signed-in visitor has no Back, so no `back` to make
+              // `PageHeader` truncate: keep the heading this page always had,
+              // truncating on one line. Below `md` it is the content's own
+              // heading under the "Collection" bar, so a long title wraps
+              // instead.
+              <span className="flex items-center gap-2">
+                <span className="truncate max-md:break-words max-md:whitespace-normal">
+                  {collection.title}
+                </span>
               </span>
-            </span>
-          )
-        }
-        compactTitle="Collection"
-        back={
-          isOwner
-            ? {
-                href: '/lists',
-                accessibleName: 'Back to lists and collections'
-              }
-            : undefined
-        }
-        description={subtitle}
-        actions={
-          isOwner ? (
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/collections/${collection.id}/edit`}>
-                <Pencil className="h-4 w-4" />
-                Edit
-              </Link>
-            </Button>
-          ) : undefined
-        }
-      />
+            )
+          }
+          compactTitle="Collection"
+          back={
+            isOwner
+              ? {
+                  href: '/lists',
+                  accessibleName: 'Back to lists and collections'
+                }
+              : undefined
+          }
+          description={subtitle}
+          actions={
+            isOwner ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/collections/${collection.id}/edit`}>
+                  <Pencil className="h-4 w-4" />
+                  Edit
+                </Link>
+              </Button>
+            ) : undefined
+          }
+        />
+      )}
 
       {/* Projection toggle — owner only, to preview the consent-gated link. */}
       {isOwner && shareUrl && (
@@ -370,7 +385,13 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
         />
       ) : (
         <div
-          className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+          className={cn(
+            'rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm',
+            // Signed in, the empty state is the full-bleed feed surface below
+            // `md`; logged out it stays an inset card in the 16px column, like
+            // the meta panel above it.
+            !isLoggedOutVisitor && MOBILE_FEED_SURFACE_CLASS
+          )}
         >
           <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Layers className="h-6 w-6" />
@@ -446,7 +467,13 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
       )}
 
       {!isOwner && (
-        <p className="px-1 text-xs text-muted-foreground">
+        <p
+          className={cn(
+            'px-1 text-xs text-muted-foreground',
+            // Level with the cards' edge in the logged-out phone column.
+            isLoggedOutVisitor && 'max-md:px-0'
+          )}
+        >
           Curated by{' '}
           <Link
             href={ownerProfilePath}
