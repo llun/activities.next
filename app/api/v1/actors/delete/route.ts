@@ -1,8 +1,7 @@
 import { z } from 'zod'
 
-import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
+import { publishActorDeletion } from '@/lib/services/actors/actorDeletion'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
-import { getQueue } from '@/lib/services/queue'
 import { logger } from '@/lib/utils/logger'
 import {
   HTTP_STATUS,
@@ -166,21 +165,16 @@ export const POST = traceApiRoute(
       scheduledAt: scheduledAt?.toISOString() ?? 'immediate'
     })
 
-    // If immediate deletion (no delay), publish the job now
-    if (!scheduledAt) {
-      const queue = getQueue()
-      const jobId = `delete-actor-${actorId}-${Date.now()}`
-      await queue.publish({
-        id: jobId,
-        name: DELETE_ACTOR_JOB_NAME,
-        data: { actorId }
-      })
-      logger.info({
-        message: 'Published immediate delete actor job',
-        actorId,
-        jobId
-      })
-    }
+    // An immediate deletion runs now. A delayed one is queued with a delay (or,
+    // under the in-process queue, left for the periodic sweep) so it is carried
+    // out when it comes due rather than staying 'scheduled' forever.
+    await publishActorDeletion({ actorId, scheduledAt })
+    logger.info({
+      message: scheduledAt
+        ? 'Handed delayed delete actor job to the queue'
+        : 'Published immediate delete actor job',
+      actorId
+    })
 
     logger.info({
       message: 'Delete actor request completed successfully',
