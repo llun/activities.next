@@ -49,11 +49,15 @@ export const sendMail = async (message: Message): Promise<void> => {
     }
   } catch (error) {
     if (isMissingModuleError(error)) {
-      logger.warn({
-        message: `Email provider "${email.type}" dependency is not installed; email delivery is disabled`,
+      // Email IS configured, so reporting success here would be a lie: the
+      // password-reset route would keep the code it just replaced and the
+      // registration and email-change flows would wait for a message that was
+      // never sent. Fail the send so each caller's own rollback or error path
+      // runs. (With no email configured at all, `sendMail` returned above.)
+      logger.error({
+        message: `Email provider "${email.type}" is configured but its dependency is not installed; add the matching workspace to the build`,
         err: toLoggableError(error)
       })
-      return
     }
     throw error
   }
