@@ -1,0 +1,51 @@
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_9a5f301b9f84a7 583,1115-1120
+  s_69f35b0cf1b1f5::t_808105afbca95f 955
+lib/database/sql/collection.test.ts
+  s_69f35b0cf1b1f5::t_7253aa580dd423 797-798
+  s_69f35b0cf1b1f5::t_5ce3f9f207450e 751-796,799-804
+lib/database/sql/collection.ts
+  s_69f35b0cf1b1f5::t_808105afbca95f 13
+  s_69f35b0cf1b1f5::t_549587d44fd4f1 12,241-244
+lib/actions/announce.test.ts
+  s_69f35b0cf1b1f5::t_f90db7eafc2662 13,15,141-211,213-291
+  s_69f35b0cf1b1f5::t_808105afbca95f 212
+  s_69f35b0cf1b1f5::t_fc9b3669bd2804 292-293
+lib/actions/announce.ts
+  s_69f35b0cf1b1f5::t_67862dd5751ca6 8-11,15-19,23,64-104,124-131,134
+lib/jobs/createAnnounceJob.ts
+  s_69f35b0cf1b1f5::t_9a5f301b9f84a7 74-78
+app/api/v1/statuses/[id]/unreblog/route.ts
+  s_69f35b0cf1b1f5::t_f4effb12a5a0d0 3,10,79-83,85-91
+app/api/v1/statuses/[id]/route.test.ts
+  s_69f35b0cf1b1f5::t_96b3e0c3909974 542-545
+lib/database/sql/timeline.ts
+  s_69f35b0cf1b1f5::t_7253aa580dd423 226
+  s_69f35b0cf1b1f5::t_6791bc23592497 7,166-173
+lib/database/sql/timeline.test.ts
+  s_69f35b0cf1b1f5::t_cec2135029937f 511-512,515
+  s_69f35b0cf1b1f5::t_5ce3f9f207450e 463-510,513-514,516-517
+lib/services/mastodon/getMastodonStatus.ts
+  s_69f35b0cf1b1f5::t_265cc6aa47728d 7-10,614-624
+  s_69f35b0cf1b1f5::t_ec1fba3b3e10a0 609-613,625
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_69f35b0cf1b1f5::t_808105afbca95f 1820-1822
+  s_69f35b0cf1b1f5::t_61b17290809b01 1780-1785,1790-1819,1823-1853
+  s_69f35b0cf1b1f5::t_c4ba571a89eeee 1854
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9bf66bd11f3eea9749daa6784ad026063c13fa4b",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
