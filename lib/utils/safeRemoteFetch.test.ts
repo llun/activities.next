@@ -181,6 +181,82 @@ describe('safeRemoteFetch', () => {
     expect(result.bodyTruncated).toBe(false)
   })
 
+  describe('allowCrossHostRedirects: false', () => {
+    const createRedirectingFetch = (
+      location: string,
+      seenUrls: string[] = []
+    ) =>
+      createSafeRemoteFetch({
+        resolveHost: async () => [SAFE_ADDRESS],
+        transport: async ({ url }) => {
+          seenUrls.push(url.toString())
+          if (url.pathname === '/start') {
+            return {
+              statusCode: 302,
+              headers: { location },
+              body: streamFrom([])
+            }
+          }
+          return okResponse('final')
+        }
+      })
+
+    it('refuses a cross-host redirect without contacting the other host', async () => {
+      const seenUrls: string[] = []
+      const safeRemoteFetch = createRedirectingFetch(
+        'https://other.example/forged',
+        seenUrls
+      )
+
+      await expect(
+        safeRemoteFetch({
+          url: 'https://safe.example/start',
+          allowCrossHostRedirects: false
+        })
+      ).rejects.toMatchObject({ code: 'ERR_CROSS_HOST_REDIRECT' })
+      expect(seenUrls).toEqual(['https://safe.example/start'])
+    })
+
+    it('treats a different port on the same hostname as another host', async () => {
+      const safeRemoteFetch = createRedirectingFetch(
+        'https://safe.example:8443/forged'
+      )
+
+      await expect(
+        safeRemoteFetch({
+          url: 'https://safe.example/start',
+          allowCrossHostRedirects: false
+        })
+      ).rejects.toMatchObject({ code: 'ERR_CROSS_HOST_REDIRECT' })
+    })
+
+    it('still follows a same-host redirect', async () => {
+      const safeRemoteFetch = createRedirectingFetch(
+        'https://safe.example/canonical'
+      )
+
+      const result = await safeRemoteFetch({
+        url: 'https://safe.example/start',
+        allowCrossHostRedirects: false
+      })
+
+      expect(result.body).toBe('final')
+      expect(result.url).toBe('https://safe.example/canonical')
+    })
+
+    it('follows cross-host redirects by default', async () => {
+      const safeRemoteFetch = createRedirectingFetch(
+        'https://other.example/elsewhere'
+      )
+
+      const result = await safeRemoteFetch({
+        url: 'https://safe.example/start'
+      })
+
+      expect(result.url).toBe('https://other.example/elsewhere')
+    })
+  })
+
   it('rejects redirects beyond the configured cap', async () => {
     const safeRemoteFetch = createSafeRemoteFetch({
       resolveHost: async () => [SAFE_ADDRESS],

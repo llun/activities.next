@@ -5,6 +5,8 @@ import {
   verifyRemoteQuote
 } from '@/lib/services/quotes/verifyRemoteQuote'
 import type { Status } from '@/lib/types/domain/status'
+import { request } from '@/lib/utils/request'
+import { createSafeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 vi.mock('@/lib/utils/request', () => ({ request: vi.fn() }))
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
@@ -46,9 +48,42 @@ const validStampBody = (overrides: Record<string, unknown> = {}) =>
     ...overrides
   })
 
+// An open redirect on the quoted author's origin that bounces the stamp fetch
+// to an attacker host serving a stamp which matches every field. `request` is
+// routed through the real redirect handling of `safeRemoteFetch` (with a fake
+// network) so the test exercises the redirect policy the caller asks for.
+const REDIRECTING_STAMP_URI = 'https://llun.test/redirect?to=evil'
+const routeStampFetchThroughOpenRedirect = () => {
+  const fetchOverFakeNetwork = createSafeRemoteFetch({
+    resolveHost: async () => [{ address: '93.184.216.34', family: 4 }],
+    transport: async ({ url }) => {
+      const { Readable } = await import('node:stream')
+      if (url.toString() === REDIRECTING_STAMP_URI) {
+        return {
+          statusCode: 302,
+          headers: { location: 'https://evil.example/stamp' },
+          body: Readable.from([])
+        }
+      }
+      return {
+        statusCode: 200,
+        headers: { 'content-type': 'application/activity+json' },
+        body: Readable.from([validStampBody()])
+      }
+    }
+  })
+  vi.mocked(request).mockImplementation(async (options) =>
+    fetchOverFakeNetwork({
+      url: options.url,
+      allowCrossHostRedirects: options.allowCrossHostRedirects
+    })
+  )
+}
+
 describe('verifyRemoteQuote', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(request).mockReset()
   })
 
   it('accepts a self-quote (same author) without fetching a stamp', async () => {
@@ -184,6 +219,31 @@ describe('verifyRemoteQuote', () => {
     expect(state).toBe('pending')
   })
 
+  it('does not dereference a stamp uri on a foreign authority', async () => {
+    const state = await verifyRemoteQuote({
+      database,
+      note: makeNote({
+        quoteAuthorization: 'https://evil.example/quote_authorizations/1'
+      }),
+      actorId: QUOTING_ACTOR_ID,
+      quotedStatus: makeQuotedStatus()
+    })
+    expect(state).toBe('pending')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('is pending when the stamp is served after a cross-host redirect', async () => {
+    routeStampFetchThroughOpenRedirect()
+
+    const state = await verifyRemoteQuote({
+      database,
+      note: makeNote({ quoteAuthorization: REDIRECTING_STAMP_URI }),
+      actorId: QUOTING_ACTOR_ID,
+      quotedStatus: makeQuotedStatus()
+    })
+    expect(state).toBe('pending')
+  })
+
   it('is pending when the stamp id is on a foreign authority', async () => {
     const { request } = await vi.importMock<
       typeof import('@/lib/utils/request')
@@ -226,6 +286,7 @@ describe('verifyRemoteQuote', () => {
 describe('verifyQuoteAuthorizationStamp', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(request).mockReset()
   })
 
   const check = async (
@@ -258,6 +319,14 @@ describe('verifyQuoteAuthorizationStamp', () => {
     )
     return request
   }
+
+  it('does not verify a stamp served after a cross-host redirect', async () => {
+    routeStampFetchThroughOpenRedirect()
+
+    expect(await check({ stampUri: REDIRECTING_STAMP_URI })).not.toBe(
+      'verified'
+    )
+  })
 
   it('verifies a stamp whose three fields match this exact edge', async () => {
     await mockStamp({ statusCode: 200, body: validStampBody() })

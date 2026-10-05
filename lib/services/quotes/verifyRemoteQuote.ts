@@ -82,6 +82,9 @@ const fetchQuoteAuthorization = async (
     const signingActor = await getFederationSigningActor(database)
     const { statusCode, body } = await request({
       url: stampUri,
+      // The stamp is trusted because the quoted author's origin served it; a
+      // hop onto another host would let that host issue the approval.
+      allowCrossHostRedirects: false,
       headers: activityPubRequestHeaders({
         url: stampUri,
         signingActor,
@@ -138,14 +141,16 @@ export const verifyRemoteQuote = async ({
   // quote as unapproved rather than trusting a stamp the quoter chose.
   if (!quotedAuthorId) return 'pending'
 
+  // The stamp must actually be hosted under the quoted author's authority —
+  // both the URL we fetch and the id the document claims — otherwise a quoter
+  // could serve a forged stamp naming the author in `attributedTo`. Checked
+  // before the fetch so a foreign-authority uri is never dereferenced.
+  if (!isSameActivityPubOrigin(stampUri, quotedAuthorId)) return 'pending'
+
   const stamp = await fetchQuoteAuthorization(database, stampUri)
   if (!stamp) return 'pending'
 
   const valid =
-    // The stamp must actually be hosted under the quoted author's authority —
-    // both the URL we fetched and the id the document claims — otherwise a
-    // quoter could serve a forged stamp naming the author in `attributedTo`.
-    isSameActivityPubOrigin(stampUri, quotedAuthorId) &&
     isSameActivityPubOrigin(stamp.id, quotedAuthorId) &&
     // FEP-044f three-field match: issued by the quoted author, for this exact
     // quoting note, targeting this exact quoted status.
