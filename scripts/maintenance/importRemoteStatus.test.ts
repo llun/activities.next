@@ -20,6 +20,11 @@ vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
   getFederationSigningActor: vi.fn().mockResolvedValue(undefined)
 }))
 
+const mockIsLocalFederationDomain = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/services/federation/domainPolicy', () => ({
+  isLocalFederationDomain: mockIsLocalFederationDomain
+}))
+
 describe('importRemoteStatus parseArgs', () => {
   it('parses statusUrl correctly', () => {
     expect(
@@ -154,6 +159,58 @@ describe('importRemoteStatus', () => {
       reply: mockNote.inReplyTo,
       url: mockNote.url,
       createdAt: '2026-09-07T08:06:44.000Z'
+    })
+  })
+
+  describe('refuses a document its URL is not authoritative for', () => {
+    beforeEach(() => {
+      vi.mocked(createNoteJob).mockClear()
+      mockIsLocalFederationDomain.mockImplementation(
+        async (_database: unknown, value: string) =>
+          new URL(value).host === 'llun.dev'
+      )
+    })
+
+    it.each([
+      {
+        description: 'an id on another origin than the fetched URL',
+        statusUrl: 'https://attacker.example/notes/1',
+        note: mockNote
+      },
+      {
+        description: 'an author on another origin than the note',
+        statusUrl: 'https://attacker.example/notes/1',
+        note: {
+          ...mockNote,
+          id: 'https://attacker.example/notes/1',
+          attributedTo: 'https://mastodon.in.th/users/lluu'
+        }
+      },
+      {
+        description: 'a local id and author',
+        statusUrl: 'https://llun.dev/users/null/statuses/forged',
+        note: {
+          ...mockNote,
+          id: 'https://llun.dev/users/null/statuses/forged',
+          attributedTo: 'https://llun.dev/users/null'
+        }
+      }
+    ])('$description', async ({ statusUrl, note }) => {
+      vi.mocked(getNote).mockResolvedValueOnce(note as any)
+
+      await expect(
+        importRemoteStatus({} as Database, { statusUrl })
+      ).rejects.toThrow('Refusing')
+      expect(createNoteJob).not.toHaveBeenCalled()
+    })
+
+    it('rejects a non-http status URL without fetching it', async () => {
+      vi.mocked(getNote).mockClear()
+
+      await expect(
+        importRemoteStatus({} as Database, { statusUrl: 'file:///etc/passwd' })
+      ).rejects.toThrow('http(s) URL')
+      expect(getNote).not.toHaveBeenCalled()
     })
   })
 
