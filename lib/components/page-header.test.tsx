@@ -206,28 +206,43 @@ describe('PageHeader', () => {
     expect(description).not.toHaveClass('max-md:mt-0')
   })
 
-  // 28px title + 2px + 16px description = 46px: without a description the row
-  // keeps that floor from md up, so the box stays 79px, with or without the
-  // signed-in mobile navigation.
-  it('keeps the described row height from md up when there is no description', () => {
-    const { container, rerender } = render(<PageHeader title="Timeline" />)
+  // 28px title + 2px + 16px description = 46px: a row with actions and no
+  // description keeps that floor from md up, so the box stays 79px, with or
+  // without the signed-in mobile navigation.
+  it('keeps the described row height from md up for actions without a description', () => {
+    const actions = <button type="button">Refresh</button>
+    const { container, rerender } = render(
+      <PageHeader title="Timeline" actions={actions} />
+    )
     // The title row is the first child of the centered `max-w-content` row.
     const getRow = () =>
       container.querySelector('.max-w-content')?.firstElementChild
 
     expect(getRow()).toHaveClass('md:min-h-[46px]', 'items-start')
 
-    rerender(<PageHeader title="Timeline" description="Latest posts" />)
+    rerender(
+      <PageHeader
+        title="Timeline"
+        description="Latest posts"
+        actions={actions}
+      />
+    )
     expect(getRow()).not.toHaveClass('md:min-h-[46px]')
 
     rerender(
       <MobileNavigationProvider>
-        <PageHeader title="Timeline" />
+        <PageHeader title="Timeline" actions={actions} />
       </MobileNavigationProvider>
     )
     expect(getRow()).toHaveClass('md:min-h-[46px]')
     // Desktop-only: the compact bar's mobile geometry is untouched.
     expect(getRow()?.className).not.toMatch(/(^|\s)min-h-/)
+  })
+
+  it('leaves a title-only header at its own height', () => {
+    const { container } = render(<PageHeader title="Edit list" />)
+    const row = container.querySelector('.max-w-content')?.firstElementChild
+    expect(row?.className).not.toMatch(/min-h-/)
   })
 
   describe('mobile compact bar', () => {

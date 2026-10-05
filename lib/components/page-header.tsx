@@ -230,10 +230,12 @@ export const PageHeader = ({
           <div
             className={cn(
               'flex gap-4',
-              // From `md` up a header without a description keeps the height
-              // the described one has (28px title + 2px + 16px description),
-              // so the box stays 79px and the content below does not move.
-              !description && 'md:min-h-[46px]',
+              // From `md` up, an icon action (36px) already makes a row without
+              // a description shorter than the described one (28px title + 2px
+              // + 16px description = 46px). Pad it to that height so the box
+              // matches the 79px of described pages and the content below does
+              // not move. A title-only header keeps its own height.
+              !description && actions && 'md:min-h-[46px]',
               stackActionsOnMobile
                 ? 'flex-col sm:flex-row sm:items-start sm:justify-between'
                 : 'items-start justify-between'
