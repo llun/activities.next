@@ -14,6 +14,7 @@ import {
   type Tag,
   VideoContent
 } from '@/lib/types/activitypub'
+import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
 export type BaseNote =
@@ -35,7 +36,7 @@ type UrlValue =
   | null
   | undefined
 
-export const getUrl = (url: UrlValue): string | undefined => {
+const getRawUrl = (url: UrlValue): string | undefined => {
   if (!url) return undefined
   if (Array.isArray(url)) {
     const first = url[0]
@@ -50,6 +51,15 @@ export const getUrl = (url: UrlValue): string | undefined => {
     return url.href
   }
   return undefined
+}
+
+// A remote object's `url` is a free-form string that ends up as a link target
+// (status `url`, profile link, media url), so only http(s) survives: a
+// `javascript:` or `data:` url resolves to undefined and callers fall back to
+// the object id.
+export const getUrl = (url: UrlValue): string | undefined => {
+  const value = getRawUrl(url)
+  return isHttpUrl(value) ? value : undefined
 }
 
 type ReplyValue = string | { id?: string } | null | undefined
@@ -67,11 +77,16 @@ export const getReply = (reply: ReplyValue): string | undefined => {
  */
 export const getQuoteTargetId = (object: BaseNote): string | null => {
   const { quote } = object
-  if (typeof quote === 'string' && quote) return quote
-  if (quote && typeof quote === 'object' && typeof quote.id === 'string') {
-    return quote.id
-  }
-  return object.quoteUrl || object.quoteUri || object._misskey_quote || null
+  const target =
+    typeof quote === 'string' && quote
+      ? quote
+      : quote && typeof quote === 'object' && typeof quote.id === 'string'
+        ? quote.id
+        : object.quoteUrl || object.quoteUri || object._misskey_quote || null
+  // A quote target is an ActivityPub object id, always http(s). Anything else
+  // (`javascript:` and friends) is never persisted as a quote edge, since its
+  // id is later rendered as the "RE:" fallback link.
+  return isHttpUrl(target) ? target : null
 }
 
 const resolveIconUrl = (icon: unknown): string | null => {
@@ -211,11 +226,16 @@ export const getAttachments = (object: BaseNote): Document[] => {
       })
     }
   }
-  // A remote Note's `attachment` array is the sender's to size. Every entry
-  // becomes an attachment row (createNoteJob writes them all at once) and a
-  // media element in every viewer's timeline, so ingest keeps no more than a
-  // local status may store.
-  return attachments.slice(0, MAX_STORED_MEDIA_ATTACHMENTS)
+  // Attachment urls are rendered as link and media targets (the DM bubble's
+  // download link, Mastodon `media_attachments[].url`), so a remote Document
+  // whose url is not http(s) is dropped rather than persisted. A remote Note's
+  // `attachment` array is also the sender's to size: every entry becomes an
+  // attachment row (createNoteJob writes them all at once) and a media element
+  // in every viewer's timeline, so ingest keeps no more than a local status may
+  // store.
+  return attachments
+    .filter((attachment) => isHttpUrl(attachment.url))
+    .slice(0, MAX_STORED_MEDIA_ATTACHMENTS)
 }
 
 const isKnownTag = (tag: Tag): tag is KnownTag =>

@@ -1504,6 +1504,36 @@ describe('ActorDatabase', () => {
         })
       })
 
+      it('sanitizes the HTML note and field values but keeps source raw', async () => {
+        const username = `xss-note-${crypto.randomUUID().slice(0, 8)}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
+        await createSigningAccount(database, username)
+
+        const rawNote =
+          '<p>hi<img src=x onerror="alert(1)"><script>alert(2)</script><a href="javascript:alert(3)">x</a></p>'
+        const rawFieldValue =
+          '<a href="https://example.com" onclick="alert(4)">site</a><img src=x onerror=alert(5)>'
+        await database.updateActor({
+          actorId,
+          summary: rawNote,
+          fields: [{ name: 'Site', value: rawFieldValue }]
+        })
+
+        const actor = await database.getMastodonActorFromId({ id: actorId })
+        if (!actor) throw new Error('actor not found')
+        expect(actor.note).toBe('<p>hi<a>x</a></p>')
+        expect(actor.fields).toEqual([
+          {
+            name: 'Site',
+            value: '<a href="https://example.com">site</a>',
+            verified_at: null
+          }
+        ])
+        // `source` is the plain editing copy the owner round-trips.
+        expect(actor.source.note).toBe(rawNote)
+        expect(actor.source.fields[0].value).toBe(rawFieldValue)
+      })
+
       it('surfaces avatar/header alt text as the Mastodon 4.6 description fields', async () => {
         const username = `alt-desc-${crypto.randomUUID().slice(0, 8)}`
         const actorId = `https://${TEST_DOMAIN}/users/${username}`

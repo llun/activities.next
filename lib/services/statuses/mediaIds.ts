@@ -28,6 +28,10 @@ export const getAttachmentsFromMediaIds = async (
   const attachments: PostBoxAttachment[] = []
   for (const media of medias) {
     if (!media) return null
+    // The lookup is account-scoped, but a status is authored by one actor and
+    // an OAuth token is bound to one actor: attaching a sibling actor's media
+    // (sequential ids) would publish media that token was never granted.
+    if (media.actorId !== currentActor.id) return null
     if (media.original.metaData.upload?.state === 'pending') {
       return null
     }

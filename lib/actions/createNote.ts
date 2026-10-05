@@ -15,6 +15,7 @@ import {
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
@@ -370,6 +371,20 @@ export const createNoteFromUserInput = async ({
     const replyStatus = replyNoteId
       ? await database.getStatus({ statusId: replyNoteId, withReplies: false })
       : null
+    // A reply inherits its parent's audience (a direct reply copies the
+    // parent's recipients), so the author must be able to read the parent.
+    // Request routes check this up front; this covers every other caller,
+    // including a scheduled reply published long after it was authorized.
+    if (
+      replyStatus &&
+      !(await canActorReadStatus({
+        database,
+        status: replyStatus,
+        currentActor
+      }))
+    ) {
+      return null
+    }
 
     const postId = generatePublicId()
     const statusId = getLocalStatusId({

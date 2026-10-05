@@ -127,6 +127,7 @@ import {
   isPublicId,
   toPublicIdLookupKey
 } from '@/lib/utils/publicId'
+import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 
 import {
   deleteStatusSearchDocumentsByStatusIds,
@@ -902,7 +903,13 @@ export const StatusSQLDatabaseMixin = (
       }),
       createdAt: status.createdAt
     }
+    // Prior revisions were written for the old audience; see
+    // widensStatusAudience for why a widening change drops them.
+    const widensAudience = widensStatusAudience(status, { to, cc })
     await database.transaction(async (trx) => {
+      if (widensAudience) {
+        await trx('status_history').where('statusId', status.id).delete()
+      }
       await trx('recipients').where('statusId', status.id).delete()
       await trx('timelines').where('statusId', status.id).delete()
       await Promise.all(
@@ -1372,6 +1379,12 @@ export const StatusSQLDatabaseMixin = (
 
   const getActorTargetStatusIds = (actorId: string) =>
     database('statuses').select('statuses.id').where('actorId', actorId)
+
+  async function deleteStatusEditHistory({
+    statusId
+  }: GetStatusEditHistoryParams): Promise<void> {
+    await database('status_history').where('statusId', statusId).delete()
+  }
 
   async function getStatusEditHistory({
     statusId
@@ -4148,6 +4161,7 @@ export const StatusSQLDatabaseMixin = (
     getStatus,
     getStatusReplies,
     getStatusEditHistory,
+    deleteStatusEditHistory,
     getStatusFromUrl,
     getStatusFromUrlHash,
     getStatusIdByPublicId,

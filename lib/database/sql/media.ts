@@ -730,6 +730,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async updateMedia({
     mediaId,
     accountId,
+    actorId,
     description,
     focus,
     blurhash,
@@ -743,6 +744,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .join('actors', 'medias.actorId', 'actors.id')
         .where('medias.id', id)
         .where('actors.accountId', accountId)
+        .modify((query) => {
+          if (actorId) query.where('medias.actorId', actorId)
+        })
         .select('medias.id', 'medias.thumbnail', 'medias.thumbnailBytes')
         .first<{
           id: string | number

@@ -51,6 +51,17 @@ product or security decision, not a gap to be closed.
   federation changed: what is sent to and received from remote servers is still
   the ActivityPub URI.
 
+- **`PUT /api/v1/statuses/:id` accepts `visibility`, and widening it drops the
+  edit history.** Mastodon cannot change a posted status's visibility; this
+  instance can. `status_history` rows record a prior version's text and media
+  but not the audience it was written for, so when the new audience reaches
+  anyone the old one did not (direct → public, followers-only → unlisted, a new
+  mention), `updateNoteVisibility` deletes the status's history, and the route
+  deletes it again after a combined visibility + content edit, whose content
+  half snapshots the pre-edit (narrower-audience) version. Narrowing keeps the
+  history. `GET /api/v1/statuses/:id/history` then returns only the current
+  version.
+
 - **An attachment has two client-visible ids.** `POST /api/v2/media` answers
   with the numeric `medias` row id, while a status's `media_attachments[].id`
   is the attachment row's own UUID — Mastodon has one id where this instance

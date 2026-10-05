@@ -1,5 +1,5 @@
-import { getMention } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
+import { getActorMentionPathSegment } from '@/lib/utils/getActorMentionPathSegment'
 import { getHashFromStringClient } from '@/lib/utils/getHashFromStringClient'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
@@ -14,13 +14,13 @@ export const getStatusDetailPathClient = async (status: Status) => {
   // statuses that have none: rows written before the backfill and
   // ActivityPub-derived objects that never carry one.
   if (actualStatus.publicId) {
-    return `/${getMention(actualStatus.actor, true)}/${actualStatus.publicId}`
+    return `/${getActorMentionPathSegment(actualStatus.actor)}/${actualStatus.publicId}`
   }
 
   if (actualStatus.isLocalActor === false) {
-    return `/${getMention(actualStatus.actor, true)}/${encodeURIComponent(actualStatus.id)}`
+    return `/${getActorMentionPathSegment(actualStatus.actor)}/${encodeURIComponent(actualStatus.id)}`
   }
 
   const urlHash = await getHashFromStringClient(actualStatus.url)
-  return `/${getMention(actualStatus.actor, true)}/${urlHash}`
+  return `/${getActorMentionPathSegment(actualStatus.actor)}/${urlHash}`
 }

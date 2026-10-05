@@ -1,5 +1,5 @@
-import { getMention } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
+import { getActorMentionPathSegment } from '@/lib/utils/getActorMentionPathSegment'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
@@ -14,12 +14,12 @@ export const getStatusDetailPath = (status: Status) => {
   // statuses that have none: rows written before the backfill and
   // ActivityPub-derived objects that never carry one.
   if (actualStatus.publicId) {
-    return `/${getMention(actualStatus.actor, true)}/${actualStatus.publicId}`
+    return `/${getActorMentionPathSegment(actualStatus.actor)}/${actualStatus.publicId}`
   }
 
   if (actualStatus.isLocalActor === false) {
-    return `/${getMention(actualStatus.actor, true)}/${encodeURIComponent(actualStatus.id)}`
+    return `/${getActorMentionPathSegment(actualStatus.actor)}/${encodeURIComponent(actualStatus.id)}`
   }
 
-  return `/${getMention(actualStatus.actor, true)}/${getHashFromString(actualStatus.url)}`
+  return `/${getActorMentionPathSegment(actualStatus.actor)}/${getHashFromString(actualStatus.url)}`
 }

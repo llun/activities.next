@@ -964,6 +964,9 @@ export interface StatusDatabase {
   getStatusEditHistory(
     params: GetStatusEditHistoryParams
   ): Promise<StatusEditRevision[]>
+  // Drops every prior revision of a status. Used when its audience widens:
+  // `status_history` does not record who a revision was written for.
+  deleteStatusEditHistory(params: GetStatusEditHistoryParams): Promise<void>
   getStatusFromUrl(params: GetStatusFromUrlParams): Promise<Status | null>
   getStatusFromUrlHash(
     params: GetStatusFromUrlHashParams
@@ -3451,6 +3454,10 @@ export type GetMediaByIdsForAccountParams = {
 export type UpdateMediaParams = {
   mediaId: string
   accountId: string
+  // Narrows the owner check from the account to one of its actors. Set by
+  // actor-scoped callers (a status edit's media_attributes), whose OAuth token
+  // is bound to a single actor.
+  actorId?: string
   description?: string | null
   focus?: { x: number; y: number }
   blurhash?: string | null

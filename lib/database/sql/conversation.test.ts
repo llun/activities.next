@@ -77,6 +77,12 @@ const createDirectConversationTables = async (database: Knex) => {
       table.unique(['actorId', 'conversationId'])
     }
   )
+  // Read by syncDirectConversationForStatus to drop blocked participants.
+  await database.schema.createTable('blocks', (table) => {
+    table.string('id').primary()
+    table.string('actorId').notNullable()
+    table.string('targetActorId').notNullable()
+  })
 }
 
 const createStatusLookupTables = async (database: Knex) => {
@@ -421,6 +427,50 @@ describe('ConversationDatabase', () => {
 
       expect(actor1Conversation).toBeUndefined()
     })
+
+    test.each([
+      { direction: 'the local author blocks the replier', localBlocks: true },
+      { direction: 'the replier blocks the local author', localBlocks: false }
+    ])(
+      'does not add an inherited participant to a recipientless reply when $direction',
+      async ({ localBlocks }) => {
+        const suffix = randomBytes(8).toString('hex')
+        const replier = `https://remote.test/users/blocked-replier-${suffix}`
+        const blockPair = localBlocks
+          ? { actorId: ACTOR1_ID, targetActorId: replier }
+          : { actorId: replier, targetActorId: ACTOR1_ID }
+        await database.createBlock({
+          ...blockPair,
+          uri: `${blockPair.actorId}#blocks/${suffix}`
+        })
+        const parent = await database.createNote({
+          id: `${ACTOR1_ID}/statuses/blocked-reply-parent-${suffix}`,
+          url: `${ACTOR1_ID}/statuses/blocked-reply-parent-${suffix}`,
+          actorId: ACTOR1_ID,
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [`${ACTOR1_ID}/followers`],
+          text: 'public parent'
+        })
+        const reply = await database.createNote({
+          id: `${replier}/statuses/recipientless-${suffix}`,
+          url: `${replier}/statuses/recipientless-${suffix}`,
+          actorId: replier,
+          to: [],
+          cc: [],
+          text: 'recipientless reply from a blocked actor',
+          reply: (parent as StatusNote).url
+        })
+
+        // The caller's excludedLocalActorIds is derived from to/cc only, so it
+        // cannot name the inherited parent author.
+        await database.syncDirectConversationForStatus({ status: reply })
+
+        const conversation = (
+          await database.getDirectConversations({ actorId: ACTOR1_ID })
+        ).find((item: DirectConversation) => item.lastStatusId === reply.id)
+        expect(conversation).toBeUndefined()
+      }
+    )
 
     test('inherits parent conversation participants for recipientless direct replies', async () => {
       const root = await createDirectStatus({

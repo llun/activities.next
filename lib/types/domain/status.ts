@@ -32,6 +32,7 @@ import { PollChoice } from '@/lib/types/domain/pollChoice'
 import { Tag, getEmojiFromTag, getMentionFromTag } from '@/lib/types/domain/tag'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
+import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 
 export const StatusType = z.enum(['Note', 'Announce', 'Poll'])
 export type StatusType = z.infer<typeof StatusType>
@@ -328,12 +329,14 @@ const getActorIdFromAttributedTo = (
 // implementations like Mastodon/ruby.social actually send arrays
 const getUrlFromNote = (note: BaseNote): string => {
   const noteUrl = note.url as unknown
+  // Only an http(s) url may become the status `url`: it is served to clients
+  // as a link target, and a remote note can put `javascript:` here.
   if (typeof noteUrl === 'string') {
-    return noteUrl
+    return isHttpUrl(noteUrl) ? noteUrl : note.id
   }
   if (Array.isArray(noteUrl)) {
     const firstUrl = noteUrl.find(
-      (item): item is string => typeof item === 'string'
+      (item): item is string => typeof item === 'string' && isHttpUrl(item)
     )
     if (firstUrl) {
       return firstUrl
@@ -344,7 +347,7 @@ const getUrlFromNote = (note: BaseNote): string => {
         typeof item === 'object' &&
         item !== null &&
         'href' in item &&
-        typeof (item as { href: unknown }).href === 'string'
+        isHttpUrl((item as { href: unknown }).href)
     )
     if (linkWithHref) {
       return linkWithHref.href

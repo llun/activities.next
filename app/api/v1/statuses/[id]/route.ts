@@ -46,6 +46,7 @@ import {
   defaultOptions
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
+import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 import { Booleanish } from '@/lib/utils/zodBooleanish'
 
 interface Params {
@@ -392,6 +393,7 @@ export const PUT = traceApiRoute(
             const updatedMedia = await database.updateMedia({
               mediaId: resolvedAttributeIds[index],
               accountId: account.id,
+              actorId: currentActor.id,
               ...(attribute.description !== undefined
                 ? { description: attribute.description }
                 : {}),
@@ -513,6 +515,20 @@ export const PUT = traceApiRoute(
               data: ERROR_403,
               responseStatusCode: 403
             })
+
+          // The visibility change ran first and already dropped the history
+          // if it widened the audience, but this edit then snapshotted the
+          // pre-edit version — written for the old, narrower audience — as a
+          // new revision. Drop that too.
+          if (
+            visibility !== undefined &&
+            widensStatusAudience(existingStatus, updatedNote)
+          ) {
+            await database.deleteStatusEditHistory({ statusId })
+            updatedNote =
+              (await database.getStatus({ statusId, withReplies: false })) ??
+              updatedNote
+          }
         }
 
         if (!updatedNote)
