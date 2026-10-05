@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { deserializeRegions, serializeRegions } from '@/lib/fitness/regions'
@@ -19,6 +18,8 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
+import { SetRegionNameBody } from './types'
+
 const CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
   HttpMethod.enum.GET,
@@ -30,19 +31,6 @@ export const OPTIONS = defaultOptions(CORS_HEADERS)
 interface Params {
   id: string
 }
-
-const SetRegionNameBody = z.object({
-  // Looser raw cap than the 255-char cache-key column: clients may send
-  // high-precision coordinates that normalizeRegion rounds + caps under 255.
-  region: z.string().max(1024),
-  // The region label. Blank/whitespace/null clears the stored label. The DB
-  // column is varchar(255); the UI input caps typing at 80.
-  name: z
-    .string()
-    .max(255)
-    .nullish()
-    .transform((value) => value?.trim() || null)
-})
 
 // Canonicalises a raw region key the same way the heatmap routes do, so a saved
 // label keys on the exact serialized form that a heatmap's `region` uses.

@@ -258,6 +258,54 @@ describe('GET/PUT /api/v1/accounts/[id]/fitness-route-heatmap-region-names', () 
     expect(mockDb.setFitnessRouteHeatmapRegionName).not.toHaveBeenCalled()
   })
 
+  // PostgreSQL rejects a NUL byte in a bound text parameter (22021), so a label
+  // carrying one was a 500 there while SQLite stored it.
+  it('rejects a name carrying a NUL byte before saving', async () => {
+    const ORIGIN = 'https://test.llun.dev'
+    const request = new NextRequest(baseUrl, {
+      method: 'PUT',
+      headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        region: 'rect:52.60,5.60,52.00,6.20',
+        name: 'Veluwe\u0000loop'
+      })
+    })
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(ORIGIN)
+    await expect(response.json()).resolves.toEqual({ error: 'Bad Request' })
+    expect(mockDb.setFitnessRouteHeatmapRegionName).not.toHaveBeenCalled()
+  })
+
+  it('never stores a NUL byte from the region', async () => {
+    const request = new NextRequest(baseUrl, {
+      method: 'PUT',
+      headers: {
+        Origin: 'https://test.llun.dev',
+        'Content-Type': 'application/json'
+      },
+      // The NUL-carrying token is dropped; the key is re-serialized from the
+      // parsed numbers of the valid one.
+      body: JSON.stringify({
+        region: 'rect:52.60,5.60,52.00,6.20;rect:\u000051.00,4.00,50.00,5.00',
+        name: 'Veluwe loop'
+      })
+    })
+    const response = await PUT(request, {
+      params: Promise.resolve({ id: encodedId })
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockDb.setFitnessRouteHeatmapRegionName).toHaveBeenCalledWith({
+      actorId: ACTOR1_ID,
+      region: 'rect:52.60,5.60,52.00,6.20',
+      name: 'Veluwe loop'
+    })
+  })
+
   it('returns 400 for a non-JSON body', async () => {
     const request = new NextRequest(baseUrl, {
       method: 'PUT',
