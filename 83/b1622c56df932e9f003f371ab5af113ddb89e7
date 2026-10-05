@@ -1,0 +1,83 @@
+lib/services/mastodon/getMastodonStatus.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 1780-1785,1790-1853
+  s_69f35b0cf1b1f5::t_d8e8dcb67ed9b3 1854
+lib/database/sql/collection.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 867-920
+lib/database/sql/actorLastStatusAt.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 214-272
+lib/jobs/createPollJob.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 399-430
+lib/jobs/createRelayAnnounceJob.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 98-120
+lib/actions/createNote.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 112-128
+lib/database/sql/status.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 619-621
+lib/database/sql/actor.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 36-39,1493-1498,1574,1701
+lib/actions/announce.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 8-11,15-19,23,64-104,124-131,134
+lib/jobs/createNoteJob.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 595-625
+lib/database/sql/status.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 38-40,107,126,150-159,491-492,497-502,519-523,526-529,562,638-639,685,970-995,1051-1052,1099,1182-1183,1243,2302,2307-2308,2341,2359,2364-2365,2372,2413-2417,2421-2431,2602-2605,2608,2619,3400,3605
+lib/database/sql/publiclyReadableStatusCallSites.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 196-199
+app/api/v1/accounts/vote/route.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 3,53-61
+lib/actions/announce.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 13,15,141-291
+  s_69f35b0cf1b1f5::t_38a8d5d151f20f 292-293
+lib/services/federation/statusDelivery.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 35-40,206-209
+lib/database/sql/timeline.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 463-517
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 611,984-986,1149-1154
+app/api/v1/statuses/[id]/route.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 542-545
+lib/jobs/createAnnounceJob.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 74-78
+lib/jobs/createRelayAnnounceJob.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 60-62,64
+app/api/v1/accounts/vote/route.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 4,12-13,50-52,67,159-186
+  s_69f35b0cf1b1f5::t_e87c5e8bee8b2f 187
+lib/database/sql/collection.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 12-13,246-249
+lib/services/federation/statusDelivery.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 101-131
+lib/database/sql/timeline.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 7,166-173,226
+lib/jobs/createPollJob.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 14,161-170
+lib/database/sql/utils/status.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 6,31-65
+  s_69f35b0cf1b1f5::t_593d7cdec13836 66
+app/api/v1/statuses/[id]/unreblog/route.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 3,10,79-83,85-91
+lib/jobs/createNoteJob.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 37,254-263
+lib/services/mastodon/getMastodonStatus.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 7-10,609-625
+lib/database/sql/publicCounters.test.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 1-236
+lib/actions/createNote.ts
+  s_69f35b0cf1b1f5::t_e6eedf885586c7 18-21,571-575
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "83b1622c56df932e9f003f371ab5af113ddb89e7",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
