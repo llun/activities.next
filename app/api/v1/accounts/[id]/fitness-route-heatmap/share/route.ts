@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { normalizeRegionParam } from '@/lib/fitness/regions'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { isPyramidVariantHeatmap } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
@@ -159,6 +160,19 @@ export const POST = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: ERROR_404,
         responseStatusCode: 404
+      })
+    }
+
+    // Only the all-activities, all-time row can be shared: it is the one scope
+    // the heatmap page can address, so a token on any other row is a public link
+    // its owner could never find again to revoke. The public routes would not
+    // resolve it either (see `onlyAllActivitiesAllTimeShares`).
+    if (!isPyramidVariantHeatmap(existing)) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
       })
     }
 

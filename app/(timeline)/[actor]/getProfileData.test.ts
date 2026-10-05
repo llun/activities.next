@@ -392,6 +392,57 @@ describe('getProfileData', () => {
         expect(mockDatabase.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
       })
 
+      // The Fitness tab appears off `hasFitnessData`, so the flag must be asked
+      // for the viewer's audience: an unscoped answer tells a stranger that an
+      // actor with only private activities has fitness data at all.
+      it('asks whether fitness data exists for the logged-out audience only', async () => {
+        await getProfileData(mockDatabase, '@localuser@example.com', false, {
+          currentActor: null
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorHasFitnessData as jest.Mock)
+        ).toEqual({
+          publicOnly: true,
+          visibleToActorId: null,
+          includeFollowersOnly: false,
+          followersAudience: followersUrl
+        })
+      })
+
+      it('asks whether fitness data exists for the signed-in follower audience', async () => {
+        ;(
+          mockDatabase.getAcceptedOrRequestedFollow as jest.Mock
+        ).mockResolvedValue({ status: FollowStatus.enum.Accepted })
+
+        await getProfileData(mockDatabase, '@localuser@example.com', true, {
+          currentActor: viewer
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorHasFitnessData as jest.Mock)
+        ).toEqual({
+          publicOnly: false,
+          visibleToActorId: viewer.id,
+          includeFollowersOnly: true,
+          followersAudience: followersUrl
+        })
+      })
+
+      it('leaves the owner fitness-data check unfiltered', async () => {
+        await getProfileData(mockDatabase, '@localuser@example.com', true, {
+          currentActor: owner
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorHasFitnessData as jest.Mock)
+        ).toMatchObject({
+          publicOnly: false,
+          visibleToActorId: null,
+          includeFollowersOnly: false
+        })
+      })
+
       it('still hydrates viewer interaction state from the signed-in actor', async () => {
         await getProfileData(mockDatabase, '@localuser@example.com', true, {
           currentActor: viewer

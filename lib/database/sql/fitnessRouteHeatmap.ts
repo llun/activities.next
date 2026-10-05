@@ -338,6 +338,20 @@ const applyPyramidSubscriberFilter = (
     .where('periodType', 'all_time')
     .whereIn('status', ['pending', 'generating'])
 
+/**
+ * A share token only resolves for the one scope the heatmap UI can manage:
+ * every activity, all time (`activityTypeKey: ''` is the all-activities key, as
+ * in `applyPyramidSubscriberFilter`). The sport and period selectors are gone,
+ * so a token minted against a filtered row — which the share API once accepted
+ * and still addresses — can no longer be found, and therefore revoked, from the
+ * UI. Resolving it anyway would leave a bearer link to route data its owner has
+ * no way to take back. Not resolving it is what revokes it for everyone who
+ * holds the link; the row, its token and the owner's DELETE stay untouched.
+ */
+const onlyAllActivitiesAllTimeShares = (query: Knex.QueryBuilder) => {
+  query.where('activityTypeKey', '').where('periodType', 'all_time')
+}
+
 const applyRouteHeatmapFilters = (
   query: Knex.QueryBuilder<SQLFitnessRouteHeatmap, SQLFitnessRouteHeatmap[]>,
   {
@@ -444,6 +458,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     const row = await database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
       .where('shareToken', shareToken)
       .whereNull('deletedAt')
+      .modify(onlyAllActivitiesAllTimeShares)
       .first()
 
     if (!row) return null
@@ -467,6 +482,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     > = database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
       .where('shareToken', shareToken)
       .whereNull('deletedAt')
+      .modify(onlyAllActivitiesAllTimeShares)
       // Summary columns only — see the interface docblock: the tile routes need
       // the share's scope, never its geometry.
       .select(SUMMARY_COLUMNS)
@@ -639,6 +655,13 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     }
     if (clearDeleted) {
       updateData.deletedAt = null
+      // Restoring a soft-deleted row must not resurrect the old share token
+      // (rows deleted before deletion cleared the token still carry one). Keep
+      // it on a live row, which the job also passes `clearDeleted` for.
+      updateData.shareToken = database.raw(
+        'CASE WHEN ?? IS NULL THEN ?? ELSE NULL END',
+        ['deletedAt', 'shareToken']
+      )
     }
 
     const query = database('fitness_route_heatmaps').where('id', id)
@@ -743,6 +766,11 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       .whereNull('deletedAt')
       .update({
         deletedAt: new Date(),
+        // A share token is a bearer capability to the GPS heatmap. Deleting the
+        // heatmap revokes it: the soft-deleted row is later restored in place
+        // by regeneration, and a surviving token would silently re-expose the
+        // fresh heatmap to anyone who kept the old URL.
+        shareToken: null,
         updatedAt: new Date()
       })
   },
@@ -760,6 +788,8 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       .whereNull('deletedAt')
       .update({
         deletedAt: new Date(),
+        // See deleteFitnessRouteHeatmapsForActor: deletion revokes the share.
+        shareToken: null,
         updatedAt: new Date()
       })
 

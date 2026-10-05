@@ -168,6 +168,30 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
     expect(mockDb.setFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { activityType: 'running', periodType: 'all_time', periodKey: 'all' },
+    { activityType: undefined, periodType: 'yearly', periodKey: '2026' }
+  ])(
+    'refuses to mint a share for a filtered heatmap that the page cannot unshare ($periodType/$activityType)',
+    async (scope) => {
+      mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue(
+        completedHeatmap(scope)
+      )
+
+      const response = await POST(
+        postRequest({
+          period_type: scope.periodType,
+          period_key: scope.periodKey,
+          ...(scope.activityType ? { activity_type: scope.activityType } : {})
+        }),
+        { params: Promise.resolve({ id: encodedId }) }
+      )
+
+      expect(response.status).toBe(400)
+      expect(mockDb.setFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects a cross-site POST without same-origin proof', async () => {
     const request = new NextRequest(baseUrl, {
       method: 'POST',
