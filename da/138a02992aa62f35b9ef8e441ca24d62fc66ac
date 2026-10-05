@@ -1,0 +1,114 @@
+lib/jobs/fetchRemoteStatusJob.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 45-54,329-330,332-355,384-385
+lib/jobs/deleteActorJob.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 6,12-16,53-57,219-304
+  s_69f35b0cf1b1f5::t_a9aeaf3b8bde01 305
+lib/utils/text/htmlToPlainText.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 70-75,79-80
+docs/features.md
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 89
+lib/services/actors/actorDeletion.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 1-226
+docs/setup.md
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 252
+lib/types/database/operations.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 1826-1829,2381-2383,3002-3004
+app/api/v1/actors/delete/route.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 4,173-182
+lib/database/sql/collection.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 17-20,357-370,504-506,522-532,722-723,730-732,748,752-769,772-781
+  s_69f35b0cf1b1f5::t_3ca718d38a9bf6 16
+lib/database/sql/listMemberBackfill.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 1-122
+lib/utils/activitypubActor.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 18-29,31
+lib/database/sql/announcement.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 3,385-463
+app/api/v1/announcements/route.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 9,11,204-206,208,212-289
+lib/services/announcements/reactionLimits.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 1-6
+app/api/v1/actors/delete/route.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 3-11,17,19-29,37,41-43,46-74,80-97,99-100,113-162
+  s_69f35b0cf1b1f5::t_f8133db1f358fe 101-103,112
+lib/database/sql/collection.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 3-7,78-188
+docs/architecture.md
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 270-287
+lib/services/email/index.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 52-58
+lib/database/sql/like.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 132,138,142-143,159,163
+lib/database/sql/statusReaction.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 49-58
+app/api/v1/announcements/[id]/reactions/[name]/route.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 9-12,33-35,54-73,76,78-80
+instrumentation.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 8-11,18-23
+app/api/v1/collections/route.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 7,102-113,115-133
+lib/actions/like.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 114-152
+app/api/v1/collections/[id]/items/route.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 8,173-190
+lib/services/actors/actorDeletion.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 1-163
+lib/services/collections/limits.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 1-30
+lib/services/timelines/types.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 29,32-38
+  s_69f35b0cf1b1f5::t_3f5e78bf36cd55 39
+app/api/v1/collections/route.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 4,159-167
+  s_69f35b0cf1b1f5::t_7d762cd8a80d5f 168-169
+lib/services/collections/serializers.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 123-127
+lib/database/sql/announcement.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 5,187-216
+lib/jobs/fetchRemoteStatusJob.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 4-8,385-514
+  s_69f35b0cf1b1f5::t_60740ab7e9ceb8 515-516
+lib/database/sql/list.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 17-18,70,75-77,133-135,149-182,430-433
+lib/utils/activitypubActor.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 9-22
+lib/utils/text/htmlToPlainText.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 38-51
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 310-318,375-382
+lib/jobs/deleteActorJob.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 7,17-21,109-151
+  s_69f35b0cf1b1f5::t_4abe37c37b879f 152
+lib/database/sql/like.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 47,49,53,69
+lib/database/sql/statusReaction.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 132-165
+app/api/v1/collections/[id]/items/route.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 4,116-127
+  s_69f35b0cf1b1f5::t_6ac9d14b09039a 128-129
+lib/services/email/index.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 84,95-102,104
+lib/services/collections/serializers.test.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 196,199-200
+lib/actions/like.ts
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 26,44-45
+  s_69f35b0cf1b1f5::t_c35e32ff442445 46
+lib/components/posts/actor.test.tsx
+  s_69f35b0cf1b1f5::t_8e1f0320ffbacb 94-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "da138a02992aa62f35b9ef8e441ca24d62fc66ac",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
