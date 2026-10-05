@@ -6,7 +6,6 @@ on:
       - main
 
 permissions:
-  actions: write
   contents: write
   issues: read
   pull-requests: write
@@ -167,8 +166,10 @@ jobs:
 
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
-          gh pr list --state open --base main --json number,headRefName \
-            --jq '.[] | select(.headRefName | test("^version-bump/v[0-9]+")) | .number' |
+          # Only same-repository PRs: a fork can open a PR from a branch with any
+          # name, and this workflow must never close or edit one it does not own.
+          gh pr list --state open --base main --json number,headRefName,isCrossRepository \
+            --jq '.[] | select((.isCrossRepository | not) and (.headRefName | test("^version-bump/v[0-9]+"))) | .number' |
             while IFS= read -r pr_number; do
               if [ -n "$pr_number" ]; then
                 echo "Closing stale version-specific bump PR #$pr_number."
@@ -206,7 +207,11 @@ jobs:
             echo "The merged bump commit will still be tagged by \`.github/workflows/tag-version.yml\`."
           } > "$BODY_FILE"
 
-          EXISTING_PR=$(gh pr list --state open --base main --head "$VERSION_BUMP_BRANCH" --json number --jq '.[0].number')
+          # `--head` matches on the branch name alone, so a fork PR opened from a
+          # branch also called version-bump/main would be picked up here. Only a
+          # same-repository PR is the one this workflow force-pushes to.
+          EXISTING_PR=$(gh pr list --state open --base main --head "$VERSION_BUMP_BRANCH" --json number,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository | not)] | .[0].number // empty')
 
           if [ -n "$EXISTING_PR" ]; then
             echo "Updating existing version bump PR #${EXISTING_PR}."

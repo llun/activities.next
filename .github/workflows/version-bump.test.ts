@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 import { hasHumanMajorLabelEvent } from '../scripts/major-release-approval.mjs'
@@ -132,6 +133,60 @@ describe('automatic version-bump policy', () => {
     ).toContain('node .github/scripts/determine-version-bump.mjs')
     expect(readFileSync('.github/workflows/tag-version.yml', 'utf8')).toContain(
       'node .github/scripts/verify-major-tag-approval.mjs'
+    )
+  })
+
+  it('does not request Actions write access it never uses', () => {
+    const workflow = readFileSync('.github/workflows/version-bump.yml', 'utf8')
+
+    expect(workflow).not.toMatch(/^\s+actions:\s*write\s*$/m)
+  })
+
+  describe('same-repository pull request filters', () => {
+    const hasJq = spawnSync('jq', ['--version']).status === 0
+    const workflow = readFileSync('.github/workflows/version-bump.yml', 'utf8')
+    const filters = [...workflow.matchAll(/--jq '([^']+)'/g)]
+      .map((match) => match[1])
+      .filter((filter) => filter.includes('isCrossRepository'))
+    const runFilter = (filter: string, input: unknown) =>
+      spawnSync('jq', ['-r', filter], {
+        input: JSON.stringify(input),
+        encoding: 'utf8'
+      }).stdout.trim()
+
+    it('applies isCrossRepository to both the stale-PR close and existing-PR lookups', () => {
+      expect(filters).toHaveLength(2)
+    })
+
+    it.skipIf(!hasJq)(
+      'never selects a fork pull request that squats on the bump branch name',
+      () => {
+        const [staleFilter, existingFilter] = filters
+
+        expect(
+          runFilter(existingFilter, [
+            { number: 7, isCrossRepository: true },
+            { number: 9, isCrossRepository: false }
+          ])
+        ).toBe('9')
+        expect(
+          runFilter(existingFilter, [{ number: 7, isCrossRepository: true }])
+        ).toBe('')
+        expect(
+          runFilter(staleFilter, [
+            {
+              number: 3,
+              headRefName: 'version-bump/v1.2.3',
+              isCrossRepository: true
+            },
+            {
+              number: 4,
+              headRefName: 'version-bump/v1.2.3',
+              isCrossRepository: false
+            }
+          ])
+        ).toBe('4')
+      }
     )
   })
 })

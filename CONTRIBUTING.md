@@ -276,7 +276,7 @@ The backend-aware database test harness (`lib/database/testUtils.ts`) configures
 1. Start a local disposable PostgreSQL 17 container:
 
 ```bash
-docker run --rm -d --name test-postgres -p 5432:5432 \
+docker run --rm -d --name test-postgres -p 127.0.0.1:5432:5432 \
   -e POSTGRES_USER=activities \
   -e POSTGRES_PASSWORD=activities \
   -e POSTGRES_DB=postgres \
@@ -532,7 +532,7 @@ count equals the number of `migrations/*.js` files.
      -e POSTGRES_USER=activities \
      -e POSTGRES_PASSWORD=activities \
      -e POSTGRES_DB=activities \
-     -p 55432:5432 postgres:17
+     -p 127.0.0.1:55432:5432 postgres:17
 
    # Wait for readiness before continuing.
    until docker exec anext-schema-pg pg_isready -U activities -q; do sleep 1; done
