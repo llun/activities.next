@@ -35,7 +35,9 @@ import {
 import { recoverFromDuplicateInsert } from '@/lib/database/sql/utils/recoverFromDuplicateInsert'
 import {
   StatusHashtagTagRow,
-  selectHashtagTagsByStatusIds
+  isPubliclyAddressed,
+  selectHashtagTagsByStatusIds,
+  selectPubliclyAddressedStatusIds
 } from '@/lib/database/sql/utils/status'
 import {
   PUBLIC_ACTIVITY_RECIPIENTS,
@@ -474,11 +476,17 @@ export const StatusSQLDatabaseMixin = (
     step,
     trx,
     currentTime,
-    statusCreatedAt
+    statusCreatedAt,
+    publiclyAddressed
   }: {
     actorId: string
     type: StatusType
     reply: string
+    // Public or unlisted. Only these move the parent's reply counter, which
+    // anonymous surfaces serve as `replies_count` (Mastodon counts only
+    // distributable replies), so a followers-only or direct reply is not
+    // observable as a count.
+    publiclyAddressed: boolean
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     content: any
     step: 'increment' | 'decrement'
@@ -530,7 +538,7 @@ export const StatusSQLDatabaseMixin = (
       }
     }
 
-    if (reply) {
+    if (reply && publiclyAddressed) {
       const parentStatusId = await resolveParentStatusIdByReply(reply, trx)
       if (parentStatusId) {
         await adjust(trx, CounterKey.totalReply(parentStatusId), 1, currentTime)
@@ -606,7 +614,8 @@ export const StatusSQLDatabaseMixin = (
             step: 'increment',
             trx,
             currentTime,
-            statusCreatedAt
+            statusCreatedAt,
+            publiclyAddressed: isPubliclyAddressed({ to, cc })
           })
           await Promise.all(
             to.map((actorId) =>
@@ -931,6 +940,32 @@ export const StatusSQLDatabaseMixin = (
       )
       const hashtagTags = await selectHashtagTagsByStatusIds(trx, [status.id])
       affectedHashtags = hashtagTags.map((tag) => tag.name)
+
+      // The reply and hashtag counters count only publicly addressed statuses,
+      // so a visibility change that crosses that line moves them too —
+      // otherwise a later delete would decrement a count this status never
+      // contributed to, or leave behind one it no longer should.
+      const wasPublic = isPubliclyAddressed(status)
+      if (wasPublic !== isPubliclyAddressed({ to, cc })) {
+        const adjust = wasPublic ? decreaseCounterValue : increaseCounterValue
+        const parentStatusId = await resolveParentStatusIdByReply(
+          status.reply,
+          trx
+        )
+        if (parentStatusId) {
+          await adjust(
+            trx,
+            CounterKey.totalReply(parentStatusId),
+            1,
+            currentTime
+          )
+        }
+        // Per tag row, exactly as the create and delete paths count them.
+        for (const tag of hashtagTags) {
+          const tagName = normalizeHashtagSearchName(tag.name)
+          await adjust(trx, CounterKey.totalHashtag(tagName), 1, currentTime)
+        }
+      }
     })
     if (affectedHashtags.length > 0) {
       await indexHashtagSearchDocuments(database, {
@@ -986,7 +1021,8 @@ export const StatusSQLDatabaseMixin = (
             step: 'increment',
             trx,
             currentTime,
-            statusCreatedAt
+            statusCreatedAt,
+            publiclyAddressed: isPubliclyAddressed({ to, cc })
           })
           await Promise.all(
             to.map((actorId) =>
@@ -1116,7 +1152,8 @@ export const StatusSQLDatabaseMixin = (
             step: 'increment',
             trx,
             currentTime,
-            statusCreatedAt
+            statusCreatedAt,
+            publiclyAddressed: isPubliclyAddressed({ to, cc })
           })
           await Promise.all(
             choices.map((choice) => {
@@ -2229,10 +2266,13 @@ export const StatusSQLDatabaseMixin = (
 
   const applyStatusDeletionCounterAdjustments = async ({
     currentTime,
+    publiclyAddressedStatusIds,
     statuses,
     trx
   }: {
     currentTime: Date
+    // Mirrors the create path: only publicly addressed replies were counted.
+    publiclyAddressedStatusIds: Set<string>
     statuses: StatusDeletionRow[]
     trx: Knex.Transaction
   }) => {
@@ -2265,7 +2305,7 @@ export const StatusSQLDatabaseMixin = (
         }
       }
 
-      if (status.reply) {
+      if (status.reply && publiclyAddressedStatusIds.has(status.id)) {
         const parentStatusId = parentStatusIdByReplyReference.get(status.reply)
         if (parentStatusId) {
           addCounterAdjustment(
@@ -2283,16 +2323,20 @@ export const StatusSQLDatabaseMixin = (
 
   const applyHashtagDeletionCounterAdjustments = async ({
     currentTime,
+    publiclyAddressedStatusIds,
     tags,
     trx
   }: {
     currentTime: Date
+    // Mirrors the create path: only publicly addressed statuses' tags counted.
+    publiclyAddressedStatusIds: Set<string>
     tags: StatusHashtagTagRow[]
     trx: Knex.Transaction
   }) => {
     const adjustments = new Map<string, number>()
 
     for (const tag of tags) {
+      if (!publiclyAddressedStatusIds.has(tag.statusId)) continue
       const tagName = normalizeHashtagSearchName(tag.name)
       addCounterAdjustment(adjustments, CounterKey.totalHashtag(tagName))
     }
@@ -2506,8 +2550,13 @@ export const StatusSQLDatabaseMixin = (
 
     const currentTime = new Date()
     const statusIdsToDelete = statusesToDelete.map((status) => status.id)
+    const publiclyAddressedStatusIds = await selectPubliclyAddressedStatusIds(
+      trx,
+      statusIdsToDelete
+    )
     await applyStatusDeletionCounterAdjustments({
       currentTime,
+      publiclyAddressedStatusIds,
       statuses: statusesToDelete,
       trx
     })
@@ -2518,6 +2567,7 @@ export const StatusSQLDatabaseMixin = (
     )
     await applyHashtagDeletionCounterAdjustments({
       currentTime,
+      publiclyAddressedStatusIds,
       tags: hashtagTags,
       trx
     })

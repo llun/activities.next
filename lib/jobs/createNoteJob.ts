@@ -33,6 +33,7 @@ import {
   persistInboundQuoteEdge,
   resolveInboundQuotedStatus
 } from '@/lib/services/quotes/persistInboundQuoteEdge'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ArticleContent,
@@ -253,7 +254,16 @@ export const createNoteJob = createJobHandle(
           const tagName = hashtagName.startsWith('#')
             ? hashtagName.slice(1)
             : hashtagName
-          await database.increaseHashtagCounter({ hashtag: tagName })
+          // The count is served to anonymous /tags/<tag> visitors; a
+          // followers-only or direct note must not move it.
+          if (
+            isPublicOrUnlisted({
+              to: toRecipientArray(note.to),
+              cc: toRecipientArray(note.cc)
+            })
+          ) {
+            await database.increaseHashtagCounter({ hashtag: tagName })
+          }
           return
         }
         return database.createTag({

@@ -15,6 +15,7 @@ import {
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Mention } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
@@ -550,7 +551,11 @@ export const createNoteFromUserInput = async ({
           type: 'hashtag',
           skipSearchIndex: true
         })
-        await database.increaseHashtagCounter({ hashtag: hashtag.name })
+        // The count is served to anonymous /tags/<tag> visitors; a
+        // followers-only or direct post must not move it.
+        if (isPublicOrUnlisted({ to, cc })) {
+          await database.increaseHashtagCounter({ hashtag: hashtag.name })
+        }
       })
     ])
     if (hashtags.length > 0) {
