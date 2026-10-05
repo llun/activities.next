@@ -1,0 +1,37 @@
+app/api/v1/statuses/[id]/route.test.ts
+  s_69f35b0cf1b1f5::t_2ab992b48a3376 2288-2324,2327-2335,2338,2343-2345
+  s_69f35b0cf1b1f5::t_a21aa6bb5e5807 2325-2326,2336-2337,2339-2342
+lib/types/database/operations.ts
+  s_69f35b0cf1b1f5::t_8b7a964d380ec2 952-954
+lib/utils/widensStatusAudience.ts
+  s_69f35b0cf1b1f5::t_f6c9af76fc4c7a 1-18
+lib/database/sql/status.ts
+  s_69f35b0cf1b1f5::t_7373b22b01e3c8 130
+  s_69f35b0cf1b1f5::t_8b7a964d380ec2 1383-1388,4164
+  s_69f35b0cf1b1f5::t_665c086505f974 906-908
+  s_69f35b0cf1b1f5::t_c714d4ae5632a0 910-912
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_e783aa3726eb4e 54-64
+lib/database/sql/status.test.ts
+  s_69f35b0cf1b1f5::t_38b6bf635daa52 4083-4085
+  s_69f35b0cf1b1f5::t_6069d856d7b11a 4072-4082,4086-4122
+app/api/v1/statuses/[id]/route.ts
+  s_69f35b0cf1b1f5::t_8803ba30a75058 517-530
+  s_69f35b0cf1b1f5::t_73fcf5a3b4757c 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f23fa09ebd3f4e7dd598e1594dbc43dde96a3a21",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
