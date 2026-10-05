@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { GET as TRENDS_ALIAS_GET } from '@/app/api/v1/trends/route'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { resetTrendingTagsCacheForTests } from '@/lib/services/trends/trendingTagsCache'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { GET } from './route'
@@ -128,6 +129,7 @@ describe('GET /api/v1/trends/tags', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetTrendingTagsCacheForTests()
     // No session → optional auth resolves currentActor = null (anonymous).
     mockGetServerSession.mockResolvedValue(null)
   })
@@ -209,5 +211,24 @@ describe('GET /api/v1/trends/tags', () => {
     expect(aliasResponse.status).toBe(200)
     const tagsResponse = await GET(request(), { params: Promise.resolve({}) })
     expect(await aliasResponse.json()).toEqual(await tagsResponse.json())
+  })
+
+  it('serves repeated requests from a short-lived cache instead of re-aggregating', async () => {
+    const rankSpy = vi.spyOn(database, 'getTrendingTags')
+    const historySpy = vi.spyOn(database, 'getTagDailyHistory')
+
+    const first = await GET(request(), { params: Promise.resolve({}) })
+    const second = await GET(request(), { params: Promise.resolve({}) })
+    const otherPage = await GET(request('/api/v1/trends/tags', '?limit=1'), {
+      params: Promise.resolve({})
+    })
+
+    expect(await second.json()).toEqual(await first.json())
+    expect(otherPage.status).toBe(200)
+    // Two distinct (limit, offset) keys -> two aggregations, not three.
+    expect(rankSpy).toHaveBeenCalledTimes(2)
+    expect(historySpy).toHaveBeenCalledTimes(2)
+    rankSpy.mockRestore()
+    historySpy.mockRestore()
   })
 })
