@@ -32,6 +32,12 @@ const hasFollowersAudience = (status: StatusAudience) =>
 const hasPublicAudience = (status: StatusAudience) =>
   [...status.to, ...status.cc].some((actorId) => PUBLIC_AUDIENCES.has(actorId))
 
+// Listed public only: Public in `to`. An unlisted status carries Public in `cc`
+// and must stay out of discovery surfaces, which a relay is — Mastodon relays
+// only public_visibility statuses.
+const hasListedPublicAudience = (status: StatusAudience) =>
+  status.to.some((actorId) => PUBLIC_AUDIENCES.has(actorId))
+
 const getExplicitRecipientActorIds = (status: StatusAudience) =>
   [...new Set([...status.to, ...status.cc])].filter(
     (actorId) => !PUBLIC_AUDIENCES.has(actorId) && !isFollowersAudience(actorId)
@@ -197,9 +203,10 @@ export const getFederatedStatusDeliveryInboxes = async ({
 
   // Public posts are also forwarded to every accepted relay's inbox so the
   // relay can redistribute them. Relays only carry public activities, so this
-  // is gated on a public audience. The Set dedup + domain-policy filter below
-  // cover relay inboxes too.
-  if (hasPublicAudience(status)) {
+  // is gated on a LISTED public audience — an unlisted post would otherwise be
+  // redistributed to every relay subscriber's federated timeline. The Set
+  // dedup + domain-policy filter below cover relay inboxes too.
+  if (hasListedPublicAudience(status)) {
     const relays = await database.getAcceptedRelays()
     inboxes.push(...relays.map((relay) => relay.inboxUrl))
   }

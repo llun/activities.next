@@ -11,6 +11,7 @@ import {
 } from '@/lib/activities/note'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { getPollChoicesFromQuestion } from '@/lib/services/polls/pollChoices'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import {
@@ -157,7 +158,16 @@ export const createPollJob = createJobHandle(
           const tagName = hashtagName.startsWith('#')
             ? hashtagName.slice(1)
             : hashtagName
-          await database.increaseHashtagCounter({ hashtag: tagName })
+          // The count is served to anonymous /tags/<tag> visitors; a
+          // followers-only or direct poll must not move it.
+          if (
+            isPublicOrUnlisted({
+              to: toRecipientArray(question.to),
+              cc: toRecipientArray(question.cc)
+            })
+          ) {
+            await database.increaseHashtagCounter({ hashtag: tagName })
+          }
           return
         }
         return database.createTag({

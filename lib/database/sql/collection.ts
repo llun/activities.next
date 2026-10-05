@@ -9,10 +9,8 @@ import {
   getInsertBatchSize,
   getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
-import {
-  PUBLIC_ACTIVITY_RECIPIENTS,
-  applyPotentiallyReadableStatusFilter
-} from '@/lib/database/sql/utils/statusVisibility'
+import { wherePubliclyReadableStatus } from '@/lib/database/sql/utils/publiclyReadableStatus'
+import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
 import {
   CollectionLimitError,
   MAX_COLLECTIONS_PER_ACTOR,
@@ -245,12 +243,10 @@ const readCollectionFeed = async ({
         'collection_timeline.memberSeq'
       )
       .andWhere('collection_members.featureState', 'approved')
-      .whereIn(
-        'statuses.id',
-        database('recipients')
-          .select('statusId')
-          .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
-      )
+      // Publicly readable, not merely addressed to the public collection: a
+      // member's public boost of a followers-only or direct note is itself
+      // public, and this anonymous feed would hydrate and serve the original.
+      .modify(wherePubliclyReadableStatus, database)
   } else {
     // Owner projection: all members, filtered to what the owner may read and
     // dropping blocked/muted authors — both pre-LIMIT, like the list timeline.

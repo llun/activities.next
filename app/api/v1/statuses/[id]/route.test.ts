@@ -539,6 +539,10 @@ describe('GET /api/v1/statuses/[id]', () => {
       )
 
       expect(response.status).toBe(200)
+      // The undo is acknowledged without echoing the now-private original.
+      expect(JSON.stringify(await response.json())).not.toContain(
+        'becomes private after a reblog'
+      )
       await expect(
         database.getStatus({ statusId: announceId })
       ).resolves.toBeNull()

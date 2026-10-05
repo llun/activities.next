@@ -57,9 +57,11 @@ const getAnnouncedObjectId = (object: unknown): string | null => {
 // The Federated timeline is a public surface (the public API serves it
 // unauthenticated). Relays can forward whatever their members emit, so we must
 // independently confirm the re-fetched note is addressed to the public
-// collection before publishing it — never trust the relay's framing.
+// collection before publishing it — never trust the relay's framing. Listed
+// public only (Public in `to`): an unlisted note carries Public in `cc` and
+// must not become discoverable through the federated timeline.
 const isPublicStatus = (status: Status): boolean =>
-  [...status.to, ...status.cc].some(
+  status.to.some(
     (recipient) =>
       recipient === ACTIVITY_STREAM_PUBLIC ||
       recipient === ACTIVITY_STREAM_PUBLIC_COMPACT

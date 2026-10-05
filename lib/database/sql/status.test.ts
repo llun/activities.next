@@ -616,7 +616,9 @@ describe('StatusDatabase', () => {
             followingCount: 2,
             followersCount: 1,
             statusCount: 3,
-            lastStatusAt: expect.toBeNumber(),
+            // Stripped from the author a status embeds; see
+            // getStatusActorProfile in status.ts.
+            lastStatusAt: null,
             createdAt: expect.toBeNumber(),
             manuallyApprovesFollowers: true
           },

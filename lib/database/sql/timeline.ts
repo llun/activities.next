@@ -4,6 +4,7 @@ import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { applyExclusiveListFilter } from '@/lib/database/sql/utils/exclusiveLists'
 import { getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
 import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
+import { wherePubliclyReadableStatus } from '@/lib/database/sql/utils/publiclyReadableStatus'
 import { Timeline } from '@/lib/services/timelines/types'
 import { StatusDatabase } from '@/lib/types/database/operations'
 import {
@@ -162,6 +163,14 @@ const localPublicStatusesQuery = (database: Knex, localActorIds: string[]) => {
         .where('recipients.type', 'to')
         .where('recipients.actorId', ACTIVITY_STREAM_PUBLIC)
     })
+    // The `to: Public` test above decides "listed", but only for this row's own
+    // audience: a public Announce of a followers-only or direct note passes it,
+    // and the landing page and /api/v1/timelines/public then unwrap the boost
+    // and render the original to anonymous readers. The readability predicate
+    // follows the announce chain; a non-Announce row short-circuits on its
+    // first disjunct, and the correlated form stays LIMIT-bounded on both the
+    // feed and the landing count's `limit` path.
+    .modify(wherePubliclyReadableStatus, database)
 
   if (localActorIds.length <= getLocalActorIdLimit(database)) {
     return query.whereIn('statuses.actorId', localActorIds)
@@ -214,7 +223,7 @@ export const TimelineSQLDatabaseMixin = (
         if (localActorIds.length === 0) return []
 
         let query = localPublicStatusesQuery(database, localActorIds)
-          .select('statuses.id as statusId')
+          .select<{ statusId: string }[]>('statuses.id as statusId')
           .limit(limit)
 
         if (onlyMedia) {

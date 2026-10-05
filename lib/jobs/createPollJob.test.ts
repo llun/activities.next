@@ -396,6 +396,38 @@ describe('createPollJob', () => {
     )
   })
 
+  it('counts a hashtag only on a publicly addressed poll', async () => {
+    // The counter is served to anonymous /tags/<tag> visitors, so a
+    // followers-only poll's tag must not be observable through it.
+    for (const [suffix, to, cc] of [
+      ['private', [`${REMOTE_ACTOR_ID}/followers`], []],
+      ['public', [ACTIVITY_STREAM_PUBLIC], []]
+    ] as const) {
+      const question = MockActivityPubQuestion({
+        id: `${REMOTE_ACTOR_ID}/questions/audience-${suffix}-${Date.now()}`,
+        to: [...to],
+        cc: [...cc],
+        tags: [
+          {
+            type: 'Hashtag',
+            name: '#pollaudience',
+            href: 'https://example.com/tags/pollaudience'
+          }
+        ]
+      })
+      await createPollJob(database, {
+        id: `id-poll-audience-${suffix}`,
+        name: CREATE_POLL_JOB_NAME,
+        data: question,
+        verifiedSenderActorId: question.attributedTo
+      })
+    }
+
+    expect(await database.getHashtagCounter({ hashtag: 'pollaudience' })).toBe(
+      1
+    )
+  })
+
   it('batches hashtag search reindexing after hashtag tags are created', async () => {
     const indexHashtagSearchDocuments = vi.spyOn(
       database,

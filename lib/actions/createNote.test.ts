@@ -109,6 +109,23 @@ describe('Create note action', () => {
       )
     })
 
+    it('counts a hashtag only on a publicly addressed note', async () => {
+      // The counter is served to anonymous /tags/<tag> visitors, so a
+      // followers-only or direct post's tag must not be observable through it.
+      for (const visibility of ['private', 'direct', 'unlisted'] as const) {
+        await createNoteFromUserInput({
+          text: `Hello #actionaudiencecount ${visibility}`,
+          currentActor: actor1,
+          database,
+          visibility
+        })
+      }
+
+      expect(
+        await database.getHashtagCounter({ hashtag: 'actionaudiencecount' })
+      ).toBe(1)
+    })
+
     it('mints the new status URI tail from a v7 publicId', async () => {
       const status = (await createNoteFromUserInput({
         text: 'New status URI tail',

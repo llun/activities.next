@@ -592,6 +592,37 @@ describe('createNoteJob', () => {
     expect(hashtagTags[0].value).toEqual('https://somewhere.test/tags/testing')
   })
 
+  it('counts a hashtag only on a publicly addressed note', async () => {
+    // The counter is served to anonymous /tags/<tag> visitors, so a
+    // followers-only note's tag must not be observable through it.
+    for (const [suffix, to, cc] of [
+      ['private', ['https://somewhere.test/actors/friend/followers'], []],
+      ['unlisted', [], [ACTIVITY_STREAM_PUBLIC]]
+    ] as const) {
+      await createNoteJob(database, {
+        id: `id-hashtag-${suffix}`,
+        name: CREATE_NOTE_JOB_NAME,
+        data: MockMastodonActivityPubNote({
+          id: `https://${actor1!.domain}/notes/hashtag-${suffix}-${Date.now()}`,
+          content: '<p>Hello #audiencecount</p>',
+          to: [...to],
+          cc: [...cc],
+          tags: [
+            {
+              type: 'Hashtag',
+              href: 'https://somewhere.test/tags/audiencecount',
+              name: '#audiencecount'
+            }
+          ]
+        })
+      })
+    }
+
+    expect(await database.getHashtagCounter({ hashtag: 'audiencecount' })).toBe(
+      1
+    )
+  })
+
   it('recovers a concurrent duplicate insert without re-running tag or hashtag side effects', async () => {
     const noteId = `https://${actor1!.domain}/notes/dup-recovery-${Date.now()}`
     const note = MockMastodonActivityPubNote({

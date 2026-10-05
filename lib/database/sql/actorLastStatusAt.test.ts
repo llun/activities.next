@@ -211,6 +211,65 @@ describe('actors.lastStatusAt maintenance', () => {
     })
   })
 
+  // `last_status_at` is public (the account entity, the directory's `active`
+  // order), so a direct message must not date itself through it — Mastodon
+  // skips direct statuses here too. Followers-only posts still count.
+  it('is not advanced by a direct status, on create or on a later recompute', async () => {
+    await withDatabase(async (database) => {
+      const actorId = await createLocalActor(database, 'alice')
+      const createAt = (
+        suffix: string,
+        createdAt: number,
+        to: string[],
+        cc: string[] = []
+      ) =>
+        database.createNote({
+          id: `${actorId}/statuses/${suffix}`,
+          url: `${actorId}/statuses/${suffix}`,
+          actorId,
+          text: `note ${suffix}`,
+          to,
+          cc,
+          createdAt
+        })
+
+      await createAt('public-1', at('2026-03-01T10:00:00Z'), [
+        ACTIVITY_STREAM_PUBLIC
+      ])
+      await createAt('followers', at('2026-03-03T10:00:00Z'), [
+        `${actorId}/followers`
+      ])
+      await createAt('public-2', at('2026-03-04T10:00:00Z'), [
+        ACTIVITY_STREAM_PUBLIC
+      ])
+      await createAt('direct', at('2026-03-09T10:00:00Z'), [
+        `https://${TEST_DOMAIN}/users/bob`
+      ])
+      expect(await lastStatusDate(database, actorId)).toBe('2026-03-04')
+
+      // Deleting the newest non-direct status recomputes from what remains,
+      // and the remaining direct message is still not a candidate.
+      await database.deleteStatus({ statusId: `${actorId}/statuses/public-2` })
+      expect(await lastStatusDate(database, actorId)).toBe('2026-03-03')
+    })
+  })
+
+  it('is not embedded in the author profile a status carries', async () => {
+    await withDatabase(async (database) => {
+      const actorId = await createLocalActor(database, 'alice')
+      const status = await createNoteAt(
+        database,
+        actorId,
+        '1',
+        at('2026-03-01T10:00:00Z')
+      )
+
+      const stored = await database.getStatus({ statusId: status.id })
+      expect(stored?.actor?.id).toBe(actorId)
+      expect(stored?.actor?.lastStatusAt).toBeNull()
+    })
+  })
+
   it('updateActorLastStatusAt is a guarded set-if-newer', async () => {
     await withDatabase(async (database) => {
       const actorId = await createLocalActor(database, 'alice')

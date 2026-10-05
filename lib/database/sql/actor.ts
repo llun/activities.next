@@ -33,7 +33,10 @@ import {
   resolveIdsByPublicIds,
   resolvePublicIdsByIds
 } from '@/lib/database/sql/utils/publicIdLookup'
-import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
+import {
+  selectHashtagTagsByStatusIds,
+  selectPubliclyAddressedStatusIds
+} from '@/lib/database/sql/utils/status'
 import { findActorRowByUsername } from '@/lib/database/sql/utils/usernameMatch'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
@@ -1487,6 +1490,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         .select('id', 'type', 'reply', 'content', 'originalStatusId')
 
       const statusIds = actorStatuses.map((status) => status.id)
+      // Reply and hashtag counters only ever counted publicly addressed
+      // statuses; read which ones those were while their recipients remain.
+      const publiclyAddressedStatusIds = await selectPubliclyAddressedStatusIds(
+        trx,
+        statusIds
+      )
       const statusReferenceToId = new Map<string, string>()
       const replyReferences = Array.from(
         new Set(
@@ -1562,7 +1571,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           }
         }
 
-        if (status.reply) {
+        if (status.reply && publiclyAddressedStatusIds.has(status.id)) {
           const parentStatusId = statusReferenceToId.get(status.reply)
           if (parentStatusId) {
             replyCounterChanges[parentStatusId] =
@@ -1689,6 +1698,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         affectedHashtags.push(...hashtagTags.map((tag) => tag.name))
         const hashtagCounterAdjustments = new Map<string, number>()
         for (const tag of hashtagTags) {
+          if (!publiclyAddressedStatusIds.has(tag.statusId)) continue
           const tagName = normalizeHashtagSearchName(tag.name)
           if (tagName.length === 0) continue
           hashtagCounterAdjustments.set(

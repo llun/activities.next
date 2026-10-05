@@ -864,6 +864,60 @@ describe('CollectionDatabase', () => {
       })
     })
 
+    it("never leaks a member's public boost of a followers-only post into the public feed", async () => {
+      await withFreshDatabase(async (database) => {
+        for (const name of ['owner', 'member', 'author']) {
+          await createLocalAccount(database, name)
+        }
+        const owner = await actor(database, 'owner')
+        const member = await actor(database, 'member')
+        const author = await actor(database, 'author')
+
+        const collection = await database.createCollection({
+          actorId: owner.id,
+          title: 'Feed'
+        })
+        await database.addCollectionMembers({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorIds: [member.id]
+        })
+        await database.setCollectionMemberState({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorId: member.id,
+          state: 'approved'
+        })
+
+        // The boost itself is addressed to the public collection, so a
+        // recipients-only filter admits it; only the announce chain drops it.
+        const hidden = await followersOnlyNote(database, author.id, 'hidden')
+        const visible = await publicNote(database, author.id, 'visible')
+        const boosts = []
+        for (const [suffix, original] of [
+          ['boost-hidden', hidden],
+          ['boost-visible', visible]
+        ] as const) {
+          const boost = await database.createAnnounce({
+            id: `${member.id}/statuses/${suffix}`,
+            actorId: member.id,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [`${member.id}/followers`],
+            originalStatusId: original.id
+          })
+          await database.addStatusToCollectionTimelines({ status: boost! })
+          boosts.push(boost!)
+        }
+
+        const publicIds = (
+          (await database.getPublicCollectionTimeline({ id: collection.id })) ??
+          []
+        ).map((s) => s.id)
+        expect(publicIds).toContain(boosts[1].id)
+        expect(publicIds).not.toContain(boosts[0].id)
+      })
+    })
+
     it('hides unapproved members from the public feed but keeps them for the owner', async () => {
       await withFreshDatabase(async (database) => {
         for (const name of ['owner', 'member']) {
