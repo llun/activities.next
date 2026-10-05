@@ -1,0 +1,24 @@
+app/api/v1/actors/cancel-deletion/route.test.ts
+  s_69f35b0cf1b1f5::t_d229db50f8ba03 129-145
+  s_69f35b0cf1b1f5::t_b6794852ccc06e 127-128
+app/api/v1/actors/cancel-deletion/route.ts
+  s_69f35b0cf1b1f5::t_6aa87aaefe7e0e 78-92
+docs/architecture.md
+  s_69f35b0cf1b1f5::t_c08feebe687659 1361,1920-1921
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5af7812a488a7a85442d1f5aed8ee983e82653fc",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
