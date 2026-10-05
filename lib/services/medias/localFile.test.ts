@@ -676,6 +676,26 @@ describe('LocalFileStorage.saveFile with a video', () => {
     expect(database.createMedia).not.toHaveBeenCalled()
   })
 
+  // Regression (F000): probed dimensions were recorded but never bounded, and
+  // every decoded frame costs memory in proportion to its area.
+  it('rejects a video above the dimension cap without extracting a frame', async () => {
+    vi.mocked(extractVideoMeta).mockResolvedValue({
+      streams: [{ codec_type: 'video', width: 15360, height: 8640 }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
+      MediaValidationError
+    )
+
+    expect(extractVideoImage).not.toHaveBeenCalled()
+    expect(await fs.readdir(mediaRoot)).toEqual([])
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
   it('stores nothing and writes no temp video when probing fails', async () => {
     vi.mocked(extractVideoMeta).mockRejectedValue(new Error('ffprobe failed'))
     const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {

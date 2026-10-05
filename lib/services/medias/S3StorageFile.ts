@@ -57,6 +57,7 @@ import {
   ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
 import { extractVideoPreviewFrame } from '@/lib/services/medias/videoPreview'
+import { getAcceptedVideoDimensions } from '@/lib/services/medias/videoProbe'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { Media } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -739,20 +740,9 @@ export class S3FileStorage implements MediaStorage {
   ) {
     const buffer = Buffer.from(await file.arrayBuffer())
     const probe = await extractVideoMeta(buffer)
-    const videoStream = probe.streams.find(
-      (stream) => stream.codec_type === 'video'
-    )
-    const formats = probe.format.format_name?.split(',')
-    if (
-      !videoStream ||
-      !(formats?.includes('mp4') || formats?.includes('webm'))
-    ) {
-      throw new MediaValidationError('Invalid video format')
-    }
-
-    const metaData = videoStream
-      ? { width: videoStream.width, height: videoStream.height }
-      : { width: 0, height: 0 }
+    // Container, video stream and dimension cap — shared with the other
+    // driver and the presigned completion.
+    const metaData = getAcceptedVideoDimensions(probe)
 
     const ext = getStoredMediaExtension(file.type, file.name)
     // Input that is not a video the instance accepts was already rejected

@@ -37,6 +37,7 @@ import {
   ThumbnailStorageOutput
 } from './types'
 import { extractVideoPreviewFrame } from './videoPreview'
+import { getAcceptedVideoDimensions } from './videoProbe'
 
 interface SaveImageOptions {
   isThumbnail?: boolean
@@ -302,20 +303,9 @@ export class LocalFileStorage implements MediaStorage {
     const uploadPath = this._config.path
     const buffer = Buffer.from(await videoFile.arrayBuffer())
     const probe = await extractVideoMeta(buffer)
-    const videoStream = probe.streams.find(
-      (stream) => stream.codec_type === 'video'
-    )
-    const formats = probe.format.format_name?.split(',')
-    if (
-      !videoStream ||
-      !(formats?.includes('mp4') || formats?.includes('webm'))
-    ) {
-      throw new MediaValidationError('Invalid video format')
-    }
-
-    const metaData = videoStream
-      ? { width: videoStream.width, height: videoStream.height }
-      : { width: 0, height: 0 }
+    // Container, video stream and dimension cap — shared with the other
+    // driver and the presigned completion.
+    const metaData = getAcceptedVideoDimensions(probe)
 
     const ext = getStoredMediaExtension(videoFile.type, videoFile.name)
     // Input that is not a video the instance accepts was already rejected
