@@ -529,6 +529,41 @@ export const DirectConversationSQLDatabaseMixin = (
     return rows.map((row) => row.id)
   }
 
+  // Local participants with a block either way with the status author. The
+  // caller's `excludedLocalActorIds` only covers the status's own to/cc, but a
+  // recipientless reply inherits the parent's author or conversation
+  // participants here, so the block check has to run on the resolved set.
+  const getActorIdsBlockingEitherWay = async (
+    trx: Knex.Transaction,
+    actorIds: string[],
+    authorActorId: string
+  ) => {
+    if (actorIds.length === 0) return new Set<string>()
+    const rows = await trx('blocks')
+      .where((builder) => {
+        builder
+          .where((forward) =>
+            forward
+              .whereIn('actorId', actorIds)
+              .where('targetActorId', authorActorId)
+          )
+          .orWhere((reverse) =>
+            reverse
+              .where('actorId', authorActorId)
+              .whereIn('targetActorId', actorIds)
+          )
+      })
+      .select<{ actorId: string; targetActorId: string }[]>(
+        'actorId',
+        'targetActorId'
+      )
+    return new Set(
+      rows.map((row) =>
+        row.actorId === authorActorId ? row.targetActorId : row.actorId
+      )
+    )
+  }
+
   const hydrateConversationRows = async (
     rows: DirectConversationMembershipRow[],
     currentActorId: string
@@ -843,9 +878,18 @@ export const DirectConversationSQLDatabaseMixin = (
 
         if (unfilteredLocalParticipantActorIds.length === 0) return
 
+        const blockedActorIdSet = await getActorIdsBlockingEitherWay(
+          trx,
+          unfilteredLocalParticipantActorIds.filter(
+            (actorId) => actorId !== status.actorId
+          ),
+          status.actorId
+        )
         const localParticipantActorIds =
           unfilteredLocalParticipantActorIds.filter(
-            (actorId) => !excludedActorIdSet.has(actorId)
+            (actorId) =>
+              !excludedActorIdSet.has(actorId) &&
+              !blockedActorIdSet.has(actorId)
           )
 
         await insertIfMissing({
