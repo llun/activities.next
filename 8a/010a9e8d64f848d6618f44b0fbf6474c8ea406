@@ -1,0 +1,26 @@
+app/(nosidebar)/auth/signin/PasskeySigninButton.test.tsx
+  s_69f35b0cf1b1f5::t_5e16bf2ff98d87 78-81,84-91,101
+app/(nosidebar)/auth/signin/PasskeySigninButton.tsx
+  s_69f35b0cf1b1f5::t_3d92ea90a62b8d 11,48-50
+  s_69f35b0cf1b1f5::t_dc56026ad441fa 20-22
+  s_69f35b0cf1b1f5::t_fcca4256779dc0 12-14,23-25,51-53,58
+app/(nosidebar)/auth/signin/passkeySupport.ts
+  s_69f35b0cf1b1f5::t_dc56026ad441fa 9-11
+  s_69f35b0cf1b1f5::t_5e16bf2ff98d87 31-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8a010a9e8d64f848d6618f44b0fbf6474c8ea406",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
