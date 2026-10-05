@@ -6,8 +6,13 @@ import {
 } from '@/lib/services/guards/OAuthGuard'
 import { getMastodonMarkers } from '@/lib/services/mastodon/getMastodonMarkers'
 import { MarkerTimeline, Scope } from '@/lib/types/database/operations'
+import {
+  SMALL_REQUEST_BODY_MAX_BYTES,
+  isRequestBodyTooLargeError,
+  readRequestBodyWithLimit
+} from '@/lib/utils/boundedRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { apiResponse, defaultOptions } from '@/lib/utils/response'
+import { ERROR_413, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -18,7 +23,14 @@ const CORS_HEADERS = [
 
 const TIMELINES: MarkerTimeline[] = ['home', 'notifications']
 
-const MarkerInput = z.object({ last_read_id: z.string().min(1) })
+// Marker ids are opaque status/notification ids (an encoded status URL at the
+// longest), so a generous cap only rejects abuse; it stops an authenticated
+// client from persisting megabytes per marker row.
+export const MARKER_LAST_READ_ID_MAX_LENGTH = 2048
+
+const MarkerInput = z.object({
+  last_read_id: z.string().min(1).max(MARKER_LAST_READ_ID_MAX_LENGTH)
+})
 const PostBody = z.object({
   home: MarkerInput.optional(),
   notifications: MarkerInput.optional()
@@ -58,20 +70,24 @@ export const GET = traceApiRoute(
 
 const parseBody = async (req: Request): Promise<unknown> => {
   const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
+  // A marker body is a couple of short ids; never buffer more than the cap.
+  const bodyBytes = await readRequestBodyWithLimit(
+    req,
+    SMALL_REQUEST_BODY_MAX_BYTES
+  )
   if (contentType.includes('application/json')) {
-    const text = await req.text()
+    const text = bodyBytes.toString('utf-8')
     if (text.trim() === '') return {}
     return JSON.parse(text)
   }
   // Mastodon clients send form fields like `home[last_read_id]`.
-  // multipart/form-data is parsed via req.formData() at runtime; the
-  // urlencoded branch uses URLSearchParams. Both are iterable as [string, …].
-  // NOTE: req.formData() is runtime-only — not exercised by unit tests (jest
-  // synthetic bodies throw); only the urlencoded/json branches are unit-tested.
+  // Both are iterable as [string, …].
   const entries: Iterable<[string, FormDataEntryValue | string]> =
     contentType.includes('multipart/form-data')
-      ? await req.formData()
-      : new URLSearchParams(await req.text())
+      ? await new Response(new Uint8Array(bodyBytes), {
+          headers: { 'content-type': req.headers.get('content-type') ?? '' }
+        }).formData()
+      : new URLSearchParams(bodyBytes.toString('utf-8'))
   const body: Record<string, { last_read_id?: string }> = {}
   for (const [key, value] of entries) {
     if (typeof value !== 'string') continue
@@ -93,7 +109,15 @@ export const POST = traceApiRoute(
       let json: unknown
       try {
         json = await parseBody(req)
-      } catch {
+      } catch (error) {
+        if (isRequestBodyTooLargeError(error)) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_413,
+            responseStatusCode: 413
+          })
+        }
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
