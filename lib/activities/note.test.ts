@@ -1,3 +1,5 @@
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+
 import { BaseNote } from './note'
 import {
   getAttachments,
@@ -128,6 +130,30 @@ describe('note entity utilities', () => {
   })
 
   describe('getAttachments', () => {
+    // Regression (F047): ingest kept every Document a remote Note carried, so
+    // one signed Note could write hundreds of attachment rows and put as many
+    // video elements into every viewer's timeline.
+    it('keeps no more attachments than a local status may store', () => {
+      const note = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        content: 'Test',
+        attachment: Array.from(
+          { length: MAX_STORED_MEDIA_ATTACHMENTS + 25 },
+          (_, index) => ({
+            type: 'Document',
+            mediaType: 'video/mp4',
+            url: `https://example.com/video-${index}.mp4`
+          })
+        )
+      } as BaseNote
+
+      const result = getAttachments(note)
+
+      expect(result).toHaveLength(MAX_STORED_MEDIA_ATTACHMENTS)
+      expect(result[0].url).toEqual('https://example.com/video-0.mp4')
+    })
+
     it('returns attachments array', () => {
       const note: BaseNote = {
         type: 'Note',

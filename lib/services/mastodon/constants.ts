@@ -5,7 +5,8 @@
 export const MAX_FEDERATION_MEDIA_ATTACHMENTS = 4
 
 // Upper bound on how many media a single status may store / accept through the
-// create and edit APIs. Purely a safety ceiling so one status can't fan out an
+// create and edit APIs, and how many a federated Note keeps at ingest
+// (`getAttachments`). Purely a safety ceiling so one status can't fan out an
 // unbounded number of media lookups; the fediverse still only ever sees the
 // first MAX_FEDERATION_MEDIA_ATTACHMENTS of them.
 export const MAX_STORED_MEDIA_ATTACHMENTS = 50
