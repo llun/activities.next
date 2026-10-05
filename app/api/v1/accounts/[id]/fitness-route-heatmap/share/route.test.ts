@@ -281,4 +281,75 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
       expect(mockDb.clearFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
     })
   })
+
+  // PostgreSQL rejects a NUL byte in a bound text parameter (22021), so one
+  // reaching the cache-key lookup was a 500 there and a 404 on SQLite.
+  describe('an activity_type carrying a NUL byte', () => {
+    const ORIGIN = 'https://test.llun.dev'
+
+    const expectBadRequest = async (response: Response) => {
+      expect(response.status).toBe(400)
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe(ORIGIN)
+      await expect(response.json()).resolves.toEqual({ error: 'Bad Request' })
+      expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
+    }
+
+    it('rejects a POST before the lookup', async () => {
+      await expectBadRequest(
+        await POST(
+          postRequest({
+            activity_type: '\u0000',
+            period_type: 'all_time',
+            period_key: 'all'
+          }),
+          { params: Promise.resolve({ id: encodedId }) }
+        )
+      )
+      expect(mockDb.setFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
+    })
+
+    it('rejects a DELETE before the lookup', async () => {
+      const request = new NextRequest(
+        `${baseUrl}?period_type=all_time&period_key=all&activity_type=%00`,
+        { method: 'DELETE', headers: { Origin: ORIGIN } }
+      )
+      await expectBadRequest(
+        await DELETE(request, { params: Promise.resolve({ id: encodedId }) })
+      )
+      expect(mockDb.clearFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
+    })
+  })
+
+  // The same 22021 applies to period_key, which is bound as the cache key.
+  describe('a period_key carrying a NUL byte', () => {
+    const ORIGIN = 'https://test.llun.dev'
+
+    const expectBadRequest = async (response: Response) => {
+      expect(response.status).toBe(400)
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe(ORIGIN)
+      await expect(response.json()).resolves.toEqual({ error: 'Bad Request' })
+      expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
+    }
+
+    it('rejects a POST before the lookup', async () => {
+      await expectBadRequest(
+        await POST(
+          postRequest({ period_type: 'all_time', period_key: '\u0000' }),
+          { params: Promise.resolve({ id: encodedId }) }
+        )
+      )
+      expect(mockDb.setFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
+    })
+
+    it('rejects a DELETE before the lookup', async () => {
+      const request = new NextRequest(
+        `${baseUrl}?period_type=all_time&period_key=%00`,
+        { method: 'DELETE', headers: { Origin: ORIGIN } }
+      )
+      await expectBadRequest(
+        await DELETE(request, { params: Promise.resolve({ id: encodedId }) })
+      )
+      expect(mockDb.clearFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
+    })
+  })
 })

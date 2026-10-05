@@ -2,7 +2,7 @@ import { filterReadableStatuses } from '@/lib/services/statusRouteAccess'
 import { filterBlockedStatuses } from '@/lib/services/timelines/blockFilter'
 import { filterMutedStatuses } from '@/lib/services/timelines/muteFilter'
 import { Actor, Database, Status } from '@/lib/types/database'
-import { StatusType } from '@/lib/types/domain/status'
+import { getOriginalStatus } from '@/lib/types/domain/status'
 import { Tag } from '@/lib/types/domain/tag'
 import {
   TimelineContext,
@@ -16,10 +16,8 @@ interface ParentRef {
 }
 
 const getParentRef = (status: Status): ParentRef | null => {
-  if (status.type === StatusType.enum.Announce) {
-    return null
-  }
-  const s = status as Record<string, unknown>
+  // A boost displays the original post, whose reply edge supplies its context.
+  const s = getOriginalStatus(status) as Record<string, unknown>
 
   const rawInReplyToId =
     typeof s.inReplyToId === 'string'

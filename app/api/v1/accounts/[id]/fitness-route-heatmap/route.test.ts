@@ -1012,4 +1012,102 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
       expect(response.status).toBe(401)
     })
   })
+
+  // PostgreSQL rejects a NUL byte in a bound text parameter (22021), so one
+  // reaching the cache-key lookup was a 500 there and an empty 200 on SQLite.
+  describe('an activity_type carrying a NUL byte', () => {
+    const ORIGIN = 'https://test.llun.dev'
+
+    const expectBadRequest = async (response: Response) => {
+      expect(response.status).toBe(400)
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe(ORIGIN)
+      await expect(response.json()).resolves.toEqual({ error: 'Bad Request' })
+      expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
+    }
+
+    it('rejects a GET before the lookup', async () => {
+      const request = new NextRequest(
+        `${baseUrl}?period_type=yearly&period_key=2026&activity_type=%00`,
+        { headers: { Origin: ORIGIN } }
+      )
+      await expectBadRequest(
+        await GET(request, { params: Promise.resolve({ id: encodedId }) })
+      )
+    })
+
+    it('rejects a POST before anything is queued', async () => {
+      const request = new NextRequest(baseUrl, {
+        method: 'POST',
+        headers: { Origin: ORIGIN },
+        body: JSON.stringify({
+          activity_type: 'run\u0000ning',
+          period_type: 'monthly',
+          period_key: '2026-04'
+        })
+      })
+      await expectBadRequest(
+        await POST(request, { params: Promise.resolve({ id: encodedId }) })
+      )
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('rejects a DELETE before the lookup', async () => {
+      const request = new NextRequest(
+        `${baseUrl}?period_type=yearly&period_key=2026&activity_type=%00`,
+        { method: 'DELETE', headers: { Origin: ORIGIN } }
+      )
+      await expectBadRequest(
+        await DELETE(request, { params: Promise.resolve({ id: encodedId }) })
+      )
+      expect(mockDb.deleteFitnessRouteHeatmap).not.toHaveBeenCalled()
+    })
+  })
+
+  // The same 22021 applies to period_key, which is bound as the cache key.
+  describe('a period_key carrying a NUL byte', () => {
+    const ORIGIN = 'https://test.llun.dev'
+
+    const expectBadRequest = async (response: Response) => {
+      expect(response.status).toBe(400)
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe(ORIGIN)
+      await expect(response.json()).resolves.toEqual({ error: 'Bad Request' })
+      expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
+    }
+
+    it('rejects a GET before the lookup', async () => {
+      const request = new NextRequest(
+        `${baseUrl}?period_type=yearly&period_key=%00`,
+        { headers: { Origin: ORIGIN } }
+      )
+      await expectBadRequest(
+        await GET(request, { params: Promise.resolve({ id: encodedId }) })
+      )
+    })
+
+    it('rejects a POST before anything is queued', async () => {
+      const request = new NextRequest(baseUrl, {
+        method: 'POST',
+        headers: { Origin: ORIGIN },
+        body: JSON.stringify({
+          period_type: 'monthly',
+          period_key: '2026\u0000-04'
+        })
+      })
+      await expectBadRequest(
+        await POST(request, { params: Promise.resolve({ id: encodedId }) })
+      )
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('rejects a DELETE before the lookup', async () => {
+      const request = new NextRequest(
+        `${baseUrl}?period_type=yearly&period_key=%00`,
+        { method: 'DELETE', headers: { Origin: ORIGIN } }
+      )
+      await expectBadRequest(
+        await DELETE(request, { params: Promise.resolve({ id: encodedId }) })
+      )
+      expect(mockDb.deleteFitnessRouteHeatmap).not.toHaveBeenCalled()
+    })
+  })
 })

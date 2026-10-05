@@ -10,6 +10,10 @@ import {
   buildHeatmapTileSource,
   isPyramidVariantHeatmap
 } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
+import {
+  NulFreeString,
+  TrimmedOptionalActivityTypeParam
+} from '@/lib/services/fitness-files/queryParams'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
@@ -44,16 +48,11 @@ interface Params {
   id: string
 }
 
-const OptionalActivityType = z.preprocess(
-  (value) => (typeof value === 'string' ? value.trim() || undefined : value),
-  z.string().optional()
-)
-
 const FitnessRouteHeatmapQueryParams = z
   .object({
-    activity_type: OptionalActivityType,
+    activity_type: TrimmedOptionalActivityTypeParam,
     period_type: z.enum(['all_time', 'yearly', 'monthly']),
-    period_key: z.string(),
+    period_key: NulFreeString,
     // Bound the raw input to guard against unbounded payloads, but allow more than
     // the 255-char cache-key column: clients may send high-precision coordinates
     // that normalizeRegionParam rounds (to 2 dp) and caps (to MAX_HEATMAP_REGIONS) well
@@ -64,9 +63,9 @@ const FitnessRouteHeatmapQueryParams = z
 
 const FitnessRouteHeatmapTriggerBody = z
   .object({
-    activity_type: OptionalActivityType,
+    activity_type: TrimmedOptionalActivityTypeParam,
     period_type: z.enum(['all_time', 'yearly', 'monthly']),
-    period_key: z.string(),
+    period_key: NulFreeString,
     // See FitnessRouteHeatmapQueryParams.region: looser raw cap; normalizeRegionParam
     // rounds + caps the stored value under the 255-char column.
     region: z.string().max(1024).optional(),

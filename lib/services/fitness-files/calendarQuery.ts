@@ -11,6 +11,8 @@ import {
   parseDateKey
 } from '@/lib/fitness/calendar/localDay'
 
+import { ActivityTypeParam } from './queryParams'
+
 /**
  * The query contract shared by the fitness overview's reads: the summary, the
  * calendar and the day details.
@@ -130,17 +132,7 @@ export interface FitnessCalendarQueryValue extends FitnessCalendarRange {
 export const FitnessCalendarQuery = z
   .object({
     ...rangeShape,
-    // PostgreSQL rejects a NUL byte in a bound text parameter (22021), so one
-    // would turn this read into a 500 there while SQLite matched nothing. A
-    // stored type cannot hold one, so it is a malformed value: answer 400.
-    activity_type: z
-      .string()
-      .max(255)
-      .refine(
-        (value) => !value.includes('\u0000'),
-        'Must not contain a NUL byte'
-      )
-      .optional()
+    activity_type: ActivityTypeParam.max(255).optional()
   })
   .transform((value, context): FitnessCalendarQueryValue => {
     const range = toRange(value, context)

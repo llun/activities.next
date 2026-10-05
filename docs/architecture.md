@@ -1510,6 +1510,7 @@ legacy shape left to copy.
     menu's own items — flag any attempt to add one.
 - **Timeline grouping and nested status threads.**
   - `TimelineFeed` (`lib/components/posts/timeline-feed.tsx`) renders grouped home timelines, connecting related posts into visual threads and multi-author conversations with accessible badges, compact collapsed middle runs for long chains, and an optional boost carousel (`BoostCarousel`).
+  - Reply context follows the displayed original post for boosts, including nested boosts. `getTimelineContext` resolves stored parents through the same readability, block, mute, and content-warning rules as ordinary replies. A readable parent gets an author/snippet preview; when no permitted parent preview is available, the feed shows "In reply to a post". This fallback alone does not identify whether the parent is missing or restricted.
   - `StatusThread` (`lib/components/posts/status-thread.tsx`) renders post detail conversation trees, structuring ancestors root-to-parent and nesting descendants by direct reply edges with author-continuation promotion and branch collapse controls.
   - Replying from any feed row or nested thread status targets the selected post's ID, preserving mentions and recipient audience without flattening threads or redirecting replies to the root.
 - **Composer vertical sizing & auto-growth.** Both the main composer (`PostBox`,
