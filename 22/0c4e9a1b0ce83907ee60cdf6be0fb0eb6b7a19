@@ -1,0 +1,27 @@
+lib/services/timelines/getTimelineContext.test.ts
+  s_c5f92e5874e576::t_b662fdac61934a 1,59-64
+  s_c5f92e5874e576::t_b7a6732b87df38 322,346-347,411,415,419,421-429,431-459,465,467-471
+  s_c5f92e5874e576::t_ef18c8a8a26a59 65-85,87-116
+  s_c5f92e5874e576::t_0f6fe9d513ba17 86,205-209,211-218,220-226,228-231,233-244,246-249,251-276,278,280-284,290-295,297-305,307-321,405,407,460-464
+  s_c5f92e5874e576::t_7978d81da9ca73 324-345,406,408-410,412-414,416-418
+lib/services/timelines/getTimelineContext.ts
+  s_c5f92e5874e576::t_9ee8c566455991 5,19-20
+docs/architecture.md
+  s_c5f92e5874e576::t_0f6fe9d513ba17 1474
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "220c4e9a1b0ce83907ee60cdf6be0fb0eb6b7a19",
+  "prompts": {},
+  "sessions": {
+    "s_c5f92e5874e576": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10af3-365b-7122-b6d1-c324a4620647",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
