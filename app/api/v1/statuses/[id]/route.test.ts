@@ -2285,6 +2285,64 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(getQueue().publish).not.toHaveBeenCalled()
     })
 
+    it.each([
+      { label: 'visibility-only', body: { visibility: 'public' } },
+      {
+        label: 'visibility and text',
+        body: { visibility: 'public', status: 'redacted' }
+      }
+    ])(
+      'does not expose a followers-only revision after a $label widening edit',
+      async ({ label, body }) => {
+        const statusId = `${ACTOR1_ID}/statuses/api-widen-history-${label.replace(/\W+/g, '-')}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: ACTOR1_ID,
+          text: 'followers-only secret',
+          to: [`${ACTOR1_ID}/followers`],
+          cc: []
+        })
+        // An earlier edit while still followers-only leaves a revision whose
+        // text only followers were ever meant to read.
+        await database.updateNote({ statusId, text: 'followers-only v2' })
+
+        const response = await PUT(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify(body),
+              headers: {
+                'Content-Type': 'application/json',
+                Origin: 'https://llun.test'
+              }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+        expect(response.status).toBe(200)
+        const updated = await response.json()
+        expect(updated.visibility).toBe('public')
+
+        mockGetServerSession.mockResolvedValue(null)
+        const historyResponse = await getStatusHistory(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}/history`
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+        expect(historyResponse.status).toBe(200)
+        // Only the now-public current version: no revision written for the
+        // followers-only audience survives the widening.
+        const history = await historyResponse.json()
+        expect(
+          history.map((edit: { content: string }) => edit.content)
+        ).toEqual([updated.content])
+        expect(JSON.stringify(history)).not.toContain('followers-only secret')
+      }
+    )
+
     it('applies visibility updates when spoiler_text is also present', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-visibility-with-cw`
       await database.createNote({

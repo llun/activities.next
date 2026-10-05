@@ -949,6 +949,9 @@ export interface StatusDatabase {
   getStatusEditHistory(
     params: GetStatusEditHistoryParams
   ): Promise<StatusEditRevision[]>
+  // Drops every prior revision of a status. Used when its audience widens:
+  // `status_history` does not record who a revision was written for.
+  deleteStatusEditHistory(params: GetStatusEditHistoryParams): Promise<void>
   getStatusFromUrl(params: GetStatusFromUrlParams): Promise<Status | null>
   getStatusFromUrlHash(
     params: GetStatusFromUrlHashParams
