@@ -1251,6 +1251,61 @@ describe('POST /api/users/[username]/inbox', () => {
     })
   })
 
+  describe('an inline @context cannot swap the verified actor during compaction', () => {
+    // The guard verified the signer against the raw `actor` (alice). The
+    // sender's own context nulls the plain `actor` term and smuggles a victim
+    // in through the full ActivityStreams IRI, which compacts back to `actor`.
+    const spoofed = (activity: Record<string, unknown>) => ({
+      '@context': ['https://www.w3.org/ns/activitystreams', { actor: null }],
+      ...activity,
+      actor: 'https://remote.test/users/alice',
+      'https://www.w3.org/ns/activitystreams#actor': {
+        '@id': 'https://victim.test/users/bob'
+      }
+    })
+    const send = (body: Record<string, unknown>) =>
+      POST(
+        new NextRequest('https://activities.local/api/users/llun/inbox', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body)
+        }),
+        { params: Promise.resolve({ username: 'llun' }) }
+      )
+
+    it('applies a Like as the signed actor, not the smuggled one', async () => {
+      const response = await send(
+        spoofed({
+          id: 'https://remote.test/users/alice/likes/spoof',
+          type: 'Like',
+          object: 'https://activities.local/users/llun/statuses/1'
+        })
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockLikeRequest).toHaveBeenCalledTimes(1)
+      expect(mockLikeRequest.mock.calls[0][0].activity.actor).toBe(
+        'https://remote.test/users/alice'
+      )
+    })
+
+    it('creates a Follow from the signed actor, not the smuggled one', async () => {
+      const response = await send(
+        spoofed({
+          id: 'https://remote.test/users/alice/follows/spoof',
+          type: 'Follow',
+          object: 'https://activities.local/users/llun'
+        })
+      )
+
+      expect(response.status).toBe(202)
+      expect(mockCreateFollower).toHaveBeenCalledTimes(1)
+      expect(mockCreateFollower.mock.calls[0][0].followRequest.actor).toBe(
+        'https://remote.test/users/alice'
+      )
+    })
+  })
+
   it('records exception, reject reason, and logs error when an action throws', async () => {
     mockCreateFollower.mockRejectedValue(new Error('db down'))
 
