@@ -1940,6 +1940,8 @@ CREATE INDEX idempotency_keys_created ON public.idempotency_keys USING btree ("c
 
 CREATE INDEX idempotency_keys_status ON public.idempotency_keys USING btree ("statusId");
 
+CREATE INDEX likes_actor_created_at_status_idx ON public.likes USING btree ("actorId", "createdAt", "statusId");
+
 CREATE INDEX link_previews_status_updated_idx ON public.link_previews USING btree ("fetchStatus", "updatedAt");
 
 CREATE INDEX list_accounts_target ON public.list_accounts USING btree ("targetActorId");

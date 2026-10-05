@@ -9,6 +9,7 @@ import { isPyramidVariantHeatmap } from '@/lib/services/fitness-files/heatmapTil
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
+import { refineHeatmapPeriodKey } from '@/lib/utils/fitnessHeatmapPeriod'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -40,14 +41,16 @@ const OptionalActivityType = z.preprocess(
   z.string().optional()
 )
 
-const FitnessRouteHeatmapShareBody = z.object({
-  activity_type: OptionalActivityType,
-  period_type: z.enum(['all_time', 'yearly', 'monthly']),
-  period_key: z.string(),
-  // See the sibling fitness-route-heatmap route: a looser raw cap that
-  // normalizeRegionParam rounds + caps under the 255-char cache-key column.
-  region: z.string().max(1024).optional()
-})
+const FitnessRouteHeatmapShareBody = z
+  .object({
+    activity_type: OptionalActivityType,
+    period_type: z.enum(['all_time', 'yearly', 'monthly']),
+    period_key: z.string(),
+    // See the sibling fitness-route-heatmap route: a looser raw cap that
+    // normalizeRegionParam rounds + caps under the 255-char cache-key column.
+    region: z.string().max(1024).optional()
+  })
+  .superRefine(refineHeatmapPeriodKey)
 
 // 16 random bytes → 22-char URL-safe token. Unguessable so the capability is the
 // token itself, and revocable by clearing it.

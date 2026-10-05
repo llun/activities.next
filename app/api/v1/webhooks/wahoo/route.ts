@@ -3,6 +3,11 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { IMPORT_WAHOO_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
+import {
+  SMALL_REQUEST_BODY_MAX_BYTES,
+  isRequestBodyTooLargeError,
+  readRequestTextWithLimit
+} from '@/lib/utils/boundedRequestBody'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
 import { timingSafeStringEqual } from '@/lib/utils/timingSafeStringEqual'
@@ -33,10 +38,21 @@ export const POST = traceApiRoute('wahooWebhook', async (req) => {
     })
   }
 
+  // Unauthenticated: bound the body before it is buffered and parsed.
   let payload: unknown
   try {
-    payload = await req.json()
-  } catch {
+    payload = JSON.parse(
+      await readRequestTextWithLimit(req, SMALL_REQUEST_BODY_MAX_BYTES)
+    )
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: { error: 'Payload Too Large' },
+        responseStatusCode: 413
+      })
+    }
     return apiResponse({
       req,
       allowedMethods: [],

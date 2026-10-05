@@ -3726,6 +3726,9 @@ export type NotificationGroupKeyParams = {
   // A shared groupKey, or (for ungrouped notifications) a notification id.
   groupKey: string
   includeFiltered?: boolean
+  // Newest-first row cap for getNotificationsForGroupKey, clamped to the
+  // database's hard maximum (1000); ignored by dismissNotificationGroup.
+  limit?: number
 }
 
 export interface NotificationDatabase {
@@ -4410,5 +4413,14 @@ export interface QueueJobDatabase {
   replayQueueJob(params: ReplayQueueJobParams): Promise<boolean>
   getQueueJobById(id: string): Promise<QueueJob | null>
   deleteQueueJob(id: string): Promise<boolean>
+  /**
+   * Deletes up to `limit` `completed` jobs last updated before `olderThan` and
+   * returns how many were removed. Completed rows keep their full payload and
+   * are otherwise never reaped, so without this the table only grows.
+   */
+  purgeCompletedQueueJobs(params: {
+    olderThan: Date
+    limit?: number
+  }): Promise<number>
   countQueueJobs(params?: { status?: QueueJobStatus }): Promise<number>
 }

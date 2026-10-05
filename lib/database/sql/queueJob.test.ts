@@ -897,4 +897,66 @@ describe('QueueJobDatabase', () => {
     expect(claimed?.id).toBe('stalled-1')
     expect(claimed?.claimToken).toBeDefined()
   })
+
+  describe('purgeCompletedQueueJobs', () => {
+    const day = 24 * 60 * 60 * 1000
+
+    const seed = async (
+      id: string,
+      status: 'completed' | 'pending' | 'processing' | 'failed',
+      ageMs: number
+    ) => {
+      const at = new Date(Date.now() - ageMs)
+      await database.createQueueJob({
+        id,
+        name: 'deliverActivity',
+        payload: samplePayload,
+        status,
+        nextRunAt: at
+      })
+      await knexDatabase('queue_jobs')
+        .where({ id })
+        .update({ created_at: at, updated_at: at })
+    }
+
+    it('deletes only completed jobs older than the cutoff', async () => {
+      await seed('purge-old-completed', 'completed', 10 * day)
+      await seed('purge-new-completed', 'completed', 1 * day)
+      await seed('purge-old-pending', 'pending', 10 * day)
+      await seed('purge-old-processing', 'processing', 10 * day)
+      await seed('purge-old-failed', 'failed', 10 * day)
+
+      const purged = await database.purgeCompletedQueueJobs({
+        olderThan: new Date(Date.now() - 7 * day)
+      })
+
+      expect(purged).toBe(1)
+      expect(await database.getQueueJobById('purge-old-completed')).toBeNull()
+      for (const id of [
+        'purge-new-completed',
+        'purge-old-pending',
+        'purge-old-processing',
+        'purge-old-failed'
+      ]) {
+        expect(await database.getQueueJobById(id)).not.toBeNull()
+      }
+    })
+
+    it('honours the batch limit and drains across calls', async () => {
+      for (let i = 0; i < 5; i++) {
+        await seed(`purge-batch-${i}`, 'completed', 30 * day)
+      }
+      const olderThan = new Date(Date.now() - 7 * day)
+
+      expect(
+        await database.purgeCompletedQueueJobs({ olderThan, limit: 3 })
+      ).toBe(3)
+      expect(
+        await database.purgeCompletedQueueJobs({ olderThan, limit: 3 })
+      ).toBe(2)
+      expect(
+        await database.purgeCompletedQueueJobs({ olderThan, limit: 3 })
+      ).toBe(0)
+    })
+  })
 })

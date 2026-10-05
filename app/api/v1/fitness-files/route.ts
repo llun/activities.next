@@ -4,6 +4,7 @@ import { saveFitnessFile } from '@/lib/services/fitness-files'
 import { QuotaExceededError } from '@/lib/services/fitness-files/errors'
 import { FitnessFileSchema } from '@/lib/services/fitness-files/types'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -54,10 +55,31 @@ export const POST = traceApiRoute(
         })
       }
 
+      // The description is persisted as unbounded text and is not counted by
+      // the byte quota, so a tiny valid file with a huge description would be a
+      // free way to fill the database. Hold it to the instance's post length.
+      const descriptionText = description ? String(description) : undefined
+      if (descriptionText) {
+        const { posts } = await getResolvedServerSettings(database)
+        if (descriptionText.length > posts.maxCharacters) {
+          logger.warn({
+            message: 'Fitness file description exceeds the character limit',
+            length: descriptionText.length,
+            limit: posts.maxCharacters
+          })
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: ERROR_400,
+            responseStatusCode: 400
+          })
+        }
+      }
+
       // Save fitness file
       const result = await saveFitnessFile(database, currentActor, {
         file,
-        description: description ? String(description) : undefined
+        description: descriptionText
       })
 
       if (!result) {

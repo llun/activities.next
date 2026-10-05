@@ -9,6 +9,9 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.DELETE]
 
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
+// suggestion_dismissals.targetActorId is a varchar(255).
+const MAX_ACTOR_ID_LENGTH = 255
+
 interface Params {
   account_id: string
 }
@@ -26,10 +29,20 @@ export const DELETE = traceApiRoute(
     [Scope.enum.read],
     async (req, { database, currentActor, params }) => {
       const { account_id: accountId } = await params
-      await database.dismissSuggestion({
-        actorId: currentActor.id,
-        targetActorId: await resolveActorIdParam(database, accountId)
-      })
+      const targetActorId = await resolveActorIdParam(database, accountId)
+      // Only a stored actor can ever be suggested, so only a stored actor needs
+      // a dismissal row. Recording arbitrary ids let any token write unbounded
+      // junk rows (and an id past the varchar(255) column errors on
+      // PostgreSQL); the response is {} either way, as Mastodon's is.
+      if (
+        targetActorId.length <= MAX_ACTOR_ID_LENGTH &&
+        (await database.getActorFromId({ id: targetActorId }))
+      ) {
+        await database.dismissSuggestion({
+          actorId: currentActor.id,
+          targetActorId
+        })
+      }
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   )

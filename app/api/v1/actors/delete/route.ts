@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api'
 import { z } from 'zod'
 
 import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
@@ -60,6 +61,10 @@ export const POST = traceApiRoute(
     }
 
     const { actorId, delayDays = 0 } = parsed.data
+    // Span attributes are set here, behind the guard, rather than through
+    // `traceApiRoute`'s `addAttributes`: that hook runs BEFORE the handler, so
+    // parsing the body there made unauthenticated callers pay for it.
+    trace.getActiveSpan()?.setAttributes({ actorId, delayDays })
     logger.info({
       message: 'Processing delete actor request',
       actorId,
@@ -199,21 +204,5 @@ export const POST = traceApiRoute(
         immediate: !scheduledAt
       }
     })
-  }),
-  {
-    addAttributes: async (req) => {
-      const attributes: Record<string, string | number | boolean> = {}
-      try {
-        const body = await req.clone().json()
-        const parsed = DeleteActorRequest.safeParse(body)
-        if (parsed.success) {
-          attributes.actorId = parsed.data.actorId
-          attributes.delayDays = parsed.data.delayDays ?? 0
-        }
-      } catch {
-        // Ignore parsing errors for attributes
-      }
-      return attributes
-    }
-  }
+  })
 )

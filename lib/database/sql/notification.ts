@@ -29,6 +29,8 @@ const fixNotificationDataDate = (data: Notification): Notification => ({
   readAt: data.readAt ? getCompatibleTime(data.readAt) : undefined
 })
 
+export const NOTIFICATION_GROUP_MAX_ROWS = 1000
+
 // Match a group by its shared groupKey (e.g. 'like:<status>' or 'follow:<day>')
 // or, for ungrouped notifications, by the notification id itself.
 const applyGroupKeyMatch = (
@@ -423,7 +425,8 @@ export const NotificationSQLDatabaseMixin = (
   async getNotificationsForGroupKey({
     actorId,
     groupKey,
-    includeFiltered
+    includeFiltered,
+    limit
   }: NotificationGroupKeyParams) {
     let query = applyGroupKeyMatch(
       database('notifications').where('actorId', actorId),
@@ -431,6 +434,16 @@ export const NotificationSQLDatabaseMixin = (
     )
       .orderBy('createdAt', 'desc')
       .orderBy('id', 'desc')
+      // A group (every follow in a day bucket, every like on one status) is
+      // unbounded and these rows are all loaded into memory by the grouped
+      // notification endpoints, so the newest NOTIFICATION_GROUP_MAX_ROWS is
+      // all a caller can get, whatever it asks for.
+      .limit(
+        Math.min(
+          Math.max(limit ?? NOTIFICATION_GROUP_MAX_ROWS, 1),
+          NOTIFICATION_GROUP_MAX_ROWS
+        )
+      )
 
     if (!includeFiltered) {
       query = query.andWhere('filtered', false)
