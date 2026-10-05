@@ -6,6 +6,8 @@ import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusPoll } from '@/lib/types/domain/status'
 import { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
@@ -501,4 +503,53 @@ describe('publishScheduledStatusJob', () => {
     const row = await database.getScheduledStatusById({ id: scheduled.id })
     expect(row).toBeNull()
   })
+
+  it.each([
+    { label: 'note', poll: null },
+    {
+      label: 'poll',
+      poll: {
+        options: ['a', 'b'],
+        expires_in: 3600,
+        multiple: false,
+        hide_totals: false
+      }
+    }
+  ])(
+    'does not publish a scheduled $label reply into a direct thread the actor cannot read',
+    async ({ label, poll }) => {
+      const parentId = `${ACTOR2_ID}/statuses/private-dm-${label}-${Date.now()}`
+      await database.createNote({
+        id: parentId,
+        url: parentId,
+        actorId: ACTOR2_ID,
+        text: 'between actor2 and actor3 only',
+        to: [ACTOR3_ID],
+        cc: []
+      })
+      const text = `Hijack attempt ${label} ${Date.now()}`
+      const scheduled = await database.createScheduledStatus({
+        actorId: actor1.id,
+        scheduledAt: Date.now() - 1_000,
+        params: baseParams({
+          text,
+          poll,
+          visibility: 'direct',
+          in_reply_to_id: parentId
+        })
+      })
+
+      await publishScheduledStatusJob(database, {
+        id: `job-unreadable-reply-${label}`,
+        name: PUBLISH_SCHEDULED_STATUS_JOB_NAME,
+        data: { scheduledStatusId: scheduled.id }
+      })
+
+      const statuses = await database.getActorStatuses({ actorId: actor1.id })
+      expect(statuses.some((status) => hasText(status, text))).toBe(false)
+      expect(
+        await database.getScheduledStatusById({ id: scheduled.id })
+      ).toBeNull()
+    }
+  )
 })

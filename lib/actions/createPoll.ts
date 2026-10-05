@@ -9,6 +9,7 @@ import {
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { Actor, getMention } from '@/lib/types/domain/actor'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
@@ -59,6 +60,18 @@ export const createPollFromUserInput = async ({
           withReplies: false
         })
       : null
+    // Same guard as createNoteFromUserInput: a reply inherits its parent's
+    // audience, so the author must be able to read the parent.
+    if (
+      replyStatus &&
+      !(await canActorReadStatus({
+        database,
+        status: replyStatus,
+        currentActor
+      }))
+    ) {
+      return null
+    }
 
     const postId = generatePublicId()
     const statusId = getLocalStatusId({
