@@ -567,7 +567,7 @@ NODE_ENV=production ./scripts/fitness/listStravaWebhooks.ts @username@your-domai
 >
 > **Note:** `repairStravaActivityFiles.ts` only **reports** activities that Strava 404s by default; pass `--delete-missing` to hard-delete their stored file, DB record, and post (irreversible). Every recovery script prints the resolved database target on start — verify it is production (`.env.local` shadows `.env.production` even under `NODE_ENV=production`).
 >
-> **Note:** `recreateFitnessRouteHeatmaps.ts` soft-deletes the actor's heatmap rows and queues a generation job per variant and region, each rebuilding its own row on its own clock. Only the all-activities/all-time row also rebuilds that actor's **tile pyramid** — what the interactive maps and the share image draw street-level detail from — so a rebuild is heavier than the queued-job count suggests. While that pyramid is `generating` rather than `completed`, nothing serves tiles at all: a row already rebuilt draws its stored geometry, and street-level detail returns only once the build stamps itself completed. A row soft-deleted and not yet rebuilt has nothing to serve, so a share token pointing at one answers 404 until its own job finishes.
+> **Note:** `recreateFitnessRouteHeatmaps.ts` soft-deletes the actor's heatmap rows and queues a generation job per variant and region, each rebuilding its own row on its own clock. Only the all-activities/all-time row also rebuilds that actor's **tile pyramid** — what the interactive maps and the share image draw street-level detail from — so a rebuild is heavier than the queued-job count suggests. While that pyramid is `generating` rather than `completed`, nothing serves tiles at all: a row already rebuilt draws its stored geometry, and street-level detail returns only once the build stamps itself completed. A row soft-deleted and not yet rebuilt has nothing to serve, and deleting it also clears its share token, so a previously shared heatmap stays unshared after the rebuild until its owner shares it again.
 >
 > **Note:** `backfillFitnessMovingTime.ts` recomputes `movingTimeSeconds` for already-stored activity files by re-parsing them, so their average pace/speed switches from elapsed-time to moving-time (matching Strava). New imports already compute it during processing; this only needs running once over historical records. It skips files that already have a moving time (pass `--force` to recompute anyway) and supports `--dry-run` to preview.
 
@@ -779,7 +779,7 @@ Strava call — with:
 ```bash
 NODE_ENV=production ./scripts/fitness/importStoredFitnessFile.ts \
   --actor-id https://your-domain.tld/users/username \
-  --activity-id 123456789 [--activity-id ...] [--visibility public] [--dry-run]
+  --activity-id 123456789 [--activity-id ...] [--visibility private] [--dry-run]
 ```
 
 Passing several `--activity-id`s at once groups them by same-ride overlap (≥80%
@@ -793,8 +793,10 @@ To recover all failed or orphaned imports for an actor without re-triggering eac
 ```bash
 NODE_ENV=production ./scripts/fitness/repairFailedFitnessImports.ts \
   --actor-id https://your-domain.tld/users/username \
-  [--batch-id <batch-id>] [--visibility public] [--dry-run]
+  [--batch-id <batch-id>] [--visibility private] [--dry-run]
 ```
+
+Recreated manual-upload posts default to `private`, because a failed upload does not record the visibility it was sent with; pass `--visibility public` (or another value) only when you know that is what the owner wanted. `importStoredFitnessFile.ts` follows the same default, and the import jobs themselves treat an omitted `visibility` as `private`.
 
 > **Important — run these against the right database.** `@next/env` loads
 > `.env.local` at higher precedence than `.env.production` **even under**

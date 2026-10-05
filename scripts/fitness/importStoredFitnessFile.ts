@@ -28,7 +28,7 @@
  *   NODE_ENV=production scripts/fitness/importStoredFitnessFile.ts \
  *     --actor-id https://<host>/users/<username> \
  *     ( --activity-id <strava-id> | --batch-id <batch> | --fitness-file-id <uuid> )... \
- *     [--visibility public|unlisted|private|direct]   (default public) \
+ *     [--visibility public|unlisted|private|direct]   (default private) \
  *     [--dry-run]
  */
 import { loadEnvConfig } from '@next/env'
@@ -62,7 +62,7 @@ const parseArgs = (args: string[]) => {
   const activityIds: string[] = []
   const batchIds: string[] = []
   const fitnessFileIds: string[] = []
-  let visibility = 'public'
+  let visibility = 'private'
   let dryRun = false
 
   for (let i = 0; i < args.length; i += 1) {

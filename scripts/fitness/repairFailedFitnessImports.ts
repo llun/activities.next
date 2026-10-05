@@ -30,7 +30,9 @@
  *
  * Options:
  *   --visibility <public|unlisted|private|direct>
- *       Visibility for recreated posts. Default `public`. Only applies to
+ *       Visibility for recreated posts. Default `private`: a failed
+ *       manual-upload file does not record the visibility it was uploaded
+ *       with, so the script must not guess a public one. Only applies to
  *       manual-upload batches; Strava-activity retries use the account's
  *       configured default visibility from fitness settings.
  *   --dry-run
@@ -62,7 +64,7 @@ const Visibility = z.enum(['public', 'unlisted', 'private', 'direct'])
 const CliArgs = z.object({
   actorId: z.string().min(1),
   batchIds: z.array(z.string().min(1)).default([]),
-  visibility: Visibility.default('public'),
+  visibility: Visibility.default('private'),
   dryRun: z.boolean().default(false)
 })
 
@@ -77,7 +79,7 @@ const USAGE = `Usage:
       --batch-id strava-activity:<id> [--batch-id <batch-id> ...]
 
   Options:
-    --visibility <public|unlisted|private|direct>  default public (manual batches only)
+    --visibility <public|unlisted|private|direct>  default private (manual batches only)
     --dry-run                                      list without changing anything`
 
 const ACTOR_SCAN_PAGE_SIZE = 200

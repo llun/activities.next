@@ -59,7 +59,8 @@ const JobData = z.object({
   archiveId: z.string(),
   archiveFitnessFileId: z.string(),
   batchId: z.string(),
-  visibility: Visibility.default('public'),
+  // Private when a publisher omits it (see importFitnessFilesJob).
+  visibility: Visibility.default('private'),
   nextActivityIndex: z.number().int().nonnegative().default(0),
   pendingMediaActivities: z.array(PendingMediaActivity).optional(),
   mediaAttachmentRetry: z.number().int().nonnegative().default(0),

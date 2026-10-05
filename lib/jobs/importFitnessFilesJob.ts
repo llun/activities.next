@@ -38,7 +38,9 @@ const JobData = z.object({
   batchId: z.string(),
   fitnessFileIds: z.array(z.string()).min(1),
   overlapFitnessFileIds: z.array(z.string()).default([]),
-  visibility: Visibility.default('public'),
+  // Private when a publisher omits it: the safe failure for a post that
+  // would otherwise federate publicly with GPS-derived content.
+  visibility: Visibility.default('private'),
   // Whether a completed import here should email the actor.
   //
   // Set by the ORIGINATING publisher, never inferred here. This job is the
