@@ -3,7 +3,9 @@ import knex from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
+import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
+import { Actor } from '@/lib/types/domain/actor'
 
 import { recordActorIfNeeded } from './utils'
 
@@ -20,6 +22,16 @@ vi.mock('@/lib/activities/getActorCollectionCounts', () => ({
   })
 }))
 
+vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
+  getFederationSigningActor: vi.fn(async () => undefined)
+}))
+// `signedHeaders` needs a real RSA key; a stand-in that stamps a `signature`
+// header lets the fetch mock tell a signed request from an unsigned one.
+vi.mock('@/lib/utils/signature', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/utils/signature')>()),
+  signedHeaders: () => ({ signature: 'signed' })
+}))
+
 const actorDocument = (
   id: string,
   publicKeyPem: string,
@@ -31,9 +43,17 @@ const actorDocument = (
     ...overrides
   })
 
-const serve = (routes: Record<string, string>) => {
+// `signedOnly` models an authorized-fetch (secure-mode) origin: it answers
+// 401 to any request that carries no signature.
+const serve = (
+  routes: Record<string, string>,
+  { signedOnly = false }: { signedOnly?: boolean } = {}
+) => {
   fetchMock.resetMocks()
   fetchMock.mockResponse(async (req) => {
+    if (signedOnly && !req.headers.get('signature')) {
+      return { status: 401, body: 'Unauthorized' }
+    }
     const body = routes[req.url]
     if (!body) return { status: 404, body: 'Not Found' }
     return { status: 200, body }
@@ -45,6 +65,8 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   let database: Database
 
   beforeEach(async () => {
+    vi.mocked(getFederationSigningActor).mockReset()
+    vi.mocked(getFederationSigningActor).mockResolvedValue(undefined)
     sql = knex({
       client: 'better-sqlite3',
       useNullAsDefault: true,
@@ -179,6 +201,27 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
     const stored = await database.getActorFromId({ id: victimId })
     expect(stored?.publicKey).toBe('victim-key')
     expect(stored?.inboxUrl).toBe(`${victimId}/inbox`)
+  })
+
+  // The canonical re-fetch must carry the federation signer: an
+  // authorized-fetch origin answers 401 to an unsigned one, which would leave
+  // every alias-reached actor from such a server unrecorded.
+  it('signs the canonical re-fetch behind an alias', async () => {
+    vi.mocked(getFederationSigningActor).mockResolvedValue({
+      id: 'https://local.test/users/__instance__'
+    } as unknown as Actor)
+    const uploadId = 'https://victim.test/media/upload.json'
+    serve(
+      {
+        [uploadId]: actorDocument(victimId, 'attacker-key'),
+        [victimId]: actorDocument(victimId, 'victim-key')
+      },
+      { signedOnly: true }
+    )
+
+    const actor = await recordActorIfNeeded({ actorId: uploadId, database })
+
+    expect(actor).toMatchObject({ id: victimId, publicKey: 'victim-key' })
   })
 
   it('refuses an alias whose canonical id cannot be fetched', async () => {

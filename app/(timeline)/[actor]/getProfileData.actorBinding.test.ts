@@ -4,7 +4,9 @@ import knex from 'knex'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
+import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
+import { Actor } from '@/lib/types/domain/actor'
 
 import { getProfileData } from './getProfileData'
 
@@ -28,7 +30,13 @@ vi.mock('@/lib/services/federation/domainPolicy', () => ({
   canFederateWithDomain: async () => true
 }))
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
-  getFederationSigningActorSafe: async () => null
+  getFederationSigningActorSafe: vi.fn(async () => undefined)
+}))
+// `signedHeaders` needs a real RSA key; a stand-in that stamps a `signature`
+// header lets the fetch mock tell a signed request from an unsigned one.
+vi.mock('@/lib/utils/signature', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/utils/signature')>()),
+  signedHeaders: () => ({ signature: 'signed' })
 }))
 vi.mock('@/lib/services/federation/serverSoftware', () => ({
   isPixelfedActor: async () => false,
@@ -47,9 +55,17 @@ const actorDocument = (
     ...overrides
   })
 
-const serve = (routes: Record<string, string>) => {
+// `signedOnly` models an authorized-fetch (secure-mode) origin: it answers
+// 401 to any request that carries no signature.
+const serve = (
+  routes: Record<string, string>,
+  { signedOnly = false }: { signedOnly?: boolean } = {}
+) => {
   fetchMock.resetMocks()
   fetchMock.mockResponse(async (req) => {
+    if (signedOnly && !req.headers.get('signature')) {
+      return { status: 401, body: 'Unauthorized' }
+    }
     const body = routes[req.url]
     if (!body) return { status: 404, body: 'Not Found' }
     return { status: 200, body }
@@ -61,6 +77,8 @@ describe('getProfileData persists only a document served by its own id', () => {
   let database: Database
 
   beforeEach(async () => {
+    vi.mocked(getFederationSigningActorSafe).mockReset()
+    vi.mocked(getFederationSigningActorSafe).mockResolvedValue(undefined)
     sql = knex({
       client: 'better-sqlite3',
       useNullAsDefault: true,
@@ -123,6 +141,34 @@ describe('getProfileData persists only a document served by its own id', () => {
     const stored = await database.getActorFromId({ id: victimId })
     expect(stored?.publicKey).toBe('victim-key')
     expect(stored?.inboxUrl).toBe(`${victimId}/inbox`)
+    // The collection sizes come from the alias document's collections, which
+    // the attacker controls, so they are written only for a document that was
+    // itself persisted (fetched from its own id) — not on this create path.
+    await expect(
+      database.hasActorCounters({ actorId: victimId })
+    ).resolves.toBe(false)
+  })
+
+  // The canonical re-fetch must carry the federation signer: an
+  // authorized-fetch origin answers 401 to an unsigned one, which would leave
+  // every alias-reached actor from such a server unrecorded.
+  it('signs the canonical re-fetch behind an alias', async () => {
+    vi.mocked(getFederationSigningActorSafe).mockResolvedValue({
+      id: 'https://local.test/users/__instance__'
+    } as unknown as Actor)
+    serve(
+      {
+        [uploadId]: attackerDocument,
+        [victimId]: actorDocument(victimId, 'victim-key')
+      },
+      { signedOnly: true }
+    )
+
+    await renderProfile('@x@evil.test', uploadId)
+
+    await expect(
+      database.getActorFromId({ id: victimId })
+    ).resolves.toMatchObject({ publicKey: 'victim-key' })
   })
 
   it('records nothing when the canonical id does not serve itself', async () => {
