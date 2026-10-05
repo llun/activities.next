@@ -8,7 +8,10 @@ import {
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { verifyRemoteQuote } from '@/lib/services/quotes/verifyRemoteQuote'
 import { Status } from '@/lib/types/domain/status'
-import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
+import {
+  extractActivityPubId,
+  isSameActivityPubOrigin
+} from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -99,10 +102,13 @@ export const resolveInboundQuotedStatus = async ({
     // The id alone does not bind the author: the quoted origin could still
     // name an actor on ANOTHER host in `attributedTo`, and the stored row
     // would show on that actor's profile. The author must live on the origin
-    // that served the note, as `fetchQuoteTargetForCreate` requires.
+    // that served the note, as `fetchQuoteTargetForCreate` requires. The raw
+    // `attributedTo` is not normalized yet (an embedded actor object or a
+    // PeerTube account+channel array survives compaction), so gate the id
+    // `extractActivityPubId` picks — the one `createNoteJob` stores.
     if (
       !isSameActivityPubOrigin(
-        fetchedQuotedNote.attributedTo,
+        extractActivityPubId(fetchedQuotedNote.attributedTo),
         fetchedQuotedNote.id
       )
     ) {

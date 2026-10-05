@@ -102,6 +102,81 @@ describe('resolveInboundQuotedStatus', () => {
     expect(storeNote).not.toHaveBeenCalled()
   })
 
+  it.each([
+    {
+      description: 'an embedded actor object',
+      attributedTo: { id: QUOTED_AUTHOR_ID, type: 'Person' }
+    },
+    {
+      description: 'a PeerTube account and channel array',
+      attributedTo: [
+        { id: QUOTED_AUTHOR_ID, type: 'Person' },
+        { id: 'https://remote.test/video-channels/main', type: 'Group' }
+      ]
+    }
+  ])(
+    'stores a same-origin author given as $description',
+    async ({ attributedTo }) => {
+      // Compaction leaves these shapes as-is; `createNoteJob` stores the id
+      // `extractActivityPubId` picks, so that is the id the gate must check.
+      const fetched = { id: QUOTED_STATUS_ID, type: 'Note', attributedTo }
+      mockGetNote.mockResolvedValue(fetched)
+      const storeNote = vi.fn().mockResolvedValue(undefined)
+      const storedStatus = { id: QUOTED_STATUS_ID } as unknown as Status
+      const database = {
+        getStatus: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(storedStatus)
+      } as unknown as Database
+
+      await expect(
+        resolveInboundQuotedStatus({
+          database,
+          note: note(STAMP_URI),
+          quotedStatusId: QUOTED_STATUS_ID,
+          storeNote
+        })
+      ).resolves.toBe(storedStatus)
+      expect(storeNote).toHaveBeenCalledWith(fetched, {
+        skipQuoteResolution: true
+      })
+    }
+  )
+
+  it.each([
+    {
+      description: 'an actor array whose first entry is on another origin',
+      attributedTo: [
+        { id: 'https://mastodon.example/users/victim', type: 'Person' },
+        { id: QUOTED_AUTHOR_ID, type: 'Person' }
+      ]
+    },
+    {
+      // Stringified, this array parses with remote.test as its host, but the
+      // author `createNoteJob` would store is its first entry.
+      description: 'a string array that only parses as same-origin joined',
+      attributedTo: ['https://mastodon.example', 'x@remote.test/users/alice']
+    }
+  ])('refuses $description', async ({ attributedTo }) => {
+    mockGetNote.mockResolvedValue({
+      id: QUOTED_STATUS_ID,
+      type: 'Note',
+      attributedTo
+    })
+    const storeNote = vi.fn()
+
+    await expect(
+      resolveInboundQuotedStatus({
+        database: unstoredDatabase(),
+        note: note(STAMP_URI),
+        quotedStatusId: QUOTED_STATUS_ID,
+        storeNote
+      })
+    ).resolves.toBeNull()
+    expect(storeNote).not.toHaveBeenCalled()
+  })
+
   it('returns the stored quoted status without fetching', async () => {
     const stored = { id: QUOTED_STATUS_ID } as unknown as Status
     const database = {
