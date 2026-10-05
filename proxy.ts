@@ -16,8 +16,10 @@ import {
 // handler silently receives a truncated body, which breaks every multipart
 // upload larger than that. The proxy does nothing for an /api/* request except
 // add the CSP header, so multipart /api/* requests skip it instead of raising
-// the cap for everyone. Bare /api and the GET-only /api/v1/files/* downloads are
-// always matched, whatever Content-Type a client sends, so they keep their CSP.
+// the cap for everyone. Bare /api is always matched so its POST/PUT/PATCH/DELETE
+// keep the proxy's 404/405 instead of falling through to the [actor] page; the
+// GET-only /api/v1/files/* downloads are always matched so a multipart
+// Content-Type cannot strip their CSP.
 // The header value is matched case-sensitively as an anchored regex, hence the
 // spelled-out character classes.
 export const config = {

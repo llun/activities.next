@@ -433,7 +433,8 @@ until the affected attachments are deleted.
 every non-GET/HEAD request the proxy runs on, so both the proxy and the route
 handler can read it, and caps that buffer at
 `experimental.proxyClientMaxBodySize` (10 MB by default). Past the cap Next only
-logs a warning and hands the handler a **truncated** body, so a larger upload
+logs a `Request body exceeded 10MB` warning (the number follows
+`proxyClientMaxBodySize`) and hands the handler a **truncated** body, so a larger upload
 fails to parse (each route reports that differently) or is stored incomplete.
 The proxy's only work on an `/api/*` request is adding the CSP header, so its
 `config.matcher` skips `/api/*` requests whose `Content-Type` is

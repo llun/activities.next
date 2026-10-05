@@ -231,9 +231,32 @@ describe('proxy', () => {
       'Multipart/Form-Data; boundary=x',
       'MULTIPART/FORM-DATA; boundary=x',
       'mUlTiPaRt/fOrM-dAtA; boundary=x'
-    ])('matches the multipart Content-Type %s case-insensitively', (value) => {
-      expect(matches('/api/v1/media', { 'content-type': value })).toBe(false)
-    })
+    ])(
+      'skips the proxy when the multipart Content-Type is written as %s',
+      (value) => {
+        expect(matches('/api/v1/media', { 'content-type': value })).toBe(false)
+      }
+    )
+
+    // Entry 1 of the matcher excludes every `api/.` path, so entry 2 is the
+    // only thing keeping a non-multipart request to any other /api/* route
+    // behind the proxy and its CSP; narrowing it to /api/v1 must fail here.
+    it.each([
+      '/api/oauth/token',
+      '/api/auth/session',
+      '/api/v2/search',
+      '/api/inbox',
+      '/api/users/alice/inbox',
+      '/api/well-known/webfinger'
+    ])(
+      'still runs the proxy for non-multipart requests outside /api/v1: %s',
+      (pathname) => {
+        expect(matches(pathname)).toBe(true)
+        expect(matches(pathname, { 'content-type': 'application/json' })).toBe(
+          true
+        )
+      }
+    )
 
     it('still runs the proxy for non-multipart /api requests', () => {
       expect(matches('/api')).toBe(true)
