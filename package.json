@@ -62,6 +62,7 @@
     "fit-file-parser": "^6.1.2",
     "got": "^16.0.0",
     "html-react-parser": "^6.1.8",
+    "htmlparser2": "^12.0.0",
     "jose": "^6.2.12",
     "jsonld": "^9.0.0",
     "knex": "^3.3.0",

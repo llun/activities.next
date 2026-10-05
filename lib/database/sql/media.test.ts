@@ -1360,6 +1360,31 @@ describe('MediaDatabase', () => {
         })
       })
 
+      // The client declares width/height when it asks for the URL; the
+      // probed dimensions of the uploaded bytes replace them.
+      it('records probed dimensions over the declared ones', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-dimensions.jpg')
+
+        await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          dimensions: { width: 640, height: 480 }
+        })
+
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original.metaData).toMatchObject({
+          width: 640,
+          height: 480,
+          upload: { state: 'verified', checksumSha1: 'abc123' }
+        })
+      })
+
       it('returns null when the media belongs to another account', async () => {
         const otherActor = await database.getActorFromId({
           id: actors.replyAuthor.id

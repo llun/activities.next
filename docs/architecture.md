@@ -315,8 +315,11 @@ that both the web UI and the Mastodon API's `Status.card` render.
   (bodies over 2 MiB are truncated rather than rejected) and a
   5s-per-hop budget over at most one redirect,
   and must answer `text/html` in UTF-8 to be parsed at all. Up to 1 MiB of the
-  document `<head>` is parsed: the byte cap bounds transfer, not CPU, and the
-  HTML parser is quadratic in nesting depth.
+  document `<head>` is read, by htmlparser2's `Tokenizer` rather than a
+  tree-building parse: the byte cap bounds transfer, not CPU, and both
+  `htmlToDOM` and htmlparser2's `Parser` are quadratic in nesting depth (1 MiB
+  of unclosed `<div>`s blocked the event loop for seconds). Do not swap it back
+  for either.
 - A completed card is re-read after 7 days. A failure is stored as a
   negative-cache row for an hour, so an unreachable host is not re-contacted for
   every post that mentions it.
@@ -596,6 +599,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - Never call raw `fetch()` directly in server-side services or utilities.
 - `safeRemoteFetch` is backed by `got` and applies standard SSRF protection (requiring HTTPS, blocking private IP ranges such as loopback and RFC 1918 subnets), streaming response-size limits, timeout bounds, DNS pinning, and redirect handling.
 - Binary FIT and image downloads use `safeImageFetch` with `readResponseArrayBufferWithLimit` because the text response of `safeRemoteFetch` would corrupt those bytes. The binary helper checks each redirect and destination address; callers apply an overall timeout and byte cap and do not forward provider bearer tokens to file hosts.
+- Web Push delivery (`web-push`) is the one outbound POST to a URL a client chose. The subscribe routes refuse any endpoint `isAllowedPushEndpoint` rejects (`lib/services/notifications/pushEndpoint.ts`: HTTPS, no credentials, no local names, public addresses only), delivery skips a stored endpoint `isDeliverablePushEndpoint` rejects and connects through `pushDeliveryAgent`, whose lookup refuses a restricted address at connect time (so a rebound record is caught), with a per-request timeout. `createPushSubscription` keeps at most `MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR` per actor (oldest dropped), which bounds the per-notification fan-out.
 - External cloud integrations (e.g. translation providers like DeepL, OpenAI, or Gemini, and alt-text vision generation) must target public HTTPS endpoints. Internal or self-hosted HTTP services running on private IP addresses are not supported.
 
 #### Inbound request bodies on unauthenticated routes

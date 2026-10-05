@@ -68,10 +68,12 @@ describe('extractVideoImage', () => {
     expect(args).toEqual([
       '-loglevel',
       'error',
+      '-threads',
+      '2',
       '-i',
       path.resolve('/tmp/clip.mp4'),
       '-vf',
-      'thumbnail',
+      "scale=w='min(1280,iw)':h='min(1280,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,thumbnail=n=50",
       '-frames:v',
       '1',
       '-update',
@@ -80,6 +82,23 @@ describe('extractVideoImage', () => {
       expect.stringMatching(/^.+\.jpg$/)
     ])
     expect(options).toEqual({ timeout: 30_000 })
+  })
+
+  // Regression (F000): `thumbnail` keeps its whole batch of decoded frames in
+  // memory. Unscaled, at its default batch of 100, a short 4K clip peaked at
+  // ~1.6 GB resident; scaled first into a 1280px box with a batch of 50, ~245
+  // MB. The scale must come BEFORE the thumbnail stage for that to hold.
+  it('scales frames down before the thumbnail filter batches them', async () => {
+    mockFfmpeg(async (outputPath) => {
+      await fs.writeFile(outputPath, FRAME_BYTES)
+    })
+
+    await extractVideoImage('/tmp/clip.mp4')
+
+    const args = vi.mocked(execFile).mock.calls[0][1] as string[]
+    const filter = args[args.indexOf('-vf') + 1]
+    expect(filter.startsWith('scale=')).toBe(true)
+    expect(filter).toMatch(/,thumbnail=n=\d+$/)
   })
 
   it('returns the frame ffmpeg wrote', async () => {

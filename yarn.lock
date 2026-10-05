@@ -3753,6 +3753,7 @@ __metadata:
     fit-file-parser: "npm:^6.1.2"
     got: "npm:^16.0.0"
     html-react-parser: "npm:^6.1.8"
+    htmlparser2: "npm:^12.0.0"
     husky: "npm:^9.1.7"
     jest-extended: "npm:^7.0.0"
     jest-fetch-mock: "npm:^4.2.0"

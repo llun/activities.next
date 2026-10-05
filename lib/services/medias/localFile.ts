@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import mime from 'mime-types'
 import path from 'path'
 import sharp from 'sharp'
+import { Readable } from 'stream'
 
 import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
@@ -36,6 +37,7 @@ import {
   ThumbnailStorageOutput
 } from './types'
 import { extractVideoPreviewFrame } from './videoPreview'
+import { getAcceptedVideoDimensions } from './videoProbe'
 
 interface SaveImageOptions {
   isThumbnail?: boolean
@@ -79,11 +81,22 @@ export class LocalFileStorage implements MediaStorage {
     if (!contentType) return null
 
     try {
-      return MediaStorageGetFileOutput.parse({
-        type: 'buffer',
-        buffer: await fs.readFile(fullPath),
-        contentType
-      })
+      // Streamed, not read whole: the files route serving this is
+      // unauthenticated, so a buffered read let any client pin a full object
+      // in memory per request. Opening first keeps a missing file a null.
+      const handle = await fs.open(fullPath, 'r')
+      try {
+        const { size } = await handle.stat()
+        return MediaStorageGetFileOutput.parse({
+          type: 'stream',
+          stream: Readable.toWeb(handle.createReadStream()),
+          contentType,
+          contentLength: size
+        })
+      } catch (error) {
+        await handle.close().catch(() => undefined)
+        throw error
+      }
     } catch (e) {
       const error = e as NodeJS.ErrnoException
       logger.error(error)
@@ -258,7 +271,10 @@ export class LocalFileStorage implements MediaStorage {
     // run concurrently on the same pipeline.
     const [metaData, outputInfo, analysis] = await Promise.all([
       sharp(imageBuffer).metadata(),
-      resizedImage.keepExif().toFile(filePath),
+      // No `keepExif()`: EXIF carries GPS position and device identifiers, and
+      // the stored file is public. Orientation is already applied by the
+      // pipeline's `.rotate()`.
+      resizedImage.toFile(filePath),
       analyzeImageBuffer(imageBuffer, { manualFocus })
     ])
 
@@ -287,20 +303,9 @@ export class LocalFileStorage implements MediaStorage {
     const uploadPath = this._config.path
     const buffer = Buffer.from(await videoFile.arrayBuffer())
     const probe = await extractVideoMeta(buffer)
-    const videoStream = probe.streams.find(
-      (stream) => stream.codec_type === 'video'
-    )
-    const formats = probe.format.format_name?.split(',')
-    if (
-      !videoStream ||
-      !(formats?.includes('mp4') || formats?.includes('webm'))
-    ) {
-      throw new MediaValidationError('Invalid video format')
-    }
-
-    const metaData = videoStream
-      ? { width: videoStream.width, height: videoStream.height }
-      : { width: 0, height: 0 }
+    // Container, video stream and dimension cap — shared with the other
+    // driver and the presigned completion.
+    const metaData = getAcceptedVideoDimensions(probe)
 
     const ext = getStoredMediaExtension(videoFile.type, videoFile.name)
     // Input that is not a video the instance accepts was already rejected

@@ -5,6 +5,8 @@ import path from 'path'
 import { getDatabase } from '@/lib/database'
 import { getMedia } from '@/lib/services/medias'
 import { isReservedFitnessMediaPath } from '@/lib/services/medias/reservedPaths'
+import { getServedMediaHeaders } from '@/lib/services/medias/servedMediaHeaders'
+import { getMediaFileContentSecurityPolicyHeader } from '@/lib/utils/http-headers/csp'
 import { apiErrorResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -64,9 +66,14 @@ export const GET = traceApiRoute(
       )
       try {
         const placeholderSvg = await readFile(placeholderPath, 'utf-8')
+        // Our own static file, so SVG is served inline here — but with the
+        // same nosniff and sandboxed CSP as stored bytes.
+        const csp = getMediaFileContentSecurityPolicyHeader()
         const headers = new Headers([
           ['Content-Type', 'image/svg+xml'],
-          ['Cache-Control', 'public, max-age=3600']
+          ['Cache-Control', 'public, max-age=3600'],
+          ['X-Content-Type-Options', 'nosniff'],
+          [csp.key, csp.value]
         ])
         return new Response(placeholderSvg, { headers })
       } catch (_error) {
@@ -76,15 +83,19 @@ export const GET = traceApiRoute(
     }
 
     switch (media.type) {
-      case 'buffer': {
-        const { contentType, buffer } = media
-        const headers = new Headers([
-          ['Content-Type', contentType],
-          // Make media cache for 1 year
-          ['Cache-Control', 'public, max-age=31536000, immutable']
-        ])
-        // Buffer extends Uint8Array which is valid BodyInit, but TypeScript needs assertion
-        return new Response(buffer as BodyInit, { headers })
+      case 'stream': {
+        const { contentType, stream, contentLength } = media
+        // The stored type is not trusted: on object storage it is whatever the
+        // uploader's PUT declared. Anything outside the media allowlist is
+        // served as a download, and nothing is served without nosniff and the
+        // sandboxed CSP — this is the app's own origin.
+        const headers = getServedMediaHeaders(contentType)
+        // Make media cache for 1 year
+        headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+        if (contentLength !== null) {
+          headers.set('Content-Length', `${contentLength}`)
+        }
+        return new Response(stream, { headers })
       }
       case 'redirect': {
         const { redirectUrl } = media

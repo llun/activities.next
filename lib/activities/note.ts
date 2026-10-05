@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { normalizeLanguageCode } from '@/lib/services/translation/types'
 import {
   ArticleContent,
@@ -210,7 +211,11 @@ export const getAttachments = (object: BaseNote): Document[] => {
       })
     }
   }
-  return attachments
+  // A remote Note's `attachment` array is the sender's to size. Every entry
+  // becomes an attachment row (createNoteJob writes them all at once) and a
+  // media element in every viewer's timeline, so ingest keeps no more than a
+  // local status may store.
+  return attachments.slice(0, MAX_STORED_MEDIA_ATTACHMENTS)
 }
 
 const isKnownTag = (tag: Tag): tag is KnownTag =>

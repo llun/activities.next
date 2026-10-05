@@ -14,7 +14,10 @@ import { Readable } from 'stream'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
-import { S3FileStorage } from '@/lib/services/medias/S3StorageFile'
+import {
+  PresignedUploadValidationError,
+  S3FileStorage
+} from '@/lib/services/medias/S3StorageFile'
 import {
   MAX_FILE_SIZE,
   MAX_HEIGHT,
@@ -22,11 +25,12 @@ import {
 } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
-import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
+import {
+  extractVideoMeta,
+  extractVideoMetaFromFile
+} from '@/lib/services/medias/extractVideoMeta'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
-import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Actor } from '@/lib/types/domain/actor'
-import { StreamByteLimitError } from '@/lib/utils/streamLimit'
 
 vi.mock('@aws-sdk/client-s3', () => {
   const makeCommand = (name: string) =>
@@ -51,12 +55,9 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: vi.fn().mockResolvedValue('https://storage.example/upload')
 }))
 
-vi.mock('@/lib/services/medias/uploadSizeLimit', () => ({
-  getMaxMediaUploadSize: vi.fn()
-}))
-
 vi.mock('@/lib/services/medias/extractVideoMeta', () => ({
-  extractVideoMeta: vi.fn()
+  extractVideoMeta: vi.fn(),
+  extractVideoMetaFromFile: vi.fn()
 }))
 
 vi.mock('@/lib/services/medias/extractVideoImage', () => ({
@@ -124,6 +125,12 @@ describe('S3FileStorage presigned upload completion', () => {
     // `extractVideoImage`; the default keeps an unconfigured call from
     // resolving `undefined` into sharp.
     vi.mocked(extractVideoImage).mockResolvedValue(ONE_PIXEL_PNG)
+    // Completion probes the uploaded bytes; a presigned video is a real mp4
+    // unless a test says otherwise.
+    vi.mocked(extractVideoMetaFromFile).mockResolvedValue({
+      streams: [{ codec_type: 'video', width: 1920, height: 1080 }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       function () {
         return { send } as unknown as S3Client
@@ -254,10 +261,68 @@ describe('S3FileStorage presigned upload completion', () => {
     expect(result).toMatchObject({
       url: 'https://storage.example/upload',
       headers: {
+        'Content-Type': 'image/png',
         'x-amz-checksum-sha1': checksumBase64,
         'x-amz-meta-checksumsha1': checksumHex
       }
     })
+  })
+
+  // Regression (F030): the presigner leaves Content-Type out of the signature
+  // unless asked, so the URL holder could PUT `text/html` under a media key and
+  // have the files route serve it from this origin. Runs the REAL presigner on
+  // the exact command and options the driver built, so the assertion is on the
+  // URL S3 will verify, not on how the mock was called.
+  it('binds the declared content type into the presigned signature', async () => {
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    await storage.getPresigedForSaveFileUrl(actor, {
+      fileName: 'upload.png',
+      checksum: checksumHex,
+      width: 10,
+      height: 10,
+      contentType: 'image/png',
+      size: 1024
+    })
+
+    const [, command, options] = (getSignedUrl as jest.Mock).mock.calls[0]
+    const actualS3 =
+      await vi.importActual<typeof import('@aws-sdk/client-s3')>(
+        '@aws-sdk/client-s3'
+      )
+    const { getSignedUrl: realGetSignedUrl } = await vi.importActual<
+      typeof import('@aws-sdk/s3-request-presigner')
+    >('@aws-sdk/s3-request-presigner')
+    const realClient = new actualS3.S3Client({
+      region: 'us-east-1',
+      credentials: { accessKeyId: 'test', secretAccessKey: 'test' }
+    })
+    const url = await realGetSignedUrl(
+      realClient,
+      new actualS3.PutObjectCommand(
+        (
+          command as {
+            input: ConstructorParameters<typeof PutObjectCommand>[0]
+          }
+        ).input
+      ),
+      options
+    )
+
+    const signedHeaders = new URL(url).searchParams
+      .get('X-Amz-SignedHeaders')
+      ?.split(';')
+    expect(signedHeaders).toContain('content-type')
+    expect(signedHeaders).toContain('content-length')
   })
 
   // Regression: `fileName` is a plain client-supplied string on this path, and
@@ -342,6 +407,9 @@ describe('S3FileStorage presigned upload completion', () => {
           }
         }
       }
+      if (command instanceof GetObjectCommand) {
+        return { Body: Readable.from([ONE_PIXEL_PNG]) }
+      }
       throw new Error('Unexpected command')
     })
 
@@ -373,6 +441,9 @@ describe('S3FileStorage presigned upload completion', () => {
             checksumsha1: checksumHex
           }
         }
+      }
+      if (command instanceof GetObjectCommand) {
+        return { Body: Readable.from([ONE_PIXEL_PNG]) }
       }
       throw new Error('Unexpected command')
     })
@@ -1016,6 +1087,10 @@ describe('S3FileStorage presigned upload completion', () => {
       }
     } as never)
 
+    vi.mocked(extractVideoMetaFromFile).mockResolvedValue({
+      streams: [{ codec_type: 'audio' }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
     send.mockImplementation(async (command) => {
       if (command instanceof HeadObjectCommand) {
         return {
@@ -1025,6 +1100,9 @@ describe('S3FileStorage presigned upload completion', () => {
             checksumsha1: checksumHex
           }
         }
+      }
+      if (command instanceof GetObjectCommand) {
+        return { Body: Readable.from([Buffer.alloc(2048)]) }
       }
       throw new Error('Unexpected command')
     })
@@ -1534,6 +1612,203 @@ describe('S3FileStorage presigned upload completion', () => {
     expect(database.updateMedia).not.toHaveBeenCalled()
     expect(result).toMatchObject({ id: 'media-video-1', type: 'video' })
   })
+
+  // Regression (F101, F102): completion only compared the object with the
+  // client's own claims, and a failed byte analysis was logged and the upload
+  // returned as verified — so any bytes could be hosted under an accepted
+  // media type. The bytes are now probed BEFORE the row is marked usable, and
+  // anything that is not the declared media type is deleted with its row.
+  describe('probing the uploaded bytes', () => {
+    const pendingMedia = (mimeType: string, size: number) => ({
+      id: 'media-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/upload.bin',
+        bytes: size,
+        mimeType,
+        metaData: {
+          width: 10,
+          height: 10,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: mimeType,
+            size
+          }
+        },
+        fileName: 'upload.bin'
+      }
+    })
+
+    const createStorage = () =>
+      new S3FileStorage(
+        {
+          type: MediaStorageType.ObjectStorage,
+          bucket: 'bucket',
+          region: 'us-east-1',
+          endpoint: 'https://s3.example.com'
+        },
+        'llun.test',
+        database
+      )
+
+    const serveObject = (
+      contentType: string,
+      size: number,
+      body: Buffer | (() => never)
+    ) => {
+      send.mockImplementation(async (command) => {
+        if (command instanceof HeadObjectCommand) {
+          return {
+            ContentLength: size,
+            ContentType: contentType,
+            ChecksumSHA1: checksumBase64
+          }
+        }
+        if (command instanceof GetObjectCommand) {
+          if (typeof body === 'function') body()
+          return { Body: Readable.from([body]) }
+        }
+        if (
+          command instanceof DeleteObjectCommand ||
+          command instanceof PutObjectCommand
+        ) {
+          return {}
+        }
+        throw new Error('Unexpected command')
+      })
+    }
+
+    const expectRefusedAndDeleted = async () => {
+      await expect(
+        createStorage().completePresignedUpload(actor, 'media-1')
+      ).rejects.toThrow(PresignedUploadValidationError)
+      expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+      expect(database.deleteMedia).toHaveBeenCalledWith({ mediaId: 'media-1' })
+      expect(DeleteObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'bucket',
+        Key: 'medias/2026-01-01/upload.bin'
+      })
+    }
+
+    it('refuses HTML uploaded as image/png', async () => {
+      const html = Buffer.from('<html><script>alert(1)</script></html>')
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('image/png', html.length) as never
+      )
+      serveObject('image/png', html.length, html)
+
+      await expectRefusedAndDeleted()
+    })
+
+    it('refuses a JPEG declared as image/png', async () => {
+      const jpeg = await sharp({
+        create: { width: 8, height: 8, channels: 3, background: '#000' }
+      })
+        .jpeg()
+        .toBuffer()
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('image/png', jpeg.length) as never
+      )
+      serveObject('image/png', jpeg.length, jpeg)
+
+      await expectRefusedAndDeleted()
+    })
+
+    it('refuses a video ffprobe cannot read', async () => {
+      vi.mocked(extractVideoMetaFromFile).mockRejectedValue(
+        new Error('ffprobe exited with code 1')
+      )
+      const bytes = Buffer.from('not-a-video')
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('video/mp4', bytes.length) as never
+      )
+      serveObject('video/mp4', bytes.length, bytes)
+
+      await expectRefusedAndDeleted()
+    })
+
+    it('refuses a video container with no video stream', async () => {
+      vi.mocked(extractVideoMetaFromFile).mockResolvedValue({
+        streams: [{ codec_type: 'audio' }],
+        format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+      })
+      const bytes = Buffer.from('audio-only')
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('video/mp4', bytes.length) as never
+      )
+      serveObject('video/mp4', bytes.length, bytes)
+
+      await expectRefusedAndDeleted()
+    })
+
+    it('refuses audio/mp4 that has no audio stream', async () => {
+      vi.mocked(extractVideoMetaFromFile).mockResolvedValue({
+        streams: [],
+        format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+      })
+      const bytes = Buffer.from('empty')
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('audio/mp4', bytes.length) as never
+      )
+      serveObject('audio/mp4', bytes.length, bytes)
+
+      await expectRefusedAndDeleted()
+    })
+
+    // The analysis cap used to exempt a large upload from every byte check.
+    it('probes a video above the analysis cap too', async () => {
+      vi.mocked(extractVideoMetaFromFile).mockRejectedValue(
+        new Error('ffprobe exited with code 1')
+      )
+      const size = 150 * 1024 * 1024
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('video/mp4', size) as never
+      )
+      serveObject('video/mp4', size, Buffer.from('not-a-video'))
+
+      await expectRefusedAndDeleted()
+    })
+
+    it('records the probed dimensions instead of the declared ones', async () => {
+      const png = await sharp({
+        create: { width: 64, height: 48, channels: 3, background: '#123456' }
+      })
+        .png()
+        .toBuffer()
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('image/png', png.length) as never
+      )
+      serveObject('image/png', png.length, png)
+
+      await createStorage().completePresignedUpload(actor, 'media-1')
+
+      expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
+        expect.objectContaining({ dimensions: { width: 64, height: 48 } })
+      )
+      expect(database.deleteMedia).not.toHaveBeenCalled()
+    })
+
+    it('keeps the row and object when reading the object fails transiently', async () => {
+      const png = ONE_PIXEL_PNG
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('image/png', png.length) as never
+      )
+      serveObject('image/png', png.length, () => {
+        throw Object.assign(new Error('socket hang up'), {
+          name: 'TimeoutError'
+        })
+      })
+
+      await expect(
+        createStorage().completePresignedUpload(actor, 'media-1')
+      ).rejects.toThrow('socket hang up')
+      expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+      expect(database.deleteMedia).not.toHaveBeenCalled()
+      expect(DeleteObjectCommand).not.toHaveBeenCalled()
+    })
+  })
 })
 
 describe('S3FileStorage saveFile with a video', () => {
@@ -1685,6 +1960,26 @@ describe('S3FileStorage saveFile with a video', () => {
       format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
     })
     const file = new File([Buffer.from('audio-bytes')], 'memo.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
+      MediaValidationError
+    )
+
+    expect(extractVideoImage).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
+  // Regression (F000): probed dimensions were recorded but never bounded, and
+  // every decoded frame costs memory in proportion to its area.
+  it('rejects a video above the dimension cap without extracting a frame', async () => {
+    vi.mocked(extractVideoMeta).mockResolvedValue({
+      streams: [{ codec_type: 'video', width: 15360, height: 8640 }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
       type: 'video/mp4'
     })
 
@@ -2227,27 +2522,58 @@ describe('S3FileStorage getFile', () => {
     })
   })
 
-  // Regression: the read-back guard used to read the env-only storage config,
-  // so media accepted under an admin-raised media.maxFileSize could never be
-  // served back out.
-  it('bounds the buffer by the resolved cap rather than the storage config', async () => {
-    vi.mocked(getMaxMediaUploadSize).mockResolvedValue(500 * 1024 * 1024)
+  // Regression (F052): the route serving this is unauthenticated, and the
+  // object used to be buffered whole — up to `media.maxFileSize` per request.
+  it('streams the object rather than buffering it', async () => {
     const storage = new S3FileStorage(storageConfig, 'llun.test', database)
 
-    await expect(storage.getFile('medias/upload.png')).resolves.toMatchObject({
-      type: 'buffer',
-      contentType: 'image/png'
+    const result = await storage.getFile('medias/upload.png')
+
+    expect(result).toMatchObject({
+      type: 'stream',
+      contentType: 'image/png',
+      contentLength: 300 * 1024 * 1024
     })
-    expect(getMaxMediaUploadSize).toHaveBeenCalledWith(database)
+    if (result?.type !== 'stream') throw new Error('expected a stream')
+    expect(result.stream).toBeInstanceOf(ReadableStream)
+    await expect(new Response(result.stream).text()).resolves.toBe(
+      'image-bytes'
+    )
   })
 
-  it('refuses to buffer an object above the resolved cap', async () => {
-    vi.mocked(getMaxMediaUploadSize).mockResolvedValue(MAX_FILE_SIZE)
+  // Regression (F095): the route does no row lookup, so any key in the bucket
+  // was readable by anyone who could name it.
+  it.each([
+    'secrets/backup.sql',
+    'fitness/2026-07-30/a1b2c3d4e5f60718.fit',
+    'mediasx/upload.png',
+    'medias/%2e%2e/secrets/backup.sql',
+    'medias/..%2fsecrets/backup.sql',
+    'medias\\..\\secrets/backup.sql'
+  ])('refuses the key %j outside the media prefix', async (key: string) => {
     const storage = new S3FileStorage(storageConfig, 'llun.test', database)
 
-    await expect(storage.getFile('medias/upload.png')).rejects.toThrow(
-      StreamByteLimitError
+    await expect(storage.getFile(key)).resolves.toBeNull()
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('does not redirect to a key outside the media prefix', async () => {
+    const storage = new S3FileStorage(
+      { ...storageConfig, hostname: 'cdn.example.test' },
+      'llun.test',
+      database
     )
+
+    await expect(
+      storage.getFile('medias/%2e%2e/secrets/backup.sql')
+    ).resolves.toBeNull()
+    await expect(
+      storage.getFile('medias/2026-07-30/a1b2c3d4e5f60718.webp')
+    ).resolves.toEqual({
+      type: 'redirect',
+      redirectUrl:
+        'https://cdn.example.test/medias/2026-07-30/a1b2c3d4e5f60718.webp'
+    })
   })
 })
 
@@ -2359,6 +2685,34 @@ describe('S3FileStorage image output format', () => {
     expect(rendition?.bytes).toBe(uploadedBodies[0].length)
     expect(rendition?.metaData).toEqual({ width: 40, height: 30 })
     expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
+  // Regression (F100): the encode kept the upload's EXIF, so a phone photo
+  // posted from a Mastodon client published its GPS position and device to
+  // anyone with the media URL. Orientation is applied by `.rotate()` first.
+  it('strips EXIF, including GPS, from the stored image', async () => {
+    const jpeg = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: '#336699' }
+    })
+      .jpeg()
+      .withExif({
+        IFD0: { Make: 'LeakyCam', Model: 'Model X' },
+        IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '52/1 31/1 0/1' }
+      })
+      .toBuffer()
+    expect((await sharp(jpeg).metadata()).exif).toBeDefined()
+    const storage = new S3FileStorage(storageConfig, 'llun.test', database)
+
+    await storage.saveFile(actor, {
+      file: new File([new Uint8Array(jpeg)], 'photo.jpg', {
+        type: 'image/jpeg'
+      })
+    })
+
+    expect(uploadedBodies).toHaveLength(1)
+    const stored = await sharp(uploadedBodies[0]).metadata()
+    expect(stored.exif).toBeUndefined()
+    expect(uploadedBodies[0].includes('LeakyCam')).toBe(false)
   })
 })
 

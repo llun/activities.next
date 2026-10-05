@@ -1,4 +1,5 @@
 import {
+  MAX_HEAD_LENGTH,
   getDeclaredCharset,
   parseOpenGraphMetadata
 } from '@/lib/services/link-previews/parseOpenGraph'
@@ -337,6 +338,43 @@ describe('parseOpenGraphMetadata', () => {
     // Generous against CI jitter and still three orders of magnitude under the
     // unbounded parse.
     expect(elapsed).toBeLessThan(1_000)
+  })
+
+  // Regression (F006): slicing at </head> does not help a page that never
+  // closes it — the slice is then up to MAX_HEAD_LENGTH (1 MiB) of whatever
+  // follows, and a tree-building parse of that much unclosed nesting blocked
+  // the event loop for ~9-11s. The tokenizer reads it in milliseconds.
+  it('is not slowed down by deep nesting inside an unclosed head', () => {
+    const depth = Math.floor(MAX_HEAD_LENGTH / '<div>'.length)
+    const html =
+      '<html><head><meta property="og:title" content="Deep head">' +
+      '<div>'.repeat(depth)
+
+    const start = Date.now()
+    const result = parseOpenGraphMetadata(html, BASE_URL)
+    const elapsed = Date.now() - start
+
+    expect(result?.title).toBe('Deep head')
+    expect(elapsed).toBeLessThan(500)
+  })
+
+  it('reads metadata, entities and the first title the way a parser would', () => {
+    const result = parseOpenGraphMetadata(
+      '<html><head>' +
+        '<TITLE>Tom &amp; Jerry &lt;b&gt;</TITLE><title>Second</title>' +
+        '<META PROPERTY="og:description" CONTENT="first &quot;quoted&quot;" content="dup">' +
+        '<meta name="og:site_name" content=\'Single &#x41;\'/>' +
+        '<!-- <meta property="og:title" content="In a comment"> -->' +
+        '<script>var s = \'<meta property="og:title" content="In a script">\'</script>' +
+        '</head></html>',
+      BASE_URL
+    )
+
+    expect(result).toMatchObject({
+      title: 'Tom & Jerry <b>',
+      description: 'first "quoted"',
+      siteName: 'Single A'
+    })
   })
 
   // The first DoS fix (parse only <head>) was undone by the charset regex added
