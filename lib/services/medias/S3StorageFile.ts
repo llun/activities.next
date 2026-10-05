@@ -698,7 +698,10 @@ export class S3FileStorage implements MediaStorage {
     const [metaData, { data: imageBody, info: outputInfo }, analysis] =
       await Promise.all([
         sharp(buffer).metadata(),
-        resizedImage.keepExif().toBuffer({ resolveWithObject: true }),
+        // No `keepExif()`: EXIF carries GPS position and device identifiers,
+        // and the stored file is public. Orientation is already applied by
+        // the pipeline's `.rotate()`.
+        resizedImage.toBuffer({ resolveWithObject: true }),
         analyzeImageBuffer(buffer, { manualFocus })
       ])
 

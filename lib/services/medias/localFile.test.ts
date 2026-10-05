@@ -303,6 +303,34 @@ describe('LocalFileStorage image output format', () => {
     expect(rendition).toBeNull()
   })
 
+  // Regression (F100): the encode kept the upload's EXIF, so a phone photo
+  // posted from a Mastodon client published its GPS position and device to
+  // anyone with the media URL. Orientation is applied by `.rotate()` first.
+  it('strips EXIF, including GPS, from the stored image', async () => {
+    const jpeg = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: '#336699' }
+    })
+      .jpeg()
+      .withExif({
+        IFD0: { Make: 'LeakyCam', Model: 'Model X' },
+        IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '52/1 31/1 0/1' }
+      })
+      .toBuffer()
+    expect((await sharp(jpeg).metadata()).exif).toBeDefined()
+
+    await createStorage().saveFile(actor, {
+      file: new File([new Uint8Array(jpeg)], 'photo.jpg', {
+        type: 'image/jpeg'
+      })
+    })
+
+    const storedPath = vi.mocked(database.createMedia).mock.calls[0][0].original
+      .path
+    const storedBytes = await fs.readFile(path.join(mediaRoot, storedPath))
+    expect((await sharp(storedBytes).metadata()).exif).toBeUndefined()
+    expect(storedBytes.includes('LeakyCam')).toBe(false)
+  })
+
   it('rejects a rendition that would exceed the account quota', async () => {
     database.getStorageUsageForAccount.mockResolvedValue(
       Number.MAX_SAFE_INTEGER

@@ -1187,6 +1187,10 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   `fit: 'inside'` **enlarges** by default, so a bare `MAX_WIDTH`/`MAX_HEIGHT`
   box is an upscale, not a cap — it inflates every stored image below the cap,
   silently, with no error and no test failure.
+- A stored image carries **no EXIF** — never add `keepExif()`/`keepMetadata()`
+  to the encode. The stored file is public, and an API or Mastodon-client
+  upload's EXIF is its GPS position and device. Orientation is applied by the
+  pipeline's `.rotate()` before the metadata is dropped.
 - A sharp call that decides whether input is usable is a **pipeline output**
   (`toBuffer`/`toFile`), never `stats()`, and it decodes through the encode's
   own input chain (`createStoredImagePipeline`) so it rejects exactly what the

@@ -270,7 +270,10 @@ export class LocalFileStorage implements MediaStorage {
     // run concurrently on the same pipeline.
     const [metaData, outputInfo, analysis] = await Promise.all([
       sharp(imageBuffer).metadata(),
-      resizedImage.keepExif().toFile(filePath),
+      // No `keepExif()`: EXIF carries GPS position and device identifiers, and
+      // the stored file is public. Orientation is already applied by the
+      // pipeline's `.rotate()`.
+      resizedImage.toFile(filePath),
       analyzeImageBuffer(imageBuffer, { manualFocus })
     ])
 

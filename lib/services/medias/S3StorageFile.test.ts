@@ -2443,6 +2443,34 @@ describe('S3FileStorage image output format', () => {
     expect(rendition?.metaData).toEqual({ width: 40, height: 30 })
     expect(database.createMedia).not.toHaveBeenCalled()
   })
+
+  // Regression (F100): the encode kept the upload's EXIF, so a phone photo
+  // posted from a Mastodon client published its GPS position and device to
+  // anyone with the media URL. Orientation is applied by `.rotate()` first.
+  it('strips EXIF, including GPS, from the stored image', async () => {
+    const jpeg = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: '#336699' }
+    })
+      .jpeg()
+      .withExif({
+        IFD0: { Make: 'LeakyCam', Model: 'Model X' },
+        IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '52/1 31/1 0/1' }
+      })
+      .toBuffer()
+    expect((await sharp(jpeg).metadata()).exif).toBeDefined()
+    const storage = new S3FileStorage(storageConfig, 'llun.test', database)
+
+    await storage.saveFile(actor, {
+      file: new File([new Uint8Array(jpeg)], 'photo.jpg', {
+        type: 'image/jpeg'
+      })
+    })
+
+    expect(uploadedBodies).toHaveLength(1)
+    const stored = await sharp(uploadedBodies[0]).metadata()
+    expect(stored.exif).toBeUndefined()
+    expect(uploadedBodies[0].includes('LeakyCam')).toBe(false)
+  })
 })
 
 describe('S3FileStorage saveFile image sizing', () => {
