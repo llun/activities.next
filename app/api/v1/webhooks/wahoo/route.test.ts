@@ -223,4 +223,14 @@ describe('Wahoo webhook', () => {
       })
     )
   })
+
+  it('rejects an oversized body with 413 before parsing or touching the database', async () => {
+    const response = await POST(webhook({ padding: 'x'.repeat(200 * 1024) }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(413)
+    expect(mockGetDatabase).not.toHaveBeenCalled()
+    expect(mockDb.getWahooSettingsByWebhookToken).not.toHaveBeenCalled()
+  })
 })

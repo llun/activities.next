@@ -9,10 +9,15 @@ import {
   sanitizeHeaders,
   sanitizeParams
 } from '@/lib/services/oauth/logging'
+import {
+  SMALL_REQUEST_BODY_MAX_BYTES,
+  isRequestBodyTooLargeError
+} from '@/lib/utils/boundedRequestBody'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
+  ERROR_413,
   ERROR_422,
   ERROR_429,
   ERROR_500,
@@ -85,7 +90,21 @@ export const POST = traceApiRoute('createApp', async (req: NextRequest) => {
     })
   }
 
-  const json = await getRequestBody(req)
+  // Unauthenticated: refuse an oversized body before it is buffered/parsed.
+  let json: Record<string, unknown>
+  try {
+    json = await getRequestBody(req, { maxBytes: SMALL_REQUEST_BODY_MAX_BYTES })
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_413,
+        responseStatusCode: HTTP_STATUS.PAYLOAD_TOO_LARGE
+      })
+    }
+    throw error
+  }
   const parseResult = PostRequest.safeParse(json)
   if (!parseResult.success) {
     // First step of the Mastodon login flow. Log rejected registrations so a

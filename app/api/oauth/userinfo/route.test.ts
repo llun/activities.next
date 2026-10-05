@@ -191,4 +191,14 @@ describe('POST /oauth/userinfo', () => {
 
     expect(guardState.authorization).toBeNull()
   })
+
+  it('rejects an oversized unauthenticated form body with 413 before the guard runs', async () => {
+    const response = await callPost({
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: `access_token=${'a'.repeat(100 * 1024)}`
+    })
+
+    expect(response.status).toBe(413)
+    expect(guardState.authorization).toBeUndefined()
+  })
 })

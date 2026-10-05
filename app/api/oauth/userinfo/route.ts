@@ -6,8 +6,18 @@ import { resolveAuthBaseURL } from '@/lib/services/auth/requestOrigin'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
 import { getUserInfo } from '@/lib/services/oauth/userinfo'
 import { Scope } from '@/lib/types/database/operations'
+import {
+  SMALL_REQUEST_BODY_MAX_BYTES,
+  isRequestBodyTooLargeError,
+  readRequestTextWithLimit
+} from '@/lib/utils/boundedRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { HTTP_STATUS, apiResponse, defaultOptions } from '@/lib/utils/response'
+import {
+  ERROR_413,
+  HTTP_STATUS,
+  apiResponse,
+  defaultOptions
+} from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [
@@ -67,7 +77,24 @@ export const POST = traceApiRoute(
     if (!authHeader) {
       const contentType = req.headers.get('content-type') ?? ''
       if (contentType.includes('application/x-www-form-urlencoded')) {
-        const formData = await req.clone().formData()
+        // This runs before the access token is validated, so the body is read
+        // through a size cap rather than buffered whole by formData().
+        let formData: URLSearchParams
+        try {
+          formData = new URLSearchParams(
+            await readRequestTextWithLimit(req, SMALL_REQUEST_BODY_MAX_BYTES)
+          )
+        } catch (error) {
+          if (isRequestBodyTooLargeError(error)) {
+            return apiResponse({
+              req,
+              allowedMethods: CORS_HEADERS,
+              data: ERROR_413,
+              responseStatusCode: HTTP_STATUS.PAYLOAD_TOO_LARGE
+            })
+          }
+          throw error
+        }
         const accessToken = formData.get('access_token')
 
         if (typeof accessToken === 'string' && accessToken.length > 0) {

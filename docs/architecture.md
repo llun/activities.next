@@ -580,6 +580,12 @@ Read the applicable rules and review checks below before changing this subsystem
 - External cloud integrations (e.g. translation providers like DeepL, OpenAI, or Gemini, and alt-text vision generation) must target public HTTPS endpoints. Internal or self-hosted HTTP services running on private IP addresses are not supported.
 
 <a id="agents-link-prefetching-in-feeds"></a>
+#### Inbound request bodies on unauthenticated routes
+
+- **An unauthenticated route (public webhook, client registration, anything that parses before the auth check) must not call `req.json()` / `req.text()` / `req.formData()` directly** — each buffers the whole body first. Read it through `@/lib/utils/boundedRequestBody` (`readRequestTextWithLimit`, `readRequestBodyWithLimit`, cap `SMALL_REQUEST_BODY_MAX_BYTES` = 64 KiB) or pass `{ maxBytes }` to `getRequestBody`. The cap is checked against a declared `content-length` before reading and again on the stream (the header can be absent or false), and an over-cap body answers 413 (`isRequestBodyTooLargeError`). Do not clone the request to peek at its body: cancelling one `tee()` branch never settles until the other is read, so the cap can never fire on a clone.
+- A body-parsing `addAttributes` callback on `traceApiRoute` runs **before** the handler and so before an auth guard; set span attributes inside the guarded handler (`trace.getActiveSpan()`) instead.
+- Next's `proxy.ts` body clone (default 10 MB) is a backstop, not a limit to rely on.
+
 
 ### Link prefetching in feeds
 
