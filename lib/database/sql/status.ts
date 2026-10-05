@@ -104,7 +104,7 @@ import {
   UpdatePollParams,
   UpdateStatusQuoteApprovalPolicyParams
 } from '@/lib/types/database/operations'
-import { getActorProfile } from '@/lib/types/domain/actor'
+import { Actor, ActorProfile, getActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import {
@@ -123,6 +123,7 @@ import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import {
   generatePublicId,
@@ -144,6 +145,16 @@ const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
 // Counts breadth-first reply levels from the deleted root, not total replies.
 // This bounds transaction size while still allowing wide conversation cleanup.
 const MAX_STATUS_REPLY_DELETE_DEPTH = 100
+
+// A status embeds its author for rendering only, and nothing reads the
+// author's `lastStatusAt` there — yet it rides along on every page that ships
+// statuses to the client (public SSR pages serialize them whole), where it
+// would date the author's newest followers-only post to the millisecond. The
+// account entity's date-only `last_status_at` is the one place it belongs.
+const getStatusActorProfile = (actor: Actor): ActorProfile => ({
+  ...getActorProfile(actor),
+  lastStatusAt: null
+})
 
 type StatusDeletionRow = {
   id: string
@@ -477,16 +488,17 @@ export const StatusSQLDatabaseMixin = (
     trx,
     currentTime,
     statusCreatedAt,
-    publiclyAddressed
+    audience
   }: {
     actorId: string
     type: StatusType
     reply: string
-    // Public or unlisted. Only these move the parent's reply counter, which
-    // anonymous surfaces serve as `replies_count` (Mastodon counts only
-    // distributable replies), so a followers-only or direct reply is not
-    // observable as a count.
-    publiclyAddressed: boolean
+    // The new status's recipients. Only a public or unlisted reply moves the
+    // parent's reply counter, which anonymous surfaces serve as
+    // `replies_count` (Mastodon counts only distributable replies), and a
+    // direct status does not advance `lastStatusAt` (Mastodon parity), so
+    // neither is observable through a count or a timestamp.
+    audience: { to: string[]; cc: string[] }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     content: any
     step: 'increment' | 'decrement'
@@ -503,9 +515,17 @@ export const StatusSQLDatabaseMixin = (
     await adjust(trx, CounterKey.serviceTotalStatuses(), 1, currentTime)
     if (step === 'increment') {
       await incrementBucket(trx, 'statuses', 1, currentTime)
+    }
+    if (
+      step === 'increment' &&
+      getVisibility(audience.to, audience.cc) !== 'direct'
+    ) {
       // Advance the actor's persisted last-status timestamp. Guarded set-if-newer
       // (keyed on the status createdAt, not currentTime) so a backdated or
-      // out-of-order insert never lowers a more recent value.
+      // out-of-order insert never lowers a more recent value. Direct statuses
+      // are skipped: `lastStatusAt` is served as the account's public
+      // `last_status_at` and directory order, and would otherwise date a
+      // direct message to anyone.
       await trx('actors')
         .where('id', actorId)
         .andWhere((builder) =>
@@ -538,7 +558,7 @@ export const StatusSQLDatabaseMixin = (
       }
     }
 
-    if (reply && publiclyAddressed) {
+    if (reply && isPubliclyAddressed(audience)) {
       const parentStatusId = await resolveParentStatusIdByReply(reply, trx)
       if (parentStatusId) {
         await adjust(trx, CounterKey.totalReply(parentStatusId), 1, currentTime)
@@ -615,7 +635,7 @@ export const StatusSQLDatabaseMixin = (
             trx,
             currentTime,
             statusCreatedAt,
-            publiclyAddressed: isPubliclyAddressed({ to, cc })
+            audience: { to, cc }
           })
           await Promise.all(
             to.map((actorId) =>
@@ -661,7 +681,7 @@ export const StatusSQLDatabaseMixin = (
       publicId: statusPublicId,
       url,
       actorId,
-      actor: actor ? getActorProfile(actor) : null,
+      actor: actor ? getStatusActorProfile(actor) : null,
       type: StatusType.enum.Note,
       text,
       summary,
@@ -1022,7 +1042,7 @@ export const StatusSQLDatabaseMixin = (
             trx,
             currentTime,
             statusCreatedAt,
-            publiclyAddressed: isPubliclyAddressed({ to, cc })
+            audience: { to, cc }
           })
           await Promise.all(
             to.map((actorId) =>
@@ -1069,7 +1089,7 @@ export const StatusSQLDatabaseMixin = (
       id,
       publicId: statusPublicId,
       actorId,
-      actor: actor ? getActorProfile(actor) : null,
+      actor: actor ? getStatusActorProfile(actor) : null,
       to,
       cc,
       edits: [],
@@ -1153,7 +1173,7 @@ export const StatusSQLDatabaseMixin = (
             trx,
             currentTime,
             statusCreatedAt,
-            publiclyAddressed: isPubliclyAddressed({ to, cc })
+            audience: { to, cc }
           })
           await Promise.all(
             choices.map((choice) => {
@@ -1213,7 +1233,7 @@ export const StatusSQLDatabaseMixin = (
       publicId: statusPublicId,
       url,
       actorId,
-      actor: actor ? getActorProfile(actor) : null,
+      actor: actor ? getStatusActorProfile(actor) : null,
       type: StatusType.enum.Poll,
       text,
       summary,
@@ -2377,9 +2397,25 @@ export const StatusSQLDatabaseMixin = (
       await trx('actors')
         .whereIn('id', actorIdChunk)
         .update({
+          // Direct statuses never advanced `lastStatusAt` on create (see
+          // `updateStatusCounters`), so they must not set it here either —
+          // deleting the newest public post would otherwise reveal the date of
+          // a later direct message. "Not direct" is `getVisibility`'s rule:
+          // addressed to the public collection or to a followers collection.
           lastStatusAt: trx('statuses')
             .max('createdAt')
             .where('statuses.actorId', trx.ref('actors.id'))
+            .whereExists((builder) =>
+              builder
+                .select(trx.raw('1'))
+                .from('recipients')
+                .whereRaw('?? = ??', ['recipients.statusId', 'statuses.id'])
+                .where((audience) =>
+                  audience
+                    .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+                    .orWhere('recipients.actorId', 'like', '%/followers')
+                )
+            )
         })
     }
   }
@@ -3348,7 +3384,7 @@ export const StatusSQLDatabaseMixin = (
         id: data.id,
         publicId: data.publicId ?? null,
         actorId: data.actorId,
-        actor: actor ? getActorProfile(actor) : null,
+        actor: actor ? getStatusActorProfile(actor) : null,
         type: StatusType.enum.Announce,
         to: to.map((item) => item.actorId),
         cc: cc.map((item) => item.actorId),
@@ -3553,7 +3589,7 @@ export const StatusSQLDatabaseMixin = (
       to: to.map((item) => item.actorId),
       cc: cc.map((item) => item.actorId),
       actorId: data.actorId,
-      actor: actor ? getActorProfile(actor) : null,
+      actor: actor ? getStatusActorProfile(actor) : null,
       type: data.type,
       text: content.text,
       summary: content.summary,
