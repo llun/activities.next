@@ -1,0 +1,37 @@
+app/(timeline)/fitness/ActorFitnessDashboard.test.tsx
+  s_a7418d31ae2421::t_134ac096e71770 979-1009
+lib/components/fitness/calendar/AnnualCalendar.test.tsx
+  s_a7418d31ae2421::t_d2be5abb433983 892-922
+lib/components/fitness/calendar/AnnualCalendar.tsx
+  s_a7418d31ae2421::t_622d8d5ccc9ca9 217-218,221
+lib/components/fitness/calendar/AnnualYearRow.tsx
+  s_a7418d31ae2421::t_fdbaa4e3364fe6 147,150
+lib/components/fitness/calendar/MonthCalendar.test.tsx
+  s_a7418d31ae2421::t_d91049bebe7b4c 557-597
+lib/components/fitness/calendar/MonthCalendar.tsx
+  s_a7418d31ae2421::t_4561a20307bb6e 172,175,261-262,265
+lib/components/fitness/calendar/MonthDayList.test.tsx
+  s_a7418d31ae2421::t_caa76509adbfd0 168-177
+lib/components/fitness/calendar/MonthDayList.tsx
+  s_a7418d31ae2421::t_caa6637ab302e1 140
+lib/components/fitness/calendar/calendarShared.test.ts
+  s_a7418d31ae2421::t_2d695942ef4378 58-81
+lib/components/fitness/calendar/calendarShared.ts
+  s_a7418d31ae2421::t_65d1ecb9bbb18c 75-79,82-83,87,99-101,106-107,110,120-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "83a97daff97cf9ec9de12918f94a798e9ac298ac",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
