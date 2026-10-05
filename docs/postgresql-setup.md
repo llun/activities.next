@@ -38,7 +38,7 @@ ACTIVITIES_DATABASE_PG_PASSWORD=your_strong_password
 ACTIVITIES_DATABASE_PG_DATABASE=activitynext
 ```
 
-Alternatively, the app runtime (only) also accepts the whole configuration as a JSON string in `ACTIVITIES_DATABASE` — the value is a plain [Knex configuration object](https://knexjs.org/guide/#configuration-options):
+Alternatively, both `yarn migrate` and the app runtime accept the whole configuration as a JSON string in `ACTIVITIES_DATABASE` — the value is a plain [Knex configuration object](https://knexjs.org/guide/#configuration-options):
 
 ```json
 {
@@ -52,7 +52,7 @@ Alternatively, the app runtime (only) also accepts the whole configuration as a 
 }
 ```
 
-> **Note:** `yarn migrate` (the Knex CLI) does **not** read the `ACTIVITIES_DATABASE` JSON variable — without any `ACTIVITIES_DATABASE_*` variables set it silently falls back to a local SQLite file instead of your PostgreSQL server. Use the individual variables when running migrations.
+> **Note:** When `ACTIVITIES_DATABASE` is set it takes precedence over the individual `ACTIVITIES_DATABASE_*` variables, for `yarn migrate` as well as the app, and a value that is not a JSON object makes `yarn migrate` fail rather than fall back to a local SQLite file.
 
 3. Run database migrations to set up the schema:
 

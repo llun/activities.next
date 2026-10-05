@@ -147,9 +147,9 @@ Activity.next supports SQLite and PostgreSQL. The configuration loader also acce
 
 ### Full JSON Configuration
 
-| Variable              | Description                                                                                                                                                                                                                                                                                                                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ACTIVITIES_DATABASE` | Full database configuration as a JSON string (e.g., `{"client":"pg","connection":{...}}`). The value is a [Knex configuration object](https://knexjs.org/guide/#configuration-options) passed straight to `knex()`. Note: only the app runtime reads this variable — `yarn migrate` (the Knex CLI) does not; use the individual `ACTIVITIES_DATABASE_*` variables below when running migrations. |
+| Variable              | Description                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ACTIVITIES_DATABASE` | Full database configuration as a JSON string (e.g., `{"client":"pg","connection":{...}}`). The value is a [Knex configuration object](https://knexjs.org/guide/#configuration-options) passed straight to `knex()`. It takes precedence over the individual `ACTIVITIES_DATABASE_*` variables below, and both the app runtime and `yarn migrate` (the Knex CLI) read it. |
 
 ### Individual Variables (SQLite)
 
