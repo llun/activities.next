@@ -1,0 +1,46 @@
+app/api/v1/actors/delete/route.ts
+  s_69f35b0cf1b1f5::t_025627e9f93bf3 1,64-67,207
+app/api/v1/webhooks/wahoo/route.test.ts
+  s_69f35b0cf1b1f5::t_0238386f4e21a3 228-230
+  s_69f35b0cf1b1f5::t_6aa39284479713 226-227,231-235
+lib/utils/boundedRequestBody.ts
+  s_69f35b0cf1b1f5::t_fbf4c4e8485965 1-54
+lib/utils/getRequestBody.ts
+  s_69f35b0cf1b1f5::t_3f0189d71d4a18 3-15,21,25-26,29-33,39,55,59-61
+  s_69f35b0cf1b1f5::t_a86f759a7ad2eb 62-65
+app/api/v1/actors/delete/route.test.ts
+  s_69f35b0cf1b1f5::t_f0981471aa7d98 1-42
+app/api/oauth/userinfo/route.ts
+  s_69f35b0cf1b1f5::t_bb46a89ed887b7 9-13,15-20,80-84,86-97
+  s_69f35b0cf1b1f5::t_b2e172eedb30a0 85
+lib/utils/boundedRequestBody.test.ts
+  s_69f35b0cf1b1f5::t_bae1af35d2366f 1-52,54-102
+  s_69f35b0cf1b1f5::t_a86f759a7ad2eb 53
+app/api/v1/apps/route.ts
+  s_69f35b0cf1b1f5::t_d8679a0a5332fd 12-15,20,93-107
+app/api/oauth/userinfo/route.test.ts
+  s_69f35b0cf1b1f5::t_6aa39284479713 194-203
+app/api/v1/apps/route.test.ts
+  s_69f35b0cf1b1f5::t_6aa39284479713 314-346
+app/api/v1/webhooks/wahoo/route.ts
+  s_69f35b0cf1b1f5::t_72da449b7e5d59 6-10
+  s_69f35b0cf1b1f5::t_92b5941afa73df 41,44-55
+docs/architecture.md
+  s_69f35b0cf1b1f5::t_ef33438341eb21 583-588
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "575f7ce89ee39f77f49f94f43fc66499d6f1acca",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
