@@ -1,0 +1,28 @@
+lib/utils/getStatusDetailPathClient.ts
+  s_69f35b0cf1b1f5::t_cb286d055cc1b0 2,17,21,25
+lib/utils/getStatusDetailPath.test.ts
+  s_69f35b0cf1b1f5::t_5367094841bc67 111-133
+lib/utils/getStatusDetailPath.ts
+  s_69f35b0cf1b1f5::t_cb286d055cc1b0 2,17,21,24
+lib/utils/getActorMentionPathSegment.ts
+  s_69f35b0cf1b1f5::t_af8236a454b205 1-11
+  s_69f35b0cf1b1f5::t_5367094841bc67 12-13
+lib/utils/getStatusDetailPathClient.test.ts
+  s_69f35b0cf1b1f5::t_5367094841bc67 115-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1206a55e0418dbad540cfd12f9ffaa7058b3e53f",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
