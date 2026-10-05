@@ -95,6 +95,13 @@ ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE=209715200       # 200 MiB in bytes
 ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT=1073741824  # 1 GiB in bytes
 ```
 
+On local storage, and for fitness-file uploads and imports on any backend,
+uploads stream through the app as `multipart/form-data`. The Next.js proxy (`proxy.ts`) is skipped for
+those requests, so its 10 MB request-body buffer does not apply, and these
+`*_MAX_FILE_SIZE` settings are the app's only cap. A reverse proxy in front of
+the app has its own request-body limit (nginx's `client_max_body_size` defaults
+to 1 MB), which must be raised to match.
+
 ### Email Configuration (Optional)
 
 Email is optional. Leave the email variables unset when the instance should not

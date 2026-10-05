@@ -10,9 +10,30 @@ import {
   getEmbedContentSecurityPolicyHeader
 } from '@/lib/utils/http-headers/csp'
 
+// Next buffers the body of every non-GET/HEAD request the proxy runs on, so the
+// proxy and the route handler can both read it, and caps that buffer at
+// `experimental.proxyClientMaxBodySize` (10 MB by default). Past the cap the
+// handler silently receives a truncated body, which breaks every multipart
+// upload larger than that (media, fitness files, imports, Strava archives).
+// The proxy does nothing for an /api/* request except add the CSP header, so
+// multipart /api/* requests skip it instead of raising the cap for everyone.
+// Browsers never send a Content-Type on a GET navigation, so file downloads such
+// as /api/v1/files/* still get their CSP. The value is matched case-sensitively
+// as an anchored regex, hence the spelled-out character classes.
 export const config = {
   matcher: [
-    '/((?!(?:_next/static|_next/image)(?:/|$)|favicon\\.ico$|activities/_next(?:/|$)).*)'
+    '/((?!(?:_next/static|_next/image|api)(?:/|$)|favicon\\.ico$|activities/_next(?:/|$)).*)',
+    {
+      source: '/api/:path*',
+      missing: [
+        {
+          type: 'header',
+          key: 'content-type',
+          value:
+            '\\s*[Mm][Uu][Ll][Tt][Ii][Pp][Aa][Rr][Tt]/[Ff][Oo][Rr][Mm]-[Dd][Aa][Tt][Aa].*'
+        }
+      ]
+    }
   ]
 }
 
