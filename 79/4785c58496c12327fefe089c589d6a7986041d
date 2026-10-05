@@ -1,0 +1,21 @@
+lib/components/ui/popover.test.tsx
+  s_a7418d31ae2421::t_a2fb8dc4eabe85 58-82
+lib/components/ui/popover.tsx
+  s_a7418d31ae2421::t_780236a0bf59af 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "794785c58496c12327fefe089c589d6a7986041d",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
