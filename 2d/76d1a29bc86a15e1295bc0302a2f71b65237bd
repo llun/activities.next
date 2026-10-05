@@ -1,0 +1,22 @@
+lib/services/guards/AdminApiGuard.test.ts
+  s_69f35b0cf1b1f5::t_22bc13af4efb17 24-26,28-33,126-132,692,713-750
+  s_69f35b0cf1b1f5::t_7dd809ba967ad5 751
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_22bc13af4efb17 203-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d76d1a29bc86a15e1295bc0302a2f71b65237bd",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
