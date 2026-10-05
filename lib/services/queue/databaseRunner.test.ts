@@ -548,24 +548,32 @@ describe('databaseRunner', () => {
     const purge = vi
       .spyOn(database, 'purgeCompletedQueueJobs')
       .mockRejectedValue(new Error('purge exploded'))
-    await database.createQueueJob({
-      id: 'sweep-fail-job',
-      name: 'deliverActivity',
-      payload: { ...sampleMessage, id: 'sweep-fail-msg' },
-      nextRunAt: new Date(Date.now() - 1000)
-    })
-    const executed: string[] = []
+    // Restored in `finally`: a failed assertion must not leave the shared
+    // database's purge rejecting for every later test.
+    try {
+      await database.createQueueJob({
+        id: 'sweep-fail-job',
+        name: 'deliverActivity',
+        payload: { ...sampleMessage, id: 'sweep-fail-msg' },
+        nextRunAt: new Date(Date.now() - 1000)
+      })
+      const executed: string[] = []
 
-    const runner = startDatabaseQueueRunner(database, {
-      pollIntervalMs: 20,
-      handleJob: async (message) => {
-        executed.push(message.id)
+      const runner = startDatabaseQueueRunner(database, {
+        pollIntervalMs: 20,
+        handleJob: async (message) => {
+          executed.push(message.id)
+        }
+      })
+      try {
+        await vi.waitFor(() => expect(executed).toContain('sweep-fail-msg'))
+      } finally {
+        await runner.stop()
       }
-    })
-    await vi.waitFor(() => expect(executed).toContain('sweep-fail-msg'))
-    await runner.stop()
 
-    expect(purge).toHaveBeenCalled()
-    purge.mockRestore()
+      expect(purge).toHaveBeenCalled()
+    } finally {
+      purge.mockRestore()
+    }
   })
 })

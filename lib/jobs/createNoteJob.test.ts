@@ -9,6 +9,10 @@ import {
   CREATE_NOTE_JOB_NAME,
   FORWARD_ACTIVITY_JOB_NAME
 } from '@/lib/jobs/names'
+import {
+  MAX_FORWARD_INBOXES_PER_JOB,
+  resolveForwardingInboxes
+} from '@/lib/services/federation/forwardingDelivery'
 import * as animationMetadataService from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage, Queue } from '@/lib/services/queue/type'
@@ -29,6 +33,18 @@ import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
+
+vi.mock('@/lib/services/federation/forwardingDelivery', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/services/federation/forwardingDelivery')
+  >('@/lib/services/federation/forwardingDelivery')
+  // Passthrough, so a test can stand in a fan-out larger than one job message
+  // without seeding hundreds of follows.
+  return {
+    ...actual,
+    resolveForwardingInboxes: vi.fn(actual.resolveForwardingInboxes)
+  }
+})
 
 // Actor id for testing pulling actor information when create status
 const FRIEND_ACTOR_ID = 'https://somewhere.test/actors/friend'
@@ -1673,6 +1689,54 @@ describe('createNoteJob', () => {
       }
       expect(data.inboxes).toContain('https://remote-follower.test/inbox')
       expect(data.localActorId).toBe(actor1!.id)
+    })
+
+    it('splits a large forwarding fan-out across bounded job messages', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+
+      const localStatusId = `${actor1!.id}/statuses/parent-status-for-fanout`
+      await database.createNote({
+        id: localStatusId,
+        url: localStatusId,
+        actorId: actor1!.id,
+        text: 'parent note',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const manyInboxes = Array.from(
+        { length: MAX_FORWARD_INBOXES_PER_JOB * 2 + 1 },
+        (_, index) => `https://fanout${index}.example/inbox`
+      )
+      vi.mocked(resolveForwardingInboxes).mockResolvedValueOnce(manyInboxes)
+
+      const remoteAuthor = 'https://remote-author.test/users/author'
+      const replyNote = MockMastodonActivityPubNote({
+        id: `${remoteAuthor}/statuses/reply-to-fanout`,
+        from: remoteAuthor,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [actor1!.id],
+        inReplyTo: localStatusId,
+        content: '<p>Public reply to local user</p>'
+      })
+
+      await createNoteJob(database, {
+        id: 'reply-to-fanout-job',
+        name: CREATE_NOTE_JOB_NAME,
+        data: replyNote,
+        verifiedSenderActorId: remoteAuthor
+      })
+
+      const forwardCalls = queueSpy.mock.calls.filter(
+        ([message]: [JobMessage]) => message.name === FORWARD_ACTIVITY_JOB_NAME
+      )
+      expect(forwardCalls.length).toBeGreaterThan(1)
+      const chunks = forwardCalls.map(
+        ([message]) => (message.data as { inboxes: string[] }).inboxes
+      )
+      for (const chunk of chunks) {
+        expect(chunk.length).toBeLessThanOrEqual(MAX_FORWARD_INBOXES_PER_JOB)
+      }
+      expect(chunks.flat()).toEqual(manyInboxes)
     })
 
     it('does not enqueue ForwardActivityJob when feature is disabled', async () => {

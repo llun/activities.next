@@ -253,6 +253,21 @@ describe('AccountSessions', () => {
     }
   ]
 
+  it('revokes a single session by its id', async () => {
+    renderSessions({ sessions: oneOther, apps: [] })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+
+    await waitFor(() =>
+      expect(deleteSession).toHaveBeenCalledWith({ id: 'other' })
+    )
+    expect(deleteSession).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByText('Web session')).toHaveLength(1)
+    expect(
+      screen.queryByText('Failed to revoke that session. Please try again.')
+    ).not.toBeInTheDocument()
+  })
+
   it('restores the session and shows an error when a revoke fails', async () => {
     deleteSession.mockResolvedValueOnce(false)
     renderSessions({ sessions: oneOther, apps: [] })

@@ -10,6 +10,10 @@ import {
   UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { updateNoteJob } from '@/lib/jobs/updateNoteJob'
+import {
+  MAX_FORWARD_INBOXES_PER_JOB,
+  resolveForwardingInboxes
+} from '@/lib/services/federation/forwardingDelivery'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage, Queue } from '@/lib/services/queue/type'
 import {
@@ -26,6 +30,18 @@ import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 enableFetchMocks()
+
+vi.mock('@/lib/services/federation/forwardingDelivery', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/services/federation/forwardingDelivery')
+  >('@/lib/services/federation/forwardingDelivery')
+  // Passthrough, so a test can stand in a fan-out larger than one job message
+  // without seeding hundreds of follows.
+  return {
+    ...actual,
+    resolveForwardingInboxes: vi.fn(actual.resolveForwardingInboxes)
+  }
+})
 
 describe('updateNoteJob', () => {
   const database = getTestSQLDatabase()
@@ -919,6 +935,74 @@ describe('updateNoteJob', () => {
       expect(data.activity.type).toBe('Update')
       expect(data.inboxes).toContain('https://update-follower.test/inbox')
       expect(data.localActorId).toBe(localActorId)
+    })
+
+    it('splits a large forwarding fan-out across bounded job messages', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+
+      const actor1 = await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: seedActor1.domain
+      })
+      const localActorId = actor1!.id
+
+      const localStatusId = `${localActorId}/statuses/parent-for-update-fanout`
+      await database.createNote({
+        id: localStatusId,
+        url: localStatusId,
+        actorId: localActorId,
+        text: 'parent note for update',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const remoteAuthor = 'https://update-author.test/users/author'
+      const noteId = `${remoteAuthor}/statuses/reply-to-update-fanout`
+      const initialNote = MockMastodonActivityPubNote({
+        id: noteId,
+        from: remoteAuthor,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [localActorId],
+        inReplyTo: localStatusId,
+        content: '<p>Initial content</p>'
+      })
+
+      await createNoteJob(database, {
+        id: 'initial-reply-fanout-job',
+        name: CREATE_NOTE_JOB_NAME,
+        data: initialNote,
+        verifiedSenderActorId: remoteAuthor
+      })
+
+      queueSpy.mockClear()
+      const manyInboxes = Array.from(
+        { length: MAX_FORWARD_INBOXES_PER_JOB * 2 + 1 },
+        (_, index) => `https://fanout${index}.example/inbox`
+      )
+      vi.mocked(resolveForwardingInboxes).mockResolvedValueOnce(manyInboxes)
+
+      await updateNoteJob(database, {
+        id: 'update-reply-fanout-job',
+        name: UPDATE_NOTE_JOB_NAME,
+        data: {
+          ...initialNote,
+          content: '<p>Updated content</p>',
+          updated: new Date().toISOString()
+        },
+        verifiedSenderActorId: remoteAuthor
+      })
+
+      const forwardCalls = queueSpy.mock.calls.filter(
+        ([message]: [JobMessage]) => message.name === FORWARD_ACTIVITY_JOB_NAME
+      )
+      expect(forwardCalls.length).toBeGreaterThan(1)
+      const chunks = forwardCalls.map(
+        ([message]) => (message.data as { inboxes: string[] }).inboxes
+      )
+      for (const chunk of chunks) {
+        expect(chunk.length).toBeLessThanOrEqual(MAX_FORWARD_INBOXES_PER_JOB)
+      }
+      expect(chunks.flat()).toEqual(manyInboxes)
     })
   })
 })

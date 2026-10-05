@@ -320,6 +320,51 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
     })
   })
 
+  describe('period_key validation', () => {
+    const invalidPeriodKeys = [
+      ['all_time', 'some-junk-key-1'],
+      ['all_time', '2026'],
+      ['yearly', 'NaN'],
+      ['yearly', '2026-04'],
+      ['yearly', '1800'],
+      ['monthly', '2026'],
+      ['monthly', '2026-13'],
+      ['monthly', '2026-00'],
+      ['monthly', 'x'.repeat(40)]
+    ]
+
+    it.each(invalidPeriodKeys)(
+      'rejects a POST of %s with period_key %s before the lookup',
+      async (type, key) => {
+        const response = await POST(
+          postRequest({ period_type: type, period_key: key }),
+          { params: Promise.resolve({ id: encodedId }) }
+        )
+
+        expect(response.status).toBe(400)
+        expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
+        expect(mockDb.setFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each(invalidPeriodKeys)(
+      'rejects a DELETE of %s with period_key %s before the lookup',
+      async (type, key) => {
+        const response = await DELETE(
+          new NextRequest(
+            `${baseUrl}?period_type=${type}&period_key=${encodeURIComponent(key)}`,
+            { method: 'DELETE', headers: { Origin: 'https://test.llun.dev' } }
+          ),
+          { params: Promise.resolve({ id: encodedId }) }
+        )
+
+        expect(response.status).toBe(400)
+        expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
+        expect(mockDb.clearFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
+      }
+    )
+  })
+
   // The same 22021 applies to period_key, which is bound as the cache key.
   describe('a period_key carrying a NUL byte', () => {
     const ORIGIN = 'https://test.llun.dev'

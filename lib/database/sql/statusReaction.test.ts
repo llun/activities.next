@@ -1,3 +1,5 @@
+import knex from 'knex'
+
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -60,6 +62,31 @@ describe('StatusReactionDatabase', () => {
             staticUrl: null
           }
         ])
+      })
+
+      it('row-locks the status before counting the actor reactions', async () => {
+        // The lock is what serialises a burst of distinct reactions on
+        // PostgreSQL. knex drops FOR UPDATE on SQLite, where writers already
+        // serialise, so no result-based test can see it go: pin the call. Every
+        // dialect builds on the same QueryBuilder, so a throwaway instance
+        // (no connection, no pool) exposes the prototype the database uses.
+        const queryBuilderPrototype = Object.getPrototypeOf(
+          knex({
+            client: 'better-sqlite3',
+            useNullAsDefault: true
+          }).queryBuilder()
+        )
+        const forUpdate = vi.spyOn(queryBuilderPrototype, 'forUpdate')
+        try {
+          await database.createStatusReaction({
+            statusId: statuses.primary.post,
+            actorId: extraActorId,
+            name: '🔒'
+          })
+          expect(forUpdate).toHaveBeenCalled()
+        } finally {
+          forUpdate.mockRestore()
+        }
       })
 
       it('does nothing when the status does not exist', async () => {

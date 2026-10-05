@@ -216,19 +216,23 @@ describe('GET /api/v1/trends/tags', () => {
   it('serves repeated requests from a short-lived cache instead of re-aggregating', async () => {
     const rankSpy = vi.spyOn(database, 'getTrendingTags')
     const historySpy = vi.spyOn(database, 'getTagDailyHistory')
+    // Restored in `finally` so a failed assertion does not leave the shared
+    // database spied on for later tests.
+    try {
+      const first = await GET(request(), { params: Promise.resolve({}) })
+      const second = await GET(request(), { params: Promise.resolve({}) })
+      const otherPage = await GET(request('/api/v1/trends/tags', '?limit=1'), {
+        params: Promise.resolve({})
+      })
 
-    const first = await GET(request(), { params: Promise.resolve({}) })
-    const second = await GET(request(), { params: Promise.resolve({}) })
-    const otherPage = await GET(request('/api/v1/trends/tags', '?limit=1'), {
-      params: Promise.resolve({})
-    })
-
-    expect(await second.json()).toEqual(await first.json())
-    expect(otherPage.status).toBe(200)
-    // Two distinct (limit, offset) keys -> two aggregations, not three.
-    expect(rankSpy).toHaveBeenCalledTimes(2)
-    expect(historySpy).toHaveBeenCalledTimes(2)
-    rankSpy.mockRestore()
-    historySpy.mockRestore()
+      expect(await second.json()).toEqual(await first.json())
+      expect(otherPage.status).toBe(200)
+      // Two distinct (limit, offset) keys -> two aggregations, not three.
+      expect(rankSpy).toHaveBeenCalledTimes(2)
+      expect(historySpy).toHaveBeenCalledTimes(2)
+    } finally {
+      rankSpy.mockRestore()
+      historySpy.mockRestore()
+    }
   })
 })

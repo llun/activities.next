@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
 import { PROCESS_FORWARDED_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { POST } from './route'
 
@@ -190,8 +191,16 @@ describe('POST /api/inbox', () => {
       expect(mockGetRelayByActorId).toHaveBeenCalledWith({
         actorId: RELAY_ACTOR
       })
+      // Namespaced, so a relay cannot pick an activity id that hashes onto an
+      // internal job key.
       expect(mockPublish).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'RelayAnnounceJob' })
+        expect.objectContaining({
+          name: 'RelayAnnounceJob',
+          id: getInboxJobId(relayAnnounceBody.id)
+        })
+      )
+      expect(getInboxJobId(relayAnnounceBody.id)).not.toEqual(
+        getHashFromString(relayAnnounceBody.id)
       )
     })
 
