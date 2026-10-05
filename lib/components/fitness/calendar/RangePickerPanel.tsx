@@ -100,7 +100,11 @@ export function RangePickerPanel({
 
   const fromKey = parseDateKey(draft.fromText)
   const toKey = parseDateKey(draft.toText)
-  const yearValue = fromKey === null ? null : Number(fromKey.slice(0, 4))
+  // The chooser shows the From year only when it is one of its options; a
+  // typed year outside them (2030, 9999) would read as a choice it cannot make.
+  const fromYear = fromKey === null ? null : Number(fromKey.slice(0, 4))
+  const yearValue =
+    fromYear !== null && years.includes(fromYear) ? fromYear : null
 
   const describe = (own: string, hasOwn: boolean) =>
     [

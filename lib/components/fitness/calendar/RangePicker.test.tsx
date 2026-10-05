@@ -278,6 +278,21 @@ describe('RangePicker', () => {
       expect(screen.queryByLabelText('From')).not.toBeInTheDocument()
     })
 
+    it('shows the From year on the year chooser only when it is an option', () => {
+      render(<Harness presentation={mode} />)
+      open()
+      const chooser = screen.getByRole('button', { name: /Calendar year/ })
+      expect(chooser).toHaveTextContent('2026')
+
+      fireEvent.change(from(), { target: { value: '2024-03-15' } })
+      expect(chooser).toHaveTextContent('2024')
+
+      // A typed year the chooser does not list is not shown as its value.
+      fireEvent.change(from(), { target: { value: '9999-01-01' } })
+      expect(chooser).toHaveTextContent('Select year')
+      expect(chooser).not.toHaveTextContent('9999')
+    })
+
     it('edits the From then To field from the month grid', () => {
       render(<Harness presentation={mode} />)
       open()
