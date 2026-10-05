@@ -23,7 +23,7 @@ export const likeRequest = async ({
   const statusId =
     typeof request.object === 'string' ? request.object : request.object.id
 
-  await database.createLike({
+  const inserted = await database.createLike({
     statusId,
     actorId: request.actor
   })
@@ -40,6 +40,9 @@ export const likeRequest = async ({
       err: toLoggableError(error)
     })
   }
+
+  // A redelivered Like must not mint another notification or email.
+  if (!inserted) return
 
   // Create like notification
   const status = await database.getStatus({ statusId })

@@ -129,16 +129,18 @@ describe('LikeDatabase', () => {
       it('does not create duplicate likes for the same actor and status', async () => {
         try {
           // Create the like
-          await database.createLike({
+          const first = await database.createLike({
             actorId: extraActorId,
             statusId: statuses.primary.post
           })
 
           // Create the same like again
-          await database.createLike({
+          const second = await database.createLike({
             actorId: extraActorId,
             statusId: statuses.primary.post
           })
+          expect(first).toBeTrue()
+          expect(second).toBeFalse()
 
           // Verify count is still 1
           const likeCount = await database.getLikeCount({
@@ -154,10 +156,11 @@ describe('LikeDatabase', () => {
       })
 
       it('does nothing when status does not exist', async () => {
-        await database.createLike({
+        const created = await database.createLike({
           actorId: primaryActorId,
           statusId: 'https://nonexistent.status/id'
         })
+        expect(created).toBeFalse()
 
         const isLiked = await database.isActorLikedStatus({
           actorId: primaryActorId,

@@ -111,6 +111,45 @@ describe('Like action', () => {
       ).toBe(false)
     })
 
+    it('does not notify again when the same Like is redelivered', async () => {
+      // An earlier test leaves ACTOR1 blocking ACTOR2; clear it so the
+      // notification path is reachable.
+      await database.deleteBlock({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR2_ID
+      })
+      const statusId = `${ACTOR1_ID}/statuses/duplicate-like-${Date.now()}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        to: [],
+        cc: [],
+        text: 'Duplicate like should notify once'
+      })
+      const activity = {
+        actor: ACTOR2_ID,
+        id: `${ACTOR2_ID}/like-duplicate`,
+        type: 'Like' as const,
+        object: statusId
+      }
+
+      await likeRequest({ activity, database })
+      await likeRequest({ activity, database })
+      await likeRequest({ activity, database })
+
+      const notifications = await database.getNotifications({
+        actorId: ACTOR1_ID,
+        limit: 50
+      })
+      const matching = notifications.filter(
+        (notification) =>
+          notification.statusId === statusId &&
+          notification.sourceActorId === ACTOR2_ID
+      )
+      expect(matching).toHaveLength(1)
+    })
+
     it('records actor if needed when processing like request', async () => {
       const recordActorSpy = vi.spyOn(
         await import('@/lib/actions/utils'),

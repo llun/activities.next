@@ -44,13 +44,13 @@ const applyFavouriteCursor = (
 
 export const LikeSQLDatabaseMixin = (database: Knex): LikeDatabase => ({
   async createLike({ actorId, statusId }: CreateLikeParams) {
-    await database.transaction(async (trx) => {
+    return database.transaction(async (trx) => {
       const status = await trx('statuses').where('id', statusId).first('id')
-      if (!status) return
+      if (!status) return false
 
       const existing = await trx('likes').where({ actorId, statusId }).first()
       if (existing) {
-        return
+        return false
       }
 
       const currentTime = new Date()
@@ -66,6 +66,7 @@ export const LikeSQLDatabaseMixin = (database: Knex): LikeDatabase => ({
         1,
         currentTime
       )
+      return true
     })
   },
 
