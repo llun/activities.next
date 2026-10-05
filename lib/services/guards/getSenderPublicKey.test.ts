@@ -749,6 +749,45 @@ describe('getSenderPublicKey', () => {
     ).toBe(true)
   })
 
+  // The key document is trusted only because the keyId's own origin served
+  // it (its id must equal the requested owner). An open redirect on that
+  // origin must not let another host — one a domain block or allowlist never
+  // checked — answer with a key for an id on it.
+  it('refuses a key document served after a cross-host redirect', async () => {
+    const actorId = 'https://remote.test/users/statuses-redirect'
+    const keyId = `${actorId}#main-key`
+    const redirectTarget = 'https://elsewhere.test/k'
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (request) => {
+      const url = new URL(request.url)
+      url.hash = ''
+      if (url.toString() === actorId) {
+        return { headers: { location: redirectTarget }, status: 302 }
+      }
+      if (url.toString() === redirectTarget) {
+        return {
+          body: JSON.stringify(
+            createActorDocument({
+              id: actorId,
+              publicKeyId: keyId,
+              publicKeyPem: 'attacker-public-key'
+            })
+          ),
+          status: 200
+        }
+      }
+      return { status: 404 }
+    })
+    vi.mocked(request).mockClear()
+
+    const publicKey = await getSenderPublicKeyDetails(database, keyId)
+
+    expect(publicKey).toEqual({ owner: null, publicKey: '' })
+    expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain(
+      redirectTarget
+    )
+  })
+
   it('returns empty string when remote actor not found', async () => {
     fetchMock.mockResponseOnce('', { status: 404 })
     const actorId = 'https://unknown.test/users/nonexistent'

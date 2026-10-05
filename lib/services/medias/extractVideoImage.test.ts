@@ -4,6 +4,7 @@ import { tmpdir } from 'os'
 import path from 'path'
 
 import { extractVideoImage } from './extractVideoImage'
+import { MAX_VIDEO_DIMENSION } from './videoProbe'
 
 vi.mock('child_process', () => ({
   execFile: vi.fn()
@@ -70,8 +71,12 @@ describe('extractVideoImage', () => {
       'error',
       '-threads',
       '2',
+      '-max_pixels',
+      String(8192 * 8192),
       '-i',
       path.resolve('/tmp/clip.mp4'),
+      '-map',
+      '0:v:0',
       '-vf',
       "scale=w='min(1280,iw)':h='min(1280,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,thumbnail=n=50",
       '-frames:v',
@@ -99,6 +104,28 @@ describe('extractVideoImage', () => {
     const filter = args[args.indexOf('-vf') + 1]
     expect(filter.startsWith('scale=')).toBe(true)
     expect(filter).toMatch(/,thumbnail=n=\d+$/)
+  })
+
+  // Regression (F000): without `-map` ffmpeg decodes the largest or
+  // default-disposition video track, not the first one the upload probe
+  // reports; `-max_pixels` must sit before `-i` to apply to the input's
+  // decoder (after it, it would configure the output encoder instead).
+  it('pins decoding to the first video stream under a decoder pixel cap', async () => {
+    mockFfmpeg(async (outputPath) => {
+      await fs.writeFile(outputPath, FRAME_BYTES)
+    })
+
+    await extractVideoImage('/tmp/clip.mp4')
+
+    const args = vi.mocked(execFile).mock.calls[0][1] as string[]
+    const inputIndex = args.indexOf('-i')
+    const capIndex = args.indexOf('-max_pixels')
+    expect(capIndex).toBeGreaterThan(-1)
+    expect(capIndex).toBeLessThan(inputIndex)
+    expect(args[capIndex + 1]).toBe(String(MAX_VIDEO_DIMENSION ** 2))
+    const mapIndex = args.indexOf('-map')
+    expect(mapIndex).toBeGreaterThan(inputIndex)
+    expect(args[mapIndex + 1]).toBe('0:v:0')
   })
 
   it('returns the frame ffmpeg wrote', async () => {

@@ -49,6 +49,38 @@ describe('getAcceptedVideoDimensions', () => {
     ).toThrow(MediaValidationError)
   })
 
+  it('rejects an oversized video stream behind a small first one', () => {
+    // ffmpeg's automatic selection decodes the larger track, so the first
+    // video stream alone cannot vouch for the file.
+    expect(() =>
+      getAcceptedVideoDimensions({
+        streams: [
+          { codec_type: 'video', width: 64, height: 64 },
+          { codec_type: 'audio' },
+          {
+            codec_type: 'video',
+            width: MAX_VIDEO_DIMENSION + 1,
+            height: MAX_VIDEO_DIMENSION + 1
+          }
+        ],
+        format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+      })
+    ).toThrow(MediaValidationError)
+  })
+
+  it('returns the first video stream dimensions when every stream fits', () => {
+    expect(
+      getAcceptedVideoDimensions({
+        streams: [
+          { codec_type: 'audio' },
+          { codec_type: 'video', width: 1920, height: 1080 },
+          { codec_type: 'video', width: 640, height: 360 }
+        ],
+        format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+      })
+    ).toEqual({ width: 1920, height: 1080 })
+  })
+
   it('rejects a container with no video stream', () => {
     expect(() =>
       getAcceptedVideoDimensions(probeOf({ codec_type: 'audio' }))

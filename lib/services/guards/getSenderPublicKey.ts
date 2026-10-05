@@ -173,7 +173,11 @@ const fetchSenderPublicKey = async (
         signingActor
       }),
     numberOfRetry: 0,
-    responseTimeout: SENDER_KEY_FETCH_TIMEOUT_MS
+    responseTimeout: SENDER_KEY_FETCH_TIMEOUT_MS,
+    // The document is trusted because the keyId's origin served it (its id
+    // must equal the requested one). A hop onto another host would let that
+    // host — never checked against domain blocks — mint the sender's key.
+    allowCrossHostRedirects: false
   })
   if (response.statusCode !== 200) {
     return {

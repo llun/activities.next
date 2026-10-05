@@ -5,6 +5,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import {
   getActorImageUrl,
   getActorProfileFields
@@ -118,6 +119,36 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
   }
 }
 
+// A row is keyed on the REQUESTED id but takes its username and domain from
+// the fetched `person.id`, and every later refresh re-fetches the requested id.
+// `getActorPerson` guarantees the document belongs to `person.id`'s origin,
+// not that `person.id` is the actor that was asked for: requesting
+// https://evil.example/x whose document claims https://victim.example/users/alice
+// returns alice's real document. Writing that under evil's id gave the handle
+// @alice@victim.example to a row evil.example answers for on every refresh
+// (its own inbox and key included). The two ids must share an origin — the
+// origin is then the one authority over both, and a same-origin canonical
+// form (Mastodon's /@bob serving /users/bob) still records.
+const getRequestedActorPerson = async ({
+  actorId,
+  signingActor
+}: {
+  actorId: string
+  signingActor?: Actor
+}) => {
+  const person = await getActorPerson({ actorId, signingActor })
+  if (!person) return null
+  if (!isSameActivityPubOrigin(person.id, actorId)) {
+    logger.warn({
+      message: 'Refused remote actor whose document id is on another origin',
+      actorId,
+      fetchedActorId: person.id
+    })
+    return null
+  }
+  return person
+}
+
 export const recordActorIfNeeded = async ({
   actorId,
   database,
@@ -149,7 +180,7 @@ export const recordActorIfNeeded = async ({
 
   if (!existingActor) {
     const resolvedSigningActor = await getResolvedSigningActor()
-    const person = await getActorPerson({
+    const person = await getRequestedActorPerson({
       actorId,
       signingActor: resolvedSigningActor
     })
@@ -179,7 +210,7 @@ export const recordActorIfNeeded = async ({
   }
 
   const resolvedSigningActor = await getResolvedSigningActor()
-  const person = await getActorPerson({
+  const person = await getRequestedActorPerson({
     actorId,
     signingActor: resolvedSigningActor
   })

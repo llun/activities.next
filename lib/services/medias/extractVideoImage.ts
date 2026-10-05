@@ -5,6 +5,8 @@ import { tmpdir } from 'os'
 import path from 'path'
 import { promisify } from 'util'
 
+import { MAX_VIDEO_DIMENSION } from './videoProbe'
+
 const execFileAsync = promisify(execFile)
 
 // Fit inside a 1280px box (never upscaling, aspect kept, even dimensions for
@@ -25,8 +27,19 @@ export const extractVideoImage = async (filePath: string): Promise<Buffer> => {
         // Fewer decoder threads, fewer frames in flight at input resolution.
         '-threads',
         '2',
+        // A decoder pixel cap that holds whatever the probe saw: the upload
+        // probe bounds each stream's declared size, but an H.264 stream can
+        // change resolution mid-stream (a new SPS) after the probe has read
+        // its header. The cap applies to every decoder this run opens,
+        // including the ones its own stream probe opens.
+        '-max_pixels',
+        String(MAX_VIDEO_DIMENSION * MAX_VIDEO_DIMENSION),
         '-i',
         path.resolve(filePath),
+        // Decode the first video stream, the one the upload probe reports.
+        // Without it ffmpeg picks the largest/default-disposition track.
+        '-map',
+        '0:v:0',
         // `thumbnail` analyses batches of candidate frames and emits the most
         // representative one. Without it ffmpeg takes the first decodable frame,
         // which for a clip that opens on black or a blank frame is what gets
