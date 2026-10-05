@@ -131,8 +131,9 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   })
 
   // A server may canonicalise within its own origin (Mastodon serves the
-  // actor for /@bob with id /users/bob), so an exact id match is too strict.
-  it('records an actor whose fetched id is a same-origin canonical form', async () => {
+  // actor for /@bob with id /users/bob), so an exact id match is too strict —
+  // but the row is keyed on the id the origin names, not on the alias.
+  it('records an actor whose fetched id is a same-origin canonical form under that id', async () => {
     const requestedId = 'https://remote.test/@bob'
     const canonicalId = 'https://remote.test/users/bob'
     serve({ [requestedId]: actorDocument(canonicalId, 'bob-key') })
@@ -140,9 +141,94 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
     const actor = await recordActorIfNeeded({ actorId: requestedId, database })
 
     expect(actor).toMatchObject({
-      id: requestedId,
+      id: canonicalId,
       username: 'bob',
       domain: 'remote.test'
     })
+    await expect(
+      database.getActorFromId({ id: requestedId })
+    ).resolves.toBeNull()
+  })
+
+  // Regression: an alias used to be written as the row id while holding the
+  // actor's UNIQUE (username, domain), so recording the real id afterwards
+  // failed on the constraint and every activity from the actor threw.
+  it('lets the real id record after a same-origin alias was recorded', async () => {
+    const aliasId = `${victimId}?squat`
+    serve({
+      [aliasId]: actorDocument(victimId, 'victim-key'),
+      [victimId]: actorDocument(victimId, 'victim-key')
+    })
+
+    const viaAlias = await recordActorIfNeeded({ actorId: aliasId, database })
+    const viaId = await recordActorIfNeeded({ actorId: victimId, database })
+
+    expect(viaAlias?.id).toBe(victimId)
+    expect(viaId?.id).toBe(victimId)
+    await expect(
+      sql('actors').where({ username: 'alice', domain: 'victim.test' })
+    ).resolves.toHaveLength(1)
+  })
+
+  it('answers an alias with the row already stored under the fetched id', async () => {
+    serve({ [victimId]: actorDocument(victimId, 'victim-key') })
+    await recordActorIfNeeded({ actorId: victimId, database })
+    const aliasId = 'https://victim.test/@alice'
+    serve({ [aliasId]: actorDocument(victimId, 'victim-key') })
+
+    const actor = await recordActorIfNeeded({ actorId: aliasId, database })
+
+    expect(actor?.id).toBe(victimId)
+    await expect(database.getActorFromId({ id: aliasId })).resolves.toBeNull()
+  })
+
+  // A row written under an alias before the fix still holds the handle. It is
+  // not re-keyed; recording the real id refuses instead of throwing.
+  it('refuses, without throwing, a real id whose handle a legacy alias row holds', async () => {
+    const aliasId = `${victimId}?squat`
+    await database.createActor({
+      actorId: aliasId,
+      type: 'Person',
+      username: 'alice',
+      domain: 'victim.test',
+      followersUrl: `${victimId}/followers`,
+      inboxUrl: `${victimId}/inbox`,
+      sharedInboxUrl: 'https://victim.test/inbox',
+      publicKey: 'victim-key',
+      createdAt: Date.now()
+    })
+    serve({ [victimId]: actorDocument(victimId, 'victim-key') })
+
+    await expect(
+      recordActorIfNeeded({ actorId: victimId, database })
+    ).resolves.toBeUndefined()
+    await expect(database.getActorFromId({ id: victimId })).resolves.toBeNull()
+  })
+
+  // Counters are keyed on the row id `hasActorCounters` reads. Keyed on the
+  // fetched id instead, a legacy alias row never looked synced and every call
+  // made a blocking remote fetch.
+  it('marks a legacy alias row synced so later calls do not refetch', async () => {
+    const aliasId = 'https://victim.test/@alice'
+    await database.createActor({
+      actorId: aliasId,
+      type: 'Person',
+      username: 'alice',
+      domain: 'victim.test',
+      followersUrl: `${victimId}/followers`,
+      inboxUrl: `${victimId}/inbox`,
+      sharedInboxUrl: 'https://victim.test/inbox',
+      publicKey: 'victim-key',
+      createdAt: Date.now()
+    })
+    serve({ [aliasId]: actorDocument(victimId, 'victim-key') })
+
+    await recordActorIfNeeded({ actorId: aliasId, database })
+    const fetchesAfterFirstCall = fetchMock.mock.calls.length
+    const actor = await recordActorIfNeeded({ actorId: aliasId, database })
+
+    expect(fetchesAfterFirstCall).toBeGreaterThan(0)
+    expect(fetchMock.mock.calls).toHaveLength(fetchesAfterFirstCall)
+    expect(actor?.id).toBe(aliasId)
   })
 })

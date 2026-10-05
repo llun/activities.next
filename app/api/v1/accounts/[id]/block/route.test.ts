@@ -111,4 +111,46 @@ describe('POST /api/v1/accounts/:id/block', () => {
     expect(getRelationshipMock).not.toHaveBeenCalled()
     expect(mockPublish).not.toHaveBeenCalled()
   })
+
+  // recordActorIfNeeded keys a row on the id the actor's origin names, so an
+  // alias URL comes back as another id; the block must point at that row.
+  it('blocks the recorded actor id when the target is a same-origin alias', async () => {
+    const aliasId = 'https://remote.test/@alice'
+    const canonicalId = 'https://remote.test/users/alice'
+    recordActorIfNeededMock.mockResolvedValueOnce({ id: canonicalId })
+    applyBlockMock.mockResolvedValueOnce({ uri: 'https://local.test/b' })
+    mockPublish.mockResolvedValueOnce(undefined)
+    getRelationshipMock.mockResolvedValueOnce({ id: 'r' })
+
+    const response = await POST(createRequest(aliasId), {
+      params: Promise.resolve({ id: aliasId })
+    })
+
+    expect(response.status).toBe(200)
+    expect(applyBlockMock).toHaveBeenCalledWith(
+      expect.objectContaining({ targetActorId: canonicalId })
+    )
+    expect(mockPublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ targetActorId: canonicalId })
+      })
+    )
+    expect(getRelationshipMock).toHaveBeenCalledWith(
+      expect.objectContaining({ targetActorId: canonicalId })
+    )
+  })
+
+  it('does not block the current actor when an alias resolves to it', async () => {
+    recordActorIfNeededMock.mockResolvedValueOnce({ id: mockCurrentActor.id })
+    getRelationshipMock.mockResolvedValueOnce({ id: 'r' })
+
+    const aliasId = 'https://local.test/@me'
+    const response = await POST(createRequest(aliasId), {
+      params: Promise.resolve({ id: aliasId })
+    })
+
+    expect(response.status).toBe(200)
+    expect(applyBlockMock).not.toHaveBeenCalled()
+    expect(mockPublish).not.toHaveBeenCalled()
+  })
 })
