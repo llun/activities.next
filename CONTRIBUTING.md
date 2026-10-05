@@ -543,8 +543,10 @@ count equals the number of `migrations/*.js` files.
    ```
 
 2. Run the migrations against it, passing the database settings **inline** (see
-   the environment-isolation note above — this avoids touching your `.env.local`
-   and overrides any `.env.local` values):
+   the environment-isolation note above — this avoids touching your `.env.local`,
+   and each inline variable wins over the same variable in `.env.local`; the
+   leading empty `ACTIVITIES_DATABASE=` is what neutralises a JSON
+   configuration there):
 
    ```bash
    ACTIVITIES_DATABASE= \
