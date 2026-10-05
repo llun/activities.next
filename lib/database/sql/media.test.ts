@@ -2156,6 +2156,7 @@ describe('MediaDatabase', () => {
 
         const updated = await database.updateAttachmentPlayback({
           id: attachment.id,
+          statusId: statuses[0].id,
           playbackType: 'video',
           thumbnailUrl: 'https://example.com/new-preview.png'
         })
@@ -2164,6 +2165,7 @@ describe('MediaDatabase', () => {
         // onlyIfUnset prevents overwriting when playbackType is already set
         const staleUpdate = await database.updateAttachmentPlayback({
           id: attachment.id,
+          statusId: statuses[0].id,
           playbackType: 'gifv',
           onlyIfUnset: true
         })
@@ -2192,6 +2194,7 @@ describe('MediaDatabase', () => {
 
         const freshUpdate = await database.updateAttachmentPlayback({
           id: unsetAttachment.id,
+          statusId: statuses[0].id,
           playbackType: 'gifv',
           thumbnailUrl: 'https://example.com/unset-thumb.png',
           onlyIfUnset: true
@@ -2208,6 +2211,36 @@ describe('MediaDatabase', () => {
         expect(foundFresh?.thumbnailUrl).toBe(
           'https://example.com/unset-thumb.png'
         )
+      })
+
+      it('never updates playback for an attachment of another status', async () => {
+        // Remote attachment ids are attacker-chosen strings, so the id alone
+        // must not be able to reach a row belonging to a different status.
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id
+        })
+        const victim = await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'image/png',
+          url: 'https://example.com/victim.png',
+          name: 'Victim image'
+        })
+
+        const updated = await database.updateAttachmentPlayback({
+          id: victim.id,
+          statusId: 'https://attacker.example/notes/1',
+          playbackType: 'gifv',
+          thumbnailUrl: 'https://attacker.example/track.png',
+          onlyIfUnset: true
+        })
+        expect(updated).toBe(false)
+
+        const [stored] = (
+          await database.getAttachments({ statusId: statuses[0].id })
+        ).filter((a) => a.id === victim.id)
+        expect(stored.playbackType).toBeUndefined()
+        expect(stored.thumbnailUrl).toBeUndefined()
       })
     })
   })

@@ -13,7 +13,7 @@ import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { getActorPerson } from './getActorPerson'
-import { getActorPosts } from './getActorPosts'
+import { MAX_OUTBOX_PAGE_ITEMS, getActorPosts } from './getActorPosts'
 
 enableFetchMocks()
 
@@ -1893,6 +1893,133 @@ describe('getActorPosts', () => {
         throw new Error('Expected Note status')
       }
       expect(status.text).toBe('Post with sensitive and quote')
+    })
+  })
+
+  describe('bounded work per outbox page', () => {
+    const createItem = (actorId: string, index: number) => ({
+      id: `${actorId}/statuses/${index}/activity`,
+      type: 'Create',
+      actor: actorId,
+      published: new Date().toISOString(),
+      object: {
+        id: `${actorId}/statuses/${index}`,
+        type: 'Note',
+        attributedTo: actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        content: `post ${index}`,
+        published: new Date().toISOString()
+      }
+    })
+
+    const serveInlineOutbox = (
+      actorId: string,
+      orderedItems: unknown[],
+      context: unknown = 'https://www.w3.org/ns/activitystreams'
+    ) => {
+      fetchMock.resetMocks()
+      fetchMock.mockResponse(async (req) =>
+        req.url === `${actorId}/outbox`
+          ? {
+              status: 200,
+              body: JSON.stringify({
+                '@context': context,
+                id: `${actorId}/outbox`,
+                type: 'OrderedCollection',
+                totalItems: orderedItems.length,
+                orderedItems
+              })
+            }
+          : { status: 404, body: 'Not Found' }
+      )
+    }
+
+    it('processes no more than a page worth of items', async () => {
+      const actorId = 'https://long-page.example/users/actor'
+      const person = MockActivityPubPerson({
+        id: actorId,
+        withContext: true
+      }) as Actor
+      serveInlineOutbox(
+        actorId,
+        Array.from({ length: MAX_OUTBOX_PAGE_ITEMS + 20 }, (_, index) =>
+          createItem(actorId, index)
+        )
+      )
+
+      const response = await getActorPosts({ database, person })
+
+      expect(response.statuses).toHaveLength(MAX_OUTBOX_PAGE_ITEMS)
+    })
+
+    it('refuses a page whose context would be copied into every item', async () => {
+      // 1,000 empty context entries cost nothing to send but are copied into
+      // each item's own context before it is compacted.
+      const actorId = 'https://huge-context.example/users/actor'
+      const person = MockActivityPubPerson({
+        id: actorId,
+        withContext: true
+      }) as Actor
+      serveInlineOutbox(
+        actorId,
+        [{ ...createItem(actorId, 0), '@context': {} }],
+        [
+          'https://www.w3.org/ns/activitystreams',
+          ...Array.from({ length: 1000 }, () => ({}))
+        ]
+      )
+
+      const response = await getActorPosts({ database, person })
+
+      expect(response.statuses).toHaveLength(0)
+    })
+
+    it('resolves string-referenced objects a few at a time', async () => {
+      const actorId = 'https://many-refs.example/users/actor'
+      const person = MockActivityPubPerson({
+        id: actorId,
+        withContext: true
+      }) as Actor
+      let inFlight = 0
+      let maxInFlight = 0
+      fetchMock.resetMocks()
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === `${actorId}/outbox`) {
+          return {
+            status: 200,
+            body: JSON.stringify({
+              '@context': 'https://www.w3.org/ns/activitystreams',
+              id: `${actorId}/outbox`,
+              type: 'OrderedCollection',
+              totalItems: 12,
+              orderedItems: Array.from({ length: 12 }, (_, index) => ({
+                ...createItem(actorId, index),
+                object: `${actorId}/statuses/${index}`
+              }))
+            })
+          }
+        }
+        const match = req.url.match(/\/statuses\/(\d+)$/)
+        if (!match) return { status: 404, body: 'Not Found' }
+        inFlight += 1
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        inFlight -= 1
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            ...createItem(actorId, Number(match[1])).object
+          })
+        }
+      })
+
+      const response = await getActorPosts({ database, person })
+
+      expect(response.statuses).toHaveLength(12)
+      expect(maxInFlight).toBeGreaterThan(0)
+      expect(maxInFlight).toBeLessThanOrEqual(4)
     })
   })
 })

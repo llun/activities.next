@@ -272,6 +272,27 @@ describe('request utility', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
+    it('refuses, without retrying, a cross-host redirect when asked to', async () => {
+      fetchMock.mockResponse(async (req) =>
+        req.url === 'https://example.com/note'
+          ? {
+              status: 302,
+              headers: { location: 'https://example.org/forged' },
+              body: ''
+            }
+          : { status: 200, body: 'forged' }
+      )
+
+      await expect(
+        request({
+          url: 'https://example.com/note',
+          allowCrossHostRedirects: false,
+          numberOfRetry: 1
+        })
+      ).rejects.toMatchObject({ code: 'ERR_CROSS_HOST_REDIRECT' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
     it.each([408, 429, 500, 502, 503, 504, 521, 522, 524])(
       'retries transient HTTP status %s after reading the body',
       async (status) => {

@@ -216,7 +216,8 @@ When enabled via the `ACTIVITIES_ENABLE_INBOX_FORWARDING` environment variable (
   - Excludes local server inboxes, inboxes matching the original author's host, and inboxes of recipients explicitly addressed in `to`/`cc`.
   - Moderation check: Filters out inboxes belonging to blocked or non-federatable domains via `canFederateWithDomain`.
 - **Asynchronous Delivery & Observability**:
-  - Enqueues `ForwardActivityJob` on the job queue (`Create`, `Update`, `Delete` activities).
+  - Enqueues `ForwardActivityJob` on the job queue (`Create`, `Update`, `Delete` activities), split by `getForwardActivityJobMessages` into messages of at most `MAX_FORWARD_INBOXES_PER_JOB` (100) inboxes, so one remote activity aimed at a popular local account cannot outgrow a queue provider's message limit.
+  - Each job delivers at most `FORWARD_ACTIVITY_CONCURRENCY` (8) requests at a time; per-request timeouts and response caps alone do not bound how many sockets one forwarded activity holds open.
   - Outbound HTTP POST requests are signed with the targeted local actor's key or the instance federation signing actor (`getFederationSigningActor`).
   - OpenTelemetry spans track `inbox.forward_targets_count`, `inbox.local_actor_id`, and `inbox.activity_id`.
 
@@ -598,6 +599,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - **Server-side outbound JSON and text HTTP requests MUST go through `safeRemoteFetch` (`@/lib/utils/safeRemoteFetch`).** Binary downloads use the guarded helper below.
 - Never call raw `fetch()` directly in server-side services or utilities.
 - `safeRemoteFetch` is backed by `got` and applies standard SSRF protection (requiring HTTPS, blocking private IP ranges such as loopback and RFC 1918 subnets), streaming response-size limits, timeout bounds, DNS pinning, and redirect handling.
+- A fetch whose response is trusted because of the host it came from — an ActivityPub object fetched to authenticate it (`getNote`, the forwarded-Delete confirmation, a `QuoteAuthorization` stamp) — passes `allowCrossHostRedirects: false`, so an open redirect on that host cannot hand the answer to another one. See [A Fetched Document's Own `id` Is Not Evidence](mastodon-api-compatibility.md#agents-a-fetched-document-s-own-id-is-not-evidence).
 - Binary FIT and image downloads use `safeImageFetch` with `readResponseArrayBufferWithLimit` because the text response of `safeRemoteFetch` would corrupt those bytes. The binary helper checks each redirect and destination address; callers apply an overall timeout and byte cap and do not forward provider bearer tokens to file hosts.
 - Web Push delivery (`web-push`) is the one outbound POST to a URL a client chose. The subscribe routes refuse any endpoint `isAllowedPushEndpoint` rejects (`lib/services/notifications/pushEndpoint.ts`: HTTPS, no credentials, no local names, public addresses only), delivery skips a stored endpoint `isDeliverablePushEndpoint` rejects and connects through `pushDeliveryAgent`, whose lookup refuses a restricted address at connect time (so a rebound record is caught), with a per-request timeout. `createPushSubscription` keeps at most `MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR` per actor (oldest dropped), which bounds the per-notification fan-out.
 - External cloud integrations (e.g. translation providers like DeepL, OpenAI, or Gemini, and alt-text vision generation) must target public HTTPS endpoints. Internal or self-hosted HTTP services running on private IP addresses are not supported.

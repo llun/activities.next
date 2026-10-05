@@ -489,6 +489,7 @@ describe('enrichStatusAttachments', () => {
     )
     expect(mockDb.updateAttachmentPlayback).toHaveBeenCalledWith({
       id: 'att-1',
+      statusId: 'https://mastodon.social/users/cheeaun/statuses/111000',
       playbackType: 'gifv',
       thumbnailUrl: 'https://files.mastodon.social/media/preview.jpg',
       onlyIfUnset: true
@@ -589,6 +590,7 @@ describe('enrichStatusAttachments', () => {
 
     expect(mockDb.updateAttachmentPlayback).toHaveBeenCalledWith({
       id: 'att-404',
+      statusId: 'https://mastodon.social/users/cheeaun/statuses/111000',
       playbackType: 'unknown',
       thumbnailUrl: null,
       onlyIfUnset: true
@@ -772,6 +774,7 @@ describe('definitive negative resolution persistence', () => {
     expect(enriched.attachments[0].playbackType).toBe('video')
     expect(mockDb.updateAttachmentPlayback).toHaveBeenCalledWith({
       id: 'att-1',
+      statusId: 'https://mastodon.social/users/cheeaun/statuses/111000',
       playbackType: 'video',
       thumbnailUrl: null,
       onlyIfUnset: true
@@ -995,18 +998,21 @@ describe('enrichStatusesAttachments', () => {
     // DB calls were made with onlyIfUnset: true
     expect(mockDb.updateAttachmentPlayback).toHaveBeenCalledWith({
       id: 'note-att-1',
+      statusId: 'https://mastodon.social/users/cheeaun/statuses/1001',
       playbackType: 'gifv',
       thumbnailUrl: 'https://files.mastodon.social/media/1001-preview.png',
       onlyIfUnset: true
     })
     expect(mockDb.updateAttachmentPlayback).toHaveBeenCalledWith({
       id: 'poll-att-1',
+      statusId: 'https://mastodon.social/users/cheeaun/statuses/1002',
       playbackType: 'gifv',
       thumbnailUrl: 'https://files.mastodon.social/media/1002-preview.png',
       onlyIfUnset: true
     })
     expect(mockDb.updateAttachmentPlayback).toHaveBeenCalledWith({
       id: 'boost-orig-att-1',
+      statusId: 'https://mastodon.social/users/cheeaun/statuses/1003',
       playbackType: 'gifv',
       thumbnailUrl: 'https://files.mastodon.social/media/1003-preview.png',
       onlyIfUnset: true

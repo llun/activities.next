@@ -1,4 +1,18 @@
 /**
+ * The most `@context` entries a remote collection may hand its items. Real
+ * servers send a handful (Mastodon three, Misskey and Pleroma about as many);
+ * every item copies the parent's entries, so a parent context of M entries over
+ * N items costs O(M*N) allocations and JSON-LD work from an O(M+N) response.
+ */
+export const MAX_INHERITED_CONTEXT_ENTRIES = 32
+
+/** How many entries a `@context` value contributes once flattened. */
+export const countActivityPubContextEntries = (context: unknown): number => {
+  if (context === undefined || context === null) return 0
+  return Array.isArray(context) ? context.flat(Infinity).length : 1
+}
+
+/**
  * Inherit JSON-LD `@context` from a parent document (e.g. root collection or
  * collection page) into a child document (e.g. fetched page or outbox item).
  *

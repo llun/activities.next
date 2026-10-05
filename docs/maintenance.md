@@ -816,7 +816,7 @@ For local archive or one-off activity imports, see the `--help` output from:
 
 ## Import Remote Status
 
-The `importRemoteStatus.ts` script fetches an arbitrary remote post (by its web URL or ActivityPub URI) and processes it through `createNoteJob`. This persists the status, populates tags and mentions, resolves author profiles, links reply threads, and fans out the post to timelines for local followers and recipients.
+The `importRemoteStatus.ts` script fetches an arbitrary remote post (by its web URL or ActivityPub URI) and processes it through `createNoteJob`. This persists the status, populates tags and mentions, resolves author profiles, links reply threads, and fans out the post to timelines for local followers and recipients. It refuses a document whose `id` is not on the origin of the URL it was fetched from, whose `attributedTo` is not on the note's own origin, or whose id is a local one — the fetched document is otherwise only the remote server's claim, and the import hands it to `createNoteJob` as verified by its author. Cross-host redirects are not followed, so pass the post's own URL on its home server.
 
 ### When to Use
 

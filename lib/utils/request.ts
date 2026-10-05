@@ -37,7 +37,8 @@ const RETRYABLE_STATUS_CODES = new Set([
 const NON_RETRYABLE_SAFE_REMOTE_FETCH_ERROR_CODES = new Set([
   'ERR_UNSAFE_REMOTE_URL',
   'ERR_RESPONSE_TOO_LARGE',
-  'ERR_TOO_MANY_REDIRECTS'
+  'ERR_TOO_MANY_REDIRECTS',
+  'ERR_CROSS_HOST_REDIRECT'
 ])
 
 const SHARED_HEADERS = {
@@ -46,6 +47,8 @@ const SHARED_HEADERS = {
 
 export interface RequestOptions {
   url: string
+  /** See `SafeRemoteFetchOptions.allowCrossHostRedirects`. */
+  allowCrossHostRedirects?: boolean
   method?: SafeRemoteFetchMethod
   headers?: SafeRemoteFetchHeaderSource
   body?: string
@@ -183,6 +186,7 @@ const isRetryableStatusCode = (
 
 export const request = async ({
   url,
+  allowCrossHostRedirects,
   method = 'GET',
   headers,
   body,
@@ -205,6 +209,7 @@ export const request = async ({
   while (true) {
     try {
       const response = await safeRemoteFetch({
+        allowCrossHostRedirects,
         body: options.body,
         connectTimeoutInMilliseconds: options.connectTimeoutInMilliseconds,
         headers: options.headers,

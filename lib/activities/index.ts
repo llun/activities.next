@@ -130,6 +130,11 @@ export const getNote = async ({
     try {
       const { statusCode, body } = await request({
         url: statusId,
+        // Callers authenticate the note by the origin it was fetched from —
+        // its `id` and `attributedTo` are checked against `statusId`. A hop
+        // onto another host would let that host answer for this one, so an
+        // open redirect on the claimed origin must not be followed.
+        allowCrossHostRedirects: false,
         headers: activityPubRequestHeaders({
           url: statusId,
           signingActor
@@ -143,6 +148,14 @@ export const getNote = async ({
       const nodeError = error as NodeJS.ErrnoException
       if (nodeError.code === 'ETIMEDOUT') {
         span.setAttribute('timeout', true)
+        return null
+      }
+      if (nodeError.code === 'ERR_CROSS_HOST_REDIRECT') {
+        span.setAttribute('crossHostRedirect', true)
+        logger.warn({
+          message: 'Refusing a note fetch that redirects to another host',
+          statusId
+        })
         return null
       }
 

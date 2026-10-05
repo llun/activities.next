@@ -3377,6 +3377,10 @@ export type CreateAttachmentParams = {
 }
 export type UpdateAttachmentPlaybackParams = {
   id: string
+  // The status the attachment belongs to. An attachment id alone is not enough:
+  // remote attachment ids can be attacker-chosen strings, so the update is
+  // scoped to the status being enriched and can never reach another one's row.
+  statusId: string
   playbackType: 'gifv' | 'video' | 'unknown'
   thumbnailUrl?: string | null
   onlyIfUnset?: boolean

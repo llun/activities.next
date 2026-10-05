@@ -7,6 +7,7 @@ import { render } from '@testing-library/react'
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
+import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
 import { getQueue } from '@/lib/services/queue'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
@@ -55,6 +56,10 @@ vi.mock('@/lib/activities/getRemoteStatus', async () => ({
 
 vi.mock('@/lib/services/federation/getFederationSigningActor', async () => ({
   getFederationSigningActor: vi.fn()
+}))
+
+vi.mock('@/lib/services/medias/animationMetadata', async () => ({
+  enrichStatusAttachments: vi.fn(async (status: unknown) => status)
 }))
 
 vi.mock('@/lib/services/auth/getSession', async () => ({
@@ -248,5 +253,31 @@ describe('Page remote-status fetch signing', () => {
     expect(call.statusId).toBe(REMOTE_STATUS_URL)
     expect(call.signingActor).toBeUndefined()
     expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('never lets a live-fetched status write attachment metadata', async () => {
+    // A live-fetched note's attachment ids are whatever the remote document
+    // says, so enriching it must not be handed a database to persist into.
+    mockGetFederationSigningActor.mockResolvedValue(instanceActor)
+
+    await renderRemoteStatusPage()
+
+    expect(enrichStatusAttachments).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(enrichStatusAttachments).mock.calls[0][1]).toBeUndefined()
+  })
+
+  it('persists attachment metadata for a status read from the database', async () => {
+    mockResolveStatusFromPath.mockResolvedValue({
+      pathActor: PATH_ACTOR,
+      status: buildRemoteNote(),
+      statusId: REMOTE_STATUS_URL,
+      fullStatusId: REMOTE_STATUS_URL,
+      isStatusHash: false
+    })
+
+    await renderRemoteStatusPage()
+
+    expect(mockGetRemoteStatus).not.toHaveBeenCalled()
+    expect(vi.mocked(enrichStatusAttachments).mock.calls[0][1]).toBeDefined()
   })
 })
