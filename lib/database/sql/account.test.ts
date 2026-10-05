@@ -387,6 +387,51 @@ describe('AccountDatabase', () => {
         expect(reused).toBeNull()
       })
 
+      it('does not reissue a password reset code inside the cooldown', async () => {
+        const { accountId, email } = await createTestAccount()
+        const cooldownMs = 5 * 60 * 1000
+
+        expect(
+          await database.requestPasswordReset({
+            email,
+            passwordResetCode: 'first-code',
+            cooldownMs
+          })
+        ).toBeTrue()
+
+        // A second request moments later neither rotates the code nor reports
+        // that it did, so the route sends no second email.
+        expect(
+          await database.requestPasswordReset({
+            email,
+            passwordResetCode: 'second-code',
+            cooldownMs
+          })
+        ).toBeFalse()
+        expect(
+          await database.getAccountFromId({ id: accountId })
+        ).toMatchObject({ passwordResetCode: 'first-code' })
+
+        // Once the outstanding code was issued longer ago than the cooldown
+        // (its expiry sits more than TTL - cooldown away), a new one is issued.
+        const dayMs = 24 * 60 * 60 * 1000
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: 'first-code',
+          expiresAt: Date.now() + dayMs - cooldownMs - 60_000
+        })
+        expect(
+          await database.requestPasswordReset({
+            email,
+            passwordResetCode: 'third-code',
+            cooldownMs
+          })
+        ).toBeTrue()
+        expect(
+          await database.getAccountFromId({ id: accountId })
+        ).toMatchObject({ passwordResetCode: 'third-code' })
+      })
+
       it('returns false when requesting password reset for unknown email', async () => {
         const requested = await database.requestPasswordReset({
           email: `missing-${crypto.randomUUID()}@${TEST_DOMAIN}`,

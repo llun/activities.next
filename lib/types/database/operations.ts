@@ -407,6 +407,11 @@ export type RequestPasswordResetParams = {
   email: string
   passwordResetCode: string | null
   expiresAt?: number | null
+  // When set, the code is written only if the account has no live code issued
+  // within this many milliseconds; otherwise nothing is written and the call
+  // returns false. The check is a predicate on the UPDATE, so concurrent
+  // requests cannot each slip past it.
+  cooldownMs?: number
 }
 export type ValidatePasswordResetCodeParams = {
   passwordResetCode: string

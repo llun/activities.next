@@ -4,7 +4,10 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
-import { hashPasswordResetCode } from '@/lib/services/auth/passwordResetCode'
+import {
+  PASSWORD_RESET_REQUEST_COOLDOWN_MS,
+  hashPasswordResetCode
+} from '@/lib/services/auth/passwordResetCode'
 import { sendMail } from '@/lib/services/email'
 import { buildResetPasswordEmail } from '@/lib/services/email/templates/resetPassword'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -94,14 +97,18 @@ export const POST = traceApiRoute(
         const previousPasswordResetCodeExpiresAt =
           account.passwordResetCodeExpiresAt ?? null
 
+        // Per-account cooldown, enforced atomically by the write: a code
+        // issued within the window is neither rotated nor re-sent, and the
+        // caller gets the same generic success either way.
         const saved = await database.requestPasswordReset({
           email,
-          passwordResetCode: passwordResetCodeHash
+          passwordResetCode: passwordResetCodeHash,
+          cooldownMs: PASSWORD_RESET_REQUEST_COOLDOWN_MS
         })
         if (!saved) {
-          logger.error(
-            { email },
-            'Password reset code persistence failed for existing account'
+          logger.info(
+            { accountId: account.id },
+            'Password reset not issued: a code was issued within the cooldown'
           )
           return passwordResetSuccessResponse(request)
         }
