@@ -1,0 +1,41 @@
+lib/services/medias/S3StorageFile.ts
+  s_69f35b0cf1b1f5::t_8f14b442394cfb 743-745
+  s_69f35b0cf1b1f5::t_94ee872d4a28a7 60
+lib/services/medias/S3StorageFile.test.ts
+  s_69f35b0cf1b1f5::t_e8cec867d1c69f 1752-1771
+lib/services/medias/videoProbe.test.ts
+  s_69f35b0cf1b1f5::t_1988b9a9d4fe26 1-20,25-45,49-65
+  s_69f35b0cf1b1f5::t_94ee872d4a28a7 21-24,46-48
+lib/services/medias/localFile.ts
+  s_69f35b0cf1b1f5::t_8f14b442394cfb 306-308
+  s_69f35b0cf1b1f5::t_94ee872d4a28a7 40
+docs/maintenance.md
+  s_69f35b0cf1b1f5::t_4f6706d98c0961 950
+lib/services/medias/extractVideoImage.test.ts
+  s_69f35b0cf1b1f5::t_215ffb064339bb 100-101
+  s_69f35b0cf1b1f5::t_64b97033d94040 71-72,76,87-99
+  s_69f35b0cf1b1f5::t_0db26284bf76b3 102-103
+lib/services/medias/extractVideoImage.ts
+  s_69f35b0cf1b1f5::t_3d06862de58f72 10-14,25-27,34-38,40
+lib/services/medias/videoProbe.ts
+  s_69f35b0cf1b1f5::t_4f6706d98c0961 11
+  s_69f35b0cf1b1f5::t_02a6f07428f572 1-10,12-39
+lib/services/medias/localFile.test.ts
+  s_69f35b0cf1b1f5::t_e8cec867d1c69f 679-698
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d2e6e42e3e962b25a98bd7757c73c7c5bc160078",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
