@@ -105,17 +105,26 @@ async function fixAttachmentUrls(args = process.argv.slice(2)) {
     const wrongHttpUrl = `http://${input.wrongHost}/%`
     const wrongHttpsUrl = `https://${input.wrongHost}/%`
 
-    let offset = 0
+    // Page by id (keyset), not by OFFSET: a real run rewrites each row so it
+    // stops matching, which shrinks the result set under an advancing offset
+    // and used to skip every other batch. The id cursor is stable either way,
+    // and cannot loop forever if a row still matches after its update.
+    let lastId: string | null = null
     let totalFound = 0
     let fixedCount = 0
 
     while (true) {
-      const batch = await db<AttachmentRow>('attachments')
-        .where('url', 'like', wrongHttpUrl)
-        .orWhere('url', 'like', wrongHttpsUrl)
+      const query = db<AttachmentRow>('attachments').where((matching) =>
+        matching
+          .where('url', 'like', wrongHttpUrl)
+          .orWhere('url', 'like', wrongHttpsUrl)
+      )
+      if (lastId !== null) query.andWhere('id', '>', lastId)
+
+      const batch: AttachmentRow[] = await query
         .select('id', 'url')
+        .orderBy('id')
         .limit(BATCH_SIZE)
-        .offset(offset)
 
       if (batch.length === 0) break
       totalFound += batch.length
@@ -138,7 +147,7 @@ async function fixAttachmentUrls(args = process.argv.slice(2)) {
         }
       }
 
-      offset += BATCH_SIZE
+      lastId = batch[batch.length - 1].id
     }
 
     if (totalFound === 0) {
