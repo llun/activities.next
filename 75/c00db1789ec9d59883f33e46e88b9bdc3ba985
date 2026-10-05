@@ -1,0 +1,26 @@
+lib/jobs/createRelayAnnounceJob.test.ts
+  s_69f35b0cf1b1f5::t_1027f15332b1a5 308-390
+  s_69f35b0cf1b1f5::t_fb36da1c8fa72f 303-307
+lib/jobs/dispatchCreateNoteOrPollJob.ts
+  s_69f35b0cf1b1f5::t_dbd7ea8f5dd246 4-7,44-49,54-55,60
+lib/jobs/createAnnounceJob.test.ts
+  s_69f35b0cf1b1f5::t_1027f15332b1a5 413-520
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_ebbdc48711ab1d 630
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "75c00db1789ec9d59883f33e46e88b9bdc3ba985",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
