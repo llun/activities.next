@@ -1,0 +1,102 @@
+lib/activities/note.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 48-56,108-122,181-208
+  s_69f35b0cf1b1f5::t_018a52a2286bb9 209
+lib/services/statuses/mediaIds.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 1,7,76,88,121-176
+  s_69f35b0cf1b1f5::t_e0d8db6288eb13 177
+lib/utils/getStatusDetailPathClient.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 115-137
+app/api/v1/statuses/[id]/route.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 49,396,518-531
+lib/database/sql/actor.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 92,341,346-357,408-409
+lib/utils/getStatusDetailPathClient.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 2,17,21,25
+lib/utils/widensStatusAudience.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 1-18
+lib/services/notifications/collectionNotifications.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 88-120
+lib/database/sql/status.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 4072-4122
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_b82233536f3de8 54-64
+app/api/v1/statuses/route.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 3-6,45,246-274,278-281,288
+lib/database/sql/media.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 733,747-749
+lib/types/domain/status.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 35,332-333,335,339,350
+docs/features.md
+  s_69f35b0cf1b1f5::t_b82233536f3de8 80
+lib/types/database/operations.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 967-969,3457-3460
+lib/utils/getActorMentionPathSegment.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 1-13
+lib/jobs/publishScheduledStatusJob.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 9-10,506-554
+lib/database/sql/media.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 1764-1799
+lib/database/sql/actor.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 1507-1536
+lib/database/sql/conversation.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 80-85,431-473
+  s_69f35b0cf1b1f5::t_cb6ca8b4e5834e 474
+lib/services/quotes/quotePolicy.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 1-46
+lib/services/statuses/mediaIds.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 31-34
+lib/activities/note.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 17,39,56-64,80-89,229-230
+  s_69f35b0cf1b1f5::t_2d827a834fcfff 231-238
+lib/activities/quoteNoteFields.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 7,71-77
+app/api/v1/statuses/[id]/route.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 2288-2345,2689-2748
+  s_69f35b0cf1b1f5::t_104f02c0847000 2749-2750
+lib/actions/createPoll.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 12,63-74
+lib/utils/getStatusDetailPath.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 2,17,21,24
+lib/database/sql/conversation.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 532-566,881-887,890-892
+lib/utils/getStatusDetailPath.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 111-133
+lib/types/domain/status.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 43-54
+lib/utils/isHttpUrl.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 1-17
+lib/database/sql/status.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 130,906-908,910-912,1383-1388,4164
+lib/actions/createNote.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 22,756-773,1012,1101-1124,1126
+lib/services/notifications/createNotificationWithPolicy.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 4,23-37
+lib/services/quotes/quotePolicy.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 17-22,28-32
+lib/utils/isHttpUrl.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 1-28
+app/api/v1/statuses/route.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 1097-1172
+lib/services/notifications/createNotificationWithPolicy.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 1-116
+lib/actions/createNote.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 18,374-387
+lib/activities/quoteNoteFields.test.ts
+  s_69f35b0cf1b1f5::t_b82233536f3de8 173-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c296d7caa5ab21c53b8038ae50e2849e9345ea6d",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
