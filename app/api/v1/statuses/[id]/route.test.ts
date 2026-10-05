@@ -2686,6 +2686,68 @@ describe('GET /api/v1/statuses/[id]', () => {
       expect(getQueue().publish).not.toHaveBeenCalled()
     })
 
+    it('rejects media_ids and media_attributes naming a sibling actor’s media', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-sibling-media`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Sibling media target',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const actor1 = await database.getActorFromId({ id: ACTOR1_ID })
+      const siblingId = await database.createActorForAccount({
+        accountId: actor1!.account!.id,
+        username: 'api-edit-sibling',
+        domain: TEST_DOMAIN,
+        privateKey: 'privateKey-api-edit-sibling',
+        publicKey: 'publicKey-api-edit-sibling'
+      })
+      const siblingMedia = await database.createMedia({
+        actorId: siblingId,
+        original: {
+          path: 'medias/api-edit-sibling.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 }
+        },
+        description: 'Sibling secret'
+      })
+
+      for (const body of [
+        { media_ids: [siblingMedia!.id] },
+        {
+          media_attributes: [
+            { id: siblingMedia!.id, description: 'overwritten by actor1' }
+          ]
+        }
+      ]) {
+        const response = await PUT(
+          new NextRequest(
+            `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify(body),
+              headers: {
+                'Content-Type': 'application/json',
+                Origin: 'https://llun.test'
+              }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(statusId) }) }
+        )
+        expect(response.status).toBe(422)
+      }
+
+      const unchanged = await database.getMediaByIdForAccount({
+        mediaId: siblingMedia!.id,
+        accountId: actor1!.account!.id
+      })
+      expect(unchanged?.description).toBe('Sibling secret')
+      expect(await database.getAttachments({ statusId })).toEqual([])
+    })
+
     it('updates attachment description and focus through media_attributes', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-media-attributes`
       await database.createNote({

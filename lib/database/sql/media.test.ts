@@ -1736,6 +1736,42 @@ describe('MediaDatabase', () => {
         expect(updated).toBeNull()
       })
 
+      it('returns null when actorId narrows ownership to a different actor of the account', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          description: 'original',
+          original: {
+            path: '/test/update-media-other-actor.jpg',
+            bytes: 1234,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const updated = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          actorId: `${actors.primary.id}-sibling`,
+          description: 'should not apply'
+        })
+        expect(updated).toBeNull()
+        const retrieved = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(retrieved?.description).toBe('original')
+
+        const owned = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          actorId: actors.primary.id,
+          description: 'owner edit'
+        })
+        expect(owned?.media.description).toBe('owner edit')
+      })
+
       it('returns null for a nonexistent media id', async () => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
         const updated = await database.updateMedia({

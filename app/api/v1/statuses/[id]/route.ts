@@ -393,6 +393,7 @@ export const PUT = traceApiRoute(
             const updatedMedia = await database.updateMedia({
               mediaId: resolvedAttributeIds[index],
               accountId: account.id,
+              actorId: currentActor.id,
               ...(attribute.description !== undefined
                 ? { description: attribute.description }
                 : {}),

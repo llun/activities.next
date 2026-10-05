@@ -3427,6 +3427,10 @@ export type GetMediaByIdsForAccountParams = {
 export type UpdateMediaParams = {
   mediaId: string
   accountId: string
+  // Narrows the owner check from the account to one of its actors. Set by
+  // actor-scoped callers (a status edit's media_attributes), whose OAuth token
+  // is bound to a single actor.
+  actorId?: string
   description?: string | null
   focus?: { x: number; y: number }
   blurhash?: string | null
