@@ -8,8 +8,8 @@ import { z } from 'zod'
  * sequence for encoding UTF8: 0x00"), so a value carrying one would turn the
  * lookup into a 500 there while SQLite matched nothing. A stored value cannot
  * hold one, so it is malformed and the route answers 400. Only NUL is refused,
- * not a shape: other control characters are valid text, and an unknown but
- * harmless value must keep its ordinary not-found answer.
+ * not a shape: other control characters are valid text, and an unknown value
+ * is not rejected, it keeps the route's ordinary answer.
  */
 export const NulFreeString = z
   .string()
