@@ -42,6 +42,16 @@ const MAX_REPLY_NOTES = 500
 // reach `MAX_REPLY_NOTES` before hitting it.
 const MAX_FETCH_WORK = 5000
 
+// `firstPageOnly` runs inline with a page render under the default NoQueue, and
+// the page is a single request a remote server's collection can stall. The
+// 5000/500 budgets above are far too generous for that: an opening page of
+// thousands of unfetchable item URLs would pin the request for as long as the
+// remote chooses. So an inline run considers at most this many items and gives
+// up after this long, whichever comes first; the queued run keeps the full
+// budgets.
+export const INLINE_MAX_REPLY_ITEMS = 30
+export const INLINE_DEADLINE_MS = 6000
+
 const fetchRemoteStatus = async (
   database: Database,
   statusId: string,
@@ -316,8 +326,33 @@ export const fetchRemoteStatusJob = createJobHandle(
     // would leave open.
     let notesStored = 0
     let work = 0
+    let itemsConsidered = 0
+    const deadline = firstPageOnly ? Date.now() + INLINE_DEADLINE_MS : null
     const withinBudget = () =>
-      notesStored < MAX_REPLY_NOTES && work < MAX_FETCH_WORK
+      notesStored < MAX_REPLY_NOTES &&
+      work < MAX_FETCH_WORK &&
+      (!firstPageOnly || itemsConsidered < INLINE_MAX_REPLY_ITEMS) &&
+      (deadline === null || Date.now() < deadline)
+    // Under a deadline, stop waiting on an item the moment it passes, instead of
+    // letting one slow fetch (the remote request has its own timeout and
+    // retries) outlast it. The abandoned work finishes, or fails, on its own.
+    const storeWithinDeadline = async (item: unknown) => {
+      if (deadline === null) return storeReplyNote(item)
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        return await Promise.race([
+          storeReplyNote(item),
+          new Promise<null>((resolve) => {
+            timer = setTimeout(
+              () => resolve(null),
+              Math.max(0, deadline - Date.now())
+            )
+          })
+        ])
+      } finally {
+        clearTimeout(timer)
+      }
+    }
     while (pendingCollections.length > 0 && withinBudget()) {
       let collection = pendingCollections.shift()
       if (typeof collection === 'string') {
@@ -346,7 +381,8 @@ export const fetchRemoteStatusJob = createJobHandle(
         for (const item of items) {
           if (!withinBudget()) break
           work++
-          const stored = await storeReplyNote(item)
+          itemsConsidered++
+          const stored = await storeWithinDeadline(item)
           if (stored) {
             // Only newly stored notes count toward the store budget, so a
             // re-fetch can keep traversing already-cached parts of the thread to

@@ -14,6 +14,11 @@ import {
   applyPotentiallyReadableStatusFilter
 } from '@/lib/database/sql/utils/statusVisibility'
 import {
+  CollectionLimitError,
+  MAX_COLLECTIONS_PER_ACTOR,
+  MAX_COLLECTION_MEMBERS
+} from '@/lib/services/collections/limits'
+import {
   COLLECTION_FEED_MAX_ROWS,
   COLLECTION_FEED_TRIM_SLACK
 } from '@/lib/services/timelines/types'
@@ -349,7 +354,20 @@ export const CollectionSQLDatabaseMixin = (
       createdAt: currentTime,
       updatedAt: currentTime
     }
-    await database('collections').insert(row)
+    await database.transaction(async (trx) => {
+      // Serialize one owner's creates on their actor row (a no-op on SQLite,
+      // whose writers already serialize) so concurrent requests cannot each
+      // read a count below the ceiling and together overshoot it.
+      await trx('actors').where({ id: actorId }).select('id').forUpdate()
+      const countRow = await trx('collections')
+        .where({ ownerActorId: actorId })
+        .count<{ count: string | number }[]>({ count: '*' })
+        .first()
+      if (Number(countRow?.count ?? 0) >= MAX_COLLECTIONS_PER_ACTOR) {
+        throw new CollectionLimitError('collections')
+      }
+      await trx('collections').insert(row)
+    })
     return fixCollectionRow(row as unknown as SQLCollection)
   },
 
@@ -483,6 +501,9 @@ export const CollectionSQLDatabaseMixin = (
     // re-notify).
     let newlyAdded: string[] = []
     await database.transaction(async (trx) => {
+      // Serialize adds to one collection on its row (a no-op on SQLite) so the
+      // member ceiling below holds across concurrent requests.
+      await trx('collections').where('seq', seq).select('seq').forUpdate()
       const existing = new Set<string>()
       for (const chunk of chunkArray(
         targetActorIds,
@@ -497,6 +518,17 @@ export const CollectionSQLDatabaseMixin = (
         }
       }
       newlyAdded = targetActorIds.filter((target) => !existing.has(target))
+
+      const memberCountRow = await trx('collection_members')
+        .where('collectionSeq', seq)
+        .count<{ count: string | number }[]>({ count: '*' })
+        .first()
+      if (
+        Number(memberCountRow?.count ?? 0) + new Set(newlyAdded).size >
+        MAX_COLLECTION_MEMBERS
+      ) {
+        throw new CollectionLimitError('members')
+      }
 
       const batchSize = getInsertBatchSize(trx, rows[0])
       for (const chunk of chunkArray(rows, batchSize)) {
@@ -687,24 +719,23 @@ export const CollectionSQLDatabaseMixin = (
 
   async getCollectionItems({
     collectionIds,
-    approvedOnly = false
+    approvedOnly = false,
+    limitPerCollection
   }: GetCollectionItemsParams) {
     const itemsByCollection: Record<string, CollectionItemRow[]> = {}
     for (const collectionId of collectionIds)
       itemsByCollection[collectionId] = []
     if (collectionIds.length === 0) return itemsByCollection
 
-    for (const chunk of chunkArray(
-      collectionIds,
-      getWhereInBatchSize(database, 1)
-    )) {
+    const buildQuery = (
+      whereCollection: (query: Knex.QueryBuilder) => void
+    ) => {
       const query = database('collection_members')
         .innerJoin(
           'collections',
           'collections.seq',
           'collection_members.collectionSeq'
         )
-        .whereIn('collections.id', chunk)
         .orderBy('collection_members.createdAt', 'asc')
         .orderBy('collection_members.id', 'asc')
         .select(
@@ -714,15 +745,40 @@ export const CollectionSQLDatabaseMixin = (
           'collection_members.featureState as featureState',
           'collection_members.createdAt as createdAt'
         )
+      whereCollection(query)
       if (approvedOnly) {
         query.andWhere('collection_members.featureState', 'approved')
       }
-      const rows = await query
-      for (const row of rows) {
-        itemsByCollection[row.collectionId as string]?.push(
-          fixCollectionItemRow(row as unknown as SQLCollectionItem)
+      return query
+    }
+    const collect = (rows: unknown[]) => {
+      for (const row of rows as (SQLCollectionItem & {
+        collectionId: string
+      })[]) {
+        itemsByCollection[row.collectionId]?.push(fixCollectionItemRow(row))
+      }
+    }
+
+    if (limitPerCollection !== undefined) {
+      // A bounded preview: one LIMITed query per collection, so the rows read
+      // never depend on how many members a collection holds.
+      for (const collectionId of new Set(collectionIds)) {
+        collect(
+          await buildQuery((query) =>
+            query.where('collections.id', collectionId)
+          ).limit(limitPerCollection)
         )
       }
+      return itemsByCollection
+    }
+
+    for (const chunk of chunkArray(
+      collectionIds,
+      getWhereInBatchSize(database, 1)
+    )) {
+      collect(
+        await buildQuery((query) => query.whereIn('collections.id', chunk))
+      )
     }
     return itemsByCollection
   },

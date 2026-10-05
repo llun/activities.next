@@ -4,6 +4,7 @@ import {
   MAX_COLLECTION_ACCOUNT_IDS,
   addMembersToCollection
 } from '@/lib/services/collections/addMembers'
+import { CollectionLimitError } from '@/lib/services/collections/limits'
 import {
   getCollectionEntities,
   resolveCollectionWrite,
@@ -98,25 +99,38 @@ export const POST = traceApiRoute(
       }
 
       const { title, topic, visibility } = resolveCollectionWrite(parsed.data)
-      const collection = await database.createCollection({
-        actorId: currentActor.id,
-        // The refine above guarantees one of name/title is present.
-        title: title as string,
-        description: parsed.data.description,
-        topic,
-        language: parsed.data.language,
-        visibility,
-        sensitive: parsed.data.sensitive,
-        publicFeed: parsed.data.feed_enabled
-      })
-
-      if (parsed.data.account_ids && parsed.data.account_ids.length > 0) {
-        await addMembersToCollection({
-          database,
-          collectionId: collection.id,
-          ownerActorId: currentActor.id,
-          accountIds: parsed.data.account_ids
+      let collection
+      try {
+        collection = await database.createCollection({
+          actorId: currentActor.id,
+          // The refine above guarantees one of name/title is present.
+          title: title as string,
+          description: parsed.data.description,
+          topic,
+          language: parsed.data.language,
+          visibility,
+          sensitive: parsed.data.sensitive,
+          publicFeed: parsed.data.feed_enabled
         })
+
+        if (parsed.data.account_ids && parsed.data.account_ids.length > 0) {
+          await addMembersToCollection({
+            database,
+            collectionId: collection.id,
+            ownerActorId: currentActor.id,
+            accountIds: parsed.data.account_ids
+          })
+        }
+      } catch (error) {
+        if (error instanceof CollectionLimitError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: error.message },
+            responseStatusCode: 422
+          })
+        }
+        throw error
       }
 
       const [entity] = await getCollectionEntities(

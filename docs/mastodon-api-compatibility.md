@@ -307,12 +307,15 @@ product or security decision, not a gap to be closed.
   during the backfill, so replies it hides still count toward the 200 and
   appear if the policy is loosened later.
 
-- **Adding any other member backfills their full history.** Adding an account
-  you follow to a list brings all of its stored posts into the list. An account
-  you have only requested to follow can join a list too (Mastodon ≥ 4.2), and
-  its stored posts are brought in the same way once it accepts the request.
-  Mastodon ≥ 4.4 merges at most 200 of a member's recent posts in both cases,
-  and earlier versions backfill nothing.
+- **Adding any other member backfills their recent history.** Adding an account
+  you follow to a list brings its stored posts into the list, newest first, up
+  to `LIST_MEMBER_BACKFILL_MAX_POSTS` (1000) per member and read in pages of
+  `LIST_MEMBER_BACKFILL_BATCH_SIZE`, so the work done inside the request (or the
+  inbox transaction on a remote Follow Accept) does not scale with how much
+  history is cached for the member. An account you have only requested to follow
+  can join a list too (Mastodon ≥ 4.2), and its stored posts are brought in the
+  same way once it accepts the request. Mastodon ≥ 4.4 merges at most 200 of a
+  member's recent posts in both cases, and earlier versions backfill nothing.
 
 ## Not planned
 
@@ -369,7 +372,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   ids, anonymous reads of discoverable collections, and item-id-addressed
   remove/revoke) while keeping the pre-final `title`/`topic`/`visibility`
   vocabulary, bulk `account_ids` mutations, the per-member approve consent
-  endpoint, and account-id addressing as documented extensions.
+  endpoint, and account-id addressing as documented extensions. Collection
+  reads are bounded because anonymous callers reach them: an account owns at
+  most `MAX_COLLECTIONS_PER_ACTOR` (100) collections and a collection holds at
+  most `MAX_COLLECTION_MEMBERS` (500) accounts in any consent state
+  (`lib/services/collections/limits.ts`), enforced in the storage write and
+  answered with a `422 { error }`; the embedded `items` preview is read with
+  `limitPerCollection`, never the full membership. Both FEP-7aa9 endpoints
+  therefore emit at most those many ids in one response.
 - **Hosted quote-authorization stamps** — `GET /users/:username/quote_authorizations/:id`
   serves the FEP-044f `QuoteAuthorization` object for an approved quote; it 404s
   once the quote is revoked (the edge is no longer `accepted`).

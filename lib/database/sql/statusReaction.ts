@@ -46,7 +46,16 @@ export const StatusReactionSQLDatabaseMixin = (
     url
   }: CreateStatusReactionParams) {
     return database.transaction(async (trx) => {
-      const status = await trx('statuses').where('id', statusId).first('id')
+      // Row-lock the status so concurrent reactions to it run one at a time on
+      // PostgreSQL (SQLite writers already serialize, and knex ignores the
+      // lock there). The cap below is a read-then-insert, and the unique key
+      // includes the name, so without this a burst of DISTINCT names from one
+      // actor each reads fewer than MAX_REACTIONS_PER_ACTOR rows and they all
+      // insert, leaving the actor far over the cap.
+      const status = await trx('statuses')
+        .where('id', statusId)
+        .first('id')
+        .forUpdate()
       if (!status) return false
 
       // The actor's existing reactions on this status, capped at 8, so one

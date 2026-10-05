@@ -5,6 +5,7 @@ import {
   MAX_COLLECTION_ACCOUNT_IDS,
   addMembersToCollection
 } from '@/lib/services/collections/addMembers'
+import { CollectionLimitError } from '@/lib/services/collections/limits'
 import {
   serializeCollectionItem,
   wrapCollectionItem
@@ -169,12 +170,24 @@ export const POST = traceApiRoute(
         'account_id' in parsed.data
           ? [parsed.data.account_id]
           : parsed.data.account_ids
-      await addMembersToCollection({
-        database,
-        collectionId: id,
-        ownerActorId: currentActor.id,
-        accountIds
-      })
+      try {
+        await addMembersToCollection({
+          database,
+          collectionId: id,
+          ownerActorId: currentActor.id,
+          accountIds
+        })
+      } catch (error) {
+        if (error instanceof CollectionLimitError) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: error.message },
+            responseStatusCode: 422
+          })
+        }
+        throw error
+      }
 
       // Spec form: answer with the (possibly pre-existing — the add is
       // idempotent) membership row as WrappedCollectionItem.

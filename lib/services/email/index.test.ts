@@ -81,7 +81,7 @@ describe('sendMail', () => {
     )
   })
 
-  it('disables delivery and logs a warning when provider package is not installed', async () => {
+  it('fails the send and logs an error when the configured provider package is not installed', async () => {
     const missingModuleError = new Error(
       "Cannot find package 'nodemailer'"
     ) as Error & { code: string }
@@ -92,7 +92,16 @@ describe('sendMail', () => {
       configWithEmail({ type: TYPE_SMTP, host: 'smtp.example.com' })
     )
 
+    // Resolving here would tell the password-reset, registration and
+    // email-change flows a message went out when none did.
+    await expect(sendMail(message)).rejects.toBe(missingModuleError)
+  })
+
+  it('does nothing when no email is configured', async () => {
+    mockGetConfig.mockReturnValue(configWithEmail(undefined))
+
     await expect(sendMail(message)).resolves.toBeUndefined()
+    expect(adapterMocks.sendSMTPMail).not.toHaveBeenCalled()
   })
 
   it('rethrows unexpected provider delivery errors', async () => {

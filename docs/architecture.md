@@ -267,6 +267,24 @@ the synchronous backend has no scheduler and **drops** any delayed message. Code
 that wants a delay must therefore check `getQueue().runsInline` and skip the
 delay rather than losing the job (see `syncStatusLinkPreview`).
 
+**Delayed actor deletion** (`POST /api/v1/actors/delete` with `delayDays`) records
+`deletionStatus = 'scheduled'` and `deletionScheduledAt`, and nothing else would
+ever move it on, so `lib/services/actors/actorDeletion.ts` carries it out two
+ways. Under a real queue `publishActorDeletion` publishes a `DeleteActorJob`
+with `delaySeconds` (and the `scheduledAt` it was queued for). Under the
+in-process queue, which drops delayed messages, nothing is published; instead
+`instrumentation.ts` starts `startActorDeletionSweep`, which every ten minutes
+publishes a job for each actor whose `deletionScheduledAt` has passed. The
+sweep also runs behind a real queue as the safety net for a lost job, skipping
+deletions overdue by less than five minutes so an in-flight job is not doubled.
+`deleteActorJob` is the guard that makes both safe: it does nothing for an actor
+that is no longer `scheduled` (cancelled), does nothing before
+`deletionScheduledAt` (re-queuing itself with the remaining delay when the queue
+can), and discards a job whose `scheduledAt` no longer matches (cancelled, then
+scheduled again). A process that never runs `instrumentation.ts` (a serverless
+deployment on the in-process queue) has no sweep, so delayed deletions need a
+real queue there.
+
 #### Status Deletion & Transactional Outbox Semantics
 
 Status deletion (`deleteStatusFromUserInput`) adapts its federation queue dispatching to the configured queue backend:

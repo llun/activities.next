@@ -129,6 +129,40 @@ describe('StatusReactionDatabase', () => {
         }
       })
 
+      it('holds the per-actor cap when distinct reactions race', async () => {
+        const statusId = statuses.primary.postWithAttachments
+        const names = Array.from(
+          { length: MAX_REACTIONS_PER_ACTOR * 3 },
+          (_unused, index) => `race-${index}`
+        )
+        try {
+          // Each call reads the actor's existing rows and inserts a different
+          // name, so only the status row lock keeps them from all seeing room.
+          await Promise.all(
+            names.map((name) =>
+              database.createStatusReaction({
+                statusId,
+                actorId: extraActorId,
+                name
+              })
+            )
+          )
+
+          const rollups = await database.getStatusReactionRollups({
+            statusIds: [statusId]
+          })
+          expect(rollups).toHaveLength(MAX_REACTIONS_PER_ACTOR)
+        } finally {
+          for (const name of names) {
+            await database.deleteStatusReaction({
+              statusId,
+              actorId: extraActorId,
+              name
+            })
+          }
+        }
+      })
+
       it.each([
         {
           description: 'a first-time reaction reports that it stored a row',

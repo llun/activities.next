@@ -1823,6 +1823,10 @@ export type GetCollectionItemsParams = {
   collectionIds: string[]
   // Only approved (publicly consented) items when true — the public projection.
   approvedOnly?: boolean
+  // Return at most this many items (oldest-first) per collection. Omit to load
+  // every member; public callers that only embed a preview must set it so the
+  // read does not scale with the collection's size.
+  limitPerCollection?: number
 }
 export type GetCollectionItemParams = { collectionId: string; itemId: string }
 export type GetCollectionItemByAccountParams = {
@@ -2374,7 +2378,9 @@ export interface AnnouncementDatabase {
   markAnnouncementRead(params: MarkAnnouncementReadParams): Promise<void>
   // Per-actor: idempotently add a reaction on the (announcement, actor, name)
   // composite key.
-  addAnnouncementReaction(params: AnnouncementReactionParams): Promise<void>
+  // Resolves false, storing nothing, when the reaction would add a distinct name
+  // beyond MAX_ANNOUNCEMENT_REACTION_NAMES.
+  addAnnouncementReaction(params: AnnouncementReactionParams): Promise<boolean>
   // Per-actor: remove a reaction.
   removeAnnouncementReaction(params: AnnouncementReactionParams): Promise<void>
   // Per-actor: which of `announcementIds` the actor has read.
@@ -2993,7 +2999,9 @@ export type GetLikesParams = {
 }
 
 export interface LikeDatabase {
-  createLike(params: CreateLikeParams): Promise<void>
+  // Resolves true only when a new like row was inserted (false for an existing
+  // like or an unknown status), so callers notify once per real like.
+  createLike(params: CreateLikeParams): Promise<boolean>
   deleteLike(params: DeleteLikeParams): Promise<void>
   getLikeCount(params: GetLikeCountParams): Promise<number>
   isActorLikedStatus(params: IsActorLikedStatusParams): Promise<boolean>

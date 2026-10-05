@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { CollectionLimitError } from '@/lib/services/collections/limits'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -110,6 +111,20 @@ describe('/api/v1/collections/[id]/items', () => {
     )
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({})
+  })
+
+  it('answers 422 when the collection is already at its member ceiling', async () => {
+    vi.spyOn(database, 'addCollectionMembers').mockRejectedValue(
+      new CollectionLimitError('members')
+    )
+    const response = await POST(
+      postRequest({ account_ids: [urlToId(ACTOR2_ID)] }),
+      context()
+    )
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({
+      error: new CollectionLimitError('members').message
+    })
   })
 
   it('rejects a body with neither account_id nor account_ids', async () => {

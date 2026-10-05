@@ -249,7 +249,7 @@ Optional dependencies (such as PostgreSQL, Cloud Tasks, QStash, and optional ema
 - `@activities/resend` — Resend client (`resend`)
 - `@activities/ses` — AWS SES client (`@aws-sdk/client-ses`)
 
-The Dockerfile includes `@activities/nodemailer` by default (`ARG WORKSPACES="activities.next @activities/nodemailer"`). If no email provider workspace is included in a custom build, email delivery is gracefully disabled.
+The Dockerfile includes `@activities/nodemailer` by default (`ARG WORKSPACES="activities.next @activities/nodemailer"`). Email delivery is disabled only when no `ACTIVITIES_EMAIL_*` provider is configured. If a provider is configured but its workspace is missing from the build (for example `resend` or `ses` on the default image), every send fails with a logged error instead of silently succeeding, so password reset, registration confirmation and email change report the failure and roll back; add the matching workspace to `WORKSPACES`.
 
 To customize optional workspaces when building a Docker container, pass the `WORKSPACES` build argument:
 

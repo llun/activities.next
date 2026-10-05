@@ -91,6 +91,26 @@ describe('post author links', () => {
       '/@booster@remote.example'
     )
   })
+
+  it('renders an avatar for an actor id whose last segment is not valid percent-encoding', () => {
+    // `decodeURIComponent('%FF')` throws; a hostile server can pick such an id
+    // and a username that sends the link through the actor-id fallback.
+    render(
+      <ActorAvatar
+        actor={{
+          ...actor,
+          id: 'https://evil.example/users/%FF',
+          username: '@'
+        }}
+        actorId="https://evil.example/users/%FF"
+      />
+    )
+
+    expect(screen.getByRole('link')).toHaveAttribute(
+      'href',
+      '/@%FF@evil.example'
+    )
+  })
 })
 
 // A federated `preferredUsername` is a bare `z.string()` (see

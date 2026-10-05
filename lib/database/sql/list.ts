@@ -14,6 +14,8 @@ import { applyListEligibleStatusFilter } from '@/lib/database/sql/utils/listElig
 import { applyListRepliesPolicyFilter } from '@/lib/database/sql/utils/listRepliesPolicy'
 import { applyPotentiallyReadableStatusFilter } from '@/lib/database/sql/utils/statusVisibility'
 import {
+  LIST_MEMBER_BACKFILL_BATCH_SIZE,
+  LIST_MEMBER_BACKFILL_MAX_POSTS,
   LIST_OWNER_BACKFILL_MAX_POSTS,
   listTimelineKey
 } from '@/lib/services/timelines/types'
@@ -65,13 +67,14 @@ type BackfillStatusRow = {
 }
 
 // Materialize the given members' existing posts into a list's `timelines`
-// partition. Used to backfill full history when members are added, and again
+// partition. Used to backfill recent history when members are added, and again
 // when the owner's follow request to a member is accepted (updateFollowStatus),
 // and by the one-time backfill migration via the same column shape. Inserts are
 // idempotent on the unique (actorId, timeline, statusId), so it can safely
 // overlap with the new-status fan-out and is a no-op for members already
-// present. The owner adding themselves is the one exception to full history —
-// see LIST_OWNER_BACKFILL_MAX_POSTS. A member the owner has only requested to
+// present. Every member backfills only their most recent posts (see
+// LIST_MEMBER_BACKFILL_MAX_POSTS), the owner adding themselves fewer still (see
+// LIST_OWNER_BACKFILL_MAX_POSTS). A member the owner has only requested to
 // follow gets nothing yet, as in addStatusToListTimelines.
 export const backfillListTimelineForMembers = async ({
   database,
@@ -127,11 +130,9 @@ export const backfillListTimelineForMembers = async ({
     )
   }
 
-  // Fetch the added members' posts in chunked IN queries rather than one query
-  // per member (avoids an N+1 across the accounts being added). Each chunk's rows
-  // carry statusActorId from the status itself, so a single pass materializes the
-  // whole chunk. The chunk size reserves the two bindings the pending-request
-  // lookup adds to its IN list.
+  // The pending-request lookup is batched across the accounts being added (one
+  // IN query per chunk); the posts themselves are read per member, below. The
+  // chunk size reserves the two bindings the lookup adds to its IN list.
   const memberIds = targetActorIds.filter(
     (targetActorId) => targetActorId !== ownerId
   )
@@ -145,12 +146,40 @@ export const backfillListTimelineForMembers = async ({
     const backfillMemberIds = idChunk.filter(
       (memberId) => !pendingMemberIds.has(memberId)
     )
-    if (backfillMemberIds.length === 0) continue
-    await materialize(
-      await database('statuses')
-        .whereIn('actorId', backfillMemberIds)
-        .select<BackfillStatusRow[]>('id', 'actorId', 'createdAt')
-    )
+    // Newest first, one keyset page at a time, up to the per-member cap: the
+    // member's cached history is attacker-influenced (a remote actor's own
+    // outbox), so it is never loaded or written in one piece.
+    for (const memberId of backfillMemberIds) {
+      let cursor: { createdAt: Date; id: string } | undefined
+      let remaining = LIST_MEMBER_BACKFILL_MAX_POSTS
+      while (remaining > 0) {
+        const pageSize = Math.min(LIST_MEMBER_BACKFILL_BATCH_SIZE, remaining)
+        const page = database('statuses').where('actorId', memberId)
+        if (cursor) {
+          const { createdAt, id } = cursor
+          page.andWhere((builder) => {
+            builder
+              .where('createdAt', '<', createdAt)
+              .orWhere((tieBreaker) =>
+                tieBreaker.where('createdAt', createdAt).andWhere('id', '<', id)
+              )
+          })
+        }
+        const rows = await page
+          .orderBy('createdAt', 'desc')
+          .orderBy('id', 'desc')
+          .limit(pageSize)
+          .select<BackfillStatusRow[]>('id', 'actorId', 'createdAt')
+        await materialize(rows)
+        if (rows.length < pageSize) break
+        const last = rows[rows.length - 1]
+        cursor = {
+          createdAt: new Date(getCompatibleTime(last.createdAt)),
+          id: last.id
+        }
+        remaining -= rows.length
+      }
+    }
   }
 }
 
@@ -398,10 +427,10 @@ export const ListSQLDatabaseMixin = (
       }
 
       // Backfill the materialized list feed with each new member's existing posts
-      // so the timeline shows full history immediately (matching the old live
-      // join), not just posts published after they were added — except the
-      // owner adding themselves, who gets only their most recent posts
-      // (LIST_OWNER_BACKFILL_MAX_POSTS), and a member the owner has only
+      // so the timeline shows recent history immediately, not just posts
+      // published after they were added (at most LIST_MEMBER_BACKFILL_MAX_POSTS
+      // each; the owner adding themselves gets LIST_OWNER_BACKFILL_MAX_POSTS),
+      // and a member the owner has only
       // requested to follow, whose posts wait for the request to be accepted.
       // onConflict ignores any rows the new-status fan-out already wrote, so
       // re-adding a member is a no-op rather than a duplicate.

@@ -67,10 +67,17 @@ const collectText = (nodes: PlainTextDomNode[], parts: string[]) => {
   })
 }
 
+// Remote HTML (an actor's summary) nests as deep as its author likes, and
+// `collectText` spends stack frames per level. Real markup stays a few levels
+// deep (`p > a > span`); tags beyond this depth are dropped by the sanitizer
+// while their text is kept, so a hostile bio cannot overflow the stack.
+const MAX_NESTING_DEPTH = 10
+
 export const htmlToPlainText = (html: string | null | undefined) => {
   const sanitizedHtml = sanitizeHtml(html ?? '', {
     allowedTags: ALLOWED_STRUCTURE_TAGS,
-    allowedAttributes: {}
+    allowedAttributes: {},
+    nestingLimit: MAX_NESTING_DEPTH
   })
   const parts: string[] = []
   collectText(htmlToDOM(sanitizedHtml), parts)

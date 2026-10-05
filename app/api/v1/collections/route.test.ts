@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { CollectionLimitError } from '@/lib/services/collections/limits'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -153,6 +154,17 @@ describe('/api/v1/collections', () => {
     const { collection } = await response.json()
     expect(collection.name).toBe('Spec name')
     expect(collection.visibility).toBe('public')
+  })
+
+  it('answers 422 when the owner already has the maximum number of collections', async () => {
+    vi.spyOn(database, 'createCollection').mockRejectedValue(
+      new CollectionLimitError('collections')
+    )
+    const response = await POST(postRequest({ name: 'One too many' }), context)
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({
+      error: new CollectionLimitError('collections').message
+    })
   })
 
   it('rejects a collection with neither name nor title', async () => {

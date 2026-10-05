@@ -6,8 +6,9 @@ import {
   DELETE as REMOVE_REACTION
 } from '@/app/api/v1/announcements/[id]/reactions/[name]/route'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { MAX_ANNOUNCEMENT_REACTION_NAMES } from '@/lib/services/announcements/reactionLimits'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { GET } from './route'
 
@@ -200,23 +201,92 @@ describe('/api/v1/announcements', () => {
     expect(response.status).toBe(422)
   })
 
-  it('accepts a reaction name containing a literal percent sign', async () => {
-    // Regression: the handler used to call decodeURIComponent on the already
-    // decoded route param, which threw a URIError (wrong 422) on a literal '%'.
+  it('rejects a reaction name that is neither an emoji nor a custom emoji shortcode', async () => {
+    // A literal '%' also guards the old double-decode crash: the route param
+    // arrives already decoded, so this must be a plain 422, not a URIError.
     const created = await database.createAnnouncement({
-      text: 'percent reaction',
+      text: 'invalid reaction',
       published: true
     })
-    const name = '100%'
 
-    const response = await ADD_REACTION(
-      writeRequest(
-        `${created.id}/reactions/${encodeURIComponent(name)}`,
-        'PUT'
-      ),
-      { params: Promise.resolve({ id: created.id, name }) }
-    )
-    expect(response.status).toBe(200)
+    for (const name of ['100%', 'not an emoji', 'unknown_shortcode', '👍👍']) {
+      const response = await ADD_REACTION(
+        writeRequest(
+          `${created.id}/reactions/${encodeURIComponent(name)}`,
+          'PUT'
+        ),
+        { params: Promise.resolve({ id: created.id, name }) }
+      )
+      expect(response.status).toBe(422)
+    }
+
+    expect(
+      await database.getAnnouncementReactions({
+        announcementIds: [created.id],
+        actorId: ACTOR1_ID
+      })
+    ).toEqual([])
+  })
+
+  it('accepts the shortcode of an enabled custom emoji, with or without colons', async () => {
+    const created = await database.createAnnouncement({
+      text: 'custom emoji reaction',
+      published: true
+    })
+    await database.createCustomEmoji({
+      shortcode: 'blobcat',
+      url: 'https://llun.test/emoji/blobcat.png',
+      staticUrl: 'https://llun.test/emoji/blobcat.png'
+    })
+
+    for (const name of ['blobcat', ':blobcat:']) {
+      const response = await ADD_REACTION(
+        writeRequest(
+          `${created.id}/reactions/${encodeURIComponent(name)}`,
+          'PUT'
+        ),
+        { params: Promise.resolve({ id: created.id, name }) }
+      )
+      expect(response.status).toBe(200)
+    }
+
+    expect(
+      await database.getAnnouncementReactions({
+        announcementIds: [created.id],
+        actorId: ACTOR1_ID
+      })
+    ).toEqual([
+      expect.objectContaining({ name: 'blobcat', count: 1, me: true })
+    ])
+  })
+
+  it('answers 422 for a ninth distinct reaction but still lets a known one through', async () => {
+    const created = await database.createAnnouncement({
+      text: 'reaction cap',
+      published: true
+    })
+    const emoji = ['😀', '😁', '😂', '😃', '😄', '😅', '😆', '😇']
+    const react = (name: string) =>
+      ADD_REACTION(
+        writeRequest(
+          `${created.id}/reactions/${encodeURIComponent(name)}`,
+          'PUT'
+        ),
+        { params: Promise.resolve({ id: created.id, name }) }
+      )
+    for (const name of emoji) {
+      expect((await react(name)).status).toBe(200)
+    }
+
+    expect((await react('😈')).status).toBe(422)
+    // Joining a reaction that is already on the announcement adds no new group.
+    expect((await react(emoji[0])).status).toBe(200)
+    expect(
+      await database.getAnnouncementReactions({
+        announcementIds: [created.id],
+        actorId: ACTOR1_ID
+      })
+    ).toHaveLength(MAX_ANNOUNCEMENT_REACTION_NAMES)
   })
 
   it('reaction on an unknown announcement returns 404', async () => {
