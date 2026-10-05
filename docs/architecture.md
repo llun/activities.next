@@ -249,6 +249,7 @@ Instance administrators can inspect terminally failed tasks, view formatted payl
   - Operational note: Old workers must be drained before a mixed-version rollout to ensure claims are settled with compatible token parameters. Claim tokens protect against concurrent or stale queue state transitions, but do not promise exactly-once external effects.
   - Unhandled job errors trigger polynomial backoff retry scheduling (`attempt^4 + 15` seconds, up to `ACTIVITIES_QUEUE_DATABASE_MAX_RETRIES` / default 16 attempts spanning ~7.5 days, matching Mastodon queue retry resilience).
   - Upon reaching maximum retries, failed tasks are stored in `dead_letter_jobs` and marked failed in `queue_jobs`, making them manageable via the Admin UI at `/admin/queues`.
+  - `completed` rows keep their full payload, so the runner (in-process and standalone) sweeps them: every 10 minutes it deletes rows completed more than 7 days ago in batches of 500 (`purgeCompletedQueueJobs`, `startDatabaseQueueRunner` options `completedRetentionMs` / `retentionSweepIntervalMs`). The job id is the dedup key, so that retention window is also the window in which re-publishing an already-completed id is ignored. `failed` and `pending` rows are never swept.
 - **Google Cloud Tasks (`ACTIVITIES_QUEUE_TYPE=cloudtasks`)**:
   - Webhook endpoint: `/api/v1/queue/cloudtasks` (returns 404 unless the configured queue is CloudTasks).
   - Tasks are authenticated via Google Cloud OIDC tokens or pre-shared webhook secrets (`Authorization: Bearer <secret>`, `x-cloudtasks-secret`, or `x-cloudtasks-token`). Plain service account headers (`x-service-account` / `x-cloudtasks-serviceaccount`) are not accepted.
@@ -579,13 +580,13 @@ Read the applicable rules and review checks below before changing this subsystem
 - Binary FIT and image downloads use `safeImageFetch` with `readResponseArrayBufferWithLimit` because the text response of `safeRemoteFetch` would corrupt those bytes. The binary helper checks each redirect and destination address; callers apply an overall timeout and byte cap and do not forward provider bearer tokens to file hosts.
 - External cloud integrations (e.g. translation providers like DeepL, OpenAI, or Gemini, and alt-text vision generation) must target public HTTPS endpoints. Internal or self-hosted HTTP services running on private IP addresses are not supported.
 
-<a id="agents-link-prefetching-in-feeds"></a>
 #### Inbound request bodies on unauthenticated routes
 
 - **An unauthenticated route (public webhook, client registration, anything that parses before the auth check) must not call `req.json()` / `req.text()` / `req.formData()` directly** — each buffers the whole body first. Read it through `@/lib/utils/boundedRequestBody` (`readRequestTextWithLimit`, `readRequestBodyWithLimit`, cap `SMALL_REQUEST_BODY_MAX_BYTES` = 64 KiB) or pass `{ maxBytes }` to `getRequestBody`. The cap is checked against a declared `content-length` before reading and again on the stream (the header can be absent or false), and an over-cap body answers 413 (`isRequestBodyTooLargeError`). Do not clone the request to peek at its body: cancelling one `tee()` branch never settles until the other is read, so the cap can never fire on a clone.
 - A body-parsing `addAttributes` callback on `traceApiRoute` runs **before** the handler and so before an auth guard; set span attributes inside the guarded handler (`trace.getActiveSpan()`) instead.
 - Next's `proxy.ts` body clone (default 10 MB) is a backstop, not a limit to rely on.
 
+<a id="agents-link-prefetching-in-feeds"></a>
 
 ### Link prefetching in feeds
 

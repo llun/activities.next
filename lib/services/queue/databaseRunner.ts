@@ -22,6 +22,44 @@ export interface ProcessDueQueueJobsOptions {
 export interface QueueRunnerOptions extends ProcessDueQueueJobsOptions {
   pollIntervalMs?: number
   batchSize?: number
+  /** How long a `completed` job (and its payload) is kept. Default 7 days. */
+  completedRetentionMs?: number
+  /** Minimum gap between retention sweeps. Default 10 minutes. */
+  retentionSweepIntervalMs?: number
+}
+
+export const DEFAULT_COMPLETED_JOB_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
+export const DEFAULT_RETENTION_SWEEP_INTERVAL_MS = 10 * 60 * 1000
+const RETENTION_SWEEP_BATCH_SIZE = 500
+// Bounds one sweep so a huge backlog cannot starve job processing; the next
+// sweep carries on where this one stopped.
+const RETENTION_SWEEP_MAX_BATCHES = 100
+
+/**
+ * Deletes `completed` jobs older than the retention window in small batches.
+ * A completed row's id keeps deduplicating a re-publish of the same id, so the
+ * window is also the dedup window.
+ */
+export const purgeExpiredCompletedQueueJobs = async (
+  database: Database,
+  {
+    now = new Date(),
+    retentionMs = DEFAULT_COMPLETED_JOB_RETENTION_MS,
+    shouldStop
+  }: { now?: Date; retentionMs?: number; shouldStop?: () => boolean } = {}
+): Promise<number> => {
+  const olderThan = new Date(now.getTime() - retentionMs)
+  let purged = 0
+  for (let batch = 0; batch < RETENTION_SWEEP_MAX_BATCHES; batch++) {
+    if (shouldStop?.()) break
+    const deleted = await database.purgeCompletedQueueJobs({
+      olderThan,
+      limit: RETENTION_SWEEP_BATCH_SIZE
+    })
+    purged += deleted
+    if (deleted < RETENTION_SWEEP_BATCH_SIZE) break
+  }
+  return purged
 }
 
 export const processDueQueueJobs = async (
@@ -223,8 +261,33 @@ export const startDatabaseQueueRunner = (
     batchSize = 10,
     handleJob,
     backoffOptions,
-    stalledTimeoutMs
+    stalledTimeoutMs,
+    completedRetentionMs = DEFAULT_COMPLETED_JOB_RETENTION_MS,
+    retentionSweepIntervalMs = DEFAULT_RETENTION_SWEEP_INTERVAL_MS
   } = options
+
+  let lastRetentionSweepAt = 0
+  const sweepRetention = async () => {
+    const now = Date.now()
+    if (now - lastRetentionSweepAt < retentionSweepIntervalMs) return
+    lastRetentionSweepAt = now
+    try {
+      const purged = await purgeExpiredCompletedQueueJobs(database, {
+        now: new Date(now),
+        retentionMs: completedRetentionMs,
+        shouldStop: () => !running
+      })
+      if (purged > 0) {
+        logger.info({ purged }, 'Purged expired completed database queue jobs')
+      }
+    } catch (error) {
+      // Housekeeping must never stop job processing.
+      logger.error(
+        { err: toLoggableError(error) },
+        'Failed to purge expired completed database queue jobs'
+      )
+    }
+  }
 
   let running = true
   let timeoutId: NodeJS.Timeout | null = null
@@ -232,6 +295,8 @@ export const startDatabaseQueueRunner = (
 
   const tick = async () => {
     if (!running) return
+
+    await sweepRetention()
 
     try {
       const processed = await processDueQueueJobs(database, {

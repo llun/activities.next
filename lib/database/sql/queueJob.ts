@@ -409,6 +409,35 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
     return deletedCount > 0
   },
 
+  async purgeCompletedQueueJobs({
+    olderThan,
+    limit = 500
+  }: {
+    olderThan: Date
+    limit?: number
+  }) {
+    // Two statements rather than `delete ... where id in (select ... limit)`:
+    // MySQL rejects LIMIT inside an IN subquery. `next_run_at` is repeated so
+    // the (status, next_run_at) index bounds the scan; a job always completes
+    // after it became due, so it never excludes a row `updated_at` would keep.
+    const rows = await database('queue_jobs')
+      .where('status', 'completed')
+      .andWhere('next_run_at', '<', olderThan)
+      .andWhere('updated_at', '<', olderThan)
+      .orderBy('next_run_at', 'asc')
+      .limit(limit)
+      .select('id')
+    if (rows.length === 0) return 0
+
+    return database('queue_jobs')
+      .whereIn(
+        'id',
+        rows.map((row: { id: string }) => row.id)
+      )
+      .andWhere('status', 'completed')
+      .delete()
+  },
+
   async countQueueJobs(params: { status?: QueueJobStatus } = {}) {
     let query = database('queue_jobs')
     if (params.status) {

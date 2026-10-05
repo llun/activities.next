@@ -506,4 +506,66 @@ describe('databaseRunner', () => {
     const job = await database.getQueueJobById('job-stalled-runner-1')
     expect(job?.status).toBe('completed')
   })
+
+  it('sweeps expired completed jobs while keeping recent and unfinished ones', async () => {
+    const day = 24 * 60 * 60 * 1000
+    const seed = async (
+      id: string,
+      status: 'completed' | 'pending',
+      ageMs: number
+    ) => {
+      const at = new Date(Date.now() - ageMs)
+      await database.createQueueJob({
+        id,
+        name: 'deliverActivity',
+        payload: { ...sampleMessage, id: `${id}-msg` },
+        status,
+        // A pending job in the future is never claimed by the runner.
+        nextRunAt: status === 'pending' ? new Date(Date.now() + day) : at
+      })
+      await knexDatabase('queue_jobs')
+        .where({ id })
+        .update({ updated_at: at, created_at: at })
+    }
+    await seed('sweep-old-completed', 'completed', 10 * day)
+    await seed('sweep-new-completed', 'completed', 1 * day)
+    await seed('sweep-old-pending', 'pending', 10 * day)
+
+    const runner = startDatabaseQueueRunner(database, {
+      pollIntervalMs: 20,
+      handleJob: async () => {}
+    })
+    await vi.waitFor(async () =>
+      expect(await database.getQueueJobById('sweep-old-completed')).toBeNull()
+    )
+    await runner.stop()
+
+    expect(await database.getQueueJobById('sweep-new-completed')).not.toBeNull()
+    expect(await database.getQueueJobById('sweep-old-pending')).not.toBeNull()
+  })
+
+  it('keeps processing jobs when the retention sweep fails', async () => {
+    const purge = vi
+      .spyOn(database, 'purgeCompletedQueueJobs')
+      .mockRejectedValue(new Error('purge exploded'))
+    await database.createQueueJob({
+      id: 'sweep-fail-job',
+      name: 'deliverActivity',
+      payload: { ...sampleMessage, id: 'sweep-fail-msg' },
+      nextRunAt: new Date(Date.now() - 1000)
+    })
+    const executed: string[] = []
+
+    const runner = startDatabaseQueueRunner(database, {
+      pollIntervalMs: 20,
+      handleJob: async (message) => {
+        executed.push(message.id)
+      }
+    })
+    await vi.waitFor(() => expect(executed).toContain('sweep-fail-msg'))
+    await runner.stop()
+
+    expect(purge).toHaveBeenCalled()
+    purge.mockRestore()
+  })
 })

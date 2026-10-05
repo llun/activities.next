@@ -4413,5 +4413,14 @@ export interface QueueJobDatabase {
   replayQueueJob(params: ReplayQueueJobParams): Promise<boolean>
   getQueueJobById(id: string): Promise<QueueJob | null>
   deleteQueueJob(id: string): Promise<boolean>
+  /**
+   * Deletes up to `limit` `completed` jobs last updated before `olderThan` and
+   * returns how many were removed. Completed rows keep their full payload and
+   * are otherwise never reaped, so without this the table only grows.
+   */
+  purgeCompletedQueueJobs(params: {
+    olderThan: Date
+    limit?: number
+  }): Promise<number>
   countQueueJobs(params?: { status?: QueueJobStatus }): Promise<number>
 }
