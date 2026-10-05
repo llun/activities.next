@@ -201,7 +201,9 @@ durable retries or delivery-status tracking.
 
 `ACTIVITIES_EMAIL` accepts the full provider configuration as JSON and takes
 precedence when it is syntactically valid. If the JSON is malformed,
-configuration falls back to the individual variables below; a syntactically
+configuration falls back to the individual variables below; when none of those
+are set either, configuration fails rather than running with email disabled
+(which would let registration write accounts pre-verified). A syntactically
 valid value with an unsupported provider or schema is rejected rather than
 falling back. Unknown providers, including the removed `lambda` provider, fail
 configuration instead of silently disabling email. Before upgrading an
