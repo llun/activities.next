@@ -1,0 +1,28 @@
+app/(timeline)/(home)/loading.test.tsx
+  s_982e52203f2399::t_d7681c22aca365 69-71
+lib/components/page-header.test.tsx
+  s_982e52203f2399::t_dec8eb26811dee 209-212,215,217-232
+  s_982e52203f2399::t_450e5e0f14a3df 213-214,216
+lib/components/page-header.tsx
+  s_982e52203f2399::t_fdfbab0ef780ce 233-236
+app/(timeline)/MainPageTimeline.test.tsx
+  s_982e52203f2399::t_67ec99bedf1cdc 490-494
+docs/architecture.md
+  s_982e52203f2399::t_4c47d0cd02f729 620
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9548fc0d9394d91de907d379f13fd2cfad36cb2",
+  "prompts": {},
+  "sessions": {
+    "s_982e52203f2399": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ccb6191-3307-44a5-8808-27ee77089425",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
