@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { filterReadableStatuses } from '@/lib/services/statusRouteAccess'
 import { Actor, Database, Status } from '@/lib/types/database'
@@ -56,6 +56,64 @@ const createMockStatus = (
 }
 
 describe('getTimelineContext', () => {
+  beforeEach(() => {
+    vi.mocked(filterReadableStatuses)
+      .mockReset()
+      .mockImplementation(async ({ statuses }) => statuses)
+  })
+
+  const boost = (originalStatus: Status, id = 'boost-1'): Status => ({
+    ...createMockStatus({ id }),
+    type: StatusType.enum.Announce,
+    originalStatus
+  })
+
+  it.each(['direct', 'nested'])(
+    'resolves parent context for a %s boosted reply',
+    async (kind) => {
+      const parent = createMockStatus({ id: 'parent-boosted-reply' })
+      const reply = createMockStatus({ id: 'reply-1', reply: parent.id })
+      const status =
+        kind === 'nested' ? boost(boost(reply), 'boost-2') : boost(reply)
+      const getStatusesByIds = vi.fn(async () => [parent])
+      const database = { getStatusesByIds } as unknown as Database
+
+      const result = await getTimelineContext({ database, statuses: [status] })
+
+      expect(getStatusesByIds).toHaveBeenCalledWith({ statusIds: [parent.id] })
+      expect(result.ancestorsById[parent.id]).toMatchObject({
+        actor: { username: 'alice' },
+        text: 'Content for parent-boosted-reply'
+      })
+    }
+  )
+
+  it('does not look up parent context for a boost of a standalone post', async () => {
+    const getStatusesByIds = vi.fn()
+    const database = { getStatusesByIds } as unknown as Database
+
+    expect(
+      await getTimelineContext({
+        database,
+        statuses: [boost(createMockStatus({ id: 'standalone' }))]
+      })
+    ).toEqual({ ancestorsById: {} })
+    expect(getStatusesByIds).not.toHaveBeenCalled()
+  })
+
+  it('keeps unavailable parent context absent for boosted replies', async () => {
+    const database = {
+      getStatusesByIds: vi.fn(async () => [])
+    } as unknown as Database
+
+    expect(
+      await getTimelineContext({
+        database,
+        statuses: [boost(createMockStatus({ id: 'reply-1', reply: 'missing' }))]
+      })
+    ).toEqual({ ancestorsById: {} })
+  })
+
   it('enforces max 3 rounds traversal limit', async () => {
     // Chain: postE -> postD -> postC -> postB -> postA
     const postA = createMockStatus({ id: 'status-a', reply: '' })
@@ -144,132 +202,149 @@ describe('getTimelineContext', () => {
     expect(getStatusesByIds).toHaveBeenCalledTimes(1)
   })
 
-  it('excludes unreadable or blocked parent status', async () => {
-    const parentReadable = createMockStatus({ id: 'parent-readable' })
-    const parentUnreadable = createMockStatus({ id: 'parent-unreadable' })
+  it.each([false, true])(
+    'excludes unreadable or blocked parent status (boosted: %s)',
+    async (boosted) => {
+      const parentReadable = createMockStatus({ id: 'parent-readable' })
+      const parentUnreadable = createMockStatus({ id: 'parent-unreadable' })
 
-    const child1 = createMockStatus({ id: 'child-1', reply: 'parent-readable' })
-    const child2 = createMockStatus({
-      id: 'child-2',
-      reply: 'parent-unreadable'
-    })
+      const child1 = createMockStatus({
+        id: 'child-1',
+        reply: 'parent-readable'
+      })
+      const child2 = createMockStatus({
+        id: 'child-2',
+        reply: 'parent-unreadable'
+      })
 
-    const getStatusesByIds = vi.fn(
-      async ({ statusIds }: { statusIds: string[] }) => {
-        return [parentReadable, parentUnreadable].filter((s) =>
-          statusIds.includes(s.id)
-        )
-      }
-    )
+      const getStatusesByIds = vi.fn(
+        async ({ statusIds }: { statusIds: string[] }) => {
+          return [parentReadable, parentUnreadable].filter((s) =>
+            statusIds.includes(s.id)
+          )
+        }
+      )
 
-    const mockedFilter = vi.mocked(filterReadableStatuses)
-    mockedFilter.mockImplementationOnce(async ({ statuses }) => {
-      return statuses.filter((s) => s.id !== 'parent-unreadable')
-    })
+      const mockedFilter = vi.mocked(filterReadableStatuses)
+      mockedFilter.mockImplementationOnce(async ({ statuses }) => {
+        return statuses.filter((s) => s.id !== 'parent-unreadable')
+      })
 
-    const database = {
-      getStatusesByIds
-    } as unknown as Database
+      const database = {
+        getStatusesByIds
+      } as unknown as Database
 
-    const result = await getTimelineContext({
-      database,
-      statuses: [child1, child2]
-    })
+      const result = await getTimelineContext({
+        database,
+        statuses: boosted
+          ? [child1, child2].map((status) =>
+              boost(status, `boost-${status.id}`)
+            )
+          : [child1, child2]
+      })
 
-    expect(result.ancestorsById['parent-readable']).toBeDefined()
-    expect(result.ancestorsById['parent-unreadable']).toBeUndefined()
-  })
+      expect(result.ancestorsById['parent-readable']).toBeDefined()
+      expect(result.ancestorsById['parent-unreadable']).toBeUndefined()
+    }
+  )
 
-  it('sets empty preview contentHtml, text, and tags for CW or sensitive status', async () => {
-    const parentWithSpoiler = createMockStatus({
-      id: 'parent-cw',
-      text: '<p>Secret content behind CW</p>',
-      summary: 'Content Warning: Spoilers',
-      isLocalActor: false,
-      tags: [
+  it.each([false, true])(
+    'sets empty preview contentHtml, text, and tags for CW or sensitive status (boosted: %s)',
+    async (boosted) => {
+      const parentWithSpoiler = createMockStatus({
+        id: 'parent-cw',
+        text: '<p>Secret content behind CW</p>',
+        summary: 'Content Warning: Spoilers',
+        isLocalActor: false,
+        tags: [
+          {
+            id: 'tag-1',
+            statusId: 'parent-cw',
+            type: 'hashtag',
+            name: 'spoiler',
+            value: 'spoiler',
+            createdAt: 1710000000000,
+            updatedAt: 1710000000000
+          }
+        ]
+      })
+
+      const parentSensitive = createMockStatus({
+        id: 'parent-sensitive',
+        text: '<p>Sensitive image or text</p>',
+        sensitive: true
+      })
+
+      const normalTags = [
         {
-          id: 'tag-1',
-          statusId: 'parent-cw',
-          type: 'hashtag',
-          name: 'spoiler',
-          value: 'spoiler',
+          id: 'tag-2',
+          statusId: 'parent-normal',
+          type: 'hashtag' as const,
+          name: 'activities',
+          value: 'activities',
           createdAt: 1710000000000,
           updatedAt: 1710000000000
         }
       ]
-    })
 
-    const parentSensitive = createMockStatus({
-      id: 'parent-sensitive',
-      text: '<p>Sensitive image or text</p>',
-      sensitive: true
-    })
+      const parentNormal = createMockStatus({
+        id: 'parent-normal',
+        text: '<p>Normal text</p>',
+        isLocalActor: true,
+        tags: normalTags
+      })
 
-    const normalTags = [
-      {
-        id: 'tag-2',
-        statusId: 'parent-normal',
-        type: 'hashtag' as const,
-        name: 'activities',
-        value: 'activities',
-        createdAt: 1710000000000,
-        updatedAt: 1710000000000
-      }
-    ]
+      const child1 = createMockStatus({ id: 'child-1', reply: 'parent-cw' })
+      const child2 = createMockStatus({
+        id: 'child-2',
+        reply: 'parent-sensitive'
+      })
+      const child3 = createMockStatus({
+        id: 'child-3',
+        reply: 'parent-normal'
+      })
 
-    const parentNormal = createMockStatus({
-      id: 'parent-normal',
-      text: '<p>Normal text</p>',
-      isLocalActor: true,
-      tags: normalTags
-    })
+      const database = {
+        getStatusesByIds: vi.fn(async () => [
+          parentWithSpoiler,
+          parentSensitive,
+          parentNormal
+        ])
+      } as unknown as Database
 
-    const child1 = createMockStatus({ id: 'child-1', reply: 'parent-cw' })
-    const child2 = createMockStatus({
-      id: 'child-2',
-      reply: 'parent-sensitive'
-    })
-    const child3 = createMockStatus({
-      id: 'child-3',
-      reply: 'parent-normal'
-    })
+      const result = await getTimelineContext({
+        database,
+        statuses: boosted
+          ? [child1, child2, child3].map((status) =>
+              boost(status, `boost-${status.id}`)
+            )
+          : [child1, child2, child3]
+      })
 
-    const database = {
-      getStatusesByIds: vi.fn(async () => [
-        parentWithSpoiler,
-        parentSensitive,
-        parentNormal
-      ])
-    } as unknown as Database
+      const previewCw = result.ancestorsById['parent-cw']
+      expect(previewCw).toBeDefined()
+      expect(previewCw.contentHtml).toBe('')
+      expect(previewCw.text).toBe('')
+      expect(previewCw.tags).toEqual([])
+      expect(previewCw.isLocalActor).toBe(false)
+      expect(previewCw.spoilerText).toBe('Content Warning: Spoilers')
+      expect(previewCw.isSensitive).toBe(true)
 
-    const result = await getTimelineContext({
-      database,
-      statuses: [child1, child2, child3]
-    })
+      const previewSensitive = result.ancestorsById['parent-sensitive']
+      expect(previewSensitive).toBeDefined()
+      expect(previewSensitive.contentHtml).toBe('')
+      expect(previewSensitive.text).toBe('')
+      expect(previewSensitive.tags).toEqual([])
+      expect(previewSensitive.isSensitive).toBe(true)
 
-    const previewCw = result.ancestorsById['parent-cw']
-    expect(previewCw).toBeDefined()
-    expect(previewCw.contentHtml).toBe('')
-    expect(previewCw.text).toBe('')
-    expect(previewCw.tags).toEqual([])
-    expect(previewCw.isLocalActor).toBe(false)
-    expect(previewCw.spoilerText).toBe('Content Warning: Spoilers')
-    expect(previewCw.isSensitive).toBe(true)
-
-    const previewSensitive = result.ancestorsById['parent-sensitive']
-    expect(previewSensitive).toBeDefined()
-    expect(previewSensitive.contentHtml).toBe('')
-    expect(previewSensitive.text).toBe('')
-    expect(previewSensitive.tags).toEqual([])
-    expect(previewSensitive.isSensitive).toBe(true)
-
-    const previewNormal = result.ancestorsById['parent-normal']
-    expect(previewNormal).toBeDefined()
-    expect(previewNormal.contentHtml).toBe('<p>Normal text</p>')
-    expect(previewNormal.text).toBe('<p>Normal text</p>')
-    expect(previewNormal.tags).toEqual(normalTags)
-    expect(previewNormal.isLocalActor).toBe(true)
-  })
+      const previewNormal = result.ancestorsById['parent-normal']
+      expect(previewNormal).toBeDefined()
+      expect(previewNormal.contentHtml).toBe('<p>Normal text</p>')
+      expect(previewNormal.text).toBe('<p>Normal text</p>')
+      expect(previewNormal.tags).toEqual(normalTags)
+      expect(previewNormal.isLocalActor).toBe(true)
+    }
+  )
 
   it('gracefully returns empty ancestors when parent is missing or not found', async () => {
     const orphanChild = createMockStatus({
@@ -327,60 +402,73 @@ describe('getTimelineContext', () => {
     ).toBe('Parent fetched via URL')
   })
 
-  it('strictly excludes blocked or muted parent statuses when currentActor is present', async () => {
-    const parentBlocked = createMockStatus({
-      id: 'parent-blocked',
-      actorId: 'https://example.com/users/blocked-user'
-    })
-    const parentMuted = createMockStatus({
-      id: 'parent-muted',
-      actorId: 'https://example.com/users/muted-user'
-    })
-    const parentAllowed = createMockStatus({
-      id: 'parent-allowed',
-      actorId: 'https://example.com/users/allowed-user'
-    })
+  it.each([false, true])(
+    'strictly excludes blocked or muted parent statuses when currentActor is present (boosted: %s)',
+    async (boosted) => {
+      const parentBlocked = createMockStatus({
+        id: 'parent-blocked',
+        actorId: 'https://example.com/users/blocked-user'
+      })
+      const parentMuted = createMockStatus({
+        id: 'parent-muted',
+        actorId: 'https://example.com/users/muted-user'
+      })
+      const parentAllowed = createMockStatus({
+        id: 'parent-allowed',
+        actorId: 'https://example.com/users/allowed-user'
+      })
 
-    const child1 = createMockStatus({ id: 'child-1', reply: 'parent-blocked' })
-    const child2 = createMockStatus({ id: 'child-2', reply: 'parent-muted' })
-    const child3 = createMockStatus({ id: 'child-3', reply: 'parent-allowed' })
+      const child1 = createMockStatus({
+        id: 'child-1',
+        reply: 'parent-blocked'
+      })
+      const child2 = createMockStatus({ id: 'child-2', reply: 'parent-muted' })
+      const child3 = createMockStatus({
+        id: 'child-3',
+        reply: 'parent-allowed'
+      })
 
-    const database = {
-      getStatusesByIds: vi.fn(
-        async ({ statusIds }: { statusIds: string[] }) => {
-          return [parentBlocked, parentMuted, parentAllowed].filter((s) =>
-            statusIds.includes(s.id)
-          )
-        }
-      ),
-      getBlockRelations: vi.fn(async () => [
-        {
-          actorId: 'https://example.com/users/viewer',
-          targetActorId: 'https://example.com/users/blocked-user'
-        }
-      ]),
-      getMuteRelations: vi.fn(async () => [
-        {
-          actorId: 'https://example.com/users/viewer',
-          targetActorId: 'https://example.com/users/muted-user'
-        }
-      ])
-    } as unknown as Database
+      const database = {
+        getStatusesByIds: vi.fn(
+          async ({ statusIds }: { statusIds: string[] }) => {
+            return [parentBlocked, parentMuted, parentAllowed].filter((s) =>
+              statusIds.includes(s.id)
+            )
+          }
+        ),
+        getBlockRelations: vi.fn(async () => [
+          {
+            actorId: 'https://example.com/users/viewer',
+            targetActorId: 'https://example.com/users/blocked-user'
+          }
+        ]),
+        getMuteRelations: vi.fn(async () => [
+          {
+            actorId: 'https://example.com/users/viewer',
+            targetActorId: 'https://example.com/users/muted-user'
+          }
+        ])
+      } as unknown as Database
 
-    const currentActor = {
-      id: 'https://example.com/users/viewer'
-    } as Actor
+      const currentActor = {
+        id: 'https://example.com/users/viewer'
+      } as Actor
 
-    const result = await getTimelineContext({
-      database,
-      currentActor,
-      statuses: [child1, child2, child3]
-    })
+      const result = await getTimelineContext({
+        database,
+        currentActor,
+        statuses: boosted
+          ? [child1, child2, child3].map((status) =>
+              boost(status, `boost-${status.id}`)
+            )
+          : [child1, child2, child3]
+      })
 
-    expect(result.ancestorsById['parent-blocked']).toBeUndefined()
-    expect(result.ancestorsById['parent-muted']).toBeUndefined()
-    expect(result.ancestorsById['parent-allowed']).toBeDefined()
-  })
+      expect(result.ancestorsById['parent-blocked']).toBeUndefined()
+      expect(result.ancestorsById['parent-muted']).toBeUndefined()
+      expect(result.ancestorsById['parent-allowed']).toBeDefined()
+    }
+  )
 
   it('indexes ancestorsById under id, url, uri, and publicId aliases', async () => {
     const parentWithAliases = createMockStatus({
