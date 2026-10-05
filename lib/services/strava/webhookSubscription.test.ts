@@ -1,9 +1,12 @@
+import { logger } from '@/lib/utils/logger'
+
 import {
   StravaSubscription,
   createSubscription,
   deleteSubscription,
   ensureWebhookSubscription,
-  getSubscription
+  getSubscription,
+  redactWebhookCallbackUrl
 } from './webhookSubscription'
 
 const mockFetch = vi.fn()
@@ -221,6 +224,47 @@ describe('webhookSubscription', () => {
       expect(mockFetch).toHaveBeenCalledTimes(3)
     })
 
+    // The token in the callback URL is the only credential on the
+    // unauthenticated webhook endpoint; anyone reading logs could forge events.
+    it('never logs the webhook token from either callback URL', async () => {
+      const infoSpy = vi.spyOn(logger, 'info')
+      const oldToken = 'old-webhook-token-value'
+      const newToken = 'new-webhook-token-value'
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              {
+                id: 1,
+                callback_url: `https://example.com/api/v1/webhooks/strava/${oldToken}`,
+                created_at: '2025-01-01T00:00:00Z',
+                updated_at: '2025-01-01T00:00:00Z'
+              }
+            ])
+        })
+        .mockResolvedValueOnce({ ok: true, status: 204 })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ id: 99 })
+        })
+
+      await ensureWebhookSubscription({
+        ...params,
+        callbackUrl: `https://example.com/api/v1/webhooks/strava/${newToken}`,
+        verifyToken: newToken
+      })
+
+      expect(infoSpy).toHaveBeenCalled()
+      const logged = JSON.stringify(infoSpy.mock.calls)
+      expect(logged).not.toContain(oldToken)
+      expect(logged).not.toContain(newToken)
+      expect(logged).toContain(
+        'https://example.com/api/v1/webhooks/strava/REDACTED'
+      )
+      infoSpy.mockRestore()
+    })
+
     it('returns error when subscription creation fails', async () => {
       mockFetch
         .mockResolvedValueOnce({
@@ -240,6 +284,15 @@ describe('webhookSubscription', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('Callback validation failed')
+    })
+  })
+
+  describe('redactWebhookCallbackUrl', () => {
+    it('replaces only the trailing token segment', () => {
+      expect(
+        redactWebhookCallbackUrl('https://example.com/webhook/strava/token123')
+      ).toBe('https://example.com/webhook/strava/REDACTED')
+      expect(redactWebhookCallbackUrl('not a url')).toBe('REDACTED')
     })
   })
 })

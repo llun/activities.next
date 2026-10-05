@@ -127,6 +127,24 @@ export async function createSubscription(
   return data.id
 }
 
+/**
+ * A callback URL safe to log. The last path segment is the actor's webhook
+ * token — the only credential on the unauthenticated webhook endpoint — so it
+ * is replaced; the origin and the rest of the path stay for diagnosis.
+ */
+export const redactWebhookCallbackUrl = (callbackUrl: string): string => {
+  try {
+    const url = new URL(callbackUrl)
+    const segments = url.pathname.split('/')
+    if (segments.length > 1 && segments[segments.length - 1]) {
+      segments[segments.length - 1] = 'REDACTED'
+    }
+    return `${url.origin}${segments.join('/')}`
+  } catch {
+    return 'REDACTED'
+  }
+}
+
 interface EnsureWebhookSubscriptionParams {
   clientId: string
   clientSecret: string
@@ -169,8 +187,8 @@ export async function ensureWebhookSubscription(
       logger.info({
         message: 'Deleting mismatched Strava webhook subscription',
         subscriptionId: existing.id,
-        existingUrl: existing.callback_url,
-        newUrl: callbackUrl
+        existingUrl: redactWebhookCallbackUrl(existing.callback_url),
+        newUrl: redactWebhookCallbackUrl(callbackUrl)
       })
       await deleteSubscription(clientId, clientSecret, existing.id)
     }
@@ -178,7 +196,7 @@ export async function ensureWebhookSubscription(
     // Create new subscription
     logger.info({
       message: 'Creating new Strava webhook subscription',
-      callbackUrl
+      callbackUrl: redactWebhookCallbackUrl(callbackUrl)
     })
     const subscriptionId = await createSubscription(
       clientId,
