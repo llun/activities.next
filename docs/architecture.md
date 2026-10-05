@@ -296,8 +296,11 @@ that both the web UI and the Mastodon API's `Status.card` render.
   (bodies over 2 MiB are truncated rather than rejected) and a
   5s-per-hop budget over at most one redirect,
   and must answer `text/html` in UTF-8 to be parsed at all. Up to 1 MiB of the
-  document `<head>` is parsed: the byte cap bounds transfer, not CPU, and the
-  HTML parser is quadratic in nesting depth.
+  document `<head>` is read, by htmlparser2's `Tokenizer` rather than a
+  tree-building parse: the byte cap bounds transfer, not CPU, and both
+  `htmlToDOM` and htmlparser2's `Parser` are quadratic in nesting depth (1 MiB
+  of unclosed `<div>`s blocked the event loop for seconds). Do not swap it back
+  for either.
 - A completed card is re-read after 7 days. A failure is stored as a
   negative-cache row for an hour, so an unreachable host is not re-contacted for
   every post that mentions it.
