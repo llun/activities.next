@@ -1,4 +1,7 @@
-import { getPersistableProfile } from '@/lib/actions/utils'
+import {
+  getPersistableActorPerson,
+  getPersistableProfile
+} from '@/lib/actions/utils'
 import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
@@ -227,7 +230,6 @@ export const getProfileData = async (
   // therefore re-entered the create branch on every render and re-inserted the
   // same id — a permanent 500 on the `actors_id_unique` constraint.
   const storedActor = await database.getActorFromId({ id: person.id })
-  const persistableProfile = getPersistableProfile(person)
   // Never write a LOCAL actor's row from fetched data. `getActorPerson` binds
   // `person.id` to the origin that served it, so a hostile WebFinger target can
   // no longer name our ids — but a handle whose WebFinger resolves back to this
@@ -235,33 +237,51 @@ export const getProfileData = async (
   // counters are owned by its account, not by whatever a fetch returned.
   // Mirrors recordActorIfNeeded's "Don't update local actor".
   const isLocalActor = Boolean(storedActor?.privateKey || storedActor?.account)
+  // The WebFinger `self` link is not bound to the handle's domain (split-domain
+  // deployments need it unbound), so it can name ANY URL — a same-origin user
+  // upload whose JSON claims another actor's id with its own key and inbox.
+  // Only a document fetched from its own id is written as-is, the same rule
+  // recordActorIfNeeded applies: a row already stored under a different
+  // `person.id` is left untouched, and a new one is created only from what
+  // `person.id` itself serves. The page still renders the fetched document.
+  let persistablePerson: Actor | null = null
   if (isLocalActor) {
     // Read-only render of our own actor reached through a remote handle.
-  } else if (storedActor) {
+  } else if (person.id === actorId) {
+    persistablePerson = person
+  } else if (!storedActor) {
+    persistablePerson = await getPersistableActorPerson({
+      requestedActorId: actorId,
+      person,
+      ...signingParams
+    })
+  }
+  if (persistablePerson && storedActor) {
     // Same field set recordActorIfNeeded persists, so the web profile page
     // and the Mastodon API refresh paths write consistent snapshots (including
     // metadata fields and the locked state).
     await database.updateActor({
-      actorId: person.id,
-      ...persistableProfile
+      actorId: persistablePerson.id,
+      ...getPersistableProfile(persistablePerson)
     })
-  } else {
+  } else if (persistablePerson) {
+    const persistableProfile = getPersistableProfile(persistablePerson)
     // A concurrent render can insert the same id between the read above and
     // this insert. Rather than serialize the whole render, treat the unique
     // violation as "someone else won the race" and fall back to the update the
     // winner's row now needs — any other error is real and rethrown.
     try {
       await database.createActor({
-        actorId: person.id,
-        username: person.preferredUsername,
-        domain: new URL(person.id).host,
+        actorId: persistablePerson.id,
+        username: persistablePerson.preferredUsername,
+        domain: new URL(persistablePerson.id).host,
         ...persistableProfile,
-        createdAt: new Date(person.published ?? Date.now()).getTime()
+        createdAt: new Date(persistablePerson.published ?? Date.now()).getTime()
       })
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error
       await database.updateActor({
-        actorId: person.id,
+        actorId: persistablePerson.id,
         ...persistableProfile
       })
     }
@@ -319,9 +339,11 @@ export const getProfileData = async (
   // Mastodon API (which reads the counter rows) serves the same counts this
   // page displays. getActorCollectionCounts distinguishes a fetch failure
   // (null, preserves the stored counter) from a real zero.
-  // Best-effort — the page renders from the live values either way.
+  // Best-effort — the page renders from the live values either way. The counts
+  // come from the fetched document's collections, so they are written only when
+  // that document was itself persisted (fetched from its own id).
   try {
-    if (!isLocalActor) {
+    if (persistablePerson === person) {
       await database.setActorCounters({
         actorId: person.id,
         followersCount: collectionCounts.followersCount,

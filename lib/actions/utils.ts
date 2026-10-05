@@ -153,6 +153,43 @@ const getRequestedActorPerson = async ({
   return person
 }
 
+// The one rule for persisting an actor fetched from a URL other than its own
+// id. When `person.id` is not `requestedActorId` the fetched document is only a
+// pointer: any URL on the origin (a user upload, say) can serve JSON claiming
+// the real id with its own key and inbox, and that key would then verify every
+// activity signed as the real id. Returns the document to write under
+// `person.id` — the fetched one when the ids agree, otherwise what `person.id`
+// itself serves, and only when that document names exactly `person.id`
+// (Mastodon re-fetches the same way). `null` means persist nothing. Callers
+// that already hold a row under `person.id` leave it untouched instead of
+// calling this: the refresh path re-fetches a row's own id.
+export const getPersistableActorPerson = async ({
+  requestedActorId,
+  person,
+  signingActor
+}: {
+  requestedActorId: string
+  person: ActivityPubActor
+  signingActor?: Actor
+}): Promise<ActivityPubActor | null> => {
+  if (person.id === requestedActorId) return person
+  const canonicalPerson = await getActorPerson({
+    actorId: person.id,
+    signingActor
+  })
+  if (!canonicalPerson || canonicalPerson.id !== person.id) {
+    logger.warn({
+      message:
+        'Refused remote actor alias whose canonical id does not serve itself',
+      actorId: requestedActorId,
+      fetchedActorId: person.id,
+      canonicalDocumentId: canonicalPerson?.id
+    })
+    return null
+  }
+  return canonicalPerson
+}
+
 export const recordActorIfNeeded = async ({
   actorId,
   database,
@@ -194,34 +231,18 @@ export const recordActorIfNeeded = async ({
     // any URL the origin answers for occupy the actor's UNIQUE (username,
     // domain), after which the real id could never be recorded and every
     // activity from it failed on the constraint.
-    let person = fetchedPerson
     if (fetchedPerson.id !== actorId) {
       const canonicalActor = await database.getActorFromId({
         id: fetchedPerson.id
       })
       if (canonicalActor) return canonicalActor
-      // The alias's document is only a pointer. Any URL on the origin (a user
-      // upload, say) can serve JSON claiming the real id with its own key and
-      // inbox, and that key would then verify every activity signed as the
-      // real id. Persist only what the canonical id itself serves, and only
-      // when that document names the same id (Mastodon re-fetches the same
-      // way).
-      const canonicalPerson = await getRequestedActorPerson({
-        actorId: fetchedPerson.id,
-        signingActor: resolvedSigningActor
-      })
-      if (!canonicalPerson || canonicalPerson.id !== fetchedPerson.id) {
-        logger.warn({
-          message:
-            'Refused remote actor alias whose canonical id does not serve itself',
-          actorId,
-          fetchedActorId: fetchedPerson.id,
-          canonicalDocumentId: canonicalPerson?.id
-        })
-        return
-      }
-      person = canonicalPerson
     }
+    const person = await getPersistableActorPerson({
+      requestedActorId: actorId,
+      person: fetchedPerson,
+      signingActor: resolvedSigningActor
+    })
+    if (!person) return
     // host (not hostname) so instances on non-standard ports keep the port
     // in the stored domain, matching getActorDomain and handle lookups.
     const domain = new URL(person.id).host

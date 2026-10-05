@@ -1088,6 +1088,30 @@ describe('getProfileData', () => {
         }
       )
 
+      // The alias's collections are as untrusted as its key: an existing row
+      // reached through a `self` link that is not its id gets no writes at all,
+      // counters included. getProfileData.actorBinding.test.ts covers the key.
+      it('writes nothing, counters included, for an existing row reached through an alias', async () => {
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+          null
+        )
+        ;(getWebfingerSelf as jest.Mock).mockResolvedValue(
+          'https://remote.com/media/upload.json'
+        )
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@x@evil.example',
+          true,
+          { currentActor: null }
+        )
+
+        expect(result?.person).toBe(mockPerson)
+        expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+        expect(mockDatabase.createActor).not.toHaveBeenCalled()
+        expect(mockDatabase.setActorCounters).not.toHaveBeenCalled()
+      })
+
       it('rethrows a non-unique insert error', async () => {
         ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
           null

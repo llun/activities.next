@@ -753,6 +753,55 @@ describe('fetchRemoteStatusJob', () => {
       expect(await database.getActorFromId({ id: aliasActorId })).toBeNull()
     })
 
+    // The inlined-reply ingest records its author the same way, so a reply
+    // naming its author by an alias must also point at the recorded row.
+    it('stores an inlined reply whose author is a same-origin alias under the recorded id', async () => {
+      const statusId = `${REMOTE_STATUS_ID}/alias-reply-parent`
+      const replyId = `${REMOTE_STATUS_ID}/alias-reply`
+      const aliasActorId = 'https://mastodon.social/@testUser'
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID || req.url === aliasActorId) {
+          return JSON.stringify(MOCK_ACTOR)
+        }
+        if (req.url === statusId) {
+          return JSON.stringify(
+            publicNote({
+              id: statusId,
+              attributedTo: REMOTE_ACTOR_ID,
+              replies: {
+                id: `${statusId}/replies`,
+                type: 'Collection',
+                first: {
+                  type: 'CollectionPage',
+                  items: [
+                    publicNote({
+                      id: replyId,
+                      attributedTo: aliasActorId,
+                      inReplyTo: statusId
+                    }),
+                    // Two items: JSON-LD compaction collapses a one-element
+                    // `items` array to a bare object.
+                    publicNote({
+                      id: `${replyId}-canonical`,
+                      attributedTo: REMOTE_ACTOR_ID,
+                      inReplyTo: statusId
+                    })
+                  ]
+                }
+              }
+            })
+          )
+        }
+        return JSON.stringify({})
+      })
+
+      await runJob(statusId)
+
+      const reply = await database.getStatus({ statusId: replyId })
+      expect(reply?.actorId).toBe(REMOTE_ACTOR_ID)
+      expect(await database.getActorFromId({ id: aliasActorId })).toBeNull()
+    })
+
     it('stores only the inlined replies that belong to the origin serving them', async () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/origin-bound`
       const forgedOtherHostId = 'https://victim.example/users/victim/statuses/1'
