@@ -158,6 +158,32 @@ describe('POST /api/v1/push/subscription', () => {
     expect(mockDatabase!.createPushSubscription).not.toHaveBeenCalled()
   })
 
+  // Regression (F125): the endpoint is POSTed to by the server on every
+  // notification, so it may not name this server's own network.
+  it.each([
+    'http://push.example.com/endpoint',
+    'https://10.0.0.5/endpoint',
+    'https://169.254.169.254/latest/meta-data',
+    'https://[::1]/endpoint'
+  ])(
+    'returns 422 for the restricted endpoint %s',
+    async (restricted: string) => {
+      const req = new NextRequest('http://localhost/api/v1/push/subscription', {
+        method: 'POST',
+        body: JSON.stringify({
+          subscription: { endpoint: restricted, keys: { p256dh, auth } }
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'http://localhost'
+        }
+      })
+      const res = await POST(req, { params: Promise.resolve({}) })
+      expect(res.status).toBe(422)
+      expect(mockDatabase!.createPushSubscription).not.toHaveBeenCalled()
+    }
+  )
+
   it('creates a subscription and returns the WebPushSubscription shape', async () => {
     const req = new NextRequest('http://localhost/api/v1/push/subscription', {
       method: 'POST',

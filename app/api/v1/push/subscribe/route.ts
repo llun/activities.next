@@ -5,6 +5,7 @@ import {
   OAuthGuard,
   getTokenFromHeader
 } from '@/lib/services/guards/OAuthGuard'
+import { isAllowedPushEndpoint } from '@/lib/services/notifications/pushEndpoint'
 import { Scope } from '@/lib/types/database/operations'
 import { apiErrorResponse, apiResponse } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
@@ -32,7 +33,12 @@ export const POST = traceApiRoute(
     }
 
     const parsed = SubscribeRequest.safeParse(body)
-    if (!parsed.success) {
+    // Every notification POSTs to this URL from the server, so it has to be a
+    // public HTTPS push service, not something on our network.
+    if (
+      !parsed.success ||
+      !(await isAllowedPushEndpoint(parsed.data.endpoint))
+    ) {
       return apiErrorResponse(400)
     }
 

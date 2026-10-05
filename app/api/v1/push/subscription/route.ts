@@ -6,6 +6,7 @@ import {
   corsErrorResponse,
   getTokenFromHeader
 } from '@/lib/services/guards/OAuthGuard'
+import { isAllowedPushEndpoint } from '@/lib/services/notifications/pushEndpoint'
 import { Scope } from '@/lib/types/database/operations'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -90,7 +91,13 @@ export const POST = traceApiRoute(
 
       const body = await readBody(req)
       const parsed = body ? parseSubscribeInput(body) : null
-      if (!parsed || (body && hasInvalidPolicy(body))) {
+      if (
+        !parsed ||
+        (body && hasInvalidPolicy(body)) ||
+        // Every notification POSTs to this URL from the server, so it has to
+        // be a public HTTPS push service, not something on our network.
+        !(await isAllowedPushEndpoint(parsed.endpoint))
+      ) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
