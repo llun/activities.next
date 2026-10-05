@@ -976,6 +976,37 @@ describe('ActorFitnessDashboard', () => {
     )
   })
 
+  it('never announces a day as a rest day while its range is still loading', async () => {
+    const first = createDeferred<FitnessCalendarDay[]>()
+    mockedCalendar.mockReturnValueOnce(first.promise)
+    renderDashboard()
+
+    // The first read is pending: the grid has no data, so a day with
+    // activities must not be called a rest day.
+    expect(cell('2026-09-24')).toHaveAttribute(
+      'aria-label',
+      'Thursday, 24 September 2026: Loading'
+    )
+    expect(document.querySelector('[aria-label$="No activities"]')).toBeNull()
+
+    await act(async () => first.resolve(calendarDays))
+    await waitForLoaded()
+    expect(cell('2026-09-24')).toHaveAttribute(
+      'aria-label',
+      expect.stringContaining('1 activity')
+    )
+
+    // A later read is loading again, and says so for every day it draws.
+    const second = createDeferred<FitnessCalendarDay[]>()
+    mockedCalendar.mockReturnValueOnce(second.promise)
+    fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
+    expect(document.querySelector('[aria-label$="No activities"]')).toBeNull()
+    expect(cell('2025-09-24')).toHaveAttribute(
+      'aria-label',
+      'Wednesday, 24 September 2025: Loading'
+    )
+  })
+
   it('re-derives today at once when the viewer zone changes, without waiting for another focus', async () => {
     // As in the zone test above: the zone is stubbed on the real
     // `Intl.DateTimeFormat`, and the clock is read from Date.now.

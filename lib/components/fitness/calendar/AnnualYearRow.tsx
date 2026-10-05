@@ -144,10 +144,10 @@ export const AnnualYearRow = memo(function AnnualYearRow({
           cell,
           kind,
           day,
-          label: describeDay(cell.date, kind, day).label
+          label: describeDay(cell.date, kind, day, loading).label
         }
       }),
-    [grid, dayIndex]
+    [grid, dayIndex, loading]
   )
 
   const scrollerStyle = {

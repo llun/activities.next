@@ -137,7 +137,7 @@ export const MonthDayList = ({
                   )}
                 </span>
                 <span className="text-muted-foreground text-[13px]">
-                  {summarizeDay(entry)}
+                  {summarizeDay(entry, loading)}
                 </span>
               </span>
               <ChevronRight

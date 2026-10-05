@@ -554,6 +554,47 @@ describe('MonthCalendar', () => {
     expect(container.innerHTML).not.toMatch(/animate-|shimmer/)
   })
 
+  it('never names an active day a rest day before its data has landed', () => {
+    const { cell, cells } = renderMonth({ loading: true, days: [] })
+
+    expect(cell('2026-10-02')).toHaveAttribute(
+      'aria-label',
+      'Friday, 2 October 2026: Loading'
+    )
+    // Upcoming days keep their own wording.
+    expect(cell('2026-10-05')).toHaveAttribute(
+      'aria-label',
+      expect.stringMatching(/Monday, 5 October 2026: Upcoming/)
+    )
+    expect(
+      cells().some((c) => /No activities/.test(c.getAttribute('aria-label')!))
+    ).toBe(false)
+  })
+
+  describe('tooltip while loading', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('previews the date and "Loading", not "No activities"', () => {
+      const { cell } = renderMonth({ loading: true, days: [] })
+
+      fireEvent.pointerOver(cell('2026-10-02'), { pointerType: 'mouse' })
+      act(() => vi.advanceTimersByTime(150))
+
+      const tip = document.body.querySelector<HTMLElement>(
+        '[data-slot="calendar-tooltip"]'
+      )
+      expect(tip).toHaveTextContent('Friday, 2 October 2026')
+      expect(tip).toHaveTextContent('Loading')
+      expect(tip).not.toHaveTextContent('No activities')
+    })
+  })
+
   it('sizes to its container with the scoped heat tokens, never the viewport', () => {
     const { container } = renderMonth()
 

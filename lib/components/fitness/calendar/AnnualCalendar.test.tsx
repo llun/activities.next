@@ -889,6 +889,37 @@ describe('AnnualCalendar', () => {
       expect(container.querySelector('[aria-busy]')).toBeNull()
       expect(cell('2026-09-24')).not.toHaveAttribute('data-loading')
     })
+
+    it('never names a day a rest day before its data has landed', () => {
+      const { cell, cells } = renderCalendar({ loading: true, days: [] })
+
+      expect(cell('2026-09-24')).toHaveAttribute(
+        'aria-label',
+        'Thursday, 24 September 2026: Loading'
+      )
+      expect(
+        cells().some((c) => /No activities/.test(c.getAttribute('aria-label')!))
+      ).toBe(false)
+    })
+
+    it('previews the date and "Loading", not "No activities", on hover', () => {
+      vi.useFakeTimers()
+      try {
+        const { cell } = renderCalendar({ loading: true, days: [] })
+
+        fireEvent.pointerOver(cell('2026-09-24'), { pointerType: 'mouse' })
+        act(() => vi.advanceTimersByTime(150))
+
+        const tip = document.body.querySelector<HTMLElement>(
+          '[data-slot="calendar-tooltip"]'
+        )
+        expect(tip).toHaveTextContent('Thursday, 24 September 2026')
+        expect(tip).toHaveTextContent('Loading')
+        expect(tip).not.toHaveTextContent('No activities')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   describe('empty', () => {

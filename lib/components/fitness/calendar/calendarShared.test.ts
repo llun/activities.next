@@ -55,6 +55,30 @@ describe('describeDay', () => {
     expect(summarizeDay(ride)).toBe('2 activities · 42.6\u00a0km · 1h\u00a014m')
     expect(summarizeDay(undefined)).toBe('No activities')
   })
+
+  describe('while loading', () => {
+    it('does not call an active day a rest day, whatever it is given', () => {
+      for (const day of [undefined, ride]) {
+        const description = describeDay(key('2026-09-24'), 'active', day, true)
+
+        expect(description.label).toBe('Thursday, 24 September 2026: Loading')
+        expect(description.detail).toBe('Loading')
+      }
+    })
+
+    it('still names an upcoming day and one outside the range as they are', () => {
+      expect(
+        describeDay(key('2026-10-20'), 'upcoming', ride, true).detail
+      ).toBe('Upcoming')
+      expect(describeDay(key('2025-01-01'), 'out', ride, true).detail).toBe(
+        'Outside the selected range'
+      )
+    })
+
+    it('summarises a day for the month list as loading', () => {
+      expect(summarizeDay(undefined, true)).toBe('Loading')
+    })
+  })
 })
 
 describe('day index', () => {

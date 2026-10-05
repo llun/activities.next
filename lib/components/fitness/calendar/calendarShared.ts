@@ -72,13 +72,19 @@ export interface DayDescription {
   detail: string
 }
 
-/** The values of a day, one short phrase each. */
+/**
+ * The values of a day, one short phrase each. While `loading`, an active day
+ * has no values yet (the grid is drawn without data), so it says so rather
+ * than reporting a rest day for a day that may have activities.
+ */
 export const dayParts = (
   kind: CellKind,
-  day: FitnessCalendarDay | undefined
+  day: FitnessCalendarDay | undefined,
+  loading = false
 ): string[] => {
   if (kind === 'upcoming') return ['Upcoming']
   if (kind === 'out') return ['Outside the selected range']
+  if (loading) return ['Loading']
   if (!day || day.count <= 0) return ['No activities']
   return [
     formatActivityCount(day.count),
@@ -90,15 +96,18 @@ export const dayParts = (
 /**
  * The words for one day. A rest day says so; the accessible name always carries
  * the full date and every value, because the cell is a button with no visible
- * text in the annual grid.
+ * text in the annual grid. While `loading` an active day says "Loading", which
+ * is what the skeleton shows; it is never called a rest day before its data
+ * has landed.
  */
 export const describeDay = (
   date: DateKey,
   kind: CellKind,
-  day: FitnessCalendarDay | undefined
+  day: FitnessCalendarDay | undefined,
+  loading = false
 ): DayDescription => {
   const title = formatFullDate(date)
-  const parts = dayParts(kind, day)
+  const parts = dayParts(kind, day, loading)
   return {
     title,
     parts,
@@ -108,8 +117,10 @@ export const describeDay = (
 }
 
 /** The row summary the month list prints: "2 activities · 42.6 km · 1h 14m". */
-export const summarizeDay = (day: FitnessCalendarDay | undefined): string =>
-  dayParts('active', day).join(' · ')
+export const summarizeDay = (
+  day: FitnessCalendarDay | undefined,
+  loading = false
+): string => dayParts('active', day, loading).join(' · ')
 
 /** The date key of a calendar cell's element, or null for anything else. */
 export const dateOfElement = (

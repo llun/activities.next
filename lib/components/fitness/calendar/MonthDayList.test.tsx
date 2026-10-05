@@ -165,6 +165,16 @@ describe('MonthDayList', () => {
     expect(container.innerHTML).not.toMatch(/animate-|shimmer/)
   })
 
+  it('says "Loading" under each date, never "No activities", before the data lands', () => {
+    const { container } = renderList({ loading: true, days: [] })
+
+    expect(rowButtons()).toHaveLength(4)
+    expect(container).not.toHaveTextContent('No activities')
+    expect(screen.getByRole('button', { name: /Fri 2 Oct/ })).toHaveTextContent(
+      'Loading'
+    )
+  })
+
   it('shades each swatch by the metric', () => {
     const { container } = renderList({ metric: 'distance' })
 

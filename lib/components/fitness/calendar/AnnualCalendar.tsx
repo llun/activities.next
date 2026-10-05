@@ -214,10 +214,11 @@ export const AnnualCalendar = ({
     const { title, detail } = describeDay(
       tooltipTarget.date,
       'active',
-      dayIndex.get(tooltipTarget.date)
+      dayIndex.get(tooltipTarget.date),
+      loading
     )
     return { title, detail }
-  }, [tooltipTarget, dayIndex])
+  }, [tooltipTarget, dayIndex, loading])
 
   if (grids.length === 0) return null
 

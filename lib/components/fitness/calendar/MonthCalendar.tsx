@@ -169,10 +169,10 @@ export const MonthCalendar = ({
           day,
           kind,
           entry,
-          label: describeDay(day.date, kind, entry).label
+          label: describeDay(day.date, kind, entry, loading).label
         }
       }),
-    [grid, dayIndex, rangeFrom, rangeTo]
+    [grid, dayIndex, rangeFrom, rangeTo, loading]
   )
 
   const focusableDates = useMemo(
@@ -258,10 +258,11 @@ export const MonthCalendar = ({
     const { title, detail } = describeDay(
       tooltipTarget.date,
       'active',
-      dayIndex.get(tooltipTarget.date)
+      dayIndex.get(tooltipTarget.date),
+      loading
     )
     return { title, detail }
-  }, [tooltipTarget, dayIndex])
+  }, [tooltipTarget, dayIndex, loading])
 
   return (
     <div
