@@ -1,0 +1,41 @@
+lib/actions/utils.ts
+  s_69f35b0cf1b1f5::t_84504bed5ce849 8,122-151,183,213
+lib/services/medias/videoProbe.test.ts
+  s_69f35b0cf1b1f5::t_0f5675232e795c 52-83
+docs/maintenance.md
+  s_69f35b0cf1b1f5::t_b6e23b451134a8 952
+lib/actions/utils.actorBinding.test.ts
+  s_69f35b0cf1b1f5::t_cbace85e66ca40 1-148
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_54eca28749dfdf 628
+  s_69f35b0cf1b1f5::t_2deb55f0a637db 1209-1212
+  s_69f35b0cf1b1f5::t_705e78ab150106 637
+lib/services/guards/getSenderPublicKey.test.ts
+  s_69f35b0cf1b1f5::t_4e3142850ca9bb 752-761,765-766,768-790
+  s_69f35b0cf1b1f5::t_bbc5bd77c8f4bb 762-764,767
+lib/services/guards/getSenderPublicKey.ts
+  s_69f35b0cf1b1f5::t_4280b54f921728 176-180
+lib/services/medias/videoProbe.ts
+  s_69f35b0cf1b1f5::t_0f5675232e795c 12-17,22,27,33-37,42
+lib/services/medias/extractVideoImage.test.ts
+  s_69f35b0cf1b1f5::t_31bf83f56b83de 7,74-75,78-79,109-128
+  s_69f35b0cf1b1f5::t_c222adc6eff3a4 129-130
+lib/services/medias/extractVideoImage.ts
+  s_69f35b0cf1b1f5::t_31bf83f56b83de 8-9,30-36,39-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d33803c164b24d5b60221cc9f15bfcd455cc96fd",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
