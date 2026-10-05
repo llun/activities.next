@@ -429,6 +429,27 @@ over-counted usage instead.
 Nothing re-encodes existing media, so an instance's storage keeps both shapes
 until the affected attachments are deleted.
 
+**Multipart uploads bypass `proxy.ts`.** Next clones and buffers the body of
+every non-GET/HEAD request the proxy runs on, so both the proxy and the route
+handler can read it, and caps that buffer at
+`experimental.proxyClientMaxBodySize` (10 MB by default). Past the cap Next only
+logs a `Request body exceeded 10MB` warning (the number follows
+`proxyClientMaxBodySize`) and hands the handler a **truncated** body, so a larger upload
+fails to parse (each route reports that differently) or is stored incomplete.
+The proxy's only work on an `/api/*` request is adding the CSP header, so its
+`config.matcher` skips `/api/*` requests whose `Content-Type` is
+`multipart/form-data` (case-insensitive), covering every multipart upload
+without a per-route list. Raising `proxyClientMaxBodySize` was rejected: it
+would have to track the runtime upload caps, which `next.config.ts` must not
+read, and it buffers every in-flight upload in memory once more. Two paths are
+always matched whatever `Content-Type` is sent: bare `/api` (the catch-all
+excludes only `api/` followed by a segment), so it still gets the proxy's
+404/405 instead of falling through to a page route, and `/api/v1/files/*`,
+because the matcher ignores the method and a GET with a multipart header must
+not produce a CSP-less, year-cacheable file response. `proxy.test.ts` checks
+the matcher with Next's own config parser and runtime matcher. Do not fold the
+`/api` entries back into the catch-all.
+
 ## Database Schema (Simplified)
 
 ```

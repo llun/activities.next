@@ -1,4 +1,7 @@
 import fs from 'fs'
+import { getPagesPageStaticInfo } from 'next/dist/build/analysis/get-page-static-info'
+import { loadBindings } from 'next/dist/build/swc'
+import { getMiddlewareRouteMatcher } from 'next/dist/shared/lib/router/utils/middleware-route-matcher'
 import { NextRequest } from 'next/server'
 import os from 'os'
 import path from 'path'
@@ -177,10 +180,130 @@ describe('proxy', () => {
     )
   })
 
-  it('does not run the proxy on static asset paths', () => {
-    expect(proxyConfig.matcher).toEqual([
-      '/((?!(?:_next/static|_next/image)(?:/|$)|favicon\\.ico$|activities/_next(?:/|$)).*)'
-    ])
+  // Next clones and buffers the body of every non-GET request the proxy runs
+  // on, capped at 10 MB; past that the route handler gets a truncated body. So
+  // a multipart /api/* upload must not match the proxy at all. This compiles the
+  // exported config with Next's own static analysis and evaluates it with Next's
+  // own runtime matcher, so the `missing` header condition is tested exactly as
+  // Next applies it — and the config is proven to stay statically analysable.
+  describe('matcher', () => {
+    const MULTIPART = 'multipart/form-data; boundary=----upload'
+    let matches: (pathname: string, headers?: Record<string, string>) => boolean
+
+    beforeAll(async () => {
+      await loadBindings()
+      const info = await getPagesPageStaticInfo({
+        pageFilePath: path.join(process.cwd(), 'proxy.ts'),
+        nextConfig: {},
+        isDev: false,
+        page: '/proxy',
+        pageType: 'root' as Parameters<
+          typeof getPagesPageStaticInfo
+        >[0]['pageType']
+      })
+      const routeMatcher = getMiddlewareRouteMatcher(
+        info.middleware?.matchers ?? []
+      )
+      matches = (pathname, headers = {}) =>
+        routeMatcher(
+          pathname,
+          { headers } as unknown as Parameters<typeof routeMatcher>[1],
+          {}
+        )
+    }, 30_000)
+
+    it.each([
+      '/api/v1/media',
+      '/api/v2/media',
+      '/api/v1/media/123',
+      '/api/v1/fitness-files',
+      '/api/v1/fitness/import',
+      '/api/v1/fitness/strava/archive',
+      '/api/v1/accounts/update_credentials',
+      '/api/v1/admin/custom_emojis'
+    ])('skips the proxy for a multipart upload to %s', (pathname) => {
+      expect(matches(pathname, { 'content-type': MULTIPART })).toBe(false)
+    })
+
+    it.each([
+      'multipart/form-data',
+      'multipart/form-data; boundary=x',
+      'Multipart/Form-Data; boundary=x',
+      'MULTIPART/FORM-DATA; boundary=x',
+      'mUlTiPaRt/fOrM-dAtA; boundary=x'
+    ])(
+      'skips the proxy when the multipart Content-Type is written as %s',
+      (value) => {
+        expect(matches('/api/v1/media', { 'content-type': value })).toBe(false)
+      }
+    )
+
+    // Entry 1 of the matcher excludes every `api/.` path, so entry 2 is the
+    // only thing keeping a non-multipart request to any other /api/* route
+    // behind the proxy and its CSP; narrowing it to /api/v1 must fail here.
+    it.each([
+      '/api/oauth/token',
+      '/api/auth/session',
+      '/api/v2/search',
+      '/api/inbox',
+      '/api/users/alice/inbox',
+      '/api/well-known/webfinger'
+    ])(
+      'still runs the proxy for non-multipart requests outside /api/v1: %s',
+      (pathname) => {
+        expect(matches(pathname)).toBe(true)
+        expect(matches(pathname, { 'content-type': 'application/json' })).toBe(
+          true
+        )
+      }
+    )
+
+    it('still runs the proxy for non-multipart /api requests', () => {
+      expect(matches('/api')).toBe(true)
+      expect(matches('/api/v1/media')).toBe(true)
+      expect(
+        matches('/api/v1/statuses', { 'content-type': 'application/json' })
+      ).toBe(true)
+      expect(
+        matches('/api/v1/statuses', {
+          'content-type': 'application/x-www-form-urlencoded'
+        })
+      ).toBe(true)
+    })
+
+    it('still runs the proxy, and so the CSP, for stored file downloads', () => {
+      expect(matches('/api/v1/files/medias/abc.svg')).toBe(true)
+      expect(matches('/api/v1/files/medias/abc.svg', { accept: '*/*' })).toBe(
+        true
+      )
+    })
+
+    // The matcher ignores the method, so a GET carrying a multipart
+    // Content-Type must not strip the CSP from a year-cacheable file response.
+    it('runs the proxy for stored file downloads sent with a multipart Content-Type', () => {
+      expect(
+        matches('/api/v1/files/medias/abc.jpg', { 'content-type': MULTIPART })
+      ).toBe(true)
+      expect(matches('/api/v1/files', { 'content-type': MULTIPART })).toBe(true)
+    })
+
+    it('runs the proxy for a multipart request to bare /api', () => {
+      expect(matches('/api', { 'content-type': MULTIPART })).toBe(true)
+    })
+
+    it('still runs the proxy for multipart posts outside /api', () => {
+      expect(matches('/settings', { 'content-type': MULTIPART })).toBe(true)
+      expect(matches('/admin', { 'content-type': MULTIPART })).toBe(true)
+      expect(matches('/inbox', { 'content-type': MULTIPART })).toBe(true)
+      expect(matches('/apis', { 'content-type': MULTIPART })).toBe(true)
+    })
+
+    it('never runs the proxy on static assets', () => {
+      expect(matches('/_next/static/chunk.js')).toBe(false)
+      expect(matches('/_next/image/x')).toBe(false)
+      expect(matches('/activities/_next/static/chunk.js')).toBe(false)
+      expect(matches('/favicon.ico')).toBe(false)
+    })
   })
 
   it('preserves the registered trailing slash on Wahoo webhook POSTs', async () => {
