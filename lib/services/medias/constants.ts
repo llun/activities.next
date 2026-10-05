@@ -1,10 +1,9 @@
 // Maximum file size is 200 MB for video
 export const MAX_FILE_SIZE = 209_715_200
 // The ceiling an admin may raise the `media.maxFileSize` server setting to
-// (1 GiB). MAX_FILE_SIZE above is only the default; the object-storage read
-// path bounds itself by the resolved setting, so the cap can move without
-// storing media the driver would refuse to serve. This ceiling exists because
-// the read path buffers an object in memory, so an unbounded cap is an OOM.
+// (1 GiB). MAX_FILE_SIZE above is only the default. The files route streams
+// stored objects, but the synchronous upload path reads a whole upload into
+// memory, so an unbounded cap is an OOM.
 export const MAX_CONFIGURABLE_FILE_SIZE = 1_073_741_824
 // Max bytes to download and analyze for blurhash/focus in presigned upload completion (100 MB)
 export const PRESIGNED_ANALYSIS_MAX_BYTES = 104_857_600

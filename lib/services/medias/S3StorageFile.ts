@@ -10,6 +10,7 @@ import crypto from 'crypto'
 import { format } from 'date-fns/format'
 import { IncomingMessage } from 'http'
 import sharp from 'sharp'
+import { Readable } from 'stream'
 
 import { getConfig } from '@/lib/config'
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
@@ -36,6 +37,10 @@ import {
 } from '@/lib/services/medias/imageOutputFormat'
 import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
+import {
+  MEDIA_OBJECT_KEY_PREFIX,
+  isObjectStorageMediaKey
+} from '@/lib/services/medias/reservedPaths'
 import { saveMediaFile } from '@/lib/services/medias/saveMediaFile'
 import { createStoredImagePipeline } from '@/lib/services/medias/storedImagePipeline'
 import { readValidThumbnail } from '@/lib/services/medias/thumbnailInput'
@@ -51,21 +56,30 @@ import {
   PresignedUrlOutput,
   ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
-import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { extractVideoPreviewFrame } from '@/lib/services/medias/videoPreview'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { Media } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
-import {
-  assertByteLengthWithinLimit,
-  readUnknownBodyToBufferWithLimit
-} from '@/lib/utils/streamLimit'
+import { readUnknownBodyToBufferWithLimit } from '@/lib/utils/streamLimit'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 const normalizeContentType = (contentType?: string | string[]) => {
   const value = Array.isArray(contentType) ? contentType[0] : contentType
   return value?.split(';')[0]?.trim().toLowerCase() ?? ''
+}
+
+// The SDK's Node body is an IncomingMessage with `transformToWebStream` mixed
+// in; a plain Readable or an existing web stream are accepted for other
+// runtimes and S3-compatible clients.
+const toWebReadableStream = (body: unknown): ReadableStream | null => {
+  const sdkBody = body as { transformToWebStream?: () => ReadableStream }
+  if (typeof sdkBody?.transformToWebStream === 'function') {
+    return sdkBody.transformToWebStream()
+  }
+  if (body instanceof ReadableStream) return body
+  if (body instanceof Readable) return Readable.toWeb(body) as ReadableStream
+  return null
 }
 
 const sha1HexToBase64 = (checksum: string) =>
@@ -103,6 +117,8 @@ const PRESIGNED_UPLOAD_UNHOISTABLE_HEADERS = new Set([
   'x-amz-meta-checksumsha1'
 ])
 
+const PRESIGNED_UPLOAD_SIGNED_HEADERS = new Set(['content-type'])
+
 interface UploadImageOptions {
   isThumbnail?: boolean
   format?: ImageOutputFormat
@@ -137,6 +153,10 @@ export class S3FileStorage implements MediaStorage {
   }
 
   async getFile(filePath: string) {
+    // `GET /api/v1/files/...` is unauthenticated and does no row lookup, so
+    // without this it would read (or redirect to) ANY key in the bucket.
+    if (!isObjectStorageMediaKey(filePath)) return null
+
     const { bucket, hostname } = this._config
     if (hostname) {
       return MediaStorageGetRedirectOutput.parse({
@@ -153,28 +173,24 @@ export class S3FileStorage implements MediaStorage {
     const object = await s3client.send(command)
     if (!object.Body) return null
 
-    const message = object.Body
-    // Bound the in-memory buffer by the same resolved `media.maxFileSize` the
-    // upload paths enforce, not by the env-only storage config: an admin who
-    // raises the cap in the admin UI must still be able to read back what the
-    // instance then accepts.
-    const maxBytes = await getMaxMediaUploadSize(this._database)
-    assertByteLengthWithinLimit({
-      byteLength: object.ContentLength,
-      maxBytes,
-      label: 'Media object body'
-    })
+    // Streamed straight through rather than buffered: the route is
+    // unauthenticated, and a buffered read let anyone make the server hold a
+    // whole object — up to `media.maxFileSize` — in memory per request.
+    const stream = toWebReadableStream(object.Body)
+    if (!stream) return null
     return MediaStorageGetFileOutput.parse({
-      type: 'buffer',
+      type: 'stream',
       contentType:
         object.ContentType ??
-        (message as IncomingMessage).headers?.['content-type'] ??
+        (object.Body as IncomingMessage).headers?.['content-type'] ??
         'application/octet-stream',
-      buffer: await readUnknownBodyToBufferWithLimit(
-        message,
-        maxBytes,
-        'Media object body'
-      )
+      stream,
+      contentLength:
+        typeof object.ContentLength === 'number' &&
+        Number.isFinite(object.ContentLength) &&
+        object.ContentLength >= 0
+          ? object.ContentLength
+          : null
     })
   }
 
@@ -239,7 +255,7 @@ export class S3FileStorage implements MediaStorage {
         : presignedMedia.contentType
     const checksumSha1Base64 = sha1HexToBase64(presignedMedia.checksum)
 
-    const key = `medias/${timeDirectory}/${randomPrefix}${ext}`
+    const key = `${MEDIA_OBJECT_KEY_PREFIX}${timeDirectory}/${randomPrefix}${ext}`
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -252,7 +268,12 @@ export class S3FileStorage implements MediaStorage {
     })
     const url = await getSignedUrl(this._client, command, {
       expiresIn: 600,
-      unhoistableHeaders: PRESIGNED_UPLOAD_UNHOISTABLE_HEADERS
+      unhoistableHeaders: PRESIGNED_UPLOAD_UNHOISTABLE_HEADERS,
+      // The presigner leaves Content-Type UNSIGNED by default, so the holder of
+      // this URL could store the object as `text/html` — and an object that is
+      // never completed still sits in the bucket. Signing it binds the stored
+      // type to the declared, allow-listed one.
+      signableHeaders: PRESIGNED_UPLOAD_SIGNED_HEADERS
     })
     const storedMedia = await this._database.createMedia({
       actorId: actor.id,
@@ -302,6 +323,8 @@ export class S3FileStorage implements MediaStorage {
         blurhash: null
       },
       headers: {
+        // Signed above, so the PUT must carry exactly this value.
+        'Content-Type': presignedMedia.contentType,
         'x-amz-checksum-sha1': checksumSha1Base64,
         'x-amz-meta-checksumsha1': presignedMedia.checksum
       }
@@ -680,7 +703,7 @@ export class S3FileStorage implements MediaStorage {
       ])
 
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-    const path = `medias/${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
+    const path = `${MEDIA_OBJECT_KEY_PREFIX}${timeDirectory}/${randomPrefix}${isThumbnail ? '-thumbnail' : ''}.${extension}`
     const s3client = this._client
     const command = new PutObjectCommand({
       Bucket: bucket,
@@ -737,7 +760,7 @@ export class S3FileStorage implements MediaStorage {
     const { bucket } = this._config
     const randomPrefix = crypto.randomBytes(8).toString('hex')
     const timeDirectory = format(currentTime, 'yyyy-MM-dd')
-    const path = `medias/${timeDirectory}/${randomPrefix}${ext}`
+    const path = `${MEDIA_OBJECT_KEY_PREFIX}${timeDirectory}/${randomPrefix}${ext}`
     const s3client = this._client
     const command = new PutObjectCommand({
       Bucket: bucket,

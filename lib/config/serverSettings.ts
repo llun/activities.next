@@ -397,10 +397,9 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
     group: 'posts',
     envVar: 'ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE',
     // MAX_FILE_SIZE (200 MiB) is only the default; the cap can be raised to
-    // MAX_CONFIGURABLE_FILE_SIZE. The object-storage driver bounds its
-    // read-back buffer by this same resolved setting (S3StorageFile's
-    // `getFile`), so raising the cap never stores a file the read path would
-    // then refuse to serve. The ceiling is what keeps that buffer bounded.
+    // MAX_CONFIGURABLE_FILE_SIZE. The files route streams stored objects, so
+    // the read path never refuses a size this accepts; the ceiling bounds the
+    // synchronous upload path, which still reads a whole upload into memory.
     schema: z.number().int().min(1).max(MAX_CONFIGURABLE_FILE_SIZE),
     readEnv: readEnvNumber('ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE'),
     get: (s) => s.media.maxFileSize,

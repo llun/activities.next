@@ -298,6 +298,23 @@ export const getEmbedContentSecurityPolicyHeader = (): SecurityHeader => ({
   value: getEmbedContentSecurityPolicy()
 })
 
+// The policy for `GET /api/v1/files/...`, which serves stored upload bytes from
+// the app's own origin. The app policy allows inline script (Next hydration
+// needs it), so a stored object that a browser renders as a document — an HTML
+// or SVG body, whatever its declared type — would run script as this origin.
+// `sandbox` gives such a document an opaque origin with scripts disabled, and
+// `default-src 'none'` stops it loading anything. Neither affects an `<img>` or
+// `<video>` embedding the file elsewhere: a subresource's own CSP only applies
+// when it is navigated to as a document. Same shape GitHub serves raw user
+// content with.
+export const MEDIA_FILE_CONTENT_SECURITY_POLICY =
+  "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+
+export const getMediaFileContentSecurityPolicyHeader = (): SecurityHeader => ({
+  key: 'Content-Security-Policy',
+  value: MEDIA_FILE_CONTENT_SECURITY_POLICY
+})
+
 export const getSecurityHeaders = ({
   includeContentSecurityPolicy = true,
   includeStaticSecurityHeaders = true

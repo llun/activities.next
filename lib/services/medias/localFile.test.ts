@@ -68,13 +68,19 @@ describe('LocalFileStorage.getFile', () => {
 
     const result = await createStorage().getFile('avatar.png')
 
+    // Streamed, not buffered (F052): the files route is unauthenticated.
     expect(result).toMatchObject({
-      type: 'buffer',
-      contentType: 'image/png'
+      type: 'stream',
+      contentType: 'image/png',
+      contentLength: 'image-data'.length
     })
-    expect(result?.type === 'buffer' ? result.buffer.toString() : null).toBe(
-      'image-data'
-    )
+    if (result?.type !== 'stream') throw new Error('expected a stream')
+    expect(result.stream).toBeInstanceOf(ReadableStream)
+    await expect(new Response(result.stream).text()).resolves.toBe('image-data')
+  })
+
+  it('returns null for a missing file', async () => {
+    await expect(createStorage().getFile('missing.png')).resolves.toBeNull()
   })
 
   it('returns null when a relative path escapes the media root', async () => {

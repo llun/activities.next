@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import mime from 'mime-types'
 import path from 'path'
 import sharp from 'sharp'
+import { Readable } from 'stream'
 
 import { MediaStorageFileConfig } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
@@ -79,11 +80,22 @@ export class LocalFileStorage implements MediaStorage {
     if (!contentType) return null
 
     try {
-      return MediaStorageGetFileOutput.parse({
-        type: 'buffer',
-        buffer: await fs.readFile(fullPath),
-        contentType
-      })
+      // Streamed, not read whole: the files route serving this is
+      // unauthenticated, so a buffered read let any client pin a full object
+      // in memory per request. Opening first keeps a missing file a null.
+      const handle = await fs.open(fullPath, 'r')
+      try {
+        const { size } = await handle.stat()
+        return MediaStorageGetFileOutput.parse({
+          type: 'stream',
+          stream: Readable.toWeb(handle.createReadStream()),
+          contentType,
+          contentLength: size
+        })
+      } catch (error) {
+        await handle.close().catch(() => undefined)
+        throw error
+      }
     } catch (e) {
       const error = e as NodeJS.ErrnoException
       logger.error(error)

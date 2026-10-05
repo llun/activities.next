@@ -24,9 +24,7 @@ import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
-import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Actor } from '@/lib/types/domain/actor'
-import { StreamByteLimitError } from '@/lib/utils/streamLimit'
 
 vi.mock('@aws-sdk/client-s3', () => {
   const makeCommand = (name: string) =>
@@ -49,10 +47,6 @@ vi.mock('@aws-sdk/client-s3', () => {
 
 vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: vi.fn().mockResolvedValue('https://storage.example/upload')
-}))
-
-vi.mock('@/lib/services/medias/uploadSizeLimit', () => ({
-  getMaxMediaUploadSize: vi.fn()
 }))
 
 vi.mock('@/lib/services/medias/extractVideoMeta', () => ({
@@ -254,10 +248,68 @@ describe('S3FileStorage presigned upload completion', () => {
     expect(result).toMatchObject({
       url: 'https://storage.example/upload',
       headers: {
+        'Content-Type': 'image/png',
         'x-amz-checksum-sha1': checksumBase64,
         'x-amz-meta-checksumsha1': checksumHex
       }
     })
+  })
+
+  // Regression (F030): the presigner leaves Content-Type out of the signature
+  // unless asked, so the URL holder could PUT `text/html` under a media key and
+  // have the files route serve it from this origin. Runs the REAL presigner on
+  // the exact command and options the driver built, so the assertion is on the
+  // URL S3 will verify, not on how the mock was called.
+  it('binds the declared content type into the presigned signature', async () => {
+    const storage = new S3FileStorage(
+      {
+        type: MediaStorageType.ObjectStorage,
+        bucket: 'bucket',
+        region: 'us-east-1',
+        endpoint: 'https://s3.example.com'
+      },
+      'llun.test',
+      database
+    )
+
+    await storage.getPresigedForSaveFileUrl(actor, {
+      fileName: 'upload.png',
+      checksum: checksumHex,
+      width: 10,
+      height: 10,
+      contentType: 'image/png',
+      size: 1024
+    })
+
+    const [, command, options] = (getSignedUrl as jest.Mock).mock.calls[0]
+    const actualS3 =
+      await vi.importActual<typeof import('@aws-sdk/client-s3')>(
+        '@aws-sdk/client-s3'
+      )
+    const { getSignedUrl: realGetSignedUrl } = await vi.importActual<
+      typeof import('@aws-sdk/s3-request-presigner')
+    >('@aws-sdk/s3-request-presigner')
+    const realClient = new actualS3.S3Client({
+      region: 'us-east-1',
+      credentials: { accessKeyId: 'test', secretAccessKey: 'test' }
+    })
+    const url = await realGetSignedUrl(
+      realClient,
+      new actualS3.PutObjectCommand(
+        (
+          command as {
+            input: ConstructorParameters<typeof PutObjectCommand>[0]
+          }
+        ).input
+      ),
+      options
+    )
+
+    const signedHeaders = new URL(url).searchParams
+      .get('X-Amz-SignedHeaders')
+      ?.split(';')
+    expect(signedHeaders).toContain('content-type')
+    expect(signedHeaders).toContain('content-length')
   })
 
   // Regression: `fileName` is a plain client-supplied string on this path, and
@@ -2227,27 +2279,58 @@ describe('S3FileStorage getFile', () => {
     })
   })
 
-  // Regression: the read-back guard used to read the env-only storage config,
-  // so media accepted under an admin-raised media.maxFileSize could never be
-  // served back out.
-  it('bounds the buffer by the resolved cap rather than the storage config', async () => {
-    vi.mocked(getMaxMediaUploadSize).mockResolvedValue(500 * 1024 * 1024)
+  // Regression (F052): the route serving this is unauthenticated, and the
+  // object used to be buffered whole — up to `media.maxFileSize` per request.
+  it('streams the object rather than buffering it', async () => {
     const storage = new S3FileStorage(storageConfig, 'llun.test', database)
 
-    await expect(storage.getFile('medias/upload.png')).resolves.toMatchObject({
-      type: 'buffer',
-      contentType: 'image/png'
+    const result = await storage.getFile('medias/upload.png')
+
+    expect(result).toMatchObject({
+      type: 'stream',
+      contentType: 'image/png',
+      contentLength: 300 * 1024 * 1024
     })
-    expect(getMaxMediaUploadSize).toHaveBeenCalledWith(database)
+    if (result?.type !== 'stream') throw new Error('expected a stream')
+    expect(result.stream).toBeInstanceOf(ReadableStream)
+    await expect(new Response(result.stream).text()).resolves.toBe(
+      'image-bytes'
+    )
   })
 
-  it('refuses to buffer an object above the resolved cap', async () => {
-    vi.mocked(getMaxMediaUploadSize).mockResolvedValue(MAX_FILE_SIZE)
+  // Regression (F095): the route does no row lookup, so any key in the bucket
+  // was readable by anyone who could name it.
+  it.each([
+    'secrets/backup.sql',
+    'fitness/2026-07-30/a1b2c3d4e5f60718.fit',
+    'mediasx/upload.png',
+    'medias/%2e%2e/secrets/backup.sql',
+    'medias/..%2fsecrets/backup.sql',
+    'medias\\..\\secrets/backup.sql'
+  ])('refuses the key %j outside the media prefix', async (key: string) => {
     const storage = new S3FileStorage(storageConfig, 'llun.test', database)
 
-    await expect(storage.getFile('medias/upload.png')).rejects.toThrow(
-      StreamByteLimitError
+    await expect(storage.getFile(key)).resolves.toBeNull()
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('does not redirect to a key outside the media prefix', async () => {
+    const storage = new S3FileStorage(
+      { ...storageConfig, hostname: 'cdn.example.test' },
+      'llun.test',
+      database
     )
+
+    await expect(
+      storage.getFile('medias/%2e%2e/secrets/backup.sql')
+    ).resolves.toBeNull()
+    await expect(
+      storage.getFile('medias/2026-07-30/a1b2c3d4e5f60718.webp')
+    ).resolves.toEqual({
+      type: 'redirect',
+      redirectUrl:
+        'https://cdn.example.test/medias/2026-07-30/a1b2c3d4e5f60718.webp'
+    })
   })
 })
 

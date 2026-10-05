@@ -101,10 +101,15 @@ export type MediaStorageSaveFileOutput = z.infer<
   typeof MediaStorageSaveFileOutput
 >
 
+// A stored object is handed to the files route as a STREAM, never a buffer:
+// `GET /api/v1/files/...` is unauthenticated, and buffering let anyone make the
+// server hold a whole object (up to `media.maxFileSize`, 1 GiB at the ceiling)
+// in memory per request.
 export const MediaStorageGetFileOutput = z.object({
-  type: z.literal('buffer'),
-  buffer: z.instanceof(Buffer),
-  contentType: z.string()
+  type: z.literal('stream'),
+  stream: z.instanceof(ReadableStream),
+  contentType: z.string(),
+  contentLength: z.number().int().nonnegative().nullable()
 })
 export type MediaStorageGetFileOutput = z.infer<
   typeof MediaStorageGetFileOutput

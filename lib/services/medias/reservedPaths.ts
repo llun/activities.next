@@ -28,29 +28,12 @@ const decodeSegmentToFixedPoint = (segment: string): string => {
   return current
 }
 
-/**
- * Whether `userPath` addresses fitness storage and so must not be served by the
- * media route, which has no access control of its own.
- *
- * The comparison is made on a CANONICAL form, not on the string the route
- * happens to hold, because the value does not stay that string. When media
- * storage has a public hostname, `S3FileStorage.getFile` builds
- * `https://<hostname>/<path>` and the route hands it to `Response.redirect`,
- * which runs the WHATWG URL parser — and that parser normalises two things
- * `path.normalize` does not:
- *
- *   - a backslash is a segment separator for special schemes, so
- *     `medias\..\fitness/x.gpx` collapses to `/fitness/x.gpx`;
- *   - `%2e` counts as a dot segment, so `medias/%2e%2e/fitness/x.gpx` does too.
- *
- * A third form never collapses locally at all: `%66itness/x.gpx` reaches the
- * origin percent-encoded and is decoded there. Each of those passed a check
- * written against the raw path while the emitted `Location` pointed straight at
- * the reserved prefix, so the canonicalisation below folds all three before
- * comparing: backslashes become separators, escapes are decoded to a fixed
- * point, dot segments are resolved, and leading separators are stripped.
- */
-export const isReservedFitnessMediaPath = (userPath: string): boolean => {
+// Canonical form of a media path as a URL parser or origin would finally read
+// it: backslashes are separators, tab/CR/LF are dropped, escapes are decoded
+// to a fixed point, dot segments are resolved, leading separators stripped,
+// and the result is lowercased. See `isReservedFitnessMediaPath` for why each
+// step is there.
+const getCanonicalMediaPath = (userPath: string): string => {
   // Tab, CR and LF are removed outright before anything else: the WHATWG URL
   // parser strips them from a path, so `fit\tness/x.gpx` reaches the origin as
   // `fitness/x.gpx` while a naive comparison sees a tab and finds no match.
@@ -83,9 +66,54 @@ export const isReservedFitnessMediaPath = (userPath: string): boolean => {
     }
   }
 
-  const canonicalPath = segments.join('/').toLowerCase()
+  return segments.join('/').toLowerCase()
+}
+
+/**
+ * Whether `userPath` addresses fitness storage and so must not be served by the
+ * media route, which has no access control of its own.
+ *
+ * The comparison is made on a CANONICAL form, not on the string the route
+ * happens to hold, because the value does not stay that string. When media
+ * storage has a public hostname, `S3FileStorage.getFile` builds
+ * `https://<hostname>/<path>` and the route hands it to `Response.redirect`,
+ * which runs the WHATWG URL parser — and that parser normalises two things
+ * `path.normalize` does not:
+ *
+ *   - a backslash is a segment separator for special schemes, so
+ *     `medias\..\fitness/x.gpx` collapses to `/fitness/x.gpx`;
+ *   - `%2e` counts as a dot segment, so `medias/%2e%2e/fitness/x.gpx` does too.
+ *
+ * A third form never collapses locally at all: `%66itness/x.gpx` reaches the
+ * origin percent-encoded and is decoded there. Each of those passed a check
+ * written against the raw path while the emitted `Location` pointed straight at
+ * the reserved prefix, so the canonicalisation below folds all three before
+ * comparing: backslashes become separators, escapes are decoded to a fixed
+ * point, dot segments are resolved, and leading separators are stripped.
+ */
+export const isReservedFitnessMediaPath = (userPath: string): boolean => {
+  const canonicalPath = getCanonicalMediaPath(userPath)
   return getMediaReservedFitnessPathPrefixes().some(
     (prefix) =>
       canonicalPath === prefix || canonicalPath.startsWith(`${prefix}/`)
   )
 }
+
+// Every object the media driver writes to object storage lives under this key
+// prefix — uploads, thumbnails, renditions and custom emoji alike (all go
+// through `S3FileStorage`). The bucket may hold other things an operator keeps
+// there, and `GET /api/v1/files/...` is unauthenticated, so the object-storage
+// driver refuses to read or redirect to any key outside it.
+export const MEDIA_OBJECT_KEY_PREFIX = 'medias/'
+
+/**
+ * Whether `key` is one the object-storage media driver could have written.
+ *
+ * Checked on the RAW key, which is what `GetObject` addresses literally, AND on
+ * the canonical form, which is what a CDN redirect's URL parser and origin end
+ * up addressing — `medias/%2e%2e/secret` is a literal key under the prefix but
+ * a redirect to `/secret`.
+ */
+export const isObjectStorageMediaKey = (key: string): boolean =>
+  key.startsWith(MEDIA_OBJECT_KEY_PREFIX) &&
+  getCanonicalMediaPath(key).startsWith(MEDIA_OBJECT_KEY_PREFIX)
