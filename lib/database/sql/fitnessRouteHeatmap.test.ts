@@ -828,6 +828,102 @@ describe('FitnessRouteHeatmapDatabase', () => {
         ).resolves.toBeNull()
       })
 
+      it('revokes the share token when the heatmap is deleted, so regeneration cannot reactivate it', async () => {
+        const token = 'share-token-revoked-on-delete'
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all',
+          region: 'delete-revokes-share'
+        })
+        await database.setFitnessRouteHeatmapShareToken({
+          actorId: actors.replyAuthor.id,
+          id: created.id,
+          shareToken: token
+        })
+
+        await database.deleteFitnessRouteHeatmap({
+          actorId: actors.replyAuthor.id,
+          id: created.id
+        })
+
+        // Regeneration restores the same row in place.
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'completed',
+          clearDeleted: true,
+          clearDeletedBefore: Date.now() + 10_000
+        })
+
+        await expect(
+          database.getFitnessRouteHeatmapByShareToken({ shareToken: token })
+        ).resolves.toBeNull()
+        const restored = await database.getFitnessRouteHeatmap({
+          id: created.id
+        })
+        expect(restored).not.toBeNull()
+        expect(restored?.shareToken).toBeNull()
+      })
+
+      it('revokes every share token when all of an actor heatmaps are deleted', async () => {
+        const token = 'share-token-revoked-on-bulk-delete'
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.empty.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all',
+          region: 'bulk-delete-revokes-share'
+        })
+        await database.setFitnessRouteHeatmapShareToken({
+          actorId: actors.empty.id,
+          id: created.id,
+          shareToken: token
+        })
+
+        await database.deleteFitnessRouteHeatmapsForActor({
+          actorId: actors.empty.id
+        })
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'completed',
+          clearDeleted: true,
+          clearDeletedBefore: Date.now() + 10_000
+        })
+
+        await expect(
+          database.getFitnessRouteHeatmapByShareToken({ shareToken: token })
+        ).resolves.toBeNull()
+      })
+
+      it('keeps the share token when a live heatmap is regenerated', async () => {
+        const token = 'share-token-kept-on-live-regeneration'
+        const created = await database.createFitnessRouteHeatmap({
+          actorId: actors.empty.id,
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all',
+          region: 'live-regeneration-keeps-share'
+        })
+        await database.setFitnessRouteHeatmapShareToken({
+          actorId: actors.empty.id,
+          id: created.id,
+          shareToken: token
+        })
+
+        await database.updateFitnessRouteHeatmapStatus({
+          id: created.id,
+          status: 'completed',
+          clearDeleted: true,
+          clearDeletedBefore: Date.now()
+        })
+
+        const live = await database.getFitnessRouteHeatmapByShareToken({
+          shareToken: token
+        })
+        expect(live?.id).toBe(created.id)
+      })
+
       it('returns null for an empty share token', async () => {
         await expect(
           database.getFitnessRouteHeatmapByShareToken({ shareToken: '' })
@@ -1078,6 +1174,45 @@ describe('FitnessRouteHeatmapDatabase', () => {
         expect(row?.status).toBe('cancelled')
         expect(row?.cursorOffset).toBe(0)
       })
+    })
+  })
+
+  describe('restoring a row soft-deleted before deletion revoked its token', () => {
+    it('drops the stale share token when the row is restored', async () => {
+      const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+      await prepare()
+      await database.migrate()
+      await seedDatabase(database)
+
+      const token = 'legacy-deleted-share-token'
+      const created = await database.createFitnessRouteHeatmap({
+        actorId: DatabaseSeed.actors.primary.id,
+        activityType: null,
+        periodType: 'all_time',
+        periodKey: 'all',
+        region: 'legacy-deleted'
+      })
+      // Rows soft-deleted by older code kept their token.
+      await instance('fitness_route_heatmaps')
+        .where('id', created.id)
+        .update({ shareToken: token, deletedAt: new Date() })
+
+      const restored = await database.updateFitnessRouteHeatmapStatus({
+        id: created.id,
+        status: 'generating',
+        clearDeleted: true,
+        clearDeletedBefore: Date.now() + 10_000
+      })
+
+      expect(restored).toBe(true)
+      await expect(
+        database.getFitnessRouteHeatmapByShareToken({ shareToken: token })
+      ).resolves.toBeNull()
+      await expect(
+        database.getFitnessRouteHeatmap({ id: created.id })
+      ).resolves.toMatchObject({ shareToken: null })
+
+      await database.destroy()
     })
   })
 

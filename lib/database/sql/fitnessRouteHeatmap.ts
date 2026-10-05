@@ -639,6 +639,13 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     }
     if (clearDeleted) {
       updateData.deletedAt = null
+      // Restoring a soft-deleted row must not resurrect the old share token
+      // (rows deleted before deletion cleared the token still carry one). Keep
+      // it on a live row, which the job also passes `clearDeleted` for.
+      updateData.shareToken = database.raw(
+        'CASE WHEN ?? IS NULL THEN ?? ELSE NULL END',
+        ['deletedAt', 'shareToken']
+      )
     }
 
     const query = database('fitness_route_heatmaps').where('id', id)
@@ -743,6 +750,11 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       .whereNull('deletedAt')
       .update({
         deletedAt: new Date(),
+        // A share token is a bearer capability to the GPS heatmap. Deleting the
+        // heatmap revokes it: the soft-deleted row is later restored in place
+        // by regeneration, and a surviving token would silently re-expose the
+        // fresh heatmap to anyone who kept the old URL.
+        shareToken: null,
         updatedAt: new Date()
       })
   },
@@ -760,6 +772,8 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       .whereNull('deletedAt')
       .update({
         deletedAt: new Date(),
+        // See deleteFitnessRouteHeatmapsForActor: deletion revokes the share.
+        shareToken: null,
         updatedAt: new Date()
       })
 
