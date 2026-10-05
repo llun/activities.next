@@ -410,6 +410,114 @@ describe('Announce action', () => {
     ).resolves.toBeNull()
   })
 
+  // The author gate reads the RAW fetched document, before
+  // normalizeActivityPubContent collapses `attributedTo` to one id. JSON-LD
+  // compaction keeps an embedded actor object, and a multi-valued
+  // `attributedTo`, as-is, so the gate must check the same id the store keeps.
+  it.each([
+    {
+      title: 'an embedded same-origin author object',
+      type: 'Note',
+      slug: 'embedded-author',
+      attributedTo: {
+        type: 'Person',
+        id: 'https://somewhere.test/actors/embedded',
+        name: 'Embedded'
+      },
+      expectedActorId: 'https://somewhere.test/actors/embedded'
+    },
+    {
+      title: 'a PeerTube-style array of same-origin author objects',
+      type: 'Video',
+      slug: 'peertube-video',
+      attributedTo: [
+        { type: 'Person', id: 'https://somewhere.test/actors/alice' },
+        { type: 'Group', id: 'https://somewhere.test/video-channels/chan' }
+      ],
+      expectedActorId: 'https://somewhere.test/actors/alice'
+    }
+  ])(
+    'stores a boosted note attributed to $title',
+    async ({ type, slug, attributedTo, expectedActorId }) => {
+      const statusId = stubNoteId()
+      const announcedObjectId = `https://somewhere.test/statuses/${slug}`
+
+      fetchMock.mockOnceIf(
+        announcedObjectId,
+        JSON.stringify({
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: announcedObjectId,
+          type,
+          attributedTo,
+          content: `<p>${slug}</p>`,
+          published: '2026-08-30T04:27:44Z',
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: []
+        })
+      )
+
+      await createAnnounceJob(database, {
+        id: `id-${slug}`,
+        name: CREATE_ANNOUNCE_JOB_NAME,
+        data: MockAnnounceStatus({
+          actorId: ACTOR1_ID,
+          statusId,
+          announceStatusId: announcedObjectId
+        })
+      })
+
+      const stored = await database.getStatus({ statusId: announcedObjectId })
+      expect(stored).not.toBeNull()
+      expect(stored?.actorId).toEqual(expectedActorId)
+      await expect(
+        database.getStatus({ statusId: `${statusId}/activity` })
+      ).resolves.not.toBeNull()
+    }
+  )
+
+  it('refuses a boosted note whose first attributedTo entry is on another origin', async () => {
+    // normalizeActivityPubContent stores the FIRST extractable id, so a
+    // same-origin second entry must not let a cross-origin (here LOCAL) first
+    // entry through.
+    const statusId = stubNoteId()
+    const announcedObjectId =
+      'https://somewhere.test/statuses/cross-origin-first-author'
+
+    fetchMock.mockOnceIf(
+      announcedObjectId,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: announcedObjectId,
+        type: 'Note',
+        attributedTo: [
+          { type: 'Person', id: ACTOR1_ID },
+          { type: 'Person', id: 'https://somewhere.test/actors/friend' }
+        ],
+        content: '<p>forged</p>',
+        published: '2026-08-30T04:27:44Z',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+    )
+
+    await createAnnounceJob(database, {
+      id: 'id-cross-origin-first-author',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: MockAnnounceStatus({
+        actorId: 'https://somewhere.test/actors/spoofer',
+        statusId,
+        announceStatusId: announcedObjectId
+      })
+    })
+
+    await expect(
+      database.getStatus({ statusId: announcedObjectId })
+    ).resolves.toBeNull()
+    await expect(
+      database.getStatus({ statusId: `${statusId}/activity` })
+    ).resolves.toBeNull()
+  })
+
   it('accepts an announce whose fetched object id is a same-origin canonical form', async () => {
     // The guard is on the ORIGIN, so a same-host canonicalisation — here an
     // explicit `:443` in the Announce against the canonical form the origin

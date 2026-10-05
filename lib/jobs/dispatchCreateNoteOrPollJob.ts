@@ -1,7 +1,10 @@
 import { BaseNote } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
 import { ENTITY_TYPE_QUESTION } from '@/lib/types/activitypub'
-import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
+import {
+  extractActivityPubId,
+  isSameActivityPubOrigin
+} from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 
 import { createNoteJob } from './createNoteJob'
@@ -38,16 +41,23 @@ import { CREATE_NOTE_JOB_NAME, CREATE_POLL_JOB_NAME } from './names'
 // `resolveInboundQuotedStatus` and `fetchRemoteStatusJob` apply. See
 // docs/mastodon-api-compatibility.md, "A Fetched Document's Own `id` Is Not
 // Evidence".
+//
+// The raw fetched `attributedTo` is not normalized yet: an embedded actor object
+// or a multi-valued array (PeerTube names the account AND the channel) survives
+// JSON-LD compaction as-is. Gate the id `extractActivityPubId` picks — the same
+// extraction `normalizeActivityPubContent` applies before createNoteJob stores
+// the author — so the id checked here is the id that gets stored.
 export const dispatchCreateNoteOrPollJob = async (
   database: Database,
   note: BaseNote
 ): Promise<void> => {
-  if (!isSameActivityPubOrigin(note.attributedTo, note.id)) {
+  const attributedTo = extractActivityPubId(note.attributedTo)
+  if (!isSameActivityPubOrigin(attributedTo, note.id)) {
     logger.warn({
       message:
         'Ignoring an origin-fetched note attributed to an actor on a different origin',
       statusId: note.id,
-      attributedTo: note.attributedTo
+      attributedTo
     })
     return
   }
