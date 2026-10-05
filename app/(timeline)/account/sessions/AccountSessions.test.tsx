@@ -55,21 +55,21 @@ const sessions: AccountSessionRow[] = [
   // Ben's session comes first in the input, but Anna holds the current session,
   // so Anna's group must float to the top.
   {
-    token: 'ben-1',
+    id: 'ben-1',
     actor: ben,
     createdAt: NOW - DAY,
     expireAt: NOW + 3 * DAY,
     current: false
   },
   {
-    token: 'anna-current',
+    id: 'anna-current',
     actor: anna,
     createdAt: NOW - HOUR,
     expireAt: NOW + 7 * DAY,
     current: true
   },
   {
-    token: 'anna-soon',
+    id: 'anna-soon',
     actor: anna,
     createdAt: NOW - 2 * HOUR,
     expireAt: NOW + HOUR,
@@ -160,14 +160,14 @@ describe('AccountSessions', () => {
     renderSessions({
       sessions: [
         {
-          token: 'cur',
+          id: 'cur',
           actor: anna,
           createdAt: NOW - HOUR,
           expireAt: NOW + 7 * DAY,
           current: true
         },
         {
-          token: 'expired',
+          id: 'expired',
           actor: anna,
           createdAt: NOW - 3 * DAY,
           expireAt: NOW - DAY,
@@ -238,14 +238,14 @@ describe('AccountSessions', () => {
   // failure/in-flight cases that needs an unambiguous "Revoke" target.
   const oneOther: AccountSessionRow[] = [
     {
-      token: 'cur',
+      id: 'cur',
       actor: anna,
       createdAt: NOW - HOUR,
       expireAt: NOW + 7 * DAY,
       current: true
     },
     {
-      token: 'other',
+      id: 'other',
       actor: anna,
       createdAt: NOW - 2 * HOUR,
       expireAt: NOW + 3 * DAY,
@@ -350,7 +350,7 @@ describe('AccountSessions', () => {
     renderSessions({
       sessions: [
         {
-          token: 'orphan',
+          id: 'orphan',
           actor: null,
           createdAt: NOW - HOUR,
           expireAt: NOW + 3 * DAY,
@@ -399,7 +399,7 @@ describe('AccountSessions', () => {
         currentTime={NOW}
         sessions={[
           {
-            token: 'anna-current',
+            id: 'anna-current',
             actor: anna,
             createdAt: Date.parse('2026-06-28T02:30:00.000Z'),
             expireAt: NOW + 7 * DAY,

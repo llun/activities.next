@@ -36,10 +36,14 @@ type AdminApiHandle<P> = (
   }
 ) => Promise<Response> | Response
 
-// Admin endpoints accept the coarse read/write scopes (backwards compatibility
-// for tokens with plain read/write) or the Mastodon aggregate admin scopes
-// (admin:read for GET, admin:write for mutations). The actor's admin role
-// checked inside the guard is the real authorization gate.
+// Admin endpoints accept only the Mastodon admin scopes: the aggregate
+// admin:read (GET) / admin:write (mutations), plus a route's own granular scope.
+// The coarse read / write scopes are deliberately NOT accepted — Mastodon never
+// lets `read` imply `admin:read`, and accepting them let any third-party app an
+// admin had authorized for ordinary API use read admin data (local emails,
+// IPs, reports) and run moderation actions without ever being consented an
+// admin scope. The actor's admin role checked inside the guard is a second,
+// independent gate: both the scope and the role must hold.
 //
 // A route may additionally opt into its own resource-specific granular admin
 // scope by passing `{ resource }`. Only that resource's scope is accepted, so a
@@ -68,8 +72,8 @@ const RESOURCE_ADMIN_SCOPES = {
 type AdminResource = keyof typeof RESOURCE_ADMIN_SCOPES
 
 type AdminApiGuardOptions = {
-  // Accept this resource's granular admin scope in addition to the coarse and
-  // aggregate admin scopes, without widening any other admin route.
+  // Accept this resource's granular admin scope in addition to the aggregate
+  // admin scope, without widening any other admin route.
   resource?: AdminResource
 }
 
@@ -81,16 +85,8 @@ const getRequiredOAuthScopes = (
     ? RESOURCE_ADMIN_SCOPES[options.resource]
     : undefined
   return method === HttpMethod.enum.GET
-    ? [
-        Scope.enum.read,
-        Scope.enum['admin:read'],
-        ...(granular ? [granular.read] : [])
-      ]
-    : [
-        Scope.enum.write,
-        Scope.enum['admin:write'],
-        ...(granular ? [granular.write] : [])
-      ]
+    ? [Scope.enum['admin:read'], ...(granular ? [granular.read] : [])]
+    : [Scope.enum['admin:write'], ...(granular ? [granular.write] : [])]
 }
 
 export const AdminApiGuard =

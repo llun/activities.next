@@ -358,6 +358,11 @@ export type GetAccountAllSessionsParams = {
 export type DeleteAccountSessionParams = {
   token: string
 }
+export type DeleteAccountSessionByIdParams = {
+  // Only a session this account owns is deleted; anything else matches nothing.
+  accountId: string
+  id: string
+}
 export type DeleteOtherAccountSessionsParams = {
   accountId: string
   // The session to keep (the device making the request). Every other session
@@ -402,6 +407,11 @@ export type RequestPasswordResetParams = {
   email: string
   passwordResetCode: string | null
   expiresAt?: number | null
+  // When set, the code is written only if the account has no live code issued
+  // within this many milliseconds; otherwise nothing is written and the call
+  // returns false. The check is a predicate on the UPDATE, so concurrent
+  // requests cannot each slip past it.
+  cooldownMs?: number
 }
 export type ValidatePasswordResetCodeParams = {
   passwordResetCode: string
@@ -479,6 +489,11 @@ export interface AccountDatabase {
   getAccountAllSessions(params: GetAccountAllSessionsParams): Promise<Session[]>
   updateAccountSession(params: UpdateAccountSessionParams): Promise<void>
   deleteAccountSession(params: DeleteAccountSessionParams): Promise<void>
+  // Deletes the session with this row id when it belongs to `accountId`, and
+  // returns how many rows were deleted (0 for an unknown or foreign id).
+  deleteAccountSessionById(
+    params: DeleteAccountSessionByIdParams
+  ): Promise<number>
   // Revoke every session for the account except `exceptToken`. Returns the
   // number of sessions revoked.
   deleteOtherAccountSessions(
@@ -3857,10 +3872,9 @@ export const Scope = z.enum([
   'push',
   // Admin. The aggregate admin scopes plus Mastodon's documented granular admin
   // scopes. These are recognized so admin clients can register and authorize
-  // with specific granular scopes. Note: AdminApiGuard currently only accepts
-  // the aggregate admin:read / admin:write (or coarse read / write) at the OAuth
-  // bearer gate — a token granted only a granular admin:read:* scope is rejected
-  // there today. Per-route granular admin scope enforcement is Tier 2 work.
+  // with specific granular scopes. AdminApiGuard accepts the aggregate
+  // admin:read / admin:write, or a route's own granular scope when the route
+  // opts in with `{ resource }`; the coarse read / write never satisfy it.
   'admin:read',
   'admin:read:accounts',
   'admin:read:reports',

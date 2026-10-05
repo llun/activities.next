@@ -14,7 +14,10 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.DELETE]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 interface Params {
-  token: string
+  // `sessions.id`, never the session token: the token is the credential behind
+  // the session cookie, so it must not appear in a URL, a trace or the page
+  // that lists sessions.
+  id: string
 }
 
 export const DELETE = traceApiRoute(
@@ -22,8 +25,9 @@ export const DELETE = traceApiRoute(
   AuthenticatedGuard<Params>(
     async (req, context) => {
       const { database, currentActor, params } = context
-      const { token } = (await params) ?? { token: undefined }
-      if (!token)
+      const { id } = (await params) ?? { id: undefined }
+      const accountId = currentActor.account?.id
+      if (!id || !accountId)
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -31,8 +35,13 @@ export const DELETE = traceApiRoute(
           responseStatusCode: 400
         })
 
-      const accountSession = await database.getAccountSession({ token })
-      if (!accountSession)
+      // Scoped to the caller's account in the delete itself; a foreign or
+      // unknown id deletes nothing and reads as not found.
+      const deleted = await database.deleteAccountSessionById({
+        accountId,
+        id
+      })
+      if (deleted === 0)
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
@@ -40,16 +49,6 @@ export const DELETE = traceApiRoute(
           responseStatusCode: 404
         })
 
-      if (accountSession.account.id !== currentActor.account?.id) {
-        return apiResponse({
-          req,
-          allowedMethods: CORS_HEADERS,
-          data: ERROR_404,
-          responseStatusCode: 404
-        })
-      }
-
-      await database.deleteAccountSession({ token })
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
@@ -61,7 +60,7 @@ export const DELETE = traceApiRoute(
   {
     addAttributes: async (_req, context) => {
       const params = await context.params
-      return { token: params?.token || 'unknown' }
+      return { sessionId: params?.id || 'unknown' }
     }
   }
 )

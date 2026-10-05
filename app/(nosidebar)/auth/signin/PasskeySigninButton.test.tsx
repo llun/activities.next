@@ -75,11 +75,20 @@ describe('PasskeySigninButton', () => {
     expect(passkeyButton()).not.toBeInTheDocument()
   })
 
-  it('shows an "unavailable" notice when passkeys are unsupported and credential sign-in is disabled', async () => {
+  // With credential sign-in disabled the passkey button is the only way in. A
+  // passkey on a roaming security key (USB/NFC/BLE) works without any platform
+  // authenticator, so hiding the button there would lock its owner out.
+  it('offers the button for a roaming security key when credential sign-in is disabled', async () => {
     setPlatformAuthenticator(() => Promise.resolve(false))
     await renderButton({ credentialEnabled: false })
-    expect(unavailableNotice()).toBeInTheDocument()
-    expect(passkeyButton()).not.toBeInTheDocument()
+    expect(passkeyButton()).toBeInTheDocument()
+    expect(unavailableNotice()).not.toBeInTheDocument()
+  })
+
+  it('offers the button when the platform check rejects and credential sign-in is disabled', async () => {
+    setPlatformAuthenticator(() => Promise.reject(new Error('nope')))
+    await renderButton({ credentialEnabled: false })
+    expect(passkeyButton()).toBeInTheDocument()
   })
 
   it('shows the notice when the WebAuthn API is absent and credential sign-in is disabled', async () => {
@@ -89,7 +98,7 @@ describe('PasskeySigninButton', () => {
   })
 
   it('exposes the notice as a status live region so screen readers announce it when it appears', async () => {
-    setPlatformAuthenticator(() => Promise.resolve(false))
+    clearWebAuthn()
     await renderButton({ credentialEnabled: false })
     // The notice is injected after client detection, so it must be a live
     // region to be announced (WCAG 2.1 SC 4.1.3 Status Messages).

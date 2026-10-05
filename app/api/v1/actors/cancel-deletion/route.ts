@@ -75,6 +75,21 @@ export const POST = traceApiRoute(
       })
     }
 
+    // A suspended actor's scheduled deletion may be the administrator's hard
+    // delete (DELETE /api/v1/admin/accounts/:id requires suspension, marks the
+    // actor `scheduled`, then enqueues the job). Letting the owner clear it
+    // would race the queue and defeat the moderation decision, so a suspended
+    // target is refused. Only the TARGET actor is checked: another actor on the
+    // account being suspended must not block cancelling this one.
+    if (actor.suspendedAt) {
+      return apiResponse({
+        req,
+        allowedMethods: ALLOWED_METHODS,
+        data: { error: 'Forbidden' },
+        responseStatusCode: HTTP_STATUS.FORBIDDEN
+      })
+    }
+
     // Check if actor is scheduled for deletion (can only cancel if scheduled, not if already deleting)
     const deletionStatus = await database.getActorDeletionStatus({
       id: actorId

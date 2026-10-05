@@ -88,6 +88,24 @@ export const GET = traceApiRoute(
       return redirectToStravaSettings({ error: 'state_expired' })
     }
 
+    // Consume the state atomically BEFORE the code exchange, so it is single
+    // use: a second callback carrying the same state (a replay, or a forged
+    // callback with another authorization code) matches no row and is refused
+    // instead of overwriting the connection. The update below cannot clear it
+    // — updateFitnessSettings skips undefined fields.
+    const consumed = await database.consumeFitnessOauthState({
+      id: fitnessSettings.id,
+      state,
+      now: Date.now()
+    })
+    if (!consumed) {
+      logger.error({
+        message: 'OAuth state already used or expired',
+        actorId: currentActor.id
+      })
+      return redirectToStravaSettings({ error: 'invalid_state' })
+    }
+
     try {
       const tokenResponse = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
@@ -142,9 +160,7 @@ export const GET = traceApiRoute(
         id: fitnessSettings.id,
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token,
-        tokenExpiresAt: tokenData.expires_at * 1000,
-        oauthState: undefined,
-        oauthStateExpiry: undefined
+        tokenExpiresAt: tokenData.expires_at * 1000
       })
 
       logger.info({

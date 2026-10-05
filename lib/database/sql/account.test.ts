@@ -387,6 +387,51 @@ describe('AccountDatabase', () => {
         expect(reused).toBeNull()
       })
 
+      it('does not reissue a password reset code inside the cooldown', async () => {
+        const { accountId, email } = await createTestAccount()
+        const cooldownMs = 5 * 60 * 1000
+
+        expect(
+          await database.requestPasswordReset({
+            email,
+            passwordResetCode: 'first-code',
+            cooldownMs
+          })
+        ).toBeTrue()
+
+        // A second request moments later neither rotates the code nor reports
+        // that it did, so the route sends no second email.
+        expect(
+          await database.requestPasswordReset({
+            email,
+            passwordResetCode: 'second-code',
+            cooldownMs
+          })
+        ).toBeFalse()
+        expect(
+          await database.getAccountFromId({ id: accountId })
+        ).toMatchObject({ passwordResetCode: 'first-code' })
+
+        // Once the outstanding code was issued longer ago than the cooldown
+        // (its expiry sits more than TTL - cooldown away), a new one is issued.
+        const dayMs = 24 * 60 * 60 * 1000
+        await database.requestPasswordReset({
+          email,
+          passwordResetCode: 'first-code',
+          expiresAt: Date.now() + dayMs - cooldownMs - 60_000
+        })
+        expect(
+          await database.requestPasswordReset({
+            email,
+            passwordResetCode: 'third-code',
+            cooldownMs
+          })
+        ).toBeTrue()
+        expect(
+          await database.getAccountFromId({ id: accountId })
+        ).toMatchObject({ passwordResetCode: 'third-code' })
+      })
+
       it('returns false when requesting password reset for unknown email', async () => {
         const requested = await database.requestPasswordReset({
           email: `missing-${crypto.randomUUID()}@${TEST_DOMAIN}`,
@@ -799,6 +844,55 @@ describe('AccountDatabase', () => {
         await database.deleteAccountSession({ token })
         const deleted = await database.getAccountSession({ token })
         expect(deleted).toBeNull()
+      })
+
+      // The sessions page revokes by row id so the token (the cookie
+      // credential) never reaches the browser. The id is not a secret, so the
+      // delete itself must refuse a session another account owns.
+      it('deletes a session by id only when the account owns it', async () => {
+        const { accountId } = await createTestAccount()
+        const other = await createTestAccount()
+        const expireAt = Date.now() + 60_000
+        const ownToken = `own-${crypto.randomUUID()}`
+        const otherToken = `other-${crypto.randomUUID()}`
+        await database.createAccountSession({
+          accountId,
+          token: ownToken,
+          expireAt
+        })
+        await database.createAccountSession({
+          accountId: other.accountId,
+          token: otherToken,
+          expireAt
+        })
+        const [ownSession] = await database.getAccountAllSessions({
+          accountId
+        })
+        const [otherSession] = await database.getAccountAllSessions({
+          accountId: other.accountId
+        })
+        expect(ownSession.id).toBeString()
+        expect(ownSession.id).not.toBe(ownToken)
+
+        expect(
+          await database.deleteAccountSessionById({
+            accountId,
+            id: otherSession.id
+          })
+        ).toBe(0)
+        expect(await database.getAccountSession({ token: otherToken })).toEqual(
+          expect.objectContaining({
+            session: expect.objectContaining({ id: otherSession.id })
+          })
+        )
+
+        expect(
+          await database.deleteAccountSessionById({
+            accountId,
+            id: ownSession.id
+          })
+        ).toBe(1)
+        expect(await database.getAccountSession({ token: ownToken })).toBeNull()
       })
 
       it('revokes every session except the kept one and leaves other accounts untouched', async () => {

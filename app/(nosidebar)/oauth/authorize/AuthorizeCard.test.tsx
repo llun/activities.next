@@ -81,8 +81,9 @@ const signedSearchParams: SearchParams = {
 }
 
 // An OIDC authentication request is identified by the `openid` scope (OIDC
-// Core §3.1.2.1). The consent screen shows the account identity instead of an
-// actor picker for these, because the OIDC subject is the owning account.
+// Core §3.1.2.1). The consent screen shows the account identity for these,
+// because the OIDC subject is the owning account; the actor picker is added
+// only when a requested scope is bound to an actor (profile or API scopes).
 const oidcSearchParams: SearchParams = {
   ...signedSearchParams,
   scope: 'openid profile email'
@@ -379,11 +380,11 @@ describe('AuthorizeCard', () => {
     })
   })
 
-  it('shows the account identity and hides the actor selector for OIDC requests', () => {
+  it('shows the account identity and hides the actor selector for an account-only OIDC request', () => {
     render(
       <AuthorizeCard
         client={client}
-        searchParams={oidcSearchParams}
+        searchParams={{ ...oidcSearchParams, scope: 'openid email' }}
         actors={alternateActors}
         currentActorId="https://activities.local/users/llun"
         account={account}
@@ -395,13 +396,31 @@ describe('AuthorizeCard', () => {
     expect(screen.getByText('Signed in as')).toBeInTheDocument()
     expect(screen.getByText('rider@example.com')).toBeInTheDocument()
     expect(screen.getByText('Ride')).toBeInTheDocument()
-    // The multi-actor "Authorize as" picker must NOT appear for an OIDC login:
-    // the OIDC subject is the owning account, so persona choice is irrelevant.
+    // The multi-actor "Authorize as" picker must NOT appear for a pure OIDC
+    // login: openid and email are account claims (the OIDC subject is the
+    // owning account), so persona choice is irrelevant.
     expect(screen.queryByText('Authorize as')).not.toBeInTheDocument()
     // OIDC scopes are still listed and checked.
     expect(screen.getByLabelText('openid')).toBeChecked()
-    expect(screen.getByLabelText('profile')).toBeChecked()
     expect(screen.getByLabelText('email')).toBeChecked()
+  })
+
+  // `profile` discloses the bound actor's name, handle and avatar through
+  // /oauth/userinfo, so the user must see which persona they are sharing.
+  it('shows the actor selector on an OIDC request whose profile scope discloses the actor', () => {
+    render(
+      <AuthorizeCard
+        client={client}
+        searchParams={oidcSearchParams}
+        actors={alternateActors}
+        currentActorId="https://activities.local/users/llun"
+        account={account}
+        navigate={mockNavigate}
+      />
+    )
+
+    expect(screen.getByText('Signed in as')).toBeInTheDocument()
+    expect(screen.getByText('Authorize as')).toBeInTheDocument()
   })
 
   it('shows the account identity for OIDC even with a single actor', () => {
@@ -731,7 +750,7 @@ describe('AuthorizeCard', () => {
     })
   })
 
-  it('flips to the OIDC identity view when openid co-occurs with Mastodon scopes', async () => {
+  it('keeps the actor selector in the OIDC view when openid co-occurs with Mastodon scopes', async () => {
     render(
       <AuthorizeCard
         client={client}
@@ -743,10 +762,11 @@ describe('AuthorizeCard', () => {
       />
     )
 
-    // A single 'openid' token takes precedence: the identity block shows and
-    // the actor picker is hidden even though Mastodon scopes are also present.
+    // A single 'openid' token gives the sign-in framing, but the Mastodon
+    // scopes are granted AS an actor, so the multi-actor picker stays: the
+    // user must see which persona the token will act as.
     expect(screen.getByText('Signed in as')).toBeInTheDocument()
-    expect(screen.queryByText('Authorize as')).not.toBeInTheDocument()
+    expect(screen.getByText('Authorize as')).toBeInTheDocument()
     // openid is locked; the co-requested Mastodon scopes stay user-toggleable.
     expect(screen.getByLabelText('openid')).toBeDisabled()
     expect(screen.getByLabelText('read')).toBeEnabled()

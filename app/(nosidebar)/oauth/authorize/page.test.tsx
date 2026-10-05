@@ -458,3 +458,97 @@ describe('/oauth/authorize account summary', () => {
     }
   )
 })
+
+describe('/oauth/authorize client component props', () => {
+  beforeEach(() => {
+    redirectMock.mockClear()
+    vi.mocked(getConfig).mockReturnValue({
+      host: TEST_DOMAIN,
+      trustedHosts: [] as string[]
+    } as ReturnType<typeof getConfig>)
+    vi.mocked(getBaseURL).mockReturnValue(`https://${TEST_DOMAIN}`)
+    headersMock.mockReturnValue(
+      new Headers({ 'x-forwarded-host': TEST_DOMAIN })
+    )
+  })
+
+  // AuthorizeCard is a Client Component: everything it receives is serialized
+  // into the RSC payload the browser downloads. The stored Actor carries its
+  // ActivityPub signing key and its Account secrets, and the client row
+  // carries its secret hash — none of which may be sent.
+  it('never passes actor private keys, account secrets or the client secret', async () => {
+    const PRIVATE_KEY = '-----BEGIN PRIVATE KEY-----actor-signing-key'
+    const PASSWORD_HASH = '$2b$10$password-hash-value'
+    const VERIFICATION_CODE = 'verification-code-value'
+    const CLIENT_SECRET = 'client-secret-hash-value'
+    const account = {
+      id: 'account-id',
+      email: 'rider@example.com',
+      passwordHash: PASSWORD_HASH,
+      verificationCode: VERIFICATION_CODE,
+      passwordResetCode: 'reset-code-value',
+      emailChangeCode: 'email-change-code-value'
+    }
+    vi.mocked(getActorFromSession).mockResolvedValue({
+      id: 'https://activities.local/users/llun',
+      account
+    } as unknown as Awaited<ReturnType<typeof getActorFromSession>>)
+    vi.mocked(getDatabase).mockReturnValue({
+      getClientFromId: vi.fn().mockResolvedValue({
+        ...REGISTERED_CLIENT,
+        clientSecret: CLIENT_SECRET,
+        website: 'https://app.example'
+      }),
+      getActorsForAccount: vi.fn().mockResolvedValue([
+        {
+          id: 'https://activities.local/users/llun',
+          username: 'llun',
+          domain: 'activities.local',
+          name: 'Llun',
+          iconUrl: 'https://cdn.example/llun.png',
+          tags: [],
+          publicKey: 'public-key',
+          privateKey: PRIVATE_KEY,
+          account
+        }
+      ])
+    } as unknown as ReturnType<typeof getDatabase>)
+
+    const element = (await Page({
+      searchParams: Promise.resolve({
+        ...searchParams,
+        sig: 'signed',
+        exp: '9999999999'
+      })
+    })) as ReactElement
+
+    const authorizeCard = (element.props as { children: ReactElement }).children
+    const props = authorizeCard.props as { actors: unknown; client: unknown }
+    const serialized = JSON.stringify(props)
+    for (const secret of [
+      PRIVATE_KEY,
+      PASSWORD_HASH,
+      VERIFICATION_CODE,
+      'reset-code-value',
+      'email-change-code-value',
+      CLIENT_SECRET
+    ]) {
+      expect(serialized).not.toContain(secret)
+    }
+    // The picker still gets what it renders.
+    expect(props.actors).toEqual([
+      {
+        id: 'https://activities.local/users/llun',
+        username: 'llun',
+        domain: 'activities.local',
+        name: 'Llun',
+        iconUrl: 'https://cdn.example/llun.png',
+        tags: []
+      }
+    ])
+    expect(props.client).toEqual({
+      name: 'Test App',
+      website: 'https://app.example'
+    })
+  })
+})

@@ -10,6 +10,7 @@ import { Actor } from '@/lib/types/domain/actor'
 import { HttpMethod } from '@/lib/utils/http-headers'
 
 import { AdminApiGuard } from './AdminApiGuard'
+import { hasGrantedScope } from './scopeHierarchy'
 
 // Mock auth session
 const mockGetServerSession = vi.fn()
@@ -55,6 +56,10 @@ const mockOAuthGuardAnyScope = vi.fn()
 let mockOAuthActor = {
   account: { role: 'admin' }
 } as Actor
+// The scopes the bearer token was granted. The OAuthGuardAnyScope stand-in
+// applies the real any-of scope match against them, so a test can assert the
+// outcome (admitted or refused) of a token's consent, not just the scope list.
+let mockGrantedScopes: string[] = ['admin:read', 'admin:write']
 
 vi.mock('./OAuthGuard', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./OAuthGuard')>()
@@ -92,10 +97,11 @@ describe('AdminApiGuard', () => {
     mockOAuthActor = {
       account: { role: 'admin' }
     } as Actor
+    mockGrantedScopes = ['admin:read', 'admin:write']
     mockGetServerSession.mockResolvedValue(null)
     mockOAuthGuardAnyScope.mockImplementation(
       (
-        _scopes: Scope[],
+        scopes: Scope[],
         handle: (
           req: NextRequest,
           context: {
@@ -105,12 +111,18 @@ describe('AdminApiGuard', () => {
           }
         ) => Promise<Response> | Response
       ) =>
-        (req: NextRequest, context: { params: Promise<{}> }) =>
-          handle(req, {
+        (req: NextRequest, context: { params: Promise<{}> }) => {
+          if (
+            !scopes.some((scope) => hasGrantedScope(mockGrantedScopes, scope))
+          ) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+          }
+          return handle(req, {
             currentActor: mockOAuthActor,
             database,
             params: context.params
           })
+        }
     )
   })
 
@@ -566,10 +578,10 @@ describe('AdminApiGuard', () => {
           }
         })
       )
-      // Without a resource option, admin GET accepts coarse read OR the aggregate
-      // admin:read scope only — no granular admin:read:* scope is added.
+      // Without a resource option, admin GET accepts the aggregate admin:read
+      // scope only — no coarse read and no granular admin:read:* scope.
       expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
-        [Scope.enum.read, Scope.enum['admin:read']],
+        [Scope.enum['admin:read']],
         expect.any(Function),
         expect.objectContaining({
           errorResponse: expect.any(Function)
@@ -591,11 +603,7 @@ describe('AdminApiGuard', () => {
       // The domain_blocks route additionally accepts its own granular
       // admin:read:domain_blocks scope, without widening any other admin route.
       expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
-        [
-          Scope.enum.read,
-          Scope.enum['admin:read'],
-          Scope.enum['admin:read:domain_blocks']
-        ],
+        [Scope.enum['admin:read'], Scope.enum['admin:read:domain_blocks']],
         expect.any(Function),
         expect.objectContaining({
           errorResponse: expect.any(Function)
@@ -616,11 +624,7 @@ describe('AdminApiGuard', () => {
       )
 
       expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
-        [
-          Scope.enum.write,
-          Scope.enum['admin:write'],
-          Scope.enum['admin:write:domain_allows']
-        ],
+        [Scope.enum['admin:write'], Scope.enum['admin:write:domain_allows']],
         expect.any(Function),
         expect.objectContaining({
           errorResponse: expect.any(Function)
@@ -638,14 +642,58 @@ describe('AdminApiGuard', () => {
         { params: Promise.resolve({}) }
       )
 
-      // Admin POST accepts coarse write OR the aggregate admin:write scope.
+      // Admin POST accepts the aggregate admin:write scope only.
       expect(mockOAuthGuardAnyScope).toHaveBeenCalledWith(
-        [Scope.enum.write, Scope.enum['admin:write']],
+        [Scope.enum['admin:write']],
         expect.any(Function),
         expect.objectContaining({
           errorResponse: expect.any(Function)
         })
       )
+    })
+
+    // An admin who authorized a third-party app for ordinary API use granted it
+    // read / write, never an admin scope. Mastodon never lets read imply
+    // admin:read, so that token must not reach admin data or moderation.
+    it.each([
+      { method: HttpMethod.enum.GET, resource: undefined },
+      { method: HttpMethod.enum.GET, resource: 'accounts' as const },
+      { method: HttpMethod.enum.GET, resource: 'reports' as const },
+      { method: HttpMethod.enum.POST, resource: undefined },
+      { method: HttpMethod.enum.POST, resource: 'accounts' as const },
+      { method: HttpMethod.enum.POST, resource: 'reports' as const }
+    ])(
+      'refuses an admin token granted only coarse read/write ($method, $resource)',
+      async ({ method, resource }) => {
+        mockGrantedScopes = ['read', 'write', 'follow', 'push']
+        const guard = AdminApiGuard([method], handle, { resource })
+        const response = await guard(
+          new NextRequest('https://llun.test/api/v1/admin/accounts', {
+            method,
+            headers: { Authorization: 'Bearer token' }
+          }),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(403)
+        expect(handle).not.toHaveBeenCalled()
+      }
+    )
+
+    it('admits an admin token granted the route resource granular scope', async () => {
+      mockGrantedScopes = ['admin:read:reports']
+      const guard = AdminApiGuard([HttpMethod.enum.GET], handle, {
+        resource: 'reports'
+      })
+      const response = await guard(
+        new NextRequest('https://llun.test/api/v1/admin/reports', {
+          headers: { Authorization: 'Bearer token' }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(handle).toHaveBeenCalled()
     })
 
     it('rejects a non-admin OAuth bearer token', async () => {

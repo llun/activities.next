@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
+import { PASSWORD_RESET_REQUEST_COOLDOWN_MS } from '@/lib/services/auth/passwordResetCode'
 
 import { POST as routePost } from './route'
 
@@ -14,10 +15,12 @@ vi.mock('@/lib/services/email', () => ({
 
 const mockLoggerError = vi.fn()
 const mockLoggerWarn = vi.fn()
+const mockLoggerInfo = vi.fn()
 vi.mock('@/lib/utils/logger', () => ({
   logger: {
     error: (...args: unknown[]) => mockLoggerError(...args),
-    warn: (...args: unknown[]) => mockLoggerWarn(...args)
+    warn: (...args: unknown[]) => mockLoggerWarn(...args),
+    info: (...args: unknown[]) => mockLoggerInfo(...args)
   }
 }))
 
@@ -109,6 +112,32 @@ describe('POST /api/v1/accounts/password/reset/request', () => {
     expect(message.content.text).toContain(
       'https://llun.test/auth/reset-password?code='
     )
+  })
+
+  // The endpoint is public: without a cooldown anyone can mail-bomb an
+  // address and keep rotating the code, invalidating every link the owner
+  // was sent. The database applies the cooldown atomically (pinned in
+  // lib/database/sql/account.test.ts); the route must ask for it and, when no
+  // code is issued, send nothing while answering exactly as it always does.
+  it('sends no email and answers the generic success inside the cooldown', async () => {
+    mockDb.requestPasswordReset.mockResolvedValue(false)
+
+    const response = await POST(buildRequest({ email: 'test@llun.test' }))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      message:
+        'If an account exists for that email, a password reset link has been sent.'
+    })
+    expect(mockDb.requestPasswordReset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'test@llun.test',
+        cooldownMs: PASSWORD_RESET_REQUEST_COOLDOWN_MS
+      })
+    )
+    expect(mockSendMail).not.toHaveBeenCalled()
+    expect(mockLoggerError).not.toHaveBeenCalled()
   })
 
   it('returns uniform success and restores the reset code when email sending fails', async () => {

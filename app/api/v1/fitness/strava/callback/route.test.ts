@@ -9,7 +9,8 @@ let currentHost = 'test.llun.dev'
 const mockDb = {
   getFitnessSettings: vi.fn(),
   updateFitnessSettings: vi.fn(),
-  deleteFitnessSettings: vi.fn()
+  deleteFitnessSettings: vi.fn(),
+  consumeFitnessOauthState: vi.fn()
 }
 
 vi.mock('@/lib/config', () => ({
@@ -102,5 +103,78 @@ describe('Strava OAuth callback', () => {
     expect(res.headers.get('location')).toBe(
       'https://test.llun.dev/fitness/connections/strava?error=not_configured'
     )
+  })
+
+  // The state is the callback's only CSRF proof, so it must be single use. The
+  // old code tried to clear it with `undefined`, which updateFitnessSettings
+  // skips, leaving it valid for its whole 10-minute window.
+  describe('OAuth state consumption', () => {
+    const fetchMock = vi.fn()
+    let storedState: string | null
+
+    beforeEach(() => {
+      storedState = 'valid-state'
+      const settings = () => ({
+        id: 'settings-id',
+        actorId: ACTOR1_ID,
+        serviceType: 'strava',
+        clientId: 'client-id',
+        clientSecret: 'client-secret',
+        webhookToken: 'webhook-token',
+        oauthState: 'valid-state',
+        oauthStateExpiry: Date.now() + 60_000
+      })
+      mockDb.getFitnessSettings.mockImplementation(async () => settings())
+      // Mirrors the SQL implementation: clears the state only when it still
+      // matches, and reports whether it did.
+      mockDb.consumeFitnessOauthState.mockImplementation(
+        async ({ state }: { state: string }) => {
+          if (storedState !== state) return false
+          storedState = null
+          return true
+        }
+      )
+      fetchMock.mockReset().mockImplementation(
+        async () =>
+          new Response(
+            JSON.stringify({
+              access_token: 'access',
+              refresh_token: 'refresh',
+              expires_at: 2_000_000_000,
+              athlete: { id: 1 }
+            }),
+            { status: 200 }
+          )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    const callback = (code: string) =>
+      GET(
+        new NextRequest(
+          `https://test.llun.dev/api/v1/fitness/strava/callback?code=${code}&state=valid-state`
+        ),
+        { params: Promise.resolve({}) }
+      ) as Promise<Response>
+
+    it('refuses a second callback that replays the same state', async () => {
+      const first = await callback('first-code')
+      expect(first.headers.get('location')).toBe(
+        'https://test.llun.dev/fitness/connections/strava?success=true'
+      )
+
+      const replay = await callback('attacker-code')
+      expect(replay.headers.get('location')).toBe(
+        'https://test.llun.dev/fitness/connections/strava?error=invalid_state'
+      )
+      // The replayed code never reaches Strava, so it cannot replace the
+      // connection's tokens.
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(mockDb.updateFitnessSettings).toHaveBeenCalledTimes(1)
+    })
   })
 })

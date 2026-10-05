@@ -50,6 +50,17 @@ describe('getEmailConfig', () => {
     expect(config?.email.serviceFromAddress).toBe('fallback@example.com')
   })
 
+  // A malformed ACTIVITIES_EMAIL with nothing to fall back to must not read as
+  // "no email configured": that makes registration skip verification and
+  // write every new account pre-verified.
+  it('rejects malformed ACTIVITIES_EMAIL JSON when no individual env vars are set', () => {
+    process.env.ACTIVITIES_EMAIL = '{"type": "smtp",'
+
+    expect(() => getEmailConfig()).toThrow(
+      'ACTIVITIES_EMAIL is not valid JSON and no ACTIVITIES_EMAIL_* variables are set; email configuration is invalid'
+    )
+  })
+
   it('prefers ACTIVITIES_EMAIL JSON over individual env vars', () => {
     process.env.ACTIVITIES_EMAIL = JSON.stringify({
       type: 'resend',
