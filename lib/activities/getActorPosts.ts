@@ -7,6 +7,7 @@ import { Database } from '@/lib/database/types'
 import { isPixelfedActor } from '@/lib/services/federation/serverSoftware'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/activitypub'
 import {
   Announce,
@@ -224,7 +225,10 @@ export const getActorPosts: GetActorPostsFunction = async ({
                 localStatus &&
                 localStatus.type !== StatusType.enum.Announce
               ) {
-                if (localStatus.actorId === person.id) {
+                if (
+                  localStatus.actorId === person.id &&
+                  isPublicOrUnlisted(localStatus)
+                ) {
                   if (actor) localStatus.actor = actor
                   return localStatus
                 }
@@ -258,6 +262,13 @@ export const getActorPosts: GetActorPostsFunction = async ({
             ) {
               return null
             }
+
+            // The outbox is fetched signed by the instance actor, which may follow
+            // this author (collection ingest does exactly that), so a server that
+            // filters its outbox by signer can hand us followers-only and direct
+            // notes. Every caller serves these to some local viewer the remote
+            // never authorised, so only public and unlisted notes come back.
+            if (!isPublicOrUnlisted(status)) return null
 
             if (actor) status.actor = actor
             return status

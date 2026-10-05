@@ -268,8 +268,9 @@ export const getProfileData = async (
   // A remote actor's attachments are the ones their statuses brought here when
   // they federated in, which includes followers-only posts delivered to a local
   // follower. Scope this gallery the same way the local branch above scopes its
-  // own — `getActorPosts` reads the remote outbox, which is public by
-  // construction, so only the attachment query needs it.
+  // own. `getActorPosts` reads the remote outbox signed by the instance actor
+  // and returns only its public and unlisted notes (a server may hand a
+  // follower signer more), so only the attachment query needs scoping here.
   const remoteAudience = await resolveActorStatusesAudience({
     database,
     targetActor: { id: person.id, followersUrl: person.followers },
