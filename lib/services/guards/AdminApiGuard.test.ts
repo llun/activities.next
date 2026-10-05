@@ -21,8 +21,16 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 // Mock database getter
 let mockDatabase:
   ReturnType<typeof getTestSQLDatabaseWithInstance>['database'] | null = null
+// The access-token row the real OAuthGuardAnyScope finds when a test drives it
+// (see 'through the real OAuthGuardAnyScope'); null means "token not found".
+let mockStoredToken: Record<string, unknown> | null = null
 vi.mock('@/lib/database', () => ({
-  getDatabase: () => mockDatabase
+  getDatabase: () => mockDatabase,
+  getKnex: () => (_table: string) => ({
+    where: (_field: string, _value: string) => ({
+      first: () => Promise.resolve(mockStoredToken)
+    })
+  })
 }))
 
 // Mock cookies from next/headers
@@ -115,7 +123,13 @@ describe('AdminApiGuard', () => {
           if (
             !scopes.some((scope) => hasGrantedScope(mockGrantedScopes, scope))
           ) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+            // Mirrors OAuthGuard's insufficient_scope answer, which is a bare
+            // 401 (rejectBearer('insufficient_scope', 401)), not a 403. The
+            // 'through the real OAuthGuardAnyScope' tests pin the real status.
+            return NextResponse.json(
+              { error: 'The access token is invalid' },
+              { status: 401 }
+            )
           }
           return handle(req, {
             currentActor: mockOAuthActor,
@@ -675,7 +689,7 @@ describe('AdminApiGuard', () => {
           { params: Promise.resolve({}) }
         )
 
-        expect(response.status).toBe(403)
+        expect(response.status).toBe(401)
         expect(handle).not.toHaveBeenCalled()
       }
     )
@@ -694,6 +708,45 @@ describe('AdminApiGuard', () => {
 
       expect(response.status).toBe(200)
       expect(handle).toHaveBeenCalled()
+    })
+
+    // The mock above only mirrors the guard. These drive the real
+    // OAuthGuardAnyScope, so the refusal status is the one production sends.
+    describe('through the real OAuthGuardAnyScope', () => {
+      beforeEach(async () => {
+        const actual =
+          await vi.importActual<typeof import('./OAuthGuard')>('./OAuthGuard')
+        mockOAuthGuardAnyScope.mockImplementation(actual.OAuthGuardAnyScope)
+        mockStoredToken = {
+          userId: 'user-id',
+          scopes: 'read write follow push',
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000)
+        }
+      })
+
+      afterEach(() => {
+        mockStoredToken = null
+      })
+
+      it.each([
+        { method: HttpMethod.enum.GET },
+        { method: HttpMethod.enum.POST }
+      ])(
+        'answers 401 insufficient_scope to a coarse read/write token ($method)',
+        async ({ method }) => {
+          const guard = AdminApiGuard([method], handle)
+          const response = await guard(
+            new NextRequest('https://llun.test/api/v1/admin/accounts', {
+              method,
+              headers: { Authorization: 'Bearer opaque-token' }
+            }),
+            { params: Promise.resolve({}) }
+          )
+
+          expect(response.status).toBe(401)
+          expect(handle).not.toHaveBeenCalled()
+        }
+      )
     })
 
     it('rejects a non-admin OAuth bearer token', async () => {
