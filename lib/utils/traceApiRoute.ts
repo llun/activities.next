@@ -123,6 +123,86 @@ export const extractTraceContext = (req: NextRequest) => {
   return extractedCtx
 }
 
+// Query parameter name parts that carry a credential or PII: OAuth `code` /
+// `state` / tokens on callbacks, Strava's `hub.verify_token`, share tokens, and
+// the like. The name is split on `.`, `_`, `-` and brackets and redacted when
+// any part matches, so `access_token`, `hub.verify_token`, `client_secret`
+// and `code_verifier` are all caught. Over-redacting a harmless parameter
+// costs a debugging hint; under-redacting exports a credential.
+const SENSITIVE_QUERY_NAME_PARTS = new Set([
+  'assertion',
+  'code',
+  'email',
+  'key',
+  'nonce',
+  'otp',
+  'password',
+  'secret',
+  'sig',
+  'signature',
+  'state',
+  'token',
+  'verifier'
+])
+const REDACTED = 'REDACTED'
+const MAX_TRACE_QUERY_LENGTH = 2048
+
+const isSensitiveQueryName = (name: string) =>
+  name
+    .toLowerCase()
+    .split(/[._\-[\]]+/)
+    .some((part) => SENSITIVE_QUERY_NAME_PARTS.has(part))
+
+/**
+ * The query string as recorded on the span: sensitive parameter values are
+ * replaced (their names are kept, which is the debugging signal) and the result
+ * is bounded. Spans leave the process through whatever exporter an operator
+ * attaches, so they must not carry credentials the request happened to hold.
+ */
+export const redactTraceQuery = (search: string): string => {
+  const params = new URLSearchParams(search)
+  const redacted = new URLSearchParams()
+  params.forEach((value, name) => {
+    redacted.append(name, isSensitiveQueryName(name) ? REDACTED : value)
+  })
+  return redacted.toString().slice(0, MAX_TRACE_QUERY_LENGTH)
+}
+
+/**
+ * The path as recorded on the span, with every dynamic route segment replaced
+ * by its parameter name (`/api/v1/webhooks/strava/[webhookToken]`). Some
+ * routes carry a bearer-style credential as a path segment — the Strava webhook
+ * token, heatmap share tokens — and the wrapper cannot know which, so no
+ * concrete parameter value is recorded; a route that wants an id on its span
+ * adds it explicitly through `addAttributes`.
+ */
+export const templateTracePath = (
+  pathname: string,
+  params: unknown
+): string => {
+  if (!params || typeof params !== 'object') return pathname
+  const names = new Map<string, string>()
+  for (const [name, value] of Object.entries(params)) {
+    for (const item of Array.isArray(value) ? value : [value]) {
+      if (typeof item === 'string' && item) names.set(item, name)
+    }
+  }
+  if (names.size === 0) return pathname
+  return pathname
+    .split('/')
+    .map((segment) => {
+      let decoded = segment
+      try {
+        decoded = decodeURIComponent(segment)
+      } catch {
+        // Keep the raw segment
+      }
+      const name = names.get(decoded) ?? names.get(segment)
+      return name ? `[${name}]` : segment
+    })
+    .join('/')
+}
+
 export function traceApiRoute<P = unknown>(
   name: string,
   handler: RouteHandler<P>,
@@ -138,12 +218,11 @@ export function traceApiRoute<P = unknown>(
           try {
             const url = req.nextUrl ?? new URL(req.url, 'http://localhost')
             span.setAttribute('http.request.method', req.method)
-            span.setAttribute('url.path', url.pathname)
-            const query = url.search
-              ? url.search.startsWith('?')
-                ? url.search.slice(1)
-                : url.search
-              : ''
+            span.setAttribute(
+              'url.path',
+              templateTracePath(url.pathname, await routeContext?.params)
+            )
+            const query = url.search ? redactTraceQuery(url.search) : ''
             if (query) {
               span.setAttribute('url.query', query)
             }
