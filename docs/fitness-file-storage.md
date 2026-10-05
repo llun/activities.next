@@ -286,7 +286,7 @@ An activity with no `activityStartTime` — a GPX carrying no timestamps — cou
 
 ### Upload and Retrieval
 
-- `POST /api/v1/fitness-files` uploads a fitness file through multipart form data.
+- `POST /api/v1/fitness-files` uploads a fitness file through multipart form data. An optional `description` longer than the instance's post character limit (`posts.maxCharacters`) is refused with `400`: it is stored as unbounded text outside the byte quota, so it is held to the same length as a post.
 - `GET /api/v1/fitness-files/:id` returns the original uploaded file content. **Owner only** — every other request, signed in or not, gets a `404` whatever the attached status's visibility (see Security and Privacy). Responses are `private, no-store`, `nosniff`, and `Content-Disposition: attachment`.
 - `PATCH /api/v1/fitness-files/:id` attributes the activity to a piece of gear, or clears it with `{ "gearId": null }`. Owner only; every rejection is a `404`, including a gear id that is not the owner's, so the response cannot confirm that an id exists.
 - `GET /api/v1/fitness-files/:id/route-data` returns parsed route samples and analysis series for status detail maps and charts.

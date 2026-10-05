@@ -164,7 +164,7 @@ docker run -p 3000:3000 \
   activities.next:pg
 ```
 
-> **Notes:** The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters. The runtime image does not include the Knex CLI, so run `yarn migrate` against the PostgreSQL server from a checkout (using the individual `ACTIVITIES_DATABASE_*` variables) before the first start.
+> **Notes:** The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters. The runtime image does not include the Knex CLI, so run `yarn migrate` against the PostgreSQL server from a checkout (using the individual `ACTIVITIES_DATABASE_*` variables or the `ACTIVITIES_DATABASE` JSON) before the first start.
 
 For a complete setup with both PostgreSQL and Activity.next in Docker, you can use Docker Compose with a local build:
 

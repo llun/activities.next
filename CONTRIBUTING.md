@@ -511,13 +511,17 @@ count equals the number of `migrations/*.js` files.
 > **Heads up on environment isolation.** The commands below pass the database
 > settings **inline** on the `yarn migrate` line rather than writing a
 > `.env.local` — this avoids clobbering an existing `.env.local` (the file the
-> setup docs have you create) and, because `knexfile.js` uses `dotenv-flow`
-> (which never overrides variables already in the environment), guarantees these
-> inline values win over anything in `.env.local`. For that same reason, run them
-> in a shell where you have **not** exported any other `ACTIVITIES_DATABASE*`
-> variables — a stray exported `ACTIVITIES_DATABASE` (JSON) or
-> `ACTIVITIES_DATABASE_PG_*` would otherwise be merged in and could point
-> `yarn migrate` at the wrong (possibly remote/shared) database. Check with
+> setup docs have you create). `knexfile.js` uses `dotenv-flow`, which never
+> overrides a variable already in the environment, so each inline value wins
+> over the same variable in `.env.local` — but **only that variable**. Anything
+> `.env.local` sets that the line does not is still loaded, and an
+> `ACTIVITIES_DATABASE` JSON configuration takes precedence over every
+> individual `ACTIVITIES_DATABASE_*` variable. That is why every recipe below
+> starts with an empty `ACTIVITIES_DATABASE=`: without it, a JSON configuration
+> in `.env.local` would silently redirect `yarn migrate` to that (possibly
+> remote/shared) database. For the same reason, run them in a shell where you
+> have **not** exported any other `ACTIVITIES_DATABASE*` variables — a stray
+> exported `ACTIVITIES_DATABASE_PG_*` would otherwise be merged in. Check with
 > `env | grep ACTIVITIES_DATABASE` first; unset anything that shows up.
 
 ##### PostgreSQL — `migrations/schema.sql`
@@ -543,6 +547,7 @@ count equals the number of `migrations/*.js` files.
    and overrides any `.env.local` values):
 
    ```bash
+   ACTIVITIES_DATABASE= \
    ACTIVITIES_DATABASE_CLIENT=pg \
    ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
    ACTIVITIES_DATABASE_PG_PORT=55432 \
@@ -605,6 +610,7 @@ by hand.
    **inline** (same reasoning as above — no `.env.local` is written or touched):
 
    ```bash
+   ACTIVITIES_DATABASE= \
    ACTIVITIES_DATABASE_CLIENT=better-sqlite3 \
    ACTIVITIES_DATABASE_SQLITE_FILENAME=./schema-dump.sqlite3 \
      yarn migrate
@@ -1047,7 +1053,7 @@ each ends with the Definition of Done gate.
 
 1. `yarn migrate:make <name>` — never hand-write the file (migrations are ESM `.js` with named `up`/`down` from `migration.stub`).
 2. Use the Knex query builder; the migration must work on SQLite and PostgreSQL and avoid breaking MySQL-compatible clients (see **Database Compatibility Guidelines**).
-3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate`.
+3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate` (the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in `.env.local` from taking over).
 4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**). This is not optional: the Vitest suite builds its databases from the dumps, and CI's SQLite and PostgreSQL Schema Dump Sync jobs fail on schema-dump drift.
 5. Update the affected `lib/database/` code and types, plus tests.
 6. Run the Definition of Done gate.

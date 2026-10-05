@@ -28,7 +28,7 @@ Alternatively, both `yarn migrate` and the app runtime accept the whole configur
 }
 ```
 
-> **Note:** When `ACTIVITIES_DATABASE` is set it takes precedence over the individual `ACTIVITIES_DATABASE_*` variables, for `yarn migrate` as well as the app, and a value that is not a JSON object makes `yarn migrate` fail rather than fall back to the default `./activities.sqlite` file. Setting only `ACTIVITIES_DATABASE_SQLITE_FILENAME` selects `better-sqlite3`.
+> **Note:** When `ACTIVITIES_DATABASE` is set it takes precedence over the individual `ACTIVITIES_DATABASE_*` variables, for `yarn migrate` as well as the app, and a value that is not a JSON object makes `yarn migrate` fail rather than fall back to the default `./activities.sqlite` file. For `yarn migrate` only, setting `ACTIVITIES_DATABASE_SQLITE_FILENAME` without `ACTIVITIES_DATABASE_CLIENT` selects `better-sqlite3`; the app runtime still requires `ACTIVITIES_DATABASE_CLIENT`, so set both.
 
 2. Run database migrations to set up the schema:
 
@@ -110,4 +110,4 @@ Notes:
 - The image is published with the `main` tag — there is no `latest` tag on the registry.
 - The production runtime rejects an `ACTIVITIES_SECRET_PHASE` shorter than 32 characters, so use a sufficiently long random secret.
 - The `-v` option mounts a local directory at `/opt/activities.next/data` so the SQLite database and the local uploads directory persist between container restarts. Create the host directory with appropriate permissions beforehand. Do **not** bind-mount `/opt/activities.next` itself — that directory contains the application (the standalone `server.js`, static assets, etc.), and a host-path mount would shadow it so the container cannot start.
-- The mounted data directory starts empty, and the runtime image does not run migrations. Before the first start, either run the Knex migrations against the mounted file from a checkout (`ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=/path/to/local/storage/data.sqlite yarn migrate`) or copy the image's pre-migrated database as a starting point (`docker run --rm -v /path/to/local/storage:/data ghcr.io/llun/activities.next:main cp /opt/activities.next/data.sqlite /data/data.sqlite`).
+- The mounted data directory starts empty, and the runtime image does not run migrations. Before the first start, either run the Knex migrations against the mounted file from a checkout (`ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=/path/to/local/storage/data.sqlite yarn migrate` — the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in a checkout's `.env.local` from taking precedence) or copy the image's pre-migrated database as a starting point (`docker run --rm -v /path/to/local/storage:/data ghcr.io/llun/activities.next:main cp /opt/activities.next/data.sqlite /data/data.sqlite`).
