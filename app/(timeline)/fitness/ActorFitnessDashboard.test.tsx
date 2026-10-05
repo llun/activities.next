@@ -969,6 +969,78 @@ describe('ActorFitnessDashboard', () => {
     await act(async () => calendar.resolve(calendarDays))
   })
 
+  describe('a day picked before any committed result covers it', () => {
+    // Nothing the bucket totals could come from has landed yet, so the details
+    // must not state a count: an empty day and an unknown day read differently.
+    const detailsText = () =>
+      text(document.querySelector('[data-testid="day-details"]'))
+
+    it('shows no "0 activities" for a day picked while the first read is pending', async () => {
+      const calendar = createDeferred<FitnessCalendarDay[]>()
+      mockedCalendar.mockReturnValueOnce(calendar.promise)
+      renderDashboard()
+
+      fireEvent.click(cell('2026-10-01'))
+      expect(detailsText() ?? '').not.toContain('0 activities')
+
+      await act(async () => calendar.resolve(calendarDays))
+      await waitForLoaded()
+      const details = await screen.findByTestId('day-details')
+      expect(text(details)).toContain('2 activities · 16.8 km · 1h 14m')
+      expect(text(details)).not.toContain('0 activities')
+    })
+
+    it('shows no "0 activities" after that first read rejects, until Retry succeeds', async () => {
+      const calendar = createDeferred<FitnessCalendarDay[]>()
+      mockedCalendar.mockReturnValueOnce(calendar.promise)
+      renderDashboard()
+
+      fireEvent.click(cell('2026-10-01'))
+      await act(async () =>
+        calendar.reject(new ApiRequestError('Service Unavailable', 503))
+      )
+      const alert = await screen.findByRole('alert')
+      expect(screen.getByTestId('calendar-region')).toHaveAttribute('inert')
+      expect(detailsText() ?? '').not.toContain('0 activities')
+
+      fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+      await waitFor(() =>
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      )
+      const details = await screen.findByTestId('day-details')
+      expect(text(details)).toContain('2 activities · 16.8 km · 1h 14m')
+    })
+
+    it('shows no "0 activities" for a day outside the previous range while a new range loads', async () => {
+      renderDashboard()
+      await waitForLoaded()
+
+      const calendar = createDeferred<FitnessCalendarDay[]>()
+      mockedCalendar.mockReturnValueOnce(calendar.promise)
+      fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
+      await waitFor(() => expect(shownDates()).toBe('1 Jan – 31 Dec 2025'))
+
+      // 2025 is outside the year to date that is still the last committed read.
+      fireEvent.click(cell('2025-06-15'))
+      expect(detailsText() ?? '').not.toContain('0 activities')
+
+      await act(async () =>
+        calendar.resolve([
+          {
+            date: '2025-06-15',
+            count: 3,
+            totalDistanceMeters: 30000,
+            totalDurationSeconds: 7200,
+            totalElevationGainMeters: 100
+          }
+        ])
+      )
+      await waitForLoaded()
+      const details = await screen.findByTestId('day-details')
+      expect(text(details)).toContain('3 activities · 30.0 km · 2h')
+    })
+  })
+
   describe('after a failed read that kept the previous results', () => {
     const failSecondRange = async () => {
       renderDashboard()

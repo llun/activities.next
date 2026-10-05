@@ -268,8 +268,16 @@ function FitnessOverview({
   // A day picked on the previous results (see SELECT_DAY's `within`) lies
   // outside `applied`. It belongs to what is on screen, so it is shown there
   // and nowhere else: not while the applied range loads, and not after it has.
+  //
+  // The day's totals come from the committed read's buckets, so a day is shown
+  // only once a committed result covers it: a day picked while the first read
+  // is pending (or after it failed), or one outside the previous range during
+  // a new range's load, would otherwise read "0 activities" above rows that
+  // exist. The pick is kept and appears when the read lands.
   const selectedDate =
     state.selectedDate !== null &&
+    result !== null &&
+    rangeContains(result.range, state.selectedDate) &&
     rangeContains(displayRange, state.selectedDate)
       ? state.selectedDate
       : null
@@ -330,8 +338,9 @@ function FitnessOverview({
   const backToYear = () => applyRange({ type: 'BACK_TO_YEAR' })
 
   // The day's totals come from the calendar bucket, from the latest committed
-  // read: it is the same day either way, so a selection kept across a reload
-  // never flashes "0 activities".
+  // read. `selectedDate` is only set for a day that read covers, so a
+  // selection kept across a reload shows its totals from the previous read
+  // rather than "0 activities" while the new one loads.
   const bucketIndex = useMemo(
     () => indexDays(result?.days ?? NO_DAYS),
     [result]
