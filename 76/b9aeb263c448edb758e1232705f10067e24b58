@@ -1,0 +1,31 @@
+app/(timeline)/fitness/ActorFitnessDashboard.test.tsx
+  s_a7418d31ae2421::t_6cd67109f9683c 659-699
+lib/components/fitness/calendar/AnnualCalendar.test.tsx
+  s_a7418d31ae2421::t_ed7d268e57509f 762-811
+lib/components/fitness/calendar/CalendarTooltip.follow.test.tsx
+  s_a7418d31ae2421::t_0e275b5d11805f 1-113
+lib/components/fitness/calendar/CalendarTooltip.test.tsx
+  s_a7418d31ae2421::t_db01ec8521ad3e 243-276
+lib/components/fitness/calendar/MiniMonthCalendar.test.tsx
+  s_a7418d31ae2421::t_610e6c7632fc41 229-238
+lib/components/fitness/calendar/MonthCalendar.test.tsx
+  s_a7418d31ae2421::t_9c1ab4bb95646b 502-537
+lib/components/fitness/calendar/RangePicker.test.tsx
+  s_a7418d31ae2421::t_ba98bd1e02f307 437-446,471,494-506
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "76b9aeb263c448edb758e1232705f10067e24b58",
+  "prompts": {},
+  "sessions": {
+    "s_a7418d31ae2421": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0f1fd2ae-8211-4deb-ba27-c7a8fdc4df54",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
