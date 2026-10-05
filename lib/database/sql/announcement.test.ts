@@ -1,5 +1,6 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
+import { MAX_ANNOUNCEMENT_REACTION_NAMES } from '@/lib/services/announcements/reactionLimits'
 
 const ACTOR1_ID = 'https://announcements.test/users/actor1'
 const ACTOR2_ID = 'https://announcements.test/users/actor2'
@@ -380,6 +381,85 @@ describe('announcement reactions', () => {
       expect(rollups).toEqual([
         { announcementId: created.id, name: 'tada', count: 1, me: true }
       ])
+    })
+  })
+})
+
+describe('announcement reaction ceiling', () => {
+  it('refuses a new distinct name past the ceiling but admits a known one', async () => {
+    await withFreshDatabase(async (database) => {
+      const created = await database.createAnnouncement({
+        text: 'react',
+        published: true
+      })
+      const names = Array.from(
+        { length: MAX_ANNOUNCEMENT_REACTION_NAMES },
+        (_, index) => `name${index}`
+      )
+      for (const name of names) {
+        expect(
+          await database.addAnnouncementReaction({
+            announcementId: created.id,
+            actorId: ACTOR1_ID,
+            name
+          })
+        ).toBeTrue()
+      }
+
+      // A ninth distinct name is refused, whoever asks.
+      expect(
+        await database.addAnnouncementReaction({
+          announcementId: created.id,
+          actorId: ACTOR2_ID,
+          name: 'overflow'
+        })
+      ).toBeFalse()
+      // A name already on the announcement adds no group, so another actor may
+      // still join it.
+      expect(
+        await database.addAnnouncementReaction({
+          announcementId: created.id,
+          actorId: ACTOR2_ID,
+          name: names[0]
+        })
+      ).toBeTrue()
+
+      const rollups = await database.getAnnouncementReactions({
+        announcementIds: [created.id],
+        actorId: ACTOR1_ID
+      })
+      expect(rollups.map((rollup) => rollup.name).sort()).toEqual(
+        [...names].sort()
+      )
+      expect(rollups.find((rollup) => rollup.name === names[0])?.count).toBe(2)
+    })
+  })
+
+  it('counts the ceiling per announcement', async () => {
+    await withFreshDatabase(async (database) => {
+      const first = await database.createAnnouncement({
+        text: 'first',
+        published: true
+      })
+      const second = await database.createAnnouncement({
+        text: 'second',
+        published: true
+      })
+      for (let index = 0; index < MAX_ANNOUNCEMENT_REACTION_NAMES; index++) {
+        await database.addAnnouncementReaction({
+          announcementId: first.id,
+          actorId: ACTOR1_ID,
+          name: `name${index}`
+        })
+      }
+
+      expect(
+        await database.addAnnouncementReaction({
+          announcementId: second.id,
+          actorId: ACTOR1_ID,
+          name: 'overflow'
+        })
+      ).toBeTrue()
     })
   })
 })

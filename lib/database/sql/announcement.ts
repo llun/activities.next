@@ -2,6 +2,7 @@ import { Knex } from 'knex'
 import { randomUUID } from 'node:crypto'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import { MAX_ANNOUNCEMENT_REACTION_NAMES } from '@/lib/services/announcements/reactionLimits'
 import {
   AnnouncementData,
   AnnouncementDatabase,
@@ -183,10 +184,36 @@ export const AnnouncementSQLDatabaseMixin = (
     actorId,
     name
   }: AnnouncementReactionParams) {
-    await database('announcement_reactions')
-      .insert({ announcementId, actorId, name, createdAt: new Date() })
-      .onConflict(['announcementId', 'actorId', 'name'])
-      .ignore()
+    return database.transaction(async (trx) => {
+      // Serialize reactions to one announcement on its row (a no-op on SQLite,
+      // whose writers already serialize) so the distinct-name ceiling holds
+      // across concurrent requests.
+      await trx('announcements')
+        .where({ id: announcementId })
+        .select('id')
+        .forUpdate()
+
+      // A name already on the announcement never widens the rollup, so it is
+      // always allowed (including this actor repeating their own reaction).
+      const nameInUse = await trx('announcement_reactions')
+        .where({ announcementId, name })
+        .first('name')
+      if (!nameInUse) {
+        const distinct = await trx('announcement_reactions')
+          .where({ announcementId })
+          .countDistinct<{ count: string | number }[]>({ count: 'name' })
+          .first()
+        if (Number(distinct?.count ?? 0) >= MAX_ANNOUNCEMENT_REACTION_NAMES) {
+          return false
+        }
+      }
+
+      await trx('announcement_reactions')
+        .insert({ announcementId, actorId, name, createdAt: new Date() })
+        .onConflict(['announcementId', 'actorId', 'name'])
+        .ignore()
+      return true
+    })
   },
 
   async removeAnnouncementReaction({

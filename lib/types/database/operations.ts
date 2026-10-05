@@ -2378,7 +2378,9 @@ export interface AnnouncementDatabase {
   markAnnouncementRead(params: MarkAnnouncementReadParams): Promise<void>
   // Per-actor: idempotently add a reaction on the (announcement, actor, name)
   // composite key.
-  addAnnouncementReaction(params: AnnouncementReactionParams): Promise<void>
+  // Resolves false, storing nothing, when the reaction would add a distinct name
+  // beyond MAX_ANNOUNCEMENT_REACTION_NAMES.
+  addAnnouncementReaction(params: AnnouncementReactionParams): Promise<boolean>
   // Per-actor: remove a reaction.
   removeAnnouncementReaction(params: AnnouncementReactionParams): Promise<void>
   // Per-actor: which of `announcementIds` the actor has read.
