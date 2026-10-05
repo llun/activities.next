@@ -1,6 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { resolveConversationRootId } from '@/lib/services/mastodon/conversationMute'
 import { evaluateNotificationPolicy } from '@/lib/services/notifications/evaluateNotificationPolicy'
+import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import {
   CreateNotificationParams,
   Notification
@@ -19,6 +20,21 @@ export const createNotificationWithPolicy = async (
   database: Database,
   params: CreateNotificationParams
 ): Promise<Notification | null> => {
+  // Blocks (either direction) and a mute with notifications on suppress every
+  // notification from that account, whichever path raised it — reply/mention
+  // fan-out, follows, quotes, collections. Self-addressed notifications
+  // (activity_import, gear_service_due, a poll's own author) are exempt.
+  if (
+    params.sourceActorId !== params.actorId &&
+    !(await shouldCreateNotification(
+      database,
+      params.actorId,
+      params.sourceActorId
+    ))
+  ) {
+    return null
+  }
+
   // Suppress notifications for conversations the recipient has muted. Only
   // status-bound notifications (mention, reply, favourite, reblog, poll, …)
   // belong to a conversation; account-level ones (e.g. follow) carry no
