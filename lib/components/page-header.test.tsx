@@ -459,6 +459,26 @@ describe('PageHeader', () => {
       expect(box).not.toHaveClass('mb-0')
     })
 
+    // Signed in with something to show below md, the box continues the bar and
+    // is the edge the content meets.
+    it('lets the content meet a visible box under the bar with flushOnMobile', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Timeline"
+            description="Latest posts"
+            flushOnMobile
+          />
+        </MobileNavigationProvider>
+      )
+
+      const box = container.querySelector('.max-w-content')
+        ?.parentElement as HTMLElement
+      expect(box).not.toHaveClass('max-md:hidden')
+      expect(box).toHaveClass('max-md:mb-0')
+      expect(getBar(container)).toHaveClass('mb-0')
+    })
+
     it('keeps the parent spacing below the header by default', () => {
       const { container } = render(<PageHeader title="Timeline" />)
 
