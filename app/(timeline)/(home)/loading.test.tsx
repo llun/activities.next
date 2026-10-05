@@ -66,6 +66,9 @@ describe('timeline loading', () => {
     expect(stickyHeader?.nextElementSibling).toBe(
       screen.getByLabelText('Post composer')
     )
+    expect(screen.getByLabelText('Post composer')).not.toHaveClass(
+      'max-md:-mt-6'
+    )
     const postsSection = screen.getByLabelText('Timeline posts')
     expect(postsSection).toBeInTheDocument()
     expect(postsSection.children).toHaveLength(3)

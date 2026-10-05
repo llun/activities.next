@@ -487,6 +487,11 @@ describe('MainPageTimeline', () => {
       'data-actions-in-mobile-bar',
       'true'
     )
+    // The composer is the header's next sibling and does not pull itself up
+    // under it: the header (or the bar) already ends where the composer starts.
+    const composer = screen.getByTestId('page-header').nextElementSibling
+    expect(composer?.tagName).toBe('SECTION')
+    expect(composer).not.toHaveClass('max-md:-mt-6')
   })
 
   it('removes a direct post from the feed when delete callback is invoked', () => {
