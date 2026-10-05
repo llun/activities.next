@@ -1,0 +1,24 @@
+docs/setup.md
+  s_69f35b0cf1b1f5::t_17a3bb13aa9082 252
+lib/services/email/index.ts
+  s_69f35b0cf1b1f5::t_ed3de532cdafc2 52-58
+lib/services/email/index.test.ts
+  s_69f35b0cf1b1f5::t_8458d69312e550 101
+  s_69f35b0cf1b1f5::t_17a3bb13aa9082 84,95-100,102,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "35236a959b813e949f7cd1be58ba649798ab5f25",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
