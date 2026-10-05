@@ -3843,10 +3843,9 @@ export const Scope = z.enum([
   'push',
   // Admin. The aggregate admin scopes plus Mastodon's documented granular admin
   // scopes. These are recognized so admin clients can register and authorize
-  // with specific granular scopes. Note: AdminApiGuard currently only accepts
-  // the aggregate admin:read / admin:write (or coarse read / write) at the OAuth
-  // bearer gate — a token granted only a granular admin:read:* scope is rejected
-  // there today. Per-route granular admin scope enforcement is Tier 2 work.
+  // with specific granular scopes. AdminApiGuard accepts the aggregate
+  // admin:read / admin:write, or a route's own granular scope when the route
+  // opts in with `{ resource }`; the coarse read / write never satisfy it.
   'admin:read',
   'admin:read:accounts',
   'admin:read:reports',
