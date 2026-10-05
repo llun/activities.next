@@ -654,14 +654,20 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
       updateData.isPartial = isPartial
     }
     if (clearDeleted) {
-      updateData.deletedAt = null
       // Restoring a soft-deleted row must not resurrect the old share token
       // (rows deleted before deletion cleared the token still carry one). Keep
       // it on a live row, which the job also passes `clearDeleted` for.
+      //
+      // Assigned BEFORE `deletedAt`: knex emits SET clauses in insertion order,
+      // and MySQL evaluates single-table UPDATE assignments left to right, so a
+      // later clause reads an earlier one's NEW value. With `deletedAt = NULL`
+      // first, MySQL's CASE would see NULL and keep the stale token.
+      // PostgreSQL and SQLite read the pre-update row either way.
       updateData.shareToken = database.raw(
         'CASE WHEN ?? IS NULL THEN ?? ELSE NULL END',
         ['deletedAt', 'shareToken']
       )
+      updateData.deletedAt = null
     }
 
     const query = database('fitness_route_heatmaps').where('id', id)

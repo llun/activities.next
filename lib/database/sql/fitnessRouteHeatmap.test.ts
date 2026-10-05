@@ -1,3 +1,6 @@
+import knex from 'knex'
+
+import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
@@ -1291,6 +1294,110 @@ describe('FitnessRouteHeatmapDatabase', () => {
       expect(sql).not.toContain('*')
 
       await database.destroy()
+    })
+  })
+
+  describe('deleting a shared heatmap clears the stored token itself', () => {
+    // Read the soft-deleted row straight from the table, BEFORE any restore:
+    // the restore-time CASE in updateFitnessRouteHeatmapStatus clears a
+    // deleted row's token on its own, so a test that restores first cannot
+    // tell whether the delete revoked the token.
+    const readStoredToken = async (
+      instance: ReturnType<typeof getTestDatabaseWithInstance>['instance'],
+      id: string
+    ) => {
+      const row = await instance('fitness_route_heatmaps')
+        .where('id', id)
+        .first('shareToken', 'deletedAt')
+      expect(row?.deletedAt).not.toBeNull()
+      return row?.shareToken ?? null
+    }
+
+    it.each([
+      [
+        'deleteFitnessRouteHeatmap',
+        (
+          database: ReturnType<typeof getTestDatabaseWithInstance>['database'],
+          actorId: string,
+          id: string
+        ) => database.deleteFitnessRouteHeatmap({ actorId, id })
+      ],
+      [
+        'deleteFitnessRouteHeatmapsForActor',
+        (
+          database: ReturnType<typeof getTestDatabaseWithInstance>['database'],
+          actorId: string
+        ) => database.deleteFitnessRouteHeatmapsForActor({ actorId })
+      ]
+    ])('%s nulls shareToken on the deleted row', async (_, remove) => {
+      const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+      await prepare()
+      await database.migrate()
+      await seedDatabase(database)
+
+      const actorId = DatabaseSeed.actors.primary.id
+      const created = await database.createFitnessRouteHeatmap({
+        actorId,
+        activityType: null,
+        periodType: 'all_time',
+        periodKey: 'all',
+        region: 'delete-clears-token'
+      })
+      await database.setFitnessRouteHeatmapShareToken({
+        actorId,
+        id: created.id,
+        shareToken: 'delete-clears-token'
+      })
+
+      await remove(database, actorId, created.id)
+
+      await expect(readStoredToken(instance, created.id)).resolves.toBeNull()
+
+      await database.destroy()
+    })
+  })
+
+  describe('restore SQL assignment order', () => {
+    // MySQL evaluates single-table UPDATE assignments left to right, so a
+    // later SET clause reads an earlier clause's NEW value. The CASE that
+    // drops a restored row's stale token must therefore come before
+    // `deletedAt = NULL`, or on MySQL it sees NULL and keeps the token.
+    // PostgreSQL and SQLite cannot show this, so assert the statement a
+    // MySQL-dialect knex builds; no connection is opened.
+    it('assigns shareToken before clearing deletedAt', async () => {
+      const instance = knex({ client: 'mysql2' })
+      const statements: string[] = []
+      instance.client.acquireConnection = async () => ({})
+      instance.client.releaseConnection = async () => undefined
+      instance.client._query = async (
+        _connection: unknown,
+        query: { sql: string; response?: unknown }
+      ) => {
+        statements.push(query.sql)
+        query.response = [{ affectedRows: 1 }, undefined]
+        return query
+      }
+
+      try {
+        await FitnessRouteHeatmapSQLDatabaseMixin(
+          instance
+        ).updateFitnessRouteHeatmapStatus({
+          id: 'restore-order',
+          status: 'completed',
+          clearDeleted: true,
+          clearDeletedBefore: 0
+        })
+      } finally {
+        await instance.destroy()
+      }
+
+      expect(statements).toHaveLength(1)
+      const [sql] = statements
+      const shareTokenAt = sql.indexOf('`shareToken` = CASE')
+      const deletedAtAt = sql.indexOf('`deletedAt` = ?')
+      expect(shareTokenAt).toBeGreaterThan(-1)
+      expect(deletedAtAt).toBeGreaterThan(-1)
+      expect(shareTokenAt).toBeLessThan(deletedAtAt)
     })
   })
 })

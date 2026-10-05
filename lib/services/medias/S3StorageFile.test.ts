@@ -31,6 +31,7 @@ import {
 } from '@/lib/services/medias/extractVideoMeta'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { Actor } from '@/lib/types/domain/actor'
+import { StreamByteLimitError } from '@/lib/utils/streamLimit'
 
 vi.mock('@aws-sdk/client-s3', () => {
   const makeCommand = (name: string) =>
@@ -1656,7 +1657,7 @@ describe('S3FileStorage presigned upload completion', () => {
     const serveObject = (
       contentType: string,
       size: number,
-      body: Buffer | (() => never)
+      body: Buffer | null | (() => never)
     ) => {
       send.mockImplementation(async (command) => {
         if (command instanceof HeadObjectCommand) {
@@ -1668,6 +1669,7 @@ describe('S3FileStorage presigned upload completion', () => {
         }
         if (command instanceof GetObjectCommand) {
           if (typeof body === 'function') body()
+          if (body === null) return { Body: undefined }
           return { Body: Readable.from([body]) }
         }
         if (
@@ -1678,6 +1680,27 @@ describe('S3FileStorage presigned upload completion', () => {
         }
         throw new Error('Unexpected command')
       })
+    }
+
+    // Completion streams the object to a temp file. Point the temp directory
+    // at a per-test folder so every path can assert it left nothing behind:
+    // a leak here is a full upload (up to the media size cap) per completion.
+    let tempDirectory: string
+    let originalTmpDir: string | undefined
+    beforeEach(async () => {
+      originalTmpDir = process.env.TMPDIR
+      tempDirectory = await fs.mkdtemp(`${tmpdir()}/presigned-completion-`)
+      process.env.TMPDIR = tempDirectory
+    })
+    afterEach(async () => {
+      if (originalTmpDir === undefined) delete process.env.TMPDIR
+      else process.env.TMPDIR = originalTmpDir
+      await fs.rm(tempDirectory, { recursive: true, force: true })
+    })
+    const expectNoTempFiles = async () => {
+      // Guard against the redirect itself silently not applying.
+      expect(tmpdir()).toBe(tempDirectory)
+      await expect(fs.readdir(tempDirectory)).resolves.toEqual([])
     }
 
     const expectRefusedAndDeleted = async () => {
@@ -1700,6 +1723,43 @@ describe('S3FileStorage presigned upload completion', () => {
       serveObject('image/png', html.length, html)
 
       await expectRefusedAndDeleted()
+      await expectNoTempFiles()
+    })
+
+    it('refuses an object that has no body', async () => {
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('image/png', ONE_PIXEL_PNG.length) as never
+      )
+      serveObject('image/png', ONE_PIXEL_PNG.length, null)
+
+      const error = await createStorage()
+        .completePresignedUpload(actor, 'media-1')
+        .catch((caught: unknown) => caught)
+      expect(error).toBeInstanceOf(PresignedUploadValidationError)
+      expect((error as Error).message).toBe('Uploaded object is missing')
+      expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+      expect(database.deleteMedia).toHaveBeenCalledWith({ mediaId: 'media-1' })
+      await expectNoTempFiles()
+    })
+
+    // HEAD and GET are separate reads: the object can be replaced between
+    // them, so the download itself is capped at the size HEAD vouched for.
+    it('stops downloading at the declared size and removes the partial file', async () => {
+      const declared = ONE_PIXEL_PNG.length
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('image/png', declared) as never
+      )
+      serveObject(
+        'image/png',
+        declared,
+        Buffer.concat([ONE_PIXEL_PNG, Buffer.alloc(64 * 1024)])
+      )
+
+      await expect(
+        createStorage().completePresignedUpload(actor, 'media-1')
+      ).rejects.toThrow(StreamByteLimitError)
+      expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+      await expectNoTempFiles()
     })
 
     it('refuses a JPEG declared as image/png', async () => {
@@ -1788,6 +1848,7 @@ describe('S3FileStorage presigned upload completion', () => {
         expect.objectContaining({ dimensions: { width: 64, height: 48 } })
       )
       expect(database.deleteMedia).not.toHaveBeenCalled()
+      await expectNoTempFiles()
     })
 
     it('keeps the row and object when reading the object fails transiently', async () => {
@@ -1807,6 +1868,7 @@ describe('S3FileStorage presigned upload completion', () => {
       expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
       expect(database.deleteMedia).not.toHaveBeenCalled()
       expect(DeleteObjectCommand).not.toHaveBeenCalled()
+      await expectNoTempFiles()
     })
   })
 })
@@ -2549,7 +2611,11 @@ describe('S3FileStorage getFile', () => {
     'mediasx/upload.png',
     'medias/%2e%2e/secrets/backup.sql',
     'medias/..%2fsecrets/backup.sql',
-    'medias\\..\\secrets/backup.sql'
+    'medias\\..\\secrets/backup.sql',
+    // S3 keys are case-sensitive and a leading `/` is part of the key: the
+    // canonical form folds both away, so only the raw-key check refuses these.
+    'Medias/upload.png',
+    '/medias/upload.png'
   ])('refuses the key %j outside the media prefix', async (key: string) => {
     const storage = new S3FileStorage(storageConfig, 'llun.test', database)
 

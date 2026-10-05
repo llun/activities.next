@@ -660,6 +660,75 @@ describe('fetchRemoteStatusJob', () => {
       expect(await database.getStatus({ statusId: requestedId })).toBeNull()
     })
 
+    // The requested note is gated before normalization, so its author may
+    // still be an embedded actor object or a multi-valued array. The gate must
+    // check the id normalization stores, not refuse the raw shape.
+    describe('non-string attributedTo on the requested note', () => {
+      const CHANNEL_ID = 'https://mastodon.social/video-channels/channel'
+
+      const mockNote = (statusId: string, attributedTo: unknown) =>
+        fetchMock.mockResponse(async (req) => {
+          if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+          if (req.url === VICTIM_ACTOR_ID) {
+            return JSON.stringify({
+              ...MOCK_ACTOR,
+              id: VICTIM_ACTOR_ID,
+              preferredUsername: 'victim',
+              inbox: `${VICTIM_ACTOR_ID}/inbox`,
+              outbox: `${VICTIM_ACTOR_ID}/outbox`,
+              publicKey: {
+                ...MOCK_ACTOR.publicKey,
+                id: `${VICTIM_ACTOR_ID}#main-key`,
+                owner: VICTIM_ACTOR_ID
+              }
+            })
+          }
+          if (req.url === statusId) {
+            return JSON.stringify(publicNote({ id: statusId, attributedTo }))
+          }
+          return JSON.stringify({})
+        })
+
+      it('stores a note whose same-origin author is an embedded object', async () => {
+        const statusId = `${REMOTE_STATUS_ID}/embedded-author`
+        mockNote(statusId, {
+          type: 'Person',
+          id: REMOTE_ACTOR_ID,
+          name: 'testUser'
+        })
+
+        await runJob(statusId)
+
+        const stored = await database.getStatus({ statusId })
+        expect(stored?.actorId).toBe(REMOTE_ACTOR_ID)
+      })
+
+      it('stores a PeerTube-style note naming the account and the channel', async () => {
+        const statusId = `${REMOTE_STATUS_ID}/peertube-author`
+        mockNote(statusId, [
+          { type: 'Person', id: REMOTE_ACTOR_ID },
+          { type: 'Group', id: CHANNEL_ID }
+        ])
+
+        await runJob(statusId)
+
+        const stored = await database.getStatus({ statusId })
+        expect(stored?.actorId).toBe(REMOTE_ACTOR_ID)
+      })
+
+      it('refuses an author array whose first entry is on another origin', async () => {
+        const statusId = `${REMOTE_STATUS_ID}/cross-origin-first-author`
+        mockNote(statusId, [
+          { type: 'Person', id: VICTIM_ACTOR_ID },
+          { type: 'Person', id: REMOTE_ACTOR_ID }
+        ])
+
+        await runJob(statusId)
+
+        expect(await database.getStatus({ statusId })).toBeNull()
+      })
+    })
+
     it('stores only the inlined replies that belong to the origin serving them', async () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/origin-bound`
       const forgedOtherHostId = 'https://victim.example/users/victim/statuses/1'

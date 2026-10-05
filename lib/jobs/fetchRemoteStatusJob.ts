@@ -12,6 +12,7 @@ import { Note } from '@/lib/types/activitypub/objects'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import {
+  extractActivityPubId,
   isSameActivityPubOrigin,
   normalizeActivityPubContent,
   toRecipientArray
@@ -58,14 +59,19 @@ export const INLINE_DEADLINE_MS = 6000
 // `servedFrom` — and only an author on its own origin; otherwise any logged-in
 // viewer could make this instance store a status planted in a third party's id
 // space, or attributed to a third party's actor.
+//
+// The top-level note is gated before `normalizeActivityPubContent` runs, and an
+// embedded actor object or a multi-valued array (PeerTube names the account AND
+// the channel) survives JSON-LD compaction as-is. Gate the author id
+// `extractActivityPubId` picks — the id normalization goes on to store — as
+// `dispatchCreateNoteOrPollJob` does, not the raw value.
 const isAuthoritativeNote = (
   note: { id?: unknown; attributedTo?: unknown },
   servedFrom: string
 ): boolean =>
   typeof note.id === 'string' &&
-  typeof note.attributedTo === 'string' &&
   isSameActivityPubOrigin(note.id, servedFrom) &&
-  isSameActivityPubOrigin(note.attributedTo, note.id)
+  isSameActivityPubOrigin(extractActivityPubId(note.attributedTo), note.id)
 
 const fetchRemoteStatus = async (
   database: Database,

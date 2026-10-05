@@ -309,6 +309,44 @@ describe('traceApiRoute', () => {
     expect(redactTraceQuery(`q=${'a'.repeat(5000)}`)).toHaveLength(2048)
   })
 
+  // Spelled out here rather than imported, so dropping a name from the
+  // denylist fails a test instead of shrinking the test along with it.
+  it.each([
+    'assertion',
+    'code',
+    'email',
+    'key',
+    'nonce',
+    'otp',
+    'password',
+    'secret',
+    'sig',
+    'signature',
+    'state',
+    'token',
+    'verifier'
+  ])('redacts a %s query value', (name) => {
+    expect(redactTraceQuery(`${name}=v`)).toBe(`${name}=REDACTED`)
+  })
+
+  it.each([
+    'hub.verify_token',
+    'client[secret]',
+    'code_verifier',
+    'X-Amz-Signature',
+    'login-email'
+  ])('redacts the split-form name %s', (name) => {
+    expect(new URLSearchParams(redactTraceQuery(`${name}=v`)).get(name)).toBe(
+      'REDACTED'
+    )
+  })
+
+  it('keeps a value whose name has no sensitive part', () => {
+    expect(redactTraceQuery('tokenized=v&keyboard=v')).toBe(
+      'tokenized=v&keyboard=v'
+    )
+  })
+
   it('skips undefined attributes', async () => {
     const handler = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ success: true }), {

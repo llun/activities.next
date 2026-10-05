@@ -319,6 +319,13 @@ describe('deleteActorJob', () => {
     })
 
     it('discards a job queued for a schedule that was since replaced', async () => {
+      // A real queue, so the not-yet-due branch would re-publish: only the
+      // supersede check keeps a stale job from queueing a duplicate.
+      vi.mocked(getQueue).mockReturnValue({
+        runsInline: false,
+        publish,
+        handle: vi.fn()
+      } as unknown as ReturnType<typeof getQueue>)
       const oldSchedule = new Date(Date.now() - 1000)
       const actorId = await createScheduled('superseded', oldSchedule)
       // The user cancelled and scheduled again, further out.
@@ -334,6 +341,26 @@ describe('deleteActorJob', () => {
       expect(status?.status).toBe('scheduled')
       expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
       expect(publish).not.toHaveBeenCalled()
+    })
+
+    it('discards a stale job even when the replacement schedule is already due', async () => {
+      // The replacement is due, so the not-yet-due branch cannot stop this
+      // run: the supersede check alone keeps a job carrying another
+      // schedule's time from deleting the actor. The current schedule's own
+      // job does the deletion.
+      const oldSchedule = new Date(Date.now() - 2 * 60 * 60 * 1000)
+      const actorId = await createScheduled('superseded-due', oldSchedule)
+      await database.cancelActorDeletion({ actorId })
+      await database.scheduleActorDeletion({
+        actorId,
+        scheduledAt: new Date(Date.now() - 60 * 1000)
+      })
+
+      await run(actorId, oldSchedule.getTime())
+
+      const status = await database.getActorDeletionStatus({ id: actorId })
+      expect(status?.status).toBe('scheduled')
+      expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
     })
   })
 })
