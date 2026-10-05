@@ -98,6 +98,37 @@ describe('getFederatedStatusDeliveryInboxes', () => {
     expect(inboxes).toContain('https://relay.example/inbox')
   })
 
+  it('does not forward unlisted statuses to relays', async () => {
+    const currentActor = makeActor('https://local.test/users/alice', {
+      privateKey: 'private-key'
+    })
+    const database = makeDatabase({
+      getAcceptedRelays: vi.fn().mockResolvedValue([
+        {
+          id: 'r1',
+          inboxUrl: 'https://relay.example/inbox',
+          state: 'accepted'
+        }
+      ]),
+      getFollowersInbox: vi
+        .fn()
+        .mockResolvedValue(['https://remote.test/inbox'])
+    })
+
+    const inboxes = await getFederatedStatusDeliveryInboxes({
+      database,
+      currentActor,
+      status: makeStatus({
+        to: [`${currentActor.id}/followers`],
+        cc: [ACTIVITY_STREAM_PUBLIC]
+      })
+    })
+
+    // Followers still receive it; relays do not.
+    expect(inboxes).toContain('https://remote.test/inbox')
+    expect(inboxes).not.toContain('https://relay.example/inbox')
+  })
+
   it('does not forward non-public statuses to relays', async () => {
     const currentActor = makeActor('https://local.test/users/alice', {
       privateKey: 'private-key'

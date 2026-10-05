@@ -95,6 +95,29 @@ describe('createRelayAnnounceJob', () => {
     expect(federated.map((status) => status.id)).not.toContain(followersOnly)
   })
 
+  it('does not federate an unlisted relayed note', async () => {
+    const unlisted = 'https://somewhere.test/statuses/unlisted'
+    await database.createNote({
+      id: unlisted,
+      url: unlisted,
+      actorId: 'https://somewhere.test/users/bob',
+      text: 'unlisted',
+      to: ['https://somewhere.test/users/bob/followers'],
+      cc: [ACTIVITY_STREAM_PUBLIC]
+    })
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-unlisted',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(unlisted, `${RELAY_ACTOR}/announce/unlisted`)
+    })
+
+    const federated = await database.getTimeline({
+      timeline: Timeline.FEDERATED_PUBLIC
+    })
+    expect(federated.map((status) => status.id)).not.toContain(unlisted)
+  })
+
   it('skips our own posts echoed back through the relay (self-echo guard)', async () => {
     const localNote = 'https://test.llun.dev/users/test1/statuses/local-echo'
     await createRelayAnnounceJob(database, {
