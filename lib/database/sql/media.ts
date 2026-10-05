@@ -29,6 +29,7 @@ import {
   Media,
   MediaDatabase,
   PaginatedMediaWithStatus,
+  UpdateAttachmentPlaybackParams,
   UpdateMediaParams,
   UpdateMediaResult
 } from '@/lib/types/database/operations'
@@ -417,15 +418,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
 
   async updateAttachmentPlayback({
     id,
+    statusId,
     playbackType,
     thumbnailUrl,
     onlyIfUnset
-  }: {
-    id: string
-    playbackType: 'gifv' | 'video' | 'unknown'
-    thumbnailUrl?: string | null
-    onlyIfUnset?: boolean
-  }): Promise<boolean> {
+  }: UpdateAttachmentPlaybackParams): Promise<boolean> {
     const updates: Record<string, unknown> = {
       playbackType,
       updatedAt: new Date()
@@ -433,7 +430,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     if (thumbnailUrl !== undefined) {
       updates.thumbnailUrl = thumbnailUrl
     }
-    const query = database('attachments').where('id', id)
+    const query = database('attachments')
+      .where('id', id)
+      .andWhere('statusId', statusId)
     if (onlyIfUnset) {
       query.whereNull('playbackType')
     }

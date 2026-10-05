@@ -655,6 +655,7 @@ describe('getFilteredTimelinePage', () => {
       )
       expect(updateAttachmentPlayback).toHaveBeenCalledWith({
         id: 'att-1',
+        statusId: 'https://mastodon.social/users/cheeaun/statuses/111',
         playbackType: 'gifv',
         thumbnailUrl: 'https://files.mastodon.social/media/preview-111.png',
         onlyIfUnset: true

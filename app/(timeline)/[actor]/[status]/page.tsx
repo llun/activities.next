@@ -99,6 +99,11 @@ const Page: FC<Props> = async ({ params }) => {
 
   const { fullStatusId, isStatusHash, pathActor } = resolvedStatus
   let { status, statusId } = resolvedStatus
+  // Only a status read from our own database may have its attachment metadata
+  // written back. A live-fetched one is the remote server's claim: its
+  // attachment ids are whatever the document says, and persisting against
+  // them would let any remote note rewrite another status's attachment rows.
+  const isStoredStatus = Boolean(status)
 
   if (!status && !isStatusHash && fullStatusId) {
     // Server-to-server federation fetches must be signed by the dedicated
@@ -202,7 +207,10 @@ const Page: FC<Props> = async ({ params }) => {
 
   const actualStatus = getOriginalStatus(status)
   if (actualStatus && actualStatus.type === StatusType.enum.Note) {
-    await enrichStatusAttachments(actualStatus, database)
+    await enrichStatusAttachments(
+      actualStatus,
+      isStoredStatus ? database : undefined
+    )
   }
 
   let ancestors: Status[] = []

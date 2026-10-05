@@ -479,6 +479,7 @@ export const enrichStatusAttachments = async <
         if (database) {
           await database.updateAttachmentPlayback({
             id: attachment.id,
+            statusId: status.id,
             playbackType: match.playbackType,
             thumbnailUrl: attachment.thumbnailUrl ?? null,
             onlyIfUnset: true
@@ -608,6 +609,7 @@ export const enrichStatusesAttachments = async (
           if (database) {
             await database.updateAttachmentPlayback({
               id: attachment.id,
+              statusId: primary.id,
               playbackType: resolvedPlayback,
               thumbnailUrl: attachment.thumbnailUrl ?? null,
               onlyIfUnset: true
