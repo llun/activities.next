@@ -216,7 +216,8 @@ When enabled via the `ACTIVITIES_ENABLE_INBOX_FORWARDING` environment variable (
   - Excludes local server inboxes, inboxes matching the original author's host, and inboxes of recipients explicitly addressed in `to`/`cc`.
   - Moderation check: Filters out inboxes belonging to blocked or non-federatable domains via `canFederateWithDomain`.
 - **Asynchronous Delivery & Observability**:
-  - Enqueues `ForwardActivityJob` on the job queue (`Create`, `Update`, `Delete` activities).
+  - Enqueues `ForwardActivityJob` on the job queue (`Create`, `Update`, `Delete` activities), split by `getForwardActivityJobMessages` into messages of at most `MAX_FORWARD_INBOXES_PER_JOB` (100) inboxes, so one remote activity aimed at a popular local account cannot outgrow a queue provider's message limit.
+  - Each job delivers at most `FORWARD_ACTIVITY_CONCURRENCY` (8) requests at a time; per-request timeouts and response caps alone do not bound how many sockets one forwarded activity holds open.
   - Outbound HTTP POST requests are signed with the targeted local actor's key or the instance federation signing actor (`getFederationSigningActor`).
   - OpenTelemetry spans track `inbox.forward_targets_count`, `inbox.local_actor_id`, and `inbox.activity_id`.
 

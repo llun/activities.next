@@ -17,6 +17,7 @@ import {
 } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import {
+  getForwardActivityJobMessages,
   getForwardingTargetLocalActorIds,
   resolveForwardingInboxes,
   shouldForwardActivity
@@ -56,11 +57,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { createPollJob } from './createPollJob'
-import {
-  CREATE_NOTE_JOB_NAME,
-  CREATE_POLL_JOB_NAME,
-  FORWARD_ACTIVITY_JOB_NAME
-} from './names'
+import { CREATE_NOTE_JOB_NAME, CREATE_POLL_JOB_NAME } from './names'
 import { actorMatchesVerifiedSender } from './verifiedSender'
 
 export const createNoteJob = createJobHandle(
@@ -383,15 +380,14 @@ export const createNoteJob = createJobHandle(
             object: note
           }
 
-          await getQueue().publish({
+          for (const forwardMessage of getForwardActivityJobMessages({
             id: `${getHashFromString(note.id)}#forward`,
-            name: FORWARD_ACTIVITY_JOB_NAME,
-            data: {
-              activity: createActivity,
-              inboxes,
-              localActorId: targetLocalActorIds[0]
-            }
-          })
+            activity: createActivity,
+            inboxes,
+            localActorId: targetLocalActorIds[0]
+          })) {
+            await getQueue().publish(forwardMessage)
+          }
         }
       }
     }

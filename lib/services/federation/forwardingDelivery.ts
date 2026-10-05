@@ -1,6 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { isInboxForwardingEnabled } from '@/lib/config/federation'
 import { Database } from '@/lib/database/types'
+import { FORWARD_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { filterFederatedUrls } from '@/lib/services/federation/domainPolicy'
 import { JobMessage } from '@/lib/services/queue/type'
 import { normalizeActorId, toRecipientArray } from '@/lib/utils/activitypub'
@@ -236,4 +237,44 @@ export const shouldForwardActivity = ({
   if (!isDirectDelivery({ message, authorActorId, activityId })) return false
 
   return true
+}
+
+// One forwarded activity fans out to every follower inbox of the local actors
+// it targets, and any federated actor can trigger that by mentioning or
+// replying to a popular local account. Split the fan-out across job messages so
+// no single message outgrows a queue provider's size limit or a single job run.
+export const MAX_FORWARD_INBOXES_PER_JOB = 100
+
+export interface GetForwardActivityJobMessagesParams {
+  // The dedup id of the first message; later chunks append `-<n>`.
+  id: string
+  activity: Record<string, unknown>
+  inboxes: string[]
+  localActorId?: string
+}
+
+export const getForwardActivityJobMessages = ({
+  id,
+  activity,
+  inboxes,
+  localActorId
+}: GetForwardActivityJobMessagesParams): JobMessage[] => {
+  const messages: JobMessage[] = []
+  for (
+    let start = 0;
+    start < inboxes.length;
+    start += MAX_FORWARD_INBOXES_PER_JOB
+  ) {
+    const chunkIndex = start / MAX_FORWARD_INBOXES_PER_JOB
+    messages.push({
+      id: chunkIndex === 0 ? id : `${id}-${chunkIndex}`,
+      name: FORWARD_ACTIVITY_JOB_NAME,
+      data: {
+        activity,
+        inboxes: inboxes.slice(start, start + MAX_FORWARD_INBOXES_PER_JOB),
+        localActorId
+      }
+    })
+  }
+  return messages
 }
