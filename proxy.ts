@@ -14,17 +14,17 @@ import {
 // proxy and the route handler can both read it, and caps that buffer at
 // `experimental.proxyClientMaxBodySize` (10 MB by default). Past the cap the
 // handler silently receives a truncated body, which breaks every multipart
-// upload larger than that (media, fitness files, imports, Strava archives).
-// The proxy does nothing for an /api/* request except add the CSP header, so
-// multipart /api/* requests skip it instead of raising the cap for everyone.
-// Browsers never send a Content-Type on a GET navigation, so file downloads such
-// as /api/v1/files/* still get their CSP. The value is matched case-sensitively
-// as an anchored regex, hence the spelled-out character classes.
+// upload larger than that. The proxy does nothing for an /api/* request except
+// add the CSP header, so multipart /api/* requests skip it instead of raising
+// the cap for everyone. Bare /api and the GET-only /api/v1/files/* downloads are
+// always matched, whatever Content-Type a client sends, so they keep their CSP.
+// The header value is matched case-sensitively as an anchored regex, hence the
+// spelled-out character classes.
 export const config = {
   matcher: [
-    '/((?!(?:_next/static|_next/image|api)(?:/|$)|favicon\\.ico$|activities/_next(?:/|$)).*)',
+    '/((?!(?:_next/static|_next/image)(?:/|$)|api/.|favicon\\.ico$|activities/_next(?:/|$)).*)',
     {
-      source: '/api/:path*',
+      source: '/api/:path+',
       missing: [
         {
           type: 'header',
@@ -33,7 +33,8 @@ export const config = {
             '\\s*[Mm][Uu][Ll][Tt][Ii][Pp][Aa][Rr][Tt]/[Ff][Oo][Rr][Mm]-[Dd][Aa][Tt][Aa].*'
         }
       ]
-    }
+    },
+    { source: '/api/v1/files/:path*' }
   ]
 }
 

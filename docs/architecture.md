@@ -416,26 +416,6 @@ Settings/Account avatar and header pickers actually use. The only cap there is
 the browser-side canvas resize in `lib/utils/resizeImage.ts`, which a
 non-browser API client never runs.
 
-**Multipart uploads bypass `proxy.ts`.** Next clones and buffers the body of
-every non-GET/HEAD request the proxy runs on, so both the proxy and the route
-handler can read it, and caps that buffer at `experimental.proxyClientMaxBodySize`
-(10 MB by default). Past the cap Next only logs `Request body exceeded 10MB` and
-hands the route handler the **truncated** body. Every upload larger than that
-failed with a 422 `Failed to parse body as FormData` or stored a corrupt file.
-This hit local-storage instances hardest, because they have no presigned path.
-The proxy's only work on an `/api/*` request is adding the CSP header, so its
-`config.matcher` excludes `/api/*` requests whose `Content-Type` is
-`multipart/form-data` (case-insensitive). That covers the sync media upload,
-fitness files, the fitness and Strava archive imports, avatars, and custom
-emojis without a per-route list. Raising `proxyClientMaxBodySize` was rejected:
-it would have to track the runtime upload caps, which `next.config.ts` must not
-read, and it buffers every in-flight upload in memory once more. Every other
-`/api/*` request, including `GET /api/v1/files/*` downloads of user-uploaded
-content, still runs the proxy and gets its CSP, because a browser never sends a
-`Content-Type` on a GET. `proxy.test.ts` checks the matcher with Next's own
-config parser and runtime matcher. Do not fold the `/api` entry back into the
-catch-all.
-
 Images written by the server-side route before the cap became downscale-only
 were enlarged on disk to fill the box. The `medias` row was not:
 `original.metaData` and `original.bytes` are read from the uploaded file, so
@@ -448,6 +428,26 @@ over-counted usage instead.
 
 Nothing re-encodes existing media, so an instance's storage keeps both shapes
 until the affected attachments are deleted.
+
+**Multipart uploads bypass `proxy.ts`.** Next clones and buffers the body of
+every non-GET/HEAD request the proxy runs on, so both the proxy and the route
+handler can read it, and caps that buffer at
+`experimental.proxyClientMaxBodySize` (10 MB by default). Past the cap Next only
+logs a warning and hands the handler a **truncated** body, so a larger upload
+fails to parse (each route reports that differently) or is stored incomplete.
+The proxy's only work on an `/api/*` request is adding the CSP header, so its
+`config.matcher` skips `/api/*` requests whose `Content-Type` is
+`multipart/form-data` (case-insensitive), covering every multipart upload
+without a per-route list. Raising `proxyClientMaxBodySize` was rejected: it
+would have to track the runtime upload caps, which `next.config.ts` must not
+read, and it buffers every in-flight upload in memory once more. Two paths are
+always matched whatever `Content-Type` is sent: bare `/api` (the catch-all
+excludes only `api/` followed by a segment), so it still gets the proxy's
+404/405 instead of falling through to a page route, and `/api/v1/files/*`,
+because the matcher ignores the method and a GET with a multipart header must
+not produce a CSP-less, year-cacheable file response. `proxy.test.ts` checks
+the matcher with Next's own config parser and runtime matcher. Do not fold the
+`/api` entries back into the catch-all.
 
 ## Database Schema (Simplified)
 

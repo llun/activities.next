@@ -95,12 +95,20 @@ ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE=209715200       # 200 MiB in bytes
 ACTIVITIES_MEDIA_STORAGE_QUOTA_PER_ACCOUNT=1073741824  # 1 GiB in bytes
 ```
 
-On local storage, and for fitness-file uploads and imports on any backend,
-uploads stream through the app as `multipart/form-data`. The Next.js proxy (`proxy.ts`) is skipped for
-those requests, so its 10 MB request-body buffer does not apply, and these
-`*_MAX_FILE_SIZE` settings are the app's only cap. A reverse proxy in front of
-the app has its own request-body limit (nginx's `client_max_body_size` defaults
-to 1 MB), which must be raised to match.
+Some uploads stream through the app as `multipart/form-data`: every media
+upload on local (`fs`) media storage; the sync media endpoints
+(`POST /api/v1/media` and `/api/v2/media`, which Mastodon clients use) and
+custom emojis on any media backend; and fitness-file uploads and fitness-activity
+imports on any fitness storage backend. Strava archive imports on S3/object
+fitness storage go straight to the bucket through a presigned URL and fall back
+to multipart only if that fails. The Next.js proxy (`proxy.ts`) is skipped for
+multipart `/api` requests, so its 10 MB request-body buffer does not apply. The
+per-file limit is `ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE` (or, when that is
+unset, the admin `media.maxFileSize` setting) for media and
+`ACTIVITIES_FITNESS_STORAGE_MAX_FILE_SIZE` for fitness files, on top of the
+per-account quota. A reverse proxy in front of the app has its own request-body
+limit (nginx's `client_max_body_size` defaults to 1 MB), which must be raised to
+match.
 
 ### Email Configuration (Optional)
 
