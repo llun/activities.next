@@ -126,6 +126,25 @@ describe('POST /api/v1/actors/cancel-deletion', () => {
     })
   })
 
+  // DELETE /api/v1/admin/accounts/:id requires the actor be suspended, marks
+  // it scheduled and then enqueues the hard delete; deleteActorJob exits when
+  // the status is no longer scheduled. The suspended owner must not be able to
+  // clear that status and win the race against the moderator's decision.
+  it('refuses to cancel the deletion of a suspended actor', async () => {
+    mockDb.getActorsForAccount.mockResolvedValue([
+      actorA,
+      { ...actorB, suspendedAt: Date.now() }
+    ] as never)
+
+    const response = await POST(buildRequest({ actorId: 'actor-b' }), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
+    expect(mockDb.cancelActorDeletion).not.toHaveBeenCalled()
+  })
+
   it('cancels deletion of actor B when the account is disabled', async () => {
     mockDb.getAccountFromEmail.mockResolvedValue({
       ...account,
