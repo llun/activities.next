@@ -1,0 +1,21 @@
+lib/services/auth/auth.ts
+  s_69f35b0cf1b1f5::t_49adc6a8542b8a 174-179
+lib/services/auth/oauthProviderFlow.test.ts
+  s_69f35b0cf1b1f5::t_33b67f8b794b72 450-566
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a80f64f86ff9a0d4009f27d9e5aa93dcff27fb2",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
