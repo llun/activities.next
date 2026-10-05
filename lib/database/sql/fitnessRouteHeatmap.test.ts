@@ -651,6 +651,47 @@ describe('FitnessRouteHeatmapDatabase', () => {
         ).resolves.toBeNull()
       })
 
+      it('does not resolve a share token on a sport- or period-filtered heatmap', async () => {
+        // The heatmap UI only manages the all-activities, all-time row, so a
+        // token minted on any other row (the share API still accepts one) could
+        // never be found, and so never unshared, by its owner. It must not be a
+        // live bearer link.
+        const filtered = [
+          { activityType: 'running', periodType: 'all_time', periodKey: 'all' },
+          { activityType: null, periodType: 'yearly', periodKey: '2031' },
+          {
+            activityType: 'cycling',
+            periodType: 'monthly',
+            periodKey: '2031-02'
+          }
+        ] as const
+
+        for (const [index, scope] of filtered.entries()) {
+          const token = `share-token-filtered-${index}`
+          const created = await database.createFitnessRouteHeatmap({
+            actorId: actors.primary.id,
+            ...scope,
+            region: `filtered-share-${index}`
+          })
+          await expect(
+            database.setFitnessRouteHeatmapShareToken({
+              actorId: actors.primary.id,
+              id: created.id,
+              shareToken: token
+            })
+          ).resolves.toBe(true)
+
+          await expect(
+            database.getFitnessRouteHeatmapByShareToken({ shareToken: token })
+          ).resolves.toBeNull()
+          await expect(
+            database.getFitnessRouteHeatmapSummaryByShareToken({
+              shareToken: token
+            })
+          ).resolves.toBeNull()
+        }
+      })
+
       it('resolves a token to the share scope without reading its geometry', async () => {
         // What the tile routes read. They answer from the pyramid and need only
         // the share's identity and scope, so a full-row read would drag the
@@ -658,9 +699,9 @@ describe('FitnessRouteHeatmapDatabase', () => {
         // missing from the summary select is invisible to a mocked route test.
         const created = await database.createFitnessRouteHeatmap({
           actorId: actors.primary.id,
-          activityType: 'running',
-          periodType: 'yearly',
-          periodKey: '2029',
+          activityType: null,
+          periodType: 'all_time',
+          periodKey: 'all',
           region: 'rect:63.00,5.00,62.00,6.00'
         })
         await database.updateFitnessRouteHeatmapStatus({
@@ -695,15 +736,14 @@ describe('FitnessRouteHeatmapDatabase', () => {
           })
 
         // Every field the tile routes decide on, named individually: the gate
-        // that refuses a scoped share reads activityType and periodType, the
+        // that refuses a scoped share reads periodType, the
         // clipping boundary reads region, and both are useless if the select
         // silently drops one.
         expect(summary).toMatchObject({
           id: created.id,
           actorId: actors.primary.id,
-          activityType: 'running',
-          periodType: 'yearly',
-          periodKey: '2029',
+          periodType: 'all_time',
+          periodKey: 'all',
           region: 'rect:63.00,5.00,62.00,6.00',
           status: 'completed',
           shareToken: token

@@ -338,6 +338,20 @@ const applyPyramidSubscriberFilter = (
     .where('periodType', 'all_time')
     .whereIn('status', ['pending', 'generating'])
 
+/**
+ * A share token only resolves for the one scope the heatmap UI can manage:
+ * every activity, all time (`activityTypeKey: ''` is the all-activities key, as
+ * in `applyPyramidSubscriberFilter`). The sport and period selectors are gone,
+ * so a token minted against a filtered row — which the share API once accepted
+ * and still addresses — can no longer be found, and therefore revoked, from the
+ * UI. Resolving it anyway would leave a bearer link to route data its owner has
+ * no way to take back. Not resolving it is what revokes it for everyone who
+ * holds the link; the row, its token and the owner's DELETE stay untouched.
+ */
+const onlyAllActivitiesAllTimeShares = (query: Knex.QueryBuilder) => {
+  query.where('activityTypeKey', '').where('periodType', 'all_time')
+}
+
 const applyRouteHeatmapFilters = (
   query: Knex.QueryBuilder<SQLFitnessRouteHeatmap, SQLFitnessRouteHeatmap[]>,
   {
@@ -444,6 +458,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     const row = await database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
       .where('shareToken', shareToken)
       .whereNull('deletedAt')
+      .modify(onlyAllActivitiesAllTimeShares)
       .first()
 
     if (!row) return null
@@ -467,6 +482,7 @@ export const FitnessRouteHeatmapSQLDatabaseMixin = (
     > = database<SQLFitnessRouteHeatmap>('fitness_route_heatmaps')
       .where('shareToken', shareToken)
       .whereNull('deletedAt')
+      .modify(onlyAllActivitiesAllTimeShares)
       // Summary columns only — see the interface docblock: the tile routes need
       // the share's scope, never its geometry.
       .select(SUMMARY_COLUMNS)
