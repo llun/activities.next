@@ -7,11 +7,10 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { matchesRegisteredRedirectUri } from '@/lib/services/oauth/matchRedirectUri'
-import { Actor } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { isRealAvatar } from '@/lib/utils/isRealAvatar'
 
-import { AuthorizeCard } from './AuthorizeCard'
+import { type AuthorizeActorOption, AuthorizeCard } from './AuthorizeCard'
 import {
   buildBetterAuthAuthorizeUrl,
   buildOAuthAuthorizePath,
@@ -102,19 +101,28 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return redirect(buildBetterAuthAuthorizeUrl(params, requestBaseURL))
   }
 
-  // Fetch all actors for this account
-  let actors: Actor[] = []
-  if (actor.account) {
-    actors = await database.getActorsForAccount({
-      accountId: actor.account.id
-    })
-  }
+  // Fetch all actors for this account. AuthorizeCard is a Client Component, so
+  // its props are serialized to the browser: map each actor to the fields the
+  // picker renders, never the stored Actor (its privateKey and Account secrets
+  // would ride along in the RSC payload), and pass the client's display fields
+  // rather than the row that carries its secret hash.
+  const accountActors = await database.getActorsForAccount({
+    accountId: actor.account.id
+  })
+  const actors: AuthorizeActorOption[] = accountActors.map((item) => ({
+    id: item.id,
+    username: item.username,
+    domain: item.domain,
+    name: item.name,
+    iconUrl: item.iconUrl,
+    tags: item.tags
+  }))
 
   return (
     <div>
       <AuthorizeCard
         searchParams={params}
-        client={client}
+        client={{ name: client.name ?? null, website: client.website ?? null }}
         actors={actors}
         account={{
           email: actor.account.email,

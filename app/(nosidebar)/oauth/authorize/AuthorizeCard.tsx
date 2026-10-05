@@ -29,8 +29,7 @@ import {
 } from '@/lib/components/ui/dropdown-menu'
 import { Label } from '@/lib/components/ui/label'
 import { UsableScopes } from '@/lib/types/database/operations'
-import { Actor } from '@/lib/types/domain/actor'
-import { Client } from '@/lib/types/oauth2/client'
+import { ActorEmojiTag } from '@/lib/types/domain/actor'
 
 import { buildOAuthQuery } from './authorizeQuery'
 import { SearchParams } from './types'
@@ -41,10 +40,36 @@ interface AccountSummary {
   iconUrl?: string | null
 }
 
+// Everything this card receives is serialized into the RSC payload sent to
+// the browser, so the page passes these minimal shapes rather than the stored
+// rows: a full Actor carries its ActivityPub signing `privateKey` and its
+// Account (password hash, verification codes), and a Client row carries the
+// client secret hash. None of that may reach the client.
+export interface AuthorizeClientSummary {
+  name?: string | null
+  website?: string | null
+}
+
+export interface AuthorizeActorOption {
+  id: string
+  username: string
+  domain: string
+  name?: string
+  iconUrl?: string
+  tags?: ActorEmojiTag[]
+}
+
+// Scopes that never act through, or disclose, an ActivityPub actor. `openid`
+// authenticates the account (the id_token `sub` is the account id) and
+// `email` is an account claim. Every other scope is bound to the actor the
+// grant records: API scopes act as it, and `profile` discloses its name,
+// handle and avatar through /oauth/userinfo.
+const ACCOUNT_ONLY_SCOPES = new Set(['openid', 'email'])
+
 interface Props {
-  client: Client
+  client: AuthorizeClientSummary
   searchParams: SearchParams
-  actors: Actor[]
+  actors: AuthorizeActorOption[]
   account: AccountSummary
   currentActorId: string
   navigate?: (url: string) => void
@@ -96,9 +121,16 @@ export const AuthorizeCard: FC<Props> = ({
   // An OIDC authentication request is identified by the `openid` scope (OIDC
   // Core §3.1.2.1). Such a request authenticates the owning account, not a
   // chosen ActivityPub persona — the id_token/userinfo `sub` is always the
-  // account id — so the consent screen shows the fixed account identity instead
-  // of the multi-actor "Authorize as" picker.
+  // account id — so the consent screen shows the fixed account identity.
   const isOidc = requestedScopes.includes('openid')
+  // Approving binds the grant to the selected actor, so whenever a requested
+  // scope is actor-bound the user must see — and be able to change — which
+  // actor that is, even on the OIDC sign-in screen. A pure sign-in
+  // (openid/email only) keeps the account-only framing.
+  const isActorBound = availabledScopes.some(
+    (scope) => !ACCOUNT_ONLY_SCOPES.has(scope)
+  )
+  const showActorPicker = actors.length > 1 && (!isOidc || isActorBound)
   const accountDisplayName = account.name?.trim() || account.email
   const [selectedActorId, setSelectedActorId] = useState(currentActorId)
   const [isSwitching, setIsSwitching] = useState(false)
@@ -117,7 +149,8 @@ export const AuthorizeCard: FC<Props> = ({
     return [...username][0].toUpperCase()
   }
 
-  const getHandle = (actor: Actor) => `@${actor.username}@${actor.domain}`
+  const getHandle = (actor: AuthorizeActorOption) =>
+    `@${actor.username}@${actor.domain}`
 
   const handleActorChange = async (actorId: string) => {
     if (actorId === selectedActorId || isSwitching) return
@@ -276,7 +309,7 @@ export const AuthorizeCard: FC<Props> = ({
             </div>
           )}
 
-          {!isOidc && actors.length > 1 && (
+          {showActorPicker && (
             <div className="space-y-2">
               <Label className="text-sm font-medium text-muted-foreground">
                 Authorize as
