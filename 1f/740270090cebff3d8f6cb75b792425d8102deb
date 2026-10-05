@@ -1,0 +1,31 @@
+docs/environment-variables.md
+  s_69f35b0cf1b1f5::t_24fd354af45995 435
+docs/sqlite-setup.md
+  s_69f35b0cf1b1f5::t_15488162f1bf14 31,113
+docs/architecture.md
+  s_69f35b0cf1b1f5::t_724fb3c73da287 609
+docs/fitness-file-storage.md
+  s_69f35b0cf1b1f5::t_bd06490b7c8dd3 289
+CONTRIBUTING.md
+  s_69f35b0cf1b1f5::t_1e5e1e0d192cd7 514-524,550,613,1056
+docs/setup.md
+  s_69f35b0cf1b1f5::t_1e5e1e0d192cd7 327,331,336
+docs/postgresql-setup.md
+  s_69f35b0cf1b1f5::t_15488162f1bf14 167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1f740270090cebff3d8f6cb75b792425d8102deb",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
