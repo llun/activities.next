@@ -90,6 +90,14 @@ describe('SearchDatabase foundation', () => {
     ])
   })
 
+  it('caps the number and length of search tokens', () => {
+    const many = Array.from({ length: 5000 }, (_, i) => `term${i}`).join(' ')
+    const tokens = getSearchTokens(many)
+    expect(tokens).toHaveLength(12)
+    expect(tokens[0]).toBe('term0')
+    expect(getSearchTokens('a'.repeat(10_000))).toEqual(['a'.repeat(64)])
+  })
+
   it('normalizes hashtag search names with repeated leading hashes', () => {
     expect(normalizeHashtagSearchName('  ##TrailRunning  ')).toBe(
       'trailrunning'

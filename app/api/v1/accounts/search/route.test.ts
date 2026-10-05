@@ -511,4 +511,17 @@ describe('GET /api/v1/accounts/search', () => {
       exactActorIds: []
     })
   })
+
+  it('rejects an over-long query with 400 before touching the database', async () => {
+    const response = await GET(
+      new NextRequest(
+        `https://llun.test/api/v1/accounts/search?q=${'a'.repeat(1025)}`,
+        { headers: { Authorization: 'Bearer read-accounts-token' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+  })
 })

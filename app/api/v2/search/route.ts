@@ -43,6 +43,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -78,7 +79,7 @@ const SearchFormatParam = z
   )
 
 const SearchParams = z.object({
-  q: z.string(),
+  q: z.string().max(MAX_SEARCH_QUERY_LENGTH),
   type: SearchTypeParam.optional(),
   // The app search UI still consumes Mastodon-shaped accounts and hashtags;
   // this format flag only keeps statuses in the app's domain shape.
