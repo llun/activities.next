@@ -10,6 +10,7 @@ import { getFederationSigningActor } from '@/lib/services/federation/getFederati
 import { COLLECTION_BACKFILL_MAX_POSTS } from '@/lib/services/timelines/types'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
@@ -77,6 +78,19 @@ export const ingestCollectionMemberJob = createJobHandle(
       signingActor
     })
     if (!person) return
+    // `getActorPerson` guarantees `person.id` is served by its own origin, but
+    // not that it is the member we were asked to ingest — a redirect or a
+    // split-domain alias can land on another host's actor. Everything below
+    // writes statuses under the outbox's authors, so the outbox must belong to
+    // the member's own origin.
+    if (!isSameActivityPubOrigin(person.id, memberActorId)) {
+      logger.warn({
+        message: 'Collection member resolved to an actor on another origin',
+        memberActorId,
+        personId: person.id
+      })
+      return
+    }
 
     // Derive the inbox/sharedInbox from the signing actor's own canonical id so
     // the protocol and port match it (rather than hardcoding https), keeping
@@ -107,9 +121,15 @@ export const ingestCollectionMemberJob = createJobHandle(
       return
     }
 
+    // An outbox item is the member server's claim, so it may only plant notes
+    // in the member's own id space under an author on that same origin — never
+    // a status id on another host, nor one attributed to a local actor.
     const recentNotes = statuses
       .filter(
-        (status): status is StatusNote => status.type === StatusType.enum.Note
+        (status): status is StatusNote =>
+          status.type === StatusType.enum.Note &&
+          isSameActivityPubOrigin(status.id, memberActorId) &&
+          isSameActivityPubOrigin(status.actorId, memberActorId)
       )
       .slice(0, COLLECTION_BACKFILL_MAX_POSTS)
     if (recentNotes.length === 0) return

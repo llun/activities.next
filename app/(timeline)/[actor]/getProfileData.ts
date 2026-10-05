@@ -228,7 +228,16 @@ export const getProfileData = async (
   // same id — a permanent 500 on the `actors_id_unique` constraint.
   const storedActor = await database.getActorFromId({ id: person.id })
   const persistableProfile = getPersistableProfile(person)
-  if (storedActor) {
+  // Never write a LOCAL actor's row from fetched data. `getActorPerson` binds
+  // `person.id` to the origin that served it, so a hostile WebFinger target can
+  // no longer name our ids — but a handle whose WebFinger resolves back to this
+  // instance still lands here, and a local row's key, inboxes, profile and
+  // counters are owned by its account, not by whatever a fetch returned.
+  // Mirrors recordActorIfNeeded's "Don't update local actor".
+  const isLocalActor = Boolean(storedActor?.privateKey || storedActor?.account)
+  if (isLocalActor) {
+    // Read-only render of our own actor reached through a remote handle.
+  } else if (storedActor) {
     // Same field set recordActorIfNeeded persists, so the web profile page
     // and the Mastodon API refresh paths write consistent snapshots (including
     // metadata fields and the locked state).
@@ -261,8 +270,9 @@ export const getProfileData = async (
   // A remote actor's attachments are the ones their statuses brought here when
   // they federated in, which includes followers-only posts delivered to a local
   // follower. Scope this gallery the same way the local branch above scopes its
-  // own — `getActorPosts` reads the remote outbox, which is public by
-  // construction, so only the attachment query needs it.
+  // own. `getActorPosts` reads the remote outbox signed by the instance actor
+  // and returns only its public and unlisted notes (a server may hand a
+  // follower signer more), so only the attachment query needs scoping here.
   const remoteAudience = await resolveActorStatusesAudience({
     database,
     targetActor: { id: person.id, followersUrl: person.followers },
@@ -311,12 +321,14 @@ export const getProfileData = async (
   // (null, preserves the stored counter) from a real zero.
   // Best-effort — the page renders from the live values either way.
   try {
-    await database.setActorCounters({
-      actorId: person.id,
-      followersCount: collectionCounts.followersCount,
-      followingCount: collectionCounts.followingCount,
-      statusCount: resolvedStatusesCount
-    })
+    if (!isLocalActor) {
+      await database.setActorCounters({
+        actorId: person.id,
+        followersCount: collectionCounts.followersCount,
+        followingCount: collectionCounts.followingCount,
+        statusCount: resolvedStatusesCount
+      })
+    }
   } catch (error) {
     logger.warn({
       message: 'Failed to persist remote actor collection counts',

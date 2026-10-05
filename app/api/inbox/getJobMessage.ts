@@ -1,5 +1,6 @@
 import isMatch from 'lodash/isMatch'
 
+import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
 import { StatusActivity } from '@/lib/activities/statusAction'
 import {
   CREATE_ANNOUNCE_JOB_NAME,
@@ -24,7 +25,6 @@ import {
   UpdateAction
 } from '@/lib/types/activitypub/activities'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { isRecord } from '@/lib/utils/typeGuards'
 
 const ENTITY_TYPE_IMAGE = 'Image'
@@ -134,7 +134,7 @@ export const getJobMessage = (
     return null
   }
 
-  const deduplicationId = getHashFromString(activity.id)
+  const deduplicationId = getInboxJobId(activity.id)
 
   if (activity.type === CreateAction) {
     if (

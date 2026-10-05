@@ -1,3 +1,4 @@
+import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
 import { StatusActivity } from '@/lib/activities/statusAction'
 import { PROCESS_FORWARDED_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import type { JobMessage } from '@/lib/services/queue/type'
@@ -6,7 +7,6 @@ import {
   DeleteAction,
   UpdateAction
 } from '@/lib/types/activitypub/activities'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 // Activity types worth verifying by origin re-fetch when they arrive FORWARDED
 // (HTTP signer !== activity actor — AP §7.1.2 inbox forwarding). Mastodon
@@ -26,7 +26,7 @@ export const getForwardedJobMessage = (
   if (!FORWARDABLE_TYPES.includes(activity.type)) return null
   if (!activity.id || typeof activity.id !== 'string') return null
   return {
-    id: getHashFromString(`${activity.id}#forwarded`),
+    id: getInboxJobId(activity.id, '#forwarded'),
     name: PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
     data: activity
   }

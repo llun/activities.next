@@ -671,10 +671,10 @@ describe('QueueJobDatabase', () => {
 
     const duplicatePending = await database.createQueueJob({
       id: 'dup-pending-1',
-      name: 'deliverActivityOverwritten',
+      name: 'deliverActivity',
       payload: {
         id: 'dup-pending-1',
-        name: 'deliverActivityOverwritten',
+        name: 'deliverActivity',
         data: { version: 2 }
       },
       attempts: 0,
@@ -701,7 +701,7 @@ describe('QueueJobDatabase', () => {
 
     const duplicateProcessing = await database.createQueueJob({
       id: 'dup-processing-1',
-      name: 'deliverActivityOverwritten',
+      name: 'deliverActivity',
       payload: { ...samplePayload, data: { overwritten: true } },
       attempts: 0,
       status: 'pending'
@@ -718,7 +718,7 @@ describe('QueueJobDatabase', () => {
     })
     const duplicateCompleted = await database.createQueueJob({
       id: 'dup-processing-1',
-      name: 'deliverActivityOverwritten',
+      name: 'deliverActivity',
       payload: { ...samplePayload, data: { overwritten: true } },
       status: 'pending'
     })
@@ -740,7 +740,7 @@ describe('QueueJobDatabase', () => {
     })
     const duplicateFailed = await database.createQueueJob({
       id: 'dup-failed-1',
-      name: 'deliverActivityOverwritten',
+      name: 'deliverActivity',
       payload: { ...samplePayload, data: { overwritten: true } },
       attempts: 0,
       status: 'pending'
@@ -748,6 +748,28 @@ describe('QueueJobDatabase', () => {
     expect(duplicateFailed.status).toBe('failed')
     expect(duplicateFailed.attempts).toBe(16)
     expect(duplicateFailed.lastErrorMessage).toBe('Original terminal failure')
+  })
+
+  it('refuses to treat a job of another kind under the same id as a duplicate', async () => {
+    // A remote activity pre-reserved the key a local delete later publishes
+    // its Tombstone fan-out under.
+    await database.createQueueJob({
+      id: 'dup-cross-kind-1',
+      name: 'createNote',
+      payload: { id: 'dup-cross-kind-1', name: 'createNote', data: {} }
+    })
+
+    await expect(
+      database.createQueueJob({
+        id: 'dup-cross-kind-1',
+        name: 'sendDeleteNote',
+        payload: {
+          id: 'dup-cross-kind-1',
+          name: 'sendDeleteNote',
+          data: { statusId: 'x' }
+        }
+      })
+    ).rejects.toThrow(/already taken by a createNote job/)
   })
 
   it('explicitly replays failed database jobs transactionally, resetting attempts, errors, and claim ownership', async () => {

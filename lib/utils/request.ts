@@ -59,6 +59,10 @@ export interface RequestResult {
   statusCode: number
   headers: Record<string, string | string[] | undefined>
   body: string
+  // The URL the response was served from after redirects. Optional because
+  // test doubles of `request` commonly omit it; callers fall back to the
+  // requested URL.
+  url?: string
 }
 
 const getRequestOptions = async ({

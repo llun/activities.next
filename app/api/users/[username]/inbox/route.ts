@@ -2,6 +2,7 @@ import { trace } from '@opentelemetry/api'
 import { z } from 'zod'
 
 import { getForwardedJobMessage } from '@/app/api/inbox/getForwardedJobMessage'
+import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
 import { getJobMessage } from '@/app/api/inbox/getJobMessage'
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import {
@@ -46,8 +47,7 @@ import {
   Reject,
   Undo
 } from '@/lib/types/activitypub'
-import { actorIdsMatch } from '@/lib/utils/activitypub'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { actorIdsMatch, extractActivityPubId } from '@/lib/utils/activitypub'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -139,6 +139,22 @@ const RelayHandshake = z
   })
   .passthrough()
 
+// The signature guard binds the HTTP signer to the RAW body's `actor`, before
+// any JSON-LD processing. Compaction then runs under the sender's own
+// `@context`, which can redefine the plain `actor` term while a full
+// `https://www.w3.org/ns/activitystreams#actor` property names someone else —
+// so the compacted `actor` is NOT what the guard verified. Re-bind it to the
+// raw, verified value, exactly as the shared inbox does (`app/api/inbox`),
+// so no handler below can act as an actor the signature never covered.
+const compactWithVerifiedActor = async (activityBody: unknown) => {
+  const compacted = await compactActivityPub(activityBody)
+  const verifiedActor = isRecord(activityBody)
+    ? extractActivityPubId(activityBody.actor)
+    : undefined
+  if (!isRecord(compacted) || !verifiedActor) return compacted
+  return { ...compacted, actor: verifiedActor }
+}
+
 const logAcceptedWithoutSideEffects = ({
   activity,
   reason
@@ -172,7 +188,7 @@ export const POST = traceApiRoute(
             // dropped, matching Mastodon's handling of non-LD-signed
             // forwards.
             if (context.forwarded) {
-              const compactedForwarded = await compactActivityPub(
+              const compactedForwarded = await compactWithVerifiedActor(
                 context.activityBody
               )
               const forwardedActor =
@@ -217,7 +233,7 @@ export const POST = traceApiRoute(
               // response. The HTTP-signature guard already verified the sender
               // is the relay (signer === activity.actor). Anything else is
               // accepted without side effects, preserving prior behaviour.
-              const compactedHandshake = await compactActivityPub(
+              const compactedHandshake = await compactWithVerifiedActor(
                 context.activityBody
               )
               const relayHandshake =
@@ -238,7 +254,7 @@ export const POST = traceApiRoute(
               })
             }
 
-            const compactedActivity = await compactActivityPub(
+            const compactedActivity = await compactWithVerifiedActor(
               context.activityBody
             )
             const activityActor =
@@ -752,7 +768,7 @@ export const POST = traceApiRoute(
                 // authorship-verifying fetch runs in the worker rather than
                 // inline in the inbox response (mirrors the shared-inbox path).
                 await getQueue().publish({
-                  id: getHashFromString(activity.id),
+                  id: getInboxJobId(activity.id),
                   name: HANDLE_QUOTE_REQUEST_JOB_NAME,
                   data: compactedActivity,
                   verifiedSenderActorId: context.verifiedSenderActorId

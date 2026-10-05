@@ -85,6 +85,16 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
     if (!persisted) {
       throw new Error(`Failed to persist or fetch queue job: ${id}`)
     }
+    // A conflicting id is a duplicate delivery of the SAME job only when the
+    // existing row is that job. A row of another kind under this id means two
+    // producers derived one key — returning it as success silently dropped the
+    // new job (a remote activity pre-reserving a local delete's fan-out key),
+    // so fail loudly instead.
+    if (persisted.name !== name) {
+      throw new Error(
+        `Queue job id ${id} is already taken by a ${persisted.name} job, refusing to treat a ${name} job as its duplicate`
+      )
+    }
 
     return toQueueJob(persisted)
   },

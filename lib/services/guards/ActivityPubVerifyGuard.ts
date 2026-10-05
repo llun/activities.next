@@ -233,7 +233,40 @@ const isSignatureFresh = (
   return true
 }
 
-const digestMatches = async (request: NextRequest, signedHeaders: string[]) => {
+// Reads the body through a stream and gives up as soon as it passes
+// `maxBytes`. The Content-Length check above only covers senders that declare
+// one: a chunked body has none, and `arrayBuffer()` would buffer and hash all
+// of it before the signature is ever checked. Returns null when over the cap.
+const readBoundedBody = async (
+  request: NextRequest,
+  maxBytes: number
+): Promise<Buffer | null> => {
+  const stream = request.clone().body
+  if (!stream) return Buffer.alloc(0)
+
+  const reader = stream.getReader()
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    totalBytes += value.byteLength
+    if (totalBytes > maxBytes) {
+      // Not awaited: cancelling one branch of a cloned (tee'd) body settles
+      // only once the other branch is cancelled too, which nothing here does.
+      // Stopping the reads is what bounds the work.
+      reader.cancel().catch(() => undefined)
+      return null
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks)
+}
+
+const digestMatches = async (
+  request: NextRequest,
+  signedHeaders: string[]
+): Promise<{ bodyText: string | null; valid: boolean; tooLarge?: true }> => {
   const digestHeader = getHeadersValue(request.headers, 'digest')
   if (!digestHeader)
     return {
@@ -246,7 +279,8 @@ const digestMatches = async (request: NextRequest, signedHeaders: string[]) => {
   const expectedDigest = getExpectedSha256Digest(digestHeader)
   if (!expectedDigest) return { bodyText: null, valid: false }
 
-  const bodyBuffer = Buffer.from(await request.clone().arrayBuffer())
+  const bodyBuffer = await readBoundedBody(request, MAX_ACTIVITY_JSON_BYTES)
+  if (!bodyBuffer) return { bodyText: null, valid: false, tooLarge: true }
   const actualDigest = crypto
     .createHash('sha256')
     .update(bodyBuffer)
@@ -335,6 +369,9 @@ export const ActivityPubVerifySenderGuard =
     }
 
     const digestResult = await digestMatches(request, signedHeaders)
+    if (digestResult.tooLarge) {
+      return rejectRequest(request, 413, allowedMethods, 'payload_too_large')
+    }
     if (!digestResult.valid) {
       return rejectRequest(request, 401, allowedMethods, 'digest_mismatch')
     }

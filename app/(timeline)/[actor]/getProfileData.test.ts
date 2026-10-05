@@ -1048,6 +1048,46 @@ describe('getProfileData', () => {
         )
       })
 
+      it.each([
+        ['a private key', { privateKey: 'local-private-key' }],
+        ['an account', { account: { id: 'account-id' } }]
+      ])(
+        'never writes a fetched profile onto a local actor row (one with %s)',
+        async (_label, localFields) => {
+          // A remote handle whose WebFinger resolves to one of OUR actor ids.
+          const localPerson: Actor = {
+            ...mockPerson,
+            id: 'https://example.com/users/alice',
+            publicKey: {
+              id: 'https://example.com/users/alice#main-key',
+              owner: 'https://example.com/users/alice',
+              publicKeyPem: 'ATTACKER KEY'
+            }
+          }
+          ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+            null
+          )
+          ;(getWebfingerSelf as jest.Mock).mockResolvedValue(localPerson.id)
+          ;(getActorPerson as jest.Mock).mockResolvedValue(localPerson)
+          ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue({
+            id: localPerson.id,
+            ...localFields
+          })
+
+          const result = await getProfileData(
+            mockDatabase,
+            '@setup@evil.example',
+            true,
+            { currentActor: null }
+          )
+
+          expect(result).not.toBeNull()
+          expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+          expect(mockDatabase.createActor).not.toHaveBeenCalled()
+          expect(mockDatabase.setActorCounters).not.toHaveBeenCalled()
+        }
+      )
+
       it('rethrows a non-unique insert error', async () => {
         ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
           null

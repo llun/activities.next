@@ -613,6 +613,20 @@ describe('getSenderPublicKey', () => {
     ])
   })
 
+  it('does not retry a failing key fetch inside the unauthenticated inbox request', async () => {
+    const actorId = 'https://remote.test/users/flaky'
+    fetchMock.resetMocks()
+    fetchMock
+      .mockResponseOnce('', { status: 503 })
+      .mockResponseOnce(JSON.stringify(createActorDocument({ id: actorId })))
+
+    const publicKey = await getSenderPublicKeyDetails(database, actorId)
+
+    // One attempt only: a retry would wait out a backoff before verifying.
+    expect(publicKey).toEqual({ owner: null, publicKey: '' })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([actorId])
+  })
+
   it('records sender public key lookup exceptions before returning empty details', async () => {
     const actorId = 'https://remote.test/users/test1'
     const error = new Error('network failed')

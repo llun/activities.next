@@ -833,6 +833,27 @@ describe('ActivityPubVerifySenderGuard', () => {
       expect(handler).not.toHaveBeenCalled()
     })
 
+    it('rejects with 413 a body over 1 MB that declares no content-length', async () => {
+      const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
+      const guard = ActivityPubVerifySenderGuard(handler)
+      // A validly digested, parseable activity padded past the cap: only the
+      // streamed size check stands between it and the handler.
+      const bodyText = JSON.stringify({
+        id: 'https://remote.test/users/alice/activities/1',
+        type: 'Follow',
+        actor: 'https://remote.test/users/alice',
+        padding: 'x'.repeat(1024 * 1024)
+      })
+      const request = createSignedRawPostRequest({ bodyText })
+      expect(request.headers.get('content-length')).toBeNull()
+
+      const response = await guard(request, { params: Promise.resolve({}) })
+
+      expect(response.status).toBe(413)
+      expect(mockGetSenderPublicKeyDetails).not.toHaveBeenCalled()
+      expect(handler).not.toHaveBeenCalled()
+    })
+
     it('passes when content-length header is absent', async () => {
       const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
       const guard = ActivityPubVerifySenderGuard(handler)

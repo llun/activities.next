@@ -802,6 +802,128 @@ describe('getActorPosts', () => {
     expect(response.statuses[0].id).toBe(statusId)
   })
 
+  it('drops followers-only and direct notes a signer-filtered outbox handed back', async () => {
+    const actorId = 'https://private.example/users/actor'
+    const followersUrl = `${actorId}/followers`
+    const publicId = `${actorId}/statuses/public`
+    const unlistedId = `${actorId}/statuses/unlisted`
+    const followersOnlyId = `${actorId}/statuses/followers-only`
+    const directId = `${actorId}/statuses/direct`
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+    const create = (
+      id: string,
+      to: string[],
+      cc: string[]
+    ): Record<string, unknown> => ({
+      id: `${id}/activity`,
+      type: 'Create',
+      actor: actorId,
+      to,
+      cc,
+      object: MockMastodonActivityPubNote({
+        id,
+        from: actorId,
+        content: id,
+        to,
+        cc,
+        withContext: true
+      })
+    })
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 4,
+            orderedItems: [
+              create(publicId, [ACTIVITY_STREAM_PUBLIC], [followersUrl]),
+              create(unlistedId, [followersUrl], [ACTIVITY_STREAM_PUBLIC]),
+              create(followersOnlyId, [followersUrl], []),
+              create(directId, ['https://elsewhere.example/users/bob'], [])
+            ]
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statuses.map((status) => status.id).sort()).toEqual(
+      [publicId, unlistedId].sort()
+    )
+  })
+
+  it('drops a stored non-public note the outbox references by id', async () => {
+    const actorId = 'https://private.example/users/stored'
+    const statusId = `${actorId}/statuses/stored-followers-only`
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    vi.spyOn(database, 'getStatus').mockResolvedValueOnce({
+      id: statusId,
+      url: statusId,
+      actorId,
+      actor: null,
+      type: StatusType.enum.Note,
+      text: 'Followers-only status',
+      to: [`${actorId}/followers`],
+      cc: [],
+      edits: [],
+      reply: '',
+      replies: [],
+      totalReplies: 0,
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [],
+      tags: [],
+      createdAt: 1000,
+      updatedAt: 1000,
+      isLocalActor: false
+    })
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            '@context': 'https://www.w3.org/ns/activitystreams',
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            orderedItems: [
+              {
+                id: `${statusId}/activity`,
+                type: 'Create',
+                actor: actorId,
+                object: statusId
+              }
+            ]
+          })
+        }
+      }
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statuses).toHaveLength(0)
+  })
+
   it('falls back to Atom feed when outbox has totalItems but no items', async () => {
     const actorId = 'https://pixelfed.example/users/actor'
     const statusId = 'https://pixelfed.example/p/actor/12345'
