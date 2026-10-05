@@ -625,7 +625,7 @@ section-navigation patterns; pick by section type.
   - **Mirror panel item layout in content skeletons.** Skeletons should match the vertical rhythm of the real components: e.g. in direct messages, mirror the 3-line conversation card (title, preview, timestamp) without combining `divide-y` on containers with per-item `border-b` (which creates double borders), and use `size-9` for `Button size="icon"` and `h-9` for default buttons.
   - **Page inventory & skeleton rules across routes:**
     - **Top-level standalone timeline routes (MUST use sticky `PageHeader` in skeleton):**
-      - `(home)` (`app/(timeline)/(home)/loading.tsx`): Reference implementation. Uses `PageHeader` with title `h-7`, description `h-4`, action `size-9`.
+      - `(home)` (`app/(timeline)/(home)/loading.tsx`): Reference implementation. Uses `PageHeader` with title `h-7` and action `size-9`, and no description (the home header has none; see **Home timeline boundaries**).
       - `favorites` (`app/(timeline)/favorites/loading.tsx`): Reference implementation. Uses `PageHeader` with title `h-7`, description `h-4`.
       - `messages` (`app/(timeline)/messages/loading.tsx`): Reference implementation. Uses `PageHeader` with title `h-7`, description `h-4`, and action `h-8 w-18`.
       - `search` (`app/(timeline)/search/loading.tsx`): Reference implementation. Uses `PageHeader` with title `h-7`, description `h-4`.
