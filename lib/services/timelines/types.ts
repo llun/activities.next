@@ -26,9 +26,16 @@ export const listTimelineKey = (listId: string): string => `list:${listId}`
 // and since then its merge runs only for follow-backed memberships, capped at
 // FeedManager::MAX_ITEMS / 4 = 200. This takes that cap rather than copying the
 // owner's whole history — already on their profile and in Home — into every
-// list they join. Other members still backfill in full, so a deep scroll can
-// show members' older posts without the owner's.
+// list they join. Other members backfill more (LIST_MEMBER_BACKFILL_MAX_POSTS).
 export const LIST_OWNER_BACKFILL_MAX_POSTS = 200
+
+// Any other member backfills at most this many of their most recent stored
+// posts, read in LIST_MEMBER_BACKFILL_BATCH_SIZE pages. The backfill runs inside
+// the request (and, on a remote Follow Accept, the inbox transaction), so
+// neither its memory nor its write volume may scale with how much history is
+// cached for the member. Mastodon ≥ 4.4 merges 200; this stays generous.
+export const LIST_MEMBER_BACKFILL_MAX_POSTS = 1000
+export const LIST_MEMBER_BACKFILL_BATCH_SIZE = 250
 
 // Collections do NOT share the `timelines` table; their feed lives in the
 // dedicated `collection_timeline` table (compact bigint keys). The materialized

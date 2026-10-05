@@ -307,12 +307,15 @@ product or security decision, not a gap to be closed.
   during the backfill, so replies it hides still count toward the 200 and
   appear if the policy is loosened later.
 
-- **Adding any other member backfills their full history.** Adding an account
-  you follow to a list brings all of its stored posts into the list. An account
-  you have only requested to follow can join a list too (Mastodon ≥ 4.2), and
-  its stored posts are brought in the same way once it accepts the request.
-  Mastodon ≥ 4.4 merges at most 200 of a member's recent posts in both cases,
-  and earlier versions backfill nothing.
+- **Adding any other member backfills their recent history.** Adding an account
+  you follow to a list brings its stored posts into the list, newest first, up
+  to `LIST_MEMBER_BACKFILL_MAX_POSTS` (1000) per member and read in pages of
+  `LIST_MEMBER_BACKFILL_BATCH_SIZE`, so the work done inside the request (or the
+  inbox transaction on a remote Follow Accept) does not scale with how much
+  history is cached for the member. An account you have only requested to follow
+  can join a list too (Mastodon ≥ 4.2), and its stored posts are brought in the
+  same way once it accepts the request. Mastodon ≥ 4.4 merges at most 200 of a
+  member's recent posts in both cases, and earlier versions backfill nothing.
 
 ## Not planned
 
