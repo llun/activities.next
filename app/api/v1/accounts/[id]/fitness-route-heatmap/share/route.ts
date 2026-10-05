@@ -5,6 +5,10 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { normalizeRegionParam } from '@/lib/fitness/regions'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import {
+  NulFreeString,
+  TrimmedOptionalActivityTypeParam
+} from '@/lib/services/fitness-files/queryParams'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
@@ -34,15 +38,10 @@ interface Params {
   id: string
 }
 
-const OptionalActivityType = z.preprocess(
-  (value) => (typeof value === 'string' ? value.trim() || undefined : value),
-  z.string().optional()
-)
-
 const FitnessRouteHeatmapShareBody = z.object({
-  activity_type: OptionalActivityType,
+  activity_type: TrimmedOptionalActivityTypeParam,
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
-  period_key: z.string(),
+  period_key: NulFreeString,
   // See the sibling fitness-route-heatmap route: a looser raw cap that
   // normalizeRegionParam rounds + caps under the 255-char cache-key column.
   region: z.string().max(1024).optional()
