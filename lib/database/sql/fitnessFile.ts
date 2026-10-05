@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { Knex } from 'knex'
 
+import { buildActorVisibleStatusIdsQuery } from '@/lib/database/sql/status'
 import { applyCountableActivityFilter } from '@/lib/database/sql/utils/countableActivity'
 import {
   CounterKey,
@@ -194,6 +195,17 @@ export interface GetFitnessActivityTimeBoundsParams {
 
 export interface GetActorHasFitnessDataParams {
   actorId: string
+  /**
+   * The audience the answer is for, in the shape `getActorStatuses` takes. With
+   * none of these set the query is unscoped, which is the owner's own view
+   * (their fitness pages gate on it). Anyone else must pass their audience: a
+   * fitness file whose status the viewer cannot read is not data that viewer
+   * may learn exists, so only files attached to a status in the audience count.
+   */
+  publicOnly?: boolean
+  visibleToActorId?: string | null
+  includeFollowersOnly?: boolean
+  followersAudience?: string | null
 }
 
 export interface FitnessFileDatabase {
@@ -1075,16 +1087,31 @@ export const FitnessFileSQLDatabaseMixin = (
     }))
   },
 
-  async getActorHasFitnessData({ actorId }: GetActorHasFitnessDataParams) {
-    const row = await database('fitness_files')
+  async getActorHasFitnessData({
+    actorId,
+    ...audience
+  }: GetActorHasFitnessDataParams) {
+    let query = database('fitness_files')
       .where('actorId', actorId)
       .where('processingStatus', 'completed')
       .where('isPrimary', true)
       .whereNull('deletedAt')
       .whereNotNull('activityType')
       .whereNotNull('activityStartTime')
-      .select(database.raw('1'))
-      .first()
+
+    // The same status-visibility set the profile's posts and media use, so the
+    // Fitness tab is offered to exactly the viewers who could see a fitness
+    // post in it. `null` is the deliberate unfiltered (owner) audience.
+    const visibleStatusIds = buildActorVisibleStatusIdsQuery({
+      database,
+      actorId,
+      ...audience
+    })
+    if (visibleStatusIds) {
+      query = query.whereIn('fitness_files.statusId', visibleStatusIds)
+    }
+
+    const row = await query.select(database.raw('1')).first()
     return Boolean(row)
   },
 

@@ -13,6 +13,7 @@ import {
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { FitnessProcessingStatus } from '@/lib/types/database/fitnessFile'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 describe('FitnessFileDatabase', () => {
   const { actors, statuses } = DatabaseSeed
@@ -1207,6 +1208,105 @@ describe('FitnessFileDatabase', () => {
           actorId: actors.replyAuthor.id
         })
         expect(result).toBe(false)
+      })
+    })
+
+    describe('getActorHasFitnessData audience scoping', () => {
+      // The Fitness tab on a profile is itself a disclosure: a viewer who can
+      // read none of an actor's fitness posts must not be told they exist.
+      const actorId = actors.pollAuthor.id
+      const followersUrl = `${actorId}/followers`
+
+      const createCompletedFile = async (name: string, statusId?: string) => {
+        const created = await database.createFitnessFile({
+          actorId,
+          path: `fitness/audience-${name}.fit`,
+          fileName: `audience-${name}.fit`,
+          fileType: 'fit',
+          mimeType: 'application/vnd.ant.fit',
+          bytes: 1024,
+          statusId
+        })
+        await database.updateFitnessFileActivityData(created!.id, {
+          activityType: 'running',
+          activityStartTime: new Date()
+        })
+        await database.updateFitnessFileProcessingStatus(
+          created!.id,
+          'completed'
+        )
+      }
+
+      const createNoteTo = async (
+        suffix: string,
+        to: string[],
+        cc: string[] = []
+      ) => {
+        const id = `${actorId}/statuses/audience-${suffix}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId,
+          text: `fitness ${suffix}`,
+          to,
+          cc,
+          createdAt: Date.now()
+        })
+        return id
+      }
+
+      it('only counts files attached to a status the audience can read', async () => {
+        // An unattached file is the owner's alone.
+        await createCompletedFile('unattached')
+        expect(await database.getActorHasFitnessData({ actorId })).toBe(true)
+        expect(
+          await database.getActorHasFitnessData({ actorId, publicOnly: true })
+        ).toBe(false)
+
+        // A direct message to one actor reaches only that actor.
+        const directStatusId = await createNoteTo('direct', [actors.primary.id])
+        await createCompletedFile('direct', directStatusId)
+        expect(
+          await database.getActorHasFitnessData({ actorId, publicOnly: true })
+        ).toBe(false)
+        expect(
+          await database.getActorHasFitnessData({
+            actorId,
+            visibleToActorId: actors.empty.id
+          })
+        ).toBe(false)
+        expect(
+          await database.getActorHasFitnessData({
+            actorId,
+            visibleToActorId: actors.primary.id
+          })
+        ).toBe(true)
+
+        // Followers-only is visible to the followers audience, not the public.
+        const followersStatusId = await createNoteTo('followers', [
+          followersUrl
+        ])
+        await createCompletedFile('followers', followersStatusId)
+        expect(
+          await database.getActorHasFitnessData({ actorId, publicOnly: true })
+        ).toBe(false)
+        expect(
+          await database.getActorHasFitnessData({
+            actorId,
+            visibleToActorId: actors.empty.id,
+            includeFollowersOnly: true,
+            followersAudience: followersUrl
+          })
+        ).toBe(true)
+
+        // A public post is what makes the tab appear for everyone.
+        const publicStatusId = await createNoteTo('public', [
+          ACTIVITY_STREAM_PUBLIC
+        ])
+        await createCompletedFile('public', publicStatusId)
+        expect(
+          await database.getActorHasFitnessData({ actorId, publicOnly: true })
+        ).toBe(true)
       })
     })
 

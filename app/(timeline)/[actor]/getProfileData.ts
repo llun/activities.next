@@ -84,26 +84,20 @@ export const getProfileData = async (
     const currentActor = options.currentActor
 
     // Only the statuses and attachments queries are scoped by the viewer, so
-    // the audience lookup runs alongside the four counts rather than in front
+    // the audience lookup runs alongside the counts rather than in front
     // of them — for a signed-in non-owner it costs a follow query, and making
     // the whole fan-out wait on it would add that latency to a hot page.
-    const [
-      audience,
-      statusesCount,
-      followingCount,
-      followersCount,
-      hasFitnessData
-    ] = await Promise.all([
-      resolveActorStatusesAudience({
-        database,
-        targetActor: persistedActor,
-        currentActor
-      }),
-      database.getActorStatusesCount({ actorId: persistedActor.id }),
-      database.getActorFollowingCount({ actorId: persistedActor.id }),
-      database.getActorFollowersCount({ actorId: persistedActor.id }),
-      database.getActorHasFitnessData({ actorId: persistedActor.id })
-    ])
+    const [audience, statusesCount, followingCount, followersCount] =
+      await Promise.all([
+        resolveActorStatusesAudience({
+          database,
+          targetActor: persistedActor,
+          currentActor
+        }),
+        database.getActorStatusesCount({ actorId: persistedActor.id }),
+        database.getActorFollowingCount({ actorId: persistedActor.id }),
+        database.getActorFollowersCount({ actorId: persistedActor.id })
+      ])
 
     const visibilityScope = {
       publicOnly: audience.publicOnly,
@@ -112,13 +106,21 @@ export const getProfileData = async (
       followersAudience: audience.followersAudience
     }
 
-    const [scopedStatuses, attachments] = await Promise.all([
+    // Scoped by the same audience as the statuses and attachments: whether the
+    // Fitness tab exists is itself a disclosure, so a viewer who cannot read
+    // any of this actor's fitness posts must not be told there are any. The
+    // owner's audience carries no filter, which keeps their own tab unchanged.
+    const [scopedStatuses, attachments, hasFitnessData] = await Promise.all([
       database.getActorStatuses({
         actorId: persistedActor.id,
         currentActorId: currentActor?.id,
         ...visibilityScope
       }),
       database.getAttachmentsForActor({
+        actorId: persistedActor.id,
+        ...visibilityScope
+      }),
+      database.getActorHasFitnessData({
         actorId: persistedActor.id,
         ...visibilityScope
       })
