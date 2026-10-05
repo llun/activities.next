@@ -64,7 +64,7 @@ describe('StatusReactionDatabase', () => {
         ])
       })
 
-      it('row-locks the status before counting the actor reactions', async () => {
+      it('row-locks the statuses row, not the actor reactions it counts', async () => {
         // The lock is what serialises a burst of distinct reactions on
         // PostgreSQL. knex drops FOR UPDATE on SQLite, where writers already
         // serialise, so no result-based test can see it go: pin the call. Every
@@ -76,14 +76,27 @@ describe('StatusReactionDatabase', () => {
             useNullAsDefault: true
           }).queryBuilder()
         )
-        const forUpdate = vi.spyOn(queryBuilderPrototype, 'forUpdate')
+        // Record WHICH table each lock targets: a lock moved onto the
+        // status_reactions read locks zero rows for a first reaction, so it
+        // serialises nothing, yet still calls forUpdate.
+        const originalForUpdate = queryBuilderPrototype.forUpdate
+        const lockedTables: unknown[] = []
+        const forUpdate = vi
+          .spyOn(queryBuilderPrototype, 'forUpdate')
+          .mockImplementation(function (
+            this: { _single: { table?: unknown } },
+            ...args: unknown[]
+          ) {
+            lockedTables.push(this._single.table)
+            return originalForUpdate.apply(this, args)
+          })
         try {
           await database.createStatusReaction({
             statusId: statuses.primary.post,
             actorId: extraActorId,
             name: '🔒'
           })
-          expect(forUpdate).toHaveBeenCalled()
+          expect(lockedTables).toEqual(['statuses'])
         } finally {
           forUpdate.mockRestore()
         }
