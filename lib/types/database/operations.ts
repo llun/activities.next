@@ -3726,6 +3726,9 @@ export type NotificationGroupKeyParams = {
   // A shared groupKey, or (for ungrouped notifications) a notification id.
   groupKey: string
   includeFiltered?: boolean
+  // Newest-first row cap for getNotificationsForGroupKey, clamped to the
+  // database's hard maximum (1000); ignored by dismissNotificationGroup.
+  limit?: number
 }
 
 export interface NotificationDatabase {
