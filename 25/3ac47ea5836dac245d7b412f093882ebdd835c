@@ -1,0 +1,24 @@
+lib/services/guards/ActivityPubVerifyGuard.test.ts
+  s_69f35b0cf1b1f5::t_73e8d704d9302e 836-856
+lib/services/guards/ActivityPubVerifyGuard.ts
+  s_69f35b0cf1b1f5::t_44b3392d999eaa 372,374
+  s_69f35b0cf1b1f5::t_79779b20c5499a 255-258
+  s_69f35b0cf1b1f5::t_64b8ae2aa1fbc2 373
+  s_69f35b0cf1b1f5::t_80b17e1e07fefb 236-254,259-269,282-283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "253ac47ea5836dac245d7b412f093882ebdd835c",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
