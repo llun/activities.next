@@ -136,7 +136,10 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   it('records an actor whose fetched id is a same-origin canonical form under that id', async () => {
     const requestedId = 'https://remote.test/@bob'
     const canonicalId = 'https://remote.test/users/bob'
-    serve({ [requestedId]: actorDocument(canonicalId, 'bob-key') })
+    serve({
+      [requestedId]: actorDocument(canonicalId, 'bob-key'),
+      [canonicalId]: actorDocument(canonicalId, 'bob-key')
+    })
 
     const actor = await recordActorIfNeeded({ actorId: requestedId, database })
 
@@ -148,6 +151,82 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
     await expect(
       database.getActorFromId({ id: requestedId })
     ).resolves.toBeNull()
+    // Counters are keyed on the stored row, the key hasActorCounters reads.
+    await expect(
+      database.hasActorCounters({ actorId: canonicalId })
+    ).resolves.toBe(true)
+    await expect(
+      database.hasActorCounters({ actorId: requestedId })
+    ).resolves.toBe(false)
+  })
+
+  // Regression: the alias's document was persisted under the id it claims.
+  // Any same-origin URL (a user upload) could serve JSON naming the real id
+  // with its own key and inbox, and that key then verified activities signed
+  // as the real actor. Only the canonical id's own document is stored.
+  it('stores the key the canonical id serves, not the one an alias document claims', async () => {
+    const uploadId = 'https://victim.test/media/upload.json'
+    serve({
+      [uploadId]: actorDocument(victimId, 'attacker-key', {
+        inbox: 'https://victim.test/media/attacker-inbox'
+      }),
+      [victimId]: actorDocument(victimId, 'victim-key')
+    })
+
+    const actor = await recordActorIfNeeded({ actorId: uploadId, database })
+
+    expect(actor).toMatchObject({ id: victimId, publicKey: 'victim-key' })
+    const stored = await database.getActorFromId({ id: victimId })
+    expect(stored?.publicKey).toBe('victim-key')
+    expect(stored?.inboxUrl).toBe(`${victimId}/inbox`)
+  })
+
+  it('refuses an alias whose canonical id cannot be fetched', async () => {
+    const uploadId = 'https://victim.test/media/upload.json'
+    serve({ [uploadId]: actorDocument(victimId, 'attacker-key') })
+
+    await expect(
+      recordActorIfNeeded({ actorId: uploadId, database })
+    ).resolves.toBeUndefined()
+    await expect(database.getActorFromId({ id: victimId })).resolves.toBeNull()
+    await expect(database.getActorFromId({ id: uploadId })).resolves.toBeNull()
+  })
+
+  it('refuses an alias whose canonical id names yet another id', async () => {
+    const uploadId = 'https://victim.test/media/upload.json'
+    const otherId = 'https://victim.test/users/mallory'
+    serve({
+      [uploadId]: actorDocument(victimId, 'attacker-key'),
+      [victimId]: actorDocument(otherId, 'other-key')
+    })
+
+    await expect(
+      recordActorIfNeeded({ actorId: uploadId, database })
+    ).resolves.toBeUndefined()
+    await expect(database.getActorFromId({ id: victimId })).resolves.toBeNull()
+    await expect(database.getActorFromId({ id: otherId })).resolves.toBeNull()
+  })
+
+  // Neither branch may write an alias-served key onto an existing canonical
+  // row: the alias is answered with the stored row as-is, even a stale one.
+  it('never rewrites a stored canonical row from an alias document', async () => {
+    const oldTime = new Date(Date.now() - 4 * 86_400_000)
+    serve({ [victimId]: actorDocument(victimId, 'victim-key') })
+    await recordActorIfNeeded({ actorId: victimId, database })
+    await sql('actors').where('id', victimId).update({ updatedAt: oldTime })
+    const uploadId = 'https://victim.test/media/upload.json'
+    serve({
+      [uploadId]: actorDocument(victimId, 'attacker-key'),
+      [victimId]: actorDocument(victimId, 'victim-key')
+    })
+
+    const actor = await recordActorIfNeeded({ actorId: uploadId, database })
+
+    expect(actor?.id).toBe(victimId)
+    await expect(
+      database.getActorFromId({ id: victimId })
+    ).resolves.toMatchObject({ publicKey: 'victim-key' })
+    await expect(database.getActorFromId({ id: uploadId })).resolves.toBeNull()
   })
 
   // Regression: an alias used to be written as the row id while holding the

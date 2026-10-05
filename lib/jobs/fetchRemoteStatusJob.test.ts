@@ -729,6 +729,30 @@ describe('fetchRemoteStatusJob', () => {
       })
     })
 
+    // recordActorIfNeeded keys the author's row on the id its origin names,
+    // so a note naming its author by an alias must point at that row.
+    it('stores a note whose author is a same-origin alias under the recorded id', async () => {
+      const statusId = `${REMOTE_STATUS_ID}/alias-author`
+      const aliasActorId = 'https://mastodon.social/@testUser'
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID || req.url === aliasActorId) {
+          return JSON.stringify(MOCK_ACTOR)
+        }
+        if (req.url === statusId) {
+          return JSON.stringify(
+            publicNote({ id: statusId, attributedTo: aliasActorId })
+          )
+        }
+        return JSON.stringify({})
+      })
+
+      await runJob(statusId)
+
+      const stored = await database.getStatus({ statusId })
+      expect(stored?.actorId).toBe(REMOTE_ACTOR_ID)
+      expect(await database.getActorFromId({ id: aliasActorId })).toBeNull()
+    })
+
     it('stores only the inlined replies that belong to the origin serving them', async () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/origin-bound`
       const forgedOtherHostId = 'https://victim.example/users/victim/statuses/1'

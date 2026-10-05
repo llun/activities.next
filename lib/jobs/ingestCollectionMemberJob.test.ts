@@ -321,4 +321,61 @@ describe('ingestCollectionMemberJob', () => {
         .delete()
     }
   })
+  // recordActorIfNeeded keys the row on the canonical id, so an alias listed
+  // in a collection must be followed (and de-duplicated) under that id.
+  describe('a member listed under an alias', () => {
+    const aliasId = `${EXTERNAL_ACTOR1}?alias`
+
+    afterEach(async () => {
+      await instance('follows')
+        .where({ actorId: signingActorId })
+        .whereIn('targetActorId', [EXTERNAL_ACTOR1, aliasId])
+        .delete()
+    })
+
+    it('follows and fetches the recorded canonical id', async () => {
+      await runJob(aliasId)
+
+      expect(mockRecordActorIfNeeded).toHaveBeenCalledWith(
+        expect.objectContaining({ actorId: aliasId })
+      )
+      expect(mockGetActorPerson).toHaveBeenCalledWith(
+        expect.objectContaining({ actorId: EXTERNAL_ACTOR1 })
+      )
+      expect(mockFollow).toHaveBeenCalledTimes(1)
+      expect(mockFollow.mock.calls[0][2]).toBe(EXTERNAL_ACTOR1)
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: signingActorId,
+          targetActorId: EXTERNAL_ACTOR1
+        })
+      ).resolves.toMatchObject({ status: FollowStatus.enum.Requested })
+      await expect(
+        instance('follows').where({
+          actorId: signingActorId,
+          targetActorId: aliasId
+        })
+      ).resolves.toHaveLength(0)
+    })
+
+    it('skips it when the canonical id is already followed', async () => {
+      await database.createFollow({
+        actorId: signingActorId,
+        targetActorId: EXTERNAL_ACTOR1,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${signingActorId}/inbox`,
+        sharedInbox: `https://${TEST_DOMAIN}/inbox`
+      })
+
+      await runJob(aliasId)
+
+      expect(mockFollow).not.toHaveBeenCalled()
+      expect(mockGetActorPosts).not.toHaveBeenCalled()
+      await expect(
+        instance('follows')
+          .where({ actorId: signingActorId })
+          .whereIn('targetActorId', [EXTERNAL_ACTOR1, aliasId])
+      ).resolves.toHaveLength(1)
+    })
+  })
 })

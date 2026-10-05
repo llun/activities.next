@@ -73,8 +73,22 @@ export const ingestCollectionMemberJob = createJobHandle(
     })
     if (!actor) return
 
+    // recordActorIfNeeded keys the row on the id the member's origin names,
+    // which an alias in the collection (`/@bob`, `/users/bob/`) is not. The
+    // follow, the Follow activity and the outbox fetch all target that row, and
+    // the idempotency guard is re-run against it.
+    const targetActorId = actor.id
+    if (targetActorId !== memberActorId) {
+      const existingCanonicalFollow =
+        await database.getAcceptedOrRequestedFollow({
+          actorId: signingActor.id,
+          targetActorId
+        })
+      if (existingCanonicalFollow) return
+    }
+
     const person = await getActorPerson({
-      actorId: memberActorId,
+      actorId: targetActorId,
       signingActor
     })
     if (!person) return
@@ -98,12 +112,12 @@ export const ingestCollectionMemberJob = createJobHandle(
     const signingActorOrigin = new URL(signingActor.id).origin
     const followItem = await database.createFollow({
       actorId: signingActor.id,
-      targetActorId: memberActorId,
+      targetActorId,
       status: FollowStatus.enum.Requested,
       inbox: `${signingActor.id}/inbox`,
       sharedInbox: `${signingActorOrigin}/inbox`
     })
-    await follow(followItem.id, signingActor, memberActorId, signingActor)
+    await follow(followItem.id, signingActor, targetActorId, signingActor)
 
     // Backfill the most recent posts from the member's outbox. Only plain notes
     // are stored here (announces/polls carry extra structure the simple

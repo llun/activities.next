@@ -184,19 +184,43 @@ export const recordActorIfNeeded = async ({
 
   if (!existingActor) {
     const resolvedSigningActor = await getResolvedSigningActor()
-    const person = await getRequestedActorPerson({
+    const fetchedPerson = await getRequestedActorPerson({
       actorId,
       signingActor: resolvedSigningActor
     })
-    if (!person) return
+    if (!fetchedPerson) return
     // The row is keyed on the fetched id, never on the alias that was asked
     // for (`/@bob`, `/users/bob/`, `/users/bob?x`). Keying it on the alias let
     // any URL the origin answers for occupy the actor's UNIQUE (username,
     // domain), after which the real id could never be recorded and every
     // activity from it failed on the constraint.
-    if (person.id !== actorId) {
-      const canonicalActor = await database.getActorFromId({ id: person.id })
+    let person = fetchedPerson
+    if (fetchedPerson.id !== actorId) {
+      const canonicalActor = await database.getActorFromId({
+        id: fetchedPerson.id
+      })
       if (canonicalActor) return canonicalActor
+      // The alias's document is only a pointer. Any URL on the origin (a user
+      // upload, say) can serve JSON claiming the real id with its own key and
+      // inbox, and that key would then verify every activity signed as the
+      // real id. Persist only what the canonical id itself serves, and only
+      // when that document names the same id (Mastodon re-fetches the same
+      // way).
+      const canonicalPerson = await getRequestedActorPerson({
+        actorId: fetchedPerson.id,
+        signingActor: resolvedSigningActor
+      })
+      if (!canonicalPerson || canonicalPerson.id !== fetchedPerson.id) {
+        logger.warn({
+          message:
+            'Refused remote actor alias whose canonical id does not serve itself',
+          actorId,
+          fetchedActorId: fetchedPerson.id,
+          canonicalDocumentId: canonicalPerson?.id
+        })
+        return
+      }
+      person = canonicalPerson
     }
     // host (not hostname) so instances on non-standard ports keep the port
     // in the stored domain, matching getActorDomain and handle lookups.

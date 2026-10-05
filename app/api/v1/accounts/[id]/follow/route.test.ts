@@ -497,6 +497,60 @@ describe('Account Action Endpoints', () => {
       ).resolves.not.toBeNull()
       expect(vi.mocked(follow).mock.calls[0]?.[2]).toBe(canonicalId)
     })
+    // The client names the account by an alias while this account already
+    // follows the canonical id the alias records under: that is a preference
+    // update on the existing follow, not a second follow.
+    it('updates the existing canonical follow when the target is an alias of it', async () => {
+      const canonicalId = await createFollowTargetActor('alias-followed')
+      const aliasId = 'https://remote.test/@alias-followed'
+      await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId: canonicalId,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${ACTOR1_ID}/inbox`,
+        sharedInbox: 'https://llun.test/inbox',
+        reblogs: true
+      })
+      ;(getActorPerson as jest.Mock).mockImplementation(() => ({
+        id: canonicalId,
+        type: 'Person',
+        preferredUsername: 'alias-followed',
+        inbox: `${canonicalId}/inbox`
+      }))
+
+      const response = await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${encodeURIComponent(aliasId)}/follow`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ reblogs: false })
+          }
+        ),
+        { params: Promise.resolve({ id: aliasId }) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(follow).not.toHaveBeenCalled()
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: ACTOR1_ID,
+          targetActorId: aliasId
+        })
+      ).resolves.toBeNull()
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: ACTOR1_ID,
+          targetActorId: canonicalId
+        })
+      ).resolves.toMatchObject({
+        status: FollowStatus.enum.Accepted,
+        reblogs: false
+      })
+    })
   })
 
   describe('getRelationship helper', () => {

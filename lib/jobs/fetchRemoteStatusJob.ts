@@ -124,7 +124,9 @@ const fetchRemoteStatus = async (
     await database.createNote({
       id: sanitizedNote.id,
       url: getUrl(sanitizedNote.url) || sanitizedNote.id,
-      actorId: sanitizedNote.attributedTo,
+      // The recorded row's id: an alias author (`/@bob`) is stored under the
+      // id its origin names, and the status must point at that row.
+      actorId: actor.id,
       text: Array.isArray(sanitizedNote.content)
         ? sanitizedNote.content.join('')
         : sanitizedNote.content || '',
@@ -313,7 +315,7 @@ export const fetchRemoteStatusJob = createJobHandle(
           await database.createNote({
             id: sanitizedReply.id,
             url: getUrl(sanitizedReply.url) || sanitizedReply.id,
-            actorId: sanitizedReply.attributedTo,
+            actorId: actor.id,
             text: Array.isArray(sanitizedReply.content)
               ? sanitizedReply.content.join('')
               : sanitizedReply.content || '',
