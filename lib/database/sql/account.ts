@@ -21,6 +21,7 @@ import {
   CreateAccountSessionParams,
   CreateActorForAccountParams,
   CreateCredentialProviderParams,
+  DeleteAccountSessionByIdParams,
   DeleteAccountSessionParams,
   DeleteOtherAccountSessionsParams,
   GetAccountAllSessionsParams,
@@ -320,6 +321,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     if (!session) return null
 
     const {
+      id: sessionId,
       accountId,
       token: sessionToken,
       actorId,
@@ -333,6 +335,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     return {
       account,
       session: Session.parse({
+        id: sessionId,
         accountId,
         actorId: actorId ?? null,
         expireAt: getCompatibleTime(expireAt),
@@ -378,6 +381,19 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   }: DeleteAccountSessionParams): Promise<void> {
     await database.transaction((trx) =>
       deleteSessionsWithTokenDetach(trx, (query) => query.where('token', token))
+    )
+  },
+
+  async deleteAccountSessionById({
+    accountId,
+    id
+  }: DeleteAccountSessionByIdParams): Promise<number> {
+    // Ownership is a predicate on the delete itself, so the check and the
+    // write resolve the same row.
+    return database.transaction((trx) =>
+      deleteSessionsWithTokenDetach(trx, (query) =>
+        query.where('id', id).andWhere('accountId', accountId)
+      )
     )
   },
 

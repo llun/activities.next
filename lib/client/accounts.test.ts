@@ -753,10 +753,10 @@ describe('client accounts module', () => {
     it('deletes session and returns true on 200', async () => {
       fetchMock.mockResponse('', { status: 200 })
 
-      const res = await deleteSession({ token: 'sess-token-123' })
+      const res = await deleteSession({ id: 'sess-id-123' })
       expect(res).toBe(true)
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/accounts/sessions/sess-token-123',
+        '/api/v1/accounts/sessions/sess-id-123',
         expect.objectContaining({
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' }
@@ -767,7 +767,7 @@ describe('client accounts module', () => {
     it('returns false when status is not 200', async () => {
       fetchMock.mockResponse('', { status: 404 })
 
-      const res = await deleteSession({ token: 'invalid' })
+      const res = await deleteSession({ id: 'invalid' })
       expect(res).toBe(false)
     })
   })

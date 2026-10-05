@@ -801,6 +801,55 @@ describe('AccountDatabase', () => {
         expect(deleted).toBeNull()
       })
 
+      // The sessions page revokes by row id so the token (the cookie
+      // credential) never reaches the browser. The id is not a secret, so the
+      // delete itself must refuse a session another account owns.
+      it('deletes a session by id only when the account owns it', async () => {
+        const { accountId } = await createTestAccount()
+        const other = await createTestAccount()
+        const expireAt = Date.now() + 60_000
+        const ownToken = `own-${crypto.randomUUID()}`
+        const otherToken = `other-${crypto.randomUUID()}`
+        await database.createAccountSession({
+          accountId,
+          token: ownToken,
+          expireAt
+        })
+        await database.createAccountSession({
+          accountId: other.accountId,
+          token: otherToken,
+          expireAt
+        })
+        const [ownSession] = await database.getAccountAllSessions({
+          accountId
+        })
+        const [otherSession] = await database.getAccountAllSessions({
+          accountId: other.accountId
+        })
+        expect(ownSession.id).toBeString()
+        expect(ownSession.id).not.toBe(ownToken)
+
+        expect(
+          await database.deleteAccountSessionById({
+            accountId,
+            id: otherSession.id
+          })
+        ).toBe(0)
+        expect(await database.getAccountSession({ token: otherToken })).toEqual(
+          expect.objectContaining({
+            session: expect.objectContaining({ id: otherSession.id })
+          })
+        )
+
+        expect(
+          await database.deleteAccountSessionById({
+            accountId,
+            id: ownSession.id
+          })
+        ).toBe(1)
+        expect(await database.getAccountSession({ token: ownToken })).toBeNull()
+      })
+
       it('revokes every session except the kept one and leaves other accounts untouched', async () => {
         const { accountId } = await createTestAccount()
         const other = await createTestAccount()

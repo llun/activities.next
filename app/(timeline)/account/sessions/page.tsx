@@ -61,8 +61,11 @@ const Page = async () => {
     // revocable is noise. The current session is never expired.
     .filter((session) => session.expireAt > currentTime)
     .sort((a, b) => b.createdAt - a.createdAt)
+    // Only the row id leaves the server: `current` is decided here, so the
+    // client never needs (and must never receive) a session token, which is
+    // the credential behind the session cookie.
     .map((session) => ({
-      token: session.token,
+      id: session.id,
       actor: session.actorId ? (actorMap.get(session.actorId) ?? null) : null,
       createdAt: session.createdAt,
       expireAt: session.expireAt,

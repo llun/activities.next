@@ -358,6 +358,11 @@ export type GetAccountAllSessionsParams = {
 export type DeleteAccountSessionParams = {
   token: string
 }
+export type DeleteAccountSessionByIdParams = {
+  // Only a session this account owns is deleted; anything else matches nothing.
+  accountId: string
+  id: string
+}
 export type DeleteOtherAccountSessionsParams = {
   accountId: string
   // The session to keep (the device making the request). Every other session
@@ -479,6 +484,11 @@ export interface AccountDatabase {
   getAccountAllSessions(params: GetAccountAllSessionsParams): Promise<Session[]>
   updateAccountSession(params: UpdateAccountSessionParams): Promise<void>
   deleteAccountSession(params: DeleteAccountSessionParams): Promise<void>
+  // Deletes the session with this row id when it belongs to `accountId`, and
+  // returns how many rows were deleted (0 for an unknown or foreign id).
+  deleteAccountSessionById(
+    params: DeleteAccountSessionByIdParams
+  ): Promise<number>
   // Revoke every session for the account except `exceptToken`. Returns the
   // number of sessions revoked.
   deleteOtherAccountSessions(
