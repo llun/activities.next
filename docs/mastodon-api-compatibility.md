@@ -372,7 +372,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   ids, anonymous reads of discoverable collections, and item-id-addressed
   remove/revoke) while keeping the pre-final `title`/`topic`/`visibility`
   vocabulary, bulk `account_ids` mutations, the per-member approve consent
-  endpoint, and account-id addressing as documented extensions.
+  endpoint, and account-id addressing as documented extensions. Collection
+  reads are bounded because anonymous callers reach them: an account owns at
+  most `MAX_COLLECTIONS_PER_ACTOR` (100) collections and a collection holds at
+  most `MAX_COLLECTION_MEMBERS` (500) accounts in any consent state
+  (`lib/services/collections/limits.ts`), enforced in the storage write and
+  answered with a `422 { error }`; the embedded `items` preview is read with
+  `limitPerCollection`, never the full membership. Both FEP-7aa9 endpoints
+  therefore emit at most those many ids in one response.
 - **Hosted quote-authorization stamps** — `GET /users/:username/quote_authorizations/:id`
   serves the FEP-044f `QuoteAuthorization` object for an approved quote; it 404s
   once the quote is revoked (the edge is no longer `accepted`).

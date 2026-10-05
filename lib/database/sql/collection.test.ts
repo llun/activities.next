@@ -1,5 +1,10 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
+import {
+  CollectionLimitError,
+  MAX_COLLECTIONS_PER_ACTOR,
+  MAX_COLLECTION_MEMBERS
+} from '@/lib/services/collections/limits'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -70,6 +75,117 @@ const followersOnlyNote = (
 }
 
 describe('CollectionDatabase', () => {
+  describe('size ceilings', () => {
+    it('refuses a collection past the per-actor ceiling', async () => {
+      await withFreshDatabase(async (database) => {
+        await createLocalAccount(database, 'owner')
+        const owner = await actor(database, 'owner')
+        for (let index = 0; index < MAX_COLLECTIONS_PER_ACTOR; index++) {
+          await database.createCollection({
+            actorId: owner.id,
+            title: `Collection ${index}`
+          })
+        }
+
+        await expect(
+          database.createCollection({
+            actorId: owner.id,
+            title: 'One too many'
+          })
+        ).rejects.toBeInstanceOf(CollectionLimitError)
+        expect(
+          await database.getCollections({ actorId: owner.id })
+        ).toHaveLength(MAX_COLLECTIONS_PER_ACTOR)
+
+        // The ceiling is per owner.
+        await createLocalAccount(database, 'other')
+        const other = await actor(database, 'other')
+        await expect(
+          database.createCollection({ actorId: other.id, title: 'Mine' })
+        ).resolves.toMatchObject({ title: 'Mine' })
+      })
+    })
+
+    it('refuses members past the per-collection ceiling but allows a re-add', async () => {
+      await withFreshDatabase(async (database) => {
+        await createLocalAccount(database, 'owner')
+        const owner = await actor(database, 'owner')
+        const collection = await database.createCollection({
+          actorId: owner.id,
+          title: 'Big'
+        })
+        const targets = Array.from(
+          { length: MAX_COLLECTION_MEMBERS },
+          (_, index) => `https://remote.test/users/member-${index}`
+        )
+        await database.addCollectionMembers({
+          id: collection.id,
+          actorId: owner.id,
+          targetActorIds: targets
+        })
+
+        await expect(
+          database.addCollectionMembers({
+            id: collection.id,
+            actorId: owner.id,
+            targetActorIds: ['https://remote.test/users/one-too-many']
+          })
+        ).rejects.toBeInstanceOf(CollectionLimitError)
+        // Re-adding existing members adds nothing, so it is not an overflow.
+        await expect(
+          database.addCollectionMembers({
+            id: collection.id,
+            actorId: owner.id,
+            targetActorIds: targets.slice(0, 3)
+          })
+        ).resolves.toEqual([])
+
+        const counts = await database.countCollectionItems({
+          collectionIds: [collection.id]
+        })
+        expect(counts[collection.id]).toBe(MAX_COLLECTION_MEMBERS)
+      })
+    })
+
+    it('limits the items read per collection when asked', async () => {
+      await withFreshDatabase(async (database) => {
+        await createLocalAccount(database, 'owner')
+        const owner = await actor(database, 'owner')
+        const first = await database.createCollection({
+          actorId: owner.id,
+          title: 'First'
+        })
+        const second = await database.createCollection({
+          actorId: owner.id,
+          title: 'Second'
+        })
+        for (const collection of [first, second]) {
+          for (let index = 0; index < 5; index++) {
+            await database.addCollectionMembers({
+              id: collection.id,
+              actorId: owner.id,
+              targetActorIds: [`https://remote.test/users/m-${index}`]
+            })
+          }
+        }
+
+        const limited = await database.getCollectionItems({
+          collectionIds: [first.id, second.id],
+          limitPerCollection: 2
+        })
+        expect(limited[first.id]).toHaveLength(2)
+        expect(limited[second.id]).toHaveLength(2)
+
+        const unlimited = await database.getCollectionItems({
+          collectionIds: [first.id, second.id]
+        })
+        expect(unlimited[first.id]).toHaveLength(5)
+        // The limited read is a prefix of the full oldest-first read.
+        expect(limited[first.id]).toEqual(unlimited[first.id].slice(0, 2))
+      })
+    })
+  })
+
   describe('CRUD', () => {
     it('creates, reads, lists, updates and deletes a collection', async () => {
       await withFreshDatabase(async (database) => {

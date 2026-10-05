@@ -1823,6 +1823,10 @@ export type GetCollectionItemsParams = {
   collectionIds: string[]
   // Only approved (publicly consented) items when true — the public projection.
   approvedOnly?: boolean
+  // Return at most this many items (oldest-first) per collection. Omit to load
+  // every member; public callers that only embed a preview must set it so the
+  // read does not scale with the collection's size.
+  limitPerCollection?: number
 }
 export type GetCollectionItemParams = { collectionId: string; itemId: string }
 export type GetCollectionItemByAccountParams = {
