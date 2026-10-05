@@ -105,7 +105,16 @@ const Page = async ({ searchParams }: PageProps) => {
       key={selectedActor.id}
       actorId={selectedActor.id}
       accountEmail={actor.account.email}
-      actors={actors}
+      // NotificationSettings is a Client Component, so its props are
+      // serialized to the browser. Pass only what the actor selector renders:
+      // the stored Actor carries its signing privateKey and its Account
+      // (password hash, verification codes).
+      actors={actors.map((item) => ({
+        id: item.id,
+        username: item.username,
+        domain: item.domain,
+        name: item.name
+      }))}
       emailNotifications={emailNotifications}
       pushNotifications={pushNotifications}
       notificationTypes={notificationTypes}
