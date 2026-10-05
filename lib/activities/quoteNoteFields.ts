@@ -4,6 +4,7 @@ import type {
   StatusQuote
 } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
 /**
@@ -67,7 +68,13 @@ export const addQuoteFallbackToContent = (
 ): string => {
   const fields = getQuoteNoteFields(quoteEdge)
   if (!fields) return content
-  const url = targetUrl || quoteEdge?.quotedStatusUrl || fields.quote
+  // The fallback is appended AFTER the content went through the sanitizer, so
+  // its href must be vetted here: a remote quote target or status url is a
+  // free-form string and may be `javascript:`. Take the first http(s) candidate
+  // and add nothing when there is none.
+  const url = [targetUrl, quoteEdge?.quotedStatusUrl, fields.quote].find(
+    isHttpUrl
+  )
   if (!url) return content
   const targetId = fields.quote
   // The skip must test the ESCAPED form too: stored HTML only ever carries

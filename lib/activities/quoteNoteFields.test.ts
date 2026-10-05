@@ -170,6 +170,27 @@ describe('addQuoteFallbackToContent', () => {
     ).toEqual(linked)
   })
 
+  it('never emits a non-http(s) href, even from a stored edge', () => {
+    const unsafe = 'javascript:alert(document.domain)'
+    expect(
+      addQuoteFallbackToContent(
+        '<p>hi</p>',
+        edge({ quotedStatusId: unsafe, quotedStatusUrl: unsafe }),
+        'data:text/html,<script>alert(1)</script>'
+      )
+    ).toEqual('<p>hi</p>')
+  })
+
+  it('falls back to the next http(s) candidate when targetUrl is unsafe', () => {
+    expect(
+      addQuoteFallbackToContent(
+        '<p>hi</p>',
+        edge(),
+        'javascript:alert(document.domain)'
+      )
+    ).toEqual(`${FALLBACK}<p>hi</p>`)
+  })
+
   it('produces only the fallback for empty content', () => {
     expect(addQuoteFallbackToContent('', edge({ state: 'pending' }))).toEqual(
       FALLBACK

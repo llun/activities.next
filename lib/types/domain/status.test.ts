@@ -40,6 +40,18 @@ describe('Status', () => {
   })
 
   describe('fromNote', () => {
+    it.each([
+      'javascript:alert(document.domain)',
+      ['javascript:alert(1)'],
+      [{ type: 'Link', href: 'data:text/html,<script>alert(1)</script>' }]
+    ])('falls back to the note id for a non-http(s) url %j', (url) => {
+      const note = {
+        ...MockMastodonActivityPubNote({ content: 'Hello' }),
+        url
+      } as unknown as BaseNote
+      expect(fromNote(note).url).toEqual(note.id)
+    })
+
     it('returns status from json', () => {
       const note = MockMastodonActivityPubNote({
         content: 'Hello',
