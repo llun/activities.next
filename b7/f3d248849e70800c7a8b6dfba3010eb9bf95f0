@@ -1,0 +1,45 @@
+lib/database/sql/publicCounters.test.ts
+  s_69f35b0cf1b1f5::t_6bba9878424001 223,230
+  s_69f35b0cf1b1f5::t_24855f9f8e67c3 1-222,224-229,231-236
+lib/database/sql/actor.ts
+  s_69f35b0cf1b1f5::t_9fe30d4b7edcc4 36-39,1481-1486,1562,1689
+lib/database/sql/utils/status.ts
+  s_69f35b0cf1b1f5::t_09155c58e98e10 6,31-65
+  s_69f35b0cf1b1f5::t_99c770b66e9305 66
+lib/jobs/createPollJob.ts
+  s_69f35b0cf1b1f5::t_f43d5e4a30e8aa 14,161-170
+lib/jobs/createNoteJob.ts
+  s_69f35b0cf1b1f5::t_0cf7a3a296e8ce 36,257-266
+lib/jobs/createNoteJob.test.ts
+  s_69f35b0cf1b1f5::t_6bba9878424001 621-623
+  s_69f35b0cf1b1f5::t_9c8973c576afe9 595-620,624-625
+lib/database/sql/status.ts
+  s_69f35b0cf1b1f5::t_9fe30d4b7edcc4 38-40,479-480,485-489,541,617-618,943-968,1024-1025,1155-1156,2269,2274-2275,2308,2326,2331-2332,2339,2553-2556,2559,2570
+lib/actions/createNote.test.ts
+  s_69f35b0cf1b1f5::t_9c8973c576afe9 111-127
+lib/actions/createNote.ts
+  s_69f35b0cf1b1f5::t_0cf7a3a296e8ce 18,554-558
+lib/jobs/createPollJob.test.ts
+  s_69f35b0cf1b1f5::t_6bba9878424001 426-428
+  s_69f35b0cf1b1f5::t_84f07d97b89195 399-425,429-430
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_a50d19020fa9a7 956
+lib/database/sql/publiclyReadableStatusCallSites.test.ts
+  s_69f35b0cf1b1f5::t_96111a9f21d199 196-199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7f3d248849e70800c7a8b6dfba3010eb9bf95f0",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
