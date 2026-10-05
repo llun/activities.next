@@ -55,4 +55,29 @@ describe('Popover', () => {
     )
     expect(screen.getByText('Always open')).toHaveClass('w-auto')
   })
+
+  it('keeps the fade but drops the zoom and slide under reduced motion', () => {
+    render(
+      <Popover open>
+        <PopoverTrigger>Open</PopoverTrigger>
+        <PopoverContent>Panel body</PopoverContent>
+      </Popover>
+    )
+    const content = screen.getByText('Panel body')
+
+    // The opacity fades stay.
+    expect(content).toHaveClass(
+      'data-[state=open]:fade-in-0',
+      'data-[state=closed]:fade-out-0'
+    )
+    // Every movement the popover animates has a reduced-motion override.
+    expect(content).toHaveClass(
+      'motion-reduce:data-[state=open]:zoom-in-100',
+      'motion-reduce:data-[state=closed]:zoom-out-100',
+      'motion-reduce:data-[side=bottom]:slide-in-from-top-0',
+      'motion-reduce:data-[side=left]:slide-in-from-right-0',
+      'motion-reduce:data-[side=right]:slide-in-from-left-0',
+      'motion-reduce:data-[side=top]:slide-in-from-bottom-0'
+    )
+  })
 })
