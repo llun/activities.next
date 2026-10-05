@@ -198,7 +198,7 @@ describe('PageHeader', () => {
     expect(screen.getByRole('heading', { name: 'Timeline' })).not.toHaveClass(
       'max-md:hidden'
     )
-    // Nor the mobile description line: it belongs to the bar's intro row.
+    // Nor the mobile description line: it belongs under the compact bar.
     const description = screen.getByText('Latest posts')
     expect(description).toHaveClass('mt-0.5', 'text-xs')
     expect(description).not.toHaveClass('max-md:text-sm')
@@ -382,51 +382,51 @@ describe('PageHeader', () => {
       )
     })
 
-    it('ends the intro row 12px under its content on a hairline with mobileIntroRow', () => {
+    // The home timeline: the bar carries the title and Refresh, so the box is
+    // hidden and the full-bleed composer meets the bar's hairline directly.
+    it('lets the content meet the bar when the box is empty with flushOnMobile', () => {
       const { container } = render(
         <MobileNavigationProvider>
           <PageHeader
             title="Timeline"
-            description="Latest posts"
-            mobileIntroRow
+            actions={<button type="button">Refresh timeline</button>}
+            actionsInMobileBar
+            flushOnMobile
           />
         </MobileNavigationProvider>
       )
 
-      const row = container.querySelector('.max-w-content') as HTMLElement
-      expect(row).toHaveClass('py-4', 'max-md:pb-3')
-      expect(row.parentElement).toHaveClass('max-md:border-b', 'md:border-b')
+      const box = container.querySelector('.max-w-content')
+        ?.parentElement as HTMLElement
+      expect(box).toHaveClass('max-md:hidden')
+      expect(getBar(container)).toHaveClass('mb-0')
     })
 
     // Without the signed-in mobile navigation (the logged-out home route's
-    // loading state) the header keeps the geometry it had before the redesign.
-    it('ignores mobileIntroRow without the signed-in mobile navigation', () => {
+    // loading state) the sticky box is the header's bottom edge.
+    it('lets the content meet the sticky box with flushOnMobile and no navigation', () => {
       const { container } = render(
         <PageHeader
           title="Timeline"
-          description="Latest posts"
-          mobileIntroRow
+          actions={<button type="button">Refresh timeline</button>}
+          actionsInMobileBar
+          flushOnMobile
         />
       )
 
-      const row = container.querySelector('.max-w-content') as HTMLElement
-      expect(row).not.toHaveClass('max-md:pb-3')
-      expect(row.parentElement).not.toHaveClass('max-md:border-b')
+      expect(getBar(container)).toBeNull()
+      const box = container.firstElementChild as HTMLElement
+      expect(box).toHaveClass('sticky', 'border-b', 'max-md:mb-0')
+      expect(box).not.toHaveClass('mb-0')
     })
 
-    it('keeps the 16px bottom padding and no mobile hairline by default', () => {
-      const { container } = render(
-        <MobileNavigationProvider>
-          <PageHeader title="Timeline" description="Latest posts" />
-        </MobileNavigationProvider>
-      )
+    it('keeps the parent spacing below the header by default', () => {
+      const { container } = render(<PageHeader title="Timeline" />)
 
-      const row = container.querySelector('.max-w-content') as HTMLElement
-      expect(row).not.toHaveClass('max-md:pb-3')
-      expect(row.parentElement).not.toHaveClass('max-md:border-b')
+      expect(container.firstElementChild).not.toHaveClass('max-md:mb-0')
     })
 
-    // Below md the description is the intro row's own text on a 20px line,
+    // Below md the description is the content row's own text on a 20px line,
     // flush with the row's top padding when the bar carries the title.
     it('sets the description as a flush 14/20 line when the bar holds the title', () => {
       render(

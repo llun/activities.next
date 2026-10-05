@@ -395,15 +395,13 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         isLoadMoreVisible={hasMoreStatuses && isLoadMoreVisible}
       />
       <PageHeader
-        // Below `md` Refresh sits at the end of the compact bar, and the
-        // description row ends on a full-width hairline so the borderless,
-        // full-bleed composer below meets an edge, as it met the old sticky
-        // header's border; the row is 16px above and 12px below its content.
-        mobileIntroRow
+        // Below `md` Refresh sits at the end of the compact bar, which then
+        // carries the whole header, so the borderless, full-bleed composer
+        // meets the bar's hairline directly.
+        flushOnMobile
         actionsInMobileBar
         banner={<AnnouncementBanner currentTime={currentTime} />}
         title="Timeline"
-        description="Latest posts from your network."
         actions={
           <Button
             variant="outline"
@@ -435,7 +433,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       />
 
       <section
-        className={`rounded-xl border bg-card p-4 shadow-sm max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
+        className={`rounded-xl border bg-card p-4 shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         {/* The home timeline keeps a top composer for brand-new posts. Reply,
             quote, and edit happen inline in the feed via the shared composer,

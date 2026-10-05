@@ -45,18 +45,18 @@ vi.mock('@/lib/components/page-header', () => ({
     actions,
     bottomSlot,
     banner,
-    mobileIntroRow,
+    flushOnMobile,
     actionsInMobileBar
   }: {
     actions?: ReactNode
     bottomSlot?: ReactNode
     banner?: ReactNode
-    mobileIntroRow?: boolean
+    flushOnMobile?: boolean
     actionsInMobileBar?: boolean
   }) => (
     <div
       data-testid="page-header"
-      data-mobile-intro-row={String(Boolean(mobileIntroRow))}
+      data-flush-on-mobile={String(Boolean(flushOnMobile))}
       data-actions-in-mobile-bar={String(Boolean(actionsInMobileBar))}
     >
       {banner}
@@ -466,10 +466,9 @@ describe('MainPageTimeline', () => {
     ).toBeInTheDocument()
   })
 
-  // Below md the header's description row ends on the hairline the
-  // full-bleed composer meets, and Refresh sits in the compact bar;
-  // PageHeader owns that geometry.
-  it('asks the page header for the mobile intro row and bar Refresh', () => {
+  // Below md Refresh sits in the compact bar and the full-bleed composer meets
+  // the bar's hairline; PageHeader owns that geometry.
+  it('asks the page header for a flush composer and bar Refresh', () => {
     render(
       <MainPageTimeline
         host="activities.local"
@@ -481,7 +480,7 @@ describe('MainPageTimeline', () => {
     )
 
     expect(screen.getByTestId('page-header')).toHaveAttribute(
-      'data-mobile-intro-row',
+      'data-flush-on-mobile',
       'true'
     )
     expect(screen.getByTestId('page-header')).toHaveAttribute(
