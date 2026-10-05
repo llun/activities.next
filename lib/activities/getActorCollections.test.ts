@@ -205,3 +205,86 @@ describe('getActorCollections context inheritance', () => {
     expect(result?.page?.['@context']).toBeNull()
   })
 })
+
+describe('getActorCollections caller-supplied page', () => {
+  const mockRequest = vi.mocked(request)
+  const person = {
+    id: 'https://example.com/users/hidden',
+    followers: 'https://example.com/users/hidden/followers'
+  } as Actor
+  const guessedPage = 'https://example.com/users/hidden/followers?page=1'
+
+  beforeEach(() => {
+    // mockReset, not clearAllMocks: the first test deliberately leaves its
+    // page response queued, and clearAllMocks keeps queued Once values.
+    mockRequest.mockReset()
+  })
+
+  it('does not fetch a guessed page of a collection that advertises none', async () => {
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: {},
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: person.followers,
+        type: 'OrderedCollection',
+        totalItems: 12
+      })
+    })
+    // Would be served if the guessed page were requested.
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: {},
+      body: JSON.stringify({
+        id: guessedPage,
+        type: 'OrderedCollectionPage',
+        orderedItems: ['https://example.com/users/secret-follower']
+      })
+    })
+
+    const result = await getActorCollections({
+      person,
+      field: 'followers',
+      pageUrl: guessedPage
+    })
+
+    expect(result).toEqual({ page: null, totalItems: 12 })
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('still follows a caller page when the collection advertises its first page', async () => {
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: {},
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: person.followers,
+        type: 'OrderedCollection',
+        totalItems: 12,
+        first: `${person.followers}?page=0`
+      })
+    })
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: {},
+      body: JSON.stringify({
+        id: guessedPage,
+        type: 'OrderedCollectionPage',
+        orderedItems: ['https://example.com/users/follower']
+      })
+    })
+
+    const result = await getActorCollections({
+      person,
+      field: 'followers',
+      pageUrl: guessedPage
+    })
+
+    expect(mockRequest).toHaveBeenLastCalledWith(
+      expect.objectContaining({ url: guessedPage })
+    )
+    expect(result?.page?.orderedItems).toEqual([
+      'https://example.com/users/follower'
+    ])
+  })
+})
