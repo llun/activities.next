@@ -1,0 +1,33 @@
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_421770461afd5a 637
+app/(timeline)/[actor]/getProfileData.ts
+  s_69f35b0cf1b1f5::t_e4666d4d33be8d 1-4,240-246,259,264-265,267-268,275-277,279,284,342-344,346
+  s_69f35b0cf1b1f5::t_a783cd5f9251d2 247,250-258
+app/(timeline)/[actor]/getProfileData.actorBinding.test.ts
+  s_69f35b0cf1b1f5::t_8e4f80b0ca1ee7 142
+  s_69f35b0cf1b1f5::t_a8ef4134046da0 1-141,143-160
+lib/actions/utils.ts
+  s_69f35b0cf1b1f5::t_1d97d1bcfbc950 240-245
+  s_69f35b0cf1b1f5::t_82037509afa07c 156-192
+app/(timeline)/[actor]/getProfileData.test.ts
+  s_69f35b0cf1b1f5::t_bbe410039812b6 1091-1114
+lib/jobs/fetchRemoteStatusJob.test.ts
+  s_69f35b0cf1b1f5::t_c4b4a72b71cd18 756-780,788-804
+  s_69f35b0cf1b1f5::t_143909839cfb69 781-787
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fee03b7e29ac6426cc84f94fa2e763274ef5a67e",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
