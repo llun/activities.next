@@ -36,6 +36,12 @@ describe('SetRegionNameBody', () => {
     )
   })
 
+  it('accepts a name of exactly the 255-char column width', () => {
+    expect(
+      SetRegionNameBody.safeParse({ region, name: 'a'.repeat(255) }).success
+    ).toBe(true)
+  })
+
   it('rejects a name over the 255-char column', () => {
     expect(
       SetRegionNameBody.safeParse({ region, name: 'a'.repeat(256) }).success
