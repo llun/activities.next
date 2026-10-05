@@ -13,6 +13,7 @@ import { logger } from '@/lib/utils/logger'
 import { safeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
 
 import {
+  BATCH_ANIMATION_METADATA_CONCURRENCY,
   BATCH_ANIMATION_METADATA_TIMEOUT_MS,
   MAX_BATCH_ANIMATION_METADATA_LOOKUPS,
   clearAnimationMetadataCacheForTests,
@@ -1309,6 +1310,98 @@ describe('enrichStatusesAttachments', () => {
           message: 'Batch animation metadata enrichment timed out'
         })
       )
+    } finally {
+      vi.useRealTimers()
+      warnSpy.mockRestore()
+    }
+  })
+
+  // Regression (F001): the deadline raced the batch without cancelling it, so
+  // after the timeline response went out `mapWithConcurrency` kept starting
+  // the later chunks' remote fetches anyway.
+  it('starts no further lookups once the batch deadline has passed', async () => {
+    const total = BATCH_ANIMATION_METADATA_CONCURRENCY * 2
+    const statuses: StatusNote[] = Array.from({ length: total }, (_, i) => ({
+      id: `https://mastodon.social/users/cheeaun/statuses/abandon-${i}`,
+      url: `https://mastodon.social/@cheeaun/abandon-${i}`,
+      actorId: 'https://mastodon.social/users/cheeaun',
+      actor: null,
+      type: StatusType.enum.Note,
+      text: `Abandon ${i}`,
+      summary: null,
+      reply: '',
+      replies: [],
+      totalReplies: 0,
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      totalLikes: 0,
+      totalShares: 0,
+      to: [],
+      cc: [],
+      edits: [],
+      attachments: [
+        {
+          id: `abandon-att-${i}`,
+          actorId: 'https://mastodon.social/users/cheeaun',
+          statusId: `https://mastodon.social/users/cheeaun/statuses/abandon-${i}`,
+          type: 'Document',
+          mediaType: 'video/mp4',
+          url: `https://files.mastodon.social/media/abandon-${i}.mp4`,
+          name: `abandon-${i}`,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ],
+      tags: [],
+      isLocalActor: false,
+      createdAt: Date.now() - i * 1000,
+      updatedAt: Date.now() - i * 1000
+    }))
+
+    const pending: Array<() => void> = []
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+    vi.useFakeTimers()
+    try {
+      // Every lookup hangs until released, so the first chunk outlives the
+      // deadline.
+      vi.mocked(safeRemoteFetch).mockImplementation(
+        ({ url }) =>
+          new Promise((resolve) => {
+            pending.push(() =>
+              resolve({
+                statusCode: 404,
+                body: '',
+                bodyTruncated: false,
+                headers: {},
+                url
+              })
+            )
+          })
+      )
+      const lookupsFor = () =>
+        vi
+          .mocked(safeRemoteFetch)
+          .mock.calls.filter(([{ url }]) => url.includes('abandon-')).length
+
+      const enrichPromise = enrichStatusesAttachments(statuses, mockDb)
+      await vi.advanceTimersByTimeAsync(
+        BATCH_ANIMATION_METADATA_TIMEOUT_MS + 50
+      )
+      await enrichPromise
+      const startedBeforeDeadline = lookupsFor()
+      expect(startedBeforeDeadline).toBeGreaterThan(0)
+      expect(startedBeforeDeadline).toBeLessThanOrEqual(
+        BATCH_ANIMATION_METADATA_CONCURRENCY
+      )
+
+      // Let the abandoned first chunk finish; the next chunk must not start.
+      while (pending.length > 0) {
+        pending.splice(0).forEach((release) => release())
+        await vi.advanceTimersByTimeAsync(10)
+      }
+
+      expect(lookupsFor()).toBe(startedBeforeDeadline)
     } finally {
       vi.useRealTimers()
       warnSpy.mockRestore()

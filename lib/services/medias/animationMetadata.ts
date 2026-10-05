@@ -561,8 +561,16 @@ export const enrichStatusesAttachments = async (
     MAX_BATCH_ANIMATION_METADATA_LOOKUPS
   )
 
+  // Set when the batch deadline passes. Racing the batch against a timer does
+  // not cancel it: `mapWithConcurrency` would go on starting every later
+  // chunk's remote fetches after the response had already gone out, so each
+  // timeline request could leave outbound work running behind it. A candidate
+  // that has not started by then never does.
+  let expired = false
+
   // 4. Enrich each candidate with in-memory stale guards and optimistic DB updates
   const enrichCandidate = async (candidate: (typeof boundedCandidates)[0]) => {
+    if (expired) return
     try {
       const { primary, all, needsResolution } = candidate
       const resolved = await resolveAnimationMetadata({
@@ -637,6 +645,7 @@ export const enrichStatusesAttachments = async (
   try {
     const timeoutPromise = new Promise<void>((resolve) => {
       timeoutId = setTimeout(() => {
+        expired = true
         logger.warn({
           message: 'Batch animation metadata enrichment timed out'
         })
