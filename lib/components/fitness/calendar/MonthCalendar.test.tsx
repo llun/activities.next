@@ -499,6 +499,42 @@ describe('MonthCalendar', () => {
       expect(tooltip()?.dataset.visible).toBe('false')
     })
 
+    const kbFocus = (el: HTMLElement) =>
+      act(() => {
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })
+        )
+        el.focus()
+      })
+
+    it('shows on keyboard focus and hides on Escape', () => {
+      const { cell } = renderMonth()
+      kbFocus(cell('2026-10-02'))
+      expect(tooltip()).toHaveTextContent('Friday, 2 October 2026')
+      expect(tooltip()?.dataset.visible).toBe('true')
+      fireEvent.keyDown(cell('2026-10-02'), { key: 'Escape' })
+      expect(tooltip()?.dataset.visible).toBe('false')
+    })
+
+    it('hides when a day is clicked', () => {
+      const { cell } = renderMonth()
+      fireEvent.pointerOver(cell('2026-10-02'), { pointerType: 'mouse' })
+      act(() => vi.advanceTimersByTime(150))
+      expect(tooltip()?.dataset.visible).toBe('true')
+      fireEvent.click(cell('2026-10-02'))
+      expect(tooltip()?.dataset.visible).toBe('false')
+    })
+
+    it('moves the tab stop with focus that arrives by Tab or click', () => {
+      const { cell, cells } = renderMonth()
+      act(() => cell('2026-10-02').focus())
+      expect(
+        cells()
+          .filter((c) => c.getAttribute('tabindex') === '0')
+          .map((c) => c.dataset.date)
+      ).toEqual(['2026-10-02'])
+    })
+
     it('is not shown for an upcoming day', () => {
       const { cell } = renderMonth()
 

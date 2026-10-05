@@ -434,6 +434,16 @@ describe('RangePicker', () => {
       await waitFor(() => expect(trigger()).toHaveFocus())
     })
 
+    it('never lets the form submit natively', () => {
+      render(<Harness presentation="sheet" />)
+      open()
+      const form = from().closest('form') as HTMLFormElement
+      fireEvent.change(from(), { target: { value: '2026-03-02' } })
+      // fireEvent returns false when the submit was cancelled, so the browser
+      // does not reload the page.
+      expect(fireEvent.submit(form)).toBe(false)
+    })
+
     describe('on-screen keyboard', () => {
       const listeners = new Map<string, () => void>()
       const viewport = {
@@ -458,6 +468,7 @@ describe('RangePicker', () => {
       afterEach(() => {
         listeners.clear()
         viewport.height = 800
+        viewport.offsetTop = 0
         Reflect.deleteProperty(window, 'visualViewport')
       })
 
@@ -478,6 +489,19 @@ describe('RangePicker', () => {
         // Only the body scrolls; the actions are outside it.
         const body = from().closest('.overflow-y-auto') as HTMLElement
         expect(body).not.toContainElement(apply())
+      })
+
+      it('follows the visual viewport when it pans, and stops listening on unmount', () => {
+        const { unmount } = render(<Harness presentation="sheet" />)
+        open()
+        const sheet = screen.getByRole('dialog', { name: 'Date range' })
+        expect(sheet.style.bottom).toBe('0px')
+        viewport.height = 420
+        viewport.offsetTop = 100
+        act(() => listeners.get('scroll')?.())
+        expect(sheet.style.bottom).toBe('280px')
+        unmount()
+        expect(listeners.size).toBe(0)
       })
 
       it('keeps the focused field in view', () => {

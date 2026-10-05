@@ -240,6 +240,40 @@ describe('calendar tooltip', () => {
     expect(tooltip()).toBeNull()
   })
 
+  it('hides when the pointer moves onto a day that is not active', () => {
+    render(<Harness />)
+    hover('one')
+    act(() => vi.advanceTimersByTime(150))
+    expect(isShown()).toBe(true)
+    hover('later')
+    expect(isShown()).toBe(false)
+  })
+
+  it('stays up while the pointer moves within the same cell', () => {
+    render(<Harness />)
+    hover('one')
+    act(() => vi.advanceTimersByTime(150))
+    hover('one')
+    expect(isShown()).toBe(true)
+  })
+
+  it('hides on a gap between cells and stays hidden', () => {
+    render(<Harness />)
+    hover('one')
+    act(() => vi.advanceTimersByTime(150))
+    fireEvent.pointerOver(screen.getByTestId('grid'), { pointerType: 'mouse' })
+    act(() => vi.advanceTimersByTime(500))
+    expect(isShown()).toBe(false)
+  })
+
+  it('lets keyboard focus replace a pending hover', () => {
+    render(<Harness />)
+    hover('one')
+    keyboardFocus(screen.getByRole('button', { name: 'two' }))
+    act(() => vi.advanceTimersByTime(500))
+    expect(tooltip()).toHaveTextContent('Title 2026-10-02')
+  })
+
   it('hides on blur and on Escape', () => {
     render(<Harness />)
     const one = screen.getByRole('button', { name: 'one' })

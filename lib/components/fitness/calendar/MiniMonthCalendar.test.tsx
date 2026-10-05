@@ -226,6 +226,16 @@ describe('MiniMonthCalendar', () => {
       }
     )
 
+    it.each(['ArrowLeft', 'ArrowDown', 'Home', 'PageUp'])(
+      'keeps the page from scrolling on %s',
+      (pressed) => {
+        render(<Harness />)
+        const start = day(/^Friday, 2 October 2026/)
+        start.focus()
+        expect(fireEvent.keyDown(start, { key: pressed })).toBe(false)
+      }
+    )
+
     it('ignores other keys', () => {
       render(<Harness />)
       const start = day(/^Sunday, 4 October 2026/)

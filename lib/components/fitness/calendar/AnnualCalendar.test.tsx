@@ -759,6 +759,56 @@ describe('AnnualCalendar', () => {
       expect(tooltip()).toHaveTextContent('2 activities · 42.6 km · 1h 14m')
     })
 
+    const layout = () =>
+      vi
+        .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        .mockImplementation(function (this: HTMLElement) {
+          const [left, width] = this.matches('[data-slot="annual-scroller"]')
+            ? [0, 600]
+            : [200, 18]
+          return {
+            left,
+            right: left + width,
+            top: 300,
+            bottom: 318,
+            width,
+            height: 18,
+            x: left,
+            y: 300,
+            toJSON: () => ({})
+          } as DOMRect
+        })
+
+    it('shows on keyboard focus and hides on Escape', () => {
+      layout()
+      const { cell } = renderCalendar()
+
+      act(() => {
+        document.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })
+        )
+        cell('2026-09-24').focus()
+      })
+      expect(tooltip()?.dataset.visible).toBe('true')
+
+      fireEvent.keyDown(cell('2026-09-24'), { key: 'Escape' })
+      expect(tooltip()?.dataset.visible).toBe('false')
+    })
+
+    it('hides a hover tooltip when the year row scrolls', () => {
+      layout()
+      const { cell, container } = renderCalendar()
+
+      fireEvent.pointerOver(cell('2026-09-24'), { pointerType: 'mouse' })
+      act(() => vi.advanceTimersByTime(150))
+      expect(tooltip()?.dataset.visible).toBe('true')
+
+      fireEvent.scroll(
+        container.querySelector('[data-slot="annual-scroller"]') as HTMLElement
+      )
+      expect(tooltip()?.dataset.visible).toBe('false')
+    })
+
     it('is suppressed for the pinned day', () => {
       const { cell } = renderCalendar({ selectedDate: key('2026-09-24') })
 
