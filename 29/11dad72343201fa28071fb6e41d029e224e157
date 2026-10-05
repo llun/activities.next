@@ -1,0 +1,30 @@
+lib/database/sql/fitnessRouteHeatmap.ts
+  s_69f35b0cf1b1f5::t_43444ce291e596 341-354
+  s_69f35b0cf1b1f5::t_c0c495af17917c 461,485
+app/api/v1/accounts/[id]/fitness-route-heatmap/share/route.test.ts
+  s_69f35b0cf1b1f5::t_721ec02517e103 171-194
+docs/fitness-file-storage.md
+  s_69f35b0cf1b1f5::t_f0a37725cb4a50 84,305
+lib/database/sql/fitnessRouteHeatmap.test.ts
+  s_69f35b0cf1b1f5::t_d213c4659cc8c2 654-694,702-704,739,745-746
+app/api/v1/accounts/[id]/fitness-route-heatmap/share/route.ts
+  s_69f35b0cf1b1f5::t_721ec02517e103 166-175
+  s_69f35b0cf1b1f5::t_835da451210f8b 8
+  s_69f35b0cf1b1f5::t_9588e66a5e1609 176-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2911dad72343201fa28071fb6e41d029e224e157",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
