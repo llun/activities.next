@@ -1,0 +1,49 @@
+lib/services/medias/reservedPaths.test.ts
+  s_69f35b0cf1b1f5::t_b83b1f6dd3769d 1-4,122-142
+  s_69f35b0cf1b1f5::t_0c81b26d4bfc5f 143
+lib/services/notifications/pushEndpoint.test.ts
+  s_69f35b0cf1b1f5::t_48b9a0f8284c81 84-89
+  s_69f35b0cf1b1f5::t_b7190caa6059ea 7-8,62-78,90-97,101-129,131,133-135,138-139,141-143,145-147,149-150,153-157
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_6107e95ff86042 627
+app/api/v1/statuses/[id]/unreblog/route.test.ts
+  s_69f35b0cf1b1f5::t_8befe1887a23ba 1-142
+lib/database/sql/fitnessRouteHeatmap.test.ts
+  s_69f35b0cf1b1f5::t_3dabccaec0c8f5 1-3,1299-1402
+lib/services/medias/S3StorageFile.test.ts
+  s_69f35b0cf1b1f5::t_6a5ec5e46e6c93 1740-1741
+  s_69f35b0cf1b1f5::t_b83b1f6dd3769d 2614-2618
+  s_69f35b0cf1b1f5::t_1f3eee8468ce64 34,1660,1672,1685-1705,1726-1733,1742-1762,1851,1871
+  s_69f35b0cf1b1f5::t_1674d9e6fc5bb6 1735-1739
+  s_69f35b0cf1b1f5::t_a2dd6518b3f0c7 1734
+lib/jobs/fetchRemoteStatusJob.test.ts
+  s_69f35b0cf1b1f5::t_46ad6eee78d219 663-731
+lib/jobs/fetchRemoteStatusJob.ts
+  s_69f35b0cf1b1f5::t_42050812259120 15,62-67,74
+lib/utils/traceApiRoute.test.ts
+  s_69f35b0cf1b1f5::t_faf45b496f928b 312-349
+lib/jobs/deleteActorJob.test.ts
+  s_69f35b0cf1b1f5::t_a66c7599779506 322-328,345-363
+  s_69f35b0cf1b1f5::t_3a53fbb57eea24 364
+lib/database/sql/fitnessRouteHeatmap.ts
+  s_69f35b0cf1b1f5::t_64b21697193b34 660-665,670
+lib/services/guards/getSenderPublicKey.test.ts
+  s_69f35b0cf1b1f5::t_bd921d40cdf8f1 14,44-50,638-657
+  s_69f35b0cf1b1f5::t_3de90d731e15da 658-659
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4206364d3d33c6e58c1b7f78d00e737d1aaabe83",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
