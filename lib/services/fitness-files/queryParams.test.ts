@@ -1,7 +1,26 @@
 import {
   ActivityTypeParam,
+  NulFreeString,
   TrimmedOptionalActivityTypeParam
-} from './activityTypeParam'
+} from './queryParams'
+
+describe('NulFreeString', () => {
+  it.each([
+    ['a bare NUL byte', '\u0000'],
+    ['a NUL byte inside a value', '2026\u0000-04']
+  ])('rejects %s', (_label, value) => {
+    const parsed = NulFreeString.safeParse(value)
+    expect(parsed.success).toBe(false)
+    expect(parsed.error?.issues[0]?.message).toBe('Must not contain a NUL byte')
+  })
+
+  it.each([['2026-04'], ['not-a-period'], [''], ['run\tning\u0001']])(
+    'accepts %j, since only NUL is refused and not a shape',
+    (value) => {
+      expect(NulFreeString.parse(value)).toBe(value)
+    }
+  )
+})
 
 describe('ActivityTypeParam', () => {
   it.each([

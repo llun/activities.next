@@ -11,7 +11,7 @@ import {
   parseDateKey
 } from '@/lib/fitness/calendar/localDay'
 
-import { ActivityTypeParam } from './activityTypeParam'
+import { ActivityTypeParam } from './queryParams'
 
 /**
  * The query contract shared by the fitness overview's reads: the summary, the
