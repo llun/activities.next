@@ -89,6 +89,7 @@ import {
   getEmojiTags,
   toEmojiShortcodeToken
 } from '@/lib/utils/text/getEmojiTags'
+import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 export interface SQLActorDatabase extends ActorDatabase {
   getActor: (
@@ -337,12 +338,23 @@ const getMastodonAccountFromSQLActor = ({
 
   // Profile metadata fields are stored as plain name/value pairs; URLs are not
   // server-verified, so verified_at is always null.
-  const profileFields = (settings.fields ?? []).map((field) => ({
+  const sourceFields = (settings.fields ?? []).map((field) => ({
     name: field.name,
     value: field.value,
     verified_at: null
   }))
-  const note = sqlActor.summary ?? ''
+  const sourceNote = sqlActor.summary ?? ''
+  // `note` and `fields[].value` are HTML in the Mastodon Account entity, and
+  // clients render them as server-sanitized markup. The stored values are raw:
+  // a local user's bio is whatever they typed, a remote actor's is whatever
+  // its server sent. Sanitize here — the single Account emission point — so
+  // no embedded account can carry scriptable HTML to a client. `source` keeps
+  // the raw values: it is the plain-text editing copy (and feeds Profile).
+  const profileFields = sourceFields.map((field) => ({
+    ...field,
+    value: sanitizeText(field.value)
+  }))
+  const note = sanitizeText(sourceNote)
 
   return Mastodon.Account.parse({
     // The single Account emission point: every embedded `account` (statuses,
@@ -393,8 +405,8 @@ const getMastodonAccountFromSQLActor = ({
     // public Account never leaks it; the credential endpoints overlay the real
     // count (see lib/services/accounts/credentialAccount).
     source: {
-      note,
-      fields: profileFields,
+      note: sourceNote,
+      fields: sourceFields,
       privacy: settings.defaultPrivacy ?? 'public',
       sensitive: settings.defaultSensitive ?? false,
       language: settings.defaultLanguage ?? 'en',
