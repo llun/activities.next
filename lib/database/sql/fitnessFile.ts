@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { Knex } from 'knex'
 
+import { applyCountableActivityFilter } from '@/lib/database/sql/utils/countableActivity'
 import {
   CounterKey,
   decreaseCounterValue,
@@ -9,6 +10,17 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
+import {
+  bucketByLocalDay,
+  isValidTimeZone
+} from '@/lib/fitness/calendar/localDay'
+import type {
+  FitnessActivitySummary,
+  FitnessActivityTimeBounds,
+  FitnessCalendarDay,
+  FitnessWindowActivity,
+  FitnessWindowActivityPage
+} from '@/lib/fitness/calendar/types'
 import {
   FitnessFile,
   FitnessFileType,
@@ -136,32 +148,48 @@ export interface GetFitnessStorageUsageForAccountParams {
   accountId: string
 }
 
-export interface FitnessActivitySummary {
-  activityType: string
-  count: number
-  totalDistanceMeters: number
-  totalDurationSeconds: number
-  totalElevationGainMeters: number
+export type {
+  FitnessActivitySummary,
+  FitnessActivityTimeBounds,
+  FitnessCalendarDay,
+  FitnessWindowActivity,
+  FitnessWindowActivityPage
 }
 
+/**
+ * The instant window `[startDate, endDate)` in epoch milliseconds. Callers
+ * build it from local dates with `localDayWindow`, so the database never sees a
+ * time zone for a range filter and the filter reads the same on every backend.
+ */
 export interface GetFitnessActivitySummaryParams {
   actorId: string
   startDate: number
   endDate: number
 }
 
-export interface FitnessCalendarDay {
-  date: string
-  count: number
-  totalDistanceMeters: number
-  totalDurationSeconds: number
-}
-
 export interface GetFitnessActivityCalendarDataParams {
   actorId: string
+  /** Inclusive start of the window, epoch milliseconds. */
   startDate: number
+  /** Exclusive end of the window, epoch milliseconds. */
   endDate: number
+  /** IANA zone the days are bucketed in; the same one that built the window. */
+  timeZone: string
   activityType?: string
+}
+
+export interface GetFitnessActivitiesInWindowParams {
+  actorId: string
+  /** Inclusive start of the window, epoch milliseconds. */
+  startDate: number
+  /** Exclusive end of the window, epoch milliseconds. */
+  endDate: number
+  limit: number
+  offset: number
+}
+
+export interface GetFitnessActivityTimeBoundsParams {
+  actorId: string
 }
 
 export interface GetActorHasFitnessDataParams {
@@ -261,9 +289,25 @@ export interface FitnessFileDatabase {
     params: GetFitnessActivitySummaryParams
   ): Promise<FitnessActivitySummary[]>
   getActorHasFitnessData(params: GetActorHasFitnessDataParams): Promise<boolean>
+  /**
+   * Per-local-day totals for the window, ascending by date. Days without a
+   * countable activity are absent.
+   */
   getFitnessActivityCalendarData(
     params: GetFitnessActivityCalendarDataParams
   ): Promise<FitnessCalendarDay[]>
+  /**
+   * The activities behind the calendar for a window, oldest first (ties by id),
+   * one page at a time. It applies the same predicate as the summary and the
+   * calendar, so a day's rows always add up to that day's calendar entry.
+   */
+  getFitnessActivitiesInWindow(
+    params: GetFitnessActivitiesInWindowParams
+  ): Promise<FitnessWindowActivityPage>
+  /** The earliest countable activity, under the same predicate. */
+  getFitnessActivityTimeBounds(
+    params: GetFitnessActivityTimeBoundsParams
+  ): Promise<FitnessActivityTimeBounds>
 }
 
 // `importError` is a text column shared by the import and processing stages. Cap
@@ -350,6 +394,39 @@ export const parseElevationSeries = (
   }
   return undefined
 }
+
+// Defensive ceiling for one page of `getFitnessActivitiesInWindow`; the route
+// clamps lower, this only stops a caller asking for an unbounded page.
+const MAX_WINDOW_PAGE_SIZE = 100
+
+/**
+ * The one predicate behind the fitness overview's summary, calendar and day
+ * details: the actor's countable activities (primary, completed, not deleted)
+ * that started in the half-open instant window `[startDate, endDate)`.
+ *
+ * It is deliberately the only place the three reads get their rows from, so a
+ * day's calendar entry, that day's details and the summary can never disagree
+ * about what counts. The range is a plain comparison on `activityStartTime`, with
+ * no date function and no time zone, so it behaves the same on SQLite (epoch
+ * milliseconds) and PostgreSQL (`timestamptz`).
+ */
+const countableActivitiesInWindow = (
+  database: Knex,
+  {
+    actorId,
+    startDate,
+    endDate
+  }: { actorId: string; startDate: number; endDate: number }
+) =>
+  applyCountableActivityFilter(
+    database,
+    database('fitness_files'),
+    'fitness_files'
+  )
+    .where('fitness_files.actorId', actorId)
+    .whereNotNull('fitness_files.activityStartTime')
+    .where('fitness_files.activityStartTime', '>=', new Date(startDate))
+    .where('fitness_files.activityStartTime', '<', new Date(endDate))
 
 const parseSQLFitnessFile = (row: SQLFitnessFile): FitnessFile => ({
   id: row.id,
@@ -960,18 +1037,16 @@ export const FitnessFileSQLDatabaseMixin = (
     startDate,
     endDate
   }: GetFitnessActivitySummaryParams): Promise<FitnessActivitySummary[]> {
-    const rows = await database('fitness_files')
-      .where('actorId', actorId)
-      .whereNull('deletedAt')
-      .where('processingStatus', 'completed')
-      .where('isPrimary', true)
-      .whereNotNull('activityType')
-      .whereNotNull('activityStartTime')
-      .where('activityStartTime', '>=', new Date(startDate))
-      .where('activityStartTime', '<', new Date(endDate))
-      .groupBy('activityType')
+    // No `activityType` filter: an untyped activity is counted, as its own
+    // group, so the totals equal the calendar's sum for the same window.
+    const rows = await countableActivitiesInWindow(database, {
+      actorId,
+      startDate,
+      endDate
+    })
+      .groupBy('fitness_files.activityType')
       .select(
-        'activityType',
+        'fitness_files.activityType as activityType',
         database.raw('COUNT(*) as count'),
         ...(
           [
@@ -980,12 +1055,19 @@ export const FitnessFileSQLDatabaseMixin = (
             ['elevationGainMeters', 'totalElevationGainMeters']
           ] as [string, string][]
         ).map(([col, alias]) =>
-          database.raw('COALESCE(SUM(??), 0) as ??', [col, alias])
+          database.raw('COALESCE(SUM(??), 0) as ??', [
+            `fitness_files.${col}`,
+            alias
+          ])
         )
       )
 
     return rows.map((row: Record<string, unknown>) => ({
-      activityType: String(row.activityType),
+      // `null` stays `null`: `String(null)` would invent a "null" type.
+      activityType:
+        row.activityType === null || row.activityType === undefined
+          ? null
+          : String(row.activityType),
       count: Number(row.count),
       totalDistanceMeters: Number(row.totalDistanceMeters),
       totalDurationSeconds: Number(row.totalDurationSeconds),
@@ -1010,57 +1092,141 @@ export const FitnessFileSQLDatabaseMixin = (
     actorId,
     startDate,
     endDate,
+    timeZone,
     activityType
   }: GetFitnessActivityCalendarDataParams): Promise<FitnessCalendarDay[]> {
-    let query = database('fitness_files')
-      .where('actorId', actorId)
-      .whereNull('deletedAt')
-      .where('processingStatus', 'completed')
-      .where('isPrimary', true)
-      .whereNotNull('activityStartTime')
-      .where('activityStartTime', '>=', new Date(startDate))
-      .where('activityStartTime', '<', new Date(endDate))
-
-    if (activityType) {
-      query = query.where('activityType', activityType)
+    if (!isValidTimeZone(timeZone)) {
+      throw new RangeError(`Invalid time zone: ${JSON.stringify(timeZone)}`)
     }
 
-    const client = String(database.client.config.client)
-    const isSQLite = client === 'better-sqlite3' || client === 'sqlite3'
-    const dateExpr = isSQLite
-      ? database.raw("DATE(?? / 1000, 'unixepoch')", ['activityStartTime'])
-      : database.raw("DATE(?? AT TIME ZONE 'UTC')", ['activityStartTime'])
-    const dateSelectExpr = isSQLite
-      ? database.raw("DATE(?? / 1000, 'unixepoch') as ??", [
-          'activityStartTime',
-          'date'
-        ])
-      : database.raw(
-          "TO_CHAR(DATE(?? AT TIME ZONE 'UTC'), 'YYYY-MM-DD') as ??",
-          ['activityStartTime', 'date']
-        )
+    let query = countableActivitiesInWindow(database, {
+      actorId,
+      startDate,
+      endDate
+    })
+    if (activityType) {
+      query = query.where('fitness_files.activityType', activityType)
+    }
 
-    const rows = await query
-      .groupBy(dateExpr)
+    // The range filter is the only SQL that touches time, and it is the same on
+    // every backend. Days are bucketed here, by the same `startOfLocalDay` that
+    // built the window, so a row lands in the day a day-details read for that
+    // date would return it from.
+    const rows: Record<string, unknown>[] = await query
       .select(
-        dateSelectExpr,
-        database.raw('COUNT(*) as count'),
-        ...(
-          [
-            ['totalDistanceMeters', 'totalDistanceMeters'],
-            ['totalDurationSeconds', 'totalDurationSeconds']
-          ] as [string, string][]
-        ).map(([col, alias]) =>
-          database.raw('COALESCE(SUM(??), 0) as ??', [col, alias])
-        )
+        'fitness_files.activityStartTime',
+        'fitness_files.totalDistanceMeters',
+        'fitness_files.totalDurationSeconds',
+        'fitness_files.elevationGainMeters'
       )
-      .orderBy('date', 'asc')
+      .orderBy([
+        { column: 'fitness_files.activityStartTime', order: 'asc' },
+        { column: 'fitness_files.id', order: 'asc' }
+      ])
 
-    return rows.map((row: Record<string, unknown>) => ({
-      date: String(row.date),
-      count: Number(row.count),
-      totalDistanceMeters: Number(row.totalDistanceMeters),
-      totalDurationSeconds: Number(row.totalDurationSeconds)
+    const timed = rows.map((row) => ({
+      ms: getCompatibleTime(row.activityStartTime as number | Date | string),
+      distance: Number(row.totalDistanceMeters ?? 0),
+      duration: Number(row.totalDurationSeconds ?? 0),
+      elevation: Number(row.elevationGainMeters ?? 0)
     }))
+
+    return bucketByLocalDay(timed, timeZone, (row) => row.ms).map(
+      ({ date, rows: dayRows }) => ({
+        date,
+        count: dayRows.length,
+        totalDistanceMeters: dayRows.reduce(
+          (sum, row) => sum + row.distance,
+          0
+        ),
+        totalDurationSeconds: dayRows.reduce(
+          (sum, row) => sum + row.duration,
+          0
+        ),
+        totalElevationGainMeters: dayRows.reduce(
+          (sum, row) => sum + row.elevation,
+          0
+        )
+      })
+    )
+  },
+
+  async getFitnessActivitiesInWindow({
+    actorId,
+    startDate,
+    endDate,
+    limit,
+    offset
+  }: GetFitnessActivitiesInWindowParams): Promise<FitnessWindowActivityPage> {
+    const pageSize = Math.min(
+      MAX_WINDOW_PAGE_SIZE,
+      Math.max(1, Math.floor(limit))
+    )
+    const skip = Math.max(0, Math.floor(offset))
+
+    // One row past the page answers `hasMore` without a second COUNT query.
+    const rows: Record<string, unknown>[] = await countableActivitiesInWindow(
+      database,
+      { actorId, startDate, endDate }
+    )
+      .select(
+        'fitness_files.id',
+        'fitness_files.statusId',
+        'fitness_files.activityType',
+        'fitness_files.activityStartTime',
+        'fitness_files.totalDistanceMeters',
+        'fitness_files.totalDurationSeconds',
+        'fitness_files.elevationGainMeters',
+        'fitness_files.description',
+        'fitness_files.fileName'
+      )
+      .orderBy([
+        { column: 'fitness_files.activityStartTime', order: 'asc' },
+        { column: 'fitness_files.id', order: 'asc' }
+      ])
+      .limit(pageSize + 1)
+      .offset(skip)
+
+    const toNumberOrNull = (value: unknown) =>
+      value === null || value === undefined ? null : Number(value)
+
+    return {
+      activities: rows.slice(0, pageSize).map((row): FitnessWindowActivity => ({
+        id: String(row.id),
+        statusId: row.statusId ? String(row.statusId) : null,
+        activityType: row.activityType ? String(row.activityType) : null,
+        startTime: getCompatibleTime(
+          row.activityStartTime as number | Date | string
+        ),
+        totalDistanceMeters: toNumberOrNull(row.totalDistanceMeters),
+        totalDurationSeconds: toNumberOrNull(row.totalDurationSeconds),
+        elevationGainMeters: toNumberOrNull(row.elevationGainMeters),
+        description: row.description ? String(row.description) : null,
+        fileName: String(row.fileName)
+      })),
+      hasMore: rows.length > pageSize
+    }
+  },
+
+  async getFitnessActivityTimeBounds({
+    actorId
+  }: GetFitnessActivityTimeBoundsParams): Promise<FitnessActivityTimeBounds> {
+    const row = await applyCountableActivityFilter(
+      database,
+      database('fitness_files'),
+      'fitness_files'
+    )
+      .where('fitness_files.actorId', actorId)
+      .whereNotNull('fitness_files.activityStartTime')
+      .min('fitness_files.activityStartTime as earliest')
+      .first()
+
+    const earliest = (row as Record<string, unknown> | undefined)?.earliest
+    return {
+      earliest:
+        earliest === null || earliest === undefined
+          ? null
+          : getCompatibleTime(earliest as number | Date | string)
+    }
   }
 })

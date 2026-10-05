@@ -1,12 +1,16 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
 
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import {
+  FitnessCalendarQuery,
+  describeCalendarQueryError
+} from '@/lib/services/fitness-files/calendarQuery'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 import {
   ERROR_400,
   ERROR_401,
@@ -15,6 +19,7 @@ import {
   apiResponse,
   defaultOptions
 } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -25,12 +30,13 @@ interface Params {
   id: string
 }
 
-const FitnessCalendarQueryParams = z.object({
-  start_date: z.coerce.number(),
-  end_date: z.coerce.number(),
-  activity_type: z.string().optional()
-})
-
+/**
+ * Per-local-day totals for the signed-in actor's days `from` to `to`
+ * (inclusive) in `time_zone`, ascending by date, optionally narrowed to one
+ * stored `activity_type`. A day without a countable activity has no entry.
+ * Days are bucketed in `time_zone` by the same function that built the
+ * window, so an entry always matches that day's day-details read.
+ */
 export const GET = traceApiRoute(
   'getAccountFitnessCalendar',
   async (req: NextRequest, params: AppRouterParams<Params>) => {
@@ -85,35 +91,44 @@ export const GET = traceApiRoute(
     }
 
     const url = new URL(req.url)
-    const queryParams = Object.fromEntries(url.searchParams.entries())
-    const parsed = FitnessCalendarQueryParams.safeParse(queryParams)
+    const parsed = FitnessCalendarQuery.safeParse(
+      Object.fromEntries(url.searchParams.entries())
+    )
     if (!parsed.success) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: ERROR_400,
+        data: { error: describeCalendarQueryError(parsed.error) },
         responseStatusCode: 400
       })
     }
 
-    const {
-      start_date: startDate,
-      end_date: endDate,
-      activity_type: activityType
-    } = parsed.data
-
-    const calendarData = await database.getFitnessActivityCalendarData({
-      actorId: id,
-      startDate,
-      endDate,
-      activityType
-    })
-
-    return apiResponse({
-      req,
-      allowedMethods: CORS_HEADERS,
-      data: calendarData
-    })
+    try {
+      const calendarDays = await database.getFitnessActivityCalendarData({
+        actorId: currentActor.id,
+        startDate: parsed.data.startMs,
+        endDate: parsed.data.endMs,
+        timeZone: parsed.data.timeZone,
+        activityType: parsed.data.activityType
+      })
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: calendarDays
+      })
+    } catch (error) {
+      logger.error({
+        message: 'Failed to load fitness calendar',
+        actorId: currentActor.id,
+        err: toLoggableError(error)
+      })
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
+    }
   },
   {
     addAttributes: async (_req, context) => {

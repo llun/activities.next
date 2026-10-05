@@ -51,6 +51,8 @@ import {
   getCollectionFeed,
   getCollectionTimeline,
   getFavourites,
+  getFitnessCalendarData,
+  getFitnessCalendarDayActivities,
   getFitnessFilesByStatus,
   getFitnessGearActivities,
   getFitnessGearComponents,
@@ -130,6 +132,7 @@ import * as accountsModule from './client/accounts'
 import * as adminAccountsModule from './client/adminAccounts'
 import * as adminReportsModule from './client/adminReports'
 import * as adminServerSettingsModule from './client/adminServerSettings'
+import * as fitnessCalendarModule from './client/fitnessCalendar'
 import * as fitnessFilesModule from './client/fitnessFiles'
 import * as fitnessGearModule from './client/fitnessGear'
 import * as fitnessGeneralSettingsModule from './client/fitnessGeneralSettings'
@@ -237,6 +240,17 @@ describe('client facade fitness general settings re-exports', () => {
     )
     expect(regenerateFitnessMaps).toBe(
       fitnessGeneralSettingsModule.regenerateFitnessMaps
+    )
+  })
+})
+
+describe('client facade fitness calendar re-exports', () => {
+  it('re-exports the fitness calendar and day activity functions', () => {
+    expect(getFitnessCalendarData).toBe(
+      fitnessCalendarModule.getFitnessCalendarData
+    )
+    expect(getFitnessCalendarDayActivities).toBe(
+      fitnessCalendarModule.getFitnessCalendarDayActivities
     )
   })
 })

@@ -198,6 +198,10 @@ The durable rule source moved to [docs/architecture.md](docs/architecture.md#age
 
 The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-page-header-sub-navigation); read it before changing this subsystem.
 
+## Fitness Overview Calendar
+
+The durable rule source lives in [docs/architecture.md](docs/architecture.md#agents-fitness-overview-calendar); read it before changing this subsystem.
+
 ## Settings Forms (Client Components)
 
 The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-settings-forms-client-components); read it before changing this subsystem.

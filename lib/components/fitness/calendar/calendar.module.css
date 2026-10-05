@@ -1,0 +1,346 @@
+/*
+ * Fitness calendar visuals that Tailwind utilities cannot express, such as the
+ * cell state marks (selection ring, focus brackets, slashed out-of-range cell,
+ * skeleton), the annual scroller's edge-fade mask, the today marks, the legend
+ * swatch and the month-label hit band.
+ *
+ * Layout, spacing and typography stay in Tailwind at the use site. State is
+ * read from data attributes (`data-level`, `data-state`, `data-loading`,
+ * `aria-pressed` and the like), not from classes, so a test can assert what a
+ * cell is without knowing a hashed class name.
+ *
+ * Colours come from the scoped `--heat-*` tokens in app/globals.css (set by the
+ * `fitness-heat` class on each calendar root) and the theme tokens. Durations
+ * come from the `--fitness-t-*` motion tokens. Under prefers-reduced-motion
+ * the brief colour and opacity fades stay; nothing here moves.
+ */
+
+/* ---------------------------------------------------------------- cells --- */
+
+.cell {
+  --cell-bg: var(--heat-0);
+  --cell-fg: var(--heat-0-fg);
+  /* Brackets and ring sit on the fill, so they take the numeral colour as a
+     thin halo and stay visible on every level (orange is 1.27:1 on Heat 4). */
+  --mark: var(--primary);
+
+  position: relative;
+  box-sizing: border-box;
+  display: block;
+  width: var(--cell);
+  height: var(--cell);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cell-radius, 2px);
+  background-color: var(--cell-bg);
+  color: var(--cell-fg);
+  cursor: pointer;
+  font: inherit;
+  appearance: none;
+  outline: none;
+  transition:
+    background-color var(--fitness-t-color) linear,
+    color var(--fitness-t-color) linear;
+}
+
+.cell[data-level='1'] {
+  --cell-bg: var(--heat-1);
+  --cell-fg: var(--heat-1-fg);
+}
+
+.cell[data-level='2'] {
+  --cell-bg: var(--heat-2);
+  --cell-fg: var(--heat-2-fg);
+}
+
+.cell[data-level='3'] {
+  --cell-bg: var(--heat-3);
+  --cell-fg: var(--heat-3-fg);
+}
+
+.cell[data-level='4'] {
+  --cell-bg: var(--heat-4);
+  --cell-fg: var(--heat-4-fg);
+}
+
+/* Annual: a plain square. */
+.annual {
+  --cell-radius: 2px;
+}
+
+/* Month: a numbered square whose type and corners scale with the cell. */
+.month {
+  --cell-radius: clamp(6px, calc(var(--cell) * 0.13), 12px);
+
+  display: grid;
+  place-items: center;
+  font-size: clamp(13px, calc(var(--cell) * 0.19), 18px);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Upcoming: outlined, not filled. Disabled, so the quiet outline is exempt
+   from the non-text contrast rule (WCAG 1.4.11). */
+.cell[data-state='upcoming'] {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1px var(--heat-upcoming);
+  color: var(--muted-foreground);
+  cursor: default;
+}
+
+/* Out of range: an outlined cell with a slash, never mistaken for a rest day
+   (which is a neutral fill) and not relying on colour alone. */
+.cell[data-state='out'] {
+  background-color: transparent;
+  background-image: linear-gradient(
+    to top right,
+    transparent calc(50% - 0.5px),
+    var(--heat-out-of-range) calc(50% - 0.5px),
+    var(--heat-out-of-range) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+  box-shadow: inset 0 0 0 1px var(--heat-out-of-range);
+  color: var(--muted-foreground);
+  cursor: default;
+}
+
+/* Loading keeps the layout: a static skeleton fill (no shimmer). */
+.cell[data-loading='true'][data-state='active'] {
+  background-color: var(--skeleton);
+  color: var(--muted-foreground);
+}
+
+/* Selection: an orange ring OUTSIDE the cell, so it reads against the page and
+   not against the fill; the green fill is untouched. It fades on a pseudo
+   element so the ring can transition without moving anything. */
+.cell::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 2px solid var(--mark);
+  border-radius: calc(var(--cell-radius) + 3px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fitness-t-select) linear;
+}
+
+.cell[aria-pressed='true'] {
+  z-index: 2;
+}
+
+.cell[aria-pressed='true']::after {
+  opacity: 1;
+}
+
+/* Keyboard focus: four inset corner brackets (distinct from the ring and not
+   overlapping neighbours). A hairline of the numeral colour keeps them visible
+   on the strongest fills. */
+.cell::before {
+  --arm: 4px;
+  --thick: 2px;
+  --inset: 1px;
+
+  content: '';
+  position: absolute;
+  inset: var(--inset);
+  background:
+    linear-gradient(var(--mark), var(--mark)) top left / var(--arm) var(--thick)
+      no-repeat,
+    linear-gradient(var(--mark), var(--mark)) top left / var(--thick) var(--arm)
+      no-repeat,
+    linear-gradient(var(--mark), var(--mark)) top right / var(--arm)
+      var(--thick) no-repeat,
+    linear-gradient(var(--mark), var(--mark)) top right / var(--thick)
+      var(--arm) no-repeat,
+    linear-gradient(var(--mark), var(--mark)) bottom left / var(--arm)
+      var(--thick) no-repeat,
+    linear-gradient(var(--mark), var(--mark)) bottom left / var(--thick)
+      var(--arm) no-repeat,
+    linear-gradient(var(--mark), var(--mark)) bottom right / var(--arm)
+      var(--thick) no-repeat,
+    linear-gradient(var(--mark), var(--mark)) bottom right / var(--thick)
+      var(--arm) no-repeat;
+  filter: drop-shadow(0 0 0.5px var(--cell-fg));
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.month::before {
+  --arm: 12px;
+  --thick: 2px;
+  --inset: 5px;
+}
+
+.cell:focus-visible {
+  z-index: 4;
+}
+
+.cell:focus-visible::before {
+  opacity: 1;
+}
+
+/* Today: a dot in an annual cell, an underline under a month numeral. */
+.todayDot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(3px, calc(var(--cell) * 0.24));
+  height: max(3px, calc(var(--cell) * 0.24));
+  border-radius: 9999px;
+  background-color: var(--cell-fg);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.todayNumeral {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+/* ------------------------------------------------------- annual scroller --- */
+
+.scroller {
+  --fitness-fade-start: 0;
+  --fitness-fade-end: 0;
+
+  /* The sticky label column stays fully opaque; each fade is 16px wide and only
+     exists on a side with hidden content, so it is never over today at the end
+     of the grid. */
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 var(--label-w),
+    rgb(0 0 0 / calc(1 - var(--fitness-fade-start))) var(--label-w),
+    #000 calc(var(--label-w) + var(--fade-w)),
+    #000 calc(100% - var(--fade-w)),
+    rgb(0 0 0 / calc(1 - var(--fitness-fade-end))) 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 var(--label-w),
+    rgb(0 0 0 / calc(1 - var(--fitness-fade-start))) var(--label-w),
+    #000 calc(var(--label-w) + var(--fade-w)),
+    #000 calc(100% - var(--fade-w)),
+    rgb(0 0 0 / calc(1 - var(--fitness-fade-end))) 100%
+  );
+  transition:
+    --fitness-fade-start var(--fitness-t-edge) linear,
+    --fitness-fade-end var(--fitness-t-edge) linear;
+}
+
+.scroller[data-fade-start='true'] {
+  --fitness-fade-start: 1;
+}
+
+.scroller[data-fade-end='true'] {
+  --fitness-fade-end: 1;
+}
+
+.scroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scroller::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* The sticky column paints the surface behind the calendar so cells scrolling
+   beneath it are hidden. The dashboard can override the surface it sits on. */
+.labels {
+  background-color: var(--fitness-calendar-surface, var(--background));
+  box-shadow: 3px 0 0 0 var(--fitness-calendar-surface, var(--background));
+}
+
+/* A month label is 14px of text in a 44px-tall button. The button itself is
+   44px (so a measurement of it agrees with what a finger hits): it reaches 27px
+   up into the scroller's own top padding, where nothing else is, and 3px down
+   into the gap above Monday, so it never overlaps the metric control above or a
+   cell below, and the scroller clips it at its edge. Negative margins make its
+   44px margin box exactly the 14px label row, so the grid does not move.
+
+   It is as wide as the label's column span (four week columns, never reaching
+   the next month's own label). The one exception is the last label when it is
+   right-aligned inside a span of fewer than four columns at the grid's end (the
+   current month near today): it keeps only the width of its text, since a wider
+   target would have to reach back over the previous month's. */
+.monthLabel {
+  position: relative;
+  box-sizing: border-box;
+  height: 44px;
+  margin: -27px 0 -3px;
+  padding: 27px 0 3px;
+}
+
+.monthLabelEnd {
+  padding-inline: 2px;
+}
+
+.monthLabelText {
+  display: inline-block;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.monthLabel:hover .monthLabelText {
+  background-color: var(--muted);
+}
+
+.monthLabel:focus-visible .monthLabelText {
+  outline: 2px dotted var(--primary);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------- misc ----- */
+
+.swatch {
+  --cell-bg: var(--heat-0);
+
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 3px;
+  background-color: var(--cell-bg);
+}
+
+.swatch[data-level='1'] {
+  --cell-bg: var(--heat-1);
+}
+
+.swatch[data-level='2'] {
+  --cell-bg: var(--heat-2);
+}
+
+.swatch[data-level='3'] {
+  --cell-bg: var(--heat-3);
+}
+
+.swatch[data-level='4'] {
+  --cell-bg: var(--heat-4);
+}
+
+.swatch[data-upcoming='true'] {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1px var(--heat-upcoming);
+}
+
+/* Month and view crossfade: opacity only, never movement. */
+.fade {
+  transition: opacity var(--fitness-t-xfade-half) linear;
+}
+
+.fade[data-fading='true'] {
+  opacity: 0;
+}
+
+/* Reload: dim, keep the layout. */
+.dim {
+  transition: opacity var(--fitness-t-dim) ease-in;
+}
+
+.dim[data-loading='true'] {
+  opacity: 0.6;
+}

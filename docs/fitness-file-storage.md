@@ -253,7 +253,7 @@ Bikes, shoes and recording devices all live in `fitness_gears`, the parts bolted
 
 **Lifetime distance is never stored.** A gear total is `SUM(fitness_files.totalDistanceMeters) WHERE gearId = ?`, and a component total is the same sum restricted to activities whose `activityStartTime` falls inside one of the component's `[addedAt, removedAt)` install periods — a null `addedAt` means "since the gear's beginning" and a null `removedAt` means "still installed". Both rollups reuse the same `deletedAt IS NULL` + `processingStatus = 'completed'` + `isPrimary` filter as `getFitnessActivitySummary`, so gear numbers line up with the fitness overview. Storing the totals instead would have to be reconciled on every back-dated upload, archive re-import, activity edit and delete; derived totals are always consistent with the calendar for free.
 
-An activity with no `activityStartTime` — a GPX carrying no timestamps — counts toward its gear's total but only toward components with a period open on that side, because an activity that cannot be placed in time cannot be placed inside `[addedAt, removedAt)` either. A gear total may therefore exceed the sum of its components' totals. For the same reason such an activity is counted here but not by `getFitnessActivitySummary`, which additionally requires a non-null `activityType` and `activityStartTime` to group by.
+An activity with no `activityStartTime` — a GPX carrying no timestamps — counts toward its gear's total but only toward components with a period open on that side, because an activity that cannot be placed in time cannot be placed inside `[addedAt, removedAt)` either. A gear total may therefore exceed the sum of its components' totals. For the same reason such an activity is counted here but not by `getFitnessActivitySummary`, which additionally requires a non-null `activityStartTime` to bucket by. It does not require an `activityType`: an untyped activity is counted there as its own `activityType: null` group.
 
 `fitness_gears` columns: `id`, `actorId`, `kind` (`bike`, `shoes` or `device`), `name`, `brand`, `model`, `bikeType`, `weightKilograms`, `defaultSports` (a JSON-encoded array of canonical sport keys, in a `text` column so every backend behaves alike), `alertDistanceMeters`, `lastAlertedDistanceMeters`, `notes`, `deviceKey`, `productUrl`, `retiredAt`, and the usual timestamps with a soft-delete `deletedAt`.
 
@@ -295,13 +295,16 @@ An activity with no `activityStartTime` — a GPX carrying no timestamps — cou
 
 ### Account Fitness Data
 
-- `GET /api/v1/accounts/:id/fitness-summary`
-- `GET /api/v1/accounts/:id/fitness-calendar`
+- `GET /api/v1/accounts/:id/fitness-summary?from=YYYY-MM-DD&to=YYYY-MM-DD&time_zone=<IANA>` returns per-activity-type totals for the viewer-local days `from` to `to`, inclusive. Untyped activities are their own `activityType: null` group, so the totals equal the calendar's sum for the same range.
+- `GET /api/v1/accounts/:id/fitness-calendar?from=…&to=…&time_zone=…[&activity_type=…]` returns per-local-day totals (`date`, `count`, distance, duration, elevation gain), ascending, with no entry for a day without a countable activity.
+- `GET /api/v1/accounts/:id/fitness-calendar/day?date=YYYY-MM-DD&time_zone=…[&limit&offset]` returns one page of the activities behind a calendar day, oldest first: `{ date, timeZone, activities, hasMore, nextOffset }`. Each row carries only what the day details render, and `title` and `statusPath` are `null` when the post behind it is gone. A post with a content warning is titled by the warning, never by its body, even when the warning is only emoji; a warning made only of invisible characters (zero-width or other format characters, or bare combining marks; also a few known blank characters such as the Hangul filler U+3164) is titled `Content warning`, and a line made only of them is skipped when choosing a first line. `limit` defaults to 20 and is clamped to 1–50, an odd `limit` or `offset` is clamped rather than rejected, and `nextOffset` counts activity rows, not posts. Owner only, like its siblings.
 - `GET /api/v1/accounts/:id/fitness-activity-types`
 - `GET` and `DELETE /api/v1/accounts/:id/fitness-route-heatmaps`
 - `GET`, `POST`, and `DELETE /api/v1/accounts/:id/fitness-route-heatmap`
 - `GET /api/v1/accounts/:id/fitness-route-heatmap/tiles` returns the owner's own pyramid tiles for a view. Owner only, bounded per request.
 - `POST` and `DELETE /api/v1/accounts/:id/fitness-route-heatmap/share` mint and revoke the share token the public views are reached by.
+
+The summary, calendar and day routes share one query contract (`lib/services/fitness-files/calendarQuery.ts`). The client sends calendar days and its IANA zone, never instants: `from`/`to` are real `YYYY-MM-DD` dates from 1970 on (`to` inclusive and not before `from`), and `time_zone` is a named IANA zone (offset forms such as `+05:30` are rejected because they carry no daylight-saving rules; the route and the browser share one pattern, `NAMED_TIME_ZONE_PATTERN` in `lib/fitness/calendar/localDay.ts`). The calendar's `activity_type` is at most 255 characters and must not contain a NUL byte, which PostgreSQL rejects in a bound parameter. The route turns the days into one half-open instant window with `localDayWindow`. There is deliberately no server-side minimum span: the 7-day minimum for custom ranges is the client's range validator, and the This month and Year to date presets must load on their first day. A malformed or impossible value answers `400` with `{ "error": "Invalid <param>: <reason>" }` naming the first bad parameter; the client throws an `ApiRequestError` carrying that message for any non-OK response (and a plain error for a malformed body), so a failed read shows an error with a retry rather than an empty calendar.
 
 The `POST /api/v1/accounts/:id/fitness-route-heatmap` body takes an optional `retry` flag to restart a run and a `cancel` flag to stop an in-flight (`pending`/`generating`) generation. Cancelling moves the run to a terminal `cancelled` state (resetting its progress so a later Generate/Retry starts clean) and returns `{ cancelled }`; the region detail view surfaces Cancel while generating and Retry once cancelled.
 
@@ -359,7 +362,7 @@ Reprocessing a file (a retry, a recovery script, a re-import) attaches its new r
 - Fitness upload button in the post box
 - Fitness activity status detail with route map, stats, device info, media, and analysis graphs
 - Settings pages for storage usage, file management, default visibility, Strava, privacy locations, and route map regeneration
-- Profile fitness dashboard and route heatmap view
+- Fitness overview with a viewer-local training calendar, date range picker and per-day activity details, and the route heatmap view
 - Strava OAuth and webhook imports
 - Strava archive ZIP upload with progress, retry, and cancel support
 
@@ -421,21 +424,19 @@ Read the applicable rules and review checks below before changing this subsystem
 
 ### Fitness Stat Strips
 
-- **Three stat strips render through `FitnessStatGrid`**
+- **Four stat strips render through `FitnessStatGrid`**
   (`@/lib/components/fitness/FitnessStatGrid`): the activity detail page's
   header strip (distance / moving time / avg pace / elev gain), the strip under
-  its route map, and the inline fitness chip in a timeline post. Do not
+  its route map, the inline fitness chip in a timeline post, and the fitness
+  overview's totals (`FitnessSummaryStrip`, the `summary` variant). Do not
   hand-roll a `grid-cols-*` strip beside them, and put a new fitness stat strip
   on this component rather than on a fourth threshold of its own.
-- **Two strips are NOT on it yet**, so do not read the rule as describing the
+- **One strip is NOT on it yet**, so do not read the rule as describing the
   whole tree: the gear detail page's strip
   (`app/(timeline)/fitness/gear/[id]/GearDetailView.tsx` — still on a
   `sm:grid-cols-3`/`sm:grid-cols-2` **viewport** query, which is the same defect
-  described below) and the fitness overview's totals
-  (`app/(timeline)/fitness/ActorFitnessDashboard.tsx` — container-queried, but
-  hand-rolled on its own `@2xl/fitness` threshold). Migrating them is a
-  worthwhile follow-up; until then this section describes three strips, not
-  every one.
+  described below). Migrating it is a worthwhile follow-up; until then this
+  section describes four strips, not every one.
 - **The column rule is a CONTAINER query, never a viewport breakpoint.** The
   design system's `FitnessKit.StatGrid` and `FitnessChip` grids measure their
   own width with a `ResizeObserver` for the same reason `useCompactActionBar`
@@ -444,12 +445,18 @@ Read the applicable rules and review checks below before changing this subsystem
   detail page kept four `text-[28px]` tiles side by side in a 565px column and
   wrapped "31.1 km/h" onto two lines, while a chip in a wide column stayed
   needlessly 2-up at any window under 640px.
-- The two variants differ, and it is the type size that separates them.
+- The three variants differ, and it is the type size that separates them.
   `detail` is 1-up, 2-up from **420px** and 4-up from **780px** (values are
   21–28px, so a cell needs ~200px). `chip` is 2-up and 4-up from **424px**
   (`text-sm` values fit four cells in 4×100px + 3×8px of gap) and never drops to
   one column — a 4-row chip in a feed is a worse trade than a slightly tight
-  cell.
+  cell. `summary` (the overview's Activities / Distance / Duration / Elevation)
+  is 1-up below **16rem**, 2×2 from **16rem** and 4-up from **43.75rem**
+  (256px and 700px at the default text size): its values are `text-xl` and a
+  long total such as "1,234h 56m" needs ~175px a cell. Its thresholds alone are
+  `rem`, not `px`, so they follow the reader's text size: at 200% text a narrow
+  column stacks to one column rather than clipping "22.2 km". A 1px gap over a
+  border-coloured track draws its hairline dividers.
 - The detail page's two strips measure **separately** — the header one sits
   inside the card's `p-5` and is 42px narrower than the one under the map — so
   they can legitimately differ by one step in a narrow band of window widths.
@@ -549,6 +556,20 @@ Read the applicable rules and review checks below before changing this subsystem
   the next render via `useHasHydrated` (`lib/hooks/useHasHydrated.ts`). Do not
   format it in the browser's zone during render and paper over the mismatch
   with `suppressHydrationWarning`: React then keeps the server's UTC text.
+- **The overview's days are viewer-local, end to end, and the database never
+  sees a time zone.** The client sends calendar days plus its IANA zone
+  (`useViewerTimeZone`), and `localDayWindow` (`lib/fitness/calendar/localDay.ts`)
+  turns them into one half-open instant window, which all three reads (summary,
+  calendar, day details) apply as a plain `activityStartTime` comparison through
+  the single `countableActivitiesInWindow` predicate. The calendar then buckets
+  the rows into days in JavaScript with `bucketByLocalDay`, which checks each
+  bucket against the same `startOfLocalDay` that built the window, so a day's
+  calendar entry, its day details and the summary cannot disagree. Do not
+  bucket in SQL (`DATE(... AT TIME ZONE ...)`, `strftime`, an `isSQLite`
+  branch): that is how the calendar used to bucket by UTC date, and a SQL
+  expression cannot share the window's day boundaries, daylight-saving days
+  included. "Today" and which days are future also come from the viewer's zone.
+  Gear dates stay UTC.
 
 <a id="agents-fitness-route-heatmap-pyramid"></a>
 
@@ -938,10 +959,11 @@ null }` remains the precise "this retirement never happened" — it reopens the
   `getFitnessActivitySummary` uses, so gear numbers line up with the fitness
   overview. A new rollup that filters differently will quietly disagree with
   every other surface. Two deliberate asymmetries: the summary additionally
-  requires a non-null `activityType`/`activityStartTime` because it groups by
-  them, so a timestamp-less GPX counts toward a gear total and is invisible
-  there; and an activity with no `activityStartTime` counts only for a
-  component with a period open on that side, since it cannot be placed inside
+  requires a non-null `activityStartTime` because it buckets by it (an untyped
+  activity is counted, as its own `activityType: null` group), so a
+  timestamp-less GPX counts toward a gear total and is invisible there; and an
+  activity with no `activityStartTime` counts only for a component with a
+  period open on that side, since it cannot be placed inside
   `[addedAt, removedAt)`. A gear total may therefore exceed the sum of its
   components.
 - **The components table pins both bookends (`Type` left, `Actions` right) on

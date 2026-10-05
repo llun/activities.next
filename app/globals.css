@@ -263,6 +263,86 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Fitness overview calendar: heat colours and motion.
+
+   `.fitness-heat` scopes the heat tokens to the calendar components (cells,
+   legend, day list), so a fill colour never leaks into other surfaces. Fills are
+   the design's locked values and stand for INTENSITY only (green); orange stays
+   reserved for interaction and selection. `--heat-N-fg` is the numeral colour a
+   month cell draws on its fill. Light Heat 4 takes black (4.78:1) because the
+   prototype's white numeral was only 4.40:1; every pair is guarded by
+   app/globals.contrast.test.ts.
+
+   `--heat-upcoming` outlines a day that has not happened yet and
+   `--heat-out-of-range` draws the slash of a day outside the applied range. Both
+   belong to disabled cells, which WCAG 1.4.11 exempts, so they stay quiet on
+   purpose. */
+.fitness-heat {
+  --heat-0: #f2f3f4;
+  --heat-1: #c3e6c7;
+  --heat-2: #93cd9f;
+  --heat-3: #6ab07b;
+  --heat-4: #428656;
+  --heat-0-fg: #0a0a0a;
+  --heat-1-fg: #0a0a0a;
+  --heat-2-fg: #0a0a0a;
+  --heat-3-fg: #0a0a0a;
+  --heat-4-fg: #000000;
+  --heat-upcoming: #c9ccd1;
+  --heat-out-of-range: #c9ccd1;
+}
+
+.dark .fitness-heat {
+  --heat-0: #26272b;
+  --heat-1: #2f6b47;
+  --heat-2: #4c9a68;
+  --heat-3: #7fcb98;
+  --heat-4: #b6ebc6;
+  --heat-0-fg: #f5f5f5;
+  --heat-1-fg: #ffffff;
+  --heat-2-fg: #0a0a0a;
+  --heat-3-fg: #0a0a0a;
+  --heat-4-fg: #0a0a0a;
+  --heat-upcoming: #4a4c52;
+  --heat-out-of-range: #4a4c52;
+}
+
+/* The approved calendar timings (decisions.md, "Motion & scroll"). Only
+   opacity and colour ever move; reduced motion drops smooth scrolling and the
+   sheet's rise but keeps these brief fades. lib/components/fitness/calendar
+   mirrors the ones a script waits on (calendarShared.ts, guarded by a test). */
+:root {
+  /* Month and view crossfade: this long out, then this long in. */
+  --fitness-t-xfade-half: 75ms;
+  /* Cell colour on a data change, and the reload dim. */
+  --fitness-t-color: 150ms;
+  --fitness-t-dim: 150ms;
+  /* Inline day details fade in. */
+  --fitness-t-detail: 150ms;
+  /* Mobile day sheet: opacity plus a 16px rise, ease-out. */
+  --fitness-t-sheet: 200ms;
+  /* Selected ring, and the annual scroller's edge fades. */
+  --fitness-t-select: 100ms;
+  --fitness-t-edge: 100ms;
+  /* Tooltip fade in and out. */
+  --fitness-t-tip-in: 100ms;
+  --fitness-t-tip-out: 75ms;
+}
+
+/* Registered so the annual scroller's edge fades can transition: a mask
+   gradient cannot, but a registered number can. 0 hides the fade, 1 shows it. */
+@property --fitness-fade-start {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --fitness-fade-end {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

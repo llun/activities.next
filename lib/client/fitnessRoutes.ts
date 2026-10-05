@@ -1,3 +1,6 @@
+import { z } from 'zod'
+
+import type { FitnessActivitySummary } from '@/lib/fitness/calendar/types'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 
 import { ApiRequestError, parseApiError } from './http'
@@ -90,41 +93,74 @@ export const retryAllFitnessImports = async (): Promise<{
   return response.json()
 }
 
-export interface FitnessActivitySummary {
-  activityType: string
-  count: number
-  totalDistanceMeters: number
-  totalDurationSeconds: number
-  totalElevationGainMeters: number
-}
+const FitnessActivitySummariesSchema = z.array(
+  z.object({
+    activityType: z.string().nullable(),
+    count: z.number(),
+    totalDistanceMeters: z.number(),
+    totalDurationSeconds: z.number(),
+    totalElevationGainMeters: z.number()
+  })
+)
 
 export interface GetFitnessSummaryParams {
   actorId: string
-  startDate: number
-  endDate: number
+  /** Inclusive `YYYY-MM-DD` key in `timeZone`. */
+  from: string
+  /** Inclusive `YYYY-MM-DD` key in `timeZone`. */
+  to: string
+  /** IANA zone the range is read in. */
+  timeZone: string
+  signal?: AbortSignal
 }
 
+/**
+ * Per-activity-type totals for the viewer-local range. `activityType` is
+ * `null` for activities without a type. A non-OK response throws an
+ * `ApiRequestError` and a malformed body throws: an error is never an empty
+ * summary.
+ */
 export const getFitnessSummary = async ({
   actorId,
-  startDate,
-  endDate
+  from,
+  to,
+  timeZone,
+  signal
 }: GetFitnessSummaryParams): Promise<FitnessActivitySummary[]> => {
   const encodedId = toIdPathSegment(actorId)
   const url = new URL(
     `${window.origin}/api/v1/accounts/${encodedId}/fitness-summary`
   )
-  url.searchParams.append('start_date', `${startDate}`)
-  url.searchParams.append('end_date', `${endDate}`)
+  url.searchParams.append('from', from)
+  url.searchParams.append('to', to)
+  url.searchParams.append('time_zone', timeZone)
   const response = await fetch(url.toString(), {
     method: 'GET',
     headers: {
       Accept: 'application/json'
-    }
+    },
+    signal
   })
   if (!response.ok) {
-    throw new Error(`Failed to fetch fitness summary: ${response.status}`)
+    throw new ApiRequestError(
+      await parseApiError(response, 'Failed to fetch fitness summary.'),
+      response.status
+    )
   }
-  return response.json()
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch (error) {
+    // An abort that lands while the body streams is the caller's cancellation,
+    // not a malformed body.
+    if (signal?.aborted) throw error
+    throw new Error('Fitness summary response is invalid', { cause: error })
+  }
+  const parsed = FitnessActivitySummariesSchema.safeParse(body)
+  if (!parsed.success) {
+    throw new Error('Fitness summary response is invalid')
+  }
+  return parsed.data
 }
 
 export const deleteFitnessFile = async (id: string): Promise<void> => {

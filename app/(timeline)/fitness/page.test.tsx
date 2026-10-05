@@ -1,10 +1,13 @@
 import { ReactElement, isValidElement } from 'react'
 
+import { PageHeader } from '@/lib/components/page-header'
+import { createDeferred } from '@/lib/testing/deferred'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { ActorFitnessDashboard } from './ActorFitnessDashboard'
+import { OverviewHeaderSlot } from './FitnessOverviewHeader'
 import { RecentFitnessActivities } from './RecentFitnessActivities'
 import Page from './page'
 
@@ -38,6 +41,7 @@ vi.mock('./RecentFitnessActivities', () => ({
 }))
 
 const currentTime = new Date('2026-05-17T12:00:00.000Z').getTime()
+const EARLIEST_ACTIVITY_TIME = new Date('2021-03-02T07:30:00.000Z').getTime()
 
 const currentActor = {
   id: 'https://example.com/users/me',
@@ -152,7 +156,10 @@ const createDatabase = () => ({
     .mockResolvedValue([fitnessFile('https://example.com/users/me/s/1')]),
   getStatus: vi
     .fn()
-    .mockResolvedValue(status('https://example.com/users/me/s/1'))
+    .mockResolvedValue(status('https://example.com/users/me/s/1')),
+  getFitnessActivityTimeBounds: vi
+    .fn()
+    .mockResolvedValue({ earliest: EARLIEST_ACTIVITY_TIME })
 })
 
 describe('fitness page', () => {
@@ -264,5 +271,103 @@ describe('fitness page', () => {
     expect(
       findElementByType(element, ActorFitnessDashboard)?.props
     ).toMatchObject({ selectedActivityType: undefined })
+  })
+
+  it('hands the dashboard the server clock and the earliest activity time', async () => {
+    const database = createDatabase()
+    mockGetDatabase.mockReturnValue(database)
+
+    const element = await Page({ searchParams: Promise.resolve({}) })
+
+    expect(database.getFitnessActivityTimeBounds).toHaveBeenCalledWith({
+      actorId: currentActor.id
+    })
+    const props = findElementByType(element, ActorFitnessDashboard)?.props as
+      Record<string, unknown> | undefined
+    expect(props).toMatchObject({
+      actorId: currentActor.id,
+      earliestActivityTime: EARLIEST_ACTIVITY_TIME
+    })
+    // A number, not a Date: it crosses into a Client Component.
+    expect(typeof props?.currentTime).toBe('number')
+  })
+
+  it('reads the earliest activity time alongside the recent activities', async () => {
+    const database = createDatabase()
+    const files = createDeferred<FitnessFile[]>()
+    database.getFitnessFilesByActor.mockReturnValue(files.promise)
+    mockGetDatabase.mockReturnValue(database)
+
+    const page = Page({ searchParams: Promise.resolve({ activity: 'run' }) })
+    await vi.waitFor(() =>
+      expect(database.getFitnessFilesByActor).toHaveBeenCalled()
+    )
+
+    // The recent activities are still loading; the bounds did not wait.
+    expect(database.getFitnessActivityTimeBounds).toHaveBeenCalledWith({
+      actorId: currentActor.id
+    })
+    files.resolve([fitnessFile('https://example.com/users/me/s/1')])
+    const element = await page
+    expect(
+      findElementByType(element, ActorFitnessDashboard)?.props
+    ).toMatchObject({ earliestActivityTime: EARLIEST_ACTIVITY_TIME })
+  })
+
+  it('still fails the page when the earliest activity time cannot be read', async () => {
+    const database = createDatabase()
+    database.getFitnessActivityTimeBounds.mockRejectedValue(
+      new Error('connection reset')
+    )
+    mockGetDatabase.mockReturnValue(database)
+
+    await expect(Page({ searchParams: Promise.resolve({}) })).rejects.toThrow(
+      'connection reset'
+    )
+  })
+
+  it('passes a null earliest time through when the actor has no countable activity', async () => {
+    const database = createDatabase()
+    database.getFitnessActivityTimeBounds.mockResolvedValue({ earliest: null })
+    mockGetDatabase.mockReturnValue(database)
+
+    const element = await Page({ searchParams: Promise.resolve({}) })
+
+    expect(
+      findElementByType(element, ActorFitnessDashboard)?.props
+    ).toMatchObject({ earliestActivityTime: null })
+  })
+
+  // The default range is year to date and the viewer can choose any other, so
+  // a fixed span in the description would contradict the page below it.
+  it('describes the empty state without a fixed span', async () => {
+    const database = createDatabase()
+    database.getActorHasFitnessData.mockResolvedValue(false)
+    mockGetDatabase.mockReturnValue(database)
+
+    const element = await Page({ searchParams: Promise.resolve({}) })
+
+    const header = findElementByType(element, PageHeader)?.props as
+      { title: string; description: string } | undefined
+    expect(header?.title).toBe('Overview')
+    expect(header?.description).not.toMatch(/12 months/i)
+  })
+
+  // The dates are the viewer's local days, which the server cannot know, so
+  // the header carries empty slots the dashboard fills on wide containers.
+  it('gives the dashboard the header slots for the dates and the range picker', async () => {
+    const database = createDatabase()
+    mockGetDatabase.mockReturnValue(database)
+
+    const element = await Page({ searchParams: Promise.resolve({}) })
+
+    const header = findElementByType(element, PageHeader)?.props as
+      | { title: string; description: ReactElement; actions: ReactElement }
+      | undefined
+    expect(header?.title).toBe('Overview')
+    expect(header?.description.type).toBe(OverviewHeaderSlot)
+    expect(header?.description.props).toEqual({ slot: 'dates' })
+    expect(header?.actions.type).toBe(OverviewHeaderSlot)
+    expect(header?.actions.props).toEqual({ slot: 'range' })
   })
 })

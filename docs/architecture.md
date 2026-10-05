@@ -508,6 +508,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Link prefetching in feeds](#agents-link-prefetching-in-feeds)
 - [Navigation Customization](#agents-navigation-customization)
 - [Page Header & Sub-Navigation](#agents-page-header-sub-navigation)
+- [Fitness Overview Calendar](#agents-fitness-overview-calendar)
 - [Settings Forms (Client Components)](#agents-settings-forms-client-components)
 - [Transactional & Notification Emails](#agents-transactional-notification-emails)
 - [Link Preview Cards](#agents-link-preview-cards)
@@ -737,6 +738,17 @@ section-navigation patterns; pick by section type.
 - **Exception: the logged-out shared collection has no header band and its cards are inset below `md`.** A logged-out `/collections/<id>` (`CollectionDetail`, `isLoggedOutVisitor`: not the owner and no `currentActor`) is the third logged-out page that no longer looks like `main`, at the owner's request. `main` rendered `PageHeader` there, which with no mobile navigation provider is a full-width sticky band (its own background and divider) between the top bar and the first card, and whose title row is centred in `max-w-content`, wider than `PublicShell`'s 680px column, so on desktop the title started left of the cards. The title and the "by <owner>" line are now plain text (the `h1` keeps its semantics, `truncate text-xl font-semibold tracking-tight`) in the same column as the cards: 24px under the top bar (`PublicShell`'s `py-6`) and 16px above the first card (`mb-4` in place of the stack's 24px). Below `md` the empty state ("No one in this collection yet") drops `MOBILE_FEED_SURFACE_CLASS` and stays an inset `rounded-xl` bordered card in the same 16px column and 24px apart from the meta card above it, and the "Curated by" line loses its `px-1` (`max-md:px-0`) so it is level with the cards' edge. The posts feed (`Posts`) is one more inset card there: the page passes `MOBILE_INSET_FEED_CLASS` (`lib/components/posts/feedLayout.ts`) as its `className`, which `cn` merges after the feed surface `Posts` frames itself with, so `max-md:mx-0` takes back the viewport-wide margin (`max-md:w-auto` stays and fills the column) and `MOBILE_INSET_CARD_FRAME_CLASS` (`rounded-2xl border shadow-sm`) takes back the rounding, border and shadow. It sits in the same 16px column as the meta card and the roster, 24px from each (the stack's `space-y-6`), and its media rows bleed only to the card's inner edge, because the card is their owning frame (the scroller spans the card's content box, inside its 1px border, with no horizontal page overflow). Its rows keep `divide-y` and `Posts`' own `first:rounded-t-xl last:rounded-b-xl`, which sit inside the card's `rounded-2xl` and paint nothing of their own, so the card's corners and the dividers need no per-row handling (unlike the status thread, whose rows carry a background). From `md` up the feed is the single desktop frame. A signed-in page (owner or not, either width) is unchanged, and the page has no `loading.tsx`.
 - **Z-order.** Desktop sticky `PageHeader` 20; mobile compact bar, `PublicTopBar`, the floating profile button, scroll-to-top and the reaction-picker backdrop 30 (the floating button renders first in the DOM, so a later same-z backdrop paints over it); in-content popovers 40; the drawer, dialogs, dropdowns, tooltips and `MediasModal` 50. `app/globals.css` pads the scroll snapport under the mobile chrome so focus is never hidden beneath it.
 - **Server-rendered components read chrome values from `lib/components/layout/chromeLayout.ts`** (`breakoutStyle`, the bar and back-row class strings) — `BackLink` when a server page renders it, the followers/following loading skeleton — never from the client components that use them — see **Server/Client Module Boundary**.
+
+<a id="agents-fitness-overview-calendar"></a>
+
+### Fitness Overview Calendar
+
+The fitness overview (`app/(timeline)/fitness/`, with its calendar components in `lib/components/fitness/calendar/`) brings four patterns that the rest of the app does not use yet. Reuse them rather than adding a second variant.
+
+- **Header slots.** The Server Component page passes `OverviewHeaderSlot` elements (empty `contents` spans) as `PageHeader`'s `description` and `actions`; on a container of 600px or more the client dashboard portals the applied dates and the range picker into them with `InOverviewHeaderSlot`, and on a compact one it keeps its own heading and leaves them empty. The slots are empty in the server's HTML on purpose: the dates are the viewer's local days, and only the client knows the zone. `PageHeader` cannot tell an empty slot from a filled one, so it still renders their wrappers.
+- **Scoped heat and motion tokens.** Heat colours are the `--heat-0`…`--heat-4` fills, their `--heat-N-fg` numeral colours, `--heat-upcoming` and `--heat-out-of-range`, defined in `app/globals.css` under the `fitness-heat` class (light and `.dark`) that each calendar root carries. Never hard-code a heat colour, and do not move them to `:root`: green means intensity only inside the calendar. Durations are the `--fitness-t-*` tokens beside them. `--fitness-fade-start` and `--fitness-fade-end` are registered with `@property` so the annual scroller's edge-fade mask can transition; an unregistered custom property inside a gradient cannot.
+- **One CSS module.** `lib/components/fitness/calendar/calendar.module.css` is the only `*.module.css` in `app/` and `lib/`. It holds only what Tailwind utilities cannot express: pseudo-element, mask, gradient and hit-band work such as the cell state marks and focus brackets, the slashed out-of-range cell, the skeleton cell, the edge-fade mask, the today marks, the legend swatch and the month-label hit band. Layout, spacing and type stay in Tailwind at the use site. State is read from data attributes (`data-level`, `data-state`, `data-loading`, `aria-pressed` and the like), never from extra classes, so tests assert a cell's state without knowing a hashed class name, and `calendar.module.css.test.ts` guards the selectors and tokens it relies on. Extend this module for calendar visuals rather than starting another.
+- **Popover.** `lib/components/ui/popover.tsx` wraps `@radix-ui/react-popover` like the other `ui/*` primitives. The range picker uses it when the whole panel fits beside its trigger and falls back to a bottom sheet otherwise (`rangePickerPresentation.ts`); it renders in a portal at the dropdowns' layer (50). The calendar's own cell tooltip is not `ui/tooltip` but one shared `CalendarTooltip` per calendar; its header comment says why.
 
 <a id="agents-settings-forms-client-components"></a>
 
@@ -1612,12 +1624,12 @@ legacy shape left to copy.
   `SectionNavDropdown` on every breakpoint — no re-inlined dropdown markup and no
   desktop vertical icon rail. Sentence-case labels ("Blocked accounts").
 - Fitness stat strips (the activity detail's header strip, the strip under its
-  map, the inline chip in a post) render through `FitnessStatGrid` and size
-  themselves with **container** queries — no hand-rolled `grid-cols-*` strip and
-  no `sm:`/viewport breakpoint, which cannot see a narrow column on a wide
-  window. `@container` belongs on a wrapper, never on the grid it sizes. Two
-  older strips (gear detail, fitness overview) are not migrated yet — see
-  **Fitness Stat Strips** in `AGENTS.md`.
+  map, the inline chip in a post, the overview's totals) render through
+  `FitnessStatGrid` and size themselves with **container** queries — no
+  hand-rolled `grid-cols-*` strip and no `sm:`/viewport breakpoint, which cannot
+  see a narrow column on a wide window. `@container` belongs on a wrapper, never on the grid it sizes. One
+  older strip (gear detail) is not migrated yet — see **Fitness Stat Strips** in
+  `AGENTS.md`.
 - A gear's activities render through the shared `GearActivitiesFeed` → `Posts`,
   never a bespoke row list, and the endpoint's `nextOffset` counts activity rows
   rather than the statuses in the page (an activity whose post was deleted still
