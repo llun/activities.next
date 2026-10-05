@@ -368,6 +368,48 @@ describe('Announce action', () => {
     ).resolves.toBeNull()
   })
 
+  it('refuses a fetched note attributed to an actor on another origin', async () => {
+    // The origin vouches for the DOCUMENT at its own id, not for whoever it
+    // names as author. Without the attribution binding in
+    // dispatchCreateNoteOrPollJob, a remote announcer could have this instance
+    // store a public status on its own origin attributed to a LOCAL actor,
+    // which would then show on that actor's profile as theirs.
+    const statusId = stubNoteId()
+    const announcedObjectId =
+      'https://somewhere.test/statuses/forged-local-attribution'
+
+    fetchMock.mockOnceIf(
+      announcedObjectId,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: announcedObjectId,
+        type: 'Note',
+        attributedTo: ACTOR1_ID,
+        content: '<p>forged</p>',
+        published: '2026-08-30T04:27:44Z',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+    )
+
+    await createAnnounceJob(database, {
+      id: 'id-forged-attribution',
+      name: CREATE_ANNOUNCE_JOB_NAME,
+      data: MockAnnounceStatus({
+        actorId: 'https://somewhere.test/actors/spoofer',
+        statusId,
+        announceStatusId: announcedObjectId
+      })
+    })
+
+    await expect(
+      database.getStatus({ statusId: announcedObjectId })
+    ).resolves.toBeNull()
+    await expect(
+      database.getStatus({ statusId: `${statusId}/activity` })
+    ).resolves.toBeNull()
+  })
+
   it('accepts an announce whose fetched object id is a same-origin canonical form', async () => {
     // The guard is on the ORIGIN, so a same-host canonicalisation — here an
     // explicit `:443` in the Announce against the canonical form the origin

@@ -224,6 +224,11 @@ export const getActorPosts: GetActorPostsFunction = async ({
 
                 originalStatus = await getStatusFromNote(noteResult.data, span)
                 if (!originalStatus) return null
+                // Fetched with the instance actor's signature, like the Create
+                // branch below, so a server that filters by signer can hand
+                // back a followers-only or direct original. The stored-original
+                // arm above refuses those; this arm must too.
+                if (!isPublicOrUnlisted(originalStatus)) return null
               }
 
               const originalStatusWithActor = {

@@ -7,7 +7,8 @@ import {
   getLanguage,
   getReply,
   getSummary,
-  getTags
+  getTags,
+  getUrl
 } from '@/lib/activities/note'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { getPollChoicesFromQuestion } from '@/lib/services/polls/pollChoices'
@@ -80,7 +81,9 @@ export const createPollJob = createJobHandle(
       }),
       database.createPollWithResult({
         id: question.id,
-        url: typeof question.url === 'string' ? question.url : question.id,
+        // A peer's `url` is served back to clients as a link, so only an
+        // http(s) value is kept — the same rule createNoteJob applies.
+        url: getUrl(question.url) || question.id,
 
         actorId: question.attributedTo,
 

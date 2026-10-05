@@ -95,6 +95,15 @@ export const GET = traceApiRoute(
         if (contentLength !== null) {
           headers.set('Content-Length', `${contentLength}`)
         }
+        // Next answers HEAD by calling this GET handler and then ends the
+        // response WITHOUT reading or cancelling its body. The stream holds an
+        // open file handle (local driver) or a pooled socket (S3), so an
+        // unconsumed one leaks until GC — or, for S3, pins the socket and
+        // starves the agent. Release it here and send headers only.
+        if (req.method === 'HEAD') {
+          await stream.cancel().catch(() => undefined)
+          return new Response(null, { headers })
+        }
         return new Response(stream, { headers })
       }
       case 'redirect': {

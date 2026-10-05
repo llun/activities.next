@@ -41,7 +41,12 @@ export const likeRequest = async ({
     })
   }
 
-  // A redelivered Like must not mint another notification or email.
+  // A redelivered Like must not mint another notification or email. The
+  // trade-off is deliberate: if the like row commits and the notification
+  // write below then fails, the sender's retry finds the row and skips the
+  // notification for good. A lost notification after a transient error is
+  // preferred over a duplicate on every plain redelivery, which is the common
+  // case.
   if (!inserted) return
 
   // Create like notification

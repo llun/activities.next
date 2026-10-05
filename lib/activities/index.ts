@@ -130,10 +130,13 @@ export const getNote = async ({
     try {
       const { statusCode, body } = await request({
         url: statusId,
-        // Callers authenticate the note by the origin it was fetched from —
-        // its `id` and `attributedTo` are checked against `statusId`. A hop
-        // onto another host would let that host answer for this one, so an
-        // open redirect on the claimed origin must not be followed.
+        // Callers authenticate the note by the origin it was fetched from:
+        // the paths that store it check its `id` against `statusId`, and its
+        // `attributedTo` against that id's origin (the boost, relay and
+        // forward paths do the latter once, in
+        // `dispatchCreateNoteOrPollJob`). A hop onto another host would let
+        // that host answer for this one, so an open redirect on the claimed
+        // origin must not be followed.
         allowCrossHostRedirects: false,
         headers: activityPubRequestHeaders({
           url: statusId,

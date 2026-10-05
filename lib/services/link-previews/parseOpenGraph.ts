@@ -1,6 +1,7 @@
 import { Tokenizer } from 'htmlparser2'
 
 import { MAX_PREVIEW_URL_LENGTH } from '@/lib/services/link-previews/extractUrl'
+import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 
 // Column caps. `title`/`description` are text columns, but a card is a preview:
 // a page that puts its whole first paragraph in og:description should not push
@@ -346,15 +347,6 @@ const parsePublishedAt = (value: string | undefined): number | null => {
   if (Number.isNaN(parsed)) return null
   if (parsed < MIN_PUBLISHED_AT || parsed > MAX_PUBLISHED_AT) return null
   return parsed
-}
-
-const isHttpUrl = (value: string): boolean => {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
 }
 
 /**

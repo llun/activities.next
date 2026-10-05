@@ -140,6 +140,26 @@ describe('createPollJob', () => {
     expect(status?.cc).toEqual(question.cc)
   })
 
+  it('falls back to the question id when its url is not http(s)', async () => {
+    const question = {
+      ...MockActivityPubQuestion({
+        id: `https://somewhere.test/actors/pollcreator/questions/js-url-${Date.now()}`
+      }),
+      url: 'javascript:alert(document.domain)'
+    }
+    await createPollJob(database, {
+      id: 'id-js-url',
+      name: CREATE_POLL_JOB_NAME,
+      data: question
+    })
+
+    const status = (await database.getStatus({
+      statusId: question.id
+    })) as StatusPoll | null
+    expect(status?.type).toEqual(StatusType.enum.Poll)
+    expect(status?.url).toEqual(question.id)
+  })
+
   it('stores the language derived from the question contentMap key', async () => {
     const question = MockActivityPubQuestion({
       id: `https://somewhere.test/actors/pollcreator/questions/lang-${Date.now()}`,

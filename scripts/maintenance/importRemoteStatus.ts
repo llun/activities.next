@@ -23,6 +23,7 @@ import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { StatusType } from '@/lib/types/domain/status'
 import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
+import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 import { getClientStatusId } from '@/lib/utils/publicId'
 
 const projectDir = process.cwd()
@@ -40,15 +41,6 @@ export interface ImportRemoteStatusResult {
   reply: string
   url: string
   createdAt: string
-}
-
-const isHttpUrl = (value: string): boolean => {
-  try {
-    const { protocol } = new URL(value)
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
-  }
 }
 
 export const parseArgs = (args: string[]): ImportRemoteStatusOptions => {

@@ -240,6 +240,77 @@ describe('getActorPosts', () => {
     expect(announceStatus.originalStatus.text).toBe('Original status text')
   })
 
+  it('drops an Announce whose fetched original is followers-only', async () => {
+    // The original is not stored, so it is fetched signed by the instance
+    // actor, and a server that filters by signer serves a followers-only note
+    // to a follower. It must not reach a local viewer as a boost.
+    const boosterActorId = 'https://boost-private.example/users/booster'
+    const originalStatusId = `${boosterActorId}/statuses/private-original`
+    const published = Date.now()
+    const person = MockActivityPubPerson({
+      id: boosterActorId,
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${boosterActorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${boosterActorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            first: `${boosterActorId}/outbox?page=true`
+          })
+        }
+      }
+
+      if (req.url === `${boosterActorId}/outbox?page=true`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${boosterActorId}/outbox?page=true`,
+            type: 'OrderedCollectionPage',
+            partOf: `${boosterActorId}/outbox`,
+            orderedItems: [
+              {
+                id: `${boosterActorId}/statuses/private-boost/activity`,
+                type: AnnounceAction,
+                actor: boosterActorId,
+                published: new Date(published).toISOString(),
+                to: [`${boosterActorId}/followers`],
+                cc: [],
+                object: originalStatusId
+              }
+            ]
+          })
+        }
+      }
+
+      if (req.url === originalStatusId) {
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockMastodonActivityPubNote({
+              id: originalStatusId,
+              from: boosterActorId,
+              content: 'Followers only',
+              to: [`${boosterActorId}/followers`],
+              cc: [],
+              withContext: true
+            })
+          )
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+    expect(response.statuses).toEqual([])
+  })
+
   it('keeps Announce statuses when the boosted original status is already cached', async () => {
     const boosterActorId = 'https://boost-cached.example/users/booster'
     const originalActorId = 'https://origin-cached.example/users/original'

@@ -8,7 +8,8 @@ import {
 import { AuthenticatedApiHandle } from '@/lib/services/guards/types'
 import {
   getCustomEmojiShortcode,
-  isUnicodeEmojiReaction
+  isUnicodeEmojiReaction,
+  normalizeStoredReactionName
 } from '@/lib/services/reactions/reactionName'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -79,11 +80,20 @@ const reactionHandler =
       // reactions, and this would be a new one.
       if (!added) return apiCorsError(req, CORS_HEADERS, 422)
     } else {
-      await database.removeAnnouncementReaction({
-        announcementId: id,
-        actorId: currentActor.id,
-        name: parsed.data
-      })
+      // Remove what an add would have stored (`:blobcat:` is stored as
+      // `blobcat`), and the raw name too, so a row written before adds were
+      // normalised can still be taken back.
+      const names = new Set([
+        normalizeStoredReactionName(parsed.data),
+        parsed.data
+      ])
+      for (const reactionName of names) {
+        await database.removeAnnouncementReaction({
+          announcementId: id,
+          actorId: currentActor.id,
+          name: reactionName
+        })
+      }
     }
 
     return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })

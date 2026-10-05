@@ -271,5 +271,36 @@ describe('GET /api/v1/files/[...pathname]', () => {
       expect(response.headers.get('content-length')).toBe('11')
       await expect(response.text()).resolves.toBe('media-bytes')
     })
+
+    it('cancels the stream and sends headers only on HEAD', async () => {
+      // Next serves HEAD through this GET handler and never reads or cancels
+      // the body, so the open file handle / S3 socket must be released here.
+      const cancel = vi.fn()
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(new TextEncoder().encode('media-bytes'))
+        },
+        cancel
+      })
+      mockGetMedia.mockResolvedValue({
+        type: 'stream',
+        stream,
+        contentType: 'image/png',
+        contentLength: 11
+      })
+
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/files/medias/a.png', {
+          method: 'HEAD'
+        }),
+        { params: Promise.resolve({ pathname: ['medias', 'a.png'] }) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(response.body).toBeNull()
+      expect(response.headers.get('content-length')).toBe('11')
+      expect(response.headers.get('content-type')).toBe('image/png')
+      expect(cancel).toHaveBeenCalledTimes(1)
+    })
   })
 })

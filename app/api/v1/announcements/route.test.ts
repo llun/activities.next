@@ -260,6 +260,48 @@ describe('/api/v1/announcements', () => {
     ])
   })
 
+  it('removes a custom emoji reaction named with colons', async () => {
+    const created = await database.createAnnouncement({
+      text: 'custom emoji reaction removal',
+      published: true
+    })
+    if (!(await database.getCustomEmojiByShortcode('blobcat'))) {
+      await database.createCustomEmoji({
+        shortcode: 'blobcat',
+        url: 'https://llun.test/emoji/blobcat.png',
+        staticUrl: 'https://llun.test/emoji/blobcat.png'
+      })
+    }
+    const name = ':blobcat:'
+    const request = (method: string) =>
+      writeRequest(
+        `${created.id}/reactions/${encodeURIComponent(name)}`,
+        method
+      )
+
+    expect(
+      (
+        await ADD_REACTION(request('PUT'), {
+          params: Promise.resolve({ id: created.id, name })
+        })
+      ).status
+    ).toBe(200)
+    expect(
+      (
+        await REMOVE_REACTION(request('DELETE'), {
+          params: Promise.resolve({ id: created.id, name })
+        })
+      ).status
+    ).toBe(200)
+
+    expect(
+      await database.getAnnouncementReactions({
+        announcementIds: [created.id],
+        actorId: ACTOR1_ID
+      })
+    ).toEqual([])
+  })
+
   it('answers 422 for a ninth distinct reaction but still lets a known one through', async () => {
     const created = await database.createAnnouncement({
       text: 'reaction cap',
