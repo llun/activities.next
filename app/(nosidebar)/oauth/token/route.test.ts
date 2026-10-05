@@ -86,6 +86,36 @@ describe('OAuth token endpoint', () => {
     expect(mockAuthHandler).not.toHaveBeenCalled()
   })
 
+  // RFC 6749 §5.1: a token response must not be cached. The body is rebuilt
+  // through apiResponse, which does not carry better-auth's own headers over.
+  test('marks an issued token response no-store', async () => {
+    mockAuthHandler.mockResolvedValue(
+      Response.json(
+        { access_token: 'issued', token_type: 'Bearer' },
+        { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }
+      )
+    )
+
+    const response = await POST(
+      new NextRequest('https://llun.test/oauth/token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: 'client-id',
+          client_secret: 'client-secret'
+        })
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      access_token: 'issued'
+    })
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Pragma')).toBe('no-cache')
+  })
+
   test('accepts a case-insensitive Basic auth scheme during PKCE preflight', async () => {
     mockClients.set('pkce-client', {
       clientId: 'pkce-client',

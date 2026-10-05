@@ -41,6 +41,14 @@ const ACCEPTED_TOKEN_MEDIA_TYPES = new Set([
 const TOKEN_PROXY_EXCLUDED_HEADERS = ['content-length', 'host', 'cookie']
 const BASIC_CREDENTIALS_PATTERN = /^basic\s+([A-Za-z0-9+/]+={0,2})$/i
 
+// RFC 6749 §5.1: a response carrying tokens MUST forbid caching. The body is
+// rebuilt through apiResponse below, which drops better-auth's own headers, so
+// they are set here again.
+const TOKEN_RESPONSE_CACHE_HEADERS: [string, string][] = [
+  ['Cache-Control', 'no-store'],
+  ['Pragma', 'no-cache']
+]
+
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const normalizeBase64Credentials = (credentials: string): string | null => {
@@ -527,6 +535,7 @@ export const POST = async (req: NextRequest) => {
     data: response.ok
       ? { ...data, created_at: Math.floor(Date.now() / 1000) }
       : data,
-    responseStatusCode: statusCode
+    responseStatusCode: statusCode,
+    additionalHeaders: TOKEN_RESPONSE_CACHE_HEADERS
   })
 }
