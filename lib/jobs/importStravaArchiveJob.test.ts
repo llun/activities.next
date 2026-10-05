@@ -312,6 +312,29 @@ describe('importStravaArchiveJob', () => {
     )
   })
 
+  it('imports as private when the publisher omits visibility', async () => {
+    // An archive is years of GPS tracks: a message that lost its visibility
+    // must not publish them all publicly.
+    await importStravaArchiveJob(database as unknown as Database, {
+      id: 'job-no-visibility',
+      name: IMPORT_STRAVA_ARCHIVE_JOB_NAME,
+      data: {
+        importId: 'import-1',
+        actorId: 'actor-1',
+        archiveId: 'archive-1',
+        archiveFitnessFileId: 'archive-file-1',
+        batchId: 'strava-archive:archive-1'
+      }
+    })
+
+    expect(mockQueuePublish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: expect.objectContaining({ visibility: 'private' })
+      })
+    )
+  })
+
   it('saves the Strava activity URL as sourceUrl for a numeric activity id', async () => {
     mockArchiveReaderOpen.mockResolvedValueOnce({
       close: vi.fn(),

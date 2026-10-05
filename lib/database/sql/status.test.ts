@@ -616,7 +616,9 @@ describe('StatusDatabase', () => {
             followingCount: 2,
             followersCount: 1,
             statusCount: 3,
-            lastStatusAt: expect.toBeNumber(),
+            // Stripped from the author a status embeds; see
+            // getStatusActorProfile in status.ts.
+            lastStatusAt: null,
             createdAt: expect.toBeNumber(),
             manuallyApprovesFollowers: true
           },
@@ -4067,6 +4069,57 @@ describe('StatusDatabase', () => {
           actorId: emptyActorId
         })
         expect(timelineAfter.some((s) => s.id === statusId)).toBeFalse()
+      })
+
+      it('drops edit history when the audience widens', async () => {
+        const statusId = `${emptyActorId}/statuses/visibility-widen-history`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [`${emptyActorId}/followers`],
+          cc: [],
+          text: 'followers-only secret'
+        })
+        await database.updateNote({ statusId, text: 'redacted' })
+        expect(await database.getStatusEditHistory({ statusId })).toHaveLength(
+          1
+        )
+
+        await database.updateNoteVisibility({
+          statusId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${emptyActorId}/followers`]
+        })
+
+        expect(await database.getStatusEditHistory({ statusId })).toEqual([])
+        const fetched = (await database.getStatus({ statusId })) as StatusNote
+        expect(fetched.text).toBe('redacted')
+        expect(fetched.edits).toEqual([])
+      })
+
+      it('keeps edit history when the audience narrows', async () => {
+        const statusId = `${emptyActorId}/statuses/visibility-narrow-history`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: emptyActorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${emptyActorId}/followers`],
+          text: 'public original'
+        })
+        await database.updateNote({ statusId, text: 'public edit' })
+
+        await database.updateNoteVisibility({
+          statusId,
+          to: [`${emptyActorId}/followers`],
+          cc: []
+        })
+
+        const history = await database.getStatusEditHistory({ statusId })
+        expect(history.map((revision) => revision.text)).toEqual([
+          'public original'
+        ])
       })
 
       it('returns null for nonexistent statusId', async () => {

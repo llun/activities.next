@@ -128,8 +128,13 @@ export const getActorCollections = async ({
       }
 
       const firstPageUrl = getOrderCollectionFirstPage(collection)
+      // A caller-supplied page is honoured only for a collection that exposes
+      // its pages at all. A root that advertises no `first` (and no inline
+      // items, handled above) is hiding its members — Mastodon's
+      // hide_collections, or any server that hides by omission — so a guessed
+      // page URL must not be fetched, signed, on a local user's behalf.
       const collectionPageUrl =
-        pageUrl && isCollectionPageUrl(pageUrl, person[field])
+        firstPageUrl && pageUrl && isCollectionPageUrl(pageUrl, person[field])
           ? pageUrl
           : firstPageUrl
 

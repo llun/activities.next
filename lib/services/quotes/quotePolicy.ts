@@ -14,13 +14,20 @@ type PolicyStatus = {
  * (followers-only / direct) default to `nobody` (author only) — the author has
  * not opted into wider quoting, so we must not treat their private post as
  * freely quotable.
+ *
+ * An explicit policy is also clamped to the post's own audience, because a
+ * policy wider than who can read the post is meaningless and dangerous: the
+ * web composer sends `public` for every post it creates, and an inbound
+ * QuoteRequest is approved on policy alone. A followers-only post is quotable
+ * by followers at most; a direct post only by its author.
  */
 export const getEffectiveQuoteApprovalPolicy = (
   status: PolicyStatus
 ): QuoteApprovalPolicy => {
-  if (status.quoteApprovalPolicy) return status.quoteApprovalPolicy
   const visibility = getVisibility(status.to, status.cc)
-  return visibility === 'public' || visibility === 'unlisted'
-    ? 'public'
-    : 'nobody'
+  if (visibility === 'direct') return 'nobody'
+  if (visibility === 'private') {
+    return status.quoteApprovalPolicy === 'followers' ? 'followers' : 'nobody'
+  }
+  return status.quoteApprovalPolicy ?? 'public'
 }

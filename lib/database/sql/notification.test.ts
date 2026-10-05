@@ -605,6 +605,54 @@ describe('Notification Database', () => {
         expect(notifications).toHaveLength(2)
       })
 
+      it('returns only the newest rows up to the limit', async () => {
+        for (let i = 0; i < 3; i++) {
+          await database.createNotification({
+            actorId: actor1Id,
+            type: NotificationType.enum.like,
+            sourceActorId: `https://example.com/users/liker-${i}`,
+            statusId,
+            groupKey: `like:${statusId}`
+          })
+        }
+
+        const all = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`
+        })
+        expect(all).toHaveLength(5)
+
+        const capped = await database.getNotificationsForGroupKey({
+          actorId: actor1Id,
+          groupKey: `like:${statusId}`,
+          limit: 2
+        })
+        expect(capped.map((n) => n.id)).toEqual(
+          all.slice(0, 2).map((n) => n.id)
+        )
+      })
+
+      it('never returns more than the hard maximum even when asked for more', async () => {
+        for (let i = 0; i < 1000; i++) {
+          await database.createNotification({
+            actorId: actor1Id,
+            type: NotificationType.enum.like,
+            sourceActorId: `https://example.com/users/bulk-${i}`,
+            statusId,
+            groupKey: `like:${statusId}`
+          })
+        }
+
+        for (const limit of [undefined, 5000]) {
+          const rows = await database.getNotificationsForGroupKey({
+            actorId: actor1Id,
+            groupKey: `like:${statusId}`,
+            limit
+          })
+          expect(rows).toHaveLength(1000)
+        }
+      }, 30000)
+
       it('resolves an ungrouped notification by its id', async () => {
         const created = await database.createNotification({
           actorId: actor1Id,

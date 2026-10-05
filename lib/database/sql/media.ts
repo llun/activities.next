@@ -29,6 +29,7 @@ import {
   Media,
   MediaDatabase,
   PaginatedMediaWithStatus,
+  UpdateAttachmentPlaybackParams,
   UpdateMediaParams,
   UpdateMediaResult
 } from '@/lib/types/database/operations'
@@ -296,7 +297,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async markMediaUploadVerified({
     mediaId,
     accountId,
-    verifiedAt
+    verifiedAt,
+    dimensions
   }: MarkMediaUploadVerifiedParams): Promise<Media | null> {
     const id = toMediaRowId(mediaId)
     if (id === null) return null
@@ -329,6 +331,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     const media = parseMediaRow(data)
     const metaData = {
       ...media.original.metaData,
+      ...(dimensions
+        ? { width: dimensions.width, height: dimensions.height }
+        : {}),
       upload: {
         ...media.original.metaData.upload,
         state: 'verified' as const,
@@ -417,15 +422,11 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
 
   async updateAttachmentPlayback({
     id,
+    statusId,
     playbackType,
     thumbnailUrl,
     onlyIfUnset
-  }: {
-    id: string
-    playbackType: 'gifv' | 'video' | 'unknown'
-    thumbnailUrl?: string | null
-    onlyIfUnset?: boolean
-  }): Promise<boolean> {
+  }: UpdateAttachmentPlaybackParams): Promise<boolean> {
     const updates: Record<string, unknown> = {
       playbackType,
       updatedAt: new Date()
@@ -433,7 +434,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     if (thumbnailUrl !== undefined) {
       updates.thumbnailUrl = thumbnailUrl
     }
-    const query = database('attachments').where('id', id)
+    const query = database('attachments')
+      .where('id', id)
+      .andWhere('statusId', statusId)
     if (onlyIfUnset) {
       query.whereNull('playbackType')
     }
@@ -727,6 +730,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async updateMedia({
     mediaId,
     accountId,
+    actorId,
     description,
     focus,
     blurhash,
@@ -740,6 +744,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .join('actors', 'medias.actorId', 'actors.id')
         .where('medias.id', id)
         .where('actors.accountId', accountId)
+        .modify((query) => {
+          if (actorId) query.where('medias.actorId', actorId)
+        })
         .select('medias.id', 'medias.thumbnail', 'medias.thumbnailBytes')
         .first<{
           id: string | number

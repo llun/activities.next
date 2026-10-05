@@ -68,13 +68,19 @@ describe('LocalFileStorage.getFile', () => {
 
     const result = await createStorage().getFile('avatar.png')
 
+    // Streamed, not buffered (F052): the files route is unauthenticated.
     expect(result).toMatchObject({
-      type: 'buffer',
-      contentType: 'image/png'
+      type: 'stream',
+      contentType: 'image/png',
+      contentLength: 'image-data'.length
     })
-    expect(result?.type === 'buffer' ? result.buffer.toString() : null).toBe(
-      'image-data'
-    )
+    if (result?.type !== 'stream') throw new Error('expected a stream')
+    expect(result.stream).toBeInstanceOf(ReadableStream)
+    await expect(new Response(result.stream).text()).resolves.toBe('image-data')
+  })
+
+  it('returns null for a missing file', async () => {
+    await expect(createStorage().getFile('missing.png')).resolves.toBeNull()
   })
 
   it('returns null when a relative path escapes the media root', async () => {
@@ -295,6 +301,34 @@ describe('LocalFileStorage image output format', () => {
     )
 
     expect(rendition).toBeNull()
+  })
+
+  // Regression (F100): the encode kept the upload's EXIF, so a phone photo
+  // posted from a Mastodon client published its GPS position and device to
+  // anyone with the media URL. Orientation is applied by `.rotate()` first.
+  it('strips EXIF, including GPS, from the stored image', async () => {
+    const jpeg = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: '#336699' }
+    })
+      .jpeg()
+      .withExif({
+        IFD0: { Make: 'LeakyCam', Model: 'Model X' },
+        IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '52/1 31/1 0/1' }
+      })
+      .toBuffer()
+    expect((await sharp(jpeg).metadata()).exif).toBeDefined()
+
+    await createStorage().saveFile(actor, {
+      file: new File([new Uint8Array(jpeg)], 'photo.jpg', {
+        type: 'image/jpeg'
+      })
+    })
+
+    const storedPath = vi.mocked(database.createMedia).mock.calls[0][0].original
+      .path
+    const storedBytes = await fs.readFile(path.join(mediaRoot, storedPath))
+    expect((await sharp(storedBytes).metadata()).exif).toBeUndefined()
+    expect(storedBytes.includes('LeakyCam')).toBe(false)
   })
 
   it('rejects a rendition that would exceed the account quota', async () => {
@@ -630,6 +664,26 @@ describe('LocalFileStorage.saveFile with a video', () => {
       format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
     })
     const file = new File([Buffer.from('audio-bytes')], 'memo.mp4', {
+      type: 'video/mp4'
+    })
+
+    await expect(createStorage().saveFile(actor, { file })).rejects.toThrow(
+      MediaValidationError
+    )
+
+    expect(extractVideoImage).not.toHaveBeenCalled()
+    expect(await fs.readdir(mediaRoot)).toEqual([])
+    expect(database.createMedia).not.toHaveBeenCalled()
+  })
+
+  // Regression (F000): probed dimensions were recorded but never bounded, and
+  // every decoded frame costs memory in proportion to its area.
+  it('rejects a video above the dimension cap without extracting a frame', async () => {
+    vi.mocked(extractVideoMeta).mockResolvedValue({
+      streams: [{ codec_type: 'video', width: 15360, height: 8640 }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
+    const file = new File([Buffer.from('video-bytes')], 'clip.mp4', {
       type: 'video/mp4'
     })
 

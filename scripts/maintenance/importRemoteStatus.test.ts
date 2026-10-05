@@ -20,6 +20,11 @@ vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
   getFederationSigningActor: vi.fn().mockResolvedValue(undefined)
 }))
 
+const mockIsLocalFederationDomain = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/services/federation/domainPolicy', () => ({
+  isLocalFederationDomain: mockIsLocalFederationDomain
+}))
+
 describe('importRemoteStatus parseArgs', () => {
   it('parses statusUrl correctly', () => {
     expect(
@@ -154,6 +159,129 @@ describe('importRemoteStatus', () => {
       reply: mockNote.inReplyTo,
       url: mockNote.url,
       createdAt: '2026-09-07T08:06:44.000Z'
+    })
+  })
+
+  describe('refuses a document its URL is not authoritative for', () => {
+    beforeEach(() => {
+      vi.mocked(createNoteJob).mockClear()
+      mockIsLocalFederationDomain.mockImplementation(
+        async (_database: unknown, value: string) =>
+          new URL(value).host === 'llun.dev'
+      )
+    })
+
+    it.each([
+      {
+        description: 'an id on another origin than the fetched URL',
+        statusUrl: 'https://attacker.example/notes/1',
+        note: mockNote
+      },
+      {
+        description: 'an author on another origin than the note',
+        statusUrl: 'https://attacker.example/notes/1',
+        note: {
+          ...mockNote,
+          id: 'https://attacker.example/notes/1',
+          attributedTo: 'https://mastodon.in.th/users/lluu'
+        }
+      },
+      {
+        // Stringified, this array parses with origin.example as its host, but
+        // the author createNoteJob would store is its first entry.
+        description: 'an author array whose first entry is on another origin',
+        statusUrl: mockNote.id,
+        note: {
+          ...mockNote,
+          attributedTo: [
+            'https://victim.example',
+            'x@mastodon.in.th/users/lluu'
+          ]
+        }
+      },
+      {
+        description: 'a local id and author',
+        statusUrl: 'https://llun.dev/users/null/statuses/forged',
+        note: {
+          ...mockNote,
+          id: 'https://llun.dev/users/null/statuses/forged',
+          attributedTo: 'https://llun.dev/users/null'
+        }
+      }
+    ])('$description', async ({ statusUrl, note }) => {
+      vi.mocked(getNote).mockResolvedValueOnce(note as any)
+
+      await expect(
+        importRemoteStatus({} as Database, { statusUrl })
+      ).rejects.toThrow('Refusing')
+      expect(createNoteJob).not.toHaveBeenCalled()
+    })
+
+    it('rejects a non-http status URL without fetching it', async () => {
+      vi.mocked(getNote).mockClear()
+
+      await expect(
+        importRemoteStatus({} as Database, { statusUrl: 'file:///etc/passwd' })
+      ).rejects.toThrow('http(s) URL')
+      expect(getNote).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('accepts an author compaction leaves unnormalized', () => {
+    beforeEach(() => {
+      vi.mocked(createNoteJob).mockClear()
+    })
+    // A queued note left unconsumed by a failing case must not leak into the
+    // tests after this block.
+    afterEach(() => {
+      vi.mocked(getNote).mockReset()
+    })
+
+    it.each([
+      {
+        description: 'an embedded actor object',
+        attributedTo: { id: mockNote.attributedTo, type: 'Person' }
+      },
+      {
+        description: 'a PeerTube account and channel array',
+        attributedTo: [
+          { id: mockNote.attributedTo, type: 'Person' },
+          { id: 'https://mastodon.in.th/video-channels/main', type: 'Group' }
+        ]
+      }
+    ])('$description', async ({ attributedTo }) => {
+      const note = { ...mockNote, attributedTo }
+      vi.mocked(getNote).mockResolvedValueOnce(note as any)
+      vi.mocked(getNote).mockResolvedValueOnce(note as any)
+      const mockDatabase = {
+        getStatus: vi.fn().mockResolvedValue({
+          id: mockNote.id,
+          publicId: '01991234-5678-7abc-8def-0123456789ab',
+          actorId: mockNote.attributedTo,
+          type: StatusType.enum.Note,
+          reply: mockNote.inReplyTo,
+          url: mockNote.url,
+          createdAt: new Date(mockNote.published).getTime()
+        })
+      } as unknown as Database
+
+      await expect(
+        importRemoteStatus(mockDatabase, {
+          statusUrl: mockNote.id,
+          dryRun: true
+        })
+      ).resolves.toMatchObject({ actorId: mockNote.attributedTo })
+
+      await importRemoteStatus(mockDatabase, { statusUrl: mockNote.id })
+      // The verified sender is the extracted id, the same one createNoteJob
+      // derives from the note, so actorMatchesVerifiedSender compares like
+      // with like.
+      expect(createNoteJob).toHaveBeenCalledWith(mockDatabase, {
+        id: mockNote.id,
+        name: CREATE_NOTE_JOB_NAME,
+        data: note,
+        verifiedSenderActorId: mockNote.attributedTo
+      })
     })
   })
 

@@ -193,9 +193,11 @@ describe('getCollectionEntities', () => {
     const { database, getCollectionItems, countCollectionItems } =
       buildDatabase()
     await getCollectionEntities(database, [collection], 'public')
+    // The embedded preview is capped, so the read is capped with it.
     expect(getCollectionItems).toHaveBeenCalledWith({
       collectionIds: ['col-1'],
-      approvedOnly: true
+      approvedOnly: true,
+      limitPerCollection: COLLECTION_ITEMS_PREVIEW_LIMIT
     })
     // Public projection reads approved counts only, so the all-states total
     // query must not run: exactly one count query, approved-only.

@@ -1,5 +1,6 @@
 import { sendPollVotes } from '@/lib/activities'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -49,7 +50,15 @@ export const POST = traceApiRoute(
     const choices = [...new Set(parsed.data.choices)]
 
     const status = await database.getStatus({ statusId, withReplies: false })
-    if (!status || status.type !== StatusType.enum.Poll) {
+    // An unreadable poll answers exactly like a missing one, as in
+    // /api/v1/polls/:id/votes: without this, anyone signed in who knew a
+    // followers-only or direct poll's id could vote in it and read the raw
+    // status back.
+    if (
+      !status ||
+      status.type !== StatusType.enum.Poll ||
+      !(await canActorReadStatus({ database, status, currentActor }))
+    ) {
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,

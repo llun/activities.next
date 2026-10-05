@@ -1,8 +1,10 @@
+import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import {
   getAttachmentsFromMediaIds,
   resolveStatusAttachmentMediaIds
 } from '@/lib/services/statuses/mediaIds'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 
@@ -71,6 +73,7 @@ describe('getAttachmentsFromMediaIds', () => {
         if (mediaId === '1') {
           return Promise.resolve({
             id: '1',
+            actorId: 'https://llun.test/users/test1',
             original: {
               path: 'medias/with-desc.png',
               mimeType: 'image/png',
@@ -82,6 +85,7 @@ describe('getAttachmentsFromMediaIds', () => {
         }
         return Promise.resolve({
           id: '2',
+          actorId: 'https://llun.test/users/test1',
           original: {
             path: 'medias/without-desc.png',
             mimeType: 'image/png',
@@ -113,5 +117,62 @@ describe('getAttachmentsFromMediaIds', () => {
       })
     ])
     expect(attachments?.[1].name).toBeUndefined()
+  })
+
+  it('rejects media uploaded by a sibling actor of the same account', async () => {
+    const database = getTestSQLDatabase()
+    await database.migrate()
+    try {
+      await database.createAccount({
+        email: `owner@${TEST_DOMAIN}`,
+        username: 'owner',
+        passwordHash: 'hash',
+        domain: TEST_DOMAIN,
+        privateKey: 'privateKey-owner',
+        publicKey: 'publicKey-owner'
+      })
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      if (!owner?.account) throw new Error('owner not created')
+      const siblingId = await database.createActorForAccount({
+        accountId: owner.account.id,
+        username: 'sibling',
+        domain: TEST_DOMAIN,
+        privateKey: 'privateKey-sibling',
+        publicKey: 'publicKey-sibling'
+      })
+      const media = (n: string, actorId: string) =>
+        database.createMedia({
+          actorId,
+          original: {
+            path: `medias/${n}.png`,
+            bytes: 10,
+            mimeType: 'image/png',
+            metaData: { width: 1, height: 1 }
+          }
+        })
+      const ownMedia = await media('own', owner.id)
+      const siblingMedia = await media('sibling', siblingId)
+      if (!ownMedia || !siblingMedia) throw new Error('media not created')
+
+      // An OAuth token for `owner` must not attach the sibling's upload,
+      // although both actors share an account.
+      expect(
+        await getAttachmentsFromMediaIds(database, owner, [siblingMedia.id])
+      ).toBeNull()
+      expect(
+        await getAttachmentsFromMediaIds(database, owner, [
+          ownMedia.id,
+          siblingMedia.id
+        ])
+      ).toBeNull()
+      expect(
+        await getAttachmentsFromMediaIds(database, owner, [ownMedia.id])
+      ).toEqual([expect.objectContaining({ id: ownMedia.id })])
+    } finally {
+      await database.destroy()
+    }
   })
 })

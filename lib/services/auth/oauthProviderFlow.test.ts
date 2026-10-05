@@ -447,4 +447,121 @@ describe('OAuth provider token grants', () => {
       error: 'unsupported_grant_type'
     })
   })
+  // The id_token must honour the scopes the user actually approved. The consent
+  // screen lets the user untick `email`; userinfo already gated the claim on the
+  // granted scope, but `customIdTokenClaims` returned it unconditionally, so an
+  // openid-only grant still handed the account address to the relying party.
+  describe('id_token email claim', () => {
+    const issueIdToken = async ({
+      clientId,
+      requestedScope,
+      approvedScope
+    }: {
+      clientId: string
+      requestedScope: string
+      approvedScope: string
+    }) => {
+      const clientSecret = `${clientId}-secret`
+      await database('oauthClient').insert({
+        id: crypto.randomUUID(),
+        clientId,
+        clientSecret: hashClientSecret(clientSecret),
+        name: 'OIDC Flow',
+        redirectUris: JSON.stringify([REDIRECT_URI]),
+        scopes: JSON.stringify(['openid', 'profile', 'email']),
+        grantTypes: JSON.stringify(['authorization_code']),
+        type: 'web',
+        disabled: false
+      })
+
+      for (const name of Object.keys(jar)) delete jar[name]
+      const signIn = await call('/sign-in/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: EMAIL, password: PASSWORD })
+      })
+      expect(signIn.status).toBe(200)
+
+      const codeVerifier = crypto.randomBytes(32).toString('base64url')
+      const codeChallenge = crypto
+        .createHash('sha256')
+        .update(codeVerifier)
+        .digest('base64url')
+      const authorize = await call(
+        `/oauth2/authorize?${new URLSearchParams({
+          client_id: clientId,
+          redirect_uri: REDIRECT_URI,
+          response_type: 'code',
+          scope: requestedScope,
+          state: 'oidc-state',
+          nonce: 'oidc-nonce',
+          code_challenge: codeChallenge,
+          code_challenge_method: 'S256'
+        })}`,
+        { method: 'GET', redirect: 'manual' }
+      )
+      expect(authorize.status).toBe(302)
+      const oauthQuery = authorize.location?.slice(
+        authorize.location.indexOf('?')
+      )
+      const consent = await call('/oauth2/consent', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          accept: true,
+          scope: approvedScope,
+          oauth_query: oauthQuery
+        })
+      })
+      expect(consent.status).toBe(200)
+      const consentBody = JSON.parse(consent.text) as { url?: string }
+      const code = consentBody.url
+        ? new URL(consentBody.url).searchParams.get('code')
+        : null
+      expect(code).toBeTruthy()
+
+      const token = await call('/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: code as string,
+          redirect_uri: REDIRECT_URI,
+          code_verifier: codeVerifier
+        }).toString()
+      })
+      expect(token.status).toBe(200)
+      const { id_token: idToken } = JSON.parse(token.text) as {
+        id_token?: string
+      }
+      expect(idToken).toBeTruthy()
+      return JSON.parse(
+        Buffer.from((idToken as string).split('.')[1], 'base64url').toString()
+      ) as Record<string, unknown>
+    }
+
+    it('omits email from the id_token when the user did not approve email', async () => {
+      const claims = await issueIdToken({
+        clientId: 'oidc-openid-only-client',
+        requestedScope: 'openid email',
+        approvedScope: 'openid'
+      })
+      expect(claims.sub).toBe(accountId)
+      expect(claims).not.toHaveProperty('email')
+      expect(claims).not.toHaveProperty('email_verified')
+    })
+
+    it('includes email in the id_token when email was approved', async () => {
+      const claims = await issueIdToken({
+        clientId: 'oidc-email-client',
+        requestedScope: 'openid email',
+        approvedScope: 'openid email'
+      })
+      expect(claims.email).toBe(EMAIL)
+      expect(claims).toHaveProperty('email_verified')
+    })
+  })
 })

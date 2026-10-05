@@ -1,14 +1,34 @@
 import { NextRequest } from 'next/server'
+import sharp from 'sharp'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { saveMedia } from '@/lib/services/medias'
+import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { PATCH } from './route'
 
-vi.mock('@/lib/services/medias', () => ({ saveMedia: vi.fn() }))
+vi.mock('@/lib/services/medias', () => ({
+  saveMedia: vi.fn(),
+  deleteMediaFile: vi.fn()
+}))
+
+// Profile images are decoded before they are saved, so a fixture has to be a
+// real image rather than bytes merely labelled `image/png`.
+const pngBlob = async () =>
+  new Blob(
+    [
+      new Uint8Array(
+        await sharp({
+          create: { width: 4, height: 4, channels: 3, background: '#808080' }
+        })
+          .png()
+          .toBuffer()
+      )
+    ],
+    { type: 'image/png' }
+  )
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -150,11 +170,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     const updateActor = vi.spyOn(database, 'updateActor')
     const form = new FormData()
     form.set('display_name', 'With Avatar')
-    form.set(
-      'avatar',
-      new Blob(['fake-image'], { type: 'image/png' }),
-      'avatar.png'
-    )
+    form.set('avatar', await pngBlob(), 'avatar.png')
 
     const response = await PATCH(createRequest(form), {
       params: Promise.resolve({})
@@ -323,16 +339,8 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     const updateActor = vi.spyOn(database, 'updateActor')
 
     const form = new FormData()
-    form.set(
-      'avatar',
-      new Blob(['avatar-bytes'], { type: 'image/png' }),
-      'avatar.png'
-    )
-    form.set(
-      'header',
-      new Blob(['header-bytes'], { type: 'image/png' }),
-      'header.png'
-    )
+    form.set('avatar', await pngBlob(), 'avatar.png')
+    form.set('header', await pngBlob(), 'header.png')
 
     const response = await PATCH(createRequest(form), {
       params: Promise.resolve({})
@@ -367,6 +375,92 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     expect(response.status).toBe(422)
     expect(saveMediaMock).not.toHaveBeenCalled()
     expect(updateActor).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
+  // Regression (F138): MediaSchema admits video and audio and only checks the
+  // declared type, and saveMedia's parser errors were unhandled — so bytes
+  // merely labelled `image/png` were a 500, after the avatar had already been
+  // stored if it was the header that failed.
+  it('rejects unreadable bytes labelled as an image with 422, saving nothing', async () => {
+    const saveMediaMock = saveMedia as jest.Mock
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('avatar', await pngBlob(), 'avatar.png')
+    form.set(
+      'header',
+      new Blob(['<html>not an image</html>'], { type: 'image/png' }),
+      'header.png'
+    )
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({ error: 'Invalid image file' })
+    expect(saveMediaMock).not.toHaveBeenCalled()
+    expect(updateActor).not.toHaveBeenCalled()
+    updateActor.mockRestore()
+  })
+
+  it('rejects a video as an avatar with 422', async () => {
+    const saveMediaMock = saveMedia as jest.Mock
+    const form = new FormData()
+    form.set(
+      'avatar',
+      new Blob(['video-bytes'], { type: 'video/mp4' }),
+      'avatar.mp4'
+    )
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(422)
+    expect(saveMediaMock).not.toHaveBeenCalled()
+  })
+
+  it('answers a storage failure with a handled 500 and discards the saved avatar', async () => {
+    const saveMediaMock = saveMedia as jest.Mock
+    const avatar = await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: 'medias/avatar-orphan.webp',
+        bytes: 10,
+        mimeType: 'image/png',
+        metaData: { width: 4, height: 4 }
+      }
+    })
+    saveMediaMock
+      .mockResolvedValueOnce({
+        id: avatar!.id,
+        url: 'https://llun.test/api/v1/files/medias/avatar-orphan.webp'
+      })
+      .mockRejectedValueOnce(new Error('S3 PutObject failed'))
+    const updateActor = vi.spyOn(database, 'updateActor')
+    const form = new FormData()
+    form.set('avatar', await pngBlob(), 'avatar.png')
+    form.set('header', await pngBlob(), 'header.png')
+
+    const response = await PATCH(createRequest(form), {
+      params: Promise.resolve({})
+    })
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Internal Server Error' })
+    expect(updateActor).not.toHaveBeenCalled()
+    const actor = await database.getActorFromId({ id: ACTOR1_ID })
+    expect(
+      await database.getMediaByIdForAccount({
+        mediaId: avatar!.id,
+        accountId: actor!.account!.id
+      })
+    ).toBeNull()
+    expect(deleteMediaFile).toHaveBeenCalledWith(
+      database,
+      'medias/avatar-orphan.webp'
+    )
     updateActor.mockRestore()
   })
 

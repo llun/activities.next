@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
 export const Session = z.object({
+  // The row's primary key. Unlike `token`, it authenticates nothing, so it is
+  // the handle that may be sent to the browser (e.g. to revoke a session).
+  id: z.string(),
   token: z.string(),
   accountId: z.string(),
   actorId: z.string().nullable(),

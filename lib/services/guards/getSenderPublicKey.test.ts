@@ -11,6 +11,7 @@ import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { logger } from '@/lib/utils/logger'
+import { request } from '@/lib/utils/request'
 import { parse } from '@/lib/utils/signature'
 
 enableFetchMocks()
@@ -39,6 +40,13 @@ vi.mock('@/lib/utils/logger', () => ({
     warn: vi.fn()
   }
 }))
+
+// Pass-through spy: every fetch still goes through the real `request` (and so
+// through fetchMock), but the options the key lookup chose are observable.
+vi.mock('@/lib/utils/request', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/utils/request')>()
+  return { ...actual, request: vi.fn(actual.request) }
+})
 
 vi.mock('@/lib/utils/trace', () => ({
   withSpan: (
@@ -613,6 +621,42 @@ describe('getSenderPublicKey', () => {
     ])
   })
 
+  it('does not retry a failing key fetch inside the unauthenticated inbox request', async () => {
+    const actorId = 'https://remote.test/users/flaky'
+    fetchMock.resetMocks()
+    fetchMock
+      .mockResponseOnce('', { status: 503 })
+      .mockResponseOnce(JSON.stringify(createActorDocument({ id: actorId })))
+
+    const publicKey = await getSenderPublicKeyDetails(database, actorId)
+
+    // One attempt only: a retry would wait out a backoff before verifying.
+    expect(publicKey).toEqual({ owner: null, publicKey: '' })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([actorId])
+  })
+
+  it('bounds the key fetch with its own short timeout, not the global one', async () => {
+    const actorId = 'https://remote.test/users/slow-key-host'
+    fetchMock.resetMocks()
+    fetchMock.mockResponseOnce(
+      JSON.stringify(createActorDocument({ id: actorId }))
+    )
+    vi.mocked(request).mockClear()
+
+    await getSenderPublicKeyDetails(database, actorId)
+
+    // The fetch runs inside an unauthenticated inbox request against a host
+    // the sender chose; the global network timeout would let it hold the
+    // request open far longer.
+    expect(vi.mocked(request)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: actorId,
+        numberOfRetry: 0,
+        responseTimeout: 3000
+      })
+    )
+  })
+
   it('records sender public key lookup exceptions before returning empty details', async () => {
     const actorId = 'https://remote.test/users/test1'
     const error = new Error('network failed')
@@ -703,6 +747,45 @@ describe('getSenderPublicKey', () => {
         requestTarget: 'get /@redirected-key'
       })
     ).toBe(true)
+  })
+
+  // The key document is trusted only because the keyId's own origin served
+  // it (its id must equal the requested owner). An open redirect on that
+  // origin must not let another host — one a domain block or allowlist never
+  // checked — answer with a key for an id on it.
+  it('refuses a key document served after a cross-host redirect', async () => {
+    const actorId = 'https://remote.test/users/statuses-redirect'
+    const keyId = `${actorId}#main-key`
+    const redirectTarget = 'https://elsewhere.test/k'
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (request) => {
+      const url = new URL(request.url)
+      url.hash = ''
+      if (url.toString() === actorId) {
+        return { headers: { location: redirectTarget }, status: 302 }
+      }
+      if (url.toString() === redirectTarget) {
+        return {
+          body: JSON.stringify(
+            createActorDocument({
+              id: actorId,
+              publicKeyId: keyId,
+              publicKeyPem: 'attacker-public-key'
+            })
+          ),
+          status: 200
+        }
+      }
+      return { status: 404 }
+    })
+    vi.mocked(request).mockClear()
+
+    const publicKey = await getSenderPublicKeyDetails(database, keyId)
+
+    expect(publicKey).toEqual({ owner: null, publicKey: '' })
+    expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain(
+      redirectTarget
+    )
   })
 
   it('returns empty string when remote actor not found', async () => {

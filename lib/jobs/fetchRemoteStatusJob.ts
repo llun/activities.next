@@ -12,6 +12,8 @@ import { Note } from '@/lib/types/activitypub/objects'
 import { Actor } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import {
+  extractActivityPubId,
+  isSameActivityPubOrigin,
   normalizeActivityPubContent,
   toRecipientArray
 } from '@/lib/utils/activitypub'
@@ -42,6 +44,35 @@ const MAX_REPLY_NOTES = 500
 // reach `MAX_REPLY_NOTES` before hitting it.
 const MAX_FETCH_WORK = 5000
 
+// `firstPageOnly` runs inline with a page render under the default NoQueue, and
+// the page is a single request a remote server's collection can stall. The
+// 5000/500 budgets above are far too generous for that: an opening page of
+// thousands of unfetchable item URLs would pin the request for as long as the
+// remote chooses. So an inline run considers at most this many items and gives
+// up after this long, whichever comes first; the queued run keeps the full
+// budgets.
+export const INLINE_MAX_REPLY_ITEMS = 30
+export const INLINE_DEADLINE_MS = 6000
+
+// A fetched note is a claim by whoever served it (see "A Fetched Document's Own
+// `id` Is Not Evidence"). It may only name an id on the origin that served it —
+// `servedFrom` — and only an author on its own origin; otherwise any logged-in
+// viewer could make this instance store a status planted in a third party's id
+// space, or attributed to a third party's actor.
+//
+// The top-level note is gated before `normalizeActivityPubContent` runs, and an
+// embedded actor object or a multi-valued array (PeerTube names the account AND
+// the channel) survives JSON-LD compaction as-is. Gate the author id
+// `extractActivityPubId` picks — the id normalization goes on to store — as
+// `dispatchCreateNoteOrPollJob` does, not the raw value.
+const isAuthoritativeNote = (
+  note: { id?: unknown; attributedTo?: unknown },
+  servedFrom: string
+): boolean =>
+  typeof note.id === 'string' &&
+  isSameActivityPubOrigin(note.id, servedFrom) &&
+  isSameActivityPubOrigin(extractActivityPubId(note.attributedTo), note.id)
+
 const fetchRemoteStatus = async (
   database: Database,
   statusId: string,
@@ -58,6 +89,7 @@ const fetchRemoteStatus = async (
   // 2. Fetch the Note
   const note = await getNote({ statusId, signingActor })
   if (!note) return null
+  if (!isAuthoritativeNote(note, statusId)) return null
 
   // 3. Check if public
   const publicStreams = [
@@ -92,7 +124,9 @@ const fetchRemoteStatus = async (
     await database.createNote({
       id: sanitizedNote.id,
       url: getUrl(sanitizedNote.url) || sanitizedNote.id,
-      actorId: sanitizedNote.attributedTo,
+      // The recorded row's id: an alias author (`/@bob`) is stored under the
+      // id its origin names, and the status must point at that row.
+      actorId: actor.id,
       text: Array.isArray(sanitizedNote.content)
         ? sanitizedNote.content.join('')
         : sanitizedNote.content || '',
@@ -157,6 +191,9 @@ export const fetchRemoteStatusJob = createJobHandle(
         try {
           const { body, statusCode } = await request({
             url,
+            // Every document is bound to the URL it was fetched from, so
+            // another host must not answer for it.
+            allowCrossHostRedirects: false,
             headers: activityPubRequestHeaders({
               url,
               signingActor,
@@ -177,13 +214,23 @@ export const fetchRemoteStatusJob = createJobHandle(
     // wrapper distinguishes "a valid Note with no replies" (success) from a
     // skipped item (null). Already-stored notes are not rewritten but still
     // yield their `replies` so newly added descendants are picked up.
+    //
+    // `servedFrom` is the URL of the document the item came from: the page it
+    // was inlined in, or the item's own URL once it is fetched separately.
     const storeReplyNote = async (
-      item: unknown
-    ): Promise<{ replies: unknown; newlyStored: boolean } | null> => {
+      item: unknown,
+      pageServedFrom: string
+    ): Promise<{
+      replies: unknown
+      repliesServedFrom: string
+      newlyStored: boolean
+    } | null> => {
       try {
+        let servedFrom = pageServedFrom
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let doc: any = item
         if (typeof doc === 'string') {
+          servedFrom = doc
           doc = await client.fetch(doc)
         }
         if (!doc) return null
@@ -198,6 +245,7 @@ export const fetchRemoteStatusJob = createJobHandle(
         if (doc.type === 'Create' && doc.object) {
           doc = doc.object
           if (typeof doc === 'string') {
+            servedFrom = doc
             doc = await client.fetch(doc)
           }
           if (!doc) return null
@@ -225,13 +273,20 @@ export const fetchRemoteStatusJob = createJobHandle(
         )
         if (!noteResult.success) return null
         const sanitizedReply = noteResult.data
+        if (!isAuthoritativeNote(sanitizedReply, servedFrom)) return null
 
         // Already-cached notes don't count toward `notesStored` (the new-store
         // budget) but still yield their `replies`, so a re-fetch can traverse
         // the cached part of the thread to discover newly added descendants
         // (bounded by the `work` cap).
         const exists = await database.getStatus({ statusId: sanitizedReply.id })
-        if (exists) return { replies: childReplies, newlyStored: false }
+        if (exists) {
+          return {
+            replies: childReplies,
+            repliesServedFrom: servedFrom,
+            newlyStored: false
+          }
+        }
 
         if (
           !(await canFederateWithDomain(database, sanitizedReply.attributedTo))
@@ -260,7 +315,7 @@ export const fetchRemoteStatusJob = createJobHandle(
           await database.createNote({
             id: sanitizedReply.id,
             url: getUrl(sanitizedReply.url) || sanitizedReply.id,
-            actorId: sanitizedReply.attributedTo,
+            actorId: actor.id,
             text: Array.isArray(sanitizedReply.content)
               ? sanitizedReply.content.join('')
               : sanitizedReply.content || '',
@@ -274,16 +329,22 @@ export const fetchRemoteStatusJob = createJobHandle(
           // Ignore error if status already exists
         }
 
-        return { replies: childReplies, newlyStored: true }
+        return {
+          replies: childReplies,
+          repliesServedFrom: servedFrom,
+          newlyStored: true
+        }
       } catch {
         return null
       }
     }
 
-    const pendingCollections: unknown[] = []
+    // Each queued collection carries the URL of the document it was found in,
+    // which is what an inlined collection's items are answerable to.
+    const pendingCollections: Array<{ ref: unknown; servedFrom: string }> = []
     const visitedCollections = new Set<string>()
 
-    const queueCollection = (collection: unknown) => {
+    const queueCollection = (collection: unknown, servedFrom: string) => {
       if (!collection) return
       // A `replies` ref can arrive as a URL string, an inlined collection
       // object, or — after JSON-LD compaction of a bare id ref — a `{ id }`
@@ -304,10 +365,10 @@ export const fetchRemoteStatusJob = createJobHandle(
         if (visitedCollections.has(ref)) return
         visitedCollections.add(ref)
       }
-      pendingCollections.push(ref)
+      pendingCollections.push({ ref, servedFrom })
     }
 
-    queueCollection((note as Record<string, unknown>).replies)
+    queueCollection((note as Record<string, unknown>).replies, statusId)
 
     // `notesStored` is the meaningful cap (how many replies we persist);
     // `work` is the termination guard that advances on every page and every
@@ -316,11 +377,39 @@ export const fetchRemoteStatusJob = createJobHandle(
     // would leave open.
     let notesStored = 0
     let work = 0
+    let itemsConsidered = 0
+    const deadline = firstPageOnly ? Date.now() + INLINE_DEADLINE_MS : null
     const withinBudget = () =>
-      notesStored < MAX_REPLY_NOTES && work < MAX_FETCH_WORK
+      notesStored < MAX_REPLY_NOTES &&
+      work < MAX_FETCH_WORK &&
+      (!firstPageOnly || itemsConsidered < INLINE_MAX_REPLY_ITEMS) &&
+      (deadline === null || Date.now() < deadline)
+    // Under a deadline, stop waiting on an item the moment it passes, instead of
+    // letting one slow fetch (the remote request has its own timeout and
+    // retries) outlast it. The abandoned work finishes, or fails, on its own.
+    const storeWithinDeadline = async (item: unknown, servedFrom: string) => {
+      if (deadline === null) return storeReplyNote(item, servedFrom)
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        return await Promise.race([
+          storeReplyNote(item, servedFrom),
+          new Promise<null>((resolve) => {
+            timer = setTimeout(
+              () => resolve(null),
+              Math.max(0, deadline - Date.now())
+            )
+          })
+        ])
+      } finally {
+        clearTimeout(timer)
+      }
+    }
     while (pendingCollections.length > 0 && withinBudget()) {
-      let collection = pendingCollections.shift()
+      const pending = pendingCollections.shift()
+      if (!pending) break
+      let { ref: collection, servedFrom: pageServedFrom } = pending
       if (typeof collection === 'string') {
+        pageServedFrom = collection
         collection = await client.fetch(collection)
       }
       if (!collection) continue
@@ -336,6 +425,7 @@ export const fetchRemoteStatusJob = createJobHandle(
           page = null
         } else {
           visitedCollections.add(page)
+          pageServedFrom = page
           page = await client.fetch(page)
         }
       }
@@ -346,7 +436,8 @@ export const fetchRemoteStatusJob = createJobHandle(
         for (const item of items) {
           if (!withinBudget()) break
           work++
-          const stored = await storeReplyNote(item)
+          itemsConsidered++
+          const stored = await storeWithinDeadline(item, pageServedFrom)
           if (stored) {
             // Only newly stored notes count toward the store budget, so a
             // re-fetch can keep traversing already-cached parts of the thread to
@@ -354,7 +445,9 @@ export const fetchRemoteStatusJob = createJobHandle(
             if (stored.newlyStored) notesStored++
             // First-page mode stores only direct replies, so it never recurses
             // into a child's own thread.
-            if (!firstPageOnly) queueCollection(stored.replies)
+            if (!firstPageOnly) {
+              queueCollection(stored.replies, stored.repliesServedFrom)
+            }
           }
         }
 
@@ -370,6 +463,7 @@ export const fetchRemoteStatusJob = createJobHandle(
         if (typeof page.next === 'string') {
           if (visitedCollections.has(page.next)) break
           visitedCollections.add(page.next)
+          pageServedFrom = page.next
           page = await client.fetch(page.next)
         } else {
           page = page.next

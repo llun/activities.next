@@ -7,6 +7,7 @@ import { Database } from '@/lib/database/types'
 import { isPixelfedActor } from '@/lib/services/federation/serverSoftware'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
 import { enrichStatusAttachments } from '@/lib/services/medias/animationMetadata'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { Actor } from '@/lib/types/activitypub'
 import {
   Announce,
@@ -34,6 +35,7 @@ import {
   ACTIVITY_STREAM_PUBLIC_COMPACT
 } from '@/lib/utils/activitystream'
 import { logger } from '@/lib/utils/logger'
+import { mapWithConcurrency } from '@/lib/utils/mapWithConcurrency'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
 import { isRecord } from '@/lib/utils/typeGuards'
@@ -42,7 +44,19 @@ import { getActorCollections } from './getActorCollections'
 import { getActorPerson } from './getActorPerson'
 import { getActorPostsFromAtomFeed } from './getActorPostsFromAtomFeed'
 import { getPixelfedPosts } from './getPixelfedPosts'
-import { applyInheritedContext } from './inheritActivityPubContext'
+import {
+  MAX_INHERITED_CONTEXT_ENTRIES,
+  applyInheritedContext,
+  countActivityPubContextEntries
+} from './inheritActivityPubContext'
+
+// An outbox page is the remote server's to size. Mastodon serves 20 items; a
+// page is never displayed past this, so a longer one is truncated rather than
+// compacted (and possibly fetched) item by item.
+export const MAX_OUTBOX_PAGE_ITEMS = 40
+// Items are compacted and resolved (possibly with a getNote each) this many at
+// a time, so one page cannot hold every item's JSON-LD work in memory at once.
+const OUTBOX_ITEM_CONCURRENCY = 4
 
 type GetActorPostsFunction = (params: {
   database: Database
@@ -131,10 +145,28 @@ export const getActorPosts: GetActorPostsFunction = async ({
       }
 
       const pageContext = value.page?.['@context']
+      // Every item inherits a copy of the page context, so an oversized one is
+      // refused outright rather than multiplied across the page.
+      if (
+        countActivityPubContextEntries(pageContext) >
+        MAX_INHERITED_CONTEXT_ENTRIES
+      ) {
+        span.setAttribute('contextTooLarge', true)
+        return {
+          statusesCount: value.totalItems,
+          statuses: [],
+          nextPageUrl: null,
+          prevPageUrl: null
+        }
+      }
       const rawItems = value.page?.orderedItems
-      const items = Array.isArray(rawItems) ? rawItems : []
-      const statuses = await Promise.all(
-        items.map(async (item) => {
+      const items = Array.isArray(rawItems)
+        ? rawItems.slice(0, MAX_OUTBOX_PAGE_ITEMS)
+        : []
+      const statuses = await mapWithConcurrency(
+        items,
+        OUTBOX_ITEM_CONCURRENCY,
+        async (item) => {
           try {
             // This should be impossible for status api
             if (typeof item === 'string') return null
@@ -192,6 +224,11 @@ export const getActorPosts: GetActorPostsFunction = async ({
 
                 originalStatus = await getStatusFromNote(noteResult.data, span)
                 if (!originalStatus) return null
+                // Fetched with the instance actor's signature, like the Create
+                // branch below, so a server that filters by signer can hand
+                // back a followers-only or direct original. The stored-original
+                // arm above refuses those; this arm must too.
+                if (!isPublicOrUnlisted(originalStatus)) return null
               }
 
               const originalStatusWithActor = {
@@ -224,7 +261,10 @@ export const getActorPosts: GetActorPostsFunction = async ({
                 localStatus &&
                 localStatus.type !== StatusType.enum.Announce
               ) {
-                if (localStatus.actorId === person.id) {
+                if (
+                  localStatus.actorId === person.id &&
+                  isPublicOrUnlisted(localStatus)
+                ) {
                   if (actor) localStatus.actor = actor
                   return localStatus
                 }
@@ -259,13 +299,20 @@ export const getActorPosts: GetActorPostsFunction = async ({
               return null
             }
 
+            // The outbox is fetched signed by the instance actor, which may follow
+            // this author (collection ingest does exactly that), so a server that
+            // filters its outbox by signer can hand us followers-only and direct
+            // notes. Every caller serves these to some local viewer the remote
+            // never authorised, so only public and unlisted notes come back.
+            if (!isPublicOrUnlisted(status)) return null
+
             if (actor) status.actor = actor
             return status
           } catch (error) {
             span.recordException(toLoggableError(error))
             return null
           }
-        })
+        }
       )
 
       let validStatuses: Status[] = statuses.filter(

@@ -26,10 +26,18 @@ export const DELETE = traceApiRoute(
     [Scope.enum.read],
     async (req, { database, currentActor, params }) => {
       const { account_id: accountId } = await params
-      await database.dismissSuggestion({
-        actorId: currentActor.id,
-        targetActorId: await resolveActorIdParam(database, accountId)
-      })
+      const targetActorId = await resolveActorIdParam(database, accountId)
+      // Only a stored actor can ever be suggested, so only a stored actor needs
+      // a dismissal row. Recording arbitrary ids let any token write unbounded
+      // junk rows (and an id past the varchar(255) column errors on
+      // PostgreSQL); a stored actor's id always fits that column. The response
+      // is {} either way, as Mastodon's is.
+      if (await database.getActorFromId({ id: targetActorId })) {
+        await database.dismissSuggestion({
+          actorId: currentActor.id,
+          targetActorId
+        })
+      }
       return apiResponse({ req, allowedMethods: CORS_HEADERS, data: {} })
     }
   )

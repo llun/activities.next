@@ -18,6 +18,7 @@ import { clampedLimit, clampedOffset } from '@/lib/utils/clampedLimit'
 import { isOwnInstanceHost } from '@/lib/utils/host'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { ERROR_400, apiResponse, defaultOptions } from '@/lib/utils/response'
+import { MAX_SEARCH_QUERY_LENGTH } from '@/lib/utils/searchQueryLimits'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
 const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
@@ -25,7 +26,7 @@ const CORS_HEADERS = [HttpMethod.enum.OPTIONS, HttpMethod.enum.GET]
 export const OPTIONS = defaultOptions(CORS_HEADERS)
 
 const SearchParams = z.object({
-  q: z.string(),
+  q: z.string().max(MAX_SEARCH_QUERY_LENGTH),
   limit: clampedLimit(80, 40),
   offset: clampedOffset(10000),
   resolve: z

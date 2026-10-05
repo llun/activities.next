@@ -216,7 +216,8 @@ When enabled via the `ACTIVITIES_ENABLE_INBOX_FORWARDING` environment variable (
   - Excludes local server inboxes, inboxes matching the original author's host, and inboxes of recipients explicitly addressed in `to`/`cc`.
   - Moderation check: Filters out inboxes belonging to blocked or non-federatable domains via `canFederateWithDomain`.
 - **Asynchronous Delivery & Observability**:
-  - Enqueues `ForwardActivityJob` on the job queue (`Create`, `Update`, `Delete` activities).
+  - Enqueues `ForwardActivityJob` on the job queue (`Create`, `Update`, `Delete` activities), split by `getForwardActivityJobMessages` into messages of at most `MAX_FORWARD_INBOXES_PER_JOB` (100) inboxes, so one remote activity aimed at a popular local account cannot outgrow a queue provider's message limit.
+  - Each job delivers at most `FORWARD_ACTIVITY_CONCURRENCY` (8) requests at a time; per-request timeouts and response caps alone do not bound how many sockets one forwarded activity holds open.
   - Outbound HTTP POST requests are signed with the targeted local actor's key or the instance federation signing actor (`getFederationSigningActor`).
   - OpenTelemetry spans track `inbox.forward_targets_count`, `inbox.local_actor_id`, and `inbox.activity_id`.
 
@@ -249,6 +250,7 @@ Instance administrators can inspect terminally failed tasks, view formatted payl
   - Operational note: Old workers must be drained before a mixed-version rollout to ensure claims are settled with compatible token parameters. Claim tokens protect against concurrent or stale queue state transitions, but do not promise exactly-once external effects.
   - Unhandled job errors trigger polynomial backoff retry scheduling (`attempt^4 + 15` seconds, up to `ACTIVITIES_QUEUE_DATABASE_MAX_RETRIES` / default 16 attempts spanning ~7.5 days, matching Mastodon queue retry resilience).
   - Upon reaching maximum retries, failed tasks are stored in `dead_letter_jobs` and marked failed in `queue_jobs`, making them manageable via the Admin UI at `/admin/queues`.
+  - `completed` rows keep their full payload, so the runner (in-process and standalone) sweeps them: every 10 minutes it deletes rows completed more than 7 days ago in batches of 500 (`purgeCompletedQueueJobs`, `startDatabaseQueueRunner` options `completedRetentionMs` / `retentionSweepIntervalMs`). The job id is the dedup key, so that retention window is also the window in which re-publishing an already-completed id is ignored. `failed` and `pending` rows are never swept.
 - **Google Cloud Tasks (`ACTIVITIES_QUEUE_TYPE=cloudtasks`)**:
   - Webhook endpoint: `/api/v1/queue/cloudtasks` (returns 404 unless the configured queue is CloudTasks).
   - Tasks are authenticated via Google Cloud OIDC tokens or pre-shared webhook secrets (`Authorization: Bearer <secret>`, `x-cloudtasks-secret`, or `x-cloudtasks-token`). Plain service account headers (`x-service-account` / `x-cloudtasks-serviceaccount`) are not accepted.
@@ -265,6 +267,24 @@ Note the difference where a job is delayed: Database queue, QStash, and Cloud Ta
 the synchronous backend has no scheduler and **drops** any delayed message. Code
 that wants a delay must therefore check `getQueue().runsInline` and skip the
 delay rather than losing the job (see `syncStatusLinkPreview`).
+
+**Delayed actor deletion** (`POST /api/v1/actors/delete` with `delayDays`) records
+`deletionStatus = 'scheduled'` and `deletionScheduledAt`, and nothing else would
+ever move it on, so `lib/services/actors/actorDeletion.ts` carries it out two
+ways. Under a real queue `publishActorDeletion` publishes a `DeleteActorJob`
+with `delaySeconds` (and the `scheduledAt` it was queued for). Under the
+in-process queue, which drops delayed messages, nothing is published; instead
+`instrumentation.ts` starts `startActorDeletionSweep`, which every ten minutes
+publishes a job for each actor whose `deletionScheduledAt` has passed. The
+sweep also runs behind a real queue as the safety net for a lost job, skipping
+deletions overdue by less than five minutes so an in-flight job is not doubled.
+`deleteActorJob` is the guard that makes both safe: it does nothing for an actor
+that is no longer `scheduled` (cancelled), does nothing before
+`deletionScheduledAt` (re-queuing itself with the remaining delay when the queue
+can), and discards a job whose `scheduledAt` no longer matches (cancelled, then
+scheduled again). A process that never runs `instrumentation.ts` (a serverless
+deployment on the in-process queue) has no sweep, so delayed deletions need a
+real queue there.
 
 #### Status Deletion & Transactional Outbox Semantics
 
@@ -296,8 +316,11 @@ that both the web UI and the Mastodon API's `Status.card` render.
   (bodies over 2 MiB are truncated rather than rejected) and a
   5s-per-hop budget over at most one redirect,
   and must answer `text/html` in UTF-8 to be parsed at all. Up to 1 MiB of the
-  document `<head>` is parsed: the byte cap bounds transfer, not CPU, and the
-  HTML parser is quadratic in nesting depth.
+  document `<head>` is read, by htmlparser2's `Tokenizer` rather than a
+  tree-building parse: the byte cap bounds transfer, not CPU, and both
+  `htmlToDOM` and htmlparser2's `Parser` are quadratic in nesting depth (1 MiB
+  of unclosed `<div>`s blocked the event loop for seconds). Do not swap it back
+  for either.
 - A completed card is re-read after 7 days. A failure is stored as a
   negative-cache row for an hour, so an unreachable host is not re-contacted for
   every post that mentions it.
@@ -597,8 +620,16 @@ Read the applicable rules and review checks below before changing this subsystem
 - **Server-side outbound JSON and text HTTP requests MUST go through `safeRemoteFetch` (`@/lib/utils/safeRemoteFetch`).** Binary downloads use the guarded helper below.
 - Never call raw `fetch()` directly in server-side services or utilities.
 - `safeRemoteFetch` is backed by `got` and applies standard SSRF protection (requiring HTTPS, blocking private IP ranges such as loopback and RFC 1918 subnets), streaming response-size limits, timeout bounds, DNS pinning, and redirect handling.
+- A fetch whose response is trusted because of the host it came from — an ActivityPub object fetched to authenticate it (`getNote`, the forwarded-Delete confirmation, a `QuoteAuthorization` stamp) — passes `allowCrossHostRedirects: false`, so an open redirect on that host cannot hand the answer to another one. See [A Fetched Document's Own `id` Is Not Evidence](mastodon-api-compatibility.md#agents-a-fetched-document-s-own-id-is-not-evidence).
 - Binary FIT and image downloads use `safeImageFetch` with `readResponseArrayBufferWithLimit` because the text response of `safeRemoteFetch` would corrupt those bytes. The binary helper checks each redirect and destination address; callers apply an overall timeout and byte cap and do not forward provider bearer tokens to file hosts.
+- Web Push delivery (`web-push`) is the one outbound POST to a URL a client chose. The subscribe routes refuse any endpoint `isAllowedPushEndpoint` rejects (`lib/services/notifications/pushEndpoint.ts`: HTTPS, no credentials, no local names, public addresses only), delivery skips a stored endpoint `isDeliverablePushEndpoint` rejects and connects through `pushDeliveryAgent`, whose lookup refuses a restricted address at connect time (so a rebound record is caught), with a per-request timeout. `createPushSubscription` keeps at most `MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR` per actor (oldest dropped), which bounds the per-notification fan-out.
 - External cloud integrations (e.g. translation providers like DeepL, OpenAI, or Gemini, and alt-text vision generation) must target public HTTPS endpoints. Internal or self-hosted HTTP services running on private IP addresses are not supported.
+
+#### Inbound request bodies on unauthenticated routes
+
+- **An unauthenticated route (public webhook, client registration, anything that parses before the auth check) must not call `req.json()` / `req.text()` / `req.formData()` directly** — each buffers the whole body first. Read it through `@/lib/utils/boundedRequestBody` (`readRequestTextWithLimit`, `readRequestBodyWithLimit`, cap `SMALL_REQUEST_BODY_MAX_BYTES` = 64 KiB) or pass `{ maxBytes }` to `getRequestBody`. The cap is checked against a declared `content-length` before reading and again on the stream (the header can be absent or false), and an over-cap body answers 413 (`isRequestBodyTooLargeError`). Do not clone the request to peek at its body with these helpers: they `await` the stream's cancellation, and cancelling one `tee()` branch never settles until the other is read, so on a clone the over-cap read hangs instead of answering 413. The one deliberate exception is `ActivityPubVerifyGuard`'s `readBoundedBody`, which reads a clone (the handler still needs the original body) and stops at the cap WITHOUT awaiting `reader.cancel()` — stopping the reads is what bounds the work there.
+- A body-parsing `addAttributes` callback on `traceApiRoute` runs **before** the handler and so before an auth guard; set span attributes inside the guarded handler (`trace.getActiveSpan()`) instead.
+- Next's `proxy.ts` body clone (default 10 MB) is a backstop, not a limit to rely on.
 
 <a id="agents-link-prefetching-in-feeds"></a>
 
@@ -1256,6 +1287,14 @@ legacy shape left to copy.
   `getHashFromString(`${statusId}#update/${updatedStatus.updatedAt}`)`) — without
   the suffix, deleting a status posted or edited inside that window is silently
   dropped and never federates.
+- **Ids derived from REMOTE input live in their own namespace.** An inbound
+  activity's `id` is chosen by the sender, so hashing it bare let a sender pick
+  the preimage of an internal key — an activity with `id: "<statusId>#delete"`
+  reserved this very fan-out key, and the later delete was swallowed as a
+  duplicate. Every inbox-derived job id goes through `getInboxJobId`
+  (`app/api/inbox/getInboxJobId.ts`, an `inbox:` prefix), and the database
+  queue's `createQueueJob` throws when a conflicting id already belongs to a job
+  of a different `name` instead of returning that row as success.
 - **Unboost carries more than the audience, because its activity embeds the
   Announce.** `undoAnnounce` (`lib/activities/index.ts`) builds its object from
   `id`, `actorId`, `createdAt`, `to`, `cc` and `originalStatus.id`, so the job
@@ -1378,8 +1417,8 @@ legacy shape left to copy.
 - **Confirmation is read from `verificationCode` AND `emailVerified`, never from `verifiedAt`, and none of that is a style choice.** `verificationCode` says a code is outstanding; `emailVerified` is better-auth's own column, which `requireEmailVerification` has gated credential sign-in on since 2026-03-20. An account better-auth already treats as verified is not held pending here either — that grants nothing new and is what grandfathers the cohort the buggy backfill created (below). `accounts.verifiedAt` originally carried `DEFAULT CURRENT_TIMESTAMP` (`20230824181927_add_accounts_verification`, dropped in `drop_accounts_verifiedat_default`), so `createAccount` could not leave it unset by omitting it: the database stamped `now()` on every pending registration, and `canCreateSessionForAccount`'s `verifiedAt` test has consequently **never fired**. A check keyed on `verifiedAt` is a no-op that reads as a working gate. `createAccount` now writes an explicit `verifiedAt: null` for a pending registration, so that column is accurate for anything created from here on — but rows written before that still carry the default, so `verifiedAt` covers nothing on its own and the other two columns carry the whole answer. `verificationCode` is set once at registration, cleared to `''` by `verifyAccount`, and never set at all on an instance with no e-mail configured.
 - **The credential sign-in path was never open FOR AN ACCOUNT REGISTERED AFTER 2026-03-20, which is why this is mostly a token-path fix.** better-auth's own `emailAndPassword.requireEmailVerification` reads `accounts.emailVerified` — a different column, which `createAccount` correctly leaves false — and answers `403 EMAIL_NOT_VERIFIED`. **Older accounts are the exception, and it is not a small one:** `20260320072514_better_auth_columns` populated that column with `whereNotNull('verifiedAt')`, and `verifiedAt` was non-null for every row because of the same default, so the backfill declared EVERY account of that era verified — pending ones included. Those accounts have been signing in with a password ever since. That cohort is grandfathered by the predicate itself, which reads `emailVerified`, so the guard never refuses an account that has worked for months. `20260828140000_clear_stale_verification_codes` then brings the two columns into agreement so a reader of the row is not misled — it is a TIDY-UP, not the mechanism, and its bound decides only whether a stale row is tidied, never whether anyone keeps access. Two earlier attempts to make that bound the mechanism were wrong in opposite directions (a filename timestamp no deployment coincides with; then a batch comparison that is also true whenever the migration is merely first in a new pass), which is why the predicate carries it instead. Do not read the sentence above as covering the whole account table. Both columns are on the domain `Account`, and the guard reads both — that pairing IS the mechanism, not an accident to be simplified away. Removing `emailVerified` from either the schema or the predicate re-locks out the cohort with no way back, which is why this is written as an instruction rather than a description.
 - **`unconfirmedAccount: 'allow'` is the one carve-out that lets an unconfirmed account act AS ITSELF, and it exists for exactly one endpoint.** `POST /api/v1/emails/confirmations` resends an account's own confirmation e-mail, so refusing it for being unconfirmed makes the state unrecoverable for a client that lost the message — Mastodon carves out the same controller (`Api::V1::Emails::ConfirmationsController` never calls `require_user!`). It relaxes the confirmation test and **nothing else**: `isActorModerationBlocked` still runs, so a suspended actor or a disabled account is refused there too, and the handler applies `isAccountConfirmationPending` itself. That handler check must be the PREDICATE, never the raw `verificationCode` column: the two disagree for the backfilled cohort, and because this route is bearer-reachable with `write` while the flow that proves an address is cookie-only, reading the raw column let a client token re-point a confirmed account's address and take the account over. The guard admits any account here; the handler alone decides, on the signal every other surface uses. Do not add a second consumer without the same argument.
-- **`allowModerationBlocked` is the carve-out on `AuthenticatedGuard` for restrictive session and connected-app revocations.** `DELETE /api/v1/accounts/sessions`, `DELETE /api/v1/accounts/sessions/[token]`, and `DELETE /api/v1/accounts/connected-apps/[clientId]` pass `allowModerationBlocked: true` so a legitimate account owner can terminate attacker sessions and revoke authorized OAuth apps during compromise containment even if the account is disabled or an actor is suspended. Revocation only ever _reduces_ capability (destroying sessions and tokens) and cannot post, follow, or federate on the platform. It relaxes `isActorModerationBlocked` only; CSRF same-origin proof and `isActorConfirmationPending` remain strictly enforced (unconfirmed accounts are still refused with 403).
-- **Account-level actor endpoints (`actors/switch`, `actors/cancel-deletion`) authenticate the session's account directly rather than fronting an arbitrary `currentActor`.** `POST /api/v1/actors/cancel-deletion` operates on the target `actorId`, so gating on the session's selected actor would 403 whenever another actor on the same account is suspended (and fail if the only active actor is pending deletion). Like `switch`, it validates same-origin CSRF proof, resolves the account via `getAccountFromSession`, enforces `isAccountConfirmationPending`, and checks that the account owns `actorId`.
+- **`allowModerationBlocked` is the carve-out on `AuthenticatedGuard` for restrictive session and connected-app revocations.** `DELETE /api/v1/accounts/sessions`, `DELETE /api/v1/accounts/sessions/[id]` (keyed by `sessions.id`, never the session token, which is the cookie credential and must not reach a URL, a trace or the browser), and `DELETE /api/v1/accounts/connected-apps/[clientId]` pass `allowModerationBlocked: true` so a legitimate account owner can terminate attacker sessions and revoke authorized OAuth apps during compromise containment even if the account is disabled or an actor is suspended. Revocation only ever _reduces_ capability (destroying sessions and tokens) and cannot post, follow, or federate on the platform. It relaxes `isActorModerationBlocked` only; CSRF same-origin proof and `isActorConfirmationPending` remain strictly enforced (unconfirmed accounts are still refused with 403).
+- **Account-level actor endpoints (`actors/switch`, `actors/cancel-deletion`) authenticate the session's account directly rather than fronting an arbitrary `currentActor`.** `POST /api/v1/actors/cancel-deletion` operates on the target `actorId`, so gating on the session's selected actor would 403 whenever another actor on the same account is suspended (and fail if the only active actor is pending deletion). Like `switch`, it validates same-origin CSRF proof, resolves the account via `getAccountFromSession`, enforces `isAccountConfirmationPending`, and checks that the account owns `actorId`. It also refuses (403) when the **target** actor is suspended: the admin hard delete (`DELETE /api/v1/admin/accounts/:id`) requires suspension, marks the actor `scheduled` and only then enqueues the job, which exits if the status is no longer `scheduled` — so a suspended owner cancelling would win that race and undo the moderator's decision. A disabled account, or a different suspended actor on the same account, does not block it.
 - **`OptionalOAuthGuard` neither refuses nor accepts such a token — it DOWNGRADES it to the anonymous path** (`unconfirmedAccount: 'anonymous'`), which is a third answer and not a second use of the carve-out. Both alternatives are wrong there. Refusing made presenting a valid token FAIL a public read — `timelines/public`, `statuses/:id`, search — that succeeds with no `Authorization` header at all; a token must never make a request worse than sending none. Accepting the actor hands an unverified account real capability rather than "just public reads": `canActorReadSingleStatus`'s `isDirectRecipient` lets it read direct messages addressed to it, and `search`/`accounts/lookup` gate `resolve=true` on a non-null actor, so it can drive outbound WebFinger and signed remote fetches from this instance. **Mastodon is not a precedent for granting those** — its search controller applies `require_user!`, so an unconfirmed account never reaches `resolve` there, even though `authorize_if_got_token!` is otherwise the model for this guard. Suspension stays global on the same guard, so `isActorModerationBlocked` still refuses.
 - **The check costs no query.** `verificationCode` is already on `actor.account` in both resolution paths — `getActorFromId` loads the account row for the bearer path and `getActorsForAccount` does for the cookie path — which is the same reason `isActorModerationBlocked` can read `account.disabledAt`. An actor with **no** account is left alone, the direction `isActorModerationBlocked` also fails in; the only accountless local actor is the federation signing actor, which never authenticates.
 - **`Account.verifiedAt` is `.nullish()`, not `.optional()`, and `SQLAccount.verifiedAt` is nullable to match.** Both row-to-domain mappers hand the column through as a literal `null` (`getActor` writes one explicitly; `toDomainAccount` spreads the raw row, whose conditional override is a no-op for null), so under `z.number().optional()` `Actor.parse` threw the moment the column really was null — the first request by an unconfirmed actor would have 500'd rather than loading. The column default is what had been hiding that.
@@ -1931,7 +1970,7 @@ legacy shape left to copy.
   different disposition and does not count against this.
 - `allowModerationBlocked` (supported in `AuthenticatedGuard` options) is
   reserved for restrictive revocation endpoints (`accounts/sessions`,
-  `accounts/sessions/[token]`, `accounts/connected-apps/[clientId]`) so an owner
+  `accounts/sessions/[id]`, `accounts/connected-apps/[clientId]`) so an owner
   can terminate attacker sessions and revoke connected apps during suspected
   account compromise even while suspended/disabled. It relaxes
   `isActorModerationBlocked` only; CSRF same-origin proof and
@@ -1939,7 +1978,8 @@ legacy shape left to copy.
 - Account-level actor management (`actors/switch`, `actors/cancel-deletion`)
   authenticates the account directly via session and same-origin CSRF proof,
   checking account ownership of the target actor rather than gating on the
-  session's active actor.
+  session's active actor. `cancel-deletion` still refuses a suspended target
+  actor, whose scheduled deletion may be the admin hard delete.
 - Do not "unify" this with better-auth's `emailAndPassword.requireEmailVerification`,
   which covers credential sign-in only — but DO read the same column it reads.
   `emailVerified` is on the domain `Account` precisely so the two gates agree;

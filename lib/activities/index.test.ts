@@ -81,6 +81,42 @@ describe('activities', () => {
 
       expect(result).toBeNull()
     })
+
+    describe('when the requested URL redirects', () => {
+      // An open redirect on the claimed origin must not let another host
+      // answer for it: callers bind the note's id and attributedTo to the
+      // URL they asked for, so a cross-host hop would forge both.
+      const redirectingUrl = 'https://victim.test/redirect'
+      const forgedNote = MockMastodonActivityPubNote({
+        id: 'https://victim.test/users/alice/statuses/forged',
+        from: 'https://victim.test/users/alice',
+        content: '<p>forged</p>',
+        withContext: true
+      })
+      const redirectTo = (location: string) => {
+        fetchMock.mockResponse(async (req) =>
+          req.url === redirectingUrl
+            ? { status: 302, headers: { location }, body: '' }
+            : { status: 200, body: JSON.stringify(forgedNote) }
+        )
+      }
+
+      it('refuses a note served after a cross-host redirect', async () => {
+        redirectTo('https://attacker.test/forged')
+
+        expect(await getNote({ statusId: redirectingUrl })).toBeNull()
+        expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+          redirectingUrl
+        ])
+      })
+
+      it('follows a same-host redirect', async () => {
+        redirectTo('https://victim.test/users/alice/statuses/forged')
+
+        const result = await getNote({ statusId: redirectingUrl })
+        expect(result?.id).toEqual(forgedNote.id)
+      })
+    })
   })
 
   describe('sendNote', () => {

@@ -655,4 +655,94 @@ describe('processForwardedActivityJob', () => {
     const stored = await database.getStatus({ statusId: canonicalNoteId })
     expect(stored).toBeNull()
   })
+
+  describe('when the origin redirects', () => {
+    // An open redirect on the claimed author's origin (Mastodon's reblog
+    // permalinks are one) must not let another host answer for that origin.
+    const REDIRECTING_OBJECT_ID = `${AUTHOR}/redirect`
+    const ATTACKER_URL = 'https://attacker.example/forged'
+
+    const redirectThenServe = (
+      location: string,
+      served: Record<string, unknown>
+    ) => {
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REDIRECTING_OBJECT_ID) {
+          return { status: 302, headers: { location }, body: '' }
+        }
+        if (req.url === location) {
+          return { status: 200, body: JSON.stringify(served) }
+        }
+        return { status: 404, body: '' }
+      })
+    }
+
+    beforeEach(async () => {
+      await database.createNote({
+        id: NOTE_ID,
+        url: NOTE_ID,
+        actorId: AUTHOR,
+        text: 'original text',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    })
+
+    it('does not delete a status named by a Tombstone served after a cross-host redirect', async () => {
+      redirectThenServe(ATTACKER_URL, {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: NOTE_ID,
+        type: 'Tombstone'
+      })
+
+      await processForwardedActivityJob(
+        database,
+        jobMessage(forwardedActivity('Delete', REDIRECTING_OBJECT_ID))
+      )
+
+      expect(await database.getStatus({ statusId: NOTE_ID })).not.toBeNull()
+    })
+
+    it('does not apply an Update served after a cross-host redirect', async () => {
+      redirectThenServe(
+        ATTACKER_URL,
+        noteDocument({ content: '<p>forged edit</p>' })
+      )
+
+      await processForwardedActivityJob(
+        database,
+        jobMessage(
+          forwardedActivity('Update', {
+            id: REDIRECTING_OBJECT_ID,
+            type: 'Note'
+          })
+        )
+      )
+
+      const stored = await database.getStatus({ statusId: NOTE_ID })
+      expect(stored?.type === 'Note' && stored.text).toEqual('original text')
+    })
+
+    it('still applies an Update served after a same-host redirect', async () => {
+      redirectThenServe(
+        `${AUTHOR}/statuses/1/canonical`,
+        noteDocument({ content: '<p>genuine edit</p>' })
+      )
+
+      await processForwardedActivityJob(
+        database,
+        jobMessage(
+          forwardedActivity('Update', {
+            id: REDIRECTING_OBJECT_ID,
+            type: 'Note'
+          })
+        )
+      )
+
+      const stored = await database.getStatus({ statusId: NOTE_ID })
+      expect(stored?.type === 'Note' && stored.text).toEqual(
+        '<p>genuine edit</p>'
+      )
+    })
+  })
 })

@@ -23,6 +23,17 @@ vi.mock('@/lib/activities', () => ({
   getNote: (...params: unknown[]) => mockGetNote(...params)
 }))
 
+const mockIsLocalFederationDomain = vi.fn()
+const mockCanFederateWithDomain = vi.fn()
+vi.mock('@/lib/services/federation/domainPolicy', () => ({
+  isLocalFederationDomain: (...params: unknown[]) =>
+    mockIsLocalFederationDomain(...params),
+  canFederateWithDomain: (...params: unknown[]) =>
+    mockCanFederateWithDomain(...params)
+}))
+
+const QUOTED_AUTHOR_ID = 'https://remote.test/users/alice'
+
 const note = (quoteAuthorization?: string) =>
   ({
     id: 'https://remote.test/users/bob/statuses/9',
@@ -33,7 +44,138 @@ const note = (quoteAuthorization?: string) =>
   }) as unknown as BaseNote
 
 describe('resolveInboundQuotedStatus', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockIsLocalFederationDomain.mockResolvedValue(false)
+    mockCanFederateWithDomain.mockResolvedValue(true)
+  })
+
+  const unstoredDatabase = () =>
+    ({
+      getStatus: vi.fn().mockResolvedValue(null)
+    }) as unknown as Database
+
+  it.each([
+    {
+      description: 'a federation-blocked domain',
+      isLocal: false,
+      canFederate: false
+    },
+    { description: 'a local domain', isLocal: true, canFederate: true }
+  ])(
+    'never sends the quoted-note fetch to $description',
+    async ({ isLocal, canFederate }) => {
+      mockIsLocalFederationDomain.mockResolvedValue(isLocal)
+      mockCanFederateWithDomain.mockResolvedValue(canFederate)
+
+      await expect(
+        resolveInboundQuotedStatus({
+          database: unstoredDatabase(),
+          note: note(STAMP_URI),
+          quotedStatusId: QUOTED_STATUS_ID,
+          storeNote: vi.fn()
+        })
+      ).resolves.toBeNull()
+      expect(mockGetNote).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses a fetched note attributed to an actor on another origin', async () => {
+    // The quoter controls the quoted origin here: it answers with the id it
+    // was asked for but names someone else as the author, which would plant a
+    // status on that actor's profile.
+    mockGetNote.mockResolvedValue({
+      id: QUOTED_STATUS_ID,
+      type: 'Note',
+      attributedTo: 'https://mastodon.example/users/victim'
+    })
+    const storeNote = vi.fn()
+
+    await expect(
+      resolveInboundQuotedStatus({
+        database: unstoredDatabase(),
+        note: note(STAMP_URI),
+        quotedStatusId: QUOTED_STATUS_ID,
+        storeNote
+      })
+    ).resolves.toBeNull()
+    expect(storeNote).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      description: 'an embedded actor object',
+      attributedTo: { id: QUOTED_AUTHOR_ID, type: 'Person' }
+    },
+    {
+      description: 'a PeerTube account and channel array',
+      attributedTo: [
+        { id: QUOTED_AUTHOR_ID, type: 'Person' },
+        { id: 'https://remote.test/video-channels/main', type: 'Group' }
+      ]
+    }
+  ])(
+    'stores a same-origin author given as $description',
+    async ({ attributedTo }) => {
+      // Compaction leaves these shapes as-is; `createNoteJob` stores the id
+      // `extractActivityPubId` picks, so that is the id the gate must check.
+      const fetched = { id: QUOTED_STATUS_ID, type: 'Note', attributedTo }
+      mockGetNote.mockResolvedValue(fetched)
+      const storeNote = vi.fn().mockResolvedValue(undefined)
+      const storedStatus = { id: QUOTED_STATUS_ID } as unknown as Status
+      const database = {
+        getStatus: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(storedStatus)
+      } as unknown as Database
+
+      await expect(
+        resolveInboundQuotedStatus({
+          database,
+          note: note(STAMP_URI),
+          quotedStatusId: QUOTED_STATUS_ID,
+          storeNote
+        })
+      ).resolves.toBe(storedStatus)
+      expect(storeNote).toHaveBeenCalledWith(fetched, {
+        skipQuoteResolution: true
+      })
+    }
+  )
+
+  it.each([
+    {
+      description: 'an actor array whose first entry is on another origin',
+      attributedTo: [
+        { id: 'https://mastodon.example/users/victim', type: 'Person' },
+        { id: QUOTED_AUTHOR_ID, type: 'Person' }
+      ]
+    },
+    {
+      // Stringified, this array parses with remote.test as its host, but the
+      // author `createNoteJob` would store is its first entry.
+      description: 'a string array that only parses as same-origin joined',
+      attributedTo: ['https://mastodon.example', 'x@remote.test/users/alice']
+    }
+  ])('refuses $description', async ({ attributedTo }) => {
+    mockGetNote.mockResolvedValue({
+      id: QUOTED_STATUS_ID,
+      type: 'Note',
+      attributedTo
+    })
+    const storeNote = vi.fn()
+
+    await expect(
+      resolveInboundQuotedStatus({
+        database: unstoredDatabase(),
+        note: note(STAMP_URI),
+        quotedStatusId: QUOTED_STATUS_ID,
+        storeNote
+      })
+    ).resolves.toBeNull()
+    expect(storeNote).not.toHaveBeenCalled()
+  })
 
   it('returns the stored quoted status without fetching', async () => {
     const stored = { id: QUOTED_STATUS_ID } as unknown as Status
@@ -95,7 +237,10 @@ describe('resolveInboundQuotedStatus', () => {
   })
 
   it('hands the store callback the single-hop bound', async () => {
-    const fetched = { id: QUOTED_STATUS_ID } as unknown as BaseNote
+    const fetched = {
+      id: QUOTED_STATUS_ID,
+      attributedTo: QUOTED_AUTHOR_ID
+    } as unknown as BaseNote
     mockGetNote.mockResolvedValue(fetched)
     const storeNote = vi.fn().mockResolvedValue(undefined)
     const database = {
@@ -124,7 +269,10 @@ describe('resolveInboundQuotedStatus', () => {
     // function AFTER the catch frame is gone, so the rejection escapes and
     // throws out of the inbound job — orphaning a note already committed but
     // never added to a timeline. Only `return await` degrades.
-    mockGetNote.mockResolvedValue({ id: QUOTED_STATUS_ID })
+    mockGetNote.mockResolvedValue({
+      id: QUOTED_STATUS_ID,
+      attributedTo: QUOTED_AUTHOR_ID
+    })
     const database = {
       getStatus: vi
         .fn()

@@ -14,6 +14,13 @@ vi.mock('@/lib/services/medias', () => ({
   getMedia: vi.fn()
 }))
 
+const streamOf = (body: string, contentType: string) => ({
+  type: 'stream' as const,
+  stream: new Blob([body]).stream(),
+  contentType,
+  contentLength: Buffer.byteLength(body)
+})
+
 describe('GET /api/v1/files/[...pathname]', () => {
   const mockGetMedia = getMedia as jest.MockedFunction<typeof getMedia>
 
@@ -44,9 +51,7 @@ describe('GET /api/v1/files/[...pathname]', () => {
 
   it('normalizes mixed-slash traversal before media lookup', async () => {
     mockGetMedia.mockResolvedValue({
-      type: 'buffer',
-      buffer: Buffer.from('image-data'),
-      contentType: 'image/png'
+      ...streamOf('image-data', 'image/png')
     })
 
     const response = await getFile(['safe', '..', '..\\secret.png'])
@@ -181,9 +186,7 @@ describe('GET /api/v1/files/[...pathname]', () => {
         expectedPath: string
       }) => {
         mockGetMedia.mockResolvedValue({
-          type: 'buffer',
-          buffer: Buffer.from('image-data'),
-          contentType: 'image/webp'
+          ...streamOf('image-data', 'image/webp')
         })
 
         const response = await getFile(pathname)
@@ -192,5 +195,112 @@ describe('GET /api/v1/files/[...pathname]', () => {
         expect(mockGetMedia).toHaveBeenCalledWith(mockDatabase, expectedPath)
       }
     )
+  })
+  // Regression (F030): an object-storage object's type is whatever the
+  // presigned PUT declared, and this route serves it from the app's own origin
+  // under a CSP that allows inline script. A stored `text/html` was stored XSS.
+  describe('served content type', () => {
+    it.each(['text/html', 'image/svg+xml', 'application/xhtml+xml', ''])(
+      'serves a stored %j object as an inert download',
+      async (contentType: string) => {
+        mockGetMedia.mockResolvedValue(
+          streamOf('<script>alert(document.domain)</script>', contentType)
+        )
+
+        const response = await getFile(['medias', '2026-07-30', 'evil.png'])
+
+        expect(response.status).toBe(200)
+        expect(response.headers.get('content-type')).toBe(
+          'application/octet-stream'
+        )
+        expect(response.headers.get('content-disposition')).toBe('attachment')
+        expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+        expect(response.headers.get('content-security-policy')).toContain(
+          'sandbox'
+        )
+      }
+    )
+
+    it.each([
+      'image/webp',
+      'image/jpeg',
+      'image/png',
+      'video/mp4',
+      'video/webm',
+      'audio/mp4'
+    ])('serves stored %s inline', async (contentType: string) => {
+      mockGetMedia.mockResolvedValue(streamOf('media-bytes', contentType))
+
+      const response = await getFile(['medias', '2026-07-30', 'a.bin'])
+
+      expect(response.headers.get('content-type')).toBe(contentType)
+      expect(response.headers.get('content-disposition')).toBeNull()
+      expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+      expect(response.headers.get('content-security-policy')).toContain(
+        'sandbox'
+      )
+    })
+
+    it('drops parameters a stored type carries', async () => {
+      mockGetMedia.mockResolvedValue(
+        streamOf('media-bytes', 'IMAGE/PNG; charset=utf-8')
+      )
+
+      const response = await getFile(['medias', 'a.png'])
+
+      expect(response.headers.get('content-type')).toBe('image/png')
+    })
+
+    it('serves the removed-media placeholder sandboxed', async () => {
+      mockGetMedia.mockResolvedValue(null)
+
+      const response = await getFile(['medias', 'gone.png'])
+
+      expect(response.headers.get('content-type')).toBe('image/svg+xml')
+      expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+      expect(response.headers.get('content-security-policy')).toContain(
+        'sandbox'
+      )
+    })
+
+    it('streams the body with its length', async () => {
+      mockGetMedia.mockResolvedValue(streamOf('media-bytes', 'image/png'))
+
+      const response = await getFile(['medias', 'a.png'])
+
+      expect(response.headers.get('content-length')).toBe('11')
+      await expect(response.text()).resolves.toBe('media-bytes')
+    })
+
+    it('cancels the stream and sends headers only on HEAD', async () => {
+      // Next serves HEAD through this GET handler and never reads or cancels
+      // the body, so the open file handle / S3 socket must be released here.
+      const cancel = vi.fn()
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(new TextEncoder().encode('media-bytes'))
+        },
+        cancel
+      })
+      mockGetMedia.mockResolvedValue({
+        type: 'stream',
+        stream,
+        contentType: 'image/png',
+        contentLength: 11
+      })
+
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/files/medias/a.png', {
+          method: 'HEAD'
+        }),
+        { params: Promise.resolve({ pathname: ['medias', 'a.png'] }) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(response.body).toBeNull()
+      expect(response.headers.get('content-length')).toBe('11')
+      expect(response.headers.get('content-type')).toBe('image/png')
+      expect(cancel).toHaveBeenCalledTimes(1)
+    })
   })
 })

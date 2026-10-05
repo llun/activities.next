@@ -9,6 +9,7 @@ import {
   getCurrentDayBucketMs,
   getSevenDayHistory
 } from '@/lib/services/trends/tagHistory'
+import { getCachedTrendingTags } from '@/lib/services/trends/trendingTagsCache'
 import { Scope } from '@/lib/types/database/operations'
 import { Tag } from '@/lib/types/mastodon/tag'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -31,14 +32,13 @@ export const GET = traceApiRoute(
       const limit = normalizeTrendsLimit(searchParams.get('limit'))
       const offset = normalizeTrendsOffset(searchParams.get('offset'))
 
-      const trendingTags = await database.getTrendingTags({
+      // The ranking and history are the same for every viewer and cost a
+      // full-window aggregation, so they are served from a short TTL cache;
+      // only the per-viewer `following` flag is computed per request.
+      const { trendingTags, history } = await getCachedTrendingTags(database, {
         days: TRENDS_DAYS,
         limit,
         offset
-      })
-      const history = await database.getTagDailyHistory({
-        names: trendingTags.map((trendingTag) => trendingTag.name),
-        days: TRENDS_DAYS
       })
 
       const todayBucketMs = getCurrentDayBucketMs()

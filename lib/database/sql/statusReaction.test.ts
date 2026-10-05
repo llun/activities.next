@@ -1,3 +1,5 @@
+import knex from 'knex'
+
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -62,6 +64,44 @@ describe('StatusReactionDatabase', () => {
         ])
       })
 
+      it('row-locks the statuses row, not the actor reactions it counts', async () => {
+        // The lock is what serialises a burst of distinct reactions on
+        // PostgreSQL. knex drops FOR UPDATE on SQLite, where writers already
+        // serialise, so no result-based test can see it go: pin the call. Every
+        // dialect builds on the same QueryBuilder, so a throwaway instance
+        // (no connection, no pool) exposes the prototype the database uses.
+        const queryBuilderPrototype = Object.getPrototypeOf(
+          knex({
+            client: 'better-sqlite3',
+            useNullAsDefault: true
+          }).queryBuilder()
+        )
+        // Record WHICH table each lock targets: a lock moved onto the
+        // status_reactions read locks zero rows for a first reaction, so it
+        // serialises nothing, yet still calls forUpdate.
+        const originalForUpdate = queryBuilderPrototype.forUpdate
+        const lockedTables: unknown[] = []
+        const forUpdate = vi
+          .spyOn(queryBuilderPrototype, 'forUpdate')
+          .mockImplementation(function (
+            this: { _single: { table?: unknown } },
+            ...args: unknown[]
+          ) {
+            lockedTables.push(this._single.table)
+            return originalForUpdate.apply(this, args)
+          })
+        try {
+          await database.createStatusReaction({
+            statusId: statuses.primary.post,
+            actorId: extraActorId,
+            name: '🔒'
+          })
+          expect(lockedTables).toEqual(['statuses'])
+        } finally {
+          forUpdate.mockRestore()
+        }
+      })
+
       it('does nothing when the status does not exist', async () => {
         await database.createStatusReaction({
           statusId: 'https://nonexistent.status/id',
@@ -118,6 +158,40 @@ describe('StatusReactionDatabase', () => {
           expect(rollups.map((rollup) => rollup.name).sort()).toEqual(
             names.slice(0, MAX_REACTIONS_PER_ACTOR).sort()
           )
+        } finally {
+          for (const name of names) {
+            await database.deleteStatusReaction({
+              statusId,
+              actorId: extraActorId,
+              name
+            })
+          }
+        }
+      })
+
+      it('holds the per-actor cap when distinct reactions race', async () => {
+        const statusId = statuses.primary.postWithAttachments
+        const names = Array.from(
+          { length: MAX_REACTIONS_PER_ACTOR * 3 },
+          (_unused, index) => `race-${index}`
+        )
+        try {
+          // Each call reads the actor's existing rows and inserts a different
+          // name, so only the status row lock keeps them from all seeing room.
+          await Promise.all(
+            names.map((name) =>
+              database.createStatusReaction({
+                statusId,
+                actorId: extraActorId,
+                name
+              })
+            )
+          )
+
+          const rollups = await database.getStatusReactionRollups({
+            statusIds: [statusId]
+          })
+          expect(rollups).toHaveLength(MAX_REACTIONS_PER_ACTOR)
         } finally {
           for (const name of names) {
             await database.deleteStatusReaction({

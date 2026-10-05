@@ -10,6 +10,7 @@ import { getFederationSigningActor } from '@/lib/services/federation/getFederati
 import { COLLECTION_BACKFILL_MAX_POSTS } from '@/lib/services/timelines/types'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 
 import { createJobHandle } from './createJobHandle'
@@ -72,11 +73,38 @@ export const ingestCollectionMemberJob = createJobHandle(
     })
     if (!actor) return
 
+    // recordActorIfNeeded keys the row on the id the member's origin names,
+    // which an alias in the collection (`/@bob`, `/users/bob/`) is not. The
+    // follow, the Follow activity and the outbox fetch all target that row, and
+    // the idempotency guard is re-run against it.
+    const targetActorId = actor.id
+    if (targetActorId !== memberActorId) {
+      const existingCanonicalFollow =
+        await database.getAcceptedOrRequestedFollow({
+          actorId: signingActor.id,
+          targetActorId
+        })
+      if (existingCanonicalFollow) return
+    }
+
     const person = await getActorPerson({
-      actorId: memberActorId,
+      actorId: targetActorId,
       signingActor
     })
     if (!person) return
+    // `getActorPerson` guarantees `person.id` is served by its own origin, but
+    // not that it is the member we were asked to ingest — a redirect or a
+    // split-domain alias can land on another host's actor. Everything below
+    // writes statuses under the outbox's authors, so the outbox must belong to
+    // the member's own origin.
+    if (!isSameActivityPubOrigin(person.id, memberActorId)) {
+      logger.warn({
+        message: 'Collection member resolved to an actor on another origin',
+        memberActorId,
+        personId: person.id
+      })
+      return
+    }
 
     // Derive the inbox/sharedInbox from the signing actor's own canonical id so
     // the protocol and port match it (rather than hardcoding https), keeping
@@ -84,12 +112,12 @@ export const ingestCollectionMemberJob = createJobHandle(
     const signingActorOrigin = new URL(signingActor.id).origin
     const followItem = await database.createFollow({
       actorId: signingActor.id,
-      targetActorId: memberActorId,
+      targetActorId,
       status: FollowStatus.enum.Requested,
       inbox: `${signingActor.id}/inbox`,
       sharedInbox: `${signingActorOrigin}/inbox`
     })
-    await follow(followItem.id, signingActor, memberActorId, signingActor)
+    await follow(followItem.id, signingActor, targetActorId, signingActor)
 
     // Backfill the most recent posts from the member's outbox. Only plain notes
     // are stored here (announces/polls carry extra structure the simple
@@ -107,9 +135,15 @@ export const ingestCollectionMemberJob = createJobHandle(
       return
     }
 
+    // An outbox item is the member server's claim, so it may only plant notes
+    // in the member's own id space under an author on that same origin — never
+    // a status id on another host, nor one attributed to a local actor.
     const recentNotes = statuses
       .filter(
-        (status): status is StatusNote => status.type === StatusType.enum.Note
+        (status): status is StatusNote =>
+          status.type === StatusType.enum.Note &&
+          isSameActivityPubOrigin(status.id, memberActorId) &&
+          isSameActivityPubOrigin(status.actorId, memberActorId)
       )
       .slice(0, COLLECTION_BACKFILL_MAX_POSTS)
     if (recentNotes.length === 0) return

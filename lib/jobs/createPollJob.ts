@@ -7,10 +7,12 @@ import {
   getLanguage,
   getReply,
   getSummary,
-  getTags
+  getTags,
+  getUrl
 } from '@/lib/activities/note'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { getPollChoicesFromQuestion } from '@/lib/services/polls/pollChoices'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { ENTITY_TYPE_QUESTION, Question } from '@/lib/types/activitypub'
 import {
@@ -79,7 +81,9 @@ export const createPollJob = createJobHandle(
       }),
       database.createPollWithResult({
         id: question.id,
-        url: typeof question.url === 'string' ? question.url : question.id,
+        // A peer's `url` is served back to clients as a link, so only an
+        // http(s) value is kept — the same rule createNoteJob applies.
+        url: getUrl(question.url) || question.id,
 
         actorId: question.attributedTo,
 
@@ -157,7 +161,16 @@ export const createPollJob = createJobHandle(
           const tagName = hashtagName.startsWith('#')
             ? hashtagName.slice(1)
             : hashtagName
-          await database.increaseHashtagCounter({ hashtag: tagName })
+          // The count is served to anonymous /tags/<tag> visitors; a
+          // followers-only or direct poll must not move it.
+          if (
+            isPublicOrUnlisted({
+              to: toRecipientArray(question.to),
+              cc: toRecipientArray(question.cc)
+            })
+          ) {
+            await database.increaseHashtagCounter({ hashtag: tagName })
+          }
           return
         }
         return database.createTag({

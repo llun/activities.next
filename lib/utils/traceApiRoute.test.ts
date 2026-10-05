@@ -10,7 +10,12 @@ import { NextRequest } from 'next/server'
 
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 
-import { parseCloudTraceContext, traceApiRoute } from './traceApiRoute'
+import {
+  parseCloudTraceContext,
+  redactTraceQuery,
+  templateTracePath,
+  traceApiRoute
+} from './traceApiRoute'
 
 // A minimal, spec-shaped W3C `traceparent` propagator used ONLY to exercise
 // `extractTraceContext`'s call to `propagation.extract()` in tests below.
@@ -253,6 +258,92 @@ describe('traceApiRoute', () => {
     expect(startActiveSpanMock).toHaveBeenCalledWith(
       'custom.testRoute',
       expect.any(Function)
+    )
+  })
+
+  // Spans leave the process through whatever exporter the operator attaches.
+  // The Strava callback carries an OAuth `code` and CSRF `state`, and the
+  // Strava webhook carries its only credential both as a path segment and as
+  // `hub.verify_token`; none of those may be exported.
+  it('records neither credential query values nor dynamic path segments', async () => {
+    const handler = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }))
+    const wrapped = traceApiRoute('stravaWebhook', handler)
+    const webhookToken = 'webhook-secret-token-value'
+    const req = new NextRequest(
+      `http://localhost/api/v1/webhooks/strava/${webhookToken}?hub.mode=subscribe&hub.verify_token=${webhookToken}&hub.challenge=abc&code=oauth-code-value&state=csrf-state-value&limit=20`
+    )
+
+    await wrapped(req, { params: Promise.resolve({ webhookToken }) })
+
+    const recorded = JSON.stringify(mockSpan.setAttribute.mock.calls)
+    expect(recorded).not.toContain(webhookToken)
+    expect(recorded).not.toContain('oauth-code-value')
+    expect(recorded).not.toContain('csrf-state-value')
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith(
+      'url.path',
+      '/api/v1/webhooks/strava/[webhookToken]'
+    )
+    // Parameter names and harmless values stay as the debugging signal.
+    expect(mockSpan.setAttribute).toHaveBeenCalledWith(
+      'url.query',
+      'hub.mode=subscribe&hub.verify_token=REDACTED&hub.challenge=abc&code=REDACTED&state=REDACTED&limit=20'
+    )
+  })
+
+  it('templates catch-all and encoded path segments', () => {
+    expect(
+      templateTracePath('/embed/heatmap/a%20b/image', { token: 'a b' })
+    ).toBe('/embed/heatmap/[token]/image')
+    expect(
+      templateTracePath('/api/auth/oauth2/token', { all: ['oauth2', 'token'] })
+    ).toBe('/api/auth/[all]/[all]')
+    expect(templateTracePath('/api/test', undefined)).toBe('/api/test')
+  })
+
+  it('bounds and redacts the recorded query', () => {
+    expect(redactTraceQuery('?access_token=x&client_secret=y&q=hi')).toBe(
+      'access_token=REDACTED&client_secret=REDACTED&q=hi'
+    )
+    expect(redactTraceQuery(`q=${'a'.repeat(5000)}`)).toHaveLength(2048)
+  })
+
+  // Spelled out here rather than imported, so dropping a name from the
+  // denylist fails a test instead of shrinking the test along with it.
+  it.each([
+    'assertion',
+    'code',
+    'email',
+    'key',
+    'nonce',
+    'otp',
+    'password',
+    'secret',
+    'sig',
+    'signature',
+    'state',
+    'token',
+    'verifier'
+  ])('redacts a %s query value', (name) => {
+    expect(redactTraceQuery(`${name}=v`)).toBe(`${name}=REDACTED`)
+  })
+
+  it.each([
+    'hub.verify_token',
+    'client[secret]',
+    'code_verifier',
+    'X-Amz-Signature',
+    'login-email'
+  ])('redacts the split-form name %s', (name) => {
+    expect(new URLSearchParams(redactTraceQuery(`${name}=v`)).get(name)).toBe(
+      'REDACTED'
+    )
+  })
+
+  it('keeps a value whose name has no sensitive part', () => {
+    expect(redactTraceQuery('tokenized=v&keyboard=v')).toBe(
+      'tokenized=v&keyboard=v'
     )
   })
 

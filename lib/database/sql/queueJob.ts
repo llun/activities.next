@@ -85,6 +85,16 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
     if (!persisted) {
       throw new Error(`Failed to persist or fetch queue job: ${id}`)
     }
+    // A conflicting id is a duplicate delivery of the SAME job only when the
+    // existing row is that job. A row of another kind under this id means two
+    // producers derived one key — returning it as success silently dropped the
+    // new job (a remote activity pre-reserving a local delete's fan-out key),
+    // so fail loudly instead.
+    if (persisted.name !== name) {
+      throw new Error(
+        `Queue job id ${id} is already taken by a ${persisted.name} job, refusing to treat a ${name} job as its duplicate`
+      )
+    }
 
     return toQueueJob(persisted)
   },
@@ -407,6 +417,35 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
   async deleteQueueJob(id: string) {
     const deletedCount = await database('queue_jobs').where({ id }).delete()
     return deletedCount > 0
+  },
+
+  async purgeCompletedQueueJobs({
+    olderThan,
+    limit = 500
+  }: {
+    olderThan: Date
+    limit?: number
+  }) {
+    // Two statements rather than `delete ... where id in (select ... limit)`:
+    // MySQL rejects LIMIT inside an IN subquery. `next_run_at` is repeated so
+    // the (status, next_run_at) index bounds the scan; a job always completes
+    // after it became due, so it never excludes a row `updated_at` would keep.
+    const rows = await database('queue_jobs')
+      .where('status', 'completed')
+      .andWhere('next_run_at', '<', olderThan)
+      .andWhere('updated_at', '<', olderThan)
+      .orderBy('next_run_at', 'asc')
+      .limit(limit)
+      .select('id')
+    if (rows.length === 0) return 0
+
+    return database('queue_jobs')
+      .whereIn(
+        'id',
+        rows.map((row: { id: string }) => row.id)
+      )
+      .andWhere('status', 'completed')
+      .delete()
   },
 
   async countQueueJobs(params: { status?: QueueJobStatus } = {}) {

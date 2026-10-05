@@ -132,6 +132,18 @@ export const getEmailConfig = (): { email: EmailConfig } | null => {
     } catch (error) {
       if (error instanceof UnsupportedEmailProviderError) throw error
 
+      // Fail closed. Returning null here would mean "no email backend", and
+      // with no backend registration mints no verification code and writes
+      // the account pre-verified — so a typo in this variable would silently
+      // open sign-up to unproven addresses. Only fall back when the per-key
+      // variables actually configure a backend.
+      if (!matcher('ACTIVITIES_EMAIL_')) {
+        throw new Error(
+          'ACTIVITIES_EMAIL is not valid JSON and no ACTIVITIES_EMAIL_* variables are set; email configuration is invalid',
+          { cause: error }
+        )
+      }
+
       logger.warn(
         'ACTIVITIES_EMAIL contains malformed JSON; falling back to individual env vars'
       )

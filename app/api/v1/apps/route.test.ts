@@ -311,4 +311,37 @@ describe('apps route', () => {
       authorization: 'Bearer [REDACTED]'
     })
   })
+
+  test('rejects an oversized body with 413 before parsing it', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/apps', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          client_name: 'x'.repeat(200 * 1024),
+          redirect_uris: 'https://client.llun.dev/callback'
+        })
+      }),
+      routeContext
+    )
+
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({ error: 'Payload Too Large' })
+    expect(mockCreateApplication).not.toHaveBeenCalled()
+  })
+
+  test('rejects an oversized multipart body with 413', async () => {
+    const form = new FormData()
+    form.set('client_name', 'x'.repeat(200 * 1024))
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/apps', {
+        method: 'POST',
+        body: form
+      }),
+      routeContext
+    )
+
+    expect(response.status).toBe(413)
+    expect(mockCreateApplication).not.toHaveBeenCalled()
+  })
 })

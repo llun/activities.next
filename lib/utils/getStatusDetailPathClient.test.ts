@@ -112,4 +112,27 @@ describe('getStatusDetailPathClient', () => {
 
     expect(await getStatusDetailPathClient(status)).toBeNull()
   })
+
+  it('percent-encodes a hostile remote username so the path stays on the status page', async () => {
+    const publicId = generatePublicId()
+    const status = {
+      type: StatusType.enum.Note,
+      actor: {
+        username: '../../api/v1/x?y=#',
+        domain: 'remote.example'
+      },
+      isLocalActor: false,
+      publicId,
+      url: 'https://remote.example/users/x/statuses/1'
+    } as Status
+
+    const path = await getStatusDetailPathClient(status)
+    expect(path).toBe(
+      `/@..%2F..%2Fapi%2Fv1%2Fx%3Fy%3D%23@remote.example/${publicId}`
+    )
+    // Resolved against the instance, it must still be a two-segment path.
+    const resolved = new URL(path ?? '', 'https://local.test')
+    expect(resolved.pathname.split('/')).toHaveLength(3)
+    expect(resolved.search).toBe('')
+  })
 })

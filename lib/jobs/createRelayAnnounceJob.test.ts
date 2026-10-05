@@ -95,6 +95,29 @@ describe('createRelayAnnounceJob', () => {
     expect(federated.map((status) => status.id)).not.toContain(followersOnly)
   })
 
+  it('does not federate an unlisted relayed note', async () => {
+    const unlisted = 'https://somewhere.test/statuses/unlisted'
+    await database.createNote({
+      id: unlisted,
+      url: unlisted,
+      actorId: 'https://somewhere.test/users/bob',
+      text: 'unlisted',
+      to: ['https://somewhere.test/users/bob/followers'],
+      cc: [ACTIVITY_STREAM_PUBLIC]
+    })
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-unlisted',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(unlisted, `${RELAY_ACTOR}/announce/unlisted`)
+    })
+
+    const federated = await database.getTimeline({
+      timeline: Timeline.FEDERATED_PUBLIC
+    })
+    expect(federated.map((status) => status.id)).not.toContain(unlisted)
+  })
+
   it('skips our own posts echoed back through the relay (self-echo guard)', async () => {
     const localNote = 'https://test.llun.dev/users/test1/statuses/local-echo'
     await createRelayAnnounceJob(database, {
@@ -246,6 +269,128 @@ describe('createRelayAnnounceJob', () => {
     })
     expect(federated.map((status) => status.id)).not.toContain(requestedNote)
     expect(federated.map((status) => status.id)).not.toContain(evilNote)
+  })
+
+  it('refuses a fetched note attributed to an actor on another origin', async () => {
+    // The relay job stores the fetched note BEFORE its self-echo check, so a
+    // note on somewhere.test claiming a LOCAL author would be persisted as
+    // that local actor's status without the attribution binding in
+    // dispatchCreateNoteOrPollJob.
+    const requestedNote = 'https://somewhere.test/statuses/forged-attribution'
+    fetchMock.mockOnceIf(
+      requestedNote,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: requestedNote,
+        type: 'Note',
+        attributedTo: 'https://llun.test/users/test1',
+        content: '<p>forged</p>',
+        published: '2026-08-30T00:00:00Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    )
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-forged-attribution',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(
+        requestedNote,
+        `${RELAY_ACTOR}/announce/forged-attribution`
+      )
+    })
+
+    await expect(
+      database.getStatus({ statusId: requestedNote })
+    ).resolves.toBeNull()
+  })
+
+  // See createAnnounceJob.test.ts: the author gate must check the id the
+  // store keeps, not the raw (embedded-object or array) `attributedTo`.
+  it.each([
+    {
+      title: 'an embedded same-origin author object',
+      type: 'Note',
+      slug: 'relay-embedded-author',
+      attributedTo: {
+        type: 'Person',
+        id: 'https://somewhere.test/actors/embedded',
+        name: 'Embedded'
+      },
+      expectedActorId: 'https://somewhere.test/actors/embedded'
+    },
+    {
+      title: 'a PeerTube-style array of same-origin author objects',
+      type: 'Video',
+      slug: 'relay-peertube-video',
+      attributedTo: [
+        { type: 'Person', id: 'https://somewhere.test/actors/alice' },
+        { type: 'Group', id: 'https://somewhere.test/video-channels/chan' }
+      ],
+      expectedActorId: 'https://somewhere.test/actors/alice'
+    }
+  ])(
+    'stores a relayed note attributed to $title',
+    async ({ type, slug, attributedTo, expectedActorId }) => {
+      const requestedNote = `https://somewhere.test/statuses/${slug}`
+      fetchMock.mockOnceIf(
+        requestedNote,
+        JSON.stringify({
+          '@context': 'https://www.w3.org/ns/activitystreams',
+          id: requestedNote,
+          type,
+          attributedTo,
+          content: `<p>${slug}</p>`,
+          published: '2026-08-30T00:00:00Z',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+      )
+
+      await createRelayAnnounceJob(database, {
+        id: `job-${slug}`,
+        name: RELAY_ANNOUNCE_JOB_NAME,
+        data: announceOf(requestedNote, `${RELAY_ACTOR}/announce/${slug}`)
+      })
+
+      const stored = await database.getStatus({ statusId: requestedNote })
+      expect(stored).not.toBeNull()
+      expect(stored?.actorId).toEqual(expectedActorId)
+    }
+  )
+
+  it('refuses a relayed note whose first attributedTo entry is on another origin', async () => {
+    const requestedNote =
+      'https://somewhere.test/statuses/relay-cross-origin-first-author'
+    fetchMock.mockOnceIf(
+      requestedNote,
+      JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: requestedNote,
+        type: 'Note',
+        attributedTo: [
+          { type: 'Person', id: 'https://llun.test/users/test1' },
+          { type: 'Person', id: 'https://somewhere.test/actors/author' }
+        ],
+        content: '<p>forged</p>',
+        published: '2026-08-30T00:00:00Z',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    )
+
+    await createRelayAnnounceJob(database, {
+      id: 'job-cross-origin-first-author',
+      name: RELAY_ANNOUNCE_JOB_NAME,
+      data: announceOf(
+        requestedNote,
+        `${RELAY_ACTOR}/announce/cross-origin-first-author`
+      )
+    })
+
+    await expect(
+      database.getStatus({ statusId: requestedNote })
+    ).resolves.toBeNull()
   })
 
   it('rejects a relayed note whose fetched id is malformed or non-http', async () => {

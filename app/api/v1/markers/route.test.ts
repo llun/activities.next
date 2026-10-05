@@ -225,4 +225,50 @@ describe('/api/v1/markers', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({})
   })
+
+  it('POST rejects an oversized last_read_id with 422 and stores nothing', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({ home: { last_read_id: 'x'.repeat(5000) } })
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(422)
+    expect(await instance('markers').select('id')).toHaveLength(0)
+  })
+
+  it('POST rejects a body over the size cap with 413 before parsing it', async () => {
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body: JSON.stringify({ home: { last_read_id: 'x'.repeat(200_000) } })
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(413)
+  })
+
+  it('POST accepts a multipart body', async () => {
+    const form = new FormData()
+    form.set('home[last_read_id]', 'MP1')
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/markers', {
+        method: 'POST',
+        headers: { origin: 'https://llun.test' },
+        body: form
+      }),
+      { params: Promise.resolve({}) }
+    )
+    expect(response.status).toBe(200)
+    expect((await response.json()).home.last_read_id).toBe('MP1')
+  })
 })

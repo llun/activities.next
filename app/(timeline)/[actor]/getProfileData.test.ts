@@ -392,6 +392,57 @@ describe('getProfileData', () => {
         expect(mockDatabase.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
       })
 
+      // The Fitness tab appears off `hasFitnessData`, so the flag must be asked
+      // for the viewer's audience: an unscoped answer tells a stranger that an
+      // actor with only private activities has fitness data at all.
+      it('asks whether fitness data exists for the logged-out audience only', async () => {
+        await getProfileData(mockDatabase, '@localuser@example.com', false, {
+          currentActor: null
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorHasFitnessData as jest.Mock)
+        ).toEqual({
+          publicOnly: true,
+          visibleToActorId: null,
+          includeFollowersOnly: false,
+          followersAudience: followersUrl
+        })
+      })
+
+      it('asks whether fitness data exists for the signed-in follower audience', async () => {
+        ;(
+          mockDatabase.getAcceptedOrRequestedFollow as jest.Mock
+        ).mockResolvedValue({ status: FollowStatus.enum.Accepted })
+
+        await getProfileData(mockDatabase, '@localuser@example.com', true, {
+          currentActor: viewer
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorHasFitnessData as jest.Mock)
+        ).toEqual({
+          publicOnly: false,
+          visibleToActorId: viewer.id,
+          includeFollowersOnly: true,
+          followersAudience: followersUrl
+        })
+      })
+
+      it('leaves the owner fitness-data check unfiltered', async () => {
+        await getProfileData(mockDatabase, '@localuser@example.com', true, {
+          currentActor: owner
+        })
+
+        expect(
+          visibilityArgsFor(mockDatabase.getActorHasFitnessData as jest.Mock)
+        ).toMatchObject({
+          publicOnly: false,
+          visibleToActorId: null,
+          includeFollowersOnly: false
+        })
+      })
+
       it('still hydrates viewer interaction state from the signed-in actor', async () => {
         await getProfileData(mockDatabase, '@localuser@example.com', true, {
           currentActor: viewer
@@ -995,6 +1046,70 @@ describe('getProfileData', () => {
         expect(mockDatabase.updateActor).toHaveBeenCalledWith(
           expect.objectContaining({ actorId: mockPerson.id })
         )
+      })
+
+      it.each([
+        ['a private key', { privateKey: 'local-private-key' }],
+        ['an account', { account: { id: 'account-id' } }]
+      ])(
+        'never writes a fetched profile onto a local actor row (one with %s)',
+        async (_label, localFields) => {
+          // A remote handle whose WebFinger resolves to one of OUR actor ids.
+          const localPerson: Actor = {
+            ...mockPerson,
+            id: 'https://example.com/users/alice',
+            publicKey: {
+              id: 'https://example.com/users/alice#main-key',
+              owner: 'https://example.com/users/alice',
+              publicKeyPem: 'ATTACKER KEY'
+            }
+          }
+          ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+            null
+          )
+          ;(getWebfingerSelf as jest.Mock).mockResolvedValue(localPerson.id)
+          ;(getActorPerson as jest.Mock).mockResolvedValue(localPerson)
+          ;(mockDatabase.getActorFromId as jest.Mock).mockResolvedValue({
+            id: localPerson.id,
+            ...localFields
+          })
+
+          const result = await getProfileData(
+            mockDatabase,
+            '@setup@evil.example',
+            true,
+            { currentActor: null }
+          )
+
+          expect(result).not.toBeNull()
+          expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+          expect(mockDatabase.createActor).not.toHaveBeenCalled()
+          expect(mockDatabase.setActorCounters).not.toHaveBeenCalled()
+        }
+      )
+
+      // The alias's collections are as untrusted as its key: an existing row
+      // reached through a `self` link that is not its id gets no writes at all,
+      // counters included. getProfileData.actorBinding.test.ts covers the key.
+      it('writes nothing, counters included, for an existing row reached through an alias', async () => {
+        ;(mockDatabase.getActorFromUsername as jest.Mock).mockResolvedValue(
+          null
+        )
+        ;(getWebfingerSelf as jest.Mock).mockResolvedValue(
+          'https://remote.com/media/upload.json'
+        )
+
+        const result = await getProfileData(
+          mockDatabase,
+          '@x@evil.example',
+          true,
+          { currentActor: null }
+        )
+
+        expect(result?.person).toBe(mockPerson)
+        expect(mockDatabase.updateActor).not.toHaveBeenCalled()
+        expect(mockDatabase.createActor).not.toHaveBeenCalled()
+        expect(mockDatabase.setActorCounters).not.toHaveBeenCalled()
       })
 
       it('rethrows a non-unique insert error', async () => {

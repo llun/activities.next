@@ -147,9 +147,9 @@ Activity.next supports SQLite and PostgreSQL. The configuration loader also acce
 
 ### Full JSON Configuration
 
-| Variable              | Description                                                                                                                                                                                                                                                                                                                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ACTIVITIES_DATABASE` | Full database configuration as a JSON string (e.g., `{"client":"pg","connection":{...}}`). The value is a [Knex configuration object](https://knexjs.org/guide/#configuration-options) passed straight to `knex()`. Note: only the app runtime reads this variable — `yarn migrate` (the Knex CLI) does not; use the individual `ACTIVITIES_DATABASE_*` variables below when running migrations. |
+| Variable              | Description                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ACTIVITIES_DATABASE` | Full database configuration as a JSON string (e.g., `{"client":"pg","connection":{...}}`). The value is a [Knex configuration object](https://knexjs.org/guide/#configuration-options) passed straight to `knex()`. It takes precedence over the individual `ACTIVITIES_DATABASE_*` variables below, and both the app runtime and `yarn migrate` (the Knex CLI) read it. |
 
 ### Individual Variables (SQLite)
 
@@ -201,7 +201,9 @@ durable retries or delivery-status tracking.
 
 `ACTIVITIES_EMAIL` accepts the full provider configuration as JSON and takes
 precedence when it is syntactically valid. If the JSON is malformed,
-configuration falls back to the individual variables below; a syntactically
+configuration falls back to the individual variables below; when none of those
+are set either, configuration fails rather than running with email disabled
+(which would let registration write accounts pre-verified). A syntactically
 valid value with an unsupported provider or schema is rejected rather than
 falling back. Unknown providers, including the removed `lambda` provider, fail
 configuration instead of silently disabling email. Before upgrading an
@@ -429,6 +431,8 @@ For asynchronous processing of ActivityPub delivery, file processing, etc.
 | `OTEL_EXPORTER_OTLP_PROTOCOL`         | OTLP protocol: `grpc`, `http/protobuf`, or `http/json`. The app config schema also accepts the non-standard value `google`; it stores `openTelemetry.protocol` as `google` and does not require an endpoint. |
 | `OTEL_EXPORTER_OTLP_HEADERS`          | OTLP headers string passed to the exporter.                                                                                                                                                                  |
 | `LOG_LEVEL`                           | Logger level, default `info`.                                                                                                                                                                                |
+
+API route spans (`traceApiRoute`) record `url.path` as the route template — every dynamic segment replaced by its parameter name, e.g. `/api/v1/webhooks/strava/[webhookToken]` — and `url.query` with the values of credential-like parameters replaced by `REDACTED`, capped at 2048 characters. A parameter name is lowercased and split on `.`, `_`, `-` and brackets, and redacted when any part is exactly one of `code`, `state`, `token`, `secret`, `key`, `password`, `nonce`, `otp`, `sig`, `signature`, `assertion`, `email` or `verifier` — so `access_token`, `hub.verify_token`, `client_secret` and `code_verifier` are caught, but a camelCase name such as `accessToken` is not. Some routes carry a credential in the path or query, and spans leave the process through whatever exporter is attached, so a route that needs a concrete id on its span adds it explicitly through `addAttributes`.
 
 ## Build & Runtime
 

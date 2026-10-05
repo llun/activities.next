@@ -1,4 +1,7 @@
-import { isReservedFitnessMediaPath } from '@/lib/services/medias/reservedPaths'
+import {
+  isObjectStorageMediaKey,
+  isReservedFitnessMediaPath
+} from '@/lib/services/medias/reservedPaths'
 
 describe('isReservedFitnessMediaPath', () => {
   // The media route has no access control and, with a public hostname
@@ -114,5 +117,27 @@ describe('isReservedFitnessMediaPath', () => {
     }
   ])('allows $description', ({ userPath }: { userPath: string }) => {
     expect(isReservedFitnessMediaPath(userPath)).toBe(false)
+  })
+})
+
+describe('isObjectStorageMediaKey', () => {
+  it('accepts a key under the media prefix', () => {
+    expect(isObjectStorageMediaKey('medias/2026-07-30/upload.png')).toBe(true)
+  })
+
+  // GetObject addresses the RAW key, and S3 keys are case-sensitive with a
+  // leading `/` kept as part of the key. The canonical form folds both, so
+  // these are refused by the raw-key half of the check alone.
+  it.each(['Medias/upload.png', '/medias/upload.png'])(
+    'refuses %j, which only canonicalises into the prefix',
+    (key: string) => {
+      expect(isObjectStorageMediaKey(key)).toBe(false)
+    }
+  )
+
+  it('refuses a raw key under the prefix that canonicalises out of it', () => {
+    expect(isObjectStorageMediaKey('medias/%2e%2e/secrets/backup.sql')).toBe(
+      false
+    )
   })
 })

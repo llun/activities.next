@@ -28,7 +28,9 @@ export interface SessionActor {
 }
 
 export interface AccountSessionRow {
-  token: string
+  // `sessions.id`. The session token is the credential behind the session
+  // cookie and must never be sent to the browser.
+  id: string
   actor: SessionActor | null
   createdAt: number
   expireAt: number
@@ -181,14 +183,12 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
     }
   }
 
-  const revokeSession = (token: string) => {
+  const revokeSession = (id: string) => {
     const previous = sessionList
     return runRevoke(
       () =>
-        setSessionList((list) =>
-          list.filter((session) => session.token !== token)
-        ),
-      () => deleteSession({ token }),
+        setSessionList((list) => list.filter((session) => session.id !== id)),
+      () => deleteSession({ id }),
       () => setSessionList(previous),
       'Failed to revoke that session. Please try again.'
     )
@@ -321,7 +321,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                 !session.current && remaining > 0 && remaining < SOON_MS
               return (
                 <div
-                  key={session.token}
+                  key={session.id}
                   className={cn(
                     'flex items-start gap-3 px-4 py-4',
                     session.current && 'bg-primary/5'
@@ -375,7 +375,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => revokeSession(session.token)}
+                      onClick={() => revokeSession(session.id)}
                       disabled={busy}
                     >
                       Revoke

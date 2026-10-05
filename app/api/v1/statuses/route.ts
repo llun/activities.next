@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-import { createNoteFromUserInput } from '@/lib/actions/createNote'
+import {
+  createNoteFromUserInput,
+  getVisibilityFromReplyStatus
+} from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { Database } from '@/lib/database/types'
 import { PUBLISH_SCHEDULED_STATUS_JOB_NAME } from '@/lib/jobs/names'
@@ -39,7 +42,7 @@ import { Mastodon } from '@/lib/types/activitypub'
 import { Scope } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
-import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
+import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
@@ -240,19 +243,49 @@ export const POST = traceApiRoute(
             }
           }
 
-          // Fall back to the actor's configured default privacy when the
-          // client omits visibility, so a scheduled status is stored with the
-          // user's preference instead of always public.
+          // A scheduled reply is authorized now exactly as an immediate one is
+          // (404 when the parent is missing or unreadable), and the publish
+          // path re-checks: createNoteFromUserInput refuses an unreadable
+          // parent at publish time.
+          let replyStatus: Status | null = null
+          if (note.in_reply_to_id) {
+            replyStatus = await getReadableStatus({
+              database,
+              statusId: await resolveStatusIdParam(
+                database,
+                note.in_reply_to_id
+              ),
+              currentActor
+            })
+            if (!replyStatus) {
+              return apiResponse({
+                req,
+                allowedMethods: CORS_HEADERS,
+                data: { error: 'Record not found' },
+                responseStatusCode: 404
+              })
+            }
+          }
+
+          // When the client omits visibility, a reply inherits its parent's
+          // visibility — as an immediate reply does in createNoteFromUserInput
+          // — so a scheduled reply to a direct or followers-only post cannot
+          // publish to a wider audience. Otherwise fall back to the actor's
+          // configured default privacy instead of always public.
           const actorSettings = await database.getActorSettings({
             actorId: currentActor.id
           })
+          const defaultPrivacy =
+            getVisibilityFromReplyStatus(replyStatus) ??
+            actorSettings?.defaultPrivacy ??
+            'public'
           const scheduled = await database.createScheduledStatus({
             actorId: currentActor.id,
             scheduledAt,
             params: buildScheduledParams(
               note,
               idempotencyKey ?? null,
-              actorSettings?.defaultPrivacy ?? 'public',
+              defaultPrivacy,
               clientId ?? null
             )
           })

@@ -17,6 +17,7 @@ import {
 } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import {
+  getForwardActivityJobMessages,
   getForwardingTargetLocalActorIds,
   resolveForwardingInboxes,
   shouldForwardActivity
@@ -33,6 +34,7 @@ import {
   persistInboundQuoteEdge,
   resolveInboundQuotedStatus
 } from '@/lib/services/quotes/persistInboundQuoteEdge'
+import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ArticleContent,
@@ -56,11 +58,7 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 import { createJobHandle } from './createJobHandle'
 import { createPollJob } from './createPollJob'
-import {
-  CREATE_NOTE_JOB_NAME,
-  CREATE_POLL_JOB_NAME,
-  FORWARD_ACTIVITY_JOB_NAME
-} from './names'
+import { CREATE_NOTE_JOB_NAME, CREATE_POLL_JOB_NAME } from './names'
 import { actorMatchesVerifiedSender } from './verifiedSender'
 
 export const createNoteJob = createJobHandle(
@@ -253,7 +251,16 @@ export const createNoteJob = createJobHandle(
           const tagName = hashtagName.startsWith('#')
             ? hashtagName.slice(1)
             : hashtagName
-          await database.increaseHashtagCounter({ hashtag: tagName })
+          // The count is served to anonymous /tags/<tag> visitors; a
+          // followers-only or direct note must not move it.
+          if (
+            isPublicOrUnlisted({
+              to: toRecipientArray(note.to),
+              cc: toRecipientArray(note.cc)
+            })
+          ) {
+            await database.increaseHashtagCounter({ hashtag: tagName })
+          }
           return
         }
         return database.createTag({
@@ -383,15 +390,14 @@ export const createNoteJob = createJobHandle(
             object: note
           }
 
-          await getQueue().publish({
+          for (const forwardMessage of getForwardActivityJobMessages({
             id: `${getHashFromString(note.id)}#forward`,
-            name: FORWARD_ACTIVITY_JOB_NAME,
-            data: {
-              activity: createActivity,
-              inboxes,
-              localActorId: targetLocalActorIds[0]
-            }
-          })
+            activity: createActivity,
+            inboxes,
+            localActorId: targetLocalActorIds[0]
+          })) {
+            await getQueue().publish(forwardMessage)
+          }
         }
       }
     }

@@ -152,6 +152,15 @@ const parseSenderPublicKey = ({
   }
 }
 
+// The key fetch runs inside an UNAUTHENTICATED inbox request, before the
+// signature is verified, against a host the sender chose via `keyId`. With the
+// shared defaults (10 s timeout plus a backed-off retry, and up to three more
+// sequential fetches for owner validation and the 410 fallback) a sender
+// pointing `keyId` at a slow host held each inbox request open for tens of
+// seconds. A peer that cannot serve its key quickly gets a 401, which Mastodon
+// and friends retry later anyway.
+const SENDER_KEY_FETCH_TIMEOUT_MS = 3000
+
 const fetchSenderPublicKey = async (
   actorId: string,
   signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>
@@ -162,7 +171,13 @@ const fetchSenderPublicKey = async (
       activityPubRequestHeaders({
         url: url.toString(),
         signingActor
-      })
+      }),
+    numberOfRetry: 0,
+    responseTimeout: SENDER_KEY_FETCH_TIMEOUT_MS,
+    // The document is trusted because the keyId's origin served it (its id
+    // must equal the requested one). A hop onto another host would let that
+    // host — never checked against domain blocks — mint the sender's key.
+    allowCrossHostRedirects: false
   })
   if (response.statusCode !== 200) {
     return {

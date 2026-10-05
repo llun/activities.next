@@ -76,6 +76,15 @@ export type SafeRemoteFetchTransport = (
 ) => Promise<SafeRemoteFetchTransportResponse>
 
 export type SafeRemoteFetchOptions = {
+  /**
+   * Follow a redirect to a DIFFERENT host (default `true`). Pass `false` when
+   * the response is trusted because of WHERE it came from — an ActivityPub
+   * object fetched to authenticate it. The caller compares the document's
+   * claims against the URL it asked for, so a redirect hop onto another host
+   * would let that host answer for the requested one. Refused before the
+   * redirect is followed, so the other host is never contacted.
+   */
+  allowCrossHostRedirects?: boolean
   body?: string
   connectTimeoutInMilliseconds?: number
   headers?: SafeRemoteFetchHeaderSource
@@ -110,6 +119,12 @@ export class SafeRemoteFetchError extends Error {
 
 const createUnsafeUrlError = (message: string) =>
   new SafeRemoteFetchError(message, 'ERR_UNSAFE_REMOTE_URL')
+
+const createCrossHostRedirectError = () =>
+  new SafeRemoteFetchError(
+    'Cross-host redirect refused',
+    'ERR_CROSS_HOST_REDIRECT'
+  )
 
 const createResponseTooLargeError = () =>
   new SafeRemoteFetchError('Response body too large', 'ERR_RESPONSE_TOO_LARGE')
@@ -455,6 +470,7 @@ export const createSafeRemoteFetch = ({
   transport?: SafeRemoteFetchTransport
 } = {}) => {
   const safeRemoteFetch = async ({
+    allowCrossHostRedirects = true,
     body,
     connectTimeoutInMilliseconds,
     headers = {},
@@ -543,6 +559,9 @@ export const createSafeRemoteFetch = ({
       }
 
       const isCrossHostRedirect = currentUrl.host !== redirectUrl.host
+      if (isCrossHostRedirect && !allowCrossHostRedirects) {
+        throw createCrossHostRedirectError()
+      }
       previousUrl = currentUrl
       currentUrl = redirectUrl
       redirectCount += 1

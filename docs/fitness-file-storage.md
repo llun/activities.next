@@ -81,7 +81,7 @@ Important columns include:
 - `elevationSeries` — downsampled elevation profile series (up to 120 points) stored as a JSON array string. Enables rendering the Overview tab elevation profile chart immediately in SSR without client-side route data fetching or layout shifts. Historical files can be backfilled with `scripts/fitness/backfillFitnessSummaryMetrics.ts`.
 - `createdAt`, `updatedAt`, `deletedAt`
 
-Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by actor, activity type, period, and region and store serialized route segments rather than generated PNG files. A nullable `shareToken` column backs the shareable/embeddable heatmap views (iframe + image). User-assigned names for heatmap regions are persisted separately in `fitness_route_heatmap_region_names` (keyed by actor and region) so they survive reloads.
+Route heatmap caches are stored in `fitness_route_heatmaps`. They are keyed by actor, activity type, period, and region and store serialized route segments rather than generated PNG files. A nullable `shareToken` column backs the shareable/embeddable heatmap views (iframe + image). The token is a bearer capability, so it is revoked rather than parked: soft-deleting a heatmap (single delete, or the actor-wide clear the recreate script uses) nulls it, and restoring a soft-deleted row in place (`updateFitnessRouteHeatmapStatus` with `clearDeleted`) drops any token a pre-fix row still carries, so regeneration never re-exposes a heatmap behind an old link. A token also only resolves for the all-activities, all-time row — the one scope the heatmap page can address and so unshare; a token on a sport- or period-filtered row (an old share) resolves to nothing on every public surface, and the share `POST` refuses such rows. User-assigned names for heatmap regions are persisted separately in `fitness_route_heatmap_region_names` (keyed by actor and region) so they survive reloads.
 
 ### Route heatmap tile pyramid
 
@@ -286,7 +286,7 @@ An activity with no `activityStartTime` — a GPX carrying no timestamps — cou
 
 ### Upload and Retrieval
 
-- `POST /api/v1/fitness-files` uploads a fitness file through multipart form data.
+- `POST /api/v1/fitness-files` uploads a fitness file through multipart form data. An optional `description` longer than the instance's post character limit (`posts.maxCharacters`) is refused with `400`: it is stored as unbounded text outside the byte quota, so it is held to the same length as a post.
 - `GET /api/v1/fitness-files/:id` returns the original uploaded file content. **Owner only** — every other request, signed in or not, gets a `404` whatever the attached status's visibility (see Security and Privacy). Responses are `private, no-store`, `nosniff`, and `Content-Disposition: attachment`.
 - `PATCH /api/v1/fitness-files/:id` attributes the activity to a piece of gear, or clears it with `{ "gearId": null }`. Owner only; every rejection is a `404`, including a gear id that is not the owner's, so the response cannot confirm that an id exists.
 - `GET /api/v1/fitness-files/:id/route-data` returns parsed route samples and analysis series for status detail maps and charts.
@@ -302,7 +302,7 @@ An activity with no `activityStartTime` — a GPX carrying no timestamps — cou
 - `GET` and `DELETE /api/v1/accounts/:id/fitness-route-heatmaps`
 - `GET`, `POST`, and `DELETE /api/v1/accounts/:id/fitness-route-heatmap`
 - `GET /api/v1/accounts/:id/fitness-route-heatmap/tiles` returns the owner's own pyramid tiles for a view. Owner only, bounded per request.
-- `POST` and `DELETE /api/v1/accounts/:id/fitness-route-heatmap/share` mint and revoke the share token the public views are reached by.
+- `POST` and `DELETE /api/v1/accounts/:id/fitness-route-heatmap/share` mint and revoke the share token the public views are reached by. `POST` answers 400 for any row other than the all-activities, all-time heatmap (see Database Schema).
 
 The summary, calendar and day routes share one query contract (`lib/services/fitness-files/calendarQuery.ts`). The client sends calendar days and its IANA zone, never instants: `from`/`to` are real `YYYY-MM-DD` dates from 1970 on (`to` inclusive and not before `from`), and `time_zone` is a named IANA zone (offset forms such as `+05:30` are rejected because they carry no daylight-saving rules; the route and the browser share one pattern, `NAMED_TIME_ZONE_PATTERN` in `lib/fitness/calendar/localDay.ts`). The calendar's `activity_type` is at most 255 characters and must not contain a NUL byte, which PostgreSQL rejects in a bound parameter (`ActivityTypeParam` in `lib/services/fitness-files/queryParams.ts`, shared with the route heatmap). The route turns the days into one half-open instant window with `localDayWindow`. There is deliberately no server-side minimum span: the 7-day minimum for custom ranges is the client's range validator, and the This month and Year to date presets must load on their first day. A malformed or impossible value answers `400` with `{ "error": "Invalid <param>: <reason>" }` naming the first bad parameter; the client throws an `ApiRequestError` carrying that message for any non-OK response (and a plain error for a malformed body), so a failed read shows an error with a retry rather than an empty calendar.
 

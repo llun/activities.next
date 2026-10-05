@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getRelationship } from '@/lib/services/accounts/relationship'
@@ -429,6 +430,126 @@ describe('Account Action Endpoints', () => {
       expect(actor).not.toBeNull()
       expect(actor?.username).toBe('remote-user')
       expect(actor?.domain).toBe('remote.test')
+    })
+
+    // getActorPerson accepts a document whose id names another origin (it
+    // re-fetches that id), but recordActorIfNeeded refuses to store it. The
+    // follow must not be created for an actor this instance has no row for.
+    it('returns 404 and creates no follow when the target cannot be recorded', async () => {
+      const targetActorId = 'https://remote.test/users/moved-away'
+      ;(getActorPerson as jest.Mock).mockImplementation(() => ({
+        id: 'https://elsewhere.test/users/moved-away',
+        type: 'Person',
+        preferredUsername: 'moved-away',
+        inbox: 'https://elsewhere.test/users/moved-away/inbox'
+      }))
+
+      const response = await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+      )
+
+      expect(response.status).toBe(404)
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: ACTOR1_ID,
+          targetActorId
+        })
+      ).resolves.toBeNull()
+      expect(follow).not.toHaveBeenCalled()
+    })
+
+    // An alias URL records under the id the actor's origin names; the follow
+    // must point at that row, not at the alias.
+    it('follows the recorded actor id when the target is a same-origin alias', async () => {
+      const aliasId = 'https://remote.test/@alias-target'
+      const canonicalId = 'https://remote.test/users/alias-target'
+      ;(getActorPerson as jest.Mock).mockImplementation(() => ({
+        id: canonicalId,
+        type: 'Person',
+        preferredUsername: 'alias-target',
+        inbox: `${canonicalId}/inbox`
+      }))
+
+      const response = await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${encodeURIComponent(aliasId)}/follow`,
+          {
+            method: 'POST',
+            headers: { Origin: 'https://llun.test' }
+          }
+        ),
+        { params: Promise.resolve({ id: aliasId }) }
+      )
+
+      expect(response.status).toBe(200)
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: ACTOR1_ID,
+          targetActorId: canonicalId
+        })
+      ).resolves.not.toBeNull()
+      expect(vi.mocked(follow).mock.calls[0]?.[2]).toBe(canonicalId)
+    })
+    // The client names the account by an alias while this account already
+    // follows the canonical id the alias records under: that is a preference
+    // update on the existing follow, not a second follow.
+    it('updates the existing canonical follow when the target is an alias of it', async () => {
+      const canonicalId = await createFollowTargetActor('alias-followed')
+      const aliasId = 'https://remote.test/@alias-followed'
+      await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId: canonicalId,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${ACTOR1_ID}/inbox`,
+        sharedInbox: 'https://llun.test/inbox',
+        reblogs: true
+      })
+      ;(getActorPerson as jest.Mock).mockImplementation(() => ({
+        id: canonicalId,
+        type: 'Person',
+        preferredUsername: 'alias-followed',
+        inbox: `${canonicalId}/inbox`
+      }))
+
+      const response = await followAccount(
+        new NextRequest(
+          `https://llun.test/api/v1/accounts/${encodeURIComponent(aliasId)}/follow`,
+          {
+            method: 'POST',
+            headers: {
+              Origin: 'https://llun.test',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ reblogs: false })
+          }
+        ),
+        { params: Promise.resolve({ id: aliasId }) }
+      )
+
+      expect(response.status).toBe(200)
+      expect(follow).not.toHaveBeenCalled()
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: ACTOR1_ID,
+          targetActorId: aliasId
+        })
+      ).resolves.toBeNull()
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: ACTOR1_ID,
+          targetActorId: canonicalId
+        })
+      ).resolves.toMatchObject({
+        status: FollowStatus.enum.Accepted,
+        reblogs: false
+      })
     })
   })
 

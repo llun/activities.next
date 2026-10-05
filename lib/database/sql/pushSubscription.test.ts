@@ -3,7 +3,11 @@ import {
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 
-import { ALL_PUSH_ALERTS_ENABLED, parseStoredAlerts } from './pushSubscription'
+import {
+  ALL_PUSH_ALERTS_ENABLED,
+  MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR,
+  parseStoredAlerts
+} from './pushSubscription'
 
 describe('parseStoredAlerts', () => {
   it('treats a missing alerts column as all-enabled (legacy/rolling-deploy rows)', () => {
@@ -235,6 +239,43 @@ describe('PushSubscription Database', () => {
 
         const subs = await database.getPushSubscriptionsForActor({ actorId })
         expect(subs).toHaveLength(2)
+      })
+
+      // Regression (F125): every notification is POSTed to each of an actor's
+      // subscriptions, and nothing bounded how many one actor could register.
+      it('keeps only the most recent subscriptions per actor', async () => {
+        const actorId = 'https://example.com/users/push-cap'
+        const extra = 5
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          for (
+            let index = 0;
+            index < MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR + extra;
+            index += 1
+          ) {
+            vi.setSystemTime(Date.UTC(2026, 0, 1, 0, 0, index))
+            await database.createPushSubscription({
+              actorId,
+              endpoint: `https://push.example.com/endpoint/cap-${index}`,
+              p256dh: 'k',
+              auth: 'a'
+            })
+          }
+        } finally {
+          vi.useRealTimers()
+        }
+
+        const subs = await database.getPushSubscriptionsForActor({ actorId })
+        expect(subs).toHaveLength(MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR)
+        const endpoints = subs.map((sub) => sub.endpoint)
+        expect(endpoints).toContain(
+          `https://push.example.com/endpoint/cap-${MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR + extra - 1}`
+        )
+        for (let index = 0; index < extra; index += 1) {
+          expect(endpoints).not.toContain(
+            `https://push.example.com/endpoint/cap-${index}`
+          )
+        }
       })
 
       it('persists provided alerts, policy and standard', async () => {

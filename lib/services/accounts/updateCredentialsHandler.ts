@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { Database } from '@/lib/database/types'
 import { buildCredentialAccount } from '@/lib/services/accounts/credentialAccount'
 import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
 import { buildProfile } from '@/lib/services/accounts/profile'
@@ -8,14 +9,21 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
-import { saveMedia } from '@/lib/services/medias'
-import { MediaSchema } from '@/lib/services/medias/types'
+import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
+import { ACCEPTED_IMAGE_TYPES } from '@/lib/services/medias/constants'
+import { MediaValidationError } from '@/lib/services/medias/errors'
+import { readValidThumbnail } from '@/lib/services/medias/thumbnailInput'
+import {
+  MediaSchema,
+  MediaStorageSaveFileOutput
+} from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { Scope } from '@/lib/types/database/operations'
 import { QuoteApprovalPolicy } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { apiResponse } from '@/lib/utils/response'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 export const UPDATE_CREDENTIALS_CORS_HEADERS = [
   HttpMethod.enum.OPTIONS,
@@ -149,6 +157,34 @@ const normalizeJsonBody = (json: Record<string, unknown>) => {
   return scalars
 }
 
+// Best effort: a failure here leaves an orphan, which is logged rather than
+// allowed to mask the error the request is already answering with.
+const discardSavedImages = async (
+  database: Database,
+  accountId: string | undefined,
+  savedImages: MediaStorageSaveFileOutput[]
+) => {
+  if (!accountId) return
+  for (const saved of savedImages) {
+    try {
+      const result = await database.deleteMediaForAccount({
+        mediaId: saved.id,
+        accountId
+      })
+      if (result.status !== 'deleted') continue
+      await Promise.all(
+        result.files.map((filePath) => deleteMediaFile(database, filePath))
+      )
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to discard a profile image after a failed update',
+        mediaId: saved.id,
+        err: toLoggableError(error)
+      })
+    }
+  }
+}
+
 // Shared handler for PATCH /api/v1/accounts/update_credentials and
 // PATCH /api/v1/profile. Updates the current actor's profile fields (display
 // name / note / fields / privacy / avatar / header / appearance flags / ...).
@@ -254,25 +290,65 @@ export const updateCredentialsHandler = (
 
       // The size cap is the resolved `media.maxFileSize` server setting (a
       // database read), so it is checked here rather than inside MediaSchema.
+      // MediaSchema also admits video and audio, which an avatar or header is
+      // not, so the declared type is narrowed to images here.
       const hasInvalidImage =
-        imageUploads.some(({ media }) => !media.success) ||
+        imageUploads.some(
+          ({ file, media }) =>
+            !media.success || !ACCEPTED_IMAGE_TYPES.includes(file.type)
+        ) ||
         (await exceedsMaxMediaUploadSize(
           imageUploads.map(({ file }) => file.size),
           database
         ))
-      if (hasInvalidImage) {
-        return apiResponse({
+      const invalidImageResponse = () =>
+        apiResponse({
           req,
           allowedMethods: corsHeaders,
           data: { error: 'Invalid image file' },
           responseStatusCode: 422
         })
-      }
+      if (hasInvalidImage) return invalidImageResponse()
 
-      for (const { assign, media } of imageUploads) {
-        if (!media.success) continue
-        const saved = await saveMedia(database, currentActor, media.data)
-        if (saved) assign(saved.url)
+      const savedImages: MediaStorageSaveFileOutput[] = []
+      try {
+        // Decode BOTH before saving either: the declared type is only a claim,
+        // and bytes the image pipeline cannot read used to surface from
+        // `saveMedia` as an unhandled 500 — after the avatar was already
+        // stored, if it was the header that failed.
+        for (const { file } of imageUploads) {
+          await readValidThumbnail(file)
+        }
+        for (const { assign, media } of imageUploads) {
+          if (!media.success) continue
+          const saved = await saveMedia(database, currentActor, media.data)
+          if (saved) {
+            savedImages.push(saved)
+            assign(saved.url)
+          }
+        }
+      } catch (error) {
+        // Nothing references an image saved before the failure, so it would
+        // only sit in storage and count against the quota.
+        await discardSavedImages(
+          database,
+          currentActor.account?.id,
+          savedImages
+        )
+        if (error instanceof MediaValidationError) {
+          return invalidImageResponse()
+        }
+        logger.error({
+          message: 'Failed to save profile image',
+          actorId: currentActor.id,
+          err: toLoggableError(error)
+        })
+        return apiResponse({
+          req,
+          allowedMethods: corsHeaders,
+          data: { error: 'Internal Server Error' },
+          responseStatusCode: 500
+        })
       }
 
       const manuallyApprovesFollowers = parseBoolean(locked)

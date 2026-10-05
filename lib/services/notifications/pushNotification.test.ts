@@ -3,6 +3,7 @@ import webpush from 'web-push'
 import { Database } from '@/lib/database/types'
 import { NotificationType } from '@/lib/types/database/operations'
 
+import { PUSH_DELIVERY_TIMEOUT_MS, pushDeliveryAgent } from './pushEndpoint'
 import { sendPushNotification } from './pushNotification'
 
 vi.mock('web-push')
@@ -382,6 +383,57 @@ describe('sendPushNotification', () => {
       endpoint: 'https://push.example.com/endpoint/abc',
       actorId: 'https://llun.test/users/test1'
     })
+  })
+
+  // Regression (F125): delivery POSTed straight to whatever endpoint a row
+  // held. It now refuses a restricted one outright, and for a name resolves
+  // through an agent whose lookup refuses a restricted address at connect time.
+  it('delivers through the guarded agent with a timeout', async () => {
+    const db = makeDb()
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor
+    })
+
+    expect(mockWebpush.sendNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      expect.objectContaining({
+        agent: pushDeliveryAgent,
+        timeout: PUSH_DELIVERY_TIMEOUT_MS
+      })
+    )
+  })
+
+  it.each([
+    'https://127.0.0.1/endpoint',
+    'https://169.254.169.254/latest/meta-data',
+    'http://push.example.com/endpoint',
+    'https://localhost/endpoint'
+  ])('does not deliver to the stored endpoint %s', async (endpoint: string) => {
+    const db = makeDb({
+      getPushSubscriptionsForActor: vi.fn().mockResolvedValue([
+        {
+          id: 'sub1',
+          actorId: 'https://llun.test/users/test1',
+          endpoint,
+          p256dh: 'key1',
+          auth: 'auth1',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ])
+    })
+    await sendPushNotification({
+      database: db,
+      actorId: 'https://llun.test/users/test1',
+      type: NotificationType.enum.like,
+      sourceActor
+    })
+
+    expect(mockWebpush.sendNotification).not.toHaveBeenCalled()
   })
 
   it('does not delete subscription on other errors', async () => {

@@ -284,6 +284,35 @@ describe('POST /api/v1/lists/:id/accounts', () => {
     })
   })
 
+  it('returns 422, not a 500, when a multipart body is malformed', async () => {
+    const request = new NextRequest(URL_BASE, {
+      method: 'POST',
+      // Declared multipart with no boundary parameter: formData() rejects.
+      body: 'this is not a multipart body',
+      headers: { 'content-type': 'multipart/form-data' }
+    })
+
+    const response = await POST(request, params())
+
+    expect(response.status).toBe(422)
+    expect(mockDatabase.addListAccounts).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the query string when a multipart body is unreadable', async () => {
+    const request = new NextRequest(`${URL_BASE}?account_ids[]=acc1`, {
+      method: 'POST',
+      body: 'garbage',
+      headers: { 'content-type': 'multipart/form-data; boundary=missing' }
+    })
+
+    const response = await POST(request, params())
+
+    expect(response.status).toBe(200)
+    expect(mockDatabase.addListAccounts).toHaveBeenCalledWith(
+      expect.objectContaining({ targetActorIds: [idToUrl('acc1')] })
+    )
+  })
+
   it('adds accounts from a JSON body', async () => {
     const request = new NextRequest(URL_BASE, {
       method: 'POST',

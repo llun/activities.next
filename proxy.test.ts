@@ -481,6 +481,36 @@ describe('proxy', () => {
     expect(response?.headers.get('X-Content-Type-Options')).toBeNull()
   })
 
+  // Regression (F030): the files route serves stored upload bytes from this
+  // origin. Next keeps the middleware's CSP over a route's own, so the app
+  // policy — which allows inline script — used to reach a stored HTML object.
+  it.each([
+    '/api/v1/files/medias/2026-07-30/a1b2c3d4e5f60718.png',
+    '/api/v1/%66iles/medias/a.png',
+    '/api/v1//files/medias/a.png'
+  ])('sets the sandboxed media CSP on %s', async (pathname: string) => {
+    const request = new NextRequest(`https://llun.social${pathname}`, {
+      method: 'GET'
+    })
+
+    const response = await proxy(request)
+    const csp = response?.headers.get('Content-Security-Policy') ?? ''
+
+    expect(csp.split('; ')).toContain('sandbox')
+    expect(getCspDirectiveSources(csp, 'script-src')).toEqual([])
+  })
+
+  it('keeps the app CSP on other API routes', async () => {
+    const request = new NextRequest('https://llun.social/api/v1/filesystem', {
+      method: 'GET'
+    })
+
+    const response = await proxy(request)
+    const csp = response?.headers.get('Content-Security-Policy') ?? ''
+
+    expect(csp.split('; ')).not.toContain('sandbox')
+  })
+
   it('sets CSP on canonical actor handles that do not need rewriting', async () => {
     const request = new NextRequest('https://llun.social/@alice@example.com', {
       method: 'GET'

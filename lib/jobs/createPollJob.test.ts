@@ -140,6 +140,26 @@ describe('createPollJob', () => {
     expect(status?.cc).toEqual(question.cc)
   })
 
+  it('falls back to the question id when its url is not http(s)', async () => {
+    const question = {
+      ...MockActivityPubQuestion({
+        id: `https://somewhere.test/actors/pollcreator/questions/js-url-${Date.now()}`
+      }),
+      url: 'javascript:alert(document.domain)'
+    }
+    await createPollJob(database, {
+      id: 'id-js-url',
+      name: CREATE_POLL_JOB_NAME,
+      data: question
+    })
+
+    const status = (await database.getStatus({
+      statusId: question.id
+    })) as StatusPoll | null
+    expect(status?.type).toEqual(StatusType.enum.Poll)
+    expect(status?.url).toEqual(question.id)
+  })
+
   it('stores the language derived from the question contentMap key', async () => {
     const question = MockActivityPubQuestion({
       id: `https://somewhere.test/actors/pollcreator/questions/lang-${Date.now()}`,
@@ -393,6 +413,38 @@ describe('createPollJob', () => {
         name: '@user@example.com',
         type: 'mention'
       })
+    )
+  })
+
+  it('counts a hashtag only on a publicly addressed poll', async () => {
+    // The counter is served to anonymous /tags/<tag> visitors, so a
+    // followers-only poll's tag must not be observable through it.
+    for (const [suffix, to, cc] of [
+      ['private', [`${REMOTE_ACTOR_ID}/followers`], []],
+      ['public', [ACTIVITY_STREAM_PUBLIC], []]
+    ] as const) {
+      const question = MockActivityPubQuestion({
+        id: `${REMOTE_ACTOR_ID}/questions/audience-${suffix}-${Date.now()}`,
+        to: [...to],
+        cc: [...cc],
+        tags: [
+          {
+            type: 'Hashtag',
+            name: '#pollaudience',
+            href: 'https://example.com/tags/pollaudience'
+          }
+        ]
+      })
+      await createPollJob(database, {
+        id: `id-poll-audience-${suffix}`,
+        name: CREATE_POLL_JOB_NAME,
+        data: question,
+        verifiedSenderActorId: question.attributedTo
+      })
+    }
+
+    expect(await database.getHashtagCounter({ hashtag: 'pollaudience' })).toBe(
+      1
     )
   })
 

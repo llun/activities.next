@@ -1,6 +1,7 @@
-import { htmlToDOM } from 'html-react-parser'
+import { Tokenizer } from 'htmlparser2'
 
 import { MAX_PREVIEW_URL_LENGTH } from '@/lib/services/link-previews/extractUrl'
+import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 
 // Column caps. `title`/`description` are text columns, but a card is a preview:
 // a page that puts its whole first paragraph in og:description should not push
@@ -11,14 +12,13 @@ export const MAX_DESCRIPTION_LENGTH = 1000
 // PostgreSQL, not a preference.
 export const MAX_SHORT_TEXT_LENGTH = 255
 
-// Only the document head is parsed. The byte cap on the fetch bounds transfer,
-// not CPU: `htmlToDOM` is quadratic in nesting depth, and a page of deeply
-// nested divs that still fits under 1 MiB was measured blocking the event loop
-// for ~9s (and overflowing the stack past ~15k deep, silently yielding no
-// card). That is synchronous, non-cancellable work which on the default
-// in-process queue runs inside the request that created the status. Every tag
-// this reads is defined to live in <head>, so slicing there removes the entire
-// class of hostile <body> payloads rather than trying to time-bound them.
+// Only the document head is read. The byte cap on the fetch bounds transfer,
+// not CPU, so the head is read by a tokenizer that is linear in its input (see
+// `collectMeta`): a tree-building parse is quadratic in nesting depth, and a
+// page of deeply nested divs under 1 MiB blocked the event loop for ~9s. That
+// is synchronous, non-cancellable work which on the default in-process queue
+// runs inside the request that created the status. Every tag this reads is
+// defined to live in <head>, so slicing there also drops the <body> outright.
 // The 1 MiB cap allows heavy <head> tags (such as YouTube with ~680 KB of inline
 // config scripts in <head> before its OpenGraph tags) while keeping the parse
 // strictly head-bounded.
@@ -169,14 +169,6 @@ export type LinkPreviewMetadata = {
   publishedAt: number | null
 }
 
-type DomNode = {
-  type?: string
-  name?: string
-  attribs?: Record<string, string>
-  children?: DomNode[]
-  data?: string
-}
-
 // Control characters, C1, bidi controls and invisible spacing. This text is
 // author-controlled and is rendered back to readers, where a bidi override is a
 // display-spoofing vector. U+200C/U+200D are kept because Persian, Indic
@@ -224,10 +216,26 @@ const mapCardType = (ogType: string | null): string => {
   return 'link'
 }
 
-const collectMeta = (nodes: DomNode[], meta: Map<string, string>) => {
-  for (const node of nodes) {
-    if (node.type === 'tag' && node.name === 'meta') {
-      const attribs = node.attribs ?? {}
+const noop = () => undefined
+
+// Reads `<meta>` attributes and the first `<title>`'s text straight off
+// htmlparser2's TOKENIZER, building no tree and tracking no open elements.
+// Both of the obvious alternatives are quadratic in nesting depth:
+// `htmlToDOM` builds a tree, and htmlparser2's own `Parser` keeps its open-tag
+// stack with `Array#unshift`. A 1 MiB head of unclosed `<div>`s took ~8.7s
+// through the Parser and ~11ms through the tokenizer. Attribute names and
+// entities are handled the way the Parser does (lowercased names, first
+// duplicate wins, entities decoded), and `<title>` content is RCDATA, so its
+// text arrives as text however tag-like it looks.
+const collectMeta = (html: string, meta: Map<string, string>) => {
+  let tagName = ''
+  let attribs: Record<string, string> = {}
+  let attribName = ''
+  let attribValue = ''
+  let titleText: string | null = null
+
+  const finishOpenTag = () => {
+    if (tagName === 'meta') {
       const content = attribs.content
       // Most sites declare OpenGraph on `property` and twitter cards on `name`,
       // but plenty use `name` for both — read either.
@@ -238,15 +246,53 @@ const collectMeta = (nodes: DomNode[], meta: Map<string, string>) => {
         if (!meta.has(normalizedKey)) meta.set(normalizedKey, content)
       }
     }
-    if (node.type === 'tag' && node.name === 'title' && !meta.has('__title')) {
-      const text = (node.children ?? [])
-        .filter((child) => child.type === 'text')
-        .map((child) => child.data ?? '')
-        .join('')
-      if (text) meta.set('__title', text)
-    }
-    if (node.children) collectMeta(node.children, meta)
+    if (tagName === 'title' && !meta.has('__title')) titleText = ''
   }
+
+  const tokenizer = new Tokenizer(
+    { decodeEntities: true },
+    {
+      onopentagname(start, endIndex) {
+        tagName = asciiLower(html.slice(start, endIndex))
+        attribs = {}
+      },
+      onattribname(start, endIndex) {
+        attribName = asciiLower(html.slice(start, endIndex))
+        attribValue = ''
+      },
+      onattribdata(start, endIndex) {
+        attribValue += html.slice(start, endIndex)
+      },
+      onattribentity(codepoint) {
+        attribValue += String.fromCodePoint(codepoint)
+      },
+      onattribend() {
+        if (!Object.hasOwn(attribs, attribName)) {
+          attribs[attribName] = attribValue
+        }
+      },
+      onopentagend: finishOpenTag,
+      onselfclosingtag: finishOpenTag,
+      onclosetag(start, endIndex) {
+        if (asciiLower(html.slice(start, endIndex)) !== 'title') return
+        if (titleText && !meta.has('__title')) meta.set('__title', titleText)
+        titleText = null
+      },
+      ontext(start, endIndex) {
+        if (titleText !== null) titleText += html.slice(start, endIndex)
+      },
+      ontextentity(codepoint) {
+        if (titleText !== null) titleText += String.fromCodePoint(codepoint)
+      },
+      oncdata: noop,
+      oncomment: noop,
+      ondeclaration: noop,
+      onend: noop,
+      onprocessinginstruction: noop
+    }
+  )
+  tokenizer.write(html)
+  tokenizer.end()
 }
 
 const parseAbsoluteImageUrl = (
@@ -303,15 +349,6 @@ const parsePublishedAt = (value: string | undefined): number | null => {
   return parsed
 }
 
-const isHttpUrl = (value: string): boolean => {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
 /**
  * Extract preview-card metadata from a fetched HTML page.
  *
@@ -327,7 +364,7 @@ export const parseOpenGraphMetadata = (
 
   const meta = new Map<string, string>()
   try {
-    collectMeta(htmlToDOM(getHeadMarkup(html)) as DomNode[], meta)
+    collectMeta(getHeadMarkup(html), meta)
   } catch {
     return null
   }

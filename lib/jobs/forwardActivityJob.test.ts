@@ -1,7 +1,10 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { forwardActivityJob } from '@/lib/jobs/forwardActivityJob'
+import {
+  FORWARD_ACTIVITY_CONCURRENCY,
+  forwardActivityJob
+} from '@/lib/jobs/forwardActivityJob'
 import { FORWARD_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
@@ -138,5 +141,43 @@ describe('forwardActivityJob', () => {
     ).resolves.not.toThrow()
 
     expect(fetchMock.mock.calls).toHaveLength(0)
+  })
+
+  it('holds only a bounded number of deliveries open at once', async () => {
+    // One remote activity must not turn into a socket per follower inbox at
+    // the same moment; slow inboxes would otherwise pin every one of them.
+    let inFlight = 0
+    let maxInFlight = 0
+    fetchMock.mockResponse(async () => {
+      inFlight += 1
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      inFlight -= 1
+      return { status: 202, body: '{}' }
+    })
+    const inboxes = Array.from(
+      { length: FORWARD_ACTIVITY_CONCURRENCY * 3 },
+      (_, index) => `https://follower${index}.example/inbox`
+    )
+
+    await forwardActivityJob(database, {
+      id: 'forward-job-bounded',
+      name: FORWARD_ACTIVITY_JOB_NAME,
+      data: {
+        activity: {
+          id: 'https://remote.test/statuses/reply-3/activity',
+          type: 'Create',
+          actor: 'https://remote.test/users/remote-author',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          object: { id: 'https://remote.test/statuses/reply-3', type: 'Note' }
+        },
+        inboxes,
+        localActorId
+      }
+    })
+
+    const deliveryUrls = fetchMock.mock.calls.map((call) => String(call[0]))
+    expect(new Set(deliveryUrls)).toEqual(new Set(inboxes))
+    expect(maxInFlight).toBeLessThanOrEqual(FORWARD_ACTIVITY_CONCURRENCY)
   })
 })

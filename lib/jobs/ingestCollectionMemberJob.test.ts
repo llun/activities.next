@@ -148,6 +148,63 @@ describe('ingestCollectionMemberJob', () => {
     }
   })
 
+  it('never backfills a note attributed to a local actor or planted on another host', async () => {
+    const forgedLocalId = `${ACTOR1_ID}/statuses/forged-by-member`
+    const foreignHostId = 'https://third.party.test/users/x/statuses/planted'
+    const ownId = `${EXTERNAL_ACTOR1}/statuses/genuine`
+    mockGetActorPosts.mockResolvedValue({
+      statusesCount: 3,
+      statuses: [
+        noteStatus({
+          id: forgedLocalId,
+          url: forgedLocalId,
+          actorId: ACTOR1_ID
+        }),
+        noteStatus({ id: foreignHostId, url: foreignHostId }),
+        noteStatus({ id: ownId, url: ownId })
+      ],
+      nextPageUrl: null,
+      prevPageUrl: null
+    })
+
+    try {
+      await runJob(EXTERNAL_ACTOR1)
+
+      expect(await database.getStatus({ statusId: forgedLocalId })).toBeNull()
+      expect(await database.getStatus({ statusId: foreignHostId })).toBeNull()
+      expect(await database.getStatus({ statusId: ownId })).toMatchObject({
+        id: ownId
+      })
+    } finally {
+      await instance('follows')
+        .where({ actorId: signingActorId, targetActorId: EXTERNAL_ACTOR1 })
+        .delete()
+      await instance('statuses')
+        .whereIn('id', [forgedLocalId, foreignHostId, ownId])
+        .delete()
+    }
+  })
+
+  it('stops before following or backfilling when the member resolves to another origin', async () => {
+    // e.g. the member's actor URL redirected to (or aliased) a local actor.
+    mockGetActorPerson.mockResolvedValue({ id: ACTOR1_ID } as never)
+    const statusId = `${ACTOR1_ID}/statuses/forged-via-alias`
+    mockGetActorPosts.mockResolvedValue({
+      statusesCount: 1,
+      statuses: [
+        noteStatus({ id: statusId, url: statusId, actorId: ACTOR1_ID })
+      ],
+      nextPageUrl: null,
+      prevPageUrl: null
+    })
+
+    await runJob(EXTERNAL_ACTOR1)
+
+    expect(mockFollow).not.toHaveBeenCalled()
+    expect(mockGetActorPosts).not.toHaveBeenCalled()
+    expect(await database.getStatus({ statusId })).toBeNull()
+  })
+
   it('is a no-op for a local member (no follow, no backfill)', async () => {
     const localMember = `https://${TEST_DOMAIN}/users/localUser`
 
@@ -263,5 +320,62 @@ describe('ingestCollectionMemberJob', () => {
         })
         .delete()
     }
+  })
+  // recordActorIfNeeded keys the row on the canonical id, so an alias listed
+  // in a collection must be followed (and de-duplicated) under that id.
+  describe('a member listed under an alias', () => {
+    const aliasId = `${EXTERNAL_ACTOR1}?alias`
+
+    afterEach(async () => {
+      await instance('follows')
+        .where({ actorId: signingActorId })
+        .whereIn('targetActorId', [EXTERNAL_ACTOR1, aliasId])
+        .delete()
+    })
+
+    it('follows and fetches the recorded canonical id', async () => {
+      await runJob(aliasId)
+
+      expect(mockRecordActorIfNeeded).toHaveBeenCalledWith(
+        expect.objectContaining({ actorId: aliasId })
+      )
+      expect(mockGetActorPerson).toHaveBeenCalledWith(
+        expect.objectContaining({ actorId: EXTERNAL_ACTOR1 })
+      )
+      expect(mockFollow).toHaveBeenCalledTimes(1)
+      expect(mockFollow.mock.calls[0][2]).toBe(EXTERNAL_ACTOR1)
+      await expect(
+        database.getAcceptedOrRequestedFollow({
+          actorId: signingActorId,
+          targetActorId: EXTERNAL_ACTOR1
+        })
+      ).resolves.toMatchObject({ status: FollowStatus.enum.Requested })
+      await expect(
+        instance('follows').where({
+          actorId: signingActorId,
+          targetActorId: aliasId
+        })
+      ).resolves.toHaveLength(0)
+    })
+
+    it('skips it when the canonical id is already followed', async () => {
+      await database.createFollow({
+        actorId: signingActorId,
+        targetActorId: EXTERNAL_ACTOR1,
+        status: FollowStatus.enum.Accepted,
+        inbox: `${signingActorId}/inbox`,
+        sharedInbox: `https://${TEST_DOMAIN}/inbox`
+      })
+
+      await runJob(aliasId)
+
+      expect(mockFollow).not.toHaveBeenCalled()
+      expect(mockGetActorPosts).not.toHaveBeenCalled()
+      await expect(
+        instance('follows')
+          .where({ actorId: signingActorId })
+          .whereIn('targetActorId', [EXTERNAL_ACTOR1, aliasId])
+      ).resolves.toHaveLength(1)
+    })
   })
 })

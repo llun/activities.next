@@ -133,10 +133,15 @@ export const processForwardedActivityJob = createJobHandle(
         try {
           ;({ statusCode, body } = await request({
             url: objectId,
+            // The answer is authoritative only because objectId's origin gave
+            // it: a 404 or a Tombstone served after a hop onto another host
+            // would be that host deleting the claimed author's status.
+            allowCrossHostRedirects: false,
             headers: activityPubRequestHeaders({ url: objectId, signingActor })
           }))
         } catch {
-          // A network failure is AMBIGUOUS and must never confirm a delete.
+          // A network failure (or a refused cross-host redirect) is AMBIGUOUS
+          // and must never confirm a delete.
           span.setAttribute('outcome', 'origin_unreachable')
           return
         }

@@ -19,6 +19,7 @@ import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { getQueue } from '@/lib/services/queue'
 import { FitnessRouteHeatmap } from '@/lib/types/database/fitnessRouteHeatmap'
+import { refineHeatmapPeriodKey } from '@/lib/utils/fitnessHeatmapPeriod'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -47,28 +48,32 @@ interface Params {
   id: string
 }
 
-const FitnessRouteHeatmapQueryParams = z.object({
-  activity_type: TrimmedOptionalActivityTypeParam,
-  period_type: z.enum(['all_time', 'yearly', 'monthly']),
-  period_key: NulFreeString,
-  // Bound the raw input to guard against unbounded payloads, but allow more than
-  // the 255-char cache-key column: clients may send high-precision coordinates
-  // that normalizeRegionParam rounds (to 2 dp) and caps (to MAX_HEATMAP_REGIONS) well
-  // under 255 before anything is stored.
-  region: z.string().max(1024).optional()
-})
+const FitnessRouteHeatmapQueryParams = z
+  .object({
+    activity_type: TrimmedOptionalActivityTypeParam,
+    period_type: z.enum(['all_time', 'yearly', 'monthly']),
+    period_key: NulFreeString,
+    // Bound the raw input to guard against unbounded payloads, but allow more than
+    // the 255-char cache-key column: clients may send high-precision coordinates
+    // that normalizeRegionParam rounds (to 2 dp) and caps (to MAX_HEATMAP_REGIONS) well
+    // under 255 before anything is stored.
+    region: z.string().max(1024).optional()
+  })
+  .superRefine(refineHeatmapPeriodKey)
 
-const FitnessRouteHeatmapTriggerBody = z.object({
-  activity_type: TrimmedOptionalActivityTypeParam,
-  period_type: z.enum(['all_time', 'yearly', 'monthly']),
-  period_key: NulFreeString,
-  // See FitnessRouteHeatmapQueryParams.region: looser raw cap; normalizeRegionParam
-  // rounds + caps the stored value under the 255-char column.
-  region: z.string().max(1024).optional(),
-  retry: z.boolean().optional(),
-  // Stop an in-flight (pending/generating) run instead of enqueuing one.
-  cancel: z.boolean().optional()
-})
+const FitnessRouteHeatmapTriggerBody = z
+  .object({
+    activity_type: TrimmedOptionalActivityTypeParam,
+    period_type: z.enum(['all_time', 'yearly', 'monthly']),
+    period_key: NulFreeString,
+    // See FitnessRouteHeatmapQueryParams.region: looser raw cap; normalizeRegionParam
+    // rounds + caps the stored value under the 255-char column.
+    region: z.string().max(1024).optional(),
+    retry: z.boolean().optional(),
+    // Stop an in-flight (pending/generating) run instead of enqueuing one.
+    cancel: z.boolean().optional()
+  })
+  .superRefine(refineHeatmapPeriodKey)
 
 const serializeRouteHeatmap = (
   heatmap: FitnessRouteHeatmap,

@@ -11,6 +11,11 @@ import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
 
 import { internalTypeToMastodon } from './notificationTypeMapping'
+import {
+  PUSH_DELIVERY_TIMEOUT_MS,
+  isDeliverablePushEndpoint,
+  pushDeliveryAgent
+} from './pushEndpoint'
 import { shouldSendPushForNotification } from './pushNotificationSettings'
 
 // Maps this app's internal NotificationType to the Mastodon WebPushSubscription
@@ -227,6 +232,15 @@ export const sendPushNotification = async (params: {
     // out of all push notifications. (`followed`/`follower` require
     // relationship checks against the source actor and are not yet enforced.)
     if (sub.policy === 'none') return false
+    // Refuse a stored endpoint that could never pass the subscribe check
+    // (rows written before it existed, or by a route that skipped it).
+    if (!isDeliverablePushEndpoint(sub.endpoint)) {
+      logger.warn({
+        message: 'Skipping push subscription with a restricted endpoint',
+        subscriptionId: sub.id
+      })
+      return false
+    }
     // Honor the per-subscription alert toggle for this notification type, when
     // a row carries alert preferences and the type maps to a Mastodon alert.
     if (alertKey && sub.alerts && sub.alerts[alertKey] === false) return false
@@ -258,7 +272,11 @@ export const sendPushNotification = async (params: {
             // Match the encryption to the encoding advertised in the
             // WebPushSubscription `standard` flag: `true` → RFC8291 standard
             // `aes128gcm` (the web-push default), `false` → legacy `aesgcm`.
-            contentEncoding: sub.standard ? 'aes128gcm' : 'aesgcm'
+            contentEncoding: sub.standard ? 'aes128gcm' : 'aesgcm',
+            // Resolves the endpoint's host at connect time and refuses a
+            // restricted address, so DNS cannot be rebound after subscribe.
+            agent: pushDeliveryAgent,
+            timeout: PUSH_DELIVERY_TIMEOUT_MS
           }
         )
       } catch (error) {

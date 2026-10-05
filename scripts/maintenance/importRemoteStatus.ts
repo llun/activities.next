@@ -19,8 +19,14 @@ import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { createNoteJob } from '@/lib/jobs/createNoteJob'
 import { CREATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
+import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { StatusType } from '@/lib/types/domain/status'
+import {
+  extractActivityPubId,
+  isSameActivityPubOrigin
+} from '@/lib/utils/activitypub'
+import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 import { getClientStatusId } from '@/lib/utils/publicId'
 
 const projectDir = process.cwd()
@@ -76,6 +82,9 @@ export const importRemoteStatus = async (
   options: ImportRemoteStatusOptions
 ): Promise<ImportRemoteStatusResult | null> => {
   const { statusUrl, dryRun = false } = options
+  if (!isHttpUrl(statusUrl)) {
+    throw new Error(`Status URL must be an http(s) URL: ${statusUrl}`)
+  }
 
   const signingActor = await getFederationSigningActor(database).catch(
     () => undefined
@@ -99,11 +108,33 @@ export const importRemoteStatus = async (
     objectNote = (note as { object: BaseNote }).object
   }
 
+  // The fetched document is a claim by whoever served statusUrl, and the
+  // import below hands it to createNoteJob as verified by its author. That is
+  // only true when the note names an id on the origin that served it, an
+  // author on the note's own origin, and is not posing as one of our own.
+  if (!isSameActivityPubOrigin(objectNote.id, statusUrl)) {
+    throw new Error(
+      `Refusing ${objectNote.id}: it is not on the origin of ${statusUrl}`
+    )
+  }
+  // Gate the author id `extractActivityPubId` picks — the one createNoteJob
+  // stores — not the raw value, which may still be an embedded actor object
+  // or a multi-valued array after compaction.
+  const author = extractActivityPubId(objectNote.attributedTo)
+  if (!author || !isSameActivityPubOrigin(author, objectNote.id)) {
+    throw new Error(
+      `Refusing ${objectNote.id}: attributedTo ${author ?? '(none)'} is on another origin`
+    )
+  }
+  if (await isLocalFederationDomain(database, objectNote.id)) {
+    throw new Error(`Refusing ${objectNote.id}: it claims a local id`)
+  }
+
   if (dryRun) {
     return {
       statusId: objectNote.id,
       publicId: '(dry-run)',
-      actorId: objectNote.attributedTo,
+      actorId: author,
       reply: objectNote.inReplyTo || '',
       url: typeof objectNote.url === 'string' ? objectNote.url : objectNote.id,
       createdAt: objectNote.published
@@ -116,7 +147,7 @@ export const importRemoteStatus = async (
     id: objectNote.id,
     name: CREATE_NOTE_JOB_NAME,
     data: objectNote,
-    verifiedSenderActorId: objectNote.attributedTo
+    verifiedSenderActorId: author
   })
 
   const storedStatus = await database.getStatus({ statusId: objectNote.id })

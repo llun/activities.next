@@ -19,6 +19,7 @@ import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { Document, Note } from '@/lib/types/activitypub'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -106,6 +107,23 @@ describe('Create note action', () => {
         database,
         status
       )
+    })
+
+    it('counts a hashtag only on a publicly addressed note', async () => {
+      // The counter is served to anonymous /tags/<tag> visitors, so a
+      // followers-only or direct post's tag must not be observable through it.
+      for (const visibility of ['private', 'direct', 'unlisted'] as const) {
+        await createNoteFromUserInput({
+          text: `Hello #actionaudiencecount ${visibility}`,
+          currentActor: actor1,
+          database,
+          visibility
+        })
+      }
+
+      expect(
+        await database.getHashtagCounter({ hashtag: 'actionaudiencecount' })
+      ).toBe(1)
     })
 
     it('mints the new status URI tail from a v7 publicId', async () => {
@@ -752,6 +770,24 @@ How are you?
     })
 
     describe('visibility support', () => {
+      // Replying requires reading the parent, so the tests that reply to one
+      // of actor2's followers-only posts need actor1 to be an accepted
+      // follower of actor2 (the seed does not make it one).
+      const followActor2 = async () => {
+        const existing = await database.getAcceptedOrRequestedFollow({
+          actorId: actor1.id,
+          targetActorId: actor2.id
+        })
+        if (existing) return
+        await database.createFollow({
+          actorId: actor1.id,
+          targetActorId: actor2.id,
+          inbox: `${actor1.id}/inbox`,
+          sharedInbox: `${actor1.id}/inbox`,
+          status: FollowStatus.enum.Accepted
+        })
+      }
+
       it('creates public status with correct recipients', async () => {
         const status = (await createNoteFromUserInput({
           text: 'Public post',
@@ -990,6 +1026,7 @@ How are you?
       })
 
       it('includes original author in recipients when replying to private post', async () => {
+        await followActor2()
         // First create a private status from actor2
         const privateStatus = (await createNoteFromUserInput({
           text: 'Private message',
@@ -1078,7 +1115,32 @@ How are you?
         )
       })
 
+      it('refuses to reply into a direct thread the author cannot read', async () => {
+        const parentId = `${ACTOR2_ID}/statuses/unreadable-direct-parent`
+        await database.createNote({
+          id: parentId,
+          url: parentId,
+          actorId: ACTOR2_ID,
+          text: 'Direct between actor2 and actor3',
+          to: [ACTOR3_ID],
+          cc: []
+        })
+
+        const reply = await createNoteFromUserInput({
+          text: 'Injected reply',
+          currentActor: actor1,
+          replyNoteId: parentId,
+          visibility: 'direct',
+          database
+        })
+
+        // Without the guard this inherits the parent's to/cc and lands in
+        // actor2/actor3's private conversation.
+        expect(reply).toBeNull()
+      })
+
       it('does not store non-direct parent audiences as mention tags', async () => {
+        await followActor2()
         const parentStatus = await database.createNote({
           id: `${actor1.id}/statuses/private-parent-note-audience-tags`,
           url: `${actor1.id}/statuses/private-parent-note-audience-tags`,

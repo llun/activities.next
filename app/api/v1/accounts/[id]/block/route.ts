@@ -39,16 +39,20 @@ export const POST = traceApiRoute(
       const encodedAccountId = (await params).id
       if (!encodedAccountId) return apiCorsError(req, CORS_HEADERS, 400)
 
-      const targetActorId = await resolveActorIdParam(
+      const requestedActorId = await resolveActorIdParam(
         database,
         encodedAccountId
       )
 
-      if (targetActorId !== currentActor.id) {
+      // The recorded row's id, which differs from the requested one when the
+      // request named an alias URL (recordActorIfNeeded keys rows on the id the
+      // actor's origin names).
+      let targetActorId = requestedActorId
+      if (requestedActorId !== currentActor.id) {
         let targetActor
         try {
           targetActor = await recordActorIfNeeded({
-            actorId: targetActorId,
+            actorId: requestedActorId,
             database
           })
         } catch (error) {
@@ -63,7 +67,10 @@ export const POST = traceApiRoute(
           throw error
         }
         if (!targetActor) return apiCorsError(req, CORS_HEADERS, 404)
+        targetActorId = targetActor.id
+      }
 
+      if (targetActorId !== currentActor.id) {
         const blockId = randomUUID()
         const uri = `${currentActor.id}#blocks/${blockId}`
         const block = await applyBlock({

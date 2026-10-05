@@ -151,6 +151,26 @@ describe('POST /api/v1/push/subscribe', () => {
       })
     )
   })
+  // Regression (F125): the endpoint is POSTed to by the server on every
+  // notification, so it may not name this server's own network.
+  it.each([
+    'http://push.example.com/endpoint',
+    'https://127.0.0.1/endpoint',
+    'https://169.254.169.254/latest/meta-data',
+    'https://localhost/endpoint'
+  ])('refuses the restricted endpoint %s', async (restricted: string) => {
+    const req = new NextRequest('http://localhost/api/v1/push/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint: restricted, keys: { p256dh, auth } }),
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://localhost'
+      }
+    })
+    const res = await POST(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(400)
+    expect(mockDatabase!.createPushSubscription).not.toHaveBeenCalled()
+  })
 })
 
 describe('DELETE /api/v1/push/subscribe', () => {

@@ -358,6 +358,11 @@ export type GetAccountAllSessionsParams = {
 export type DeleteAccountSessionParams = {
   token: string
 }
+export type DeleteAccountSessionByIdParams = {
+  // Only a session this account owns is deleted; anything else matches nothing.
+  accountId: string
+  id: string
+}
 export type DeleteOtherAccountSessionsParams = {
   accountId: string
   // The session to keep (the device making the request). Every other session
@@ -402,6 +407,11 @@ export type RequestPasswordResetParams = {
   email: string
   passwordResetCode: string | null
   expiresAt?: number | null
+  // When set, the code is written only if the account has no live code issued
+  // within this many milliseconds; otherwise nothing is written and the call
+  // returns false. The check is a predicate on the UPDATE, so concurrent
+  // requests cannot each slip past it.
+  cooldownMs?: number
 }
 export type ValidatePasswordResetCodeParams = {
   passwordResetCode: string
@@ -479,6 +489,11 @@ export interface AccountDatabase {
   getAccountAllSessions(params: GetAccountAllSessionsParams): Promise<Session[]>
   updateAccountSession(params: UpdateAccountSessionParams): Promise<void>
   deleteAccountSession(params: DeleteAccountSessionParams): Promise<void>
+  // Deletes the session with this row id when it belongs to `accountId`, and
+  // returns how many rows were deleted (0 for an unknown or foreign id).
+  deleteAccountSessionById(
+    params: DeleteAccountSessionByIdParams
+  ): Promise<number>
   // Revoke every session for the account except `exceptToken`. Returns the
   // number of sessions revoked.
   deleteOtherAccountSessions(
@@ -949,6 +964,9 @@ export interface StatusDatabase {
   getStatusEditHistory(
     params: GetStatusEditHistoryParams
   ): Promise<StatusEditRevision[]>
+  // Drops every prior revision of a status. Used when its audience widens:
+  // `status_history` does not record who a revision was written for.
+  deleteStatusEditHistory(params: GetStatusEditHistoryParams): Promise<void>
   getStatusFromUrl(params: GetStatusFromUrlParams): Promise<Status | null>
   getStatusFromUrlHash(
     params: GetStatusFromUrlHashParams
@@ -1823,6 +1841,10 @@ export type GetCollectionItemsParams = {
   collectionIds: string[]
   // Only approved (publicly consented) items when true — the public projection.
   approvedOnly?: boolean
+  // Return at most this many items (oldest-first) per collection. Omit to load
+  // every member; public callers that only embed a preview must set it so the
+  // read does not scale with the collection's size.
+  limitPerCollection?: number
 }
 export type GetCollectionItemParams = { collectionId: string; itemId: string }
 export type GetCollectionItemByAccountParams = {
@@ -2374,7 +2396,9 @@ export interface AnnouncementDatabase {
   markAnnouncementRead(params: MarkAnnouncementReadParams): Promise<void>
   // Per-actor: idempotently add a reaction on the (announcement, actor, name)
   // composite key.
-  addAnnouncementReaction(params: AnnouncementReactionParams): Promise<void>
+  // Resolves false, storing nothing, when the reaction would add a distinct name
+  // beyond MAX_ANNOUNCEMENT_REACTION_NAMES.
+  addAnnouncementReaction(params: AnnouncementReactionParams): Promise<boolean>
   // Per-actor: remove a reaction.
   removeAnnouncementReaction(params: AnnouncementReactionParams): Promise<void>
   // Per-actor: which of `announcementIds` the actor has read.
@@ -2993,7 +3017,9 @@ export type GetLikesParams = {
 }
 
 export interface LikeDatabase {
-  createLike(params: CreateLikeParams): Promise<void>
+  // Resolves true only when a new like row was inserted (false for an existing
+  // like or an unknown status), so callers notify once per real like.
+  createLike(params: CreateLikeParams): Promise<boolean>
   deleteLike(params: DeleteLikeParams): Promise<void>
   getLikeCount(params: GetLikeCountParams): Promise<number>
   isActorLikedStatus(params: IsActorLikedStatusParams): Promise<boolean>
@@ -3354,6 +3380,10 @@ export type CreateAttachmentParams = {
 }
 export type UpdateAttachmentPlaybackParams = {
   id: string
+  // The status the attachment belongs to. An attachment id alone is not enough:
+  // remote attachment ids can be attacker-chosen strings, so the update is
+  // scoped to the status being enriched and can never reach another one's row.
+  statusId: string
   playbackType: 'gifv' | 'video' | 'unknown'
   thumbnailUrl?: string | null
   onlyIfUnset?: boolean
@@ -3424,6 +3454,10 @@ export type GetMediaByIdsForAccountParams = {
 export type UpdateMediaParams = {
   mediaId: string
   accountId: string
+  // Narrows the owner check from the account to one of its actors. Set by
+  // actor-scoped callers (a status edit's media_attributes), whose OAuth token
+  // is bound to a single actor.
+  actorId?: string
   description?: string | null
   focus?: { x: number; y: number }
   blurhash?: string | null
@@ -3440,6 +3474,9 @@ export type MarkMediaUploadVerifiedParams = {
   mediaId: string
   accountId: string
   verifiedAt: number
+  // The dimensions probed from the uploaded bytes, replacing the ones the
+  // client declared when it asked for the presigned URL.
+  dimensions?: { width: number; height: number }
 }
 
 export interface MediaDatabase {
@@ -3726,6 +3763,9 @@ export type NotificationGroupKeyParams = {
   // A shared groupKey, or (for ungrouped notifications) a notification id.
   groupKey: string
   includeFiltered?: boolean
+  // Newest-first row cap for getNotificationsForGroupKey, clamped to the
+  // database's hard maximum (1000); ignored by dismissNotificationGroup.
+  limit?: number
 }
 
 export interface NotificationDatabase {
@@ -3843,10 +3883,9 @@ export const Scope = z.enum([
   'push',
   // Admin. The aggregate admin scopes plus Mastodon's documented granular admin
   // scopes. These are recognized so admin clients can register and authorize
-  // with specific granular scopes. Note: AdminApiGuard currently only accepts
-  // the aggregate admin:read / admin:write (or coarse read / write) at the OAuth
-  // bearer gate — a token granted only a granular admin:read:* scope is rejected
-  // there today. Per-route granular admin scope enforcement is Tier 2 work.
+  // with specific granular scopes. AdminApiGuard accepts the aggregate
+  // admin:read / admin:write, or a route's own granular scope when the route
+  // opts in with `{ resource }`; the coarse read / write never satisfy it.
   'admin:read',
   'admin:read:accounts',
   'admin:read:reports',
@@ -4410,5 +4449,14 @@ export interface QueueJobDatabase {
   replayQueueJob(params: ReplayQueueJobParams): Promise<boolean>
   getQueueJobById(id: string): Promise<QueueJob | null>
   deleteQueueJob(id: string): Promise<boolean>
+  /**
+   * Deletes up to `limit` `completed` jobs last updated before `olderThan` and
+   * returns how many were removed. Completed rows keep their full payload and
+   * are otherwise never reaped, so without this the table only grows.
+   */
+  purgeCompletedQueueJobs(params: {
+    olderThan: Date
+    limit?: number
+  }): Promise<number>
   countQueueJobs(params?: { status?: QueueJobStatus }): Promise<number>
 }

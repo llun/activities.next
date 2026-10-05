@@ -33,7 +33,10 @@ import {
   resolveIdsByPublicIds,
   resolvePublicIdsByIds
 } from '@/lib/database/sql/utils/publicIdLookup'
-import { selectHashtagTagsByStatusIds } from '@/lib/database/sql/utils/status'
+import {
+  selectHashtagTagsByStatusIds,
+  selectPubliclyAddressedStatusIds
+} from '@/lib/database/sql/utils/status'
 import { findActorRowByUsername } from '@/lib/database/sql/utils/usernameMatch'
 import {
   FEDERATION_SIGNING_ACTOR_TYPE,
@@ -89,6 +92,7 @@ import {
   getEmojiTags,
   toEmojiShortcodeToken
 } from '@/lib/utils/text/getEmojiTags'
+import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
 export interface SQLActorDatabase extends ActorDatabase {
   getActor: (
@@ -337,12 +341,23 @@ const getMastodonAccountFromSQLActor = ({
 
   // Profile metadata fields are stored as plain name/value pairs; URLs are not
   // server-verified, so verified_at is always null.
-  const profileFields = (settings.fields ?? []).map((field) => ({
+  const sourceFields = (settings.fields ?? []).map((field) => ({
     name: field.name,
     value: field.value,
     verified_at: null
   }))
-  const note = sqlActor.summary ?? ''
+  const sourceNote = sqlActor.summary ?? ''
+  // `note` and `fields[].value` are HTML in the Mastodon Account entity, and
+  // clients render them as server-sanitized markup. The stored values are raw:
+  // a local user's bio is whatever they typed, a remote actor's is whatever
+  // its server sent. Sanitize here — the single Account emission point — so
+  // no embedded account can carry scriptable HTML to a client. `source` keeps
+  // the raw values: it is the plain-text editing copy (and feeds Profile).
+  const profileFields = sourceFields.map((field) => ({
+    ...field,
+    value: sanitizeText(field.value)
+  }))
+  const note = sanitizeText(sourceNote)
 
   return Mastodon.Account.parse({
     // The single Account emission point: every embedded `account` (statuses,
@@ -393,8 +408,8 @@ const getMastodonAccountFromSQLActor = ({
     // public Account never leaks it; the credential endpoints overlay the real
     // count (see lib/services/accounts/credentialAccount).
     source: {
-      note,
-      fields: profileFields,
+      note: sourceNote,
+      fields: sourceFields,
       privacy: settings.defaultPrivacy ?? 'public',
       sensitive: settings.defaultSensitive ?? false,
       language: settings.defaultLanguage ?? 'en',
@@ -1475,6 +1490,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         .select('id', 'type', 'reply', 'content', 'originalStatusId')
 
       const statusIds = actorStatuses.map((status) => status.id)
+      // Reply and hashtag counters only ever counted publicly addressed
+      // statuses; read which ones those were while their recipients remain.
+      const publiclyAddressedStatusIds = await selectPubliclyAddressedStatusIds(
+        trx,
+        statusIds
+      )
       const statusReferenceToId = new Map<string, string>()
       const replyReferences = Array.from(
         new Set(
@@ -1550,7 +1571,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           }
         }
 
-        if (status.reply) {
+        if (status.reply && publiclyAddressedStatusIds.has(status.id)) {
           const parentStatusId = statusReferenceToId.get(status.reply)
           if (parentStatusId) {
             replyCounterChanges[parentStatusId] =
@@ -1677,6 +1698,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         affectedHashtags.push(...hashtagTags.map((tag) => tag.name))
         const hashtagCounterAdjustments = new Map<string, number>()
         for (const tag of hashtagTags) {
+          if (!publiclyAddressedStatusIds.has(tag.statusId)) continue
           const tagName = normalizeHashtagSearchName(tag.name)
           if (tagName.length === 0) continue
           hashtagCounterAdjustments.set(

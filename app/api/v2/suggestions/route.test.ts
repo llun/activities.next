@@ -228,4 +228,26 @@ describe('/api/v2/suggestions', () => {
         .delete()
     }
   })
+
+  it.each([
+    ['an unknown account', urlToId('https://nowhere.test/users/ghost')],
+    ['an over-long id', 'a'.repeat(400)]
+  ])(
+    'answers {} but stores no dismissal row for %s',
+    async (_name, accountId) => {
+      const deleteResponse = await DELETE(
+        new NextRequest(`https://llun.test/api/v1/suggestions/${accountId}`, {
+          method: 'DELETE',
+          headers: { origin: 'https://llun.test' }
+        }),
+        { params: Promise.resolve({ account_id: accountId }) }
+      )
+
+      expect(deleteResponse.status).toBe(200)
+      await expect(deleteResponse.json()).resolves.toEqual({})
+      expect(await instance('suggestion_dismissals').select('*')).toHaveLength(
+        0
+      )
+    }
+  )
 })

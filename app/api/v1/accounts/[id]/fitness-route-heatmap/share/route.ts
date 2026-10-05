@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { normalizeRegionParam } from '@/lib/fitness/regions'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { isPyramidVariantHeatmap } from '@/lib/services/fitness-files/heatmapTiles/tileSource'
 import {
   NulFreeString,
   TrimmedOptionalActivityTypeParam
@@ -12,6 +13,7 @@ import {
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
+import { refineHeatmapPeriodKey } from '@/lib/utils/fitnessHeatmapPeriod'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -38,14 +40,16 @@ interface Params {
   id: string
 }
 
-const FitnessRouteHeatmapShareBody = z.object({
-  activity_type: TrimmedOptionalActivityTypeParam,
-  period_type: z.enum(['all_time', 'yearly', 'monthly']),
-  period_key: NulFreeString,
-  // See the sibling fitness-route-heatmap route: a looser raw cap that
-  // normalizeRegionParam rounds + caps under the 255-char cache-key column.
-  region: z.string().max(1024).optional()
-})
+const FitnessRouteHeatmapShareBody = z
+  .object({
+    activity_type: TrimmedOptionalActivityTypeParam,
+    period_type: z.enum(['all_time', 'yearly', 'monthly']),
+    period_key: NulFreeString,
+    // See the sibling fitness-route-heatmap route: a looser raw cap that
+    // normalizeRegionParam rounds + caps under the 255-char cache-key column.
+    region: z.string().max(1024).optional()
+  })
+  .superRefine(refineHeatmapPeriodKey)
 
 // 16 random bytes → 22-char URL-safe token. Unguessable so the capability is the
 // token itself, and revocable by clearing it.
@@ -158,6 +162,19 @@ export const POST = traceApiRoute(
         allowedMethods: CORS_HEADERS,
         data: ERROR_404,
         responseStatusCode: 404
+      })
+    }
+
+    // Only the all-activities, all-time row can be shared: it is the one scope
+    // the heatmap page can address, so a token on any other row is a public link
+    // its owner could never find again to revoke. The public routes would not
+    // resolve it either (see `onlyAllActivitiesAllTimeShares`).
+    if (!isPyramidVariantHeatmap(existing)) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_400,
+        responseStatusCode: 400
       })
     }
 

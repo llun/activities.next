@@ -7,7 +7,8 @@ import { selectHeaderHost } from '@/lib/utils/host'
 // @/lib/config (fs/path deps) into the middleware Edge Runtime bundle.
 import {
   getContentSecurityPolicyHeader,
-  getEmbedContentSecurityPolicyHeader
+  getEmbedContentSecurityPolicyHeader,
+  getMediaFileContentSecurityPolicyHeader
 } from '@/lib/utils/http-headers/csp'
 
 // Next buffers the body of every non-GET/HEAD request the proxy runs on, so the
@@ -40,6 +41,23 @@ export const config = {
   ]
 }
 
+const MEDIA_FILE_ROUTE_PREFIX = '/api/v1/files/'
+
+// Compared on a decoded, slash-collapsed form so an escaped or doubled
+// separator cannot reach the files route while dodging its policy. Erring
+// toward the sandboxed policy costs nothing on any other path.
+const isMediaFileRoutePath = (pathname: string): boolean => {
+  let decoded = pathname
+  try {
+    decoded = decodeURIComponent(pathname)
+  } catch {
+    // Keep the raw form; it is still compared below.
+  }
+  return [pathname, decoded].some((value) =>
+    value.replace(/\/{2,}/g, '/').startsWith(MEDIA_FILE_ROUTE_PREFIX)
+  )
+}
+
 const proxyHeaderHost = (headers: Headers): string => {
   return selectHeaderHost(headers, getProxyHostConfig())
 }
@@ -49,10 +67,17 @@ const withContentSecurityPolicy = (
   request: NextRequest
 ) => {
   // The public embed widgets are framable by third-party sites, so they get a
-  // CSP with `frame-ancestors *` instead of the default `'none'`.
-  const header = request.nextUrl.pathname.startsWith('/embed/')
-    ? getEmbedContentSecurityPolicyHeader()
-    : getContentSecurityPolicyHeader()
+  // CSP with `frame-ancestors *` instead of the default `'none'`. Stored upload
+  // bytes get the sandboxed media policy instead of the app's: the header set
+  // here wins over the route's own (Next only appends a route header the
+  // middleware response did not already carry), so the files route cannot
+  // tighten it by itself.
+  const { pathname } = request.nextUrl
+  const header = isMediaFileRoutePath(pathname)
+    ? getMediaFileContentSecurityPolicyHeader()
+    : pathname.startsWith('/embed/')
+      ? getEmbedContentSecurityPolicyHeader()
+      : getContentSecurityPolicyHeader()
   if (!response.headers.has(header.key)) {
     response.headers.set(header.key, header.value)
   }

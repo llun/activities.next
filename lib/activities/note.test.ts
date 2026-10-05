@@ -1,3 +1,5 @@
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
+
 import { BaseNote } from './note'
 import {
   getAttachments,
@@ -41,6 +43,15 @@ describe('note entity utilities', () => {
 
     it('returns undefined for empty array', () => {
       expect(getUrl([])).toBeUndefined()
+    })
+
+    it.each([
+      'javascript:alert(document.domain)',
+      ['javascript:alert(1)'],
+      { href: 'data:text/html,<script>alert(1)</script>' },
+      [{ href: 'vbscript:msgbox(1)' }]
+    ])('returns undefined for a non-http(s) url %j', (url) => {
+      expect(getUrl(url)).toBeUndefined()
     })
 
     it('returns undefined for null', () => {
@@ -94,6 +105,21 @@ describe('note entity utilities', () => {
       expect(getQuoteTargetId(note)).toEqual(target)
     })
 
+    it.each([
+      { field: 'quote' },
+      { field: 'quoteUrl' },
+      { field: 'quoteUri' },
+      { field: '_misskey_quote' }
+    ])('rejects a non-http(s) quote target in $field', ({ field }) => {
+      const note = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        [field]: 'javascript:alert(document.domain)'
+      } as unknown as BaseNote
+
+      expect(getQuoteTargetId(note)).toBeNull()
+    })
+
     it('prefers quote over the compat aliases', () => {
       const note = {
         type: 'Note',
@@ -128,6 +154,59 @@ describe('note entity utilities', () => {
   })
 
   describe('getAttachments', () => {
+    // Regression (F047): ingest kept every Document a remote Note carried, so
+    // one signed Note could write hundreds of attachment rows and put as many
+    // video elements into every viewer's timeline.
+    it('keeps no more attachments than a local status may store', () => {
+      const note = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        content: 'Test',
+        attachment: Array.from(
+          { length: MAX_STORED_MEDIA_ATTACHMENTS + 25 },
+          (_, index) => ({
+            type: 'Document',
+            mediaType: 'video/mp4',
+            url: `https://example.com/video-${index}.mp4`
+          })
+        )
+      } as BaseNote
+
+      const result = getAttachments(note)
+
+      expect(result).toHaveLength(MAX_STORED_MEDIA_ATTACHMENTS)
+      expect(result[0].url).toEqual('https://example.com/video-0.mp4')
+    })
+
+    it('drops attachments whose url is not http(s)', () => {
+      const note: BaseNote = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        content: 'Test',
+        attachment: [
+          {
+            type: 'Document',
+            mediaType: 'application/pdf',
+            url: 'javascript:alert(document.domain)'
+          },
+          {
+            type: 'Document',
+            mediaType: 'text/html',
+            url: 'data:text/html,<script>alert(1)</script>'
+          },
+          {
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://example.com/image.jpg'
+          }
+        ]
+      } as BaseNote
+
+      expect(getAttachments(note).map((item) => item.url)).toEqual([
+        'https://example.com/image.jpg'
+      ])
+    })
+
     it('returns attachments array', () => {
       const note: BaseNote = {
         type: 'Note',

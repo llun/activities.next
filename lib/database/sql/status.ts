@@ -35,7 +35,9 @@ import {
 import { recoverFromDuplicateInsert } from '@/lib/database/sql/utils/recoverFromDuplicateInsert'
 import {
   StatusHashtagTagRow,
-  selectHashtagTagsByStatusIds
+  isPubliclyAddressed,
+  selectHashtagTagsByStatusIds,
+  selectPubliclyAddressedStatusIds
 } from '@/lib/database/sql/utils/status'
 import {
   PUBLIC_ACTIVITY_RECIPIENTS,
@@ -102,7 +104,7 @@ import {
   UpdatePollParams,
   UpdateStatusQuoteApprovalPolicyParams
 } from '@/lib/types/database/operations'
-import { getActorProfile } from '@/lib/types/domain/actor'
+import { Actor, ActorProfile, getActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 import { PollChoice } from '@/lib/types/domain/pollChoice'
 import {
@@ -121,12 +123,14 @@ import { normalizeActorId } from '@/lib/utils/activitypub'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { getAttachmentMediaPath } from '@/lib/utils/getAttachmentMediaPath'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
+import { getVisibility } from '@/lib/utils/getVisibility'
 import { logger } from '@/lib/utils/logger'
 import {
   generatePublicId,
   isPublicId,
   toPublicIdLookupKey
 } from '@/lib/utils/publicId'
+import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 
 import {
   deleteStatusSearchDocumentsByStatusIds,
@@ -142,6 +146,16 @@ const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
 // Counts breadth-first reply levels from the deleted root, not total replies.
 // This bounds transaction size while still allowing wide conversation cleanup.
 const MAX_STATUS_REPLY_DELETE_DEPTH = 100
+
+// A status embeds its author for rendering only, and nothing reads the
+// author's `lastStatusAt` there — yet it rides along on every page that ships
+// statuses to the client (public SSR pages serialize them whole), where it
+// would date the author's newest followers-only post to the millisecond. The
+// account entity's date-only `last_status_at` is the one place it belongs.
+const getStatusActorProfile = (actor: Actor): ActorProfile => ({
+  ...getActorProfile(actor),
+  lastStatusAt: null
+})
 
 type StatusDeletionRow = {
   id: string
@@ -474,11 +488,18 @@ export const StatusSQLDatabaseMixin = (
     step,
     trx,
     currentTime,
-    statusCreatedAt
+    statusCreatedAt,
+    audience
   }: {
     actorId: string
     type: StatusType
     reply: string
+    // The new status's recipients. Only a public or unlisted reply moves the
+    // parent's reply counter, which anonymous surfaces serve as
+    // `replies_count` (Mastodon counts only distributable replies), and a
+    // direct status does not advance `lastStatusAt` (Mastodon parity), so
+    // neither is observable through a count or a timestamp.
+    audience: { to: string[]; cc: string[] }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     content: any
     step: 'increment' | 'decrement'
@@ -495,9 +516,17 @@ export const StatusSQLDatabaseMixin = (
     await adjust(trx, CounterKey.serviceTotalStatuses(), 1, currentTime)
     if (step === 'increment') {
       await incrementBucket(trx, 'statuses', 1, currentTime)
+    }
+    if (
+      step === 'increment' &&
+      getVisibility(audience.to, audience.cc) !== 'direct'
+    ) {
       // Advance the actor's persisted last-status timestamp. Guarded set-if-newer
       // (keyed on the status createdAt, not currentTime) so a backdated or
-      // out-of-order insert never lowers a more recent value.
+      // out-of-order insert never lowers a more recent value. Direct statuses
+      // are skipped: `lastStatusAt` is served as the account's public
+      // `last_status_at` and directory order, and would otherwise date a
+      // direct message to anyone.
       await trx('actors')
         .where('id', actorId)
         .andWhere((builder) =>
@@ -530,7 +559,7 @@ export const StatusSQLDatabaseMixin = (
       }
     }
 
-    if (reply) {
+    if (reply && isPubliclyAddressed(audience)) {
       const parentStatusId = await resolveParentStatusIdByReply(reply, trx)
       if (parentStatusId) {
         await adjust(trx, CounterKey.totalReply(parentStatusId), 1, currentTime)
@@ -606,7 +635,8 @@ export const StatusSQLDatabaseMixin = (
             step: 'increment',
             trx,
             currentTime,
-            statusCreatedAt
+            statusCreatedAt,
+            audience: { to, cc }
           })
           await Promise.all(
             to.map((actorId) =>
@@ -652,7 +682,7 @@ export const StatusSQLDatabaseMixin = (
       publicId: statusPublicId,
       url,
       actorId,
-      actor: actor ? getActorProfile(actor) : null,
+      actor: actor ? getStatusActorProfile(actor) : null,
       type: StatusType.enum.Note,
       text,
       summary,
@@ -902,7 +932,13 @@ export const StatusSQLDatabaseMixin = (
       }),
       createdAt: status.createdAt
     }
+    // Prior revisions were written for the old audience; see
+    // widensStatusAudience for why a widening change drops them.
+    const widensAudience = widensStatusAudience(status, { to, cc })
     await database.transaction(async (trx) => {
+      if (widensAudience) {
+        await trx('status_history').where('statusId', status.id).delete()
+      }
       await trx('recipients').where('statusId', status.id).delete()
       await trx('timelines').where('statusId', status.id).delete()
       await Promise.all(
@@ -931,6 +967,32 @@ export const StatusSQLDatabaseMixin = (
       )
       const hashtagTags = await selectHashtagTagsByStatusIds(trx, [status.id])
       affectedHashtags = hashtagTags.map((tag) => tag.name)
+
+      // The reply and hashtag counters count only publicly addressed statuses,
+      // so a visibility change that crosses that line moves them too —
+      // otherwise a later delete would decrement a count this status never
+      // contributed to, or leave behind one it no longer should.
+      const wasPublic = isPubliclyAddressed(status)
+      if (wasPublic !== isPubliclyAddressed({ to, cc })) {
+        const adjust = wasPublic ? decreaseCounterValue : increaseCounterValue
+        const parentStatusId = await resolveParentStatusIdByReply(
+          status.reply,
+          trx
+        )
+        if (parentStatusId) {
+          await adjust(
+            trx,
+            CounterKey.totalReply(parentStatusId),
+            1,
+            currentTime
+          )
+        }
+        // Per tag row, exactly as the create and delete paths count them.
+        for (const tag of hashtagTags) {
+          const tagName = normalizeHashtagSearchName(tag.name)
+          await adjust(trx, CounterKey.totalHashtag(tagName), 1, currentTime)
+        }
+      }
     })
     if (affectedHashtags.length > 0) {
       await indexHashtagSearchDocuments(database, {
@@ -986,7 +1048,8 @@ export const StatusSQLDatabaseMixin = (
             step: 'increment',
             trx,
             currentTime,
-            statusCreatedAt
+            statusCreatedAt,
+            audience: { to, cc }
           })
           await Promise.all(
             to.map((actorId) =>
@@ -1033,7 +1096,7 @@ export const StatusSQLDatabaseMixin = (
       id,
       publicId: statusPublicId,
       actorId,
-      actor: actor ? getActorProfile(actor) : null,
+      actor: actor ? getStatusActorProfile(actor) : null,
       to,
       cc,
       edits: [],
@@ -1116,7 +1179,8 @@ export const StatusSQLDatabaseMixin = (
             step: 'increment',
             trx,
             currentTime,
-            statusCreatedAt
+            statusCreatedAt,
+            audience: { to, cc }
           })
           await Promise.all(
             choices.map((choice) => {
@@ -1176,7 +1240,7 @@ export const StatusSQLDatabaseMixin = (
       publicId: statusPublicId,
       url,
       actorId,
-      actor: actor ? getActorProfile(actor) : null,
+      actor: actor ? getStatusActorProfile(actor) : null,
       type: StatusType.enum.Poll,
       text,
       summary,
@@ -1372,6 +1436,12 @@ export const StatusSQLDatabaseMixin = (
 
   const getActorTargetStatusIds = (actorId: string) =>
     database('statuses').select('statuses.id').where('actorId', actorId)
+
+  async function deleteStatusEditHistory({
+    statusId
+  }: GetStatusEditHistoryParams): Promise<void> {
+    await database('status_history').where('statusId', statusId).delete()
+  }
 
   async function getStatusEditHistory({
     statusId
@@ -2229,10 +2299,13 @@ export const StatusSQLDatabaseMixin = (
 
   const applyStatusDeletionCounterAdjustments = async ({
     currentTime,
+    publiclyAddressedStatusIds,
     statuses,
     trx
   }: {
     currentTime: Date
+    // Mirrors the create path: only publicly addressed replies were counted.
+    publiclyAddressedStatusIds: Set<string>
     statuses: StatusDeletionRow[]
     trx: Knex.Transaction
   }) => {
@@ -2265,7 +2338,7 @@ export const StatusSQLDatabaseMixin = (
         }
       }
 
-      if (status.reply) {
+      if (status.reply && publiclyAddressedStatusIds.has(status.id)) {
         const parentStatusId = parentStatusIdByReplyReference.get(status.reply)
         if (parentStatusId) {
           addCounterAdjustment(
@@ -2283,16 +2356,20 @@ export const StatusSQLDatabaseMixin = (
 
   const applyHashtagDeletionCounterAdjustments = async ({
     currentTime,
+    publiclyAddressedStatusIds,
     tags,
     trx
   }: {
     currentTime: Date
+    // Mirrors the create path: only publicly addressed statuses' tags counted.
+    publiclyAddressedStatusIds: Set<string>
     tags: StatusHashtagTagRow[]
     trx: Knex.Transaction
   }) => {
     const adjustments = new Map<string, number>()
 
     for (const tag of tags) {
+      if (!publiclyAddressedStatusIds.has(tag.statusId)) continue
       const tagName = normalizeHashtagSearchName(tag.name)
       addCounterAdjustment(adjustments, CounterKey.totalHashtag(tagName))
     }
@@ -2333,9 +2410,25 @@ export const StatusSQLDatabaseMixin = (
       await trx('actors')
         .whereIn('id', actorIdChunk)
         .update({
+          // Direct statuses never advanced `lastStatusAt` on create (see
+          // `updateStatusCounters`), so they must not set it here either —
+          // deleting the newest public post would otherwise reveal the date of
+          // a later direct message. "Not direct" is `getVisibility`'s rule:
+          // addressed to the public collection or to a followers collection.
           lastStatusAt: trx('statuses')
             .max('createdAt')
             .where('statuses.actorId', trx.ref('actors.id'))
+            .whereExists((builder) =>
+              builder
+                .select(trx.raw('1'))
+                .from('recipients')
+                .whereRaw('?? = ??', ['recipients.statusId', 'statuses.id'])
+                .where((audience) =>
+                  audience
+                    .whereIn('recipients.actorId', PUBLIC_ACTIVITY_RECIPIENTS)
+                    .orWhere('recipients.actorId', 'like', '%/followers')
+                )
+            )
         })
     }
   }
@@ -2506,8 +2599,13 @@ export const StatusSQLDatabaseMixin = (
 
     const currentTime = new Date()
     const statusIdsToDelete = statusesToDelete.map((status) => status.id)
+    const publiclyAddressedStatusIds = await selectPubliclyAddressedStatusIds(
+      trx,
+      statusIdsToDelete
+    )
     await applyStatusDeletionCounterAdjustments({
       currentTime,
+      publiclyAddressedStatusIds,
       statuses: statusesToDelete,
       trx
     })
@@ -2518,6 +2616,7 @@ export const StatusSQLDatabaseMixin = (
     )
     await applyHashtagDeletionCounterAdjustments({
       currentTime,
+      publiclyAddressedStatusIds,
       tags: hashtagTags,
       trx
     })
@@ -3298,7 +3397,7 @@ export const StatusSQLDatabaseMixin = (
         id: data.id,
         publicId: data.publicId ?? null,
         actorId: data.actorId,
-        actor: actor ? getActorProfile(actor) : null,
+        actor: actor ? getStatusActorProfile(actor) : null,
         type: StatusType.enum.Announce,
         to: to.map((item) => item.actorId),
         cc: cc.map((item) => item.actorId),
@@ -3503,7 +3602,7 @@ export const StatusSQLDatabaseMixin = (
       to: to.map((item) => item.actorId),
       cc: cc.map((item) => item.actorId),
       actorId: data.actorId,
-      actor: actor ? getActorProfile(actor) : null,
+      actor: actor ? getStatusActorProfile(actor) : null,
       type: data.type,
       text: content.text,
       summary: content.summary,
@@ -4148,6 +4247,7 @@ export const StatusSQLDatabaseMixin = (
     getStatus,
     getStatusReplies,
     getStatusEditHistory,
+    deleteStatusEditHistory,
     getStatusFromUrl,
     getStatusFromUrlHash,
     getStatusIdByPublicId,

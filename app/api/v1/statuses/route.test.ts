@@ -1094,6 +1094,82 @@ describe('POST /api/v1/statuses', () => {
     }
   })
 
+  it('stores a scheduled reply with the parent visibility when visibility is omitted', async () => {
+    // actor1 is a direct recipient of actor2's DM; the actor's own default
+    // privacy is public, which the reply must not fall back to.
+    const parentId = `${ACTOR2_ID}/statuses/scheduled-reply-dm-parent`
+    await database.createNote({
+      id: parentId,
+      url: parentId,
+      actorId: ACTOR2_ID,
+      text: 'a direct message to actor1',
+      to: [ACTOR1_ID],
+      cc: []
+    })
+    const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Scheduled reply to a DM',
+          in_reply_to_id: parentId,
+          scheduled_at: scheduledAt
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(200)
+    const scheduledStatus = await response.json()
+    expect(scheduledStatus.params.visibility).toBe('direct')
+  })
+
+  it('returns 404 when scheduling a reply to a status the actor cannot read', async () => {
+    const parentId = `${ACTOR2_ID}/statuses/scheduled-reply-unreadable-parent`
+    await database.createNote({
+      id: parentId,
+      url: parentId,
+      actorId: ACTOR2_ID,
+      text: 'a direct message between other actors',
+      to: [ACTOR3_ID],
+      cc: []
+    })
+    const before = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    const scheduledAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    const response = await POST(
+      new NextRequest('https://llun.test/api/v1/statuses', {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'Scheduled reply into a stranger DM',
+          visibility: 'direct',
+          in_reply_to_id: parentId,
+          scheduled_at: scheduledAt
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: 'https://llun.test'
+        }
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(404)
+    const after = await database.getScheduledStatuses({
+      actorId: ACTOR1_ID,
+      limit: 40
+    })
+    expect(after).toHaveLength(before.length)
+  })
+
   it('treats a blank scheduled_at as an immediate post', async () => {
     const before = await database.getScheduledStatuses({
       actorId: ACTOR1_ID,

@@ -5,7 +5,14 @@ import { tmpdir } from 'os'
 import path from 'path'
 import { promisify } from 'util'
 
+import { MAX_VIDEO_DIMENSION } from './videoProbe'
+
 const execFileAsync = promisify(execFile)
+
+// Fit inside a 1280px box (never upscaling, aspect kept, even dimensions for
+// the encoder), then pick the representative frame from a batch of 50.
+export const VIDEO_PREVIEW_FILTER =
+  "scale=w='min(1280,iw)':h='min(1280,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,thumbnail=n=50"
 
 export const extractVideoImage = async (filePath: string): Promise<Buffer> => {
   const randomFileName = crypto.randomBytes(8).toString('hex')
@@ -17,14 +24,33 @@ export const extractVideoImage = async (filePath: string): Promise<Buffer> => {
       [
         '-loglevel',
         'error',
+        // Fewer decoder threads, fewer frames in flight at input resolution.
+        '-threads',
+        '2',
+        // A decoder pixel cap that holds whatever the probe saw: the upload
+        // probe bounds each stream's declared size, but an H.264 stream can
+        // change resolution mid-stream (a new SPS) after the probe has read
+        // its header. The cap applies to every decoder this run opens,
+        // including the ones its own stream probe opens.
+        '-max_pixels',
+        String(MAX_VIDEO_DIMENSION * MAX_VIDEO_DIMENSION),
         '-i',
         path.resolve(filePath),
+        // Decode the first video stream, the one the upload probe reports.
+        // Without it ffmpeg picks the largest/default-disposition track.
+        '-map',
+        '0:v:0',
         // `thumbnail` analyses batches of candidate frames and emits the most
         // representative one. Without it ffmpeg takes the first decodable frame,
         // which for a clip that opens on black or a blank frame is what gets
         // stored as the poster and fed to the alt-text model.
+        //
+        // It holds its whole batch uncompressed, so the frames are scaled down
+        // FIRST and the batch is kept small: at its default 100 frames and
+        // input resolution, a short 4K clip peaked at ~1.6 GB resident and 8K
+        // at several times that, from an upload well under the byte cap.
         '-vf',
-        'thumbnail',
+        VIDEO_PREVIEW_FILTER,
         '-frames:v',
         '1',
         // A single-frame image2 output has no sequence pattern in its name and

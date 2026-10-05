@@ -1360,6 +1360,31 @@ describe('MediaDatabase', () => {
         })
       })
 
+      // The client declares width/height when it asks for the URL; the
+      // probed dimensions of the uploaded bytes replace them.
+      it('records probed dimensions over the declared ones', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-dimensions.jpg')
+
+        await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          dimensions: { width: 640, height: 480 }
+        })
+
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original.metaData).toMatchObject({
+          width: 640,
+          height: 480,
+          upload: { state: 'verified', checksumSha1: 'abc123' }
+        })
+      })
+
       it('returns null when the media belongs to another account', async () => {
         const otherActor = await database.getActorFromId({
           id: actors.replyAuthor.id
@@ -1734,6 +1759,42 @@ describe('MediaDatabase', () => {
         })
 
         expect(updated).toBeNull()
+      })
+
+      it('returns null when actorId narrows ownership to a different actor of the account', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.primary.id,
+          description: 'original',
+          original: {
+            path: '/test/update-media-other-actor.jpg',
+            bytes: 1234,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          }
+        })
+
+        const updated = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          actorId: `${actors.primary.id}-sibling`,
+          description: 'should not apply'
+        })
+        expect(updated).toBeNull()
+        const retrieved = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(retrieved?.description).toBe('original')
+
+        const owned = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          actorId: actors.primary.id,
+          description: 'owner edit'
+        })
+        expect(owned?.media.description).toBe('owner edit')
       })
 
       it('returns null for a nonexistent media id', async () => {
@@ -2131,6 +2192,7 @@ describe('MediaDatabase', () => {
 
         const updated = await database.updateAttachmentPlayback({
           id: attachment.id,
+          statusId: statuses[0].id,
           playbackType: 'video',
           thumbnailUrl: 'https://example.com/new-preview.png'
         })
@@ -2139,6 +2201,7 @@ describe('MediaDatabase', () => {
         // onlyIfUnset prevents overwriting when playbackType is already set
         const staleUpdate = await database.updateAttachmentPlayback({
           id: attachment.id,
+          statusId: statuses[0].id,
           playbackType: 'gifv',
           onlyIfUnset: true
         })
@@ -2167,6 +2230,7 @@ describe('MediaDatabase', () => {
 
         const freshUpdate = await database.updateAttachmentPlayback({
           id: unsetAttachment.id,
+          statusId: statuses[0].id,
           playbackType: 'gifv',
           thumbnailUrl: 'https://example.com/unset-thumb.png',
           onlyIfUnset: true
@@ -2183,6 +2247,36 @@ describe('MediaDatabase', () => {
         expect(foundFresh?.thumbnailUrl).toBe(
           'https://example.com/unset-thumb.png'
         )
+      })
+
+      it('never updates playback for an attachment of another status', async () => {
+        // Remote attachment ids are attacker-chosen strings, so the id alone
+        // must not be able to reach a row belonging to a different status.
+        const statuses = await database.getActorStatuses({
+          actorId: actors.primary.id
+        })
+        const victim = await database.createAttachment({
+          actorId: actors.primary.id,
+          statusId: statuses[0].id,
+          mediaType: 'image/png',
+          url: 'https://example.com/victim.png',
+          name: 'Victim image'
+        })
+
+        const updated = await database.updateAttachmentPlayback({
+          id: victim.id,
+          statusId: 'https://attacker.example/notes/1',
+          playbackType: 'gifv',
+          thumbnailUrl: 'https://attacker.example/track.png',
+          onlyIfUnset: true
+        })
+        expect(updated).toBe(false)
+
+        const [stored] = (
+          await database.getAttachments({ statusId: statuses[0].id })
+        ).filter((a) => a.id === victim.id)
+        expect(stored.playbackType).toBeUndefined()
+        expect(stored.thumbnailUrl).toBeUndefined()
       })
     })
   })

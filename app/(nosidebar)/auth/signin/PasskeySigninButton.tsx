@@ -8,16 +8,21 @@ import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
 
 import { passkeyErrorMessage } from './passkeyErrorMessage'
-import { isPlatformPasskeyAvailable } from './passkeySupport'
+import {
+  isPlatformPasskeyAvailable,
+  isWebAuthnAvailable
+} from './passkeySupport'
 import { resolveSignInRedirect } from './resolveSignInRedirect'
 
 interface PasskeySigninButtonProps {
   /**
    * Whether credential (email/password) sign-in is available on this instance.
-   * When it is, an environment that can't use passkeys simply hides the button
-   * (the visitor signs in with credentials instead). When it is NOT, passkeys
-   * are the only way in, so an unsupported environment shows a short
-   * "unavailable" notice rather than a blank sign-in card. Defaults to true.
+   * When it is, an environment with no platform authenticator simply hides the
+   * button (the visitor signs in with credentials instead). When it is NOT,
+   * passkeys are the only way in, so the button shows wherever WebAuthn exists
+   * (a roaming security key may be the visitor's only passkey), and an
+   * environment without WebAuthn shows a short "unavailable" notice rather
+   * than a blank sign-in card. Defaults to true.
    */
   credentialEnabled?: boolean
 }
@@ -40,12 +45,17 @@ export const PasskeySigninButton: FC<PasskeySigninButtonProps> = ({
   useEffect(() => {
     let active = true
     isPlatformPasskeyAvailable().then((available) => {
-      if (active) setSupported(available)
+      if (!active) return
+      // The platform check only sees built-in authenticators. When credential
+      // sign-in is disabled passkeys are the only way in, so a visitor whose
+      // passkey is a roaming security key must still get the button wherever
+      // WebAuthn exists — hiding it would lock them out.
+      setSupported(available || (!credentialEnabled && isWebAuthnAvailable()))
     })
     return () => {
       active = false
     }
-  }, [])
+  }, [credentialEnabled])
 
   const handlePasskeySignin = async () => {
     setError(undefined)

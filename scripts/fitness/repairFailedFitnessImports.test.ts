@@ -124,11 +124,45 @@ describe('repairFailedFitnessImports', () => {
           batchId: 'batch-1',
           fitnessFileIds: ['file-failed'],
           overlapFitnessFileIds: ['file-done'],
-          visibility: 'public'
+          visibility: 'private'
         })
       })
     )
     expect(mockImportStravaActivityJob).not.toHaveBeenCalled()
+  })
+
+  it('only publishes a recreated manual-upload post when --visibility says so', async () => {
+    const database = {
+      getFitnessFilesByBatchId: vi.fn().mockResolvedValue([
+        {
+          id: 'file-failed',
+          actorId,
+          importBatchId: 'batch-1',
+          importStatus: 'failed',
+          processingStatus: 'failed',
+          fileName: 'a.fit'
+        }
+      ]),
+      updateFitnessFilesImportStatus: vi.fn().mockResolvedValue(1),
+      updateFitnessFilesProcessingStatus: vi.fn().mockResolvedValue(1)
+    } as unknown as ReturnType<typeof getDatabase>
+    mockGetDatabase.mockReturnValue(database)
+
+    await repairFailedFitnessImports([
+      '--actor-id',
+      actorId,
+      '--batch-id',
+      'batch-1',
+      '--visibility',
+      'unlisted'
+    ])
+
+    expect(mockImportFitnessFilesJob).toHaveBeenCalledWith(
+      database,
+      expect.objectContaining({
+        data: expect.objectContaining({ visibility: 'unlisted' })
+      })
+    )
   })
 
   it('changes nothing in dry-run mode', async () => {

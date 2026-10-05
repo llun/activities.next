@@ -1,5 +1,6 @@
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import {
+  getForwardActivityJobMessages,
   getForwardingTargetLocalActorIds,
   resolveForwardingInboxes,
   shouldForwardActivity
@@ -16,7 +17,7 @@ import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { withSpan } from '@/lib/utils/trace'
 
 import { createJobHandle } from './createJobHandle'
-import { DELETE_OBJECT_JOB_NAME, FORWARD_ACTIVITY_JOB_NAME } from './names'
+import { DELETE_OBJECT_JOB_NAME } from './names'
 import { actorMatchesVerifiedSender } from './verifiedSender'
 
 // Undefined intentionally preserves unscoped deletes for legacy queued messages.
@@ -171,15 +172,14 @@ export const deleteObjectJob = createJobHandle(
                 object: tombStone
               }
 
-              await getQueue().publish({
+              for (const forwardMessage of getForwardActivityJobMessages({
                 id: `${getHashFromString(tombStone.id)}#forward-delete`,
-                name: FORWARD_ACTIVITY_JOB_NAME,
-                data: {
-                  activity: deleteActivity,
-                  inboxes,
-                  localActorId: targetLocalActorIds[0]
-                }
-              })
+                activity: deleteActivity,
+                inboxes,
+                localActorId: targetLocalActorIds[0]
+              })) {
+                await getQueue().publish(forwardMessage)
+              }
             }
           }
         }

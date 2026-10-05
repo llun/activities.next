@@ -15,6 +15,10 @@ import {
   UpdatePushSubscriptionParams
 } from '@/lib/types/database/operations'
 
+// How many push subscriptions one actor may hold. One per device or app is
+// the normal shape; see `createPushSubscription` for how the cap is applied.
+export const MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR = 20
+
 interface SQLPushSubscription {
   id: string
   actorId: string
@@ -212,6 +216,27 @@ export const PushSubscriptionSQLDatabaseMixin = (
       await database('push_subscriptions')
         .where({ actorId, accessToken })
         .whereNot({ endpoint })
+        .delete()
+    }
+
+    // Every notification is POSTed to each of an actor's subscriptions, so
+    // their number is the server's per-notification fan-out. Keep the most
+    // recently written ones (this row included) and drop the rest, rather
+    // than refusing a new device because old ones never unsubscribed.
+    const overflow = await database('push_subscriptions')
+      .where({ actorId })
+      .orderBy([
+        { column: 'updatedAt', order: 'desc' },
+        { column: 'id', order: 'desc' }
+      ])
+      .offset(MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR)
+      .select<{ id: string }[]>('id')
+    if (overflow.length > 0) {
+      await database('push_subscriptions')
+        .whereIn(
+          'id',
+          overflow.map(({ id }) => id)
+        )
         .delete()
     }
 

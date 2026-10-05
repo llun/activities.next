@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getConfig } from '@/lib/config'
 import { sendMail } from '@/lib/services/email'
 import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDeleted'
+import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
@@ -13,7 +14,11 @@ import { createJobHandle } from './createJobHandle'
 import { DELETE_ACTOR_JOB_NAME } from './names'
 
 const DeleteActorJobData = z.object({
-  actorId: z.string()
+  actorId: z.string(),
+  // The `deletionScheduledAt` (epoch ms) the job was queued for. A job whose
+  // value no longer matches the actor's was made obsolete by a cancel followed
+  // by a new schedule, and is discarded.
+  scheduledAt: z.number().optional()
 })
 
 export const deleteActorJob = createJobHandle(
@@ -101,6 +106,50 @@ export const deleteActorJob = createJobHandle(
         return
       }
 
+      // A delayed deletion must not run before its time: a job can be delivered
+      // early (clock skew, a manual replay), and one queued for an earlier
+      // schedule must not carry out a later one. Immediate deletions have no
+      // `deletionScheduledAt` and fall straight through.
+      const deletionStatus = await database.getActorDeletionStatus({
+        id: actorId
+      })
+      const dueAt = deletionStatus?.scheduledAt ?? null
+      if (
+        data.scheduledAt !== undefined &&
+        dueAt !== null &&
+        // A second of slack: the stored time need not round-trip to the ms.
+        Math.abs(data.scheduledAt - dueAt) > 1000
+      ) {
+        logger.info({
+          message: 'Delete actor job superseded by a newer schedule',
+          actorId,
+          jobScheduledAt: data.scheduledAt,
+          currentScheduledAt: dueAt
+        })
+        span.setStatus({ code: SpanStatusCode.OK, message: 'Superseded' })
+        return
+      }
+      if (dueAt !== null && dueAt > Date.now()) {
+        const queue = getQueue()
+        logger.info({
+          message: 'Delete actor job arrived before the scheduled time',
+          actorId,
+          scheduledAt: dueAt
+        })
+        // A real queue can run it again at the right time. The in-process queue
+        // cannot, but then only the sweep publishes jobs, and only once due.
+        if (!queue.runsInline) {
+          await queue.publish({
+            id: `${message.id}:early:${dueAt}`,
+            name: DELETE_ACTOR_JOB_NAME,
+            data: { actorId, scheduledAt: dueAt },
+            delaySeconds: Math.max(1, Math.ceil((dueAt - Date.now()) / 1000))
+          })
+        }
+        span.setStatus({ code: SpanStatusCode.OK, message: 'Not yet due' })
+        return
+      }
+
       // Store email for notification before deletion
       const accountEmail = actor.account?.email
       logger.debug({
@@ -175,16 +224,16 @@ export const deleteActorJob = createJobHandle(
               subject: email.subject,
               content: { text: email.text, html: email.html }
             })
+            // The address itself is never logged: it is personal data, and
+            // the actor id already identifies the notification.
             logger.info({
               message: 'Sent actor deletion email notification',
-              actorId,
-              email: accountEmail
+              actorId
             })
           } catch (err) {
             logger.error({
               message: 'Failed to send actor deletion email notification',
               actorId,
-              email: accountEmail,
               err: toLoggableError(err)
             })
             // Don't fail the job if email fails

@@ -1,10 +1,17 @@
 import { getNote } from '@/lib/activities'
 import { BaseNote, getQuoteTargetId } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
+import {
+  canFederateWithDomain,
+  isLocalFederationDomain
+} from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { verifyRemoteQuote } from '@/lib/services/quotes/verifyRemoteQuote'
 import { Status } from '@/lib/types/domain/status'
-import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
+import {
+  extractActivityPubId,
+  isSameActivityPubOrigin
+} from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
@@ -72,6 +79,12 @@ export const resolveInboundQuotedStatus = async ({
   if (!note.quoteAuthorization) return null
 
   try {
+    // The quoted id is the sender's choice. A local id we do not store does
+    // not exist, and the instance-signed fetch must respect the operator's
+    // block/allowlist before it is sent, not only when the result is stored.
+    if (await isLocalFederationDomain(database, quotedStatusId)) return null
+    if (!(await canFederateWithDomain(database, quotedStatusId))) return null
+
     const signingActor = await getFederationSigningActor(database)
     const fetchedQuotedNote = await getNote({
       statusId: quotedStatusId,
@@ -86,6 +99,21 @@ export const resolveInboundQuotedStatus = async ({
     // Nothing downstream re-checks: the note reaches `createNoteJob` with no
     // verified sender, which fail-opens `actorMatchesVerifiedSender`.
     if (fetchedQuotedNote.id !== quotedStatusId) return null
+    // The id alone does not bind the author: the quoted origin could still
+    // name an actor on ANOTHER host in `attributedTo`, and the stored row
+    // would show on that actor's profile. The author must live on the origin
+    // that served the note, as `fetchQuoteTargetForCreate` requires. The raw
+    // `attributedTo` is not normalized yet (an embedded actor object or a
+    // PeerTube account+channel array survives compaction), so gate the id
+    // `extractActivityPubId` picks — the one `createNoteJob` stores.
+    if (
+      !isSameActivityPubOrigin(
+        extractActivityPubId(fetchedQuotedNote.attributedTo),
+        fetchedQuotedNote.id
+      )
+    ) {
+      return null
+    }
     await storeNote(fetchedQuotedNote, { skipQuoteResolution: true })
     // `return await`, never a bare `return` of the promise: inside a `try` the
     // latter settles this function's promise after the catch frame is gone, so

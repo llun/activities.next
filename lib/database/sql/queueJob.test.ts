@@ -671,10 +671,10 @@ describe('QueueJobDatabase', () => {
 
     const duplicatePending = await database.createQueueJob({
       id: 'dup-pending-1',
-      name: 'deliverActivityOverwritten',
+      name: 'deliverActivity',
       payload: {
         id: 'dup-pending-1',
-        name: 'deliverActivityOverwritten',
+        name: 'deliverActivity',
         data: { version: 2 }
       },
       attempts: 0,
@@ -701,7 +701,7 @@ describe('QueueJobDatabase', () => {
 
     const duplicateProcessing = await database.createQueueJob({
       id: 'dup-processing-1',
-      name: 'deliverActivityOverwritten',
+      name: 'deliverActivity',
       payload: { ...samplePayload, data: { overwritten: true } },
       attempts: 0,
       status: 'pending'
@@ -718,7 +718,7 @@ describe('QueueJobDatabase', () => {
     })
     const duplicateCompleted = await database.createQueueJob({
       id: 'dup-processing-1',
-      name: 'deliverActivityOverwritten',
+      name: 'deliverActivity',
       payload: { ...samplePayload, data: { overwritten: true } },
       status: 'pending'
     })
@@ -740,7 +740,7 @@ describe('QueueJobDatabase', () => {
     })
     const duplicateFailed = await database.createQueueJob({
       id: 'dup-failed-1',
-      name: 'deliverActivityOverwritten',
+      name: 'deliverActivity',
       payload: { ...samplePayload, data: { overwritten: true } },
       attempts: 0,
       status: 'pending'
@@ -748,6 +748,28 @@ describe('QueueJobDatabase', () => {
     expect(duplicateFailed.status).toBe('failed')
     expect(duplicateFailed.attempts).toBe(16)
     expect(duplicateFailed.lastErrorMessage).toBe('Original terminal failure')
+  })
+
+  it('refuses to treat a job of another kind under the same id as a duplicate', async () => {
+    // A remote activity pre-reserved the key a local delete later publishes
+    // its Tombstone fan-out under.
+    await database.createQueueJob({
+      id: 'dup-cross-kind-1',
+      name: 'createNote',
+      payload: { id: 'dup-cross-kind-1', name: 'createNote', data: {} }
+    })
+
+    await expect(
+      database.createQueueJob({
+        id: 'dup-cross-kind-1',
+        name: 'sendDeleteNote',
+        payload: {
+          id: 'dup-cross-kind-1',
+          name: 'sendDeleteNote',
+          data: { statusId: 'x' }
+        }
+      })
+    ).rejects.toThrow(/already taken by a createNote job/)
   })
 
   it('explicitly replays failed database jobs transactionally, resetting attempts, errors, and claim ownership', async () => {
@@ -896,5 +918,67 @@ describe('QueueJobDatabase', () => {
     expect(claimed).not.toBeNull()
     expect(claimed?.id).toBe('stalled-1')
     expect(claimed?.claimToken).toBeDefined()
+  })
+
+  describe('purgeCompletedQueueJobs', () => {
+    const day = 24 * 60 * 60 * 1000
+
+    const seed = async (
+      id: string,
+      status: 'completed' | 'pending' | 'processing' | 'failed',
+      ageMs: number
+    ) => {
+      const at = new Date(Date.now() - ageMs)
+      await database.createQueueJob({
+        id,
+        name: 'deliverActivity',
+        payload: samplePayload,
+        status,
+        nextRunAt: at
+      })
+      await knexDatabase('queue_jobs')
+        .where({ id })
+        .update({ created_at: at, updated_at: at })
+    }
+
+    it('deletes only completed jobs older than the cutoff', async () => {
+      await seed('purge-old-completed', 'completed', 10 * day)
+      await seed('purge-new-completed', 'completed', 1 * day)
+      await seed('purge-old-pending', 'pending', 10 * day)
+      await seed('purge-old-processing', 'processing', 10 * day)
+      await seed('purge-old-failed', 'failed', 10 * day)
+
+      const purged = await database.purgeCompletedQueueJobs({
+        olderThan: new Date(Date.now() - 7 * day)
+      })
+
+      expect(purged).toBe(1)
+      expect(await database.getQueueJobById('purge-old-completed')).toBeNull()
+      for (const id of [
+        'purge-new-completed',
+        'purge-old-pending',
+        'purge-old-processing',
+        'purge-old-failed'
+      ]) {
+        expect(await database.getQueueJobById(id)).not.toBeNull()
+      }
+    })
+
+    it('honours the batch limit and drains across calls', async () => {
+      for (let i = 0; i < 5; i++) {
+        await seed(`purge-batch-${i}`, 'completed', 30 * day)
+      }
+      const olderThan = new Date(Date.now() - 7 * day)
+
+      expect(
+        await database.purgeCompletedQueueJobs({ olderThan, limit: 3 })
+      ).toBe(3)
+      expect(
+        await database.purgeCompletedQueueJobs({ olderThan, limit: 3 })
+      ).toBe(2)
+      expect(
+        await database.purgeCompletedQueueJobs({ olderThan, limit: 3 })
+      ).toBe(0)
+    })
   })
 })

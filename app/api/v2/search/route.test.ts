@@ -1423,4 +1423,15 @@ describe('GET /api/v2/search', () => {
     expect(mockSearchHashtags).not.toHaveBeenCalled()
     expect(mockSearchStatusIds).not.toHaveBeenCalled()
   })
+
+  it('rejects an over-long query with 400 before searching', async () => {
+    const response = await GET(
+      new NextRequest(`https://llun.test/api/v2/search?q=${'a'.repeat(1025)}`),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockSearchAccountIds).not.toHaveBeenCalled()
+    expect(mockSearchHashtags).not.toHaveBeenCalled()
+  })
 })

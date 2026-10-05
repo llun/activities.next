@@ -1,12 +1,13 @@
 import { userUndoAnnounce } from '@/lib/actions/undoAnnounce'
 import { OAuthGuardAnyScope } from '@/lib/services/guards/OAuthGuard'
+import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
-import { mastodonStatusResponse } from '@/lib/services/mastodon/statusActionResponse'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
 import { Scope } from '@/lib/types/database/operations'
 import { StatusType } from '@/lib/types/domain/status'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
+  DEFAULT_200,
   ERROR_404,
   ERROR_422,
   apiCorsError,
@@ -75,12 +76,19 @@ export const POST = traceApiRoute(
         })
       }
 
-      return mastodonStatusResponse({
-        req,
+      // The undo already succeeded. When the boosted status has since become
+      // unreadable to this actor (its visibility was narrowed after the boost),
+      // the serializer withholds it rather than echo its current content back;
+      // acknowledge the undo instead of reporting a failure that did not happen.
+      const mastodonStatus = await getMastodonStatus(
         database,
-        currentActor,
-        status: undoStatus,
-        allowedMethods: CORS_HEADERS
+        undoStatus,
+        currentActor.id
+      )
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: mastodonStatus ?? DEFAULT_200
       })
     }
   ),

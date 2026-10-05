@@ -171,7 +171,12 @@ const buildAuth = (baseURL: string) => {
         customAccessTokenClaims: async ({ referenceId }) => {
           return { actorId: referenceId ?? null }
         },
-        customIdTokenClaims: async ({ user }) => {
+        // better-auth spreads these after its own scope guards, so the email
+        // claims must be gated on the GRANTED `email` scope here, the same way
+        // /oauth/userinfo gates them — otherwise an openid-only grant (the user
+        // unticked email on the consent screen) still receives the address.
+        customIdTokenClaims: async ({ user, scopes }) => {
+          if (!scopes.includes('email')) return {}
           return {
             email: user?.email ?? null,
             email_verified: user?.emailVerified ?? false

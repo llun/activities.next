@@ -7,8 +7,14 @@ import { getFederationSigningActor } from '@/lib/services/federation/getFederati
 import { JobHandle } from '@/lib/services/queue/type'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
+import { mapWithConcurrency } from '@/lib/utils/mapWithConcurrency'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
+
+// Deliveries in flight at once for one forwarded activity. Each request is
+// bounded on its own (timeout, response cap), but nothing else bounds how many
+// sockets and response buffers a remote sender's one activity can hold open.
+export const FORWARD_ACTIVITY_CONCURRENCY = 8
 
 export const ForwardActivityJobData = z.object({
   activity: z.record(z.string(), z.unknown()),
@@ -53,8 +59,10 @@ export const forwardActivityJob: JobHandle = createJobHandle(
       span.setAttribute('inbox.local_actor_id', localActorId ?? signingActor.id)
       span.setAttribute('inbox.activity_id', activityId)
 
-      await Promise.all(
-        inboxes.map(async (inbox) => {
+      await mapWithConcurrency(
+        inboxes,
+        FORWARD_ACTIVITY_CONCURRENCY,
+        async (inbox) => {
           try {
             await forwardActivity({
               signingActor,
@@ -69,7 +77,7 @@ export const forwardActivityJob: JobHandle = createJobHandle(
               message: 'Failed to forward activity to inbox'
             })
           }
-        })
+        }
       )
     })
   }

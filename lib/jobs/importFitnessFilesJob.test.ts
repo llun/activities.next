@@ -316,6 +316,34 @@ describe('importFitnessFilesJob', () => {
     })
   })
 
+  it('keeps the post off the public timeline when the publisher omits visibility', async () => {
+    const file = await createFitnessFile(
+      'fit',
+      'fitness/import-no-visibility.fit',
+      'batch-no-visibility'
+    )
+    mockParseFitnessFile.mockResolvedValueOnce(routedActivity)
+
+    await importFitnessFilesJob(database, {
+      id: 'import-job-no-visibility',
+      name: IMPORT_FITNESS_FILES_JOB_NAME,
+      data: {
+        actorId: actor.id,
+        batchId: 'batch-no-visibility',
+        fitnessFileIds: [file!.id]
+      }
+    })
+
+    const updated = await database.getFitnessFile({ id: file!.id })
+    const status = await database.getStatus({
+      statusId: updated!.statusId!,
+      withReplies: false
+    })
+    expect(status).not.toBeNull()
+    expect(status?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
+    expect(status?.cc).not.toContain(ACTIVITY_STREAM_PUBLIC)
+  })
+
   it('stamps the status at import time when the caller opts in', async () => {
     // The Strava webhook's case: the ride finished minutes ago and the post is
     // the news of it, so backdating to the start time would file it below

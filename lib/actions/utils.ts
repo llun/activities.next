@@ -5,6 +5,7 @@ import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor as ActivityPubActor } from '@/lib/types/activitypub'
 import { Actor } from '@/lib/types/domain/actor'
+import { isSameActivityPubOrigin } from '@/lib/utils/activitypub'
 import {
   getActorImageUrl,
   getActorProfileFields
@@ -40,15 +41,18 @@ export const assertActorCanFederate = async ({
 // Mastodon account serializer reads. Without this, remote actors show zero
 // followers/following and a local-only status count in Mastodon clients.
 // Best-effort: a failed sync leaves the existing counters untouched.
+// The counters are keyed on the stored row's id — the key `hasActorCounters`
+// reads — not on `person.id`, which differs for a row recorded under an alias.
 const syncActorCollectionCounts = async (
   database: Database,
+  rowActorId: string,
   person: ActivityPubActor,
   signingActor?: Actor
 ): Promise<void> => {
   try {
     const counts = await getActorCollectionCounts({ person, signingActor })
     await database.setActorCounters({
-      actorId: person.id,
+      actorId: rowActorId,
       followersCount: counts.followersCount,
       followingCount: counts.followingCount,
       statusCount: counts.statusesCount
@@ -56,7 +60,7 @@ const syncActorCollectionCounts = async (
   } catch (error) {
     logger.warn({
       message: 'Failed to sync remote actor collection counts',
-      actorId: person.id,
+      actorId: rowActorId,
       error: error instanceof Error ? error.message : String(error)
     })
   }
@@ -118,6 +122,74 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
   }
 }
 
+// `getActorPerson` guarantees the document belongs to `person.id`'s origin,
+// not that `person.id` is the actor that was asked for: requesting
+// https://evil.example/x whose document claims https://victim.example/users/alice
+// returns alice's real document. Recording that gave the handle
+// @alice@victim.example to a row evil.example answers for on every refresh
+// (its own inbox and key included), so the two ids must share an origin. A
+// same-origin canonical form (Mastodon's /@bob serving /users/bob) still
+// records — under the fetched id, see recordActorIfNeeded. Sharing an origin
+// proves only that one host vouches for the id, username and domain, not that
+// the handle is genuine: any document that host serves can claim any username
+// on it.
+const getRequestedActorPerson = async ({
+  actorId,
+  signingActor
+}: {
+  actorId: string
+  signingActor?: Actor
+}) => {
+  const person = await getActorPerson({ actorId, signingActor })
+  if (!person) return null
+  if (!isSameActivityPubOrigin(person.id, actorId)) {
+    logger.warn({
+      message: 'Refused remote actor whose document id is on another origin',
+      actorId,
+      fetchedActorId: person.id
+    })
+    return null
+  }
+  return person
+}
+
+// The one rule for persisting an actor fetched from a URL other than its own
+// id. When `person.id` is not `requestedActorId` the fetched document is only a
+// pointer: any URL on the origin (a user upload, say) can serve JSON claiming
+// the real id with its own key and inbox, and that key would then verify every
+// activity signed as the real id. Returns the document to write under
+// `person.id` — the fetched one when the ids agree, otherwise what `person.id`
+// itself serves, and only when that document names exactly `person.id`
+// (Mastodon re-fetches the same way). `null` means persist nothing. Callers
+// that already hold a row under `person.id` leave it untouched instead of
+// calling this: the refresh path re-fetches a row's own id.
+export const getPersistableActorPerson = async ({
+  requestedActorId,
+  person,
+  signingActor
+}: {
+  requestedActorId: string
+  person: ActivityPubActor
+  signingActor?: Actor
+}): Promise<ActivityPubActor | null> => {
+  if (person.id === requestedActorId) return person
+  const canonicalPerson = await getActorPerson({
+    actorId: person.id,
+    signingActor
+  })
+  if (!canonicalPerson || canonicalPerson.id !== person.id) {
+    logger.warn({
+      message:
+        'Refused remote actor alias whose canonical id does not serve itself',
+      actorId: requestedActorId,
+      fetchedActorId: person.id,
+      canonicalDocumentId: canonicalPerson?.id
+    })
+    return null
+  }
+  return canonicalPerson
+}
+
 export const recordActorIfNeeded = async ({
   actorId,
   database,
@@ -149,21 +221,65 @@ export const recordActorIfNeeded = async ({
 
   if (!existingActor) {
     const resolvedSigningActor = await getResolvedSigningActor()
-    const person = await getActorPerson({
+    const fetchedPerson = await getRequestedActorPerson({
       actorId,
       signingActor: resolvedSigningActor
     })
+    if (!fetchedPerson) return
+    // The row is keyed on the fetched id, never on the alias that was asked
+    // for (`/@bob`, `/users/bob/`, `/users/bob?x`). Keying it on the alias let
+    // any URL the origin answers for occupy the actor's UNIQUE (username,
+    // domain), after which the real id could never be recorded and every
+    // activity from it failed on the constraint.
+    if (fetchedPerson.id !== actorId) {
+      const canonicalActor = await database.getActorFromId({
+        id: fetchedPerson.id
+      })
+      if (canonicalActor) return canonicalActor
+    }
+    const person = await getPersistableActorPerson({
+      requestedActorId: actorId,
+      person: fetchedPerson,
+      signingActor: resolvedSigningActor
+    })
     if (!person) return
-    const actor = await database.createActor({
-      actorId,
+    // host (not hostname) so instances on non-standard ports keep the port
+    // in the stored domain, matching getActorDomain and handle lookups.
+    const domain = new URL(person.id).host
+    // A row recorded under an alias before the rule above still holds the
+    // handle. It is not re-keyed here (statuses, follows and counters point at
+    // its id); refuse instead of failing on the unique constraint, and leave
+    // the row for an operator to remove.
+    const handleOwner = await database.getActorFromUsername({
       username: person.preferredUsername,
-      // host (not hostname) so instances on non-standard ports keep the port
-      // in the stored domain, matching getActorDomain and handle lookups.
-      domain: new URL(person.id).host,
+      domain
+    })
+    if (
+      handleOwner &&
+      handleOwner.username === person.preferredUsername &&
+      handleOwner.id !== person.id
+    ) {
+      logger.warn({
+        message: 'Remote actor handle is already held by a row with another id',
+        actorId,
+        fetchedActorId: person.id,
+        storedActorId: handleOwner.id
+      })
+      return
+    }
+    const actor = await database.createActor({
+      actorId: person.id,
+      username: person.preferredUsername,
+      domain,
       ...getPersistableProfile(person),
       createdAt: new Date(person.published ?? Date.now()).getTime()
     })
-    await syncActorCollectionCounts(database, person, resolvedSigningActor)
+    await syncActorCollectionCounts(
+      database,
+      person.id,
+      person,
+      resolvedSigningActor
+    )
     return actor ?? undefined
   }
 
@@ -179,7 +295,7 @@ export const recordActorIfNeeded = async ({
   }
 
   const resolvedSigningActor = await getResolvedSigningActor()
-  const person = await getActorPerson({
+  const person = await getRequestedActorPerson({
     actorId,
     signingActor: resolvedSigningActor
   })
@@ -205,6 +321,11 @@ export const recordActorIfNeeded = async ({
     actorId,
     ...getPersistableProfile(person)
   })
-  await syncActorCollectionCounts(database, person, resolvedSigningActor)
+  await syncActorCollectionCounts(
+    database,
+    actorId,
+    person,
+    resolvedSigningActor
+  )
   return actor ?? undefined
 }

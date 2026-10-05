@@ -13,9 +13,7 @@ export interface FfprobeData {
   }
 }
 
-export const extractVideoMeta = async (
-  buffer: Buffer
-): Promise<FfprobeData> => {
+const runFfprobe = (input: string, stdin?: Buffer): Promise<FfprobeData> => {
   return new Promise((resolve, reject) => {
     const proc = spawn(
       'ffprobe',
@@ -26,7 +24,7 @@ export const extractVideoMeta = async (
         'json',
         '-show_streams',
         '-show_format',
-        'pipe:0'
+        input
       ],
       { timeout: 30_000 }
     )
@@ -55,7 +53,20 @@ export const extractVideoMeta = async (
     proc.stdin.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code !== 'EPIPE') reject(err)
     })
-    proc.stdin.write(buffer)
+    if (stdin) proc.stdin.write(stdin)
     proc.stdin.end()
   })
 }
+
+export const extractVideoMeta = async (buffer: Buffer): Promise<FfprobeData> =>
+  runFfprobe('pipe:0', buffer)
+
+/**
+ * Probes a file on disk. Unlike a pipe, ffprobe can seek in a file, so an mp4
+ * whose `moov` index sits at the end is read without holding it in memory. The
+ * path must be server-built (see `createMediaTempFilePath`): ffprobe picks its
+ * demuxer from the name as well as the bytes.
+ */
+export const extractVideoMetaFromFile = async (
+  filePath: string
+): Promise<FfprobeData> => runFfprobe(filePath)

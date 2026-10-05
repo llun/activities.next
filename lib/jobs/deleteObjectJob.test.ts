@@ -7,6 +7,10 @@ import {
   DELETE_OBJECT_JOB_NAME,
   FORWARD_ACTIVITY_JOB_NAME
 } from '@/lib/jobs/names'
+import {
+  MAX_FORWARD_INBOXES_PER_JOB,
+  resolveForwardingInboxes
+} from '@/lib/services/federation/forwardingDelivery'
 import { getQueue } from '@/lib/services/queue'
 import type { JobMessage, Queue } from '@/lib/services/queue/type'
 import { mockRequests } from '@/lib/stub/activities'
@@ -16,6 +20,18 @@ import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { Actor } from '@/lib/types/domain/actor'
 
 enableFetchMocks()
+
+vi.mock('@/lib/services/federation/forwardingDelivery', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/services/federation/forwardingDelivery')
+  >('@/lib/services/federation/forwardingDelivery')
+  // Passthrough, so a test can stand in a fan-out larger than one job message
+  // without seeding hundreds of follows.
+  return {
+    ...actual,
+    resolveForwardingInboxes: vi.fn(actual.resolveForwardingInboxes)
+  }
+})
 
 const spanExceptions: unknown[] = []
 const spanAttributes: Record<string, unknown> = {}
@@ -606,6 +622,62 @@ describe('deleteObjectJob', () => {
       expect(data.activity.object.id).toBe(replyStatusId)
       expect(data.inboxes).toContain('https://delete-follower.test/inbox')
       expect(data.localActorId).toBe(localActorId)
+    })
+
+    it('splits a large forwarding fan-out across bounded job messages', async () => {
+      process.env.ACTIVITIES_ENABLE_INBOX_FORWARDING = 'true'
+
+      const localActorId = actor1!.id
+      const localStatusId = `${localActorId}/statuses/parent-for-delete-fanout`
+      await database.createNote({
+        id: localStatusId,
+        url: localStatusId,
+        actorId: localActorId,
+        text: 'parent note for delete',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: []
+      })
+
+      const remoteAuthor = 'https://delete-author.test/users/author'
+      const replyStatusId = `${remoteAuthor}/statuses/reply-to-delete-fanout`
+      await database.createNote({
+        id: replyStatusId,
+        url: replyStatusId,
+        actorId: remoteAuthor,
+        reply: localStatusId,
+        text: 'reply note to be deleted',
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [localActorId]
+      })
+
+      queueSpy.mockClear()
+      const manyInboxes = Array.from(
+        { length: MAX_FORWARD_INBOXES_PER_JOB * 2 + 1 },
+        (_, index) => `https://fanout${index}.example/inbox`
+      )
+      vi.mocked(resolveForwardingInboxes).mockResolvedValueOnce(manyInboxes)
+
+      await deleteObjectJob(database, {
+        id: 'delete-reply-fanout-job',
+        name: DELETE_OBJECT_JOB_NAME,
+        data: {
+          id: replyStatusId,
+          type: 'Tombstone'
+        },
+        verifiedSenderActorId: remoteAuthor
+      })
+
+      const forwardCalls = queueSpy.mock.calls.filter(
+        ([message]: [JobMessage]) => message.name === FORWARD_ACTIVITY_JOB_NAME
+      )
+      expect(forwardCalls.length).toBeGreaterThan(1)
+      const chunks = forwardCalls.map(
+        ([message]) => (message.data as { inboxes: string[] }).inboxes
+      )
+      for (const chunk of chunks) {
+        expect(chunk.length).toBeLessThanOrEqual(MAX_FORWARD_INBOXES_PER_JOB)
+      }
+      expect(chunks.flat()).toEqual(manyInboxes)
     })
   })
 })

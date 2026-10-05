@@ -876,6 +876,45 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap', () => {
     }
   })
 
+  describe('period_key validation', () => {
+    it.each([
+      ['all_time', 'some-junk-key-1'],
+      ['all_time', '2026'],
+      ['yearly', 'NaN'],
+      ['yearly', '2026-04'],
+      ['yearly', '1800'],
+      ['monthly', '2026'],
+      ['monthly', '2026-13'],
+      ['monthly', '2026-00'],
+      ['monthly', 'x'.repeat(40)]
+    ])(
+      'rejects %s with period_key %s and queues nothing',
+      async (type, key) => {
+        const response = await POST(
+          new NextRequest(baseUrl, {
+            method: 'POST',
+            headers: { Origin: 'https://test.llun.dev' },
+            body: JSON.stringify({ period_type: type, period_key: key })
+          }),
+          { params: Promise.resolve({ id: encodedId }) }
+        )
+
+        expect(response.status).toBe(400)
+        expect(mockPublish).not.toHaveBeenCalled()
+        expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
+      }
+    )
+
+    it('rejects an invalid period_key on GET too', async () => {
+      const response = await GET(
+        new NextRequest(`${baseUrl}?period_type=all_time&period_key=junk`),
+        { params: Promise.resolve({ id: encodedId }) }
+      )
+
+      expect(response.status).toBe(400)
+    })
+  })
+
   describe('DELETE', () => {
     it('removes a single heatmap for the owner', async () => {
       mockDb.getFitnessRouteHeatmapByKey.mockResolvedValue({

@@ -193,7 +193,10 @@ describe('publicly readable status filtering at each call site', () => {
     })
 
     expect(publicCount).toBe(1)
-    expect(allCount).toBe(2)
+    // The stored counter (`replies_count`) counts only publicly addressed
+    // replies too, so a followers-only reply is not observable through it
+    // either. `publicOnly` is a separate query and does not read the counter.
+    expect(allCount).toBe(1)
   })
 
   it('drops a followers-only boost from the anonymous reblogged-by list', async () => {

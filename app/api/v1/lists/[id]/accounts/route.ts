@@ -140,16 +140,24 @@ const parseAccountIds = async (req: Request): Promise<string[] | null> => {
   const contentType = req.headers.get('content-type')?.toLowerCase() ?? ''
   let accountIds: string[] = []
 
-  if (contentType.includes('application/x-www-form-urlencoded')) {
-    const params = new URLSearchParams(await req.text())
-    accountIds = collectAccountIds((name) => params.getAll(name))
-  } else if (contentType.includes('multipart/form-data')) {
-    const form = await req.formData()
-    accountIds = collectAccountIds((name) => form.getAll(name))
-  } else {
-    const json = await req.json().catch(() => null)
-    const parsed = AccountIdsBody.safeParse(json)
-    if (parsed.success) accountIds = parsed.data.account_ids
+  // A malformed multipart body (bad or missing boundary) makes formData()
+  // reject, and an unreadable body must be a 422 like any other body with no
+  // usable account_ids — not an unhandled throw (500). On failure the ids stay
+  // empty and the query-string fallback below still applies.
+  try {
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      const params = new URLSearchParams(await req.text())
+      accountIds = collectAccountIds((name) => params.getAll(name))
+    } else if (contentType.includes('multipart/form-data')) {
+      const form = await req.formData()
+      accountIds = collectAccountIds((name) => form.getAll(name))
+    } else {
+      const json = await req.json().catch(() => null)
+      const parsed = AccountIdsBody.safeParse(json)
+      if (parsed.success) accountIds = parsed.data.account_ids
+    }
+  } catch {
+    accountIds = []
   }
 
   if (accountIds.length === 0) {

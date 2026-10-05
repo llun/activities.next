@@ -1,5 +1,8 @@
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { FORWARD_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import {
+  MAX_FORWARD_INBOXES_PER_JOB,
+  getForwardActivityJobMessages,
   getForwardingTargetLocalActorIds,
   isDirectDelivery,
   isPublicAudience,
@@ -358,6 +361,56 @@ describe('forwardingDelivery', () => {
           cc: []
         })
       ).toBe(false)
+    })
+  })
+
+  describe('getForwardActivityJobMessages', () => {
+    const activity = { id: 'https://remote.test/statuses/1#activity' }
+
+    it('splits a large fan-out across bounded job messages', () => {
+      const inboxes = Array.from(
+        { length: MAX_FORWARD_INBOXES_PER_JOB * 2 + 1 },
+        (_, index) => `https://follower${index}.example/inbox`
+      )
+
+      const messages = getForwardActivityJobMessages({
+        id: 'hash#forward',
+        activity,
+        inboxes,
+        localActorId
+      })
+
+      expect(messages.map((message) => message.id)).toEqual([
+        'hash#forward',
+        'hash#forward-1',
+        'hash#forward-2'
+      ])
+      const chunks = messages.map(
+        (message) => (message.data as { inboxes: string[] }).inboxes
+      )
+      for (const chunk of chunks) {
+        expect(chunk.length).toBeLessThanOrEqual(MAX_FORWARD_INBOXES_PER_JOB)
+      }
+      expect(chunks.flat()).toEqual(inboxes)
+      expect(
+        messages.every(
+          (message) =>
+            message.name === FORWARD_ACTIVITY_JOB_NAME &&
+            (message.data as { localActorId: string }).localActorId ===
+              localActorId
+        )
+      ).toBe(true)
+    })
+
+    it('keeps a small fan-out in one message under its original id', () => {
+      const messages = getForwardActivityJobMessages({
+        id: 'hash#forward',
+        activity,
+        inboxes: ['https://follower.example/inbox']
+      })
+
+      expect(messages).toHaveLength(1)
+      expect(messages[0].id).toBe('hash#forward')
     })
   })
 })

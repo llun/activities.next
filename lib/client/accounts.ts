@@ -601,13 +601,14 @@ export const getActorStatuses = async ({
 }
 
 export interface DeleteSessionParams {
-  token: string
+  // `sessions.id`, never the session token.
+  id: string
 }
 
 export const deleteSession = async ({
-  token
+  id
 }: DeleteSessionParams): Promise<boolean> => {
-  const path = `/api/v1/accounts/sessions/${token}`
+  const path = `/api/v1/accounts/sessions/${encodeURIComponent(id)}`
   const response = await fetch(path, {
     method: 'DELETE',
     headers: {

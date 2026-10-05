@@ -21,6 +21,7 @@ import {
   CreateAccountSessionParams,
   CreateActorForAccountParams,
   CreateCredentialProviderParams,
+  DeleteAccountSessionByIdParams,
   DeleteAccountSessionParams,
   DeleteOtherAccountSessionsParams,
   GetAccountAllSessionsParams,
@@ -62,6 +63,8 @@ import { normalizeUsername } from '@/lib/utils/normalizeUsername'
 import { generatePublicId } from '@/lib/utils/publicId'
 
 const CREDENTIAL_PROVIDER = 'credential'
+// How long a freshly issued password reset code stays valid.
+const PASSWORD_RESET_CODE_TTL_MS = 24 * 60 * 60 * 1000
 
 // Emails are normalized (trimmed + lowercased) inside every method that stores
 // or looks up by email so storage and lookup can never disagree on casing. This
@@ -320,6 +323,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     if (!session) return null
 
     const {
+      id: sessionId,
       accountId,
       token: sessionToken,
       actorId,
@@ -333,6 +337,7 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     return {
       account,
       session: Session.parse({
+        id: sessionId,
         accountId,
         actorId: actorId ?? null,
         expireAt: getCompatibleTime(expireAt),
@@ -378,6 +383,19 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   }: DeleteAccountSessionParams): Promise<void> {
     await database.transaction((trx) =>
       deleteSessionsWithTokenDetach(trx, (query) => query.where('token', token))
+    )
+  },
+
+  async deleteAccountSessionById({
+    accountId,
+    id
+  }: DeleteAccountSessionByIdParams): Promise<number> {
+    // Ownership is a predicate on the delete itself, so the check and the
+    // write resolve the same row.
+    return database.transaction((trx) =>
+      deleteSessionsWithTokenDetach(trx, (query) =>
+        query.where('id', id).andWhere('accountId', accountId)
+      )
     )
   },
 
@@ -676,7 +694,8 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
   async requestPasswordReset({
     email,
     passwordResetCode,
-    expiresAt
+    expiresAt,
+    cooldownMs
   }: RequestPasswordResetParams): Promise<boolean> {
     const account = await database<SQLAccount>('accounts')
       .where('email', normalizeEmail(email))
@@ -689,15 +708,32 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         ? null
         : expiresAt
           ? new Date(expiresAt)
-          : new Date(currentTime.getTime() + 24 * 60 * 60 * 1000) // 24 hours
+          : new Date(currentTime.getTime() + PASSWORD_RESET_CODE_TTL_MS)
 
-    await database('accounts').where('id', account.id).update({
-      passwordResetCode,
-      passwordResetCodeExpiresAt: expiresAtDate,
-      updatedAt: currentTime
-    })
+    const updated = await database('accounts')
+      .where('id', account.id)
+      .modify((query) => {
+        if (cooldownMs === undefined) return
+        // A fresh code expires PASSWORD_RESET_CODE_TTL_MS after it is issued,
+        // so "issued at least cooldownMs ago" is "expires no later than
+        // now + TTL - cooldownMs". No outstanding code always qualifies.
+        const latestAllowedExpiry = new Date(
+          currentTime.getTime() + PASSWORD_RESET_CODE_TTL_MS - cooldownMs
+        )
+        query.where((builder) =>
+          builder
+            .whereNull('passwordResetCode')
+            .orWhereNull('passwordResetCodeExpiresAt')
+            .orWhere('passwordResetCodeExpiresAt', '<=', latestAllowedExpiry)
+        )
+      })
+      .update({
+        passwordResetCode,
+        passwordResetCodeExpiresAt: expiresAtDate,
+        updatedAt: currentTime
+      })
 
-    return true
+    return updated === 1
   },
 
   async validatePasswordResetCode({

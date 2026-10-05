@@ -85,4 +85,37 @@ describe('collection notifications', () => {
       expect(aliceNotifications[0].sourceActorId).toBe(owner.id)
     })
   })
+
+  it('does not notify a member who blocked or muted the owner', async () => {
+    await withFreshDatabase(async (database) => {
+      for (const name of ['owner', 'blocker', 'muter', 'alice']) {
+        await createLocalAccount(database, name)
+      }
+      const owner = await actor(database, 'owner')
+      const blocker = await actor(database, 'blocker')
+      const muter = await actor(database, 'muter')
+      const alice = await actor(database, 'alice')
+      await database.createBlock({
+        actorId: blocker.id,
+        targetActorId: owner.id,
+        uri: `${blocker.id}#blocks/owner`
+      })
+      await database.createMute({
+        actorId: muter.id,
+        targetActorId: owner.id,
+        notifications: true,
+        endsAt: null
+      })
+
+      await notifyAddedToCollection(database, {
+        collectionId: 'col-1',
+        ownerActorId: owner.id,
+        addedActorIds: [blocker.id, muter.id, alice.id]
+      })
+
+      expect(await notificationsFor(database, blocker.id)).toHaveLength(0)
+      expect(await notificationsFor(database, muter.id)).toHaveLength(0)
+      expect(await notificationsFor(database, alice.id)).toHaveLength(1)
+    })
+  })
 })
