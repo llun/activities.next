@@ -466,4 +466,133 @@ describe('fetchRemoteStatusJob', () => {
     )
     expect(signedFetches.filter((url) => url === STATUS_ID)).toHaveLength(1)
   })
+
+  describe('origin binding', () => {
+    // A fetched document is a claim by whoever served it: it may only name an
+    // id on the origin that served it, and only an author on its own origin.
+    const ATTACKER_ORIGIN = 'https://attacker.example'
+    const VICTIM_ACTOR_ID = 'https://victim.example/users/victim'
+
+    const publicNote = (fields: Record<string, unknown>) => ({
+      type: 'Note',
+      content: 'forged',
+      to: [PUBLIC_STREAM],
+      cc: [],
+      published: new Date().toISOString(),
+      ...fields
+    })
+
+    const runJob = (statusId: string) =>
+      fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId }
+      })
+
+    it('does not store a fetched note that names an id on another origin', async () => {
+      const requestedId = `${ATTACKER_ORIGIN}/notes/1`
+      const forgedId = `${REMOTE_STATUS_ID}/planted`
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+        if (req.url === requestedId) {
+          return JSON.stringify(
+            publicNote({ id: forgedId, attributedTo: REMOTE_ACTOR_ID })
+          )
+        }
+        return JSON.stringify({})
+      })
+
+      await runJob(requestedId)
+
+      expect(await database.getStatus({ statusId: forgedId })).toBeNull()
+    })
+
+    it('does not store a fetched note attributed to an actor on another origin', async () => {
+      const requestedId = `${ATTACKER_ORIGIN}/notes/2`
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+        if (req.url === requestedId) {
+          return JSON.stringify(
+            publicNote({ id: requestedId, attributedTo: REMOTE_ACTOR_ID })
+          )
+        }
+        return JSON.stringify({})
+      })
+
+      await runJob(requestedId)
+
+      expect(await database.getStatus({ statusId: requestedId })).toBeNull()
+    })
+
+    it('stores only the inlined replies that belong to the origin serving them', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/origin-bound`
+      const forgedOtherHostId = 'https://victim.example/users/victim/statuses/1'
+      const forgedAuthorId = `${REMOTE_STATUS_ID}/forged-author`
+      const genuineReplyId = `${REMOTE_STATUS_ID}/genuine-reply`
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+        // The victim is a real, resolvable actor: only the origin binding
+        // stands between the page and a status stored under their name.
+        if (req.url === VICTIM_ACTOR_ID) {
+          return JSON.stringify({
+            ...MOCK_ACTOR,
+            id: VICTIM_ACTOR_ID,
+            preferredUsername: 'victim',
+            inbox: `${VICTIM_ACTOR_ID}/inbox`,
+            outbox: `${VICTIM_ACTOR_ID}/outbox`,
+            publicKey: {
+              ...MOCK_ACTOR.publicKey,
+              id: `${VICTIM_ACTOR_ID}#main-key`,
+              owner: VICTIM_ACTOR_ID
+            }
+          })
+        }
+        if (req.url === STATUS_ID) {
+          return JSON.stringify(
+            publicNote({
+              id: STATUS_ID,
+              attributedTo: REMOTE_ACTOR_ID,
+              content: 'Main Post',
+              replies: {
+                id: `${STATUS_ID}/replies`,
+                type: 'Collection',
+                first: {
+                  type: 'CollectionPage',
+                  items: [
+                    publicNote({
+                      id: forgedOtherHostId,
+                      attributedTo: REMOTE_ACTOR_ID,
+                      inReplyTo: STATUS_ID
+                    }),
+                    publicNote({
+                      id: forgedAuthorId,
+                      attributedTo: VICTIM_ACTOR_ID,
+                      inReplyTo: STATUS_ID
+                    }),
+                    publicNote({
+                      id: genuineReplyId,
+                      attributedTo: REMOTE_ACTOR_ID,
+                      content: 'genuine',
+                      inReplyTo: STATUS_ID
+                    })
+                  ]
+                }
+              }
+            })
+          )
+        }
+        return JSON.stringify({})
+      })
+
+      await runJob(STATUS_ID)
+
+      expect(
+        await database.getStatus({ statusId: forgedOtherHostId })
+      ).toBeNull()
+      expect(await database.getStatus({ statusId: forgedAuthorId })).toBeNull()
+      expect(
+        await database.getStatus({ statusId: genuineReplyId })
+      ).not.toBeNull()
+    })
+  })
 })
