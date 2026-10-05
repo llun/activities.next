@@ -15,8 +15,20 @@ export const getActorDomain = (actorId: string) => {
   }
 }
 
+// The last path segment of an actor id, percent-decoded. A remote server picks
+// its own actor ids, so the segment may not be valid UTF-8 once decoded
+// (`%FF`); `decodeURIComponent` throws on that, and this runs while rendering
+// every post by the actor, so it falls back to the raw segment instead.
+const decodeActorIdSegment = (segment: string) => {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
 export const getActorIdUsername = (actorId: string) =>
-  decodeURIComponent(actorId.split('/').filter(Boolean).pop() || actorId)
+  decodeActorIdSegment(actorId.split('/').filter(Boolean).pop() || actorId)
     .replace(/^@+/, '')
     .trim()
 

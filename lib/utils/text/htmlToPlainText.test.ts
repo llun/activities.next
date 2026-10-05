@@ -35,4 +35,18 @@ describe('htmlToPlainText', () => {
   ])('$description', ({ html, expected }) => {
     expect(htmlToPlainText(html)).toBe(expected)
   })
+
+  it('survives markup nested far deeper than the stack allows, keeping its text', () => {
+    const depth = 50_000
+    const html = `${'<div>'.repeat(depth)}deep bio${'</div>'.repeat(depth)}`
+
+    expect(htmlToPlainText(html)).toBe('deep bio')
+  })
+
+  it('keeps text from tags past the nesting limit', () => {
+    const depth = 25
+    const html = `${'<div>'.repeat(depth)}<p>inner</p> outer${'</div>'.repeat(depth)}`
+
+    expect(htmlToPlainText(html)).toBe('inner outer')
+  })
 })

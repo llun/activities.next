@@ -6,6 +6,20 @@ import {
 } from '@/lib/utils/activitypubActor'
 
 describe('activitypubActor utils', () => {
+  it('decodes a percent-encoded actor id segment', () => {
+    expect(getActorIdUsername('https://remote.test/users/caf%C3%A9')).toBe(
+      'café'
+    )
+  })
+
+  it('falls back to the raw segment when the actor id is not valid percent-encoding', () => {
+    expect(getActorIdUsername('https://evil.example/users/%FF')).toBe('%FF')
+    expect(getActorIdUsername('https://evil.example/users/@100%')).toBe('100%')
+    expect(isOpaqueActorUsername('https://evil.example/users/%FF', '%FF')).toBe(
+      false
+    )
+  })
+
   it('detects strict UUID actor usernames only when they match the actor id', () => {
     const actorId =
       'https://hackers.pub/ap/actors/019382d3-63d7-7cf7-86e8-91e2551c306c'
