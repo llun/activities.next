@@ -5,6 +5,7 @@ import { getDatabase } from '@/lib/database'
 import { normalizeRegionParam } from '@/lib/fitness/regions'
 import { GENERATE_FITNESS_ROUTE_HEATMAP_JOB_NAME } from '@/lib/jobs/names'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { TrimmedOptionalActivityTypeParam } from '@/lib/services/fitness-files/activityTypeParam'
 import {
   HeatmapTileSource,
   buildHeatmapTileSource,
@@ -43,13 +44,8 @@ interface Params {
   id: string
 }
 
-const OptionalActivityType = z.preprocess(
-  (value) => (typeof value === 'string' ? value.trim() || undefined : value),
-  z.string().optional()
-)
-
 const FitnessRouteHeatmapQueryParams = z.object({
-  activity_type: OptionalActivityType,
+  activity_type: TrimmedOptionalActivityTypeParam,
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
   // Bound the raw input to guard against unbounded payloads, but allow more than
@@ -60,7 +56,7 @@ const FitnessRouteHeatmapQueryParams = z.object({
 })
 
 const FitnessRouteHeatmapTriggerBody = z.object({
-  activity_type: OptionalActivityType,
+  activity_type: TrimmedOptionalActivityTypeParam,
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
   // See FitnessRouteHeatmapQueryParams.region: looser raw cap; normalizeRegionParam

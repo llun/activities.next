@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getDatabase } from '@/lib/database'
 import { normalizeRegionParam } from '@/lib/fitness/regions'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import { TrimmedOptionalActivityTypeParam } from '@/lib/services/fitness-files/activityTypeParam'
 import { hasSameOriginProof } from '@/lib/services/guards/sameOriginProof'
 import { AppRouterParams } from '@/lib/services/guards/types'
 import { resolveActorIdParam } from '@/lib/services/mastodon/resolveClientId'
@@ -34,13 +35,8 @@ interface Params {
   id: string
 }
 
-const OptionalActivityType = z.preprocess(
-  (value) => (typeof value === 'string' ? value.trim() || undefined : value),
-  z.string().optional()
-)
-
 const FitnessRouteHeatmapShareBody = z.object({
-  activity_type: OptionalActivityType,
+  activity_type: TrimmedOptionalActivityTypeParam,
   period_type: z.enum(['all_time', 'yearly', 'monthly']),
   period_key: z.string(),
   // See the sibling fitness-route-heatmap route: a looser raw cap that
