@@ -7,16 +7,15 @@ export const TimelineLoading: FC = () => {
   return (
     <div aria-busy="true" aria-label="Loading timeline" className="space-y-6">
       <PageHeader
-        mobileIntroRow
+        flushOnMobile
         actionsInMobileBar
         title={<span className="skeleton block h-7 w-24 rounded-md" />}
-        description={<span className="skeleton block h-4 w-48 rounded" />}
         actions={<div className="skeleton size-9 rounded-md" />}
       />
 
       <section
         aria-label="Post composer"
-        className={`rounded-xl border bg-card p-4 shadow-sm max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
+        className={`rounded-xl border bg-card p-4 shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
       >
         <div className="flex items-start gap-3">
           <div className="skeleton size-12 shrink-0 rounded-full" />

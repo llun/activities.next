@@ -198,12 +198,51 @@ describe('PageHeader', () => {
     expect(screen.getByRole('heading', { name: 'Timeline' })).not.toHaveClass(
       'max-md:hidden'
     )
-    // Nor the mobile description line: it belongs to the bar's intro row.
+    // Nor the mobile description line: it belongs under the compact bar.
     const description = screen.getByText('Latest posts')
     expect(description).toHaveClass('mt-0.5', 'text-xs')
     expect(description).not.toHaveClass('max-md:text-sm')
     expect(description).not.toHaveClass('max-md:min-h-5')
     expect(description).not.toHaveClass('max-md:mt-0')
+  })
+
+  // 28px title + 2px + 16px description = 46px: a row with actions and no
+  // description keeps that floor from md up, so the box stays 79px, with or
+  // without the signed-in mobile navigation.
+  it('keeps the described row height from md up for actions without a description', () => {
+    const actions = <button type="button">Refresh</button>
+    const { container, rerender } = render(
+      <PageHeader title="Timeline" actions={actions} />
+    )
+    // The title row is the first child of the centered `max-w-content` row.
+    const getRow = () =>
+      container.querySelector('.max-w-content')?.firstElementChild
+
+    expect(getRow()).toHaveClass('md:min-h-[46px]', 'items-start')
+
+    rerender(
+      <PageHeader
+        title="Timeline"
+        description="Latest posts"
+        actions={actions}
+      />
+    )
+    expect(getRow()).not.toHaveClass('md:min-h-[46px]')
+
+    rerender(
+      <MobileNavigationProvider>
+        <PageHeader title="Timeline" actions={actions} />
+      </MobileNavigationProvider>
+    )
+    expect(getRow()).toHaveClass('md:min-h-[46px]')
+    // Desktop-only: the compact bar's mobile geometry is untouched.
+    expect(getRow()?.className).not.toMatch(/(^|\s)min-h-/)
+  })
+
+  it('leaves a title-only header at its own height', () => {
+    const { container } = render(<PageHeader title="Edit list" />)
+    const row = container.querySelector('.max-w-content')?.firstElementChild
+    expect(row?.className).not.toMatch(/min-h-/)
   })
 
   describe('mobile compact bar', () => {
@@ -382,51 +421,71 @@ describe('PageHeader', () => {
       )
     })
 
-    it('ends the intro row 12px under its content on a hairline with mobileIntroRow', () => {
+    // The home timeline: the bar carries the title and Refresh, so the box is
+    // hidden and the full-bleed composer meets the bar's hairline directly.
+    it('lets the content meet the bar when the box is empty with flushOnMobile', () => {
+      const { container } = render(
+        <MobileNavigationProvider>
+          <PageHeader
+            title="Timeline"
+            actions={<button type="button">Refresh timeline</button>}
+            actionsInMobileBar
+            flushOnMobile
+          />
+        </MobileNavigationProvider>
+      )
+
+      const box = container.querySelector('.max-w-content')
+        ?.parentElement as HTMLElement
+      expect(box).toHaveClass('max-md:hidden')
+      expect(getBar(container)).toHaveClass('mb-0')
+    })
+
+    // Without the signed-in mobile navigation (the logged-out home route's
+    // loading state) the sticky box is the header's bottom edge.
+    it('lets the content meet the sticky box with flushOnMobile and no navigation', () => {
+      const { container } = render(
+        <PageHeader
+          title="Timeline"
+          actions={<button type="button">Refresh timeline</button>}
+          actionsInMobileBar
+          flushOnMobile
+        />
+      )
+
+      expect(getBar(container)).toBeNull()
+      const box = container.firstElementChild as HTMLElement
+      expect(box).toHaveClass('sticky', 'border-b', 'max-md:mb-0')
+      expect(box).not.toHaveClass('mb-0')
+    })
+
+    // Signed in with something to show below md, the box continues the bar and
+    // is the edge the content meets.
+    it('lets the content meet a visible box under the bar with flushOnMobile', () => {
       const { container } = render(
         <MobileNavigationProvider>
           <PageHeader
             title="Timeline"
             description="Latest posts"
-            mobileIntroRow
+            flushOnMobile
           />
         </MobileNavigationProvider>
       )
 
-      const row = container.querySelector('.max-w-content') as HTMLElement
-      expect(row).toHaveClass('py-4', 'max-md:pb-3')
-      expect(row.parentElement).toHaveClass('max-md:border-b', 'md:border-b')
+      const box = container.querySelector('.max-w-content')
+        ?.parentElement as HTMLElement
+      expect(box).not.toHaveClass('max-md:hidden')
+      expect(box).toHaveClass('max-md:mb-0')
+      expect(getBar(container)).toHaveClass('mb-0')
     })
 
-    // Without the signed-in mobile navigation (the logged-out home route's
-    // loading state) the header keeps the geometry it had before the redesign.
-    it('ignores mobileIntroRow without the signed-in mobile navigation', () => {
-      const { container } = render(
-        <PageHeader
-          title="Timeline"
-          description="Latest posts"
-          mobileIntroRow
-        />
-      )
+    it('keeps the parent spacing below the header by default', () => {
+      const { container } = render(<PageHeader title="Timeline" />)
 
-      const row = container.querySelector('.max-w-content') as HTMLElement
-      expect(row).not.toHaveClass('max-md:pb-3')
-      expect(row.parentElement).not.toHaveClass('max-md:border-b')
+      expect(container.firstElementChild).not.toHaveClass('max-md:mb-0')
     })
 
-    it('keeps the 16px bottom padding and no mobile hairline by default', () => {
-      const { container } = render(
-        <MobileNavigationProvider>
-          <PageHeader title="Timeline" description="Latest posts" />
-        </MobileNavigationProvider>
-      )
-
-      const row = container.querySelector('.max-w-content') as HTMLElement
-      expect(row).not.toHaveClass('max-md:pb-3')
-      expect(row.parentElement).not.toHaveClass('max-md:border-b')
-    })
-
-    // Below md the description is the intro row's own text on a 20px line,
+    // Below md the description is the content row's own text on a 20px line,
     // flush with the row's top padding when the bar carries the title.
     it('sets the description as a flush 14/20 line when the bar holds the title', () => {
       render(

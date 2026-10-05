@@ -50,21 +50,25 @@ describe('timeline loading', () => {
     expect(stickyHeader?.querySelector('.max-w-content')).toBeInTheDocument()
 
     // Skeletons in the header mirror PageHeader font and action metrics
-    // (text-xl 28px -> h-7, text-xs 16px -> h-4, action button -> size-9 with self-center)
+    // (text-xl 28px -> h-7, action button -> size-9 with self-center); the
+    // loaded page has no description, so neither does the skeleton.
     expect(stickyHeader?.querySelector('h1 .skeleton')).toHaveClass('h-7')
-    expect(stickyHeader?.querySelector('h1 + div .skeleton')).toHaveClass('h-4')
+    expect(stickyHeader?.querySelector('h1 + div')).toBeNull()
     expect(stickyHeader?.querySelector('.shrink-0')).toHaveClass('self-center')
     expect(stickyHeader?.querySelector('.shrink-0 .skeleton')).toHaveClass(
       'size-9'
     )
 
     // Without the signed-in mobile navigation (the logged-out home route)
-    // the header keeps the geometry it always had.
-    expect(stickyHeader?.querySelector('.max-w-content')).not.toHaveClass(
-      'max-md:pb-3'
+    // the header keeps its sticky box, and the composer meets its border.
+    expect(stickyHeader).not.toHaveClass('max-md:hidden')
+    expect(stickyHeader).toHaveClass('max-md:mb-0')
+    expect(stickyHeader?.nextElementSibling).toBe(
+      screen.getByLabelText('Post composer')
     )
-
-    expect(screen.getByLabelText('Post composer')).toBeInTheDocument()
+    expect(screen.getByLabelText('Post composer')).not.toHaveClass(
+      'max-md:-mt-6'
+    )
     const postsSection = screen.getByLabelText('Timeline posts')
     expect(postsSection).toBeInTheDocument()
     expect(postsSection.children).toHaveLength(3)
@@ -82,29 +86,28 @@ describe('timeline loading', () => {
     expect(fs.existsSync(rootTimelineLoadingPath)).toBe(false)
   })
 
-  it('ends the signed-in mobile header row on the hairline the loaded page draws', () => {
+  it('meets the signed-in mobile bar with the composer, as the loaded page does', () => {
     const { container } = render(
       <MobileNavigationProvider>
         <Loading />
       </MobileNavigationProvider>
     )
 
-    // Below md the header row ends 12px under its content on the hairline the
-    // loaded page draws, so the composer does not jump when the page arrives.
+    // Below md the bar carries the title and Refresh, so the header box is
+    // hidden and the composer meets the bar's hairline with no gap; it does not
+    // jump when the page arrives.
     const bar = container.querySelector(
       '[data-mobile-compact-header]'
     ) as HTMLElement
+    expect(bar).toHaveClass('mb-0')
     const box = bar.nextElementSibling as HTMLElement
-    expect(box).toHaveClass('max-md:border-b')
-    expect(box.querySelector('.max-w-content')).toHaveClass('max-md:pb-3')
+    expect(box).toHaveClass('max-md:hidden')
+    expect(box.nextElementSibling).toBe(screen.getByLabelText('Post composer'))
     // The Refresh placeholder sits at the end of the bar, as the loaded
-    // page's button does, and the content row's copy is hidden below md.
+    // page's button does.
     expect(bar.lastElementChild?.firstElementChild).toHaveClass(
       'skeleton',
       'size-9'
-    )
-    expect(box.querySelector('.shrink-0.self-center')).toHaveClass(
-      'max-md:hidden'
     )
   })
 })

@@ -47,12 +47,13 @@ interface PageHeaderProps {
    */
   banner?: ReactNode
   /**
-   * The home timeline's intro row: below `md` the box ends 12px under its
-   * content (not 16px) on a full-width hairline, so a full-bleed surface
-   * directly below meets an edge. No effect from `md` up, in section mode, or
-   * without the signed-in mobile navigation.
+   * Below `md` the content directly below meets the header's bottom edge
+   * instead of the parent's vertical rhythm — the bar's hairline when the box
+   * has nothing to show there, else the box's — so a full-bleed surface (the
+   * home timeline's composer) has no band above it. No effect from `md` up or
+   * in section mode.
    */
-  mobileIntroRow?: boolean
+  flushOnMobile?: boolean
   /**
    * Below `md`, render `actions` at the end of the mobile compact bar instead
    * of in the content row (the home timeline's Refresh). No effect from `md`
@@ -112,7 +113,7 @@ export const PageHeader = ({
   back,
   compactTitle,
   banner,
-  mobileIntroRow,
+  flushOnMobile,
   actionsInMobileBar
 }: PageHeaderProps) => {
   const subnav = useContext(PageSubnavContext)
@@ -203,8 +204,9 @@ export const PageHeader = ({
           actions={barActions}
           // The box below continues the bar, so the parent's vertical rhythm
           // (`space-y-*`) belongs after the box, not between the two — unless
-          // the box has nothing to show on mobile and is hidden.
-          className={isEmptyOnMobile ? undefined : 'mb-0'}
+          // the box has nothing to show on mobile and is hidden, and the page
+          // has not asked for its content to meet the bar.
+          className={isEmptyOnMobile && !flushOnMobile ? undefined : 'mb-0'}
         />
       ) : null}
       {banner}
@@ -214,7 +216,7 @@ export const PageHeader = ({
             ? 'md:sticky md:top-0 md:z-20 md:border-b md:bg-surface-chrome md:backdrop-blur'
             : 'sticky top-0 z-20 border-b bg-surface-chrome backdrop-blur',
           isEmptyOnMobile && 'max-md:hidden',
-          mobileIntroRow && hasMobileBar && 'max-md:border-b',
+          flushOnMobile && 'max-md:mb-0',
           className
         )}
         style={breakoutStyle}
@@ -222,13 +224,18 @@ export const PageHeader = ({
         <div
           className={cn(
             'mx-auto max-w-content px-4 py-4',
-            back && hasMobileBar && 'max-md:pt-2',
-            mobileIntroRow && hasMobileBar && 'max-md:pb-3'
+            back && hasMobileBar && 'max-md:pt-2'
           )}
         >
           <div
             className={cn(
               'flex gap-4',
+              // From `md` up, an icon action (36px) already makes a row without
+              // a description shorter than the described one (28px title + 2px
+              // + 16px description = 46px). Pad it to that height so the box
+              // matches the 79px of described pages and the content below does
+              // not move. A title-only header keeps its own height.
+              !description && actions && 'md:min-h-[46px]',
               stackActionsOnMobile
                 ? 'flex-col sm:flex-row sm:items-start sm:justify-between'
                 : 'items-start justify-between'
@@ -254,7 +261,7 @@ export const PageHeader = ({
                   <div
                     className={cn(
                       'mt-0.5 text-xs text-muted-foreground',
-                      // Below `md` the description is the intro row's own
+                      // Below `md` the description is the content row's own
                       // text: 14px on a 20px line (a skeleton fills the same
                       // line), flush with the row's 16px top padding when the
                       // bar already carries the title.
