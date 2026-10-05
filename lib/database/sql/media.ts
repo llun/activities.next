@@ -296,7 +296,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async markMediaUploadVerified({
     mediaId,
     accountId,
-    verifiedAt
+    verifiedAt,
+    dimensions
   }: MarkMediaUploadVerifiedParams): Promise<Media | null> {
     const id = toMediaRowId(mediaId)
     if (id === null) return null
@@ -329,6 +330,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     const media = parseMediaRow(data)
     const metaData = {
       ...media.original.metaData,
+      ...(dimensions
+        ? { width: dimensions.width, height: dimensions.height }
+        : {}),
       upload: {
         ...media.original.metaData.upload,
         state: 'verified' as const,

@@ -8,7 +8,7 @@ export const MAX_VIDEO_DIMENSION = 8192
 
 /**
  * The single acceptance rule for an uploaded video's probe, shared by both
- * storage drivers' synchronous paths so they
+ * storage drivers' synchronous paths and the presigned completion so they
  * cannot drift: a video stream in an mp4 or webm container, no side above
  * `MAX_VIDEO_DIMENSION`. Throws `MediaValidationError` (the caller's 422).
  */

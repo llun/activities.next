@@ -3440,6 +3440,9 @@ export type MarkMediaUploadVerifiedParams = {
   mediaId: string
   accountId: string
   verifiedAt: number
+  // The dimensions probed from the uploaded bytes, replacing the ones the
+  // client declared when it asked for the presigned URL.
+  dimensions?: { width: number; height: number }
 }
 
 export interface MediaDatabase {

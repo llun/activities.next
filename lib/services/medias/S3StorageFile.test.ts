@@ -14,7 +14,10 @@ import { Readable } from 'stream'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
-import { S3FileStorage } from '@/lib/services/medias/S3StorageFile'
+import {
+  PresignedUploadValidationError,
+  S3FileStorage
+} from '@/lib/services/medias/S3StorageFile'
 import {
   MAX_FILE_SIZE,
   MAX_HEIGHT,
@@ -22,7 +25,10 @@ import {
 } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoImage } from '@/lib/services/medias/extractVideoImage'
-import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
+import {
+  extractVideoMeta,
+  extractVideoMetaFromFile
+} from '@/lib/services/medias/extractVideoMeta'
 import { getQuotaLimit } from '@/lib/services/medias/quota'
 import { Actor } from '@/lib/types/domain/actor'
 
@@ -50,7 +56,8 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
 }))
 
 vi.mock('@/lib/services/medias/extractVideoMeta', () => ({
-  extractVideoMeta: vi.fn()
+  extractVideoMeta: vi.fn(),
+  extractVideoMetaFromFile: vi.fn()
 }))
 
 vi.mock('@/lib/services/medias/extractVideoImage', () => ({
@@ -118,6 +125,12 @@ describe('S3FileStorage presigned upload completion', () => {
     // `extractVideoImage`; the default keeps an unconfigured call from
     // resolving `undefined` into sharp.
     vi.mocked(extractVideoImage).mockResolvedValue(ONE_PIXEL_PNG)
+    // Completion probes the uploaded bytes; a presigned video is a real mp4
+    // unless a test says otherwise.
+    vi.mocked(extractVideoMetaFromFile).mockResolvedValue({
+      streams: [{ codec_type: 'video', width: 1920, height: 1080 }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
     ;(S3Client as jest.MockedClass<typeof S3Client>).mockImplementation(
       function () {
         return { send } as unknown as S3Client
@@ -394,6 +407,9 @@ describe('S3FileStorage presigned upload completion', () => {
           }
         }
       }
+      if (command instanceof GetObjectCommand) {
+        return { Body: Readable.from([ONE_PIXEL_PNG]) }
+      }
       throw new Error('Unexpected command')
     })
 
@@ -425,6 +441,9 @@ describe('S3FileStorage presigned upload completion', () => {
             checksumsha1: checksumHex
           }
         }
+      }
+      if (command instanceof GetObjectCommand) {
+        return { Body: Readable.from([ONE_PIXEL_PNG]) }
       }
       throw new Error('Unexpected command')
     })
@@ -1068,6 +1087,10 @@ describe('S3FileStorage presigned upload completion', () => {
       }
     } as never)
 
+    vi.mocked(extractVideoMetaFromFile).mockResolvedValue({
+      streams: [{ codec_type: 'audio' }],
+      format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+    })
     send.mockImplementation(async (command) => {
       if (command instanceof HeadObjectCommand) {
         return {
@@ -1077,6 +1100,9 @@ describe('S3FileStorage presigned upload completion', () => {
             checksumsha1: checksumHex
           }
         }
+      }
+      if (command instanceof GetObjectCommand) {
+        return { Body: Readable.from([Buffer.alloc(2048)]) }
       }
       throw new Error('Unexpected command')
     })
@@ -1585,6 +1611,203 @@ describe('S3FileStorage presigned upload completion', () => {
     expect(mockGenerateAltText).not.toHaveBeenCalled()
     expect(database.updateMedia).not.toHaveBeenCalled()
     expect(result).toMatchObject({ id: 'media-video-1', type: 'video' })
+  })
+
+  // Regression (F101, F102): completion only compared the object with the
+  // client's own claims, and a failed byte analysis was logged and the upload
+  // returned as verified — so any bytes could be hosted under an accepted
+  // media type. The bytes are now probed BEFORE the row is marked usable, and
+  // anything that is not the declared media type is deleted with its row.
+  describe('probing the uploaded bytes', () => {
+    const pendingMedia = (mimeType: string, size: number) => ({
+      id: 'media-1',
+      actorId: 'actor-1',
+      original: {
+        path: 'medias/2026-01-01/upload.bin',
+        bytes: size,
+        mimeType,
+        metaData: {
+          width: 10,
+          height: 10,
+          upload: {
+            state: 'pending',
+            checksumSha1: checksumHex,
+            checksumSha1Base64: checksumBase64,
+            contentType: mimeType,
+            size
+          }
+        },
+        fileName: 'upload.bin'
+      }
+    })
+
+    const createStorage = () =>
+      new S3FileStorage(
+        {
+          type: MediaStorageType.ObjectStorage,
+          bucket: 'bucket',
+          region: 'us-east-1',
+          endpoint: 'https://s3.example.com'
+        },
+        'llun.test',
+        database
+      )
+
+    const serveObject = (
+      contentType: string,
+      size: number,
+      body: Buffer | (() => never)
+    ) => {
+      send.mockImplementation(async (command) => {
+        if (command instanceof HeadObjectCommand) {
+          return {
+            ContentLength: size,
+            ContentType: contentType,
+            ChecksumSHA1: checksumBase64
+          }
+        }
+        if (command instanceof GetObjectCommand) {
+          if (typeof body === 'function') body()
+          return { Body: Readable.from([body]) }
+        }
+        if (
+          command instanceof DeleteObjectCommand ||
+          command instanceof PutObjectCommand
+        ) {
+          return {}
+        }
+        throw new Error('Unexpected command')
+      })
+    }
+
+    const expectRefusedAndDeleted = async () => {
+      await expect(
+        createStorage().completePresignedUpload(actor, 'media-1')
+      ).rejects.toThrow(PresignedUploadValidationError)
+      expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+      expect(database.deleteMedia).toHaveBeenCalledWith({ mediaId: 'media-1' })
+      expect(DeleteObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'bucket',
+        Key: 'medias/2026-01-01/upload.bin'
+      })
+    }
+
+    it('refuses HTML uploaded as image/png', async () => {
+      const html = Buffer.from('<html><script>alert(1)</script></html>')
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('image/png', html.length) as never
+      )
+      serveObject('image/png', html.length, html)
+
+      await expectRefusedAndDeleted()
+    })
+
+    it('refuses a JPEG declared as image/png', async () => {
+      const jpeg = await sharp({
+        create: { width: 8, height: 8, channels: 3, background: '#000' }
+      })
+        .jpeg()
+        .toBuffer()
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('image/png', jpeg.length) as never
+      )
+      serveObject('image/png', jpeg.length, jpeg)
+
+      await expectRefusedAndDeleted()
+    })
+
+    it('refuses a video ffprobe cannot read', async () => {
+      vi.mocked(extractVideoMetaFromFile).mockRejectedValue(
+        new Error('ffprobe exited with code 1')
+      )
+      const bytes = Buffer.from('not-a-video')
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('video/mp4', bytes.length) as never
+      )
+      serveObject('video/mp4', bytes.length, bytes)
+
+      await expectRefusedAndDeleted()
+    })
+
+    it('refuses a video container with no video stream', async () => {
+      vi.mocked(extractVideoMetaFromFile).mockResolvedValue({
+        streams: [{ codec_type: 'audio' }],
+        format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+      })
+      const bytes = Buffer.from('audio-only')
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('video/mp4', bytes.length) as never
+      )
+      serveObject('video/mp4', bytes.length, bytes)
+
+      await expectRefusedAndDeleted()
+    })
+
+    it('refuses audio/mp4 that has no audio stream', async () => {
+      vi.mocked(extractVideoMetaFromFile).mockResolvedValue({
+        streams: [],
+        format: { format_name: 'mov,mp4,m4a,3gp,3g2,mj2' }
+      })
+      const bytes = Buffer.from('empty')
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('audio/mp4', bytes.length) as never
+      )
+      serveObject('audio/mp4', bytes.length, bytes)
+
+      await expectRefusedAndDeleted()
+    })
+
+    // The analysis cap used to exempt a large upload from every byte check.
+    it('probes a video above the analysis cap too', async () => {
+      vi.mocked(extractVideoMetaFromFile).mockRejectedValue(
+        new Error('ffprobe exited with code 1')
+      )
+      const size = 150 * 1024 * 1024
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('video/mp4', size) as never
+      )
+      serveObject('video/mp4', size, Buffer.from('not-a-video'))
+
+      await expectRefusedAndDeleted()
+    })
+
+    it('records the probed dimensions instead of the declared ones', async () => {
+      const png = await sharp({
+        create: { width: 64, height: 48, channels: 3, background: '#123456' }
+      })
+        .png()
+        .toBuffer()
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('image/png', png.length) as never
+      )
+      serveObject('image/png', png.length, png)
+
+      await createStorage().completePresignedUpload(actor, 'media-1')
+
+      expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
+        expect.objectContaining({ dimensions: { width: 64, height: 48 } })
+      )
+      expect(database.deleteMedia).not.toHaveBeenCalled()
+    })
+
+    it('keeps the row and object when reading the object fails transiently', async () => {
+      const png = ONE_PIXEL_PNG
+      database.getMediaByIdForAccount.mockResolvedValue(
+        pendingMedia('image/png', png.length) as never
+      )
+      serveObject('image/png', png.length, () => {
+        throw Object.assign(new Error('socket hang up'), {
+          name: 'TimeoutError'
+        })
+      })
+
+      await expect(
+        createStorage().completePresignedUpload(actor, 'media-1')
+      ).rejects.toThrow('socket hang up')
+      expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+      expect(database.deleteMedia).not.toHaveBeenCalled()
+      expect(DeleteObjectCommand).not.toHaveBeenCalled()
+    })
   })
 })
 

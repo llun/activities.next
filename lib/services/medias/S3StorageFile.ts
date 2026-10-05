@@ -8,9 +8,12 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import crypto from 'crypto'
 import { format } from 'date-fns/format'
+import fs from 'fs/promises'
 import { IncomingMessage } from 'http'
 import sharp from 'sharp'
 import { Readable } from 'stream'
+import { pipeline } from 'stream/promises'
+import type { ReadableStream as NodeReadableStream } from 'stream/web'
 
 import { getConfig } from '@/lib/config'
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
@@ -21,6 +24,7 @@ import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
 import {
   FALLBACK_STORED_FILE_NAME,
+  createMediaTempFilePath,
   getStoredMediaExtension,
   sanitizeStoredFileName
 } from '@/lib/services/medias/fileName'
@@ -36,6 +40,10 @@ import {
   getImageOutputFormatDetail
 } from '@/lib/services/medias/imageOutputFormat'
 import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import {
+  PresignedUploadValidationError,
+  probePresignedMedia
+} from '@/lib/services/medias/presignedProbe'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import {
   MEDIA_OBJECT_KEY_PREFIX,
@@ -62,7 +70,7 @@ import { createStorageS3Client } from '@/lib/services/storage/s3Client'
 import { Media } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
-import { readUnknownBodyToBufferWithLimit } from '@/lib/utils/streamLimit'
+import { createByteLimitTransform } from '@/lib/utils/streamLimit'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 const normalizeContentType = (contentType?: string | string[]) => {
@@ -83,15 +91,32 @@ const toWebReadableStream = (body: unknown): ReadableStream | null => {
   return null
 }
 
+// The download side of `toWebReadableStream`: a Node stream to pipe into a
+// file. `transformToByteArray` covers an SDK body with neither stream form.
+const toNodeReadable = async (body: unknown): Promise<Readable> => {
+  if (body instanceof Readable) return body
+  if (body instanceof ReadableStream) {
+    return Readable.fromWeb(body as NodeReadableStream)
+  }
+  const sdkBody = body as {
+    transformToWebStream?: () => ReadableStream
+    transformToByteArray?: () => Promise<Uint8Array>
+  }
+  if (typeof sdkBody?.transformToWebStream === 'function') {
+    return Readable.fromWeb(
+      sdkBody.transformToWebStream() as NodeReadableStream
+    )
+  }
+  if (typeof sdkBody?.transformToByteArray === 'function') {
+    return Readable.from([Buffer.from(await sdkBody.transformToByteArray())])
+  }
+  throw new Error('Unable to read presigned media object body')
+}
+
 const sha1HexToBase64 = (checksum: string) =>
   Buffer.from(checksum, 'hex').toString('base64')
 
-export class PresignedUploadValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'PresignedUploadValidationError'
-  }
-}
+export { PresignedUploadValidationError }
 
 const isS3NotFoundError = (error: unknown) => {
   const nodeError = error as {
@@ -410,139 +435,45 @@ export class S3FileStorage implements MediaStorage {
         )
       }
 
-      const verifiedMedia = await this._database.markMediaUploadVerified({
-        mediaId,
-        accountId,
-        verifiedAt: Date.now()
-      })
-      if (!verifiedMedia) {
-        return null
-      }
+      // The bytes are the client's, not ours: the checks above only compare
+      // them with the client's own claims. Probe them the way the sync upload
+      // path does before the media becomes usable, and refuse (deleting object
+      // and row) anything that is not the media type it was declared as.
+      const extension = getStoredMediaExtension(
+        media.original.mimeType,
+        media.original.fileName ?? FALLBACK_STORED_FILE_NAME
+      )
+      const tempFilePath = await this._downloadObjectToTempFile(
+        media.original.path,
+        extension,
+        expectedSize
+      )
+      try {
+        const dimensions = await probePresignedMedia(
+          tempFilePath,
+          expectedContentType
+        )
 
-      const isVideo = media.original.mimeType.startsWith('video')
-      if (media.original.mimeType.startsWith('image') || isVideo) {
-        const expectedSize = upload.size ?? media.original.bytes
-        if (expectedSize <= PRESIGNED_ANALYSIS_MAX_BYTES) {
-          try {
-            const getCommand = new GetObjectCommand({
-              Bucket: this._config.bucket,
-              Key: media.original.path
-            })
-            const response = await this._client.send(getCommand)
-            if (response.Body) {
-              const buffer = await readUnknownBodyToBufferWithLimit(
-                response.Body as IncomingMessage,
-                PRESIGNED_ANALYSIS_MAX_BYTES
-              )
-              // A video is analysed and described from its representative
-              // preview frame; the stored video itself is not an image sharp
-              // or the vision model can read.
-              const previewBuffer = isVideo
-                ? await extractVideoPreviewFrame(
-                    buffer,
-                    getStoredMediaExtension(
-                      media.original.mimeType,
-                      media.original.fileName ?? FALLBACK_STORED_FILE_NAME
-                    )
-                  )
-                : buffer
-              const analysis = await analyzeImageBuffer(previewBuffer, {
-                manualFocus: media.focus
-              })
-              let generatedDescription: string | null = null
-              if (media.description == null) {
-                const { altText } = getConfig()
-                if (altText) {
-                  // generateAltText never throws — its entire body is
-                  // wrapped in try/catch and it returns null on any
-                  // failure, logging its own warn. A try/catch here would
-                  // be dead code that only double-logs the same failure.
-                  generatedDescription = await generateAltText(
-                    altText,
-                    previewBuffer,
-                    isVideo ? 'image/jpeg' : media.original.mimeType
-                  )
-                }
-              }
-              let storedThumbnail: {
-                path: string
-                outputInfo: { size: number; width?: number; height?: number }
-                contentType: string
-              } | null = null
-
-              if (isVideo && previewBuffer) {
-                const uploaded = await this._uploadImageBufferToS3(
-                  Date.now(),
-                  previewBuffer,
-                  { isThumbnail: true }
-                )
-                storedThumbnail = {
-                  path: uploaded.path,
-                  outputInfo: uploaded.outputInfo,
-                  contentType: uploaded.contentType
-                }
-              }
-
-              if (
-                analysis.blurhash ||
-                analysis.focus ||
-                generatedDescription ||
-                storedThumbnail
-              ) {
-                try {
-                  const updated = await this._database.updateMedia({
-                    mediaId,
-                    accountId,
-                    blurhash: analysis.blurhash,
-                    focus: analysis.focus ?? undefined,
-                    description: generatedDescription ?? undefined,
-                    ...(storedThumbnail
-                      ? {
-                          thumbnail: {
-                            path: storedThumbnail.path,
-                            bytes: storedThumbnail.outputInfo.size,
-                            mimeType: storedThumbnail.contentType,
-                            metaData: {
-                              width: storedThumbnail.outputInfo.width ?? 0,
-                              height: storedThumbnail.outputInfo.height ?? 0
-                            }
-                          }
-                        }
-                      : {})
-                  })
-                  if (updated?.media) {
-                    if (updated.replacedThumbnailPath) {
-                      await this.deleteFile(
-                        updated.replacedThumbnailPath
-                      ).catch(() => false)
-                    }
-                    return this._getSaveFileOutput(updated.media)
-                  }
-                  if (storedThumbnail) {
-                    await this.deleteFile(storedThumbnail.path).catch(
-                      () => false
-                    )
-                  }
-                } catch (updateError) {
-                  if (storedThumbnail) {
-                    await this.deleteFile(storedThumbnail.path).catch(
-                      () => false
-                    )
-                  }
-                  throw updateError
-                }
-              }
-            }
-          } catch (error) {
-            logger.warn({
-              message: 'Failed to analyze presigned media upload',
-              err: toLoggableError(error)
-            })
-          }
+        const verifiedMedia = await this._database.markMediaUploadVerified({
+          mediaId,
+          accountId,
+          verifiedAt: Date.now(),
+          dimensions
+        })
+        if (!verifiedMedia) {
+          return null
         }
-      }
 
-      return this._getSaveFileOutput(verifiedMedia)
+        const output = await this._decoratePresignedMedia(
+          media,
+          accountId,
+          tempFilePath,
+          expectedSize
+        )
+        return output ?? this._getSaveFileOutput(verifiedMedia)
+      } finally {
+        await fs.unlink(tempFilePath).catch(() => undefined)
+      }
     } catch (error) {
       if (error instanceof PresignedUploadValidationError) {
         await this.deleteFile(media.original.path).catch(() => false)
@@ -550,6 +481,167 @@ export class S3FileStorage implements MediaStorage {
       }
       throw error
     }
+  }
+
+  // Streams the uploaded object to a server-named temp file, so probing a
+  // large video holds none of it in memory. A missing object is the client's
+  // failure; any other storage error is transient and propagates as-is, so
+  // the row and object survive for a retry.
+  private async _downloadObjectToTempFile(
+    key: string,
+    extension: string,
+    maxBytes: number
+  ): Promise<string> {
+    const tempFilePath = createMediaTempFilePath(`presigned${extension}`)
+    // `wx` (O_EXCL), as in `extractVideoPreviewFrame`: never follow or clobber
+    // a file already at the path.
+    const tempFile = await fs.open(tempFilePath, 'wx')
+    try {
+      const response = await this._client
+        .send(new GetObjectCommand({ Bucket: this._config.bucket, Key: key }))
+        .catch((error) => {
+          if (isS3NotFoundError(error)) {
+            throw new PresignedUploadValidationError(
+              'Uploaded object is missing'
+            )
+          }
+          throw error
+        })
+      if (!response.Body) {
+        throw new PresignedUploadValidationError('Uploaded object is missing')
+      }
+      await pipeline(
+        await toNodeReadable(response.Body),
+        createByteLimitTransform(maxBytes, 'Presigned media object'),
+        tempFile.createWriteStream()
+      )
+      return tempFilePath
+    } catch (error) {
+      await tempFile.close().catch(() => undefined)
+      await fs.unlink(tempFilePath).catch(() => undefined)
+      throw error
+    }
+  }
+
+  // Blurhash, focus, alt text and a video's poster. Decoration only: the media
+  // is already verified, so a failure here is logged and the upload stands.
+  // Returns the updated attachment, or null when nothing was updated.
+  private async _decoratePresignedMedia(
+    media: Media,
+    accountId: string,
+    tempFilePath: string,
+    size: number
+  ): Promise<MediaStorageSaveFileOutput | null> {
+    const mediaId = media.id
+    const isVideo = media.original.mimeType.startsWith('video')
+    if (!media.original.mimeType.startsWith('image') && !isVideo) return null
+    if (size > PRESIGNED_ANALYSIS_MAX_BYTES) return null
+
+    try {
+      const buffer = await fs.readFile(tempFilePath)
+      // A video is analysed and described from its representative preview
+      // frame; the stored video itself is not an image sharp or the vision
+      // model can read.
+      const previewBuffer = isVideo
+        ? await extractVideoPreviewFrame(
+            buffer,
+            getStoredMediaExtension(
+              media.original.mimeType,
+              media.original.fileName ?? FALLBACK_STORED_FILE_NAME
+            )
+          )
+        : buffer
+      const analysis = await analyzeImageBuffer(previewBuffer, {
+        manualFocus: media.focus
+      })
+      let generatedDescription: string | null = null
+      if (media.description == null) {
+        const { altText } = getConfig()
+        if (altText) {
+          // generateAltText never throws — its entire body is wrapped in
+          // try/catch and it returns null on any failure, logging its own
+          // warn. A try/catch here would be dead code that only double-logs
+          // the same failure.
+          generatedDescription = await generateAltText(
+            altText,
+            previewBuffer,
+            isVideo ? 'image/jpeg' : media.original.mimeType
+          )
+        }
+      }
+      let storedThumbnail: {
+        path: string
+        outputInfo: { size: number; width?: number; height?: number }
+        contentType: string
+      } | null = null
+
+      if (isVideo && previewBuffer) {
+        const uploaded = await this._uploadImageBufferToS3(
+          Date.now(),
+          previewBuffer,
+          { isThumbnail: true }
+        )
+        storedThumbnail = {
+          path: uploaded.path,
+          outputInfo: uploaded.outputInfo,
+          contentType: uploaded.contentType
+        }
+      }
+
+      if (
+        !analysis.blurhash &&
+        !analysis.focus &&
+        !generatedDescription &&
+        !storedThumbnail
+      ) {
+        return null
+      }
+
+      try {
+        const updated = await this._database.updateMedia({
+          mediaId,
+          accountId,
+          blurhash: analysis.blurhash,
+          focus: analysis.focus ?? undefined,
+          description: generatedDescription ?? undefined,
+          ...(storedThumbnail
+            ? {
+                thumbnail: {
+                  path: storedThumbnail.path,
+                  bytes: storedThumbnail.outputInfo.size,
+                  mimeType: storedThumbnail.contentType,
+                  metaData: {
+                    width: storedThumbnail.outputInfo.width ?? 0,
+                    height: storedThumbnail.outputInfo.height ?? 0
+                  }
+                }
+              }
+            : {})
+        })
+        if (updated?.media) {
+          if (updated.replacedThumbnailPath) {
+            await this.deleteFile(updated.replacedThumbnailPath).catch(
+              () => false
+            )
+          }
+          return this._getSaveFileOutput(updated.media)
+        }
+        if (storedThumbnail) {
+          await this.deleteFile(storedThumbnail.path).catch(() => false)
+        }
+      } catch (updateError) {
+        if (storedThumbnail) {
+          await this.deleteFile(storedThumbnail.path).catch(() => false)
+        }
+        throw updateError
+      }
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to analyze presigned media upload',
+        err: toLoggableError(error)
+      })
+    }
+    return null
   }
 
   async saveFile(actor: Actor, media: MediaSchema) {
