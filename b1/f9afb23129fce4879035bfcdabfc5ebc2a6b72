@@ -1,0 +1,40 @@
+lib/services/actors/actorDeletion.test.ts
+  s_69f35b0cf1b1f5::t_f653cad7a34108 1-25,29-226
+  s_69f35b0cf1b1f5::t_126695e293cacc 26-28
+docs/architecture.md
+  s_69f35b0cf1b1f5::t_4bab7bd641d1e4 269-286
+lib/jobs/deleteActorJob.test.ts
+  s_69f35b0cf1b1f5::t_5107a2e8882431 6,12-16,53-56,219-270,272-304
+  s_69f35b0cf1b1f5::t_126695e293cacc 57,271
+  s_69f35b0cf1b1f5::t_561ecdc06825ee 305
+lib/services/actors/actorDeletion.ts
+  s_69f35b0cf1b1f5::t_5107a2e8882431 70-71,125-127
+  s_69f35b0cf1b1f5::t_a5e10ca8161453 1-69,72-124,128-163
+app/api/v1/actors/delete/route.test.ts
+  s_69f35b0cf1b1f5::t_126695e293cacc 56
+  s_69f35b0cf1b1f5::t_eca358bbcd8e02 1-55,57-151
+instrumentation.ts
+  s_69f35b0cf1b1f5::t_0f47c965869d55 8-11,18-23
+app/api/v1/actors/delete/route.ts
+  s_69f35b0cf1b1f5::t_0f47c965869d55 3,168-177
+lib/jobs/deleteActorJob.ts
+  s_69f35b0cf1b1f5::t_a0ec5157c54abe 120-121
+  s_69f35b0cf1b1f5::t_0f47c965869d55 7,17-21,109-119,122-151
+  s_69f35b0cf1b1f5::t_eea1f0039972e4 152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1f9afb23129fce4879035bfcdabfc5ebc2a6b72",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
