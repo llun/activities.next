@@ -697,6 +697,44 @@ describe('ActorFitnessDashboard', () => {
     expect(scrollBy).toHaveBeenCalledTimes(1)
   })
 
+  it('scrolls the details into view for a day picked before the first read landed', async () => {
+    const scrollBy = vi.fn()
+    vi.stubGlobal('scrollBy', scrollBy)
+    vi.stubGlobal('innerHeight', 700)
+    const calendar = createDeferred<FitnessCalendarDay[]>()
+    mockedCalendar.mockReturnValueOnce(calendar.promise)
+    renderDashboard()
+    const rectOf = (top: number, bottom: number) =>
+      ({
+        top,
+        bottom,
+        left: 0,
+        right: 0,
+        width: 0,
+        height: bottom - top,
+        x: 0,
+        y: top,
+        toJSON: () => ({})
+      }) as DOMRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
+        if (this.getAttribute('data-testid') === 'day-details')
+          return rectOf(900, 1100)
+        if (this.dataset.date === '2026-10-01') return rectOf(300, 318)
+        return rectOf(0, 0)
+      }
+    )
+    fireEvent.click(cell('2026-10-01'))
+    expect(scrollBy).not.toHaveBeenCalled()
+    await act(async () => calendar.resolve(calendarDays))
+    await screen.findByTestId('day-details')
+    await waitFor(() =>
+      expect(scrollBy).toHaveBeenCalledWith(
+        expect.objectContaining({ top: 236 })
+      )
+    )
+  })
+
   it('reads a selected day without touching the range or the totals', async () => {
     renderDashboard()
     await waitForLoaded()
