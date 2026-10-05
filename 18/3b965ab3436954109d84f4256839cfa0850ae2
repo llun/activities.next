@@ -1,0 +1,59 @@
+app/api/v1/announcements/[id]/reactions/[name]/route.ts
+  s_69f35b0cf1b1f5::t_983350a2de7d31 11-12,83-96
+lib/jobs/dispatchCreateNoteOrPollJob.ts
+  s_69f35b0cf1b1f5::t_95d7ca5adc49ac 4-5,25-32,36-40,45-53
+  s_69f35b0cf1b1f5::t_43e92ae059638f 33-35
+app/api/v1/files/[...pathname]/route.ts
+  s_69f35b0cf1b1f5::t_8a31ee1771e344 98-106
+lib/jobs/createPollJob.test.ts
+  s_69f35b0cf1b1f5::t_7ddb388ba03586 156-159
+  s_69f35b0cf1b1f5::t_06e1942c23875b 143-155,160-162
+lib/activities/getActorPosts.test.ts
+  s_69f35b0cf1b1f5::t_050de875696491 243-313
+lib/services/link-previews/parseOpenGraph.ts
+  s_69f35b0cf1b1f5::t_fab0df4b04755d 4
+lib/jobs/createAnnounceJob.test.ts
+  s_69f35b0cf1b1f5::t_203e7d3cbc3523 371-412
+docs/mastodon-api-compatibility.md
+  s_69f35b0cf1b1f5::t_a25d5880f29030 1005
+  s_69f35b0cf1b1f5::t_43e92ae059638f 630
+  s_69f35b0cf1b1f5::t_5cc29a3cbe8c2d 198-201
+  s_69f35b0cf1b1f5::t_0d08eef4687be7 631,1200-1206
+  s_69f35b0cf1b1f5::t_bd06490b7c8dd3 194-197,202-211
+  s_69f35b0cf1b1f5::t_db57b302ba1909 990
+app/api/v1/suggestions/[account_id]/route.ts
+  s_69f35b0cf1b1f5::t_86c3747927a3a7 33-35
+lib/jobs/createPollJob.ts
+  s_69f35b0cf1b1f5::t_06e1942c23875b 10-11,84-86
+app/api/v1/files/[...pathname]/route.test.ts
+  s_69f35b0cf1b1f5::t_03a0cd5be04523 274-304
+app/api/v1/announcements/route.test.ts
+  s_69f35b0cf1b1f5::t_b560d735fb69c2 277-280
+  s_69f35b0cf1b1f5::t_983350a2de7d31 263-276,281-304
+lib/actions/like.ts
+  s_69f35b0cf1b1f5::t_425f10ab61c5ef 44-49
+lib/activities/index.ts
+  s_69f35b0cf1b1f5::t_fa6b9e81b2a2a4 133-139
+lib/jobs/createRelayAnnounceJob.test.ts
+  s_69f35b0cf1b1f5::t_203e7d3cbc3523 274-307
+lib/activities/getActorPosts.ts
+  s_69f35b0cf1b1f5::t_1c82cc5064fcf5 227-231
+scripts/maintenance/importRemoteStatus.ts
+  s_69f35b0cf1b1f5::t_fab0df4b04755d 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "183b965ab3436954109d84f4256839cfa0850ae2",
+  "prompts": {},
+  "sessions": {
+    "s_69f35b0cf1b1f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3e34abf-a75d-4da8-b371-1258aa33721a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
