@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
+import { oauthLogger } from '@/lib/services/oauth/logging'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
@@ -713,19 +714,40 @@ describe('AdminApiGuard', () => {
     // The mock above only mirrors the guard. These drive the real
     // OAuthGuardAnyScope, so the refusal status is the one production sends.
     describe('through the real OAuthGuardAnyScope', () => {
+      // The token resolves to the seeded admin actor, so a scope-check bypass
+      // would run the handler and answer 200 instead of the 401 asserted below
+      // (without a resolvable actor the guard 401s on no_actor_for_token even
+      // when the scope check is skipped).
+      const storeToken = (scopes: string) => {
+        mockStoredToken = {
+          userId: 'user-id',
+          referenceId: adminActor.id,
+          scopes,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000)
+        }
+      }
+
+      const call = (method: HttpMethod) =>
+        AdminApiGuard([method], handle)(
+          new NextRequest('https://llun.test/api/v1/admin/accounts', {
+            method,
+            headers: { Authorization: 'Bearer opaque-token' }
+          }),
+          { params: Promise.resolve({}) }
+        )
+
+      let debugSpy: ReturnType<typeof vi.spyOn>
+
       beforeEach(async () => {
         const actual =
           await vi.importActual<typeof import('./OAuthGuard')>('./OAuthGuard')
         mockOAuthGuardAnyScope.mockImplementation(actual.OAuthGuardAnyScope)
-        mockStoredToken = {
-          userId: 'user-id',
-          scopes: 'read write follow push',
-          expiresAt: new Date(Date.now() + 60 * 60 * 1000)
-        }
+        debugSpy = vi.spyOn(oauthLogger, 'debug')
       })
 
       afterEach(() => {
         mockStoredToken = null
+        debugSpy.mockRestore()
       })
 
       it.each([
@@ -734,17 +756,31 @@ describe('AdminApiGuard', () => {
       ])(
         'answers 401 insufficient_scope to a coarse read/write token ($method)',
         async ({ method }) => {
-          const guard = AdminApiGuard([method], handle)
-          const response = await guard(
-            new NextRequest('https://llun.test/api/v1/admin/accounts', {
-              method,
-              headers: { Authorization: 'Bearer opaque-token' }
-            }),
-            { params: Promise.resolve({}) }
-          )
+          storeToken('read write follow push')
+
+          const response = await call(method)
 
           expect(response.status).toBe(401)
           expect(handle).not.toHaveBeenCalled()
+          expect(debugSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ reason: 'insufficient_scope' }),
+            expect.any(String)
+          )
+        }
+      )
+
+      it.each([
+        { method: HttpMethod.enum.GET, scopes: 'admin:read' },
+        { method: HttpMethod.enum.POST, scopes: 'admin:write' }
+      ])(
+        'admits an $scopes token ($method), proving the refusals above come from the scope',
+        async ({ method, scopes }) => {
+          storeToken(scopes)
+
+          const response = await call(method)
+
+          expect(response.status).toBe(200)
+          expect(handle).toHaveBeenCalledTimes(1)
         }
       )
     })

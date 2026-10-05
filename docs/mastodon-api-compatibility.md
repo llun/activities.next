@@ -198,8 +198,10 @@ product or security decision, not a gap to be closed.
   (`admin:read:accounts`, `admin:write:reports`, …). A token holding only the
   coarse `read`/`write` scopes is refused as `insufficient_scope`, matching
   Mastodon, where `read` never implies `admin:read`; an admin client must
-  request the admin scopes explicitly. The account's admin role is checked as
-  well (`403` without it) — both must hold. A cookie-session admin (the web
+  request the admin scopes explicitly. The refusal is a `401`
+  (`insufficient_scope`, this repo's bearer-failure convention), where Mastodon
+  answers `403`. The account's admin role is checked as well (`403`
+  without it) — both must hold. A cookie-session admin (the web
   admin UI) carries no scopes: it is gated by the admin role, the account and
   actor state checks (disabled, unconfirmed, moderation-blocked) and, for
   mutations, the same-origin proof; scopes do not apply.
