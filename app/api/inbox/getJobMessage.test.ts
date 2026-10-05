@@ -3,6 +3,7 @@ import {
   EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME
 } from '@/lib/jobs/names'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { getJobMessage } from './getJobMessage'
 
@@ -92,6 +93,30 @@ describe('getJobMessage', () => {
       name: CREATE_NOTE_JOB_NAME,
       verifiedSenderActorId
     })
+  })
+
+  it('cannot reserve the queue key a local status delete publishes under', () => {
+    // deleteStatus publishes its Tombstone fan-out as
+    // getHashFromString(`${statusId}#delete`); a remote activity whose id is
+    // exactly that preimage must land on a different key.
+    const localStatusId = 'https://llun.test/users/llun/statuses/1'
+    const result = getJobMessage(
+      {
+        id: `${localStatusId}#delete`,
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/squat',
+          type: 'Note',
+          attributedTo: verifiedSenderActorId,
+          content: 'squatting'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result?.id).toBeDefined()
+    expect(result?.id).not.toBe(getHashFromString(`${localStatusId}#delete`))
   })
 
   it('accepts Create Note activities when the inline actor object id matches the verified sender', () => {

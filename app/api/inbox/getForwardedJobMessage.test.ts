@@ -1,7 +1,7 @@
 import { getForwardedJobMessage } from '@/app/api/inbox/getForwardedJobMessage'
+import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
 import { StatusActivity } from '@/lib/activities/statusAction'
 import { PROCESS_FORWARDED_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 const base = {
   id: 'https://writing.example/activities/1',
@@ -20,7 +20,7 @@ describe('getForwardedJobMessage', () => {
       object: 'https://writing.example/statuses/1'
     } as unknown as StatusActivity
     expect(getForwardedJobMessage(activity)).toEqual({
-      id: getHashFromString(`${base.id}#forwarded`),
+      id: getInboxJobId(base.id, '#forwarded'),
       name: PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
       data: activity
     })

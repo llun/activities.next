@@ -1,5 +1,6 @@
 import { trace } from '@opentelemetry/api'
 
+import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { StatusActivity } from '@/lib/activities/statusAction'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
@@ -12,7 +13,6 @@ import {
 import { getQueue } from '@/lib/services/queue'
 import { AnnounceAction } from '@/lib/types/activitypub/activities'
 import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -187,7 +187,7 @@ export const POST = traceApiRoute(
           if (relay) {
             if (relay.state === 'accepted' && activity.id) {
               await getQueue().publish({
-                id: getHashFromString(activity.id),
+                id: getInboxJobId(activity.id),
                 name: RELAY_ANNOUNCE_JOB_NAME,
                 data: activity
               })

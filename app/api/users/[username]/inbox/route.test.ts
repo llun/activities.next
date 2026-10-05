@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server'
 
+import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
 import { QUOTE_ACTIVITY_CONTEXT } from '@/lib/activities/quoteContext'
 import {
   HANDLE_QUOTE_REQUEST_JOB_NAME,
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME
 } from '@/lib/jobs/names'
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { POST } from './route'
 
@@ -1573,7 +1573,7 @@ describe('POST /api/users/[username]/inbox', () => {
       expect(mockPublish).toHaveBeenCalledWith(
         expect.objectContaining({
           name: PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
-          id: getHashFromString(`${activityId}#forwarded`)
+          id: getInboxJobId(activityId, '#forwarded')
         })
       )
       expect(mockPublish.mock.calls[0][0]).not.toHaveProperty(

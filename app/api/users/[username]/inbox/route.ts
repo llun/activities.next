@@ -2,6 +2,7 @@ import { trace } from '@opentelemetry/api'
 import { z } from 'zod'
 
 import { getForwardedJobMessage } from '@/app/api/inbox/getForwardedJobMessage'
+import { getInboxJobId } from '@/app/api/inbox/getInboxJobId'
 import { getJobMessage } from '@/app/api/inbox/getJobMessage'
 import { acceptFollowRequest } from '@/lib/actions/acceptFollowRequest'
 import {
@@ -47,7 +48,6 @@ import {
   Undo
 } from '@/lib/types/activitypub'
 import { actorIdsMatch, extractActivityPubId } from '@/lib/utils/activitypub'
-import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -768,7 +768,7 @@ export const POST = traceApiRoute(
                 // authorship-verifying fetch runs in the worker rather than
                 // inline in the inbox response (mirrors the shared-inbox path).
                 await getQueue().publish({
-                  id: getHashFromString(activity.id),
+                  id: getInboxJobId(activity.id),
                   name: HANDLE_QUOTE_REQUEST_JOB_NAME,
                   data: compactedActivity,
                   verifiedSenderActorId: context.verifiedSenderActorId

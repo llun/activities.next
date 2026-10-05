@@ -1235,6 +1235,14 @@ legacy shape left to copy.
   `getHashFromString(`${statusId}#update/${updatedStatus.updatedAt}`)`) — without
   the suffix, deleting a status posted or edited inside that window is silently
   dropped and never federates.
+- **Ids derived from REMOTE input live in their own namespace.** An inbound
+  activity's `id` is chosen by the sender, so hashing it bare let a sender pick
+  the preimage of an internal key — an activity with `id: "<statusId>#delete"`
+  reserved this very fan-out key, and the later delete was swallowed as a
+  duplicate. Every inbox-derived job id goes through `getInboxJobId`
+  (`app/api/inbox/getInboxJobId.ts`, an `inbox:` prefix), and the database
+  queue's `createQueueJob` throws when a conflicting id already belongs to a job
+  of a different `name` instead of returning that row as success.
 - **Unboost carries more than the audience, because its activity embeds the
   Announce.** `undoAnnounce` (`lib/activities/index.ts`) builds its object from
   `id`, `actorId`, `createdAt`, `to`, `cc` and `originalStatus.id`, so the job
