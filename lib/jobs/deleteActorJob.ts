@@ -175,16 +175,16 @@ export const deleteActorJob = createJobHandle(
               subject: email.subject,
               content: { text: email.text, html: email.html }
             })
+            // The address itself is never logged: it is personal data, and
+            // the actor id already identifies the notification.
             logger.info({
               message: 'Sent actor deletion email notification',
-              actorId,
-              email: accountEmail
+              actorId
             })
           } catch (err) {
             logger.error({
               message: 'Failed to send actor deletion email notification',
               actorId,
-              email: accountEmail,
               err: toLoggableError(err)
             })
             // Don't fail the job if email fails

@@ -5,6 +5,7 @@ import { deleteActorJob } from '@/lib/jobs/deleteActorJob'
 import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
 import { mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
+import { logger } from '@/lib/utils/logger'
 
 enableFetchMocks()
 
@@ -27,6 +28,16 @@ vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://test.social')
 }))
 
+// Account email addresses are personal data and must never reach the logs
+// (and the error-reporting pipeline behind them), on success or failure.
+const loggedCalls = () =>
+  JSON.stringify([
+    ...vi.mocked(logger.info).mock.calls,
+    ...vi.mocked(logger.error).mock.calls,
+    ...vi.mocked(logger.warn).mock.calls,
+    ...vi.mocked(logger.debug).mock.calls
+  ])
+
 describe('deleteActorJob', () => {
   const database = getTestSQLDatabase()
 
@@ -44,6 +55,14 @@ describe('deleteActorJob', () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     vi.clearAllMocks()
+    vi.spyOn(logger, 'info')
+    vi.spyOn(logger, 'error')
+    vi.spyOn(logger, 'warn')
+    vi.spyOn(logger, 'debug')
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('deletes actor and all associated data', async () => {
@@ -93,6 +112,13 @@ describe('deleteActorJob', () => {
     )
     expect(message.content.html).toContain('Your actor was deleted')
     expect(message.content.text).toContain('Your actor was deleted')
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Sent actor deletion email notification',
+        actorId
+      })
+    )
+    expect(loggedCalls()).not.toContain(`${username}@test.social`)
   })
 
   it('completes actor deletion when the email notification fails', async () => {
@@ -125,6 +151,13 @@ describe('deleteActorJob', () => {
 
     expect(await database.getActorFromId({ id: actorId })).toBeNull()
     expect(sendMail).toHaveBeenCalledTimes(1)
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to send actor deletion email notification',
+        actorId
+      })
+    )
+    expect(loggedCalls()).not.toContain(`${username}@test.social`)
   })
 
   it('handles non-existent actor gracefully', async () => {
