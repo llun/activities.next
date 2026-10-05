@@ -10,7 +10,9 @@ import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import { isPublicId } from '@/lib/utils/publicId'
 
@@ -133,6 +135,159 @@ describe('Announce action', () => {
       expect(result).toBeNull()
       expect(getQueue().publish).not.toHaveBeenCalled()
       expect(timelinesService.addStatusToTimelines).not.toHaveBeenCalled()
+    })
+  })
+
+  // Mastodon's StatusPolicy#reblog?: only a status the booster can read AND
+  // that is public/unlisted may be boosted; the booster's own followers-only
+  // post may be boosted back to the same followers only; direct posts never.
+  describe('boostability', () => {
+    const createNote = (
+      actor: Actor,
+      suffix: string,
+      to: string[],
+      cc: string[] = []
+    ) =>
+      database.createNote({
+        id: `${actor.id}/statuses/${suffix}`,
+        url: `${actor.id}/statuses/${suffix}`,
+        actorId: actor.id,
+        text: suffix,
+        to,
+        cc
+      })
+
+    const followAccepted = (follower: Actor, target: Actor) =>
+      database.createFollow({
+        actorId: follower.id,
+        targetActorId: target.id,
+        inbox: `${follower.id}/inbox`,
+        sharedInbox: `${follower.id}/inbox`,
+        status: FollowStatus.enum.Accepted
+      })
+
+    const expectNothingAnnounced = async (statusId: string) => {
+      expect(
+        await database.getActorAnnounceStatus({
+          statusId,
+          actorId: actor1.id
+        })
+      ).toBeNull()
+      expect(getQueue().publish).not.toHaveBeenCalled()
+      expect(timelinesService.addStatusToTimelines).not.toHaveBeenCalled()
+    }
+
+    it("refuses another actor's followers-only status even for an accepted follower", async () => {
+      await followAccepted(actor1, actor2)
+      const note = await createNote(actor2, 'followers-only', [
+        actor2.followersUrl
+      ])
+
+      const result = await userAnnounce({
+        currentActor: actor1,
+        statusId: note.id,
+        database
+      })
+
+      expect(result).toBeNull()
+      await expectNothingAnnounced(note.id)
+    })
+
+    it('refuses a direct status addressed to the booster', async () => {
+      const note = await createNote(actor2, 'direct', [actor1.id])
+
+      const result = await userAnnounce({
+        currentActor: actor1,
+        statusId: note.id,
+        database
+      })
+
+      expect(result).toBeNull()
+      await expectNothingAnnounced(note.id)
+    })
+
+    it('refuses a status the booster cannot read at all', async () => {
+      // The deprecated repost route hands userAnnounce a raw id with no read
+      // check of its own, so this gate is the only one on that path.
+      const note = await createNote(actor2, 'unreadable', [actor2.followersUrl])
+
+      const result = await userAnnounce({
+        currentActor: actor1,
+        statusId: note.id,
+        database
+      })
+
+      expect(result).toBeNull()
+      await expectNothingAnnounced(note.id)
+    })
+
+    it('refuses a public boost whose original is no longer public', async () => {
+      await followAccepted(actor1, actor2)
+      const note = await createNote(actor2, 'narrowed', [actor2.followersUrl])
+      const boost = await database.createAnnounce({
+        id: `${actor2.id}/statuses/narrowed-boost`,
+        actorId: actor2.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [actor2.followersUrl],
+        originalStatusId: note.id
+      })
+
+      const result = await userAnnounce({
+        currentActor: actor1,
+        statusId: boost!.id,
+        database
+      })
+
+      expect(result).toBeNull()
+      await expectNothingAnnounced(boost!.id)
+    })
+
+    it("allows another actor's unlisted status", async () => {
+      const note = await createNote(
+        actor2,
+        'unlisted',
+        [actor2.followersUrl],
+        [ACTIVITY_STREAM_PUBLIC]
+      )
+
+      const result = await userAnnounce({
+        currentActor: actor1,
+        statusId: note.id,
+        database
+      })
+
+      expect(result?.to).toEqual([ACTIVITY_STREAM_PUBLIC])
+    })
+
+    it('boosts an own followers-only status only back to the same followers', async () => {
+      const note = await createNote(actor1, 'own-followers-only', [
+        actor1.followersUrl
+      ])
+
+      const result = await userAnnounce({
+        currentActor: actor1,
+        statusId: note.id,
+        database,
+        visibility: 'public'
+      })
+
+      expect(result).not.toBeNull()
+      const recipients = [...result!.to, ...result!.cc]
+      expect(recipients).not.toContain(ACTIVITY_STREAM_PUBLIC)
+      expect(recipients).toContain(actor1.followersUrl)
+    })
+
+    it('refuses an own direct status', async () => {
+      const note = await createNote(actor1, 'own-direct', [actor2.id])
+
+      const result = await userAnnounce({
+        currentActor: actor1,
+        statusId: note.id,
+        database
+      })
+
+      expect(result).toBeNull()
+      await expectNothingAnnounced(note.id)
     })
   })
 

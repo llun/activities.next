@@ -5,14 +5,22 @@ import { createNotificationWithPolicy } from '@/lib/services/notifications/creat
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { shouldCreateNotification } from '@/lib/services/notifications/shouldNotify'
 import { getQueue } from '@/lib/services/queue'
+import {
+  canActorReadStatus,
+  isStatusPubliclyReadable
+} from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import { NotificationType } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
-import { getOriginalStatus } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusType,
+  getOriginalStatus
+} from '@/lib/types/domain/status'
 import { getLocalStatusId } from '@/lib/utils/activitypubId'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { MastodonVisibility } from '@/lib/utils/getVisibility'
+import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { withSpan } from '@/lib/utils/trace'
 
@@ -53,6 +61,47 @@ const getAnnounceRecipients = (
   }
 }
 
+// The audience a boost of `originalStatus` may be given, or null when it may
+// not be boosted at all. Mastodon's `StatusPolicy#reblog?` semantics: anything
+// the booster can read AND that is itself public or unlisted (an Announce
+// counts only while the status it boosts still is) may be boosted to any
+// audience; the booster's OWN followers-only post may be boosted, but only back
+// to the same followers (Mastodon's ReblogService pins a hidden status's
+// reblog to the original's visibility); direct/limited posts — and anyone
+// else's followers-only post — never. Without this the deprecated repost route
+// boosted any status id it was handed, and a follower could publicly boost a
+// followers-only post, which every public surface then unwrapped and rendered.
+const getBoostVisibility = async ({
+  database,
+  currentActor,
+  originalStatus,
+  visibility
+}: {
+  database: Database
+  currentActor: Actor
+  originalStatus: Status
+  visibility: MastodonVisibility | undefined
+}): Promise<{ visibility: MastodonVisibility | undefined } | null> => {
+  if (
+    !(await canActorReadStatus({
+      database,
+      status: originalStatus,
+      currentActor
+    }))
+  ) {
+    return null
+  }
+  if (isStatusPubliclyReadable(originalStatus)) return { visibility }
+  if (
+    originalStatus.type !== StatusType.enum.Announce &&
+    originalStatus.actorId === currentActor.id &&
+    getVisibility(originalStatus.to, originalStatus.cc) === 'private'
+  ) {
+    return { visibility: 'private' }
+  }
+  return null
+}
+
 export const userAnnounce = async ({
   currentActor,
   statusId,
@@ -72,9 +121,17 @@ export const userAnnounce = async ({
       return null
     }
 
+    const boost = await getBoostVisibility({
+      database,
+      currentActor,
+      originalStatus,
+      visibility
+    })
+    if (!boost) return null
+
     const postId = generatePublicId()
     const id = getLocalStatusId({ actorId: currentActor.id, statusId: postId })
-    const { to, cc } = getAnnounceRecipients(currentActor, visibility)
+    const { to, cc } = getAnnounceRecipients(currentActor, boost.visibility)
     const status = await database.createAnnounce({
       id,
       publicId: postId,

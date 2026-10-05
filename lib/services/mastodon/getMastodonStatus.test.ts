@@ -1777,10 +1777,80 @@ describe('getMastodonStatus', () => {
         statusId: announceStatus!.id
       })) as Status
 
-      const mastodonStatus = await getMastodonStatus(database, status)
+      // Read as the original's author, who may see it.
+      const mastodonStatus = await getMastodonStatus(
+        database,
+        status,
+        ACTOR1_ID
+      )
 
       // The visibility should be 'private' from the original status
       expect(mastodonStatus?.visibility).toBe('private')
+    })
+
+    // The Announce wrapper being public says nothing about the status it
+    // boosts. A public boost of a followers-only note must not serialize that
+    // note to a viewer who could not read it directly.
+    describe('a public boost of a status the viewer cannot read', () => {
+      const originalId = `${ACTOR1_ID}/statuses/hidden-original-for-reblog`
+      const announceId = `${ACTOR2_ID}/statuses/announce-hidden-original`
+
+      beforeAll(async () => {
+        await database.createNote({
+          id: originalId,
+          url: originalId,
+          actorId: ACTOR1_ID,
+          text: 'Followers-only secret',
+          to: [`${ACTOR1_ID}/followers`],
+          cc: []
+        })
+        await database.createAnnounce({
+          id: announceId,
+          actorId: ACTOR2_ID,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${ACTOR2_ID}/followers`],
+          originalStatusId: originalId
+        })
+      })
+
+      const getAnnounce = async () =>
+        (await database.getStatus({ statusId: announceId })) as Status
+
+      it('is dropped for an anonymous viewer', async () => {
+        expect(
+          await getMastodonStatus(database, await getAnnounce())
+        ).toBeNull()
+      })
+
+      it('is dropped for a signed-in viewer who does not follow the author', async () => {
+        expect(
+          await getMastodonStatus(database, await getAnnounce(), ACTOR3_ID)
+        ).toBeNull()
+      })
+
+      it('is dropped from a batch while readable statuses are kept', async () => {
+        const publicStatus = (await database.getStatus({
+          statusId: `${ACTOR1_ID}/statuses/post-1`
+        })) as Status
+
+        const result = await getMastodonStatuses(
+          database,
+          [await getAnnounce(), publicStatus],
+          ACTOR3_ID
+        )
+
+        expect(result.map((status) => status.uri)).toEqual([publicStatus.id])
+      })
+
+      it('is still serialized for a viewer who may read the original', async () => {
+        const mastodonStatus = await getMastodonStatus(
+          database,
+          await getAnnounce(),
+          ACTOR1_ID
+        )
+
+        expect(mastodonStatus?.reblog?.uri).toBe(originalId)
+      })
     })
   })
 

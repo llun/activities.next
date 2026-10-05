@@ -4,7 +4,10 @@ import { Database } from '@/lib/database/types'
 import { isConversationMutedForActor } from '@/lib/services/mastodon/conversationMute'
 import { getMastodonPreviewCard } from '@/lib/services/mastodon/getMastodonPreviewCard'
 import { getEffectiveQuoteApprovalPolicy } from '@/lib/services/quotes/quotePolicy'
-import { canActorReadStatus } from '@/lib/services/statusAccess'
+import {
+  canActorReadStatus,
+  isStatusPubliclyReadable
+} from '@/lib/services/statusAccess'
 import { Mastodon } from '@/lib/types/activitypub'
 import { StatusReactionRollup } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -603,6 +606,23 @@ export const getMastodonStatus = async (
   }
 
   if (status.type === StatusType.enum.Announce) {
+    // The wrapper's own audience says nothing about the status it boosts: a
+    // public Announce of a followers-only or direct post (a pre-gate boost, or
+    // an original narrowed afterwards) would otherwise serialize that post in
+    // full to everyone who can see the boost — the booster's followers, and
+    // anonymous public-timeline readers. Drop the whole entry instead.
+    if (
+      !isStatusPubliclyReadable(status.originalStatus) &&
+      !(await canActorReadStatus({
+        database,
+        status: status.originalStatus,
+        currentActor: await getViewerActor(database, currentActorId, options),
+        followerStateByActorId: options?.quoteFollowerStateByActorId
+      }))
+    ) {
+      return null
+    }
+
     const originalReblogsCount = await getStatusReblogsCount(
       database,
       status.originalStatus.id,

@@ -71,14 +71,11 @@ export const createAnnounceJob: JobHandle = createJobHandle(
       //
       // It does NOT make an Announce's target safe in general: a boost of an
       // ALREADY-STORED status never reaches here at all, because `getStatus`
-      // above resolves it and skips this whole branch. `createAnnounce` checks
-      // only that the original exists — no audience check — so a remote actor
-      // can still boost a local followers-only or direct status by naming its
-      // id directly. `createRelayAnnounceJob` gates that with `isPublicStatus`;
-      // this job has no equivalent. See AGENTS.md, "A Fetched Document's Own
-      // `id` Is Not Evidence" — it is tracked there as open, and is a
-      // pre-existing hole rather than one this guard was ever positioned to
-      // close.
+      // above resolves it and skips this whole branch. The audience check
+      // below, which runs on both arms, is what refuses a public or unlisted
+      // boost of a target that is not publicly readable. See
+      // docs/mastodon-api-compatibility.md, "A Fetched Document's Own `id` Is
+      // Not Evidence".
       //
       // The boundary is the ORIGIN, not the exact id — the same rule the quote
       // and forwarded-activity paths apply, and the tightest one that is still

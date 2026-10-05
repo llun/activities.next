@@ -460,6 +460,61 @@ describe('TimelineDatabase', () => {
           await database.deleteActor({ actorId: TEST_ID_RECEIVER })
         })
 
+        it('excludes a public boost whose original is not publicly readable', async () => {
+          // The boost is addressed `to: Public`, so the listed-public test
+          // alone admits it; the landing page then unwraps and renders the
+          // followers-only original to anonymous visitors.
+          const hiddenId = `${TEST_ID_PUBLIC}/statuses/boost-target-hidden`
+          const visibleId = `${TEST_ID_PUBLIC}/statuses/boost-target-visible`
+          await database.createNote({
+            actorId: TEST_ID_RECEIVER,
+            cc: [],
+            to: [`${TEST_ID_RECEIVER}/followers`],
+            id: hiddenId,
+            text: 'Followers-only original',
+            url: hiddenId,
+            reply: ''
+          })
+          await database.createNote({
+            actorId: TEST_ID_RECEIVER,
+            cc: [],
+            to: [ACTIVITY_STREAM_PUBLIC],
+            id: visibleId,
+            text: 'Public original',
+            url: visibleId,
+            reply: ''
+          })
+          const countBefore = await database.getLocalPublicStatusesCount(1000)
+          const hiddenBoost = await database.createAnnounce({
+            id: `${TEST_ID_PUBLIC}/statuses/boost-of-hidden`,
+            actorId: TEST_ID_PUBLIC,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [`${TEST_ID_PUBLIC}/followers`],
+            originalStatusId: hiddenId
+          })
+          const visibleBoost = await database.createAnnounce({
+            id: `${TEST_ID_PUBLIC}/statuses/boost-of-visible`,
+            actorId: TEST_ID_PUBLIC,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [`${TEST_ID_PUBLIC}/followers`],
+            originalStatusId: visibleId
+          })
+
+          const ids = (
+            await database.getTimeline({
+              timeline: Timeline.LOCAL_PUBLIC,
+              limit: 100
+            })
+          ).map((status) => status.id)
+          expect(ids).toContain(visibleBoost!.id)
+          expect(ids).not.toContain(hiddenBoost!.id)
+          // The landing count gates the same feed and must agree with it: of
+          // the two boosts, only the readable one counts.
+          expect(
+            (await database.getLocalPublicStatusesCount(1000)) - countBefore
+          ).toBe(1)
+        })
+
         it('returns all public posts from local actors', async () => {
           const statuses = await database.getTimeline({
             timeline: Timeline.LOCAL_PUBLIC
