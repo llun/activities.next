@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { StatusType } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { POST } from './route'
 
@@ -8,7 +9,8 @@ const mockSendPollVotes = vi.fn()
 const mockSyncRemotePoll = vi.fn()
 const mockDatabase = {
   getStatus: vi.fn(),
-  recordPollVotes: vi.fn()
+  recordPollVotes: vi.fn(),
+  getAcceptedOrRequestedFollow: vi.fn()
 }
 const mockCurrentActor = {
   id: 'https://local.test/users/me'
@@ -45,6 +47,9 @@ vi.mock('@/lib/services/polls/syncRemotePoll', () => ({
 const pollStatusId = 'https://remote.test/users/alice/statuses/poll-1'
 const pollStatus = {
   id: pollStatusId,
+  actorId: 'https://remote.test/users/alice',
+  to: [ACTIVITY_STREAM_PUBLIC],
+  cc: [] as string[],
   type: StatusType.enum.Poll,
   endAt: Date.now() + 60_000,
   pollType: 'oneOf',
@@ -59,6 +64,7 @@ describe('POST /api/v1/accounts/vote', () => {
     vi.clearAllMocks()
     mockDatabase.getStatus.mockResolvedValue(pollStatus)
     mockDatabase.recordPollVotes.mockResolvedValue(true)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
     mockSyncRemotePoll.mockImplementation(({ status }) => status)
   })
 
@@ -149,5 +155,34 @@ describe('POST /api/v1/accounts/vote', () => {
     )
 
     expect(response.status).toBe(404)
+  })
+
+  it.each([
+    [
+      'a followers-only poll the voter does not follow',
+      { to: ['https://remote.test/users/alice/followers'], cc: [] }
+    ],
+    [
+      'a direct poll not addressed to the voter',
+      { to: ['https://remote.test/users/bob'], cc: [] }
+    ]
+  ])('answers 404 and records nothing for %s', async (_, audience) => {
+    mockDatabase.getStatus.mockResolvedValueOnce({
+      ...pollStatus,
+      ...audience
+    })
+
+    const response = await POST(
+      new NextRequest('https://local.test/api/v1/accounts/vote', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ statusId: pollStatusId, choices: [0] })
+      }),
+      { params: Promise.resolve({}) }
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockDatabase.recordPollVotes).not.toHaveBeenCalled()
+    expect(mockSendPollVotes).not.toHaveBeenCalled()
   })
 })
