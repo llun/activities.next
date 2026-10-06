@@ -297,10 +297,10 @@ describe('fetchRemoteStatusJob', () => {
     it('stores the reply embedded in an inlined first page', async () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/single-inline-object`
       const REPLY_ID = `${STATUS_ID}/reply`
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         if (req.url === STATUS_ID) {
-          return JSON.stringify(
+          return activityJson(
             mainNote(STATUS_ID, {
               id: `${STATUS_ID}/replies`,
               type: 'Collection',
@@ -311,7 +311,7 @@ describe('fetchRemoteStatusJob', () => {
             })
           )
         }
-        return JSON.stringify({})
+        return activityJson({})
       })
 
       await runJob(STATUS_ID)
@@ -324,13 +324,13 @@ describe('fetchRemoteStatusJob', () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/single-fetched-ordered-object`
       const REPLIES_ID = `${STATUS_ID}/replies`
       const REPLY_ID = `${STATUS_ID}/reply`
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         if (req.url === STATUS_ID) {
-          return JSON.stringify(mainNote(STATUS_ID, REPLIES_ID))
+          return activityJson(mainNote(STATUS_ID, REPLIES_ID))
         }
         if (req.url === REPLIES_ID) {
-          return JSON.stringify({
+          return activityJson({
             id: REPLIES_ID,
             type: 'OrderedCollection',
             first: {
@@ -339,7 +339,7 @@ describe('fetchRemoteStatusJob', () => {
             }
           })
         }
-        return JSON.stringify({})
+        return activityJson({})
       })
 
       await runJob(STATUS_ID)
@@ -351,10 +351,10 @@ describe('fetchRemoteStatusJob', () => {
     it('fetches the reply named by id in an inlined first page', async () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/single-inline-id`
       const REPLY_ID = `${STATUS_ID}/reply`
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         if (req.url === STATUS_ID) {
-          return JSON.stringify(
+          return activityJson(
             mainNote(STATUS_ID, {
               id: `${STATUS_ID}/replies`,
               type: 'Collection',
@@ -366,9 +366,9 @@ describe('fetchRemoteStatusJob', () => {
           )
         }
         if (req.url === REPLY_ID) {
-          return JSON.stringify(replyNote(REPLY_ID, STATUS_ID))
+          return activityJson(replyNote(REPLY_ID, STATUS_ID))
         }
-        return JSON.stringify({})
+        return activityJson({})
       })
 
       await runJob(STATUS_ID)
@@ -381,13 +381,13 @@ describe('fetchRemoteStatusJob', () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/single-fetched-object`
       const REPLIES_ID = `${STATUS_ID}/replies`
       const REPLY_ID = `${STATUS_ID}/reply`
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         if (req.url === STATUS_ID) {
-          return JSON.stringify(mainNote(STATUS_ID, REPLIES_ID))
+          return activityJson(mainNote(STATUS_ID, REPLIES_ID))
         }
         if (req.url === REPLIES_ID) {
-          return JSON.stringify({
+          return activityJson({
             id: REPLIES_ID,
             type: 'Collection',
             first: {
@@ -396,7 +396,7 @@ describe('fetchRemoteStatusJob', () => {
             }
           })
         }
-        return JSON.stringify({})
+        return activityJson({})
       })
 
       await runJob(STATUS_ID)

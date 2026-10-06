@@ -907,6 +907,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${actorId}/outbox`,
             type: 'OrderedCollection',
@@ -921,6 +922,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox?page=true`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${actorId}/outbox?page=true`,
             type: 'OrderedCollectionPage',
