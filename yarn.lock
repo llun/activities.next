@@ -3763,7 +3763,7 @@ __metadata:
     knex: "npm:^3.3.0"
     lint-staged: "npm:^17.6.0"
     lodash: "npm:^4.18.1"
-    lucide-react: "npm:1.50.0"
+    lucide-react: "npm:1.51.0"
     marked: "npm:^18.0.14"
     mime-types: "npm:^3.0.2"
     next: "npm:16.3.8"
@@ -5854,16 +5854,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:1.50.0":
-  version: 1.50.0
-  resolution: "lucide-react@npm:1.50.0"
+"lucide-react@npm:1.51.0":
+  version: 1.51.0
+  resolution: "lucide-react@npm:1.51.0"
   peerDependencies:
     "@types/react": "*"
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
   peerDependenciesMeta:
     "@types/react":
       optional: true
-  checksum: 10c0/c00d4a8e4726c560db2d2e0c3bf1150ce29580c16445d68ffd283469b77d85ef795c602ad30ed6b64043e92008ff9899d9271d7ee1d804af6a1d16e972fcc818
+  checksum: 10c0/d7a6e5d8b39e31d2fb9e735dda08a080c7ebb05138e176218bec8509a242e3c47a1bf3fafbf66ba68d21ede7a9d931521779321b705612f656649c0ab0ddb764
   languageName: node
   linkType: hard
 
