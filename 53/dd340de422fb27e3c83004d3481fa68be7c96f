@@ -1,0 +1,21 @@
+lib/services/guards/getSenderPublicKey.test.ts
+  s_5f19c1e3f0217b::t_6f17df5c5cefe9 427
+docs/mastodon-api-compatibility.md
+  s_5f19c1e3f0217b::t_6f17df5c5cefe9 640
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "53dd340de422fb27e3c83004d3481fa68be7c96f",
+  "prompts": {},
+  "sessions": {
+    "s_5f19c1e3f0217b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "84540f53-e3dd-4ffb-9f9d-a30e79ccf14e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Maythee Anegboonlap <contact@llun.dev>"
+    }
+  }
+}
