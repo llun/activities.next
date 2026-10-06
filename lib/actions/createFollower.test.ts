@@ -1,6 +1,9 @@
+import fetchMock from 'jest-fetch-mock'
+
 import { createFollower } from '@/lib/actions/createFollower'
 import { acceptFollow } from '@/lib/activities'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { mockRequests } from '@/lib/stub/activities'
 import { testUserId } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockFollowRequest } from '@/lib/stub/followRequest'
@@ -27,6 +30,12 @@ describe('createFollower', () => {
 
   afterAll(async () => {
     await database.destroy()
+  })
+
+  beforeEach(() => {
+    // Recording a new follower asks the follower's host for its WebFinger.
+    fetchMock.resetMocks()
+    mockRequests(fetchMock)
   })
 
   afterEach(() => {

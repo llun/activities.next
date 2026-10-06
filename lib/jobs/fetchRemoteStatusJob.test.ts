@@ -1,4 +1,7 @@
-import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+import fetchMock, {
+  MockResponseInitFunction,
+  enableFetchMocks
+} from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
@@ -7,6 +10,7 @@ import {
   fetchRemoteStatusJob
 } from '@/lib/jobs/fetchRemoteStatusJob'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
+import { ACTIVITY_JSON_HEADERS, JRD_JSON_HEADERS } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -18,6 +22,42 @@ const REMOTE_ACTOR_ID = 'https://mastodon.social/users/testUser'
 const REMOTE_STATUS_ID =
   'https://mastodon.social/users/testUser/statuses/123456789'
 const PUBLIC_STREAM = 'https://www.w3.org/ns/activitystreams#Public'
+
+// Remote servers label ActivityPub documents; the fetches refuse anything else.
+const activityJson = (document: unknown) => ({
+  status: 200,
+  body: JSON.stringify(document),
+  headers: ACTIVITY_JSON_HEADERS
+})
+
+// A new remote actor row needs its host's WebFinger to confirm the handle, so
+// every remote server below answers it for the `/users/<name>` actor ids used
+// here before handing the request to the test's own routes.
+const mockRemoteServers = (routes: MockResponseInitFunction) =>
+  fetchMock.mockResponse(async (req) => {
+    const url = new URL(req.url)
+    if (url.pathname === '/.well-known/webfinger') {
+      const account = (url.searchParams.get('resource') ?? '').slice(
+        'acct:'.length
+      )
+      const [username] = account.split('@')
+      return {
+        status: 200,
+        body: JSON.stringify({
+          subject: `acct:${account}`,
+          links: [
+            {
+              rel: 'self',
+              type: 'application/activity+json',
+              href: `https://${url.host}/users/${username}`
+            }
+          ]
+        }),
+        headers: JRD_JSON_HEADERS
+      }
+    }
+    return routes(req)
+  })
 
 const MOCK_ACTOR = {
   id: REMOTE_ACTOR_ID,
@@ -57,10 +97,10 @@ describe('fetchRemoteStatusJob', () => {
 
   it('fetches and saves a remote public status', async () => {
     const STATUS_ID = `${REMOTE_STATUS_ID}/1`
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+    mockRemoteServers(async (req) => {
+      if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: STATUS_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -70,7 +110,7 @@ describe('fetchRemoteStatusJob', () => {
           published: new Date().toISOString()
         })
       }
-      return JSON.stringify({})
+      return activityJson({})
     })
 
     await fetchRemoteStatusJob(database, {
@@ -90,10 +130,10 @@ describe('fetchRemoteStatusJob', () => {
 
   it('ignores non-public status', async () => {
     const STATUS_ID = `${REMOTE_STATUS_ID}/2`
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+    mockRemoteServers(async (req) => {
+      if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: STATUS_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -103,7 +143,7 @@ describe('fetchRemoteStatusJob', () => {
           published: new Date().toISOString()
         })
       }
-      return JSON.stringify({})
+      return activityJson({})
     })
 
     await fetchRemoteStatusJob(database, {
@@ -120,10 +160,10 @@ describe('fetchRemoteStatusJob', () => {
     const STATUS_ID = `${REMOTE_STATUS_ID}/3`
     const PARENT_ID = 'https://mastodon.social/users/testUser/statuses/parent'
 
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+    mockRemoteServers(async (req) => {
+      if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: STATUS_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -134,7 +174,7 @@ describe('fetchRemoteStatusJob', () => {
         })
       }
       if (req.url === PARENT_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: PARENT_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -143,7 +183,7 @@ describe('fetchRemoteStatusJob', () => {
           published: new Date().toISOString()
         })
       }
-      return JSON.stringify({})
+      return activityJson({})
     })
 
     await fetchRemoteStatusJob(database, {
@@ -168,10 +208,10 @@ describe('fetchRemoteStatusJob', () => {
     const REPLY_ITEM_ID =
       'https://mastodon.social/users/otherUser/statuses/reply1'
 
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+    mockRemoteServers(async (req) => {
+      if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: STATUS_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -182,7 +222,7 @@ describe('fetchRemoteStatusJob', () => {
         })
       }
       if (req.url === REPLIES_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: REPLIES_ID,
           type: 'Collection',
           first: {
@@ -192,7 +232,7 @@ describe('fetchRemoteStatusJob', () => {
         })
       }
       if (req.url === REPLY_ITEM_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: REPLY_ITEM_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -203,7 +243,7 @@ describe('fetchRemoteStatusJob', () => {
           published: new Date().toISOString()
         })
       }
-      return JSON.stringify({})
+      return activityJson({})
     })
 
     await fetchRemoteStatusJob(database, {
@@ -374,10 +414,10 @@ describe('fetchRemoteStatusJob', () => {
     const GRANDCHILD_ID =
       'https://mastodon.social/users/otherUser/statuses/grandchild'
 
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+    mockRemoteServers(async (req) => {
+      if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: STATUS_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -388,14 +428,14 @@ describe('fetchRemoteStatusJob', () => {
         })
       }
       if (req.url === REPLIES_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: REPLIES_ID,
           type: 'Collection',
           first: { type: 'CollectionPage', items: [CHILD_ID] }
         })
       }
       if (req.url === CHILD_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: CHILD_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -408,14 +448,14 @@ describe('fetchRemoteStatusJob', () => {
         })
       }
       if (req.url === CHILD_REPLIES_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: CHILD_REPLIES_ID,
           type: 'Collection',
           first: { type: 'CollectionPage', items: [GRANDCHILD_ID] }
         })
       }
       if (req.url === GRANDCHILD_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: GRANDCHILD_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -426,7 +466,7 @@ describe('fetchRemoteStatusJob', () => {
           published: new Date().toISOString()
         })
       }
-      return JSON.stringify({})
+      return activityJson({})
     })
 
     await fetchRemoteStatusJob(database, {
@@ -455,10 +495,10 @@ describe('fetchRemoteStatusJob', () => {
     const GRANDCHILD_ID =
       'https://mastodon.social/users/otherUser/statuses/fp-grandchild'
 
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+    mockRemoteServers(async (req) => {
+      if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: STATUS_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -469,14 +509,14 @@ describe('fetchRemoteStatusJob', () => {
         })
       }
       if (req.url === REPLIES_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: REPLIES_ID,
           type: 'Collection',
           first: { type: 'CollectionPage', items: [CHILD_ID] }
         })
       }
       if (req.url === CHILD_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: CHILD_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -489,14 +529,14 @@ describe('fetchRemoteStatusJob', () => {
         })
       }
       if (req.url === CHILD_REPLIES_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: CHILD_REPLIES_ID,
           type: 'Collection',
           first: { type: 'CollectionPage', items: [GRANDCHILD_ID] }
         })
       }
       if (req.url === GRANDCHILD_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: GRANDCHILD_ID,
           type: 'Note',
           attributedTo: REMOTE_ACTOR_ID,
@@ -507,7 +547,7 @@ describe('fetchRemoteStatusJob', () => {
           published: new Date().toISOString()
         })
       }
-      return JSON.stringify({})
+      return activityJson({})
     })
 
     await fetchRemoteStatusJob(database, {
@@ -553,13 +593,13 @@ describe('fetchRemoteStatusJob', () => {
       const items = itemUrls('junk-cap', INLINE_MAX_REPLY_ITEMS * 10)
       const fetchedItems: string[] = []
 
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         if (req.url === STATUS_ID) {
-          return JSON.stringify(rootNote(STATUS_ID, REPLIES_ID))
+          return activityJson(rootNote(STATUS_ID, REPLIES_ID))
         }
         if (req.url === REPLIES_ID) {
-          return JSON.stringify({
+          return activityJson({
             id: REPLIES_ID,
             type: 'Collection',
             first: { type: 'CollectionPage', items }
@@ -587,13 +627,13 @@ describe('fetchRemoteStatusJob', () => {
       const items = itemUrls('junk-queued', INLINE_MAX_REPLY_ITEMS * 2)
       const fetchedItems = new Set<string>()
 
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         if (req.url === STATUS_ID) {
-          return JSON.stringify(rootNote(STATUS_ID, REPLIES_ID))
+          return activityJson(rootNote(STATUS_ID, REPLIES_ID))
         }
         if (req.url === REPLIES_ID) {
-          return JSON.stringify({
+          return activityJson({
             id: REPLIES_ID,
             type: 'Collection',
             first: { type: 'CollectionPage', items }
@@ -618,13 +658,13 @@ describe('fetchRemoteStatusJob', () => {
       const items = itemUrls('stalled', 3)
       const fetchedItems: string[] = []
 
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         if (req.url === STATUS_ID) {
-          return JSON.stringify(rootNote(STATUS_ID, REPLIES_ID))
+          return activityJson(rootNote(STATUS_ID, REPLIES_ID))
         }
         if (req.url === REPLIES_ID) {
-          return JSON.stringify({
+          return activityJson({
             id: REPLIES_ID,
             type: 'Collection',
             first: { type: 'CollectionPage', items }
@@ -667,7 +707,7 @@ describe('fetchRemoteStatusJob', () => {
       'https://mastodon.social/users/otherUser/statuses/signed-reply'
     const signedFetches: string[] = []
 
-    fetchMock.mockResponse(async (req) => {
+    mockRemoteServers(async (req) => {
       if (
         req.url === STATUS_ID ||
         req.url === REMOTE_SIGNED_ACTOR_ID ||
@@ -681,7 +721,7 @@ describe('fetchRemoteStatusJob', () => {
       }
 
       if (req.url === REMOTE_SIGNED_ACTOR_ID) {
-        return JSON.stringify({
+        return activityJson({
           ...MOCK_ACTOR,
           id: REMOTE_SIGNED_ACTOR_ID,
           preferredUsername: 'signedFetchUser',
@@ -695,7 +735,7 @@ describe('fetchRemoteStatusJob', () => {
         })
       }
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: STATUS_ID,
           type: 'Note',
           attributedTo: REMOTE_SIGNED_ACTOR_ID,
@@ -706,7 +746,7 @@ describe('fetchRemoteStatusJob', () => {
         })
       }
       if (req.url === REPLIES_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: REPLIES_ID,
           type: 'Collection',
           first: {
@@ -716,7 +756,7 @@ describe('fetchRemoteStatusJob', () => {
         })
       }
       if (req.url === REPLY_ITEM_ID) {
-        return JSON.stringify({
+        return activityJson({
           id: REPLY_ITEM_ID,
           type: 'Note',
           attributedTo: REMOTE_SIGNED_ACTOR_ID,
@@ -727,7 +767,7 @@ describe('fetchRemoteStatusJob', () => {
           published: new Date().toISOString()
         })
       }
-      return JSON.stringify({})
+      return activityJson({})
     })
 
     await fetchRemoteStatusJob(database, {
@@ -772,14 +812,14 @@ describe('fetchRemoteStatusJob', () => {
     it('does not store a fetched note that names an id on another origin', async () => {
       const requestedId = `${ATTACKER_ORIGIN}/notes/1`
       const forgedId = `${REMOTE_STATUS_ID}/planted`
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         if (req.url === requestedId) {
-          return JSON.stringify(
+          return activityJson(
             publicNote({ id: forgedId, attributedTo: REMOTE_ACTOR_ID })
           )
         }
-        return JSON.stringify({})
+        return activityJson({})
       })
 
       await runJob(requestedId)
@@ -789,14 +829,14 @@ describe('fetchRemoteStatusJob', () => {
 
     it('does not store a fetched note attributed to an actor on another origin', async () => {
       const requestedId = `${ATTACKER_ORIGIN}/notes/2`
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         if (req.url === requestedId) {
-          return JSON.stringify(
+          return activityJson(
             publicNote({ id: requestedId, attributedTo: REMOTE_ACTOR_ID })
           )
         }
-        return JSON.stringify({})
+        return activityJson({})
       })
 
       await runJob(requestedId)
@@ -811,10 +851,10 @@ describe('fetchRemoteStatusJob', () => {
       const CHANNEL_ID = 'https://mastodon.social/video-channels/channel'
 
       const mockNote = (statusId: string, attributedTo: unknown) =>
-        fetchMock.mockResponse(async (req) => {
-          if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+        mockRemoteServers(async (req) => {
+          if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
           if (req.url === VICTIM_ACTOR_ID) {
-            return JSON.stringify({
+            return activityJson({
               ...MOCK_ACTOR,
               id: VICTIM_ACTOR_ID,
               preferredUsername: 'victim',
@@ -828,9 +868,9 @@ describe('fetchRemoteStatusJob', () => {
             })
           }
           if (req.url === statusId) {
-            return JSON.stringify(publicNote({ id: statusId, attributedTo }))
+            return activityJson(publicNote({ id: statusId, attributedTo }))
           }
-          return JSON.stringify({})
+          return activityJson({})
         })
 
       it('stores a note whose same-origin author is an embedded object', async () => {
@@ -878,16 +918,16 @@ describe('fetchRemoteStatusJob', () => {
     it('stores a note whose author is a same-origin alias under the recorded id', async () => {
       const statusId = `${REMOTE_STATUS_ID}/alias-author`
       const aliasActorId = 'https://mastodon.social/@testUser'
-      fetchMock.mockResponse(async (req) => {
+      mockRemoteServers(async (req) => {
         if (req.url === REMOTE_ACTOR_ID || req.url === aliasActorId) {
-          return JSON.stringify(MOCK_ACTOR)
+          return activityJson(MOCK_ACTOR)
         }
         if (req.url === statusId) {
-          return JSON.stringify(
+          return activityJson(
             publicNote({ id: statusId, attributedTo: aliasActorId })
           )
         }
-        return JSON.stringify({})
+        return activityJson({})
       })
 
       await runJob(statusId)
@@ -903,12 +943,12 @@ describe('fetchRemoteStatusJob', () => {
       const statusId = `${REMOTE_STATUS_ID}/alias-reply-parent`
       const replyId = `${REMOTE_STATUS_ID}/alias-reply`
       const aliasActorId = 'https://mastodon.social/@testUser'
-      fetchMock.mockResponse(async (req) => {
+      mockRemoteServers(async (req) => {
         if (req.url === REMOTE_ACTOR_ID || req.url === aliasActorId) {
-          return JSON.stringify(MOCK_ACTOR)
+          return activityJson(MOCK_ACTOR)
         }
         if (req.url === statusId) {
-          return JSON.stringify(
+          return activityJson(
             publicNote({
               id: statusId,
               attributedTo: REMOTE_ACTOR_ID,
@@ -936,7 +976,7 @@ describe('fetchRemoteStatusJob', () => {
             })
           )
         }
-        return JSON.stringify({})
+        return activityJson({})
       })
 
       await runJob(statusId)
@@ -951,12 +991,12 @@ describe('fetchRemoteStatusJob', () => {
       const forgedOtherHostId = 'https://victim.example/users/victim/statuses/1'
       const forgedAuthorId = `${REMOTE_STATUS_ID}/forged-author`
       const genuineReplyId = `${REMOTE_STATUS_ID}/genuine-reply`
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
         // The victim is a real, resolvable actor: only the origin binding
         // stands between the page and a status stored under their name.
         if (req.url === VICTIM_ACTOR_ID) {
-          return JSON.stringify({
+          return activityJson({
             ...MOCK_ACTOR,
             id: VICTIM_ACTOR_ID,
             preferredUsername: 'victim',
@@ -970,7 +1010,7 @@ describe('fetchRemoteStatusJob', () => {
           })
         }
         if (req.url === STATUS_ID) {
-          return JSON.stringify(
+          return activityJson(
             publicNote({
               id: STATUS_ID,
               attributedTo: REMOTE_ACTOR_ID,
@@ -1003,7 +1043,7 @@ describe('fetchRemoteStatusJob', () => {
             })
           )
         }
-        return JSON.stringify({})
+        return activityJson({})
       })
 
       await runJob(STATUS_ID)
@@ -1016,5 +1056,156 @@ describe('fetchRemoteStatusJob', () => {
         await database.getStatus({ statusId: genuineReplyId })
       ).not.toBeNull()
     })
+  })
+
+  describe('content type gate', () => {
+    // A user upload on a remote instance's own domain can serve any JSON body
+    // under a type the uploader picks, but never an ActivityPub one. Each
+    // document the job reads (the requested note, its parent, the replies
+    // collection, a reply item) is refused unless it is labelled ActivityPub.
+    // The thread below is the one 'fetches parent status recursively' and
+    // 'fetches replies collection' serve with ACTIVITY_JSON_HEADERS, and the
+    // control test here stores every part of it.
+    type Document = 'note' | 'parent' | 'collection' | 'item'
+
+    const runThread = async (tag: string, wrongType?: [Document, string]) => {
+      const statusId = `${REMOTE_STATUS_ID}/gate-${tag}`
+      const parentId = `${statusId}/parent`
+      const repliesId = `${statusId}/replies`
+      const itemId = `https://mastodon.social/users/otherUser/statuses/gate-${tag}`
+      const respond = (document: Document, body: unknown) =>
+        wrongType?.[0] === document
+          ? {
+              status: 200,
+              body: JSON.stringify(body),
+              headers: { 'content-type': wrongType[1] }
+            }
+          : activityJson(body)
+
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === statusId) {
+          return respond('note', {
+            id: statusId,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Main Post',
+            inReplyTo: parentId,
+            to: [PUBLIC_STREAM],
+            replies: repliesId,
+            published: new Date().toISOString()
+          })
+        }
+        if (req.url === parentId) {
+          return respond('parent', {
+            id: parentId,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Parent',
+            to: [PUBLIC_STREAM],
+            published: new Date().toISOString()
+          })
+        }
+        if (req.url === repliesId) {
+          return respond('collection', {
+            id: repliesId,
+            type: 'Collection',
+            first: { type: 'CollectionPage', items: [itemId] }
+          })
+        }
+        if (req.url === itemId) {
+          return respond('item', {
+            id: itemId,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'A reply',
+            inReplyTo: statusId,
+            to: [PUBLIC_STREAM],
+            cc: [],
+            published: new Date().toISOString()
+          })
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId }
+      })
+
+      return {
+        note: await database.getStatus({ statusId }),
+        parent: await database.getStatus({ statusId: parentId }),
+        item: await database.getStatus({ statusId: itemId })
+      }
+    }
+
+    const wrongTypes = [
+      'application/json',
+      'application/octet-stream',
+      'text/plain'
+    ]
+
+    it('stores the note, its parent and its reply when all are labelled ActivityPub', async () => {
+      const stored = await runThread('control')
+
+      expect(stored.note).not.toBeNull()
+      expect(stored.parent).not.toBeNull()
+      expect(stored.item).not.toBeNull()
+    })
+
+    it.each(wrongTypes)(
+      'does not store a requested note served as %s',
+      async (contentType) => {
+        const stored = await runThread(
+          `note-${wrongTypes.indexOf(contentType)}`,
+          ['note', contentType]
+        )
+
+        expect(stored.note).toBeNull()
+        expect(stored.parent).toBeNull()
+        expect(stored.item).toBeNull()
+      }
+    )
+
+    it.each(wrongTypes)(
+      'does not store a parent served as %s',
+      async (contentType) => {
+        const stored = await runThread(
+          `parent-${wrongTypes.indexOf(contentType)}`,
+          ['parent', contentType]
+        )
+
+        expect(stored.note).not.toBeNull()
+        expect(stored.parent).toBeNull()
+      }
+    )
+
+    it.each(wrongTypes)(
+      'does not walk a replies collection served as %s',
+      async (contentType) => {
+        const stored = await runThread(
+          `collection-${wrongTypes.indexOf(contentType)}`,
+          ['collection', contentType]
+        )
+
+        expect(stored.note).not.toBeNull()
+        expect(stored.item).toBeNull()
+      }
+    )
+
+    it.each(wrongTypes)(
+      'does not store a reply item served as %s',
+      async (contentType) => {
+        const stored = await runThread(
+          `item-${wrongTypes.indexOf(contentType)}`,
+          ['item', contentType]
+        )
+
+        expect(stored.note).not.toBeNull()
+        expect(stored.item).toBeNull()
+      }
+    )
   })
 })

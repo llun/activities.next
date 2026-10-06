@@ -4,7 +4,7 @@ import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createAnnounceJob } from '@/lib/jobs/createAnnounceJob'
 import { CREATE_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockAnnounceStatus } from '@/lib/stub/announce'
 import { seedDatabase } from '@/lib/stub/database'
 import { stubNoteId } from '@/lib/stub/note'
@@ -229,7 +229,8 @@ describe('Announce action', () => {
             replies: { type: 'Collection', totalItems: 20 }
           }
         ]
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createAnnounceJob(database, {
@@ -284,7 +285,8 @@ describe('Announce action', () => {
         published: '2026-08-30T04:27:44Z',
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await expect(
@@ -342,7 +344,8 @@ describe('Announce action', () => {
         published: '2026-08-30T04:27:44Z',
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await expect(
@@ -389,7 +392,8 @@ describe('Announce action', () => {
         published: '2026-08-30T04:27:44Z',
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createAnnounceJob(database, {
@@ -453,7 +457,8 @@ describe('Announce action', () => {
           published: '2026-08-30T04:27:44Z',
           to: ['https://www.w3.org/ns/activitystreams#Public'],
           cc: []
-        })
+        }),
+        { headers: ACTIVITY_JSON_HEADERS }
       )
 
       await createAnnounceJob(database, {
@@ -497,7 +502,8 @@ describe('Announce action', () => {
         published: '2026-08-30T04:27:44Z',
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createAnnounceJob(database, {
@@ -541,7 +547,8 @@ describe('Announce action', () => {
         published: '2026-08-30T04:27:44Z',
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createAnnounceJob(database, {
@@ -584,7 +591,8 @@ describe('Announce action', () => {
         published: '2026-08-30T04:27:44Z',
         to: ['https://www.w3.org/ns/activitystreams#Public'],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createAnnounceJob(database, {
@@ -757,7 +765,8 @@ describe('Announce action', () => {
         published: '2026-08-30T04:27:44Z',
         to: ['https://somewhere.test/actors/friend/followers'],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createAnnounceJob(database, {

@@ -6,6 +6,7 @@ import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCou
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
+import { isActorHandleConfirmed } from '@/lib/activities/isActorHandleConfirmed'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
@@ -255,6 +256,20 @@ export const getProfileData = async (
       person,
       ...signingParams
     })
+  }
+  // A new row fixes `username@domain` for good, and the `self` link above came
+  // from the handle's domain, which need not be the actor's: a hostile
+  // `@x@evil.example` can point it at any URL on any host. The host the row is
+  // stored under must confirm the handle itself before the row exists.
+  if (
+    persistablePerson &&
+    !storedActor &&
+    !(await isActorHandleConfirmed({
+      actorId: persistablePerson.id,
+      username: persistablePerson.preferredUsername
+    }))
+  ) {
+    persistablePerson = null
   }
   if (persistablePerson && storedActor) {
     // Same field set recordActorIfNeeded persists, so the web profile page

@@ -1,3 +1,5 @@
+import fetchMock from 'jest-fetch-mock'
+
 import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
@@ -10,6 +12,7 @@ import {
   isPeerTubeActor,
   isPixelfedActor
 } from '@/lib/services/federation/serverSoftware'
+import { mockRequests } from '@/lib/stub/activities'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -111,6 +114,11 @@ describe('getProfileData', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Creating a newly discovered remote actor asks the actor's host for its
+    // WebFinger (`isActorHandleConfirmed`); the stub confirms
+    // `<name>@<host>` -> `https://<host>/users/<name>`.
+    fetchMock.resetMocks()
+    mockRequests(fetchMock)
     // `canFederateWithDomain` comes from an auto-mocked module (a vi.mock-factory
     // fn), so it is not reset by restoreAllMocks — set its default explicitly.
     // Default to allowed so the existing remote-branch tests are unaffected.

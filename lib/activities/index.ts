@@ -3,6 +3,7 @@ import crypto from 'crypto'
 
 import { AcceptFollow } from '@/lib/activities/acceptFollow'
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { BlockRequest } from '@/lib/activities/blockAction'
 import { CreateStatus } from '@/lib/activities/createStatus'
@@ -128,7 +129,7 @@ export const getNote = async ({
 }: GetNoteParams): Promise<BaseNote | null> =>
   withSpan('activity', 'getNote', { statusId }, async (span) => {
     try {
-      const { statusCode, body } = await request({
+      const response = await request({
         url: statusId,
         // Callers authenticate the note by the origin it was fetched from:
         // the paths that store it check its `id` against `statusId`, and its
@@ -143,10 +144,10 @@ export const getNote = async ({
           signingActor
         })
       })
-      if (statusCode !== 200) return null
+      if (!isActivityPubDocumentResponse(response, statusId)) return null
       // Canonicalise the fetched note via JSON-LD compaction so every caller
       // (including boosted-note resolution) gets a predictable shape.
-      return compactActivityPub(JSON.parse(body))
+      return compactActivityPub(JSON.parse(response.body))
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException
       if (nodeError.code === 'ETIMEDOUT') {

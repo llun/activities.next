@@ -1,4 +1,5 @@
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { BaseNote, getQuoteTargetId } from '@/lib/activities/note'
 import { QuoteAuthorization } from '@/lib/activities/quoteRequest'
@@ -80,7 +81,7 @@ const fetchQuoteAuthorization = async (
 ): Promise<QuoteAuthorization | null> => {
   try {
     const signingActor = await getFederationSigningActor(database)
-    const { statusCode, body } = await request({
+    const response = await request({
       url: stampUri,
       // The stamp is trusted because the quoted author's origin served it; a
       // hop onto another host would let that host issue the approval.
@@ -91,8 +92,8 @@ const fetchQuoteAuthorization = async (
         accept: 'application/activity+json'
       })
     })
-    if (statusCode !== 200) return null
-    const compacted = await compactActivityPub(JSON.parse(body))
+    if (!isActivityPubDocumentResponse(response, stampUri)) return null
+    const compacted = await compactActivityPub(JSON.parse(response.body))
     const parsed = QuoteAuthorization.safeParse(compacted)
     return parsed.success ? parsed.data : null
   } catch (error) {

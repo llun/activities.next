@@ -19,234 +19,265 @@ type FetchMockCalls = {
   }
 }
 
+type MockResponse = {
+  status: number
+  body?: string
+  headers?: Record<string, string>
+}
+
+// What Mastodon labels an ActivityPub document with. ActivityPub fetches
+// refuse a body without an ActivityPub media type (see
+// `isActivityPubDocumentResponse`), so a fetch mock serving one sets this.
+export const ACTIVITY_JSON_HEADERS = {
+  'content-type': 'application/activity+json; charset=utf-8'
+}
+
+export const JRD_JSON_HEADERS = {
+  'content-type': 'application/jrd+json; charset=utf-8'
+}
+
+// Real servers label what they serve, so every successful GET below carries
+// the type its path stands for.
+const withContentType = (url: URL, response: MockResponse): MockResponse => {
+  if (response.status !== 200 || response.headers) return response
+  return {
+    ...response,
+    headers:
+      url.pathname === '/.well-known/webfinger'
+        ? JRD_JSON_HEADERS
+        : ACTIVITY_JSON_HEADERS
+  }
+}
+
 export const mockRequests = (fetchMock: FetchMock) => {
   fetchMock.mockResponse(async (req) => {
     const url = new URL(req.url)
-    if (req.method === 'GET') {
-      if (url.pathname === '/.well-known/webfinger') {
-        const account =
-          url.searchParams.get('resource')?.slice('acct:'.length) || ''
-        const username = account.split('@').shift()
-        if (username === 'notexist') {
-          return {
-            status: 404
-          }
-        }
+    return withContentType(url, respondToMockRequest(req, url))
+  })
+}
 
-        const userUrl =
-          url.hostname === 'somewhere.test'
-            ? `https://${url.hostname}/actors/${username}`
-            : `https://${url.hostname}/users/${username}`
+const respondToMockRequest = (req: Request, url: URL): MockResponse => {
+  if (req.method === 'GET') {
+    if (url.pathname === '/.well-known/webfinger') {
+      const account =
+        url.searchParams.get('resource')?.slice('acct:'.length) || ''
+      const username = account.split('@').shift()
+      if (username === 'notexist') {
         return {
-          status: 200,
-          body: JSON.stringify(
-            MockWebfinger({
-              account,
-              userUrl
-            })
-          )
+          status: 404
         }
       }
 
-      if (url.pathname.includes('/inbox')) {
-        return {
-          status: 202,
-          body: ''
-        }
+      const userUrl =
+        url.hostname === 'somewhere.test'
+          ? `https://${url.hostname}/actors/${username}`
+          : `https://${url.hostname}/users/${username}`
+      return {
+        status: 200,
+        body: JSON.stringify(
+          MockWebfinger({
+            account,
+            userUrl
+          })
+        )
       }
+    }
 
-      // llun.test domain
-      if (url.pathname.includes('/statuses')) {
-        const from = req.url.slice(0, req.url.indexOf('/statuses'))
+    if (url.pathname.includes('/inbox')) {
+      return {
+        status: 202,
+        body: ''
+      }
+    }
 
-        if (url.pathname.endsWith('-attachments')) {
-          return {
-            status: 200,
-            body: JSON.stringify(
-              MockMastodonActivityPubNote({
-                id: req.url,
-                from,
-                content: 'This is status with attachments',
-                withContext: true,
-                documents: [
-                  MockImageDocument({
-                    url: 'https://llun.test/images/test1.jpg'
-                  }),
-                  MockImageDocument({
-                    url: 'https://llun.test/images/test2.jpg',
-                    name: 'Second image'
-                  })
-                ]
-              })
-            )
-          }
-        }
+    // llun.test domain
+    if (url.pathname.includes('/statuses')) {
+      const from = req.url.slice(0, req.url.indexOf('/statuses'))
 
+      if (url.pathname.endsWith('-attachments')) {
         return {
           status: 200,
           body: JSON.stringify(
             MockMastodonActivityPubNote({
               id: req.url,
               from,
-              content: 'This is status',
-              withContext: true
+              content: 'This is status with attachments',
+              withContext: true,
+              documents: [
+                MockImageDocument({
+                  url: 'https://llun.test/images/test1.jpg'
+                }),
+                MockImageDocument({
+                  url: 'https://llun.test/images/test2.jpg',
+                  name: 'Second image'
+                })
+              ]
             })
-          )
-        }
-      }
-
-      // somewhere.test domain e.g. https://somewhere.test/actors/{username}/lp/{status-id}
-      if (url.pathname.includes('/lp/')) {
-        const from = req.url.slice(0, req.url.indexOf('/lp/'))
-        return {
-          status: 200,
-          body: JSON.stringify(
-            MockLitepubNote({
-              id: req.url,
-              from,
-              content: 'This is litepub status',
-              withContext: true
-            })
-          )
-        }
-      }
-
-      // somewhere.test domain e.g. https://somewhere.test/s/{username}/{status-id}
-      if (url.pathname.startsWith('/s')) {
-        const [, username] = url.pathname.slice(1).split('/')
-        return {
-          status: 200,
-          body: JSON.stringify(
-            MockMastodonActivityPubNote({
-              id: req.url,
-              from: `https://${url.hostname}/actors/${username}`,
-              content: 'This is status',
-              withContext: true
-            })
-          )
-        }
-      }
-
-      // Mock Person outbox
-      if (
-        url.pathname.startsWith('/users') &&
-        url.pathname.includes('/outbox')
-      ) {
-        const [, username] = url.pathname.slice(1).split('/')
-        if (url.searchParams.has('page')) {
-          return {
-            status: 200,
-            body: JSON.stringify(
-              MockActivityPubOutbox({
-                actorId: `https://${url.hostname}/users/${username}`,
-                withPage: true,
-                withContext: true
-              })
-            )
-          }
-        }
-
-        return {
-          status: 200,
-          body: JSON.stringify(
-            MockActivityPubOutbox({
-              actorId: `https://${url.hostname}/users/${username}`,
-              withContext: true
-            })
-          )
-        }
-      }
-
-      // Mock Person following
-      if (
-        url.pathname.startsWith('/users') &&
-        url.pathname.includes('/following')
-      ) {
-        const [, username] = url.pathname.slice(1).split('/')
-        if (url.searchParams.has('page')) {
-          return {
-            status: 200,
-            body: JSON.stringify(
-              MockActivityPubFollowing({
-                actorId: `https://${url.hostname}/users/${username}`,
-                withPage: true
-              })
-            )
-          }
-        }
-
-        return {
-          status: 200,
-          body: JSON.stringify(
-            MockActivityPubFollowing({
-              actorId: `https://${url.hostname}/users/${username}`
-            })
-          )
-        }
-      }
-
-      // Mock Person followers
-      if (
-        url.pathname.startsWith('/users') &&
-        url.pathname.includes('/followers')
-      ) {
-        const [, username] = url.pathname.slice(1).split('/')
-        if (url.searchParams.has('page')) {
-          return {
-            status: 200,
-            body: JSON.stringify(
-              MockActivityPubFollowers({
-                actorId: `https://${url.hostname}/users/${username}`,
-                withPage: true
-              })
-            )
-          }
-        }
-
-        return {
-          status: 200,
-          body: JSON.stringify(
-            MockActivityPubFollowers({
-              actorId: `https://${url.hostname}/users/${username}`
-            })
-          )
-        }
-      }
-
-      // Mock Person API
-      if (url.pathname.startsWith('/users')) {
-        return {
-          status: 200,
-          body: JSON.stringify(MockActivityPubPerson({ id: req.url }))
-        }
-      }
-      if (url.pathname.startsWith('/actors')) {
-        return {
-          status: 200,
-          body: JSON.stringify(
-            MockActivityPubPerson({ id: req.url, url: req.url })
           )
         }
       }
 
       return {
-        status: 404,
-        body: 'Not Found'
+        status: 200,
+        body: JSON.stringify(
+          MockMastodonActivityPubNote({
+            id: req.url,
+            from,
+            content: 'This is status',
+            withContext: true
+          })
+        )
       }
     }
 
-    if (req.method === 'POST') {
-      if (url.pathname.includes('/inbox')) {
+    // somewhere.test domain e.g. https://somewhere.test/actors/{username}/lp/{status-id}
+    if (url.pathname.includes('/lp/')) {
+      const from = req.url.slice(0, req.url.indexOf('/lp/'))
+      return {
+        status: 200,
+        body: JSON.stringify(
+          MockLitepubNote({
+            id: req.url,
+            from,
+            content: 'This is litepub status',
+            withContext: true
+          })
+        )
+      }
+    }
+
+    // somewhere.test domain e.g. https://somewhere.test/s/{username}/{status-id}
+    if (url.pathname.startsWith('/s')) {
+      const [, username] = url.pathname.slice(1).split('/')
+      return {
+        status: 200,
+        body: JSON.stringify(
+          MockMastodonActivityPubNote({
+            id: req.url,
+            from: `https://${url.hostname}/actors/${username}`,
+            content: 'This is status',
+            withContext: true
+          })
+        )
+      }
+    }
+
+    // Mock Person outbox
+    if (url.pathname.startsWith('/users') && url.pathname.includes('/outbox')) {
+      const [, username] = url.pathname.slice(1).split('/')
+      if (url.searchParams.has('page')) {
         return {
-          status: 202
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubOutbox({
+              actorId: `https://${url.hostname}/users/${username}`,
+              withPage: true,
+              withContext: true
+            })
+          )
         }
+      }
+
+      return {
+        status: 200,
+        body: JSON.stringify(
+          MockActivityPubOutbox({
+            actorId: `https://${url.hostname}/users/${username}`,
+            withContext: true
+          })
+        )
+      }
+    }
+
+    // Mock Person following
+    if (
+      url.pathname.startsWith('/users') &&
+      url.pathname.includes('/following')
+    ) {
+      const [, username] = url.pathname.slice(1).split('/')
+      if (url.searchParams.has('page')) {
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubFollowing({
+              actorId: `https://${url.hostname}/users/${username}`,
+              withPage: true
+            })
+          )
+        }
+      }
+
+      return {
+        status: 200,
+        body: JSON.stringify(
+          MockActivityPubFollowing({
+            actorId: `https://${url.hostname}/users/${username}`
+          })
+        )
+      }
+    }
+
+    // Mock Person followers
+    if (
+      url.pathname.startsWith('/users') &&
+      url.pathname.includes('/followers')
+    ) {
+      const [, username] = url.pathname.slice(1).split('/')
+      if (url.searchParams.has('page')) {
+        return {
+          status: 200,
+          body: JSON.stringify(
+            MockActivityPubFollowers({
+              actorId: `https://${url.hostname}/users/${username}`,
+              withPage: true
+            })
+          )
+        }
+      }
+
+      return {
+        status: 200,
+        body: JSON.stringify(
+          MockActivityPubFollowers({
+            actorId: `https://${url.hostname}/users/${username}`
+          })
+        )
+      }
+    }
+
+    // Mock Person API
+    if (url.pathname.startsWith('/users')) {
+      return {
+        status: 200,
+        body: JSON.stringify(MockActivityPubPerson({ id: req.url }))
+      }
+    }
+    if (url.pathname.startsWith('/actors')) {
+      return {
+        status: 200,
+        body: JSON.stringify(
+          MockActivityPubPerson({ id: req.url, url: req.url })
+        )
       }
     }
 
     return {
-      status: 404
+      status: 404,
+      body: 'Not Found'
     }
-  })
+  }
+
+  if (req.method === 'POST') {
+    if (url.pathname.includes('/inbox')) {
+      return {
+        status: 202
+      }
+    }
+  }
+
+  return {
+    status: 404
+  }
 }
 
 export const expectCall = (

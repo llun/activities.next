@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
+import { isActorHandleConfirmed } from '@/lib/activities/isActorHandleConfirmed'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -30,6 +32,7 @@ type ParsedSenderPublicKey =
   | {
       type: 'actor'
       actorId: string
+      username: string
       keyId: string
       requiresOwnerValidation: boolean
       details: SenderPublicKeyDetails
@@ -127,6 +130,7 @@ const parseSenderPublicKey = ({
     return {
       type: 'actor',
       actorId: actor.data.id,
+      username: actor.data.preferredUsername,
       keyId: actor.data.publicKey.id,
       requiresOwnerValidation: normalizedActorId !== normalizedKeyOwner,
       details: {
@@ -158,7 +162,8 @@ const parseSenderPublicKey = ({
 // sequential fetches for owner validation and the 410 fallback) a sender
 // pointing `keyId` at a slow host held each inbox request open for tens of
 // seconds. A peer that cannot serve its key quickly gets a 401, which Mastodon
-// and friends retry later anyway.
+// and friends retry later anyway. The WebFinger lookup that confirms an
+// unknown signer's handle runs on the same budget.
 const SENDER_KEY_FETCH_TIMEOUT_MS = 3000
 
 const fetchSenderPublicKey = async (
@@ -179,7 +184,9 @@ const fetchSenderPublicKey = async (
     // host — never checked against domain blocks — mint the sender's key.
     allowCrossHostRedirects: false
   })
-  if (response.statusCode !== 200) {
+  // The keyId names any URL on the sender's origin, and a user upload there
+  // (served as `application/json`) could otherwise mint a signing key.
+  if (!isActivityPubDocumentResponse(response, actorId)) {
     return {
       document: null,
       statusCode: response.statusCode
@@ -232,6 +239,7 @@ const validateOwnerActorKey = async (
 
   return {
     owner: ownerDocument.actorId,
+    username: ownerDocument.username,
     publicKey
   }
 }
@@ -243,7 +251,13 @@ const resolveFetchedPublicKey = async (
 ) => {
   if (!document) return null
   if (document.type === 'actor') {
-    if (!document.requiresOwnerValidation) return document.details
+    if (!document.requiresOwnerValidation) {
+      return {
+        owner: document.actorId,
+        username: document.username,
+        publicKey: document.details.publicKey
+      }
+    }
     return validateOwnerActorKey(
       {
         keyId: document.keyId,
@@ -272,12 +286,38 @@ const fetchSenderPublicKeyDetails = async (
   database: Database
 ) => {
   const response = await fetchSenderPublicKey(actorId, signingActor)
+  const resolved = await resolveFetchedPublicKey(
+    response.document,
+    signingActor,
+    database
+  )
+  // A key from a sender with no stored row is accepted only once the owner's
+  // host confirms its handle, as Mastodon does before trusting an unknown
+  // signer. The content-type gate alone leaves any host that serves user bytes
+  // as ActivityPub able to sign as a URL there, and a status from a signer
+  // with no row still renders under that host's name. An owner that already
+  // has a row holds its handle there and is not asked again: a `#main-key`
+  // keyId is answered from the row before any fetch, but a path-based one
+  // (GoToSocial's `/users/x/main-key`) is fetched on every request and would
+  // otherwise pay a WebFinger lookup each time.
+  const isConfirmed =
+    resolved !== null &&
+    (Boolean(await database.getActorFromId({ id: resolved.owner })) ||
+      (await isActorHandleConfirmed({
+        actorId: resolved.owner,
+        username: resolved.username,
+        withNetworkRetry: false,
+        responseTimeout: SENDER_KEY_FETCH_TIMEOUT_MS,
+        // Like the key fetch: this runs before the signature is verified, and
+        // a hop would send the request to a host no domain block was checked
+        // against. The lookup goes to the owner's own host, so a split-domain
+        // deployment still confirms without one.
+        allowCrossHostRedirects: false
+      })))
   return {
-    details: await resolveFetchedPublicKey(
-      response.document,
-      signingActor,
-      database
-    ),
+    details: isConfirmed
+      ? { owner: resolved.owner, publicKey: resolved.publicKey }
+      : null,
     statusCode: response.statusCode
   }
 }

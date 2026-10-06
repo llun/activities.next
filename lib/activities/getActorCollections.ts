@@ -1,4 +1,5 @@
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import {
   OrderedCollection,
   OrderedCollectionPage,
@@ -42,8 +43,8 @@ export const isCollectionPageUrl = (pageUrl: string, collectionUrl: string) => {
 // Fetch an ActivityPub collection root document (no page follow). Shared by
 // the full collection fetch below and the counts-only helper
 // (getActorCollectionCounts) so the fetch semantics stay in one place. A
-// non-200 response yields a null collection; network errors propagate for the
-// caller to handle.
+// non-200 response, or a 200 not labelled ActivityPub, yields a null
+// collection; network errors propagate for the caller to handle.
 export const fetchCollectionRoot = async ({
   url,
   signingActor
@@ -55,7 +56,7 @@ export const fetchCollectionRoot = async ({
     url,
     headers: activityPubRequestHeaders({ url, signingActor })
   })
-  if (response.statusCode !== 200) {
+  if (!isActivityPubDocumentResponse(response, url)) {
     return { statusCode: response.statusCode, collection: null }
   }
   try {
@@ -158,7 +159,7 @@ export const getActorCollections = async ({
             signingActor
           })
         })
-        if (response.statusCode !== 200) {
+        if (!isActivityPubDocumentResponse(response, collectionPageUrl)) {
           span.setAttributes({
             url: collectionPageUrl,
             status: response.statusCode

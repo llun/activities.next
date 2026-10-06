@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { getNote } from '@/lib/activities'
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { getConfig } from '@/lib/config'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
@@ -128,27 +129,28 @@ export const processForwardedActivityJob = createJobHandle(
           span.setAttribute('outcome', 'actor_delete_skipped')
           return
         }
-        let statusCode: number
-        let body: string
+        let response: Awaited<ReturnType<typeof request>>
         try {
-          ;({ statusCode, body } = await request({
+          response = await request({
             url: objectId,
             // The answer is authoritative only because objectId's origin gave
             // it: a 404 or a Tombstone served after a hop onto another host
             // would be that host deleting the claimed author's status.
             allowCrossHostRedirects: false,
             headers: activityPubRequestHeaders({ url: objectId, signingActor })
-          }))
+          })
         } catch {
           // A network failure (or a refused cross-host redirect) is AMBIGUOUS
           // and must never confirm a delete.
           span.setAttribute('outcome', 'origin_unreachable')
           return
         }
-        const tombstone =
-          statusCode === 200
-            ? await getValidatedTombstone(body, objectId)
-            : null
+        const { statusCode } = response
+        // A 200 confirms the delete only when it is the origin's own
+        // Tombstone, never a same-origin upload that merely looks like one.
+        const tombstone = isActivityPubDocumentResponse(response, objectId)
+          ? await getValidatedTombstone(response.body, objectId)
+          : null
         const confirmed =
           statusCode === 404 || statusCode === 410 || Boolean(tombstone)
         if (!confirmed) {

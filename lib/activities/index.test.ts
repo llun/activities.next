@@ -19,7 +19,7 @@ import {
 import { CreateStatus } from '@/lib/activities/createStatus'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
@@ -82,6 +82,44 @@ describe('activities', () => {
       expect(result).toBeNull()
     })
 
+    describe('content type gate', () => {
+      // A user upload on the origin's own domain can serve a well-formed note
+      // body, but only as a type the uploader picks. The same body labelled
+      // ActivityPub is read ('returns note when fetch succeeds' above and the
+      // control below).
+      const statusId = 'https://victim.test/users/alice/statuses/1'
+      const note = MockMastodonActivityPubNote({
+        id: statusId,
+        from: 'https://victim.test/users/alice',
+        content: '<p>uploaded</p>',
+        withContext: true
+      })
+
+      it('reads a note labelled application/activity+json', async () => {
+        fetchMock.mockResponseOnce(JSON.stringify(note), {
+          status: 200,
+          headers: ACTIVITY_JSON_HEADERS
+        })
+
+        const result = await getNote({ statusId })
+
+        expect(result?.id).toEqual(statusId)
+      })
+
+      it.each(['application/json', 'application/octet-stream', 'text/plain'])(
+        'refuses a note served as %s',
+        async (contentType) => {
+          fetchMock.mockResponseOnce(JSON.stringify(note), {
+            status: 200,
+            headers: { 'content-type': contentType }
+          })
+
+          expect(await getNote({ statusId })).toBeNull()
+          expect(fetchMock).toHaveBeenCalledTimes(1)
+        }
+      )
+    })
+
     describe('when the requested URL redirects', () => {
       // An open redirect on the claimed origin must not let another host
       // answer for it: callers bind the note's id and attributedTo to the
@@ -97,7 +135,11 @@ describe('activities', () => {
         fetchMock.mockResponse(async (req) =>
           req.url === redirectingUrl
             ? { status: 302, headers: { location }, body: '' }
-            : { status: 200, body: JSON.stringify(forgedNote) }
+            : {
+                status: 200,
+                body: JSON.stringify(forgedNote),
+                headers: ACTIVITY_JSON_HEADERS
+              }
         )
       }
 

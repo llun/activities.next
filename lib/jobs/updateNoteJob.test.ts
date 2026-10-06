@@ -20,7 +20,7 @@ import {
   buildQuoteAuthorizationObject,
   buildQuoteAuthorizationUri
 } from '@/lib/services/quotes/quoteAuthorization'
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -470,7 +470,7 @@ describe('updateNoteJob', () => {
       )
       fetchMock.mockResponse(async (req) =>
         new URL(req.url).pathname.includes('/quote_authorizations/')
-          ? { status: 200, body }
+          ? { status: 200, headers: ACTIVITY_JSON_HEADERS, body }
           : { status: 404, body: '' }
       )
     }
@@ -655,10 +655,18 @@ describe('updateNoteJob', () => {
       fetchMock.mockResponse(async (req) => {
         const { pathname } = new URL(req.url)
         if (pathname.includes('/quote_authorizations/')) {
-          return { status: 200, body: stampBody }
+          return {
+            status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
+            body: stampBody
+          }
         }
         if (pathname.includes('/statuses/quoted-update-remote')) {
-          return { status: 200, body: quotedNoteBody }
+          return {
+            status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
+            body: quotedNoteBody
+          }
         }
         return { status: 404, body: '' }
       })
@@ -726,6 +734,7 @@ describe('updateNoteJob', () => {
         if (pathname.includes('/quote_authorizations/')) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify(
               buildQuoteAuthorizationObject({
                 stampUri,
@@ -737,7 +746,11 @@ describe('updateNoteJob', () => {
           }
         }
         if (pathname.includes('/statuses/quoted-chain')) {
-          return { status: 200, body: quotedNoteBody }
+          return {
+            status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
+            body: quotedNoteBody
+          }
         }
         return { status: 404, body: '' }
       })

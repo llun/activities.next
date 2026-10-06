@@ -20,7 +20,7 @@ import {
   buildQuoteAuthorizationObject,
   buildQuoteAuthorizationUri
 } from '@/lib/services/quotes/quoteAuthorization'
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockImageDocument } from '@/lib/stub/imageDocument'
 import { MockLitepubNote, MockMastodonActivityPubNote } from '@/lib/stub/note'
@@ -1019,12 +1019,17 @@ describe('createNoteJob', () => {
       fetchMock.mockResponse(async (req) => {
         const { pathname } = new URL(req.url)
         if (pathname.includes('/quote_authorizations/')) {
-          return { status: 200, body: stampBody }
+          return {
+            status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
+            body: stampBody
+          }
         }
         if (pathname.includes('/statuses/')) {
           const from = req.url.slice(0, req.url.indexOf('/statuses'))
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify(
               MockMastodonActivityPubNote({
                 id: req.url,
@@ -1037,6 +1042,7 @@ describe('createNoteJob', () => {
         }
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(
             MockActivityPubPerson({ id: req.url, url: req.url })
           )
@@ -1091,6 +1097,7 @@ describe('createNoteJob', () => {
         if (pathname.includes('/quote_authorizations/')) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify(
               buildQuoteAuthorizationObject({
                 stampUri,
@@ -1103,6 +1110,7 @@ describe('createNoteJob', () => {
         }
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(
             MockActivityPubPerson({ id: req.url, url: req.url })
           )
@@ -1153,12 +1161,17 @@ describe('createNoteJob', () => {
       fetchMock.mockResponse(async (req) => {
         const { pathname } = new URL(req.url)
         if (pathname.includes('/quote_authorizations/')) {
-          return { status: 200, body: forgedStampBody }
+          return {
+            status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
+            body: forgedStampBody
+          }
         }
         if (pathname.includes('/statuses/')) {
           const from = req.url.slice(0, req.url.indexOf('/statuses'))
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify(
               MockMastodonActivityPubNote({
                 id: req.url,
@@ -1171,6 +1184,7 @@ describe('createNoteJob', () => {
         }
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(
             MockActivityPubPerson({ id: req.url, url: req.url })
           )
@@ -1259,6 +1273,7 @@ describe('createNoteJob', () => {
         if (req.url === stampAB) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify(
               buildQuoteAuthorizationObject({
                 stampUri: stampAB,
@@ -1274,6 +1289,7 @@ describe('createNoteJob', () => {
         if (req.url === bId) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify({
               '@context': QUOTE_ACTIVITY_CONTEXT,
               ...MockMastodonActivityPubNote({
@@ -1292,6 +1308,7 @@ describe('createNoteJob', () => {
         if (req.url === stampBC) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify(
               buildQuoteAuthorizationObject({
                 stampUri: stampBC,
@@ -1306,6 +1323,7 @@ describe('createNoteJob', () => {
           const from = req.url.slice(0, req.url.indexOf('/statuses'))
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify(
               MockMastodonActivityPubNote({
                 id: req.url,
@@ -1318,6 +1336,7 @@ describe('createNoteJob', () => {
         }
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(
             MockActivityPubPerson({ id: req.url, url: req.url })
           )
@@ -1373,6 +1392,7 @@ describe('createNoteJob', () => {
         if (pathname.includes('/quote_authorizations/')) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify(
               buildQuoteAuthorizationObject({
                 stampUri,
@@ -1387,6 +1407,7 @@ describe('createNoteJob', () => {
           const from = req.url.slice(0, req.url.indexOf('/statuses'))
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify(
               MockMastodonActivityPubNote({
                 id: req.url,
@@ -1399,6 +1420,7 @@ describe('createNoteJob', () => {
         }
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(
             MockActivityPubPerson({ id: req.url, url: req.url })
           )

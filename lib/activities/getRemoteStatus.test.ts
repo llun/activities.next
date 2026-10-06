@@ -1,5 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { ACTIVITY_JSON_HEADERS } from '@/lib/stub/activities'
+
 import { getRemoteStatus } from './getRemoteStatus'
 
 enableFetchMocks()
@@ -16,40 +18,46 @@ describe('getRemoteStatus', () => {
   it('fetches a public remote status without persisting it', async () => {
     fetchMock.mockResponse(async (req) => {
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
-          id: STATUS_ID,
-          type: 'Note',
-          url: [
-            'https://remote.example/@alice/1',
-            {
-              href: 'at://did:plc:alice/app.bsky.feed.post/1',
-              rel: 'canonical',
-              type: 'Link'
-            }
-          ],
-          attributedTo: ACTOR_ID,
-          content: 'Hello from a remote profile',
-          to: [PUBLIC_STREAM],
-          cc: [`${ACTOR_ID}/followers`],
-          published: new Date('2026-04-30T12:00:00.000Z').toISOString()
-        })
+        return {
+          body: JSON.stringify({
+            id: STATUS_ID,
+            type: 'Note',
+            url: [
+              'https://remote.example/@alice/1',
+              {
+                href: 'at://did:plc:alice/app.bsky.feed.post/1',
+                rel: 'canonical',
+                type: 'Link'
+              }
+            ],
+            attributedTo: ACTOR_ID,
+            content: 'Hello from a remote profile',
+            to: [PUBLIC_STREAM],
+            cc: [`${ACTOR_ID}/followers`],
+            published: new Date('2026-04-30T12:00:00.000Z').toISOString()
+          }),
+          headers: ACTIVITY_JSON_HEADERS
+        }
       }
 
       if (req.url === ACTOR_ID) {
-        return JSON.stringify({
-          id: ACTOR_ID,
-          type: 'Person',
-          preferredUsername: 'alice',
-          name: 'Alice',
-          inbox: `${ACTOR_ID}/inbox`,
-          outbox: `${ACTOR_ID}/outbox`,
-          followers: `${ACTOR_ID}/followers`,
-          publicKey: {
-            id: `${ACTOR_ID}#main-key`,
-            owner: ACTOR_ID,
-            publicKeyPem: 'public key'
-          }
-        })
+        return {
+          body: JSON.stringify({
+            id: ACTOR_ID,
+            type: 'Person',
+            preferredUsername: 'alice',
+            name: 'Alice',
+            inbox: `${ACTOR_ID}/inbox`,
+            outbox: `${ACTOR_ID}/outbox`,
+            followers: `${ACTOR_ID}/followers`,
+            publicKey: {
+              id: `${ACTOR_ID}#main-key`,
+              owner: ACTOR_ID,
+              publicKeyPem: 'public key'
+            }
+          }),
+          headers: ACTIVITY_JSON_HEADERS
+        }
       }
 
       return { status: 404, body: 'Not Found' }
@@ -74,18 +82,21 @@ describe('getRemoteStatus', () => {
   it('attaches a content-detected language to the ephemeral status', async () => {
     fetchMock.mockResponse(async (req) => {
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
-          id: STATUS_ID,
-          type: 'Note',
-          attributedTo: ACTOR_ID,
-          // Declared English via the default contentMap-less `content`, but
-          // the content itself is unambiguously Thai.
-          content:
-            'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
-          to: [PUBLIC_STREAM],
-          cc: [`${ACTOR_ID}/followers`],
-          published: new Date('2026-04-30T12:00:00.000Z').toISOString()
-        })
+        return {
+          body: JSON.stringify({
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: ACTOR_ID,
+            // Declared English via the default contentMap-less `content`, but
+            // the content itself is unambiguously Thai.
+            content:
+              'สวัสดีครับ ผมชื่อจอห์น ผมเป็นนักพัฒนาซอฟต์แวร์ที่ทำงานในกรุงเทพมหานคร',
+            to: [PUBLIC_STREAM],
+            cc: [`${ACTOR_ID}/followers`],
+            published: new Date('2026-04-30T12:00:00.000Z').toISOString()
+          }),
+          headers: ACTIVITY_JSON_HEADERS
+        }
       }
 
       return { status: 404, body: 'Not Found' }
@@ -103,20 +114,23 @@ describe('getRemoteStatus', () => {
   it('fetches public remote statuses with object-shaped audience entries', async () => {
     fetchMock.mockResponse(async (req) => {
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
-          id: STATUS_ID,
-          type: 'Note',
-          attributedTo: ACTOR_ID,
-          content: 'Hello with object audience',
-          to: [
-            {
-              id: PUBLIC_STREAM,
-              type: 'Collection'
-            }
-          ],
-          cc: [],
-          published: new Date('2026-04-30T12:00:00.000Z').toISOString()
-        })
+        return {
+          body: JSON.stringify({
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: ACTOR_ID,
+            content: 'Hello with object audience',
+            to: [
+              {
+                id: PUBLIC_STREAM,
+                type: 'Collection'
+              }
+            ],
+            cc: [],
+            published: new Date('2026-04-30T12:00:00.000Z').toISOString()
+          }),
+          headers: ACTIVITY_JSON_HEADERS
+        }
       }
 
       if (req.url === ACTOR_ID) {
@@ -146,7 +160,8 @@ describe('getRemoteStatus', () => {
         to: [PUBLIC_STREAM],
         cc: [],
         published: new Date('2026-04-30T12:00:00.000Z').toISOString()
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await expect(getRemoteStatus({ statusId: STATUS_ID })).resolves.toBeNull()
@@ -162,7 +177,8 @@ describe('getRemoteStatus', () => {
         to: [PUBLIC_STREAM],
         cc: [],
         published: new Date('2026-04-30T12:00:00.000Z').toISOString()
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await expect(getRemoteStatus({ statusId: STATUS_ID })).resolves.toBeNull()
@@ -178,7 +194,8 @@ describe('getRemoteStatus', () => {
         to: [ACTOR_ID],
         cc: [],
         published: new Date('2026-04-30T12:00:00.000Z').toISOString()
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await expect(getRemoteStatus({ statusId: STATUS_ID })).resolves.toBeNull()
@@ -188,31 +205,37 @@ describe('getRemoteStatus', () => {
   it('fetches a public remote status when cc is omitted (e.g. Bridgy Fed)', async () => {
     fetchMock.mockResponse(async (req) => {
       if (req.url === STATUS_ID) {
-        return JSON.stringify({
-          id: STATUS_ID,
-          type: 'Note',
-          attributedTo: ACTOR_ID,
-          content: 'Hello from bridgy fed without cc',
-          to: [PUBLIC_STREAM],
-          published: new Date('2026-04-30T12:00:00.000Z').toISOString()
-        })
+        return {
+          body: JSON.stringify({
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: ACTOR_ID,
+            content: 'Hello from bridgy fed without cc',
+            to: [PUBLIC_STREAM],
+            published: new Date('2026-04-30T12:00:00.000Z').toISOString()
+          }),
+          headers: ACTIVITY_JSON_HEADERS
+        }
       }
 
       if (req.url === ACTOR_ID) {
-        return JSON.stringify({
-          id: ACTOR_ID,
-          type: 'Person',
-          preferredUsername: 'alice',
-          name: 'Alice',
-          inbox: `${ACTOR_ID}/inbox`,
-          outbox: `${ACTOR_ID}/outbox`,
-          followers: `${ACTOR_ID}/followers`,
-          publicKey: {
-            id: `${ACTOR_ID}#main-key`,
-            owner: ACTOR_ID,
-            publicKeyPem: 'public key'
-          }
-        })
+        return {
+          body: JSON.stringify({
+            id: ACTOR_ID,
+            type: 'Person',
+            preferredUsername: 'alice',
+            name: 'Alice',
+            inbox: `${ACTOR_ID}/inbox`,
+            outbox: `${ACTOR_ID}/outbox`,
+            followers: `${ACTOR_ID}/followers`,
+            publicKey: {
+              id: `${ACTOR_ID}#main-key`,
+              owner: ACTOR_ID,
+              publicKeyPem: 'public key'
+            }
+          }),
+          headers: ACTIVITY_JSON_HEADERS
+        }
       }
 
       return { status: 404, body: 'Not Found' }

@@ -10,14 +10,21 @@ export const SUBSCRIBE_REL = 'http://ostatus.org/schema/1.0/subscribe'
 
 /**
  * Fetches a remote WebFinger document whole, unlike `getWebfingerSelf` which
- * keeps only the `self` link. Retries are disabled: the caller is an
- * unauthenticated interactive endpoint, so a slow or dead remote must cost one
- * bounded request rather than several.
+ * keeps only the `self` link. Retries are disabled by default: the remote-follow
+ * caller is an unauthenticated interactive endpoint, so a slow or dead remote
+ * must cost one bounded request rather than several.
  */
 export const getWebfingerDocument = async ({
-  account
+  account,
+  withNetworkRetry = false,
+  responseTimeout,
+  allowCrossHostRedirects
 }: {
   account: string
+  withNetworkRetry?: boolean
+  responseTimeout?: number
+  /** See `SafeRemoteFetchOptions.allowCrossHostRedirects`. */
+  allowCrossHostRedirects?: boolean
 }): Promise<WebFinger | null> =>
   withSpan('activity', 'getWebfingerDocument', { account }, async (span) => {
     const [user, domain, ...rest] = account.split('@')
@@ -34,7 +41,10 @@ export const getWebfingerDocument = async ({
         headers: {
           Accept: 'application/jrd+json, application/json'
         },
-        numberOfRetry: 0
+        // Use default retry by setting it to undefined, otherwise 0 retry
+        numberOfRetry: withNetworkRetry ? undefined : 0,
+        responseTimeout,
+        allowCrossHostRedirects
       })
       if (statusCode !== 200) return null
 

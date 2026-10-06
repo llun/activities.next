@@ -1,4 +1,4 @@
-import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
+import { enableFetchMocks } from 'jest-fetch-mock'
 import knex from 'knex'
 
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
@@ -6,6 +6,7 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
+import { serveFederationRoutes } from '@/lib/stub/serveFederationRoutes'
 import { Actor } from '@/lib/types/domain/actor'
 
 import { getProfileData } from './getProfileData'
@@ -55,22 +56,7 @@ const actorDocument = (
     ...overrides
   })
 
-// `signedOnly` models an authorized-fetch (secure-mode) origin: it answers
-// 401 to any request that carries no signature.
-const serve = (
-  routes: Record<string, string>,
-  { signedOnly = false }: { signedOnly?: boolean } = {}
-) => {
-  fetchMock.resetMocks()
-  fetchMock.mockResponse(async (req) => {
-    if (signedOnly && !req.headers.get('signature')) {
-      return { status: 401, body: 'Unauthorized' }
-    }
-    const body = routes[req.url]
-    if (!body) return { status: 404, body: 'Not Found' }
-    return { status: 200, body }
-  })
-}
+const serve = serveFederationRoutes
 
 describe('getProfileData persists only a document served by its own id', () => {
   let sql: ReturnType<typeof knex>
@@ -93,6 +79,7 @@ describe('getProfileData persists only a document served by its own id', () => {
   })
 
   const victimId = 'https://victim.test/users/alice'
+  const victimWebfinger = { 'alice@victim.test': victimId }
   // A same-origin URL the attacker controls the body of (a user upload).
   const uploadId = 'https://victim.test/media/upload.json'
   const attackerDocument = actorDocument(victimId, 'attacker-key', {
@@ -110,7 +97,10 @@ describe('getProfileData persists only a document served by its own id', () => {
   // overwrote alice's existing row with them — after which that key verified
   // activities signed as alice and her DMs went to the attacker's inbox.
   it('never rewrites an existing row from a document an alias served', async () => {
-    serve({ [victimId]: actorDocument(victimId, 'victim-key') })
+    serve(
+      { [victimId]: actorDocument(victimId, 'victim-key') },
+      { webfinger: victimWebfinger }
+    )
     await renderProfile('@alice@victim.test', victimId)
     const before = await database.getActorFromId({ id: victimId })
     expect(before).toMatchObject({ publicKey: 'victim-key' })
@@ -131,10 +121,13 @@ describe('getProfileData persists only a document served by its own id', () => {
   })
 
   it('creates a new row from what the canonical id serves, not the alias document', async () => {
-    serve({
-      [uploadId]: attackerDocument,
-      [victimId]: actorDocument(victimId, 'victim-key')
-    })
+    serve(
+      {
+        [uploadId]: attackerDocument,
+        [victimId]: actorDocument(victimId, 'victim-key')
+      },
+      { webfinger: victimWebfinger }
+    )
 
     await renderProfile('@x@evil.test', uploadId)
 
@@ -161,7 +154,7 @@ describe('getProfileData persists only a document served by its own id', () => {
         [uploadId]: attackerDocument,
         [victimId]: actorDocument(victimId, 'victim-key')
       },
-      { signedOnly: true }
+      { signedOnly: true, webfinger: victimWebfinger }
     )
 
     await renderProfile('@x@evil.test', uploadId)
@@ -184,12 +177,27 @@ describe('getProfileData persists only a document served by its own id', () => {
   // (handle on llun.test, id on social.llun.test) both have WebFinger name the
   // actor id itself, so they persist and refresh as before.
   it.each([
-    ['an ordinary', '@alice@victim.test', victimId],
-    ['a split-domain', '@llun@llun.test', 'https://social.llun.test/users/llun']
+    ['an ordinary', '@alice@victim.test', victimId, 'alice@victim.test'],
+    [
+      'a split-domain',
+      '@llun@llun.test',
+      'https://social.llun.test/users/llun',
+      'llun@social.llun.test'
+    ]
   ])(
     'persists and refreshes %s profile fetched from its own id',
-    async (_label, handle, actorId) => {
-      serve({ [actorId]: actorDocument(actorId, 'first-key') })
+    async (_label, handle, actorId, actorHostAccount) => {
+      serve(
+        { [actorId]: actorDocument(actorId, 'first-key') },
+        {
+          webfinger: {
+            [actorHostAccount]: {
+              self: [actorId],
+              subject: `acct:${handle.slice(1)}`
+            }
+          }
+        }
+      )
       await renderProfile(handle, actorId)
       await expect(
         database.getActorFromId({ id: actorId })
@@ -203,4 +211,34 @@ describe('getProfileData persists only a document served by its own id', () => {
       ).resolves.toMatchObject({ publicKey: 'rotated-key' })
     }
   )
+
+  // The handle's own WebFinger is not evidence for a handle on another host:
+  // `@x@evil.test` can name any URL as `self`, including a same-origin upload
+  // that names itself `admin` on victim.test. The page renders what it got,
+  // but a row is created only once victim.test confirms the handle.
+  it('renders but does not record an actor whose host does not confirm its handle', async () => {
+    const forgedId = 'https://victim.test/media/forged.json'
+    serve(
+      {
+        [forgedId]: actorDocument(forgedId, 'attacker-key', {
+          preferredUsername: 'admin'
+        })
+      },
+      { webfinger: { 'admin@victim.test': 'https://victim.test/users/admin' } }
+    )
+
+    const result = await renderProfile('@x@evil.test', forgedId)
+
+    expect(result?.person.id).toBe(forgedId)
+    await expect(database.getActorFromId({ id: forgedId })).resolves.toBeNull()
+    await expect(
+      database.getActorFromUsername({
+        username: 'admin',
+        domain: 'victim.test'
+      })
+    ).resolves.toBeNull()
+    await expect(
+      database.hasActorCounters({ actorId: forgedId })
+    ).resolves.toBe(false)
+  })
 })

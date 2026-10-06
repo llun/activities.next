@@ -5,6 +5,7 @@ import { getSQLDatabase } from '@/lib/database/sql'
 import { Database } from '@/lib/database/types'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
+import { serveFederationRoutes } from '@/lib/stub/serveFederationRoutes'
 import { Actor } from '@/lib/types/domain/actor'
 
 import { recordActorIfNeeded } from './utils'
@@ -43,22 +44,7 @@ const actorDocument = (
     ...overrides
   })
 
-// `signedOnly` models an authorized-fetch (secure-mode) origin: it answers
-// 401 to any request that carries no signature.
-const serve = (
-  routes: Record<string, string>,
-  { signedOnly = false }: { signedOnly?: boolean } = {}
-) => {
-  fetchMock.resetMocks()
-  fetchMock.mockResponse(async (req) => {
-    if (signedOnly && !req.headers.get('signature')) {
-      return { status: 401, body: 'Unauthorized' }
-    }
-    const body = routes[req.url]
-    if (!body) return { status: 404, body: 'Not Found' }
-    return { status: 200, body }
-  })
-}
+const serve = serveFederationRoutes
 
 describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   let sql: ReturnType<typeof knex>
@@ -82,6 +68,7 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
 
   const victimId = 'https://victim.test/users/alice'
   const attackerId = 'https://evil.test/users/x'
+  const victimWebfinger = { 'alice@victim.test': victimId }
 
   // Regression (F004): `getActorPerson(evil)` re-fetches the id evil's
   // document claims and returns VICTIM's real document, as it should. The row
@@ -137,10 +124,22 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
 
   // The other side of the guard: a split-domain deployment's WebFinger
   // `self` (on llun.test) names the actor on social.llun.test, and that id is
-  // what gets recorded — requested and fetched id are the same actor.
+  // what gets recorded — requested and fetched id are the same actor. The
+  // actor host answers WebFinger for its own host too, with the handle's
+  // domain as the subject (Mastodon's WEB_DOMAIN, GoToSocial's host).
   it('records a split-domain actor by the id its WebFinger self link names', async () => {
     const actorId = 'https://social.llun.test/users/llun'
-    serve({ [actorId]: actorDocument(actorId, 'llun-key') })
+    serve(
+      { [actorId]: actorDocument(actorId, 'llun-key') },
+      {
+        webfinger: {
+          'llun@social.llun.test': {
+            self: [actorId],
+            subject: 'acct:llun@llun.test'
+          }
+        }
+      }
+    )
 
     const actor = await recordActorIfNeeded({ actorId, database })
 
@@ -158,10 +157,13 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   it('records an actor whose fetched id is a same-origin canonical form under that id', async () => {
     const requestedId = 'https://remote.test/@bob'
     const canonicalId = 'https://remote.test/users/bob'
-    serve({
-      [requestedId]: actorDocument(canonicalId, 'bob-key'),
-      [canonicalId]: actorDocument(canonicalId, 'bob-key')
-    })
+    serve(
+      {
+        [requestedId]: actorDocument(canonicalId, 'bob-key'),
+        [canonicalId]: actorDocument(canonicalId, 'bob-key')
+      },
+      { webfinger: { 'bob@remote.test': canonicalId } }
+    )
 
     const actor = await recordActorIfNeeded({ actorId: requestedId, database })
 
@@ -188,12 +190,15 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   // as the real actor. Only the canonical id's own document is stored.
   it('stores the key the canonical id serves, not the one an alias document claims', async () => {
     const uploadId = 'https://victim.test/media/upload.json'
-    serve({
-      [uploadId]: actorDocument(victimId, 'attacker-key', {
-        inbox: 'https://victim.test/media/attacker-inbox'
-      }),
-      [victimId]: actorDocument(victimId, 'victim-key')
-    })
+    serve(
+      {
+        [uploadId]: actorDocument(victimId, 'attacker-key', {
+          inbox: 'https://victim.test/media/attacker-inbox'
+        }),
+        [victimId]: actorDocument(victimId, 'victim-key')
+      },
+      { webfinger: victimWebfinger }
+    )
 
     const actor = await recordActorIfNeeded({ actorId: uploadId, database })
 
@@ -216,7 +221,7 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
         [uploadId]: actorDocument(victimId, 'attacker-key'),
         [victimId]: actorDocument(victimId, 'victim-key')
       },
-      { signedOnly: true }
+      { signedOnly: true, webfinger: victimWebfinger }
     )
 
     const actor = await recordActorIfNeeded({ actorId: uploadId, database })
@@ -254,7 +259,10 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   // row: the alias is answered with the stored row as-is, even a stale one.
   it('never rewrites a stored canonical row from an alias document', async () => {
     const oldTime = new Date(Date.now() - 4 * 86_400_000)
-    serve({ [victimId]: actorDocument(victimId, 'victim-key') })
+    serve(
+      { [victimId]: actorDocument(victimId, 'victim-key') },
+      { webfinger: victimWebfinger }
+    )
     await recordActorIfNeeded({ actorId: victimId, database })
     await sql('actors').where('id', victimId).update({ updatedAt: oldTime })
     const uploadId = 'https://victim.test/media/upload.json'
@@ -277,10 +285,13 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   // failed on the constraint and every activity from the actor threw.
   it('lets the real id record after a same-origin alias was recorded', async () => {
     const aliasId = `${victimId}?squat`
-    serve({
-      [aliasId]: actorDocument(victimId, 'victim-key'),
-      [victimId]: actorDocument(victimId, 'victim-key')
-    })
+    serve(
+      {
+        [aliasId]: actorDocument(victimId, 'victim-key'),
+        [victimId]: actorDocument(victimId, 'victim-key')
+      },
+      { webfinger: victimWebfinger }
+    )
 
     const viaAlias = await recordActorIfNeeded({ actorId: aliasId, database })
     const viaId = await recordActorIfNeeded({ actorId: victimId, database })
@@ -293,7 +304,10 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
   })
 
   it('answers an alias with the row already stored under the fetched id', async () => {
-    serve({ [victimId]: actorDocument(victimId, 'victim-key') })
+    serve(
+      { [victimId]: actorDocument(victimId, 'victim-key') },
+      { webfinger: victimWebfinger }
+    )
     await recordActorIfNeeded({ actorId: victimId, database })
     const aliasId = 'https://victim.test/@alice'
     serve({ [aliasId]: actorDocument(victimId, 'victim-key') })
@@ -352,5 +366,190 @@ describe('recordActorIfNeeded binds the row id to the fetched actor', () => {
     expect(fetchesAfterFirstCall).toBeGreaterThan(0)
     expect(fetchMock.mock.calls).toHaveLength(fetchesAfterFirstCall)
     expect(actor?.id).toBe(aliasId)
+  })
+})
+
+// The origin check above proves only that one host vouches for a document, not
+// that the handle it claims is genuine: any URL on the host can serve JSON
+// naming itself with any `preferredUsername` there. A JSON upload on a
+// Pleroma/Akkoma media path is the concrete case — it would mint
+// `@admin@victim.test` with the uploader's key and inbox, and that key then
+// verifies inbox traffic. Two gates close it, each bracketed on both sides.
+describe('recordActorIfNeeded refuses a handle its host does not vouch for', () => {
+  let sql: ReturnType<typeof knex>
+  let database: Database
+
+  beforeEach(async () => {
+    vi.mocked(getFederationSigningActor).mockReset()
+    vi.mocked(getFederationSigningActor).mockResolvedValue(undefined)
+    sql = knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename: ':memory:' }
+    })
+    database = getSQLDatabase(sql)
+    await database.migrate()
+  })
+
+  afterEach(async () => {
+    await database.destroy()
+  })
+
+  const adminId = 'https://victim.test/users/admin'
+  const uploadId = 'https://victim.test/media/forged.json'
+  const forgedDocument = actorDocument(uploadId, 'attacker-key', {
+    preferredUsername: 'admin',
+    inbox: 'https://evil.test/inbox'
+  })
+
+  const expectNoForgedActor = async () => {
+    await expect(database.getActorFromId({ id: uploadId })).resolves.toBeNull()
+    await expect(
+      database.getActorFromUsername({
+        username: 'admin',
+        domain: 'victim.test'
+      })
+    ).resolves.toBeNull()
+  }
+
+  // Even mislabelled as ActivityPub, the upload is not who the host's
+  // WebFinger says `admin@victim.test` is.
+  it('refuses an upload whose claimed handle WebFinger resolves to another actor', async () => {
+    serve(
+      { [uploadId]: forgedDocument },
+      { webfinger: { 'admin@victim.test': adminId } }
+    )
+
+    await expect(
+      recordActorIfNeeded({ actorId: uploadId, database })
+    ).resolves.toBeUndefined()
+    await expectNoForgedActor()
+  })
+
+  it('refuses an actor whose host has no WebFinger answer for its handle', async () => {
+    serve({ [uploadId]: forgedDocument })
+
+    await expect(
+      recordActorIfNeeded({ actorId: uploadId, database })
+    ).resolves.toBeUndefined()
+    await expectNoForgedActor()
+  })
+
+  // The handle is confirmed against the host the row is stored under, never
+  // against a domain the document or the requester chose.
+  it('asks the actor host, not another domain, to confirm the handle', async () => {
+    serve(
+      { [uploadId]: forgedDocument },
+      { webfinger: { 'admin@evil.test': uploadId } }
+    )
+
+    await expect(
+      recordActorIfNeeded({ actorId: uploadId, database })
+    ).resolves.toBeUndefined()
+    await expectNoForgedActor()
+  })
+
+  it('records an actor whose host WebFinger names exactly its id', async () => {
+    serve(
+      { [adminId]: actorDocument(adminId, 'admin-key') },
+      { webfinger: { 'admin@victim.test': adminId } }
+    )
+
+    await expect(
+      recordActorIfNeeded({ actorId: adminId, database })
+    ).resolves.toMatchObject({
+      id: adminId,
+      username: 'admin',
+      domain: 'victim.test',
+      publicKey: 'admin-key'
+    })
+  })
+
+  // Lemmy answers `acct:lemmy@lemmy.ml` with BOTH the person and the
+  // community of that name, each as a `self` link; the community must still
+  // confirm even though the person is listed first.
+  it('confirms against any self link, as Lemmy lists a person and a community', async () => {
+    const communityId = 'https://lemmy.test/c/lemmy'
+    serve(
+      {
+        [communityId]: actorDocument(communityId, 'community-key', {
+          type: 'Group',
+          preferredUsername: 'lemmy'
+        })
+      },
+      {
+        webfinger: {
+          'lemmy@lemmy.test': {
+            self: ['https://lemmy.test/u/lemmy', communityId],
+            subject: 'acct:lemmy@lemmy.test'
+          }
+        }
+      }
+    )
+
+    await expect(
+      recordActorIfNeeded({ actorId: communityId, database })
+    ).resolves.toMatchObject({ id: communityId, username: 'lemmy' })
+  })
+
+  // Only a new row is gated: it fixes `username@domain` for good, and the
+  // refresh path re-fetches the row's own id and never rewrites its handle.
+  // A WebFinger outage must not stop a known actor from refreshing.
+  it('refreshes a stored actor without asking WebFinger again', async () => {
+    serve(
+      { [adminId]: actorDocument(adminId, 'admin-key') },
+      { webfinger: { 'admin@victim.test': adminId } }
+    )
+    await recordActorIfNeeded({ actorId: adminId, database })
+    await sql('actors')
+      .where('id', adminId)
+      .update({ updatedAt: new Date(Date.now() - 4 * 86_400_000) })
+    serve({ [adminId]: actorDocument(adminId, 'rotated-key') })
+
+    await expect(
+      recordActorIfNeeded({ actorId: adminId, database })
+    ).resolves.toMatchObject({ id: adminId, publicKey: 'rotated-key' })
+  })
+
+  describe('reads a fetched actor only when it is labelled ActivityPub', () => {
+    // Every type each of these servers was observed serving an actor with:
+    // Mastodon, Misskey, Akkoma and PeerTube send the charset form, Lemmy the
+    // bare one. The JSON-LD form is the spec's other name.
+    it.each([
+      'application/activity+json',
+      'application/activity+json; charset=utf-8',
+      'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+    ])('records an actor served as %s', async (contentType) => {
+      serve(
+        {
+          [adminId]: { body: actorDocument(adminId, 'admin-key'), contentType }
+        },
+        { webfinger: { 'admin@victim.test': adminId } }
+      )
+
+      await expect(
+        recordActorIfNeeded({ actorId: adminId, database })
+      ).resolves.toMatchObject({ id: adminId })
+    })
+
+    // WebFinger confirms the handle here, so only the type can refuse it.
+    it.each([
+      'application/json',
+      'application/octet-stream',
+      'text/plain',
+      'application/ld+json'
+    ])('refuses an actor served as %s', async (contentType) => {
+      serve(
+        {
+          [adminId]: { body: actorDocument(adminId, 'admin-key'), contentType }
+        },
+        { webfinger: { 'admin@victim.test': adminId } }
+      )
+
+      await expect(
+        recordActorIfNeeded({ actorId: adminId, database })
+      ).resolves.toBeUndefined()
+      await expect(database.getActorFromId({ id: adminId })).resolves.toBeNull()
+    })
   })
 })
