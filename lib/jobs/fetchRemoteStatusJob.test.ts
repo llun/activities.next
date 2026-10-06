@@ -280,22 +280,24 @@ describe('fetchRemoteStatusJob', () => {
       expect(reply?.id).toBe(REPLY_ID)
     })
 
-    it('stores the reply embedded as a bare orderedItems value in an inlined first page', async () => {
-      const STATUS_ID = `${REMOTE_STATUS_ID}/single-inline-ordered-object`
+    it('stores the reply from a fetched page whose orderedItems is a bare object', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/single-fetched-ordered-object`
+      const REPLIES_ID = `${STATUS_ID}/replies`
       const REPLY_ID = `${STATUS_ID}/reply`
       fetchMock.mockResponse(async (req) => {
         if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
         if (req.url === STATUS_ID) {
-          return JSON.stringify(
-            mainNote(STATUS_ID, {
-              id: `${STATUS_ID}/replies`,
-              type: 'OrderedCollection',
-              first: {
-                type: 'OrderedCollectionPage',
-                orderedItems: replyNote(REPLY_ID, STATUS_ID)
-              }
-            })
-          )
+          return JSON.stringify(mainNote(STATUS_ID, REPLIES_ID))
+        }
+        if (req.url === REPLIES_ID) {
+          return JSON.stringify({
+            id: REPLIES_ID,
+            type: 'OrderedCollection',
+            first: {
+              type: 'OrderedCollectionPage',
+              orderedItems: replyNote(REPLY_ID, STATUS_ID)
+            }
+          })
         }
         return JSON.stringify({})
       })
