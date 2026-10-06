@@ -109,27 +109,50 @@ const isReactionBearing = (value: unknown): boolean => {
   )
 }
 
-const createObjectActorMismatch = (
-  object: unknown,
+// Binds a Create/Update payload to the HTTP signer and returns the payload the
+// job should store, or null when the signer did not author it.
+//
+// `attributedTo` may name several authors: PeerTube attributes a Video to the
+// uploading account AND its channel (a Group), and signs with the account. The
+// signer only has to be ONE of the authors, and every co-author must live on
+// the signer's own origin, so a sender cannot list a third party's actor as a
+// co-author. Any `actor` the object carries must still be the signer itself.
+//
+// The returned copy has `attributedTo` pinned to the signer's own entry.
+// `normalizeActivityPubContent` stores the FIRST id of an array, so without the
+// pin a `[channel, account]` ordering would store the channel as the author
+// (and the job's own signer check would then drop it), and `[victim, self]`
+// would only be safe because of that downstream check.
+const bindObjectToSender = <T extends Record<string, unknown>>(
+  object: T,
   verifiedSenderActorId: string
-) => {
-  if (!isRecord(object)) return false
-
+): T | null => {
   const normalizedVerifiedSenderActorId = normalizeActorId(
     verifiedSenderActorId
   )
-  if (!normalizedVerifiedSenderActorId) return true
+  if (!normalizedVerifiedSenderActorId) return null
 
-  const objectActorIds = [
-    ...extractActivityPubIds(object.attributedTo),
-    ...extractActivityPubIds(object.actor)
-  ]
+  const authorIds = extractActivityPubIds(object.attributedTo)
+  const objectActorIds = extractActivityPubIds(object.actor)
+  if (authorIds.length === 0 && objectActorIds.length === 0) return null
 
-  if (objectActorIds.length === 0) return true
+  const isSender = (actorId: string) =>
+    normalizeActorId(actorId) === normalizedVerifiedSenderActorId
 
-  return !objectActorIds.every(
-    (actorId) => normalizeActorId(actorId) === normalizedVerifiedSenderActorId
-  )
+  if (!objectActorIds.every(isSender)) return null
+  if (authorIds.length === 0) return object
+
+  const senderAuthorId = authorIds.find(isSender)
+  if (!senderAuthorId) return null
+  if (
+    !authorIds.every((actorId) =>
+      isSameActivityPubOrigin(actorId, normalizedVerifiedSenderActorId)
+    )
+  ) {
+    return null
+  }
+
+  return { ...object, attributedTo: senderAuthorId }
 }
 
 // An Announce whose `object` is itself an activity: an embedded record with
@@ -160,9 +183,8 @@ export const getJobMessage = (
       activity.object !== null &&
       NOTE_TYPES.includes(activity.object.type)
     ) {
-      if (createObjectActorMismatch(activity.object, verifiedSenderActorId)) {
-        return null
-      }
+      const object = bindObjectToSender(activity.object, verifiedSenderActorId)
+      if (!object) return null
 
       if (
         activity.object.type === ENTITY_TYPE_NOTE &&
@@ -174,7 +196,7 @@ export const getJobMessage = (
         return createJobMessage({
           id: deduplicationId,
           name: CREATE_POLL_VOTE_JOB_NAME,
-          data: activity.object,
+          data: object,
           verifiedSenderActorId
         })
       }
@@ -182,7 +204,7 @@ export const getJobMessage = (
       return createJobMessage({
         id: deduplicationId,
         name: CREATE_NOTE_JOB_NAME,
-        data: activity.object,
+        data: object,
         verifiedSenderActorId
       })
     }
@@ -192,14 +214,13 @@ export const getJobMessage = (
       activity.object !== null &&
       activity.object.type === ENTITY_TYPE_QUESTION
     ) {
-      if (createObjectActorMismatch(activity.object, verifiedSenderActorId)) {
-        return null
-      }
+      const object = bindObjectToSender(activity.object, verifiedSenderActorId)
+      if (!object) return null
 
       return createJobMessage({
         id: deduplicationId,
         name: CREATE_POLL_JOB_NAME,
-        data: activity.object,
+        data: object,
         verifiedSenderActorId
       })
     }
@@ -211,14 +232,13 @@ export const getJobMessage = (
       activity.object !== null &&
       activity.object.type === ENTITY_TYPE_QUESTION
     ) {
-      if (createObjectActorMismatch(activity.object, verifiedSenderActorId)) {
-        return null
-      }
+      const object = bindObjectToSender(activity.object, verifiedSenderActorId)
+      if (!object) return null
 
       return createJobMessage({
         id: deduplicationId,
         name: UPDATE_POLL_JOB_NAME,
-        data: activity.object,
+        data: object,
         verifiedSenderActorId
       })
     }
@@ -228,14 +248,13 @@ export const getJobMessage = (
       activity.object !== null &&
       NOTE_TYPES.includes(activity.object.type)
     ) {
-      if (createObjectActorMismatch(activity.object, verifiedSenderActorId)) {
-        return null
-      }
+      const object = bindObjectToSender(activity.object, verifiedSenderActorId)
+      if (!object) return null
 
       return createJobMessage({
         id: deduplicationId,
         name: UPDATE_NOTE_JOB_NAME,
-        data: activity.object,
+        data: object,
         verifiedSenderActorId
       })
     }

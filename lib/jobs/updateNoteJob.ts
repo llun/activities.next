@@ -79,7 +79,7 @@ export const updateNoteJob = createJobHandle(
 
     // An Update may only be applied by the note's OWN author. Routing verifies
     // the payload's `attributedTo` against the signer (`getJobMessage`'s
-    // `createObjectActorMismatch`), which an attacker satisfies by attributing
+    // `bindObjectToSender`), which an attacker satisfies by attributing
     // the payload to themselves while pointing `id` at someone else's status —
     // so without this the target is resolved by `note.id` alone and any
     // federated actor can rewrite the text of any stored status, local users
