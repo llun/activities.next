@@ -6,7 +6,12 @@ import {
   normalizeInputContext,
   offlineDocumentLoader
 } from '@/lib/activities/jsonld'
-import { BaseNote, getContent, getLanguage } from '@/lib/activities/note'
+import {
+  BaseNote,
+  getAttachments,
+  getContent,
+  getLanguage
+} from '@/lib/activities/note'
 import {
   NOTE_ACTIVITY_CONTEXT,
   NOTE_CONTEXT_TERMS
@@ -780,6 +785,82 @@ describe('compactActivityPub note language handling', () => {
     expect(getContent(note)).toBe('<p>hello</p>')
     expect(getLanguage(note)).toBe('th')
   })
+
+  // Pixelfed and Friendica send photos as `Image` attachments, not Mastodon's
+  // `Document`. They must survive our inbox's compaction and come out of
+  // getAttachments as media, or their posts arrive with no photos.
+  it.each([
+    [
+      'Pixelfed',
+      [
+        ACTIVITY_STREAMS_CONTEXT_URL,
+        SECURITY_V1_CONTEXT_URL,
+        {
+          pixelfed: 'http://pixelfed.org/ns#',
+          Hashtag: 'as:Hashtag',
+          sensitive: 'as:sensitive',
+          commentsEnabled: {
+            '@id': 'pixelfed:commentsEnabled',
+            '@type': 'schema:Boolean'
+          },
+          schema: 'http://schema.org/'
+        }
+      ],
+      [
+        {
+          type: 'Image',
+          mediaType: 'image/jpeg',
+          url: 'https://pixelfed.example/storage/m/_v2/1/photo.jpg',
+          name: 'Sunrise over the lake',
+          width: 1080,
+          height: 1350
+        }
+      ],
+      {
+        type: 'Document',
+        mediaType: 'image/jpeg',
+        url: 'https://pixelfed.example/storage/m/_v2/1/photo.jpg',
+        name: 'Sunrise over the lake',
+        width: 1080,
+        height: 1350
+      }
+    ],
+    [
+      'Friendica',
+      [
+        ACTIVITY_STREAMS_CONTEXT_URL,
+        SECURITY_V1_CONTEXT_URL,
+        { diaspora: 'https://diasporafoundation.org/ns/' }
+      ],
+      {
+        type: 'Image',
+        mediaType: 'image/jpeg',
+        url: 'https://friendica.example/photo/8b4e0c5f2a1d-0.jpg',
+        name: ''
+      },
+      {
+        type: 'Document',
+        mediaType: 'image/jpeg',
+        url: 'https://friendica.example/photo/8b4e0c5f2a1d-0.jpg',
+        name: ''
+      }
+    ]
+  ])(
+    'keeps a %s Image attachment through compaction',
+    async (_server, context, attachment, expected) => {
+      const result = await compactActivityPub({
+        '@context': context,
+        id: 'https://remote.example/notes/1',
+        type: 'Note',
+        attributedTo: 'https://remote.example/users/alice',
+        content: '<p>Morning light</p>',
+        published: '2026-01-01T00:00:00Z',
+        attachment
+      })
+
+      expect(getAttachments(result as BaseNote)).toEqual([expected])
+    }
+  )
 
   // Round-trips a Note through the wire the way a receiving instance sees it:
   // serialised under the context this instance sends, then compacted by the

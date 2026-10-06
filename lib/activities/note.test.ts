@@ -207,6 +207,223 @@ describe('note entity utilities', () => {
       ])
     })
 
+    // Mastodon sends every media attachment as a Document, but Pixelfed,
+    // Friendica and Funkwhale use the dedicated ActivityStreams media types.
+    // Only Document used to be kept, so their posts arrived with no media.
+    describe('ActivityStreams media attachment types', () => {
+      it('keeps Pixelfed Image attachments with their alt text and blurhash', () => {
+        const note = {
+          type: 'Note',
+          id: 'https://pixelfed.example/p/alice/700000000000000001',
+          attributedTo: 'https://pixelfed.example/users/alice',
+          content: '<p>Morning light</p>',
+          attachment: [
+            {
+              type: 'Image',
+              mediaType: 'image/jpeg',
+              url: 'https://pixelfed.example/storage/m/_v2/1/abc/def/photo.jpg',
+              name: 'Sunrise over the lake',
+              blurhash: 'U9Fi1M%M00Rj~qM{IUWB00of_3t7%MWBM{xu',
+              width: 1080,
+              height: 1350
+            },
+            {
+              type: 'Image',
+              mediaType: 'image/png',
+              url: 'https://pixelfed.example/storage/m/_v2/1/abc/def/second.png',
+              name: null,
+              blurhash: 'U00000fQfQfQfQfQfQfQfQfQfQfQ',
+              width: 800,
+              height: 600
+            }
+          ]
+        } as unknown as BaseNote
+
+        expect(getAttachments(note)).toEqual([
+          {
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://pixelfed.example/storage/m/_v2/1/abc/def/photo.jpg',
+            name: 'Sunrise over the lake',
+            blurhash: 'U9Fi1M%M00Rj~qM{IUWB00of_3t7%MWBM{xu',
+            width: 1080,
+            height: 1350
+          },
+          {
+            type: 'Document',
+            mediaType: 'image/png',
+            url: 'https://pixelfed.example/storage/m/_v2/1/abc/def/second.png',
+            blurhash: 'U00000fQfQfQfQfQfQfQfQfQfQfQ',
+            width: 800,
+            height: 600
+          }
+        ])
+      })
+
+      it('keeps Pixelfed Video attachments', () => {
+        const note = {
+          type: 'Note',
+          id: 'https://pixelfed.example/p/alice/700000000000000002',
+          content: '<p>Clip</p>',
+          attachment: [
+            {
+              type: 'Video',
+              mediaType: 'video/mp4',
+              url: 'https://pixelfed.example/storage/m/_v2/1/abc/def/clip.mp4',
+              name: 'Waves rolling in'
+            }
+          ]
+        } as unknown as BaseNote
+
+        expect(getAttachments(note)).toEqual([
+          {
+            type: 'Document',
+            mediaType: 'video/mp4',
+            url: 'https://pixelfed.example/storage/m/_v2/1/abc/def/clip.mp4',
+            name: 'Waves rolling in'
+          }
+        ])
+      })
+
+      it('keeps Friendica Image and Audio attachments, defaulting a missing mediaType by kind', () => {
+        const note = {
+          type: 'Note',
+          id: 'https://friendica.example/objects/0b6a5a0c-1065-0d3f-9c3e-2c1d63000001',
+          content: 'Photo and a voice note',
+          attachment: [
+            {
+              type: 'Image',
+              url: 'https://friendica.example/photo/8b4e0c5f2a1d-0.jpg',
+              name: ''
+            },
+            {
+              type: 'Audio',
+              mediaType: 'audio/ogg',
+              url: 'https://friendica.example/attach/42',
+              name: 'voice-note.ogg'
+            },
+            {
+              type: 'Audio',
+              url: 'https://friendica.example/attach/43'
+            }
+          ]
+        } as unknown as BaseNote
+
+        expect(
+          getAttachments(note).map(({ mediaType, url }) => ({ mediaType, url }))
+        ).toEqual([
+          {
+            mediaType: 'image/jpeg',
+            url: 'https://friendica.example/photo/8b4e0c5f2a1d-0.jpg'
+          },
+          {
+            mediaType: 'audio/ogg',
+            url: 'https://friendica.example/attach/42'
+          },
+          {
+            mediaType: 'audio/mpeg',
+            url: 'https://friendica.example/attach/43'
+          }
+        ])
+      })
+
+      it('reads a url given as a Link, or as an array of Link renditions', () => {
+        const note = {
+          type: 'Note',
+          id: 'https://remote.example/notes/1',
+          content: 'Links',
+          attachment: [
+            {
+              type: 'Image',
+              url: {
+                type: 'Link',
+                href: 'https://remote.example/media/photo.webp',
+                mediaType: 'image/webp'
+              }
+            },
+            {
+              type: 'Video',
+              url: [
+                {
+                  type: 'Link',
+                  href: 'https://remote.example/media/clip.m3u8',
+                  mediaType: 'application/x-mpegURL'
+                },
+                {
+                  type: 'Link',
+                  href: 'https://remote.example/media/clip.webm',
+                  mediaType: 'video/webm'
+                }
+              ]
+            },
+            {
+              type: 'Document',
+              mediaType: 'application/pdf',
+              url: [{ type: 'Link', href: 'https://remote.example/doc.pdf' }]
+            }
+          ]
+        } as unknown as BaseNote
+
+        expect(
+          getAttachments(note).map(({ mediaType, url }) => ({ mediaType, url }))
+        ).toEqual([
+          {
+            mediaType: 'image/webp',
+            url: 'https://remote.example/media/photo.webp'
+          },
+          {
+            mediaType: 'video/webm',
+            url: 'https://remote.example/media/clip.webm'
+          },
+          {
+            mediaType: 'application/pdf',
+            url: 'https://remote.example/doc.pdf'
+          }
+        ])
+      })
+
+      it('keeps the attachment when only its focalPoint is malformed', () => {
+        const note = {
+          type: 'Note',
+          id: 'https://remote.example/notes/1',
+          content: 'Focus',
+          attachment: [
+            {
+              type: 'Image',
+              mediaType: 'image/jpeg',
+              url: 'https://remote.example/photo.jpg',
+              focalPoint: 'center'
+            }
+          ]
+        } as unknown as BaseNote
+
+        expect(getAttachments(note)).toEqual([
+          {
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://remote.example/photo.jpg'
+          }
+        ])
+      })
+
+      it('still drops non-media and unsafe attachments', () => {
+        const note = {
+          type: 'Note',
+          id: 'https://remote.example/notes/1',
+          content: 'Mixed',
+          attachment: [
+            { type: 'PropertyValue', name: 'Website', value: 'x' },
+            { type: 'Link', href: 'https://remote.example/page' },
+            { type: 'Image', url: 'javascript:alert(1)' },
+            { type: 'Video', mediaType: 'video/mp4' },
+            { type: 'Document', url: 'https://remote.example/unknown' }
+          ]
+        } as unknown as BaseNote
+
+        expect(getAttachments(note)).toEqual([])
+      })
+    })
+
     it('returns attachments array', () => {
       const note: BaseNote = {
         type: 'Note',

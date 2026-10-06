@@ -107,8 +107,88 @@ const resolveIconUrl = (icon: unknown): string | null => {
   return null
 }
 
-const isDocument = (attachment: Attachment): attachment is Document =>
-  Document.safeParse(attachment).success
+// Mastodon sends every media attachment as `Document`, but the ActivityStreams
+// vocabulary has dedicated media types and Pixelfed, Friendica, Funkwhale and
+// others use them (`Image`, `Video`, `Audio`). All four are read the same way
+// and stored as a Document; anything else (PropertyValue, Link, unknown kinds
+// tolerated as loose objects by the schema) is not media and is dropped.
+const MEDIA_ATTACHMENT_DEFAULT_TYPES: Record<string, string | null> = {
+  Document: null,
+  Image: 'image/jpeg',
+  Video: 'video/mp4',
+  Audio: 'audio/mpeg'
+}
+
+type AttachmentLink = { href: string; mediaType?: string }
+
+const toAttachmentLink = (value: unknown): AttachmentLink | null => {
+  if (typeof value === 'string') return { href: value }
+  if (!value || typeof value !== 'object') return null
+  const { href, mediaType } = value as { href?: unknown; mediaType?: unknown }
+  if (typeof href !== 'string') return null
+  return {
+    href,
+    ...(typeof mediaType === 'string' ? { mediaType } : {})
+  }
+}
+
+// An attachment's `url` may be a bare string, a Link object, or an array of
+// either (one Link per rendition). Prefer the first rendition whose mediaType
+// matches the attachment's own kind, then any http(s) one.
+const getAttachmentLink = (
+  url: unknown,
+  mediaPrefix: string | null
+): AttachmentLink | null => {
+  const links = (Array.isArray(url) ? url : [url])
+    .map(toAttachmentLink)
+    .filter((link): link is AttachmentLink => Boolean(link))
+    .filter((link) => isHttpUrl(link.href))
+  if (mediaPrefix) {
+    const matching = links.find((link) =>
+      link.mediaType?.toLowerCase().startsWith(mediaPrefix)
+    )
+    if (matching) return matching
+  }
+  return links[0] ?? null
+}
+
+const toMediaDocument = (attachment: Attachment): Document | null => {
+  const record = attachment as Record<string, unknown>
+  const type = typeof record.type === 'string' ? record.type : ''
+  if (!(type in MEDIA_ATTACHMENT_DEFAULT_TYPES)) return null
+  if (type === 'Document') {
+    const document = Document.safeParse(attachment)
+    if (document.success) return document.data
+  }
+
+  const defaultMediaType = MEDIA_ATTACHMENT_DEFAULT_TYPES[type]
+  const mediaPrefix = defaultMediaType
+    ? `${defaultMediaType.split('/')[0]}/`
+    : null
+  const link = getAttachmentLink(record.url, mediaPrefix)
+  if (!link) return null
+
+  const mediaType =
+    (typeof record.mediaType === 'string' && record.mediaType) ||
+    link.mediaType ||
+    defaultMediaType
+  if (!mediaType) return null
+
+  const fields = {
+    type: 'Document',
+    mediaType,
+    url: link.href,
+    name: typeof record.name === 'string' ? record.name : undefined,
+    blurhash: typeof record.blurhash === 'string' ? record.blurhash : undefined,
+    width: typeof record.width === 'number' ? record.width : undefined,
+    height: typeof record.height === 'number' ? record.height : undefined
+  }
+  // A malformed focalPoint must not cost the attachment itself.
+  const document =
+    Document.safeParse({ ...fields, focalPoint: record.focalPoint }).data ??
+    Document.safeParse(fields).data
+  return document ?? null
+}
 
 export const getAttachments = (object: BaseNote): Document[] => {
   const attachments: Document[] = []
@@ -116,9 +196,11 @@ export const getAttachments = (object: BaseNote): Document[] => {
     const list = Array.isArray(object.attachment)
       ? object.attachment
       : [object.attachment]
-    // Keep only Document attachments; other/unknown attachment kinds (tolerated
-    // as loose objects by the schema) are not media and are dropped here.
-    attachments.push(...list.filter(isDocument))
+    attachments.push(
+      ...list
+        .map(toMediaDocument)
+        .filter((item): item is Document => Boolean(item))
+    )
   }
 
   if (['Image', 'Video'].includes(object.type)) {
