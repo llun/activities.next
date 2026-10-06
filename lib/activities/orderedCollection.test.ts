@@ -1,6 +1,7 @@
 import {
   OrderedCollection,
-  getOrderCollectionFirstPage
+  getOrderCollectionFirstPage,
+  toCollectionItems
 } from './orderedCollection'
 
 describe('orderedCollection', () => {
@@ -66,6 +67,28 @@ describe('orderedCollection', () => {
       }
 
       expect(getOrderCollectionFirstPage(collection)).toBeNull()
+    })
+  })
+
+  describe('toCollectionItems', () => {
+    const object = { id: 'https://example.com/note/1', type: 'Note' }
+
+    it.each([
+      ['undefined', undefined, []],
+      ['null', null, []],
+      [
+        'a bare string',
+        'https://example.com/note/1',
+        ['https://example.com/note/1']
+      ],
+      ['a bare object', object, [object]]
+    ])('normalises %s', (_label, value, expected) => {
+      expect(toCollectionItems(value)).toEqual(expected)
+    })
+
+    it('returns an array as the same reference', () => {
+      const items = [object, 'https://example.com/note/2']
+      expect(toCollectionItems(items)).toBe(items)
     })
   })
 })

@@ -99,6 +99,29 @@ describe('getActorCollections context inheritance', () => {
     expect(result?.totalItems).toBe(1)
   })
 
+  it('reads a root inlining a single bare orderedItems value as a one-item page', async () => {
+    const item = { id: 'https://example.com/status/1', type: 'Note' }
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: {},
+      body: JSON.stringify({
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        id: 'https://example.com/outbox',
+        type: 'OrderedCollection',
+        orderedItems: item
+      })
+    })
+
+    const person = {
+      id: 'https://example.com/user',
+      outbox: 'https://example.com/outbox'
+    } as Actor
+    const result = await getActorCollections({ person, field: 'outbox' })
+    expect(result?.page?.orderedItems).toEqual([item])
+    expect(result?.totalItems).toBe(1)
+    expect(mockRequest).toHaveBeenCalledTimes(1)
+  })
+
   it('carries root collection context into fetched page when page omits @context', async () => {
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,

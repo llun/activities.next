@@ -280,6 +280,32 @@ describe('fetchRemoteStatusJob', () => {
       expect(reply?.id).toBe(REPLY_ID)
     })
 
+    it('stores the reply embedded as a bare orderedItems value in an inlined first page', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/single-inline-ordered-object`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return JSON.stringify(
+            mainNote(STATUS_ID, {
+              id: `${STATUS_ID}/replies`,
+              type: 'OrderedCollection',
+              first: {
+                type: 'OrderedCollectionPage',
+                orderedItems: replyNote(REPLY_ID, STATUS_ID)
+              }
+            })
+          )
+        }
+        return JSON.stringify({})
+      })
+
+      await runJob(STATUS_ID)
+
+      const reply = await database.getStatus({ statusId: REPLY_ID })
+      expect(reply?.id).toBe(REPLY_ID)
+    })
+
     it('fetches the reply named by id in an inlined first page', async () => {
       const STATUS_ID = `${REMOTE_STATUS_ID}/single-inline-id`
       const REPLY_ID = `${STATUS_ID}/reply`
