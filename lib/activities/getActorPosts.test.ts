@@ -873,6 +873,61 @@ describe('getActorPosts', () => {
     expect(response.statuses[0].id).toBe(statusId)
   })
 
+  it('returns the one activity of an outbox page whose orderedItems is a bare object', async () => {
+    const actorId = 'https://single.example/users/actor'
+    const statusId = `${actorId}/statuses/single-1`
+    const person = MockActivityPubPerson({
+      id: actorId,
+      withContext: true
+    }) as Actor
+
+    fetchMock.resetMocks()
+    fetchMock.mockResponse(async (req) => {
+      if (req.url === `${actorId}/outbox`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${actorId}/outbox`,
+            type: 'OrderedCollection',
+            totalItems: 1,
+            first: `${actorId}/outbox?page=true`
+          })
+        }
+      }
+
+      // A server that compacts its own JSON-LD collapses a one-element array
+      // into the bare value.
+      if (req.url === `${actorId}/outbox?page=true`) {
+        return {
+          status: 200,
+          body: JSON.stringify({
+            id: `${actorId}/outbox?page=true`,
+            type: 'OrderedCollectionPage',
+            partOf: `${actorId}/outbox`,
+            orderedItems: {
+              id: `${statusId}/activity`,
+              type: 'Create',
+              actor: actorId,
+              published: new Date().toISOString(),
+              object: MockMastodonActivityPubNote({
+                id: statusId,
+                from: actorId,
+                content: 'The only status',
+                withContext: true
+              })
+            }
+          })
+        }
+      }
+
+      return { status: 404, body: 'Not Found' }
+    })
+
+    const response = await getActorPosts({ database, person })
+
+    expect(response.statuses.map((status) => status.id)).toEqual([statusId])
+  })
+
   it('drops followers-only and direct notes a signer-filtered outbox handed back', async () => {
     const actorId = 'https://private.example/users/actor'
     const followersUrl = `${actorId}/followers`

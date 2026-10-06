@@ -222,6 +222,150 @@ describe('fetchRemoteStatusJob', () => {
     expect(reply?.reply).toBe(STATUS_ID)
   })
 
+  describe('a replies page holding a single reply', () => {
+    // JSON-LD compaction collapses a one-element `items` array into the bare
+    // value, so a page with exactly one reply reaches the crawl as an object
+    // (an embedded note) or a string (an id ref) rather than an array.
+    const replyNote = (id: string, inReplyTo: string) => ({
+      id,
+      type: 'Note',
+      attributedTo: REMOTE_ACTOR_ID,
+      content: 'The only reply',
+      inReplyTo,
+      to: [PUBLIC_STREAM],
+      cc: [],
+      published: new Date().toISOString()
+    })
+
+    const mainNote = (id: string, replies: unknown) => ({
+      id,
+      type: 'Note',
+      attributedTo: REMOTE_ACTOR_ID,
+      content: 'Main Post',
+      to: [PUBLIC_STREAM],
+      replies,
+      published: new Date().toISOString()
+    })
+
+    const runJob = (statusId: string) =>
+      fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId }
+      })
+
+    it('stores the reply embedded in an inlined first page', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/single-inline-object`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return JSON.stringify(
+            mainNote(STATUS_ID, {
+              id: `${STATUS_ID}/replies`,
+              type: 'Collection',
+              first: {
+                type: 'CollectionPage',
+                items: [replyNote(REPLY_ID, STATUS_ID)]
+              }
+            })
+          )
+        }
+        return JSON.stringify({})
+      })
+
+      await runJob(STATUS_ID)
+
+      const reply = await database.getStatus({ statusId: REPLY_ID })
+      expect(reply?.id).toBe(REPLY_ID)
+    })
+
+    it('stores the reply from a fetched page whose orderedItems is a bare object', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/single-fetched-ordered-object`
+      const REPLIES_ID = `${STATUS_ID}/replies`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return JSON.stringify(mainNote(STATUS_ID, REPLIES_ID))
+        }
+        if (req.url === REPLIES_ID) {
+          return JSON.stringify({
+            id: REPLIES_ID,
+            type: 'OrderedCollection',
+            first: {
+              type: 'OrderedCollectionPage',
+              orderedItems: replyNote(REPLY_ID, STATUS_ID)
+            }
+          })
+        }
+        return JSON.stringify({})
+      })
+
+      await runJob(STATUS_ID)
+
+      const reply = await database.getStatus({ statusId: REPLY_ID })
+      expect(reply?.id).toBe(REPLY_ID)
+    })
+
+    it('fetches the reply named by id in an inlined first page', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/single-inline-id`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return JSON.stringify(
+            mainNote(STATUS_ID, {
+              id: `${STATUS_ID}/replies`,
+              type: 'Collection',
+              first: {
+                type: 'CollectionPage',
+                items: [REPLY_ID]
+              }
+            })
+          )
+        }
+        if (req.url === REPLY_ID) {
+          return JSON.stringify(replyNote(REPLY_ID, STATUS_ID))
+        }
+        return JSON.stringify({})
+      })
+
+      await runJob(STATUS_ID)
+
+      const reply = await database.getStatus({ statusId: REPLY_ID })
+      expect(reply?.id).toBe(REPLY_ID)
+    })
+
+    it('stores the reply from a fetched page whose items is a bare object', async () => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/single-fetched-object`
+      const REPLIES_ID = `${STATUS_ID}/replies`
+      const REPLY_ID = `${STATUS_ID}/reply`
+      fetchMock.mockResponse(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return JSON.stringify(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return JSON.stringify(mainNote(STATUS_ID, REPLIES_ID))
+        }
+        if (req.url === REPLIES_ID) {
+          return JSON.stringify({
+            id: REPLIES_ID,
+            type: 'Collection',
+            first: {
+              type: 'CollectionPage',
+              items: replyNote(REPLY_ID, STATUS_ID)
+            }
+          })
+        }
+        return JSON.stringify({})
+      })
+
+      await runJob(STATUS_ID)
+
+      const reply = await database.getStatus({ statusId: REPLY_ID })
+      expect(reply?.id).toBe(REPLY_ID)
+    })
+  })
+
   it('fetches nested replies across the whole thread', async () => {
     const STATUS_ID = `${REMOTE_STATUS_ID}/thread`
     const REPLIES_ID = `${STATUS_ID}/replies`

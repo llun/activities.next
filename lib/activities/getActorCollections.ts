@@ -2,7 +2,8 @@ import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import {
   OrderedCollection,
   OrderedCollectionPage,
-  getOrderCollectionFirstPage
+  getOrderCollectionFirstPage,
+  toCollectionItems
 } from '@/lib/activities/orderedCollection'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
@@ -111,19 +112,18 @@ export const getActorCollections = async ({
       }
 
       const collection = fieldResponse.collection
-      if (
-        Array.isArray(collection.orderedItems) &&
-        collection.orderedItems.length > 0
-      ) {
+      // A root inlining a single item may serve it as the bare value rather
+      // than a one-element array, so read it through toCollectionItems.
+      const inlineItems = toCollectionItems(collection.orderedItems)
+      if (inlineItems.length > 0) {
         return {
           page: {
             '@context': collection['@context'],
             type: 'OrderedCollectionPage' as const,
-            orderedItems: collection.orderedItems
+            orderedItems: inlineItems
           },
           totalItems:
-            parseTotalItems(collection.totalItems) ??
-            collection.orderedItems.length
+            parseTotalItems(collection.totalItems) ?? inlineItems.length
         }
       }
 

@@ -33,3 +33,18 @@ export const getOrderCollectionFirstPage = (
   }
   return orderedCollection.first.id ?? null
 }
+
+/**
+ * Coerces a collection's `orderedItems`/`items` value into an array.
+ *
+ * JSON-LD compaction collapses a one-element array into the bare value, so a
+ * page holding a single item arrives as that item — an embedded object, or a
+ * string id ref — rather than a one-element array. Iterating it directly
+ * throws on an object and walks a string character by character.
+ */
+export const toCollectionItems = <T>(
+  value: T | T[] | null | undefined
+): T[] => {
+  if (value === undefined || value === null) return []
+  return Array.isArray(value) ? value : [value]
+}

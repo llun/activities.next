@@ -4,6 +4,7 @@ import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getActorCollections } from '@/lib/activities/getActorCollections'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { compactActivityPub } from '@/lib/activities/jsonld'
+import { toCollectionItems } from '@/lib/activities/orderedCollection'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -176,7 +177,9 @@ export const followTimelineBackfillJob = createJobHandle(
           field: 'outbox',
           signingActor
         })
-        const items: unknown[] = collection?.page?.orderedItems ?? []
+        const items: unknown[] = toCollectionItems(
+          collection?.page?.orderedItems
+        )
 
         // Keep the newest BACKFILL_MAX_STATUSES, then process oldest-first so
         // a self-thread reply finds its already-stored parent when

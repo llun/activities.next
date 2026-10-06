@@ -3,6 +3,7 @@ import { Span } from '@opentelemetry/api'
 import { getNote } from '@/lib/activities'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { BaseNote, BaseNoteSchema } from '@/lib/activities/note'
+import { toCollectionItems } from '@/lib/activities/orderedCollection'
 import { Database } from '@/lib/database/types'
 import { isPixelfedActor } from '@/lib/services/federation/serverSoftware'
 import { detectLanguageFromHtml } from '@/lib/services/language-detection'
@@ -159,10 +160,10 @@ export const getActorPosts: GetActorPostsFunction = async ({
           prevPageUrl: null
         }
       }
-      const rawItems = value.page?.orderedItems
-      const items = Array.isArray(rawItems)
-        ? rawItems.slice(0, MAX_OUTBOX_PAGE_ITEMS)
-        : []
+      const items = toCollectionItems(value.page?.orderedItems).slice(
+        0,
+        MAX_OUTBOX_PAGE_ITEMS
+      )
       const statuses = await mapWithConcurrency(
         items,
         OUTBOX_ITEM_CONCURRENCY,

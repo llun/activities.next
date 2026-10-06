@@ -288,6 +288,24 @@ describe('followTimelineBackfillJob', () => {
     await expect(runJob(actorId)).resolves.not.toThrow()
   })
 
+  it('stores the one activity of an outbox page whose orderedItems is a bare object', async () => {
+    const actorId = await createFollowedRemoteActor()
+    const note = outboxNote(actorId, 1)
+    // A server that compacts its own JSON-LD collapses a one-element array
+    // into the bare value.
+    vi.mocked(getActorCollections).mockResolvedValue({
+      page: {
+        type: 'OrderedCollectionPage',
+        orderedItems: outboxCreate(note)
+      },
+      totalItems: 1
+    } as never)
+
+    await runJob(actorId)
+
+    expect(await database.getStatus({ statusId: note.id })).toBeTruthy()
+  })
+
   it('MERGE remote: merges stored statuses into follower timeline without fetching', async () => {
     const actorId = await createFollowedRemoteActor()
     const note = await storeNote(actorId, 1)
