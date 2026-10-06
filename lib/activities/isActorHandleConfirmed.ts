@@ -21,12 +21,14 @@ export const isActorHandleConfirmed = async ({
   actorId,
   username,
   withNetworkRetry = true,
-  responseTimeout
+  responseTimeout,
+  allowCrossHostRedirects
 }: {
   actorId: string
   username: string
   withNetworkRetry?: boolean
   responseTimeout?: number
+  allowCrossHostRedirects?: boolean
 }): Promise<boolean> => {
   const host = URL.canParse(actorId) ? new URL(actorId).host : ''
   if (!host) return false
@@ -35,7 +37,8 @@ export const isActorHandleConfirmed = async ({
   const document = await getWebfingerDocument({
     account,
     withNetworkRetry,
-    responseTimeout
+    responseTimeout,
+    allowCrossHostRedirects
   })
   const selfHrefs =
     document?.links.flatMap((link) =>
@@ -49,7 +52,8 @@ export const isActorHandleConfirmed = async ({
       message: 'Refused remote actor whose handle WebFinger does not confirm',
       actorId,
       account,
-      webfingerSelf: document ? selfHrefs : null
+      // The host chooses these strings; a few are enough to diagnose.
+      webfingerSelf: document ? selfHrefs.slice(0, 5) : null
     })
   }
   return confirmed

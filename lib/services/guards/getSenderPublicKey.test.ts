@@ -209,25 +209,34 @@ describe('getSenderPublicKey', () => {
   // A keyId can name any URL on the sender's origin. A JSON upload there (a
   // Pleroma/Akkoma media path) is served as `application/json`, never as
   // ActivityPub, so it must not mint a signing key even though its id, owner
-  // and key all agree with the keyId.
+  // and key all agree with the keyId. WebFinger would confirm it here, so only
+  // the content type can refuse it — and it does so before WebFinger is asked.
   it.each(['application/json', 'application/octet-stream', 'text/plain'])(
     'refuses a self-consistent key document served as %s',
     async (contentType) => {
       const uploadId = 'https://remote.test/media/forged.json'
-      fetchMock.mockResponseOnce(
-        JSON.stringify(
-          createActorDocument({
-            id: uploadId,
-            publicKeyId: `${uploadId}#main-key`,
-            publicKeyPem: 'forged-public-key'
-          })
-        ),
-        { status: 200, headers: { 'content-type': contentType } }
-      )
+      fetchMock.resetMocks()
+      fetchMock
+        .mockResponseOnce(
+          JSON.stringify(
+            createActorDocument({
+              id: uploadId,
+              publicKeyId: `${uploadId}#main-key`,
+              publicKeyPem: 'forged-public-key'
+            })
+          ),
+          { status: 200, headers: { 'content-type': contentType } }
+        )
+        .mockResponseOnce(
+          ...webfingerResponse('forged.json@remote.test', uploadId)
+        )
 
       await expect(
         getSenderPublicKeyDetails(database, `${uploadId}#main-key`)
       ).resolves.toEqual({ owner: null, publicKey: '' })
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        `${uploadId}#main-key`
+      ])
     }
   )
 
@@ -323,7 +332,8 @@ describe('getSenderPublicKey', () => {
         expect.objectContaining({
           url: webfingerUrl('admin@remote.test'),
           numberOfRetry: 0,
-          responseTimeout: 3000
+          responseTimeout: 3000,
+          allowCrossHostRedirects: false
         })
       )
     })
@@ -398,6 +408,51 @@ describe('getSenderPublicKey', () => {
       owner,
       webfingerUrl('test1@remote.test')
     ])
+  })
+
+  // The other side of the test above: a path-based keyId never matches a
+  // stored row, so it is fetched on every request, but an owner that already
+  // has a row holds its handle there and is not WebFingered again.
+  it('does not ask WebFinger about a path-based key whose owner is stored', async () => {
+    const owner = 'https://remote.test/users/stored-path-key'
+    const keyId = `${owner}/main-key`
+    await database.createActor({
+      actorId: owner,
+      type: 'Person',
+      username: 'stored-path-key',
+      domain: 'remote.test',
+      followersUrl: `${owner}/followers`,
+      inboxUrl: `${owner}/inbox`,
+      sharedInboxUrl: 'https://remote.test/inbox',
+      publicKey: 'stored-path-public-key',
+      createdAt: Date.now()
+    })
+    fetchMock.resetMocks()
+    fetchMock
+      .mockResponseOnce(
+        JSON.stringify({
+          id: keyId,
+          owner,
+          publicKeyPem: 'stored-path-public-key'
+        }),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+      .mockResponseOnce(
+        JSON.stringify(
+          createActorDocument({
+            id: owner,
+            publicKeyId: keyId,
+            publicKeyPem: 'stored-path-public-key'
+          })
+        ),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+
+    await expect(getSenderPublicKeyDetails(database, keyId)).resolves.toEqual({
+      owner,
+      publicKey: 'stored-path-public-key'
+    })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([keyId, owner])
   })
 
   it('rejects public key documents that do not match the requested key id', async () => {

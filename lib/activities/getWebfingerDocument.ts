@@ -17,11 +17,14 @@ export const SUBSCRIBE_REL = 'http://ostatus.org/schema/1.0/subscribe'
 export const getWebfingerDocument = async ({
   account,
   withNetworkRetry = false,
-  responseTimeout
+  responseTimeout,
+  allowCrossHostRedirects
 }: {
   account: string
   withNetworkRetry?: boolean
   responseTimeout?: number
+  /** See `SafeRemoteFetchOptions.allowCrossHostRedirects`. */
+  allowCrossHostRedirects?: boolean
 }): Promise<WebFinger | null> =>
   withSpan('activity', 'getWebfingerDocument', { account }, async (span) => {
     const [user, domain, ...rest] = account.split('@')
@@ -40,7 +43,8 @@ export const getWebfingerDocument = async ({
         },
         // Use default retry by setting it to undefined, otherwise 0 retry
         numberOfRetry: withNetworkRetry ? undefined : 0,
-        responseTimeout
+        responseTimeout,
+        allowCrossHostRedirects
       })
       if (statusCode !== 200) return null
 
