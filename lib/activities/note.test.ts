@@ -382,6 +382,74 @@ describe('note entity utilities', () => {
         ])
       })
 
+      it('types the stored url by the rendition chosen, not the attachment', () => {
+        const note = {
+          type: 'Note',
+          id: 'https://remote.example/notes/1',
+          content: 'Renditions',
+          attachment: [
+            {
+              type: 'Video',
+              mediaType: 'video/mp4',
+              url: [
+                {
+                  type: 'Link',
+                  href: 'https://remote.example/clip.webm',
+                  mediaType: 'video/webm'
+                }
+              ]
+            }
+          ]
+        } as unknown as BaseNote
+
+        expect(getAttachments(note)[0].mediaType).toEqual('video/webm')
+      })
+
+      it('keeps a Video poster from icon and a Document thumbnailUrl', () => {
+        const note = {
+          type: 'Note',
+          id: 'https://remote.example/notes/1',
+          content: 'Posters',
+          attachment: [
+            {
+              type: 'Video',
+              mediaType: 'video/mp4',
+              url: 'https://remote.example/clip.mp4',
+              icon: { type: 'Image', url: 'https://remote.example/poster.jpg' }
+            },
+            {
+              type: 'Document',
+              mediaType: 'video/mp4',
+              url: { type: 'Link', href: 'https://remote.example/doc.mp4' },
+              thumbnailUrl: 'https://remote.example/doc-thumb.jpg'
+            },
+            {
+              type: 'Video',
+              mediaType: 'video/mp4',
+              url: 'https://remote.example/other.mp4',
+              icon: 'javascript:alert(1)'
+            }
+          ]
+        } as unknown as BaseNote
+
+        expect(
+          getAttachments(note).map(({ url, thumbnailUrl }) => ({
+            url,
+            thumbnailUrl
+          }))
+        ).toEqual([
+          {
+            url: 'https://remote.example/clip.mp4',
+            thumbnailUrl: 'https://remote.example/poster.jpg'
+          },
+          {
+            url: 'https://remote.example/doc.mp4',
+            thumbnailUrl: 'https://remote.example/doc-thumb.jpg'
+          },
+          { url: 'https://remote.example/other.mp4', thumbnailUrl: undefined }
+        ])
+      })
+
       it('keeps the attachment when only its focalPoint is malformed', () => {
         const note = {
           type: 'Note',
@@ -416,7 +484,23 @@ describe('note entity utilities', () => {
             { type: 'Link', href: 'https://remote.example/page' },
             { type: 'Image', url: 'javascript:alert(1)' },
             { type: 'Video', mediaType: 'video/mp4' },
-            { type: 'Document', url: 'https://remote.example/unknown' }
+            { type: 'Document', url: 'https://remote.example/unknown' },
+            // Inherited Object.prototype keys are not media kinds.
+            { type: 'constructor', url: 'https://remote.example/a.jpg' },
+            { type: 'toString', url: 'https://remote.example/b.jpg' },
+            { type: '__proto__', url: 'https://remote.example/c.jpg' },
+            // A Video whose only rendition is an HTML watch page.
+            {
+              type: 'Video',
+              mediaType: 'video/mp4',
+              url: [
+                {
+                  type: 'Link',
+                  href: 'https://remote.example/watch/1',
+                  mediaType: 'text/html'
+                }
+              ]
+            }
           ]
         } as unknown as BaseNote
 

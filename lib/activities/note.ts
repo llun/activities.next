@@ -152,10 +152,15 @@ const getAttachmentLink = (
   return links[0] ?? null
 }
 
+const getStringMediaType = (value: unknown): string | undefined =>
+  typeof value === 'string' && value ? value : undefined
+
 const toMediaDocument = (attachment: Attachment): Document | null => {
   const record = attachment as Record<string, unknown>
   const type = typeof record.type === 'string' ? record.type : ''
-  if (!(type in MEDIA_ATTACHMENT_DEFAULT_TYPES)) return null
+  // `hasOwn`, not `in`: a remote `type: 'constructor'` must not resolve to an
+  // inherited Object.prototype member.
+  if (!Object.hasOwn(MEDIA_ATTACHMENT_DEFAULT_TYPES, type)) return null
   if (type === 'Document') {
     const document = Document.safeParse(attachment)
     if (document.success) return document.data
@@ -168,16 +173,46 @@ const toMediaDocument = (attachment: Attachment): Document | null => {
   const link = getAttachmentLink(record.url, mediaPrefix)
   if (!link) return null
 
-  const mediaType =
-    (typeof record.mediaType === 'string' && record.mediaType) ||
-    link.mediaType ||
-    defaultMediaType
+  const recordMediaType = getStringMediaType(record.mediaType)
+  let mediaType: string | undefined
+  if (mediaPrefix) {
+    // An Image/Video/Audio rendition explicitly typed as something else (an
+    // HLS playlist, an HTML watch page) cannot play in the matching element.
+    if (
+      link.mediaType &&
+      !link.mediaType.toLowerCase().startsWith(mediaPrefix)
+    ) {
+      return null
+    }
+    // The chosen rendition's own type describes the url actually stored.
+    mediaType =
+      link.mediaType ??
+      (recordMediaType?.toLowerCase().startsWith(mediaPrefix)
+        ? recordMediaType
+        : undefined) ??
+      defaultMediaType ??
+      undefined
+  } else {
+    mediaType = recordMediaType ?? link.mediaType
+  }
   if (!mediaType) return null
+
+  // A Video attachment's poster frame arrives as `icon`, as on a top-level
+  // Video object.
+  const thumbnailUrl =
+    typeof record.thumbnailUrl === 'string'
+      ? record.thumbnailUrl
+      : type === 'Video'
+        ? resolveIconUrl(
+            Array.isArray(record.icon) ? record.icon[0] : record.icon
+          )
+        : null
 
   const fields = {
     type: 'Document',
     mediaType,
     url: link.href,
+    ...(thumbnailUrl && isHttpUrl(thumbnailUrl) ? { thumbnailUrl } : {}),
     name: typeof record.name === 'string' ? record.name : undefined,
     blurhash: typeof record.blurhash === 'string' ? record.blurhash : undefined,
     width: typeof record.width === 'number' ? record.width : undefined,
