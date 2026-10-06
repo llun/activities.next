@@ -1,7 +1,9 @@
+import fetchMock from 'jest-fetch-mock'
 import knex from 'knex'
 
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { mockRequests } from '@/lib/stub/activities'
 
 import {
   BlockedFederationDomainError,
@@ -56,6 +58,10 @@ describe('recordActorIfNeeded', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Recording a new actor asks the actor's host for its WebFinger; the stub
+    // answers `acct:<name>@<host>` with a self link at `/users/<name>`.
+    fetchMock.resetMocks()
+    mockRequests(fetchMock)
     mockGetActorCollectionCounts.mockResolvedValue({
       followersCount: null,
       followingCount: null,

@@ -5,6 +5,7 @@ import {
   isCollectionPageUrl,
   parseTotalItems
 } from '@/lib/activities/getActorCollections'
+import { ACTIVITY_JSON_HEADERS } from '@/lib/stub/activities'
 import { Actor } from '@/lib/types/activitypub'
 import { request } from '@/lib/utils/request'
 
@@ -74,7 +75,7 @@ describe('getActorCollections context inheritance', () => {
   it('carries root collection context into inline collection page', async () => {
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         '@context': [
           'https://www.w3.org/ns/activitystreams',
@@ -102,7 +103,7 @@ describe('getActorCollections context inheritance', () => {
   it('carries root collection context into fetched page when page omits @context', async () => {
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         '@context': [
           'https://www.w3.org/ns/activitystreams',
@@ -116,7 +117,7 @@ describe('getActorCollections context inheritance', () => {
     })
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         id: 'https://example.com/outbox/page/1',
         type: 'OrderedCollectionPage',
@@ -145,7 +146,7 @@ describe('getActorCollections context inheritance', () => {
   it('combines root and page contexts with root definitions preceding page definitions', async () => {
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         '@context': { rootTerm: 'https://example.com/ns#root' },
         id: 'https://example.com/outbox',
@@ -155,7 +156,7 @@ describe('getActorCollections context inheritance', () => {
     })
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         '@context': { pageTerm: 'https://example.com/ns#page' },
         id: 'https://example.com/outbox/page/1',
@@ -178,7 +179,7 @@ describe('getActorCollections context inheritance', () => {
   it('resets context inheritance when fetched page specifies @context: null', async () => {
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         '@context': { rootTerm: 'https://example.com/ns#root' },
         id: 'https://example.com/outbox',
@@ -188,7 +189,7 @@ describe('getActorCollections context inheritance', () => {
     })
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         '@context': null,
         id: 'https://example.com/outbox/page/1',
@@ -223,7 +224,7 @@ describe('getActorCollections caller-supplied page', () => {
   it('does not fetch a guessed page of a collection that advertises none', async () => {
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: person.followers,
@@ -234,7 +235,7 @@ describe('getActorCollections caller-supplied page', () => {
     // Would be served if the guessed page were requested.
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         id: guessedPage,
         type: 'OrderedCollectionPage',
@@ -255,7 +256,7 @@ describe('getActorCollections caller-supplied page', () => {
   it('still follows a caller page when the collection advertises its first page', async () => {
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: person.followers,
@@ -266,7 +267,7 @@ describe('getActorCollections caller-supplied page', () => {
     })
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         id: guessedPage,
         type: 'OrderedCollectionPage',

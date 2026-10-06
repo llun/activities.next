@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { recordActorIfNeeded } from '@/lib/actions/utils'
 import { getNote } from '@/lib/activities'
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { BaseNoteSchema, getUrl } from '@/lib/activities/note'
 import { Database } from '@/lib/database/types'
@@ -189,7 +190,7 @@ export const fetchRemoteStatusJob = createJobHandle(
       fetch: async (url: string) => {
         if (!(await canFederateWithDomain(database, url))) return null
         try {
-          const { body, statusCode } = await request({
+          const response = await request({
             url,
             // Every document is bound to the URL it was fetched from, so
             // another host must not answer for it.
@@ -200,8 +201,8 @@ export const fetchRemoteStatusJob = createJobHandle(
               accept: 'application/activity+json'
             })
           })
-          if (statusCode !== 200) return null
-          return JSON.parse(body)
+          if (!isActivityPubDocumentResponse(response, url)) return null
+          return JSON.parse(response.body)
         } catch {
           return null
         }

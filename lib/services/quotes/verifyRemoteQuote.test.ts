@@ -4,6 +4,7 @@ import {
   verifyQuoteAuthorizationStamp,
   verifyRemoteQuote
 } from '@/lib/services/quotes/verifyRemoteQuote'
+import { ACTIVITY_JSON_HEADERS } from '@/lib/stub/activities'
 import type { Status } from '@/lib/types/domain/status'
 import { request } from '@/lib/utils/request'
 import { createSafeRemoteFetch } from '@/lib/utils/safeRemoteFetch'
@@ -126,6 +127,7 @@ describe('verifyRemoteQuote', () => {
     >('@/lib/utils/request')
     ;(request as ReturnType<typeof vi.fn>).mockResolvedValue({
       statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
       body: validStampBody()
     })
 
@@ -168,6 +170,7 @@ describe('verifyRemoteQuote', () => {
       >('@/lib/utils/request')
       ;(request as ReturnType<typeof vi.fn>).mockResolvedValue({
         statusCode: 200,
+        headers: ACTIVITY_JSON_HEADERS,
         body: validStampBody({ [field]: value })
       })
 
@@ -201,6 +204,7 @@ describe('verifyRemoteQuote', () => {
     const foreignStampUri = 'https://evil.example/quote_authorizations/1'
     ;(request as ReturnType<typeof vi.fn>).mockResolvedValue({
       statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         id: foreignStampUri,
         type: 'QuoteAuthorization',
@@ -250,6 +254,7 @@ describe('verifyRemoteQuote', () => {
     >('@/lib/utils/request')
     ;(request as ReturnType<typeof vi.fn>).mockResolvedValue({
       statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
       body: validStampBody({
         id: 'https://evil.example/quote_authorizations/9'
       })
@@ -270,6 +275,7 @@ describe('verifyRemoteQuote', () => {
     >('@/lib/utils/request')
     ;(request as ReturnType<typeof vi.fn>).mockResolvedValue({
       statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({ id: STAMP_URI, type: 'Note' })
     })
 
@@ -314,9 +320,12 @@ describe('verifyQuoteAuthorizationStamp', () => {
       vi.mocked(request).mockRejectedValue(response)
       return request
     }
-    vi.mocked(request).mockResolvedValue(
-      response as unknown as Awaited<ReturnType<typeof request>>
-    )
+    // A real server labels the document it serves; an unlabelled body is
+    // refused before it is read (see `isActivityPubDocumentResponse`).
+    vi.mocked(request).mockResolvedValue({
+      headers: ACTIVITY_JSON_HEADERS,
+      ...response
+    } as unknown as Awaited<ReturnType<typeof request>>)
     return request
   }
 

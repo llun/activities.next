@@ -6,7 +6,7 @@ import {
   getSenderPublicKey,
   getSenderPublicKeyDetails
 } from '@/lib/services/guards/getSenderPublicKey'
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -172,7 +172,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'fragment-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -182,6 +182,55 @@ describe('getSenderPublicKey', () => {
       publicKey: 'fragment-public-key'
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  // A keyId can name any URL on the sender's origin. A JSON upload there (a
+  // Pleroma/Akkoma media path) is served as `application/json`, never as
+  // ActivityPub, so it must not mint a signing key even though its id, owner
+  // and key all agree with the keyId.
+  it.each(['application/json', 'application/octet-stream', 'text/plain'])(
+    'refuses a self-consistent key document served as %s',
+    async (contentType) => {
+      const uploadId = 'https://remote.test/media/forged.json'
+      fetchMock.mockResponseOnce(
+        JSON.stringify(
+          createActorDocument({
+            id: uploadId,
+            publicKeyId: `${uploadId}#main-key`,
+            publicKeyPem: 'forged-public-key'
+          })
+        ),
+        { status: 200, headers: { 'content-type': contentType } }
+      )
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${uploadId}#main-key`)
+      ).resolves.toEqual({ owner: null, publicKey: '' })
+    }
+  )
+
+  it('accepts a key document served as JSON-LD with the ActivityStreams profile', async () => {
+    const owner = 'https://remote.test/users/test1'
+    fetchMock.mockResponseOnce(
+      JSON.stringify(
+        createActorDocument({
+          id: owner,
+          publicKeyId: `${owner}#main-key`,
+          publicKeyPem: 'json-ld-public-key'
+        })
+      ),
+      {
+        status: 200,
+        headers: {
+          'content-type':
+            'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
+        }
+      }
+    )
+
+    await expect(
+      getSenderPublicKeyDetails(database, `${owner}#main-key`)
+    ).resolves.toEqual({ owner, publicKey: 'json-ld-public-key' })
   })
 
   it('accepts actor key identifiers that only differ by URI casing', async () => {
@@ -195,7 +244,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'case-normalized-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -215,7 +264,7 @@ describe('getSenderPublicKey', () => {
         owner,
         publicKeyPem: 'path-public-key'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
     fetchMock.mockResponseOnce(
       JSON.stringify(
@@ -225,7 +274,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'path-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -245,7 +294,7 @@ describe('getSenderPublicKey', () => {
         owner: 'https://remote.test/users/test1',
         publicKeyPem: 'wrong-key'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -265,7 +314,7 @@ describe('getSenderPublicKey', () => {
         owner,
         publicKeyPem: 'path-public-key'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
     fetchMock.mockResponseOnce(
       JSON.stringify(
@@ -275,7 +324,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'path-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -295,7 +344,7 @@ describe('getSenderPublicKey', () => {
         owner,
         publicKeyPem: 'path-public-key'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
     fetchMock.mockResponseOnce(
       JSON.stringify(
@@ -305,7 +354,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'different-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -325,7 +374,7 @@ describe('getSenderPublicKey', () => {
         owner,
         publicKeyPem: 'path-public-key'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
     fetchMock.mockResponseOnce(
       JSON.stringify(
@@ -335,7 +384,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'path-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -355,7 +404,7 @@ describe('getSenderPublicKey', () => {
         owner,
         publicKeyPem: 'path-public-key'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
     fetchMock.mockResponseOnce(
       JSON.stringify(
@@ -366,7 +415,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'path-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -386,7 +435,7 @@ describe('getSenderPublicKey', () => {
         owner: `${owner}#owner`,
         publicKeyPem: 'fragment-owner-public-key'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
     fetchMock.mockResponseOnce(
       JSON.stringify(
@@ -396,7 +445,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'fragment-owner-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -421,7 +470,7 @@ describe('getSenderPublicKey', () => {
         owner,
         publicKeyPem: 'blocked-owner-public-key'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -448,7 +497,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'blocked-owner-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -469,7 +518,7 @@ describe('getSenderPublicKey', () => {
           publicKeyOwner: 'https://remote.test/users/other'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, actorId)
@@ -490,7 +539,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'fragment-owner-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, actorId)
@@ -512,7 +561,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'path-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
     fetchMock.mockResponseOnce(
       JSON.stringify(
@@ -522,7 +571,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'path-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -545,7 +594,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'attacker-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
     fetchMock.mockResponseOnce(
       JSON.stringify(
@@ -555,7 +604,7 @@ describe('getSenderPublicKey', () => {
           publicKeyPem: 'victim-public-key'
         })
       ),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     const publicKey = await getSenderPublicKeyDetails(database, keyId)
@@ -581,7 +630,10 @@ describe('getSenderPublicKey', () => {
 
   it('logs malformed sender public key responses', async () => {
     const actorId = 'https://remote.test/users/test1'
-    fetchMock.mockResponseOnce('{', { status: 200 })
+    fetchMock.mockResponseOnce('{', {
+      status: 200,
+      headers: ACTIVITY_JSON_HEADERS
+    })
 
     const publicKey = await getSenderPublicKeyDetails(database, actorId)
 
@@ -606,7 +658,8 @@ describe('getSenderPublicKey', () => {
     fetchMock
       .mockResponseOnce('', { status: 410 })
       .mockResponseOnce(
-        JSON.stringify(createActorDocument({ id: fallbackActorId }))
+        JSON.stringify(createActorDocument({ id: fallbackActorId })),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
       )
 
     const publicKey = await getSenderPublicKeyDetails(database, actorId)
@@ -626,7 +679,10 @@ describe('getSenderPublicKey', () => {
     fetchMock.resetMocks()
     fetchMock
       .mockResponseOnce('', { status: 503 })
-      .mockResponseOnce(JSON.stringify(createActorDocument({ id: actorId })))
+      .mockResponseOnce(JSON.stringify(createActorDocument({ id: actorId })), {
+        status: 200,
+        headers: ACTIVITY_JSON_HEADERS
+      })
 
     const publicKey = await getSenderPublicKeyDetails(database, actorId)
 
@@ -639,7 +695,8 @@ describe('getSenderPublicKey', () => {
     const actorId = 'https://remote.test/users/slow-key-host'
     fetchMock.resetMocks()
     fetchMock.mockResponseOnce(
-      JSON.stringify(createActorDocument({ id: actorId }))
+      JSON.stringify(createActorDocument({ id: actorId })),
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
     vi.mocked(request).mockClear()
 
@@ -715,6 +772,7 @@ describe('getSenderPublicKey', () => {
               publicKeyPem: 'redirected-public-key'
             })
           ),
+          headers: ACTIVITY_JSON_HEADERS,
           status: 200
         }
       }
@@ -773,6 +831,7 @@ describe('getSenderPublicKey', () => {
               publicKeyPem: 'attacker-public-key'
             })
           ),
+          headers: ACTIVITY_JSON_HEADERS,
           status: 200
         }
       }

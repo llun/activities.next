@@ -2,7 +2,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { clearServerSoftwareCache } from '@/lib/services/federation/serverSoftware'
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { MockActivityPubPerson } from '@/lib/stub/person'
@@ -93,6 +93,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${actorId}/outbox`,
             type: 'OrderedCollection',
@@ -105,6 +106,7 @@ describe('getActorPosts', () => {
       if (req.url === firstPageUrl) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: firstPageUrl,
             type: 'OrderedCollectionPage',
@@ -172,6 +174,7 @@ describe('getActorPosts', () => {
       if (req.url === `${boosterActorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${boosterActorId}/outbox`,
             type: 'OrderedCollection',
@@ -184,6 +187,7 @@ describe('getActorPosts', () => {
       if (req.url === `${boosterActorId}/outbox?page=true`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${boosterActorId}/outbox?page=true`,
             type: 'OrderedCollectionPage',
@@ -206,6 +210,7 @@ describe('getActorPosts', () => {
       if (req.url === originalStatusId) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(
             MockMastodonActivityPubNote({
               id: originalStatusId,
@@ -257,6 +262,7 @@ describe('getActorPosts', () => {
       if (req.url === `${boosterActorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${boosterActorId}/outbox`,
             type: 'OrderedCollection',
@@ -269,6 +275,7 @@ describe('getActorPosts', () => {
       if (req.url === `${boosterActorId}/outbox?page=true`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${boosterActorId}/outbox?page=true`,
             type: 'OrderedCollectionPage',
@@ -291,6 +298,7 @@ describe('getActorPosts', () => {
       if (req.url === originalStatusId) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(
             MockMastodonActivityPubNote({
               id: originalStatusId,
@@ -351,6 +359,7 @@ describe('getActorPosts', () => {
       if (req.url === `${boosterActorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${boosterActorId}/outbox`,
             type: 'OrderedCollection',
@@ -363,6 +372,7 @@ describe('getActorPosts', () => {
       if (req.url === `${boosterActorId}/outbox?page=true`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${boosterActorId}/outbox?page=true`,
             type: 'OrderedCollectionPage',
@@ -466,6 +476,7 @@ describe('getActorPosts', () => {
       if (req.url === `${boosterActorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${boosterActorId}/outbox`,
             type: 'OrderedCollection',
@@ -478,6 +489,7 @@ describe('getActorPosts', () => {
       if (req.url === `${boosterActorId}/outbox?page=true`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${boosterActorId}/outbox?page=true`,
             type: 'OrderedCollectionPage',
@@ -534,6 +546,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${actorId}/outbox`,
             type: 'OrderedCollection',
@@ -546,6 +559,7 @@ describe('getActorPosts', () => {
       if (req.url === nextPageUrl) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: nextPageUrl,
             type: 'OrderedCollectionPage',
@@ -627,6 +641,7 @@ describe('getActorPosts', () => {
       if (req.url === `${boosterActorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${boosterActorId}/outbox`,
             type: 'OrderedCollection',
@@ -639,6 +654,7 @@ describe('getActorPosts', () => {
       if (req.url === `${boosterActorId}/outbox?page=true`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${boosterActorId}/outbox?page=true`,
             type: 'OrderedCollectionPage',
@@ -661,6 +677,7 @@ describe('getActorPosts', () => {
       if (req.url === originalStatusId) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: originalStatusId,
             type: 'Note',
@@ -684,6 +701,7 @@ describe('getActorPosts', () => {
       if (req.url === originalActorId) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: originalActorId,
             type: 'Person',
@@ -770,6 +788,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${actorId}/outbox`,
             type: 'OrderedCollection',
@@ -782,6 +801,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox?page=true`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${actorId}/outbox?page=true`,
             type: 'OrderedCollectionPage',
@@ -840,6 +860,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -909,6 +930,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -971,6 +993,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -1041,6 +1064,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -1061,6 +1085,7 @@ describe('getActorPosts', () => {
       if (req.url === statusId) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(
             MockMastodonActivityPubNote({
               id: statusId,
@@ -1133,6 +1158,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -1171,6 +1197,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -1204,6 +1231,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -1216,6 +1244,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox?page=true`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${actorId}/outbox?page=true`,
             type: 'OrderedCollectionPage',
@@ -1262,6 +1291,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -1274,6 +1304,7 @@ describe('getActorPosts', () => {
       if (req.url === outboxPageUrl) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: outboxPageUrl,
@@ -1365,6 +1396,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -1377,6 +1409,7 @@ describe('getActorPosts', () => {
       if (req.url === outboxPageUrl) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: outboxPageUrl,
@@ -1432,6 +1465,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -1444,6 +1478,7 @@ describe('getActorPosts', () => {
       if (req.url === outboxPageUrl) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: outboxPageUrl,
@@ -1510,6 +1545,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -1522,6 +1558,7 @@ describe('getActorPosts', () => {
       if (req.url === outboxPageUrl) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: outboxPageUrl,
@@ -1560,6 +1597,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${actorId}/outbox`,
@@ -1573,6 +1611,7 @@ describe('getActorPosts', () => {
       if (req.url === `${actorId}/outbox?page=1`) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             id: `${actorId}/outbox?page=1`,
             type: 'OrderedCollectionPage',
@@ -1593,6 +1632,7 @@ describe('getActorPosts', () => {
       if (req.url === videoUri) {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: videoUri,
@@ -1654,6 +1694,7 @@ describe('getActorPosts', () => {
         if (req.url === `${actorId}/outbox`) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify({
               '@context': [
                 'https://www.w3.org/ns/activitystreams',
@@ -1711,6 +1752,7 @@ describe('getActorPosts', () => {
         if (req.url === `${actorId}/outbox`) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify({
               id: `${actorId}/outbox`,
               type: 'OrderedCollection',
@@ -1722,6 +1764,7 @@ describe('getActorPosts', () => {
         if (req.url === pageUrl) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify({
               '@context': [
                 'https://www.w3.org/ns/activitystreams',
@@ -1780,6 +1823,7 @@ describe('getActorPosts', () => {
         if (req.url === `${actorId}/outbox`) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify({
               '@context': [
                 'https://www.w3.org/ns/activitystreams',
@@ -1841,6 +1885,7 @@ describe('getActorPosts', () => {
         if (req.url === `${actorId}/outbox`) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify({
               '@context': [
                 'https://www.w3.org/ns/activitystreams',
@@ -1921,6 +1966,7 @@ describe('getActorPosts', () => {
         if (req.url === `${actorId}/outbox`) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify({
               '@context': [
                 'https://www.w3.org/ns/activitystreams',
@@ -1994,6 +2040,7 @@ describe('getActorPosts', () => {
         req.url === `${actorId}/outbox`
           ? {
               status: 200,
+              headers: ACTIVITY_JSON_HEADERS,
               body: JSON.stringify({
                 '@context': context,
                 id: `${actorId}/outbox`,
@@ -2059,6 +2106,7 @@ describe('getActorPosts', () => {
         if (req.url === `${actorId}/outbox`) {
           return {
             status: 200,
+            headers: ACTIVITY_JSON_HEADERS,
             body: JSON.stringify({
               '@context': 'https://www.w3.org/ns/activitystreams',
               id: `${actorId}/outbox`,
@@ -2079,6 +2127,7 @@ describe('getActorPosts', () => {
         inFlight -= 1
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             ...createItem(actorId, Number(match[1])).object

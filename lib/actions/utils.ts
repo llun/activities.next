@@ -1,5 +1,6 @@
 import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
+import { isActorHandleConfirmed } from '@/lib/activities/isActorHandleConfirmed'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -132,7 +133,8 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
 // records — under the fetched id, see recordActorIfNeeded. Sharing an origin
 // proves only that one host vouches for the id, username and domain, not that
 // the handle is genuine: any document that host serves can claim any username
-// on it.
+// on it, which is why a new row is created only once the host's WebFinger
+// confirms the handle (`isActorHandleConfirmed`).
 const getRequestedActorPerson = async ({
   actorId,
   signingActor
@@ -265,6 +267,16 @@ export const recordActorIfNeeded = async ({
         fetchedActorId: person.id,
         storedActorId: handleOwner.id
       })
+      return
+    }
+    // The row fixes `username@domain` for good (the refresh path below never
+    // rewrites it), so the host must vouch for the handle before it exists.
+    if (
+      !(await isActorHandleConfirmed({
+        actorId: person.id,
+        username: person.preferredUsername
+      }))
+    ) {
       return
     }
     const actor = await database.createActor({

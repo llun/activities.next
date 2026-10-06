@@ -1,4 +1,5 @@
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { Actor } from '@/lib/types/activitypub'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
@@ -41,7 +42,7 @@ const fetchActorDocument = async ({
     // Use default retry by set it to undefined, otherwise 0 retry
     numberOfRetry: withNetworkRetry ? undefined : 0
   })
-  if (response.statusCode !== 200) {
+  if (!isActivityPubDocumentResponse(response, url)) {
     return null
   }
   const compactedActor = await compactActivityPub(JSON.parse(response.body))

@@ -1,4 +1,5 @@
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import {
   OrderedCollection,
   OrderedCollectionPage,
@@ -54,7 +55,7 @@ export const fetchCollectionRoot = async ({
     url,
     headers: activityPubRequestHeaders({ url, signingActor })
   })
-  if (response.statusCode !== 200) {
+  if (!isActivityPubDocumentResponse(response, url)) {
     return { statusCode: response.statusCode, collection: null }
   }
   try {
@@ -158,7 +159,7 @@ export const getActorCollections = async ({
             signingActor
           })
         })
-        if (response.statusCode !== 200) {
+        if (!isActivityPubDocumentResponse(response, collectionPageUrl)) {
           span.setAttributes({
             url: collectionPageUrl,
             status: response.statusCode

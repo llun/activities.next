@@ -1,6 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -81,7 +81,7 @@ describe('getActorPerson', () => {
         return {
           status: route.status ?? 200,
           body: route.body ?? '',
-          headers: route.headers
+          headers: { ...ACTIVITY_JSON_HEADERS, ...route.headers }
         }
       })
     }

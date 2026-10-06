@@ -4,7 +4,7 @@ import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { createRelayAnnounceJob } from '@/lib/jobs/createRelayAnnounceJob'
 import { RELAY_ANNOUNCE_JOB_NAME } from '@/lib/jobs/names'
 import { Timeline } from '@/lib/services/timelines/types'
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 
@@ -217,7 +217,8 @@ describe('createRelayAnnounceJob', () => {
             replies: { type: 'Collection', totalItems: 3 }
           }
         ]
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createRelayAnnounceJob(database, {
@@ -248,7 +249,8 @@ describe('createRelayAnnounceJob', () => {
         published: '2026-08-30T00:00:00Z',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createRelayAnnounceJob(database, {
@@ -288,7 +290,8 @@ describe('createRelayAnnounceJob', () => {
         published: '2026-08-30T00:00:00Z',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createRelayAnnounceJob(database, {
@@ -344,7 +347,8 @@ describe('createRelayAnnounceJob', () => {
           published: '2026-08-30T00:00:00Z',
           to: [ACTIVITY_STREAM_PUBLIC],
           cc: []
-        })
+        }),
+        { headers: ACTIVITY_JSON_HEADERS }
       )
 
       await createRelayAnnounceJob(database, {
@@ -376,7 +380,8 @@ describe('createRelayAnnounceJob', () => {
         published: '2026-08-30T00:00:00Z',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createRelayAnnounceJob(database, {
@@ -406,7 +411,8 @@ describe('createRelayAnnounceJob', () => {
         published: '2026-08-30T00:00:00Z',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createRelayAnnounceJob(database, {
@@ -435,7 +441,8 @@ describe('createRelayAnnounceJob', () => {
         published: '2026-08-30T00:00:00Z',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
-      })
+      }),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await createRelayAnnounceJob(database, {

@@ -1,6 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/activitypub'
@@ -34,12 +34,14 @@ describe('getActorCollectionCounts', () => {
       if (url.pathname === '/users/unavailable') {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(MockActivityPubPerson({ id: remoteActorId }))
         }
       }
       if (url.pathname === '/users/unavailable/outbox') {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: `${remoteActorId}/outbox`,
@@ -68,11 +70,13 @@ describe('getActorCollectionCounts', () => {
       if (url.pathname === '/users/hidden') {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(MockActivityPubPerson({ id: remoteActorId }))
         }
       }
       return {
         status: 200,
+        headers: ACTIVITY_JSON_HEADERS,
         body: JSON.stringify({
           '@context': 'https://www.w3.org/ns/activitystreams',
           id: req.url,
@@ -98,6 +102,7 @@ describe('getActorCollectionCounts', () => {
       if (url.pathname === '/users/7rkrarq81i') {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(MockActivityPubPerson({ id: misskeyActorId }))
         }
       }
@@ -138,6 +143,7 @@ describe('getActorCollectionCounts', () => {
       if (url.pathname === '/users/7rkrarq81i/outbox') {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: req.url,
@@ -172,6 +178,7 @@ describe('getActorCollectionCounts', () => {
       if (url.pathname === '/users/publicuser') {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(MockActivityPubPerson({ id: misskeyActorId }))
         }
       }
@@ -212,6 +219,7 @@ describe('getActorCollectionCounts', () => {
       if (url.pathname === '/users/publicuser/outbox') {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify({
             '@context': 'https://www.w3.org/ns/activitystreams',
             id: req.url,

@@ -3,7 +3,7 @@ import { enableFetchMocks } from 'jest-fetch-mock'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { PROCESS_FORWARDED_ACTIVITY_JOB_NAME } from '@/lib/jobs/names'
 import { processForwardedActivityJob } from '@/lib/jobs/processForwardedActivityJob'
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { StatusPoll, StatusType } from '@/lib/types/domain/status'
 
@@ -57,7 +57,9 @@ describe('processForwardedActivityJob', () => {
   })
 
   it('stores a forwarded Create by re-fetching the note from origin', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify(noteDocument()))
+    fetchMock.mockResponseOnce(JSON.stringify(noteDocument()), {
+      headers: ACTIVITY_JSON_HEADERS
+    })
 
     await processForwardedActivityJob(
       database,
@@ -75,7 +77,8 @@ describe('processForwardedActivityJob', () => {
         noteDocument({
           attributedTo: 'https://writing.example/users/other'
         })
-      )
+      ),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -148,7 +151,8 @@ describe('processForwardedActivityJob', () => {
           url: noteWithPort,
           attributedTo: authorWithPort
         })
-      )
+      ),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -207,7 +211,7 @@ describe('processForwardedActivityJob', () => {
         id: NOTE_ID,
         type: 'Tombstone'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -229,7 +233,10 @@ describe('processForwardedActivityJob', () => {
       cc: []
     })
 
-    fetchMock.mockResponseOnce(JSON.stringify(noteDocument()), { status: 200 })
+    fetchMock.mockResponseOnce(JSON.stringify(noteDocument()), {
+      status: 200,
+      headers: ACTIVITY_JSON_HEADERS
+    })
 
     await processForwardedActivityJob(
       database,
@@ -293,7 +300,8 @@ describe('processForwardedActivityJob', () => {
     })
 
     fetchMock.mockResponseOnce(
-      JSON.stringify(noteDocument({ content: '<p>edited</p>' }))
+      JSON.stringify(noteDocument({ content: '<p>edited</p>' })),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -311,7 +319,9 @@ describe('processForwardedActivityJob', () => {
   })
 
   it('stores a forwarded Update of a status never seen before', async () => {
-    fetchMock.mockResponseOnce(JSON.stringify(noteDocument()))
+    fetchMock.mockResponseOnce(JSON.stringify(noteDocument()), {
+      headers: ACTIVITY_JSON_HEADERS
+    })
 
     await processForwardedActivityJob(
       database,
@@ -383,7 +393,9 @@ describe('processForwardedActivityJob', () => {
         }
       ]
     }
-    fetchMock.mockResponseOnce(JSON.stringify(questionDoc))
+    fetchMock.mockResponseOnce(JSON.stringify(questionDoc), {
+      headers: ACTIVITY_JSON_HEADERS
+    })
 
     await processForwardedActivityJob(
       database,
@@ -419,7 +431,9 @@ describe('processForwardedActivityJob', () => {
         }
       ]
     }
-    fetchMock.mockResponseOnce(JSON.stringify(initialQuestion))
+    fetchMock.mockResponseOnce(JSON.stringify(initialQuestion), {
+      headers: ACTIVITY_JSON_HEADERS
+    })
     await processForwardedActivityJob(
       database,
       jobMessage(forwardedActivity('Create', { id: NOTE_ID, type: 'Question' }))
@@ -436,7 +450,9 @@ describe('processForwardedActivityJob', () => {
         }
       ]
     }
-    fetchMock.mockResponseOnce(JSON.stringify(updatedQuestion))
+    fetchMock.mockResponseOnce(JSON.stringify(updatedQuestion), {
+      headers: ACTIVITY_JSON_HEADERS
+    })
     await processForwardedActivityJob(
       database,
       jobMessage(forwardedActivity('Update', { id: NOTE_ID, type: 'Question' }))
@@ -457,7 +473,8 @@ describe('processForwardedActivityJob', () => {
         noteDocument({
           id: evilNoteId
         })
-      )
+      ),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -477,7 +494,8 @@ describe('processForwardedActivityJob', () => {
         noteDocument({
           id: 'not-a-valid-url'
         })
-      )
+      ),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -496,7 +514,8 @@ describe('processForwardedActivityJob', () => {
         noteDocument({
           id: canonicalNoteId
         })
-      )
+      ),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -526,7 +545,8 @@ describe('processForwardedActivityJob', () => {
           id: evilNoteId,
           content: '<p>malicious update</p>'
         })
-      )
+      ),
+      { headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -559,7 +579,7 @@ describe('processForwardedActivityJob', () => {
         id: 'https://attacker.example/statuses/other',
         type: 'Tombstone'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -587,7 +607,7 @@ describe('processForwardedActivityJob', () => {
         id: 'malformed-id',
         type: 'Tombstone'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -615,7 +635,7 @@ describe('processForwardedActivityJob', () => {
         id: `${NOTE_ID}-canonical`,
         type: 'Tombstone'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -644,7 +664,7 @@ describe('processForwardedActivityJob', () => {
         id: canonicalNoteId,
         type: 'Tombstone'
       }),
-      { status: 200 }
+      { status: 200, headers: ACTIVITY_JSON_HEADERS }
     )
 
     await processForwardedActivityJob(
@@ -671,7 +691,11 @@ describe('processForwardedActivityJob', () => {
           return { status: 302, headers: { location }, body: '' }
         }
         if (req.url === location) {
-          return { status: 200, body: JSON.stringify(served) }
+          return {
+            status: 200,
+            body: JSON.stringify(served),
+            headers: ACTIVITY_JSON_HEADERS
+          }
         }
         return { status: 404, body: '' }
       })

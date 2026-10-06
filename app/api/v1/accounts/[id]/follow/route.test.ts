@@ -1,13 +1,16 @@
+import fetchMock from 'jest-fetch-mock'
 import { NextRequest } from 'next/server'
 
 import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { getRelationship } from '@/lib/services/accounts/relationship'
+import { JRD_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
 import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { MockWebfinger } from '@/lib/stub/webfinger'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { urlToId } from '@/lib/utils/urlToId'
 
@@ -101,6 +104,9 @@ describe('Account Action Endpoints', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ;(getActorPerson as jest.Mock).mockReset()
+    // Recording a new remote actor asks its host for its WebFinger.
+    fetchMock.resetMocks()
+    mockRequests(fetchMock)
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -410,6 +416,18 @@ describe('Account Action Endpoints', () => {
 
     it('records an unrecorded remote actor in the database when following', async () => {
       const targetActorId = 'https://remote.test/users/unrecorded-remote'
+      // The mocked actor document names itself `remote-user`, so the host
+      // confirms that handle for this id.
+      fetchMock.mockResponse(async () => ({
+        status: 200,
+        headers: JRD_JSON_HEADERS,
+        body: JSON.stringify(
+          MockWebfinger({
+            account: 'remote-user@remote.test',
+            userUrl: targetActorId
+          })
+        )
+      }))
 
       const response = await followAccount(
         new NextRequest(

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
+import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -179,7 +180,9 @@ const fetchSenderPublicKey = async (
     // host — never checked against domain blocks — mint the sender's key.
     allowCrossHostRedirects: false
   })
-  if (response.statusCode !== 200) {
+  // The keyId names any URL on the sender's origin, and a user upload there
+  // (served as `application/json`) could otherwise mint a signing key.
+  if (!isActivityPubDocumentResponse(response, actorId)) {
     return {
       document: null,
       statusCode: response.statusCode

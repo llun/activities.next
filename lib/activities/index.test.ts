@@ -19,7 +19,7 @@ import {
 import { CreateStatus } from '@/lib/activities/createStatus'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActor } from '@/lib/stub/actor'
 import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
 import { MockMastodonActivityPubNote } from '@/lib/stub/note'
@@ -97,7 +97,11 @@ describe('activities', () => {
         fetchMock.mockResponse(async (req) =>
           req.url === redirectingUrl
             ? { status: 302, headers: { location }, body: '' }
-            : { status: 200, body: JSON.stringify(forgedNote) }
+            : {
+                status: 200,
+                body: JSON.stringify(forgedNote),
+                headers: ACTIVITY_JSON_HEADERS
+              }
         )
       }
 

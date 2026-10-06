@@ -1,6 +1,6 @@
 import { enableFetchMocks } from 'jest-fetch-mock'
 
-import { mockRequests } from '@/lib/stub/activities'
+import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { MockActivityPubFollowing } from '@/lib/stub/followCollection'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -39,6 +39,7 @@ describe('getActorFollowing', () => {
       if (url.pathname === '/users/remoteuser') {
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(MockActivityPubPerson({ id: remoteActorId }))
         }
       }
@@ -46,6 +47,7 @@ describe('getActorFollowing', () => {
         // Simulate Mastodon public endpoint: no 'first' property
         return {
           status: 200,
+          headers: ACTIVITY_JSON_HEADERS,
           body: JSON.stringify(
             MockActivityPubFollowing({
               actorId: remoteActorId,
