@@ -424,7 +424,7 @@ describe('getSenderPublicKey', () => {
       followersUrl: `${owner}/followers`,
       inboxUrl: `${owner}/inbox`,
       sharedInboxUrl: 'https://remote.test/inbox',
-      publicKey: 'stored-path-public-key',
+      publicKey: 'previously-stored-public-key',
       createdAt: Date.now()
     })
     fetchMock.resetMocks()
