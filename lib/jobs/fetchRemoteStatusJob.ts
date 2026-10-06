@@ -5,6 +5,7 @@ import { getNote } from '@/lib/activities'
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { compactActivityPub } from '@/lib/activities/jsonld'
 import { BaseNoteSchema, getUrl } from '@/lib/activities/note'
+import { toCollectionItems } from '@/lib/activities/orderedCollection'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -432,8 +433,7 @@ export const fetchRemoteStatusJob = createJobHandle(
 
       while (page && withinBudget()) {
         work++
-        const items = page.orderedItems || page.items || []
-        for (const item of items) {
+        for (const item of toCollectionItems(page.orderedItems ?? page.items)) {
           if (!withinBudget()) break
           work++
           itemsConsidered++
