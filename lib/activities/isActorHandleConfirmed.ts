@@ -19,10 +19,14 @@ import { logger } from '@/lib/utils/logger'
 // stores the actor host, so the actor host's own answer is the one that counts.
 export const isActorHandleConfirmed = async ({
   actorId,
-  username
+  username,
+  withNetworkRetry = true,
+  responseTimeout
 }: {
   actorId: string
   username: string
+  withNetworkRetry?: boolean
+  responseTimeout?: number
 }): Promise<boolean> => {
   const host = URL.canParse(actorId) ? new URL(actorId).host : ''
   if (!host) return false
@@ -30,25 +34,22 @@ export const isActorHandleConfirmed = async ({
   const account = `${username}@${host}`
   const document = await getWebfingerDocument({
     account,
-    withNetworkRetry: true
+    withNetworkRetry,
+    responseTimeout
   })
-  const confirmed = Boolean(
-    document?.links.some(
-      (link) =>
-        link.rel === 'self' &&
-        'href' in link &&
-        normalizeActivityPubUri(link.href) === expectedId
-    )
+  const selfHrefs =
+    document?.links.flatMap((link) =>
+      link.rel === 'self' && 'href' in link ? [link.href] : []
+    ) ?? []
+  const confirmed = selfHrefs.some(
+    (href) => normalizeActivityPubUri(href) === expectedId
   )
   if (!confirmed) {
     logger.warn({
       message: 'Refused remote actor whose handle WebFinger does not confirm',
       actorId,
       account,
-      webfingerSelf:
-        document?.links
-          .filter((link) => link.rel === 'self' && 'href' in link)
-          .map((link) => ('href' in link ? link.href : null)) ?? null
+      webfingerSelf: document ? selfHrefs : null
     })
   }
   return confirmed

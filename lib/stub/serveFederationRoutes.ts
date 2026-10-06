@@ -1,6 +1,7 @@
 import fetchMock from 'jest-fetch-mock'
 
 import { ACTIVITY_JSON_HEADERS, JRD_JSON_HEADERS } from './activities'
+import { MockWebfinger } from './webfinger'
 
 export type FederationRoute = string | { body: string; contentType: string }
 export type WebfingerAnswer = string | { self: string[]; subject: string }
@@ -23,23 +24,29 @@ export const serveFederationRoutes = (
   fetchMock.mockResponse(async (req) => {
     const url = new URL(req.url)
     if (url.pathname === '/.well-known/webfinger') {
-      const resource = url.searchParams.get('resource') ?? ''
-      const answer = webfinger[resource.replace(/^acct:/, '')]
+      const account = (url.searchParams.get('resource') ?? '').replace(
+        /^acct:/,
+        ''
+      )
+      const answer = webfinger[account]
       if (!answer) return { status: 404, body: 'Not Found' }
       const { self, subject } =
         typeof answer === 'string'
-          ? { self: [answer], subject: resource }
+          ? { self: [answer], subject: `acct:${account}` }
           : answer
       return {
         status: 200,
         headers: JRD_JSON_HEADERS,
         body: JSON.stringify({
-          subject,
-          links: self.map((href) => ({
-            rel: 'self',
-            type: 'application/activity+json',
-            href
-          }))
+          ...MockWebfinger({
+            account,
+            links: self.map((href) => ({
+              rel: 'self',
+              type: 'application/activity+json',
+              href
+            }))
+          }),
+          subject
         })
       }
     }

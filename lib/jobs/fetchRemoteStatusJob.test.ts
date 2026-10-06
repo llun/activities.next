@@ -913,4 +913,155 @@ describe('fetchRemoteStatusJob', () => {
       ).not.toBeNull()
     })
   })
+
+  describe('content type gate', () => {
+    // A user upload on a remote instance's own domain can serve any JSON body
+    // under a type the uploader picks, but never an ActivityPub one. Each
+    // document the job reads (the requested note, its parent, the replies
+    // collection, a reply item) is refused unless it is labelled ActivityPub.
+    // The thread below is the one 'fetches parent status recursively' and
+    // 'fetches replies collection' serve with ACTIVITY_JSON_HEADERS, and the
+    // control test here stores every part of it.
+    type Document = 'note' | 'parent' | 'collection' | 'item'
+
+    const runThread = async (tag: string, wrongType?: [Document, string]) => {
+      const statusId = `${REMOTE_STATUS_ID}/gate-${tag}`
+      const parentId = `${statusId}/parent`
+      const repliesId = `${statusId}/replies`
+      const itemId = `https://mastodon.social/users/otherUser/statuses/gate-${tag}`
+      const respond = (document: Document, body: unknown) =>
+        wrongType?.[0] === document
+          ? {
+              status: 200,
+              body: JSON.stringify(body),
+              headers: { 'content-type': wrongType[1] }
+            }
+          : activityJson(body)
+
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === statusId) {
+          return respond('note', {
+            id: statusId,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Main Post',
+            inReplyTo: parentId,
+            to: [PUBLIC_STREAM],
+            replies: repliesId,
+            published: new Date().toISOString()
+          })
+        }
+        if (req.url === parentId) {
+          return respond('parent', {
+            id: parentId,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Parent',
+            to: [PUBLIC_STREAM],
+            published: new Date().toISOString()
+          })
+        }
+        if (req.url === repliesId) {
+          return respond('collection', {
+            id: repliesId,
+            type: 'Collection',
+            first: { type: 'CollectionPage', items: [itemId] }
+          })
+        }
+        if (req.url === itemId) {
+          return respond('item', {
+            id: itemId,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'A reply',
+            inReplyTo: statusId,
+            to: [PUBLIC_STREAM],
+            cc: [],
+            published: new Date().toISOString()
+          })
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: 'job-id',
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId }
+      })
+
+      return {
+        note: await database.getStatus({ statusId }),
+        parent: await database.getStatus({ statusId: parentId }),
+        item: await database.getStatus({ statusId: itemId })
+      }
+    }
+
+    const wrongTypes = [
+      'application/json',
+      'application/octet-stream',
+      'text/plain'
+    ]
+
+    it('stores the note, its parent and its reply when all are labelled ActivityPub', async () => {
+      const stored = await runThread('control')
+
+      expect(stored.note).not.toBeNull()
+      expect(stored.parent).not.toBeNull()
+      expect(stored.item).not.toBeNull()
+    })
+
+    it.each(wrongTypes)(
+      'does not store a requested note served as %s',
+      async (contentType) => {
+        const stored = await runThread(
+          `note-${wrongTypes.indexOf(contentType)}`,
+          ['note', contentType]
+        )
+
+        expect(stored.note).toBeNull()
+        expect(stored.parent).toBeNull()
+        expect(stored.item).toBeNull()
+      }
+    )
+
+    it.each(wrongTypes)(
+      'does not store a parent served as %s',
+      async (contentType) => {
+        const stored = await runThread(
+          `parent-${wrongTypes.indexOf(contentType)}`,
+          ['parent', contentType]
+        )
+
+        expect(stored.note).not.toBeNull()
+        expect(stored.parent).toBeNull()
+      }
+    )
+
+    it.each(wrongTypes)(
+      'does not walk a replies collection served as %s',
+      async (contentType) => {
+        const stored = await runThread(
+          `collection-${wrongTypes.indexOf(contentType)}`,
+          ['collection', contentType]
+        )
+
+        expect(stored.note).not.toBeNull()
+        expect(stored.item).toBeNull()
+      }
+    )
+
+    it.each(wrongTypes)(
+      'does not store a reply item served as %s',
+      async (contentType) => {
+        const stored = await runThread(
+          `item-${wrongTypes.indexOf(contentType)}`,
+          ['item', contentType]
+        )
+
+        expect(stored.note).not.toBeNull()
+        expect(stored.item).toBeNull()
+      }
+    )
+  })
 })

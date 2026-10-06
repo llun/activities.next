@@ -8,6 +8,9 @@ import type { RequestResult } from '@/lib/utils/request'
 // two Mastodon accepts since CVE-2024-23832 — any server Mastodon federates
 // with already serves one of them. `application/ld+json` counts only with the
 // ActivityStreams profile: a bare JSON-LD document is not an ActivityPub one.
+// That is deliberately stricter than the Accept-side check in
+// `activityPubContentNegotiation`, which still serves ActivityPub to a request
+// for bare `ld+json`; a RESPONSE without the profile is refused.
 export const isActivityPubContentType = (contentType: string | undefined) => {
   if (!contentType) return false
   const [mediaType, ...rest] = parseAcceptContentTypes(contentType)

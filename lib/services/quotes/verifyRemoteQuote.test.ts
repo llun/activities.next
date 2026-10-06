@@ -140,6 +140,29 @@ describe('verifyRemoteQuote', () => {
     expect(state).toBe('accepted')
   })
 
+  // The stamp is accepted when served as application/activity+json ('accepts
+  // when the stamp validates all three fields' above serves this exact body).
+  // A same-origin upload can serve the same JSON, but never under an
+  // ActivityPub media type, so it must not approve the quote.
+  it.each(['application/json', 'application/octet-stream', 'text/plain'])(
+    'is pending when an otherwise valid stamp is served as %s',
+    async (contentType) => {
+      vi.mocked(request).mockResolvedValue({
+        statusCode: 200,
+        headers: { 'content-type': contentType },
+        body: validStampBody()
+      } as unknown as Awaited<ReturnType<typeof request>>)
+
+      const state = await verifyRemoteQuote({
+        database,
+        note: makeNote({ quoteAuthorization: STAMP_URI }),
+        actorId: QUOTING_ACTOR_ID,
+        quotedStatus: makeQuotedStatus()
+      })
+      expect(state).toBe('pending')
+    }
+  )
+
   it('is pending when the stamp fetch does not return 200', async () => {
     const { request } = await vi.importMock<
       typeof import('@/lib/utils/request')
@@ -311,7 +334,9 @@ describe('verifyQuoteAuthorizationStamp', () => {
     })
 
   const mockStamp = async (
-    response: { statusCode: number; body: string } | Error
+    response:
+      | { statusCode: number; body: string; headers?: Record<string, string> }
+      | Error
   ) => {
     const { request } = await vi.importMock<
       typeof import('@/lib/utils/request')
@@ -336,6 +361,21 @@ describe('verifyQuoteAuthorizationStamp', () => {
       'verified'
     )
   })
+
+  it.each(['application/json', 'application/octet-stream', 'text/plain'])(
+    'leaves a stamp that matches this edge unavailable when served as %s',
+    async (contentType) => {
+      // The body is the one 'verifies a stamp whose three fields match this
+      // exact edge' below verifies when it is labelled ActivityPub.
+      await mockStamp({
+        statusCode: 200,
+        headers: { 'content-type': contentType },
+        body: validStampBody()
+      })
+
+      await expect(check()).resolves.toBe('unavailable')
+    }
+  )
 
   it('verifies a stamp whose three fields match this exact edge', async () => {
     await mockStamp({ statusCode: 200, body: validStampBody() })

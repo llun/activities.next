@@ -289,3 +289,93 @@ describe('getActorCollections caller-supplied page', () => {
     ])
   })
 })
+
+describe('getActorCollections content type gate', () => {
+  const mockRequest = vi.mocked(request)
+  const person = {
+    id: 'https://example.com/users/alice',
+    followers: 'https://example.com/users/alice/followers'
+  } as Actor
+  const firstPage = `${person.followers}?page=1`
+  const rootBody = JSON.stringify({
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    id: person.followers,
+    type: 'OrderedCollection',
+    totalItems: 3,
+    first: firstPage
+  })
+  const pageBody = JSON.stringify({
+    id: firstPage,
+    type: 'OrderedCollectionPage',
+    orderedItems: ['https://example.com/users/follower']
+  })
+  const wrongTypes = [
+    'application/json',
+    'application/octet-stream',
+    'text/plain'
+  ]
+
+  beforeEach(() => {
+    mockRequest.mockReset()
+  })
+
+  // Bracketed by the same bodies served with ACTIVITY_JSON_HEADERS in
+  // 'still follows a caller page when the collection advertises its first
+  // page' above, and by the control assertions here.
+  it('reads the root and the page when both are labelled ActivityPub', async () => {
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: rootBody
+    })
+    mockRequest.mockResolvedValueOnce({
+      statusCode: 200,
+      headers: ACTIVITY_JSON_HEADERS,
+      body: pageBody
+    })
+
+    const result = await getActorCollections({ person, field: 'followers' })
+
+    expect(result?.totalItems).toBe(3)
+    expect(result?.page?.orderedItems).toEqual([
+      'https://example.com/users/follower'
+    ])
+  })
+
+  it.each(wrongTypes)(
+    'refuses a collection root served as %s',
+    async (contentType) => {
+      mockRequest.mockResolvedValueOnce({
+        statusCode: 200,
+        headers: { 'content-type': contentType },
+        body: rootBody
+      })
+
+      const result = await getActorCollections({ person, field: 'followers' })
+
+      expect(result).toBeNull()
+      expect(mockRequest).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each(wrongTypes)(
+    'drops a collection page served as %s but keeps the root total',
+    async (contentType) => {
+      mockRequest.mockResolvedValueOnce({
+        statusCode: 200,
+        headers: ACTIVITY_JSON_HEADERS,
+        body: rootBody
+      })
+      mockRequest.mockResolvedValueOnce({
+        statusCode: 200,
+        headers: { 'content-type': contentType },
+        body: pageBody
+      })
+
+      const result = await getActorCollections({ person, field: 'followers' })
+
+      expect(mockRequest).toHaveBeenCalledTimes(2)
+      expect(result).toEqual({ page: null, totalItems: 3 })
+    }
+  )
+})

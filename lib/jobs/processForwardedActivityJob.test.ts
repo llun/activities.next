@@ -223,6 +223,79 @@ describe('processForwardedActivityJob', () => {
     expect(stored).toBeNull()
   })
 
+  describe('Delete confirmation by the origin response type', () => {
+    // 'deletes a stored status when origin serves a Tombstone' above serves
+    // this exact Tombstone with ACTIVITY_JSON_HEADERS and the status is
+    // deleted. A same-origin upload can serve the same JSON, but never under
+    // an ActivityPub media type, so it must not confirm the delete.
+    const tombstone = JSON.stringify({
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: NOTE_ID,
+      type: 'Tombstone'
+    })
+
+    beforeEach(async () => {
+      await database.createNote({
+        id: NOTE_ID,
+        url: NOTE_ID,
+        actorId: AUTHOR,
+        text: 'x',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    })
+
+    it('deletes the status for a Tombstone labelled application/activity+json', async () => {
+      fetchMock.mockResponseOnce(tombstone, {
+        status: 200,
+        headers: ACTIVITY_JSON_HEADERS
+      })
+
+      await processForwardedActivityJob(
+        database,
+        jobMessage(forwardedActivity('Delete', NOTE_ID))
+      )
+
+      expect(await database.getStatus({ statusId: NOTE_ID })).toBeNull()
+    })
+
+    it.each(['application/json', 'application/octet-stream', 'text/plain'])(
+      'does not delete the status for a Tombstone served as %s',
+      async (contentType) => {
+        fetchMock.mockResponseOnce(tombstone, {
+          status: 200,
+          headers: { 'content-type': contentType }
+        })
+
+        await processForwardedActivityJob(
+          database,
+          jobMessage(forwardedActivity('Delete', NOTE_ID))
+        )
+
+        expect(await database.getStatus({ statusId: NOTE_ID })).not.toBeNull()
+      }
+    )
+
+    // The gate narrows only the 200 path: an origin that no longer serves the
+    // object still confirms the delete whatever type its error page carries.
+    it.each([404, 410])(
+      'still deletes the status when the origin answers %i with a non-ActivityPub type',
+      async (status) => {
+        fetchMock.mockResponseOnce('gone', {
+          status,
+          headers: { 'content-type': 'text/plain' }
+        })
+
+        await processForwardedActivityJob(
+          database,
+          jobMessage(forwardedActivity('Delete', NOTE_ID))
+        )
+
+        expect(await database.getStatus({ statusId: NOTE_ID })).toBeNull()
+      }
+    )
+  })
+
   it('does not delete when origin still serves the live note', async () => {
     await database.createNote({
       id: NOTE_ID,
@@ -244,7 +317,7 @@ describe('processForwardedActivityJob', () => {
     )
 
     const stored = await database.getStatus({ statusId: NOTE_ID })
-    expect(stored).toBeDefined()
+    expect(stored).not.toBeNull()
   })
 
   it('does not delete when the origin fetch fails', async () => {

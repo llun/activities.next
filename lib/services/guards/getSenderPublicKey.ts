@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
+import { isActorHandleConfirmed } from '@/lib/activities/isActorHandleConfirmed'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -31,6 +32,7 @@ type ParsedSenderPublicKey =
   | {
       type: 'actor'
       actorId: string
+      username: string
       keyId: string
       requiresOwnerValidation: boolean
       details: SenderPublicKeyDetails
@@ -128,6 +130,7 @@ const parseSenderPublicKey = ({
     return {
       type: 'actor',
       actorId: actor.data.id,
+      username: actor.data.preferredUsername,
       keyId: actor.data.publicKey.id,
       requiresOwnerValidation: normalizedActorId !== normalizedKeyOwner,
       details: {
@@ -235,6 +238,7 @@ const validateOwnerActorKey = async (
 
   return {
     owner: ownerDocument.actorId,
+    username: ownerDocument.username,
     publicKey
   }
 }
@@ -246,7 +250,13 @@ const resolveFetchedPublicKey = async (
 ) => {
   if (!document) return null
   if (document.type === 'actor') {
-    if (!document.requiresOwnerValidation) return document.details
+    if (!document.requiresOwnerValidation) {
+      return {
+        owner: document.actorId,
+        username: document.username,
+        publicKey: document.details.publicKey
+      }
+    }
     return validateOwnerActorKey(
       {
         keyId: document.keyId,
@@ -275,12 +285,29 @@ const fetchSenderPublicKeyDetails = async (
   database: Database
 ) => {
   const response = await fetchSenderPublicKey(actorId, signingActor)
+  const resolved = await resolveFetchedPublicKey(
+    response.document,
+    signingActor,
+    database
+  )
+  // A key from a sender with no stored row is accepted only once the owner's
+  // host confirms its handle, as Mastodon does before trusting an unknown
+  // signer. The content-type gate alone leaves any host that serves user bytes
+  // as ActivityPub able to sign as a URL there, and a status from a signer
+  // with no row still renders under that host's name. Known senders never
+  // reach this: their stored row answers first.
+  const isConfirmed =
+    resolved !== null &&
+    (await isActorHandleConfirmed({
+      actorId: resolved.owner,
+      username: resolved.username,
+      withNetworkRetry: false,
+      responseTimeout: SENDER_KEY_FETCH_TIMEOUT_MS
+    }))
   return {
-    details: await resolveFetchedPublicKey(
-      response.document,
-      signingActor,
-      database
-    ),
+    details: isConfirmed
+      ? { owner: resolved.owner, publicKey: resolved.publicKey }
+      : null,
     statusCode: response.statusCode
   }
 }

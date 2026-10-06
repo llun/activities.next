@@ -6,10 +6,15 @@ import {
   getSenderPublicKey,
   getSenderPublicKeyDetails
 } from '@/lib/services/guards/getSenderPublicKey'
-import { ACTIVITY_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
+import {
+  ACTIVITY_JSON_HEADERS,
+  JRD_JSON_HEADERS,
+  mockRequests
+} from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { MockWebfinger } from '@/lib/stub/webfinger'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
 import { parse } from '@/lib/utils/signature'
@@ -79,6 +84,20 @@ const createActorDocument = ({
     publicKeyPem
   }
 })
+
+// The WebFinger lookup an unknown sender's key is confirmed by: the owner's
+// `preferredUsername` at the owner's host.
+const webfingerUrl = (account: string) => {
+  const url = new URL(`https://${account.split('@')[1]}/.well-known/webfinger`)
+  url.searchParams.set('resource', `acct:${account}`)
+  return url.toString()
+}
+
+const webfingerResponse = (account: string, self: string) =>
+  [
+    JSON.stringify(MockWebfinger({ account, userUrl: self })),
+    { status: 200, headers: JRD_JSON_HEADERS }
+  ] as const
 
 const verifySignedRequestTarget = async ({
   headers,
@@ -181,7 +200,10 @@ describe('getSenderPublicKey', () => {
       owner,
       publicKey: 'fragment-public-key'
     })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      keyId,
+      webfingerUrl('test1@remote.test')
+    ])
   })
 
   // A keyId can name any URL on the sender's origin. A JSON upload there (a
@@ -231,6 +253,94 @@ describe('getSenderPublicKey', () => {
     await expect(
       getSenderPublicKeyDetails(database, `${owner}#main-key`)
     ).resolves.toEqual({ owner, publicKey: 'json-ld-public-key' })
+  })
+
+  // The content-type gate is not enough on its own: a host that serves user
+  // bytes AS ActivityPub (a media proxy re-serving the upstream type) would
+  // still let an upload sign as itself, and a status from a signer with no row
+  // renders under that host's name. An unknown sender's key counts only once
+  // its host's WebFinger names it for its handle — Mastodon's order.
+  describe('confirms an unknown sender through its host WebFinger', () => {
+    const uploadId = 'https://remote.test/media/forged'
+    const forgedKeyDocument = () =>
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          ...createActorDocument({
+            id: uploadId,
+            publicKeyPem: 'forged-public-key'
+          }),
+          preferredUsername: 'admin'
+        }),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+
+    it('refuses a key whose handle WebFinger names another actor', async () => {
+      forgedKeyDocument()
+      fetchMock.mockResponseOnce(
+        ...webfingerResponse(
+          'admin@remote.test',
+          'https://remote.test/users/admin'
+        )
+      )
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${uploadId}#main-key`)
+      ).resolves.toEqual({ owner: null, publicKey: '' })
+    })
+
+    it('refuses a key whose host has no WebFinger answer', async () => {
+      forgedKeyDocument()
+      fetchMock.mockResponseOnce('Not Found', { status: 404 })
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${uploadId}#main-key`)
+      ).resolves.toEqual({ owner: null, publicKey: '' })
+    })
+
+    it('accepts a key whose handle WebFinger names its owner', async () => {
+      forgedKeyDocument()
+      fetchMock.mockResponseOnce(
+        ...webfingerResponse('admin@remote.test', uploadId)
+      )
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${uploadId}#main-key`)
+      ).resolves.toEqual({ owner: uploadId, publicKey: 'forged-public-key' })
+    })
+
+    // Like the key fetch, the lookup runs inside the unauthenticated inbox
+    // request against a host the sender chose, so it gets the same budget.
+    it('bounds the WebFinger lookup like the key fetch', async () => {
+      forgedKeyDocument()
+      fetchMock.mockResponseOnce(
+        ...webfingerResponse('admin@remote.test', uploadId)
+      )
+      vi.mocked(request).mockClear()
+
+      await getSenderPublicKeyDetails(database, `${uploadId}#main-key`)
+
+      expect(vi.mocked(request)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: webfingerUrl('admin@remote.test'),
+          numberOfRetry: 0,
+          responseTimeout: 3000
+        })
+      )
+    })
+
+    it('trusts a stored sender without asking WebFinger', async () => {
+      const actor = await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: seedActor1.domain
+      })
+      if (!actor) fail('Actor is required')
+      fetchMock.resetMocks()
+
+      await expect(getSenderPublicKey(database, actor.id)).resolves.toBe(
+        actor.publicKey
+      )
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
   })
 
   it('accepts actor key identifiers that only differ by URI casing', async () => {
@@ -283,7 +393,11 @@ describe('getSenderPublicKey', () => {
       owner,
       publicKey: 'path-public-key'
     })
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([keyId, owner])
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      keyId,
+      owner,
+      webfingerUrl('test1@remote.test')
+    ])
   })
 
   it('rejects public key documents that do not match the requested key id', async () => {
@@ -580,7 +694,11 @@ describe('getSenderPublicKey', () => {
       owner,
       publicKey: 'path-public-key'
     })
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([keyId, owner])
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      keyId,
+      owner,
+      webfingerUrl('test1@remote.test')
+    ])
   })
 
   it('rejects actor documents from key URLs when the owner actor does not confirm the key', async () => {
@@ -661,6 +779,9 @@ describe('getSenderPublicKey', () => {
         JSON.stringify(createActorDocument({ id: fallbackActorId })),
         { status: 200, headers: ACTIVITY_JSON_HEADERS }
       )
+      .mockResponseOnce(
+        ...webfingerResponse('actor@remote.test', fallbackActorId)
+      )
 
     const publicKey = await getSenderPublicKeyDetails(database, actorId)
 
@@ -670,7 +791,8 @@ describe('getSenderPublicKey', () => {
     })
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       actorId,
-      `${fallbackActorId}#main-key`
+      `${fallbackActorId}#main-key`,
+      webfingerUrl('actor@remote.test')
     ])
   })
 
@@ -755,6 +877,14 @@ describe('getSenderPublicKey', () => {
     fetchMock.resetMocks()
     fetchMock.mockResponse(async (request) => {
       const url = new URL(request.url)
+
+      if (url.pathname === '/.well-known/webfinger') {
+        const [body, init] = webfingerResponse(
+          'redirected-key@remote.test',
+          actorId
+        )
+        return { body, ...init }
+      }
 
       if (url.pathname === '/users/redirected-key') {
         return {

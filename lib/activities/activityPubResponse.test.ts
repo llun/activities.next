@@ -1,4 +1,7 @@
-import { isActivityPubContentType } from './activityPubResponse'
+import {
+  isActivityPubContentType,
+  isActivityPubDocumentResponse
+} from './activityPubResponse'
 
 describe('isActivityPubContentType', () => {
   // The forms real servers label an actor or object with: Mastodon, Misskey,
@@ -34,4 +37,41 @@ describe('isActivityPubContentType', () => {
   ])('refuses %s', (contentType) => {
     expect(isActivityPubContentType(contentType)).toBe(false)
   })
+})
+
+describe('isActivityPubDocumentResponse', () => {
+  const url = 'https://remote.test/users/alice'
+  const activityJson = { 'content-type': 'application/activity+json' }
+
+  it('reads a 200 labelled ActivityPub', () => {
+    expect(
+      isActivityPubDocumentResponse(
+        { statusCode: 200, headers: activityJson },
+        url
+      )
+    ).toBe(true)
+  })
+
+  it('refuses a 200 labelled anything else', () => {
+    expect(
+      isActivityPubDocumentResponse(
+        { statusCode: 200, headers: { 'content-type': 'application/json' } },
+        url
+      )
+    ).toBe(false)
+  })
+
+  // A 404 or 410 labelled ActivityPub (a Tombstone body, say) is still not a
+  // document to read: callers that care about gone objects read the status.
+  it.each([404, 410, 500])(
+    'refuses a %i even when labelled ActivityPub',
+    (statusCode) => {
+      expect(
+        isActivityPubDocumentResponse(
+          { statusCode, headers: activityJson },
+          url
+        )
+      ).toBe(false)
+    }
+  )
 })

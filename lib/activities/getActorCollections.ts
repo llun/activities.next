@@ -42,8 +42,8 @@ export const isCollectionPageUrl = (pageUrl: string, collectionUrl: string) => {
 // Fetch an ActivityPub collection root document (no page follow). Shared by
 // the full collection fetch below and the counts-only helper
 // (getActorCollectionCounts) so the fetch semantics stay in one place. A
-// non-200 response yields a null collection; network errors propagate for the
-// caller to handle.
+// non-200 response, or a 200 not labelled ActivityPub, yields a null
+// collection; network errors propagate for the caller to handle.
 export const fetchCollectionRoot = async ({
   url,
   signingActor

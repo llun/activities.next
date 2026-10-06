@@ -30,8 +30,9 @@ import { withSpan } from '@/lib/utils/trace'
 //
 // A collection page is actor URIs, and turning one into Mastodon Account
 // entities needs stored rows: the known ones come back in one batch query,
-// and each UNKNOWN one is a `recordActorIfNeeded` — a signed Person fetch plus
-// three collection-root fetches for its counters, then an insert. So a page
+// and each UNKNOWN one is a `recordActorIfNeeded` — a signed Person fetch, a
+// WebFinger lookup confirming its handle, three collection-root fetches for
+// its counters, then an insert. So a page
 // is cut to `MAX_PAGE_ITEMS` ids first, resolves at most
 // `MAX_UNKNOWN_ACTORS_PER_PAGE` unknown actors among them,
 // `UNKNOWN_ACTOR_CONCURRENCY` at a time, and drops the rest of that page's
