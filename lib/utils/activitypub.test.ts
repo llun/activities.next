@@ -179,6 +179,35 @@ describe('normalizeActivityPubAnnounce', () => {
     })
   })
 
+  it('reads the object of an announced Create as the boosted object', () => {
+    const result = normalizeActivityPubAnnounce({
+      type: 'Announce',
+      actor: 'https://lemmy.test/c/tenforward',
+      object: {
+        type: 'Create',
+        id: 'https://lemmy.test/activities/create/1',
+        actor: 'https://lemmy.test/u/picard',
+        object: { type: 'Page', id: 'https://lemmy.test/post/1' }
+      }
+    })
+    expect(result).toMatchObject({ object: 'https://lemmy.test/post/1' })
+  })
+
+  it('keeps the id of any other announced activity', () => {
+    const result = normalizeActivityPubAnnounce({
+      type: 'Announce',
+      actor: 'https://lemmy.test/c/tenforward',
+      object: {
+        type: 'Like',
+        id: 'https://lemmy.test/activities/like/1',
+        object: 'https://lemmy.test/post/1'
+      }
+    })
+    expect(result).toMatchObject({
+      object: 'https://lemmy.test/activities/like/1'
+    })
+  })
+
   it('returns non-record value as-is', () => {
     expect(normalizeActivityPubAnnounce('string')).toEqual('string')
     expect(normalizeActivityPubAnnounce(null)).toEqual(null)

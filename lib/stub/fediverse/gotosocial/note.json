@@ -1,0 +1,58 @@
+{
+  "@context": [
+    "https://gotosocial.org/ns",
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "discoverable": "toot:discoverable",
+      "featured": {
+        "@id": "toot:featured",
+        "@type": "@id"
+      },
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "toot": "http://joinmastodon.org/ns#",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag",
+      "Emoji": "toot:Emoji"
+    }
+  ],
+  "attachment": [],
+  "attributedTo": "https://gts.test/users/the_mighty_zork",
+  "cc": "https://gts.test/users/the_mighty_zork/followers",
+  "content": "<p>hello everyone!</p>",
+  "contentMap": {
+    "en": "<p>hello everyone!</p>"
+  },
+  "id": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY",
+  "interactionPolicy": {
+    "canAnnounce": {
+      "always": ["https://www.w3.org/ns/activitystreams#Public"],
+      "approvalRequired": []
+    },
+    "canLike": {
+      "always": ["https://www.w3.org/ns/activitystreams#Public"],
+      "approvalRequired": []
+    },
+    "canReply": {
+      "always": ["https://www.w3.org/ns/activitystreams#Public"],
+      "approvalRequired": []
+    }
+  },
+  "published": "2021-10-20T10:40:37Z",
+  "replies": {
+    "first": {
+      "id": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY/replies?limit=20&min_id=",
+      "next": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY/replies?only_other_accounts=false&page=true",
+      "partOf": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY/replies",
+      "type": "CollectionPage"
+    },
+    "id": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY/replies",
+    "type": "Collection"
+  },
+  "sensitive": true,
+  "summary": "introduction post",
+  "tag": [],
+  "to": "https://www.w3.org/ns/activitystreams#Public",
+  "type": "Note",
+  "url": "https://gts.test/@the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY"
+}

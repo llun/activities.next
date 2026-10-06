@@ -1,0 +1,46 @@
+{
+  "@context": [
+    "https://w3id.org/security/v1",
+    "https://www.w3.org/ns/activitystreams",
+    {
+      "toot": "http://joinmastodon.org/ns#",
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "alsoKnownAs": {
+        "@id": "as:alsoKnownAs",
+        "@type": "@id"
+      },
+      "movedTo": {
+        "@id": "as:movedTo",
+        "@type": "@id"
+      },
+      "indexable": "toot:indexable",
+      "suspended": "toot:suspended"
+    }
+  ],
+  "id": "https://pixelfed.test/users/dansup",
+  "type": "Person",
+  "following": "https://pixelfed.test/users/dansup/following",
+  "followers": "https://pixelfed.test/users/dansup/followers",
+  "inbox": "https://pixelfed.test/users/dansup/inbox",
+  "outbox": "https://pixelfed.test/users/dansup/outbox",
+  "preferredUsername": "dansup",
+  "name": "dansup",
+  "summary": "Photos of things",
+  "url": "https://pixelfed.test/dansup",
+  "manuallyApprovesFollowers": false,
+  "indexable": true,
+  "published": "2018-06-01T00:00:00Z",
+  "publicKey": {
+    "id": "https://pixelfed.test/users/dansup#main-key",
+    "owner": "https://pixelfed.test/users/dansup",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0lP99/s5Vv+XbPdkeqIJ\nwoD4GFnHmBnBHdEKChEUWfWj1TtioC/rGNoXFQeXQA3Amhy4nxSceiDnUgwkkuQY\nv0MtIW58NzgknEavtllxL+LSds5pg3gANaDIk8UiWTkqXTg0GnlJMpCK1Chen0l/\nszL6DEvUyTSuS5ZYDXFgewF89Pe7U0S15V5U2Harv7AgJYDyxmUL0D1pGuUCRqcE\nl5MTHJjrXeNnH1w2g8aly8YlO/Cr0L51rFg/lBF23vni7ZLv8HbmWh6YpaAf1R8h\nE45zKR7OHqymdjzrg1ITBwovefpwMkVgnJ+Wdr4HPnFlBSkXPoZeM11+Z8L0anzA\nXwIDAQAB\n-----END PUBLIC KEY-----\n"
+  },
+  "icon": {
+    "type": "Image",
+    "mediaType": "image/jpeg",
+    "url": "https://pixelfed.test/storage/avatars/default.jpg"
+  },
+  "endpoints": {
+    "sharedInbox": "https://pixelfed.test/f/inbox"
+  }
+}

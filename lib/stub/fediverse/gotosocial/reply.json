@@ -1,0 +1,49 @@
+{
+  "@context": [
+    "https://gotosocial.org/ns",
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "discoverable": "toot:discoverable",
+      "featured": {
+        "@id": "toot:featured",
+        "@type": "@id"
+      },
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "toot": "http://joinmastodon.org/ns#",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag",
+      "Emoji": "toot:Emoji"
+    }
+  ],
+  "attachment": [],
+  "attributedTo": "https://gts.test/users/1happyturtle",
+  "cc": [
+    "https://gts.test/users/1happyturtle/followers",
+    "https://gts.test/users/the_mighty_zork"
+  ],
+  "content": "<p><span class=\"h-card\"><a href=\"https://gts.test/@the_mighty_zork\" class=\"u-url mention\">@<span>the_mighty_zork</span></a></span> welcome!</p>",
+  "id": "https://gts.test/users/1happyturtle/statuses/01HXYZREPLY0000000000000000",
+  "inReplyTo": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY",
+  "published": "2024-05-10T09:00:00Z",
+  "replies": {
+    "first": {
+      "id": "https://gts.test/users/1happyturtle/statuses/01HXYZREPLY0000000000000000/replies?limit=20&min_id=",
+      "next": "https://gts.test/users/1happyturtle/statuses/01HXYZREPLY0000000000000000/replies?only_other_accounts=false&page=true",
+      "partOf": "https://gts.test/users/1happyturtle/statuses/01HXYZREPLY0000000000000000/replies",
+      "type": "CollectionPage"
+    },
+    "id": "https://gts.test/users/1happyturtle/statuses/01HXYZREPLY0000000000000000/replies",
+    "type": "Collection"
+  },
+  "sensitive": false,
+  "summary": "",
+  "tag": {
+    "href": "https://gts.test/users/the_mighty_zork",
+    "name": "@the_mighty_zork@gts.test",
+    "type": "Mention"
+  },
+  "to": "https://www.w3.org/ns/activitystreams#Public",
+  "type": "Note",
+  "url": "https://gts.test/@1happyturtle/statuses/01HXYZREPLY0000000000000000"
+}

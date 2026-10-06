@@ -1,0 +1,16 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://pleroma.test/schemas/litepub-0.1.jsonld",
+    {
+      "@language": "und"
+    }
+  ],
+  "actor": "https://pleroma.test/users/lanodan",
+  "cc": [],
+  "id": "https://pleroma.test/activities/5e6f7a8b-0000-4111-8222-933344446666",
+  "object": "https://llun.test/users/test1",
+  "state": "pending",
+  "to": ["https://llun.test/users/test1"],
+  "type": "Follow"
+}

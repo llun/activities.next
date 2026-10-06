@@ -1,0 +1,66 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "Key": "sec:Key",
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag",
+      "quoteUrl": "as:quoteUrl",
+      "fedibird": "http://fedibird.com/ns#",
+      "quoteUri": "fedibird:quoteUri",
+      "toot": "http://joinmastodon.org/ns#",
+      "Emoji": "toot:Emoji",
+      "featured": "toot:featured",
+      "discoverable": "toot:discoverable",
+      "indexable": "toot:indexable",
+      "schema": "http://schema.org#",
+      "PropertyValue": "schema:PropertyValue",
+      "value": "schema:value",
+      "misskey": "https://misskey-hub.net/ns#",
+      "_misskey_content": "misskey:_misskey_content",
+      "_misskey_quote": "misskey:_misskey_quote",
+      "_misskey_reaction": "misskey:_misskey_reaction",
+      "_misskey_votes": "misskey:_misskey_votes",
+      "_misskey_summary": "misskey:_misskey_summary",
+      "_misskey_followedMessage": "misskey:_misskey_followedMessage",
+      "_misskey_requireSigninToViewContents": "misskey:_misskey_requireSigninToViewContents",
+      "_misskey_makeNotesFollowersOnlyBefore": "misskey:_misskey_makeNotesFollowersOnlyBefore",
+      "_misskey_makeNotesHiddenBefore": "misskey:_misskey_makeNotesHiddenBefore",
+      "_misskey_license": "misskey:_misskey_license",
+      "freeText": {
+        "@id": "misskey:freeText",
+        "@type": "schema:text"
+      },
+      "isCat": "misskey:isCat",
+      "firefish": "https://joinfirefish.org/ns#",
+      "speakAsCat": "firefish:speakAsCat",
+      "sharkey": "https://joinsharkey.org/ns#",
+      "hideOnlineStatus": "sharkey:hideOnlineStatus",
+      "backgroundUrl": "sharkey:backgroundUrl",
+      "listenbrainz": "sharkey:listenbrainz",
+      "enableRss": "sharkey:enableRss",
+      "vcard": "http://www.w3.org/2006/vcard/ns#"
+    }
+  ],
+  "type": "Like",
+  "id": "https://misskey.test/likes/a1b2c3d4r2",
+  "actor": "https://misskey.test/users/9tjwl4bvxw",
+  "object": "https://llun.test/users/test1/statuses/post-1",
+  "content": ":blobcat:",
+  "_misskey_reaction": ":blobcat:",
+  "tag": [
+    {
+      "id": "https://misskey.test/emojis/blobcat",
+      "type": "Emoji",
+      "name": ":blobcat:",
+      "updated": "2024-03-01T00:00:00.000Z",
+      "icon": {
+        "type": "Image",
+        "mediaType": "image/png",
+        "url": "https://misskey.test/files/blobcat.png"
+      }
+    }
+  ]
+}

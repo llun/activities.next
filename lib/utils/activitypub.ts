@@ -160,13 +160,26 @@ export const toRecipientArray = (
     .filter((item): item is string => typeof item === 'string' && item !== '')
     .map(canonicalizePublicRecipient)
 
+// A FEP-1b12 group (a Lemmy community, an Mbin magazine) does not boost a post:
+// it announces the author's whole `Create` activity. The boosted post is that
+// activity's object, so read the id from there rather than boosting the
+// activity id, which no note fetch can resolve. Only the id is taken; the
+// post itself is still fetched from its own origin.
+const getAnnouncedObject = (object: unknown) =>
+  isRecord(object) &&
+  normalizeActivityPubType(object.type) === 'Create' &&
+  object.object
+    ? object.object
+    : object
+
 export const normalizeActivityPubAnnounce = (data: unknown) => {
   if (!isRecord(data)) return data
+  const object = getAnnouncedObject(data.object)
   return {
     ...data,
     type: normalizeActivityPubType(data.type) ?? data.type,
     actor: extractActivityPubId(data.actor) ?? data.actor,
-    object: extractActivityPubId(data.object) ?? data.object,
+    object: extractActivityPubId(object) ?? object,
     to: normalizeActivityPubRecipients(data.to) ?? data.to,
     cc: normalizeActivityPubRecipients(data.cc) ?? data.cc
   }

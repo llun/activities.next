@@ -154,7 +154,8 @@ export const Announce = z.object({
   id: z.string(),
   actor: z.string(),
 
-  published: z.string().describe('Object published datetime'),
+  // Optional: Lemmy communities and PeerTube channels announce without one.
+  published: z.string().optional().describe('Object published datetime'),
   to: z.union([z.string(), z.string().array()]).nullish(),
   cc: z.union([z.string(), z.string().array()]).nullish(),
   object: z.string()

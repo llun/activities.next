@@ -1,0 +1,42 @@
+{
+  "@context": [
+    "https://gotosocial.org/ns",
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "discoverable": "toot:discoverable",
+      "featured": {
+        "@id": "toot:featured",
+        "@type": "@id"
+      },
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "toot": "http://joinmastodon.org/ns#",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag",
+      "Emoji": "toot:Emoji"
+    }
+  ],
+  "discoverable": true,
+  "endpoints": {
+    "sharedInbox": "https://gts.test/sharedInbox"
+  },
+  "featured": "https://gts.test/users/1happyturtle/collections/featured",
+  "followers": "https://gts.test/users/1happyturtle/followers",
+  "following": "https://gts.test/users/1happyturtle/following",
+  "id": "https://gts.test/users/1happyturtle",
+  "inbox": "https://gts.test/users/1happyturtle/inbox",
+  "manuallyApprovesFollowers": true,
+  "name": "happy little turtle :3",
+  "outbox": "https://gts.test/users/1happyturtle/outbox",
+  "preferredUsername": "1happyturtle",
+  "publicKey": {
+    "id": "https://gts.test/users/1happyturtle/main-key",
+    "owner": "https://gts.test/users/1happyturtle",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0lP99/s5Vv+XbPdkeqIJ\nwoD4GFnHmBnBHdEKChEUWfWj1TtioC/rGNoXFQeXQA3Amhy4nxSceiDnUgwkkuQY\nv0MtIW58NzgknEavtllxL+LSds5pg3gANaDIk8UiWTkqXTg0GnlJMpCK1Chen0l/\nszL6DEvUyTSuS5ZYDXFgewF89Pe7U0S15V5U2Harv7AgJYDyxmUL0D1pGuUCRqcE\nl5MTHJjrXeNnH1w2g8aly8YlO/Cr0L51rFg/lBF23vni7ZLv8HbmWh6YpaAf1R8h\nE45zKR7OHqymdjzrg1ITBwovefpwMkVgnJ+Wdr4HPnFlBSkXPoZeM11+Z8L0anzA\nXwIDAQAB\n-----END PUBLIC KEY-----\n"
+  },
+  "published": "2022-06-04T13:12:00Z",
+  "summary": "<p>i post about things that concern me</p>",
+  "tag": [],
+  "type": "Person",
+  "url": "https://gts.test/@1happyturtle"
+}

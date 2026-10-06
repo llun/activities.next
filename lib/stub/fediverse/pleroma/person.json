@@ -1,0 +1,57 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://pleroma.test/schemas/litepub-0.1.jsonld",
+    {
+      "@language": "und"
+    }
+  ],
+  "alsoKnownAs": [],
+  "attachment": [
+    {
+      "name": "Pronouns",
+      "type": "PropertyValue",
+      "value": "they/them"
+    }
+  ],
+  "capabilities": {
+    "acceptsChatMessages": true
+  },
+  "discoverable": false,
+  "endpoints": {
+    "oauthAuthorizationEndpoint": "https://pleroma.test/oauth/authorize",
+    "oauthRegistrationEndpoint": "https://pleroma.test/api/v1/apps",
+    "oauthTokenEndpoint": "https://pleroma.test/oauth/token",
+    "sharedInbox": "https://pleroma.test/inbox",
+    "uploadMedia": "https://pleroma.test/api/ap/upload_media"
+  },
+  "featured": "https://pleroma.test/users/lanodan/collections/featured",
+  "followers": "https://pleroma.test/users/lanodan/followers",
+  "following": "https://pleroma.test/users/lanodan/following",
+  "icon": {
+    "type": "Image",
+    "url": "https://pleroma.test/media/avatar.png"
+  },
+  "id": "https://pleroma.test/users/lanodan",
+  "image": {
+    "type": "Image",
+    "url": "https://pleroma.test/media/banner.png"
+  },
+  "inbox": "https://pleroma.test/users/lanodan/inbox",
+  "manuallyApprovesFollowers": false,
+  "name": "Haelwenn",
+  "outbox": "https://pleroma.test/users/lanodan/outbox",
+  "preferredUsername": "lanodan",
+  "publicKey": {
+    "id": "https://pleroma.test/users/lanodan#main-key",
+    "owner": "https://pleroma.test/users/lanodan",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0lP99/s5Vv+XbPdkeqIJ\nwoD4GFnHmBnBHdEKChEUWfWj1TtioC/rGNoXFQeXQA3Amhy4nxSceiDnUgwkkuQY\nv0MtIW58NzgknEavtllxL+LSds5pg3gANaDIk8UiWTkqXTg0GnlJMpCK1Chen0l/\nszL6DEvUyTSuS5ZYDXFgewF89Pe7U0S15V5U2Harv7AgJYDyxmUL0D1pGuUCRqcE\nl5MTHJjrXeNnH1w2g8aly8YlO/Cr0L51rFg/lBF23vni7ZLv8HbmWh6YpaAf1R8h\nE45zKR7OHqymdjzrg1ITBwovefpwMkVgnJ+Wdr4HPnFlBSkXPoZeM11+Z8L0anzA\nXwIDAQAB\n-----END PUBLIC KEY-----\n"
+  },
+  "published": "2019-01-01T00:00:00Z",
+  "summary": "Pleroma developer",
+  "tag": [],
+  "type": "Person",
+  "url": "https://pleroma.test/users/lanodan",
+  "vcard:bday": null,
+  "webfinger": "acct:lanodan@pleroma.test"
+}

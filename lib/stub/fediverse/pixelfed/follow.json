@@ -1,0 +1,7 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://pixelfed.test/users/dansup#follow/736419587328737400",
+  "type": "Follow",
+  "actor": "https://pixelfed.test/users/dansup",
+  "object": "https://llun.test/users/test1"
+}

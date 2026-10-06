@@ -1,0 +1,171 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "RsaSignature2017": "https://w3id.org/security#RsaSignature2017"
+    },
+    {
+      "pt": "https://joinpeertube.org/ns#",
+      "sc": "http://schema.org/",
+      "playlists": {
+        "@id": "pt:playlists",
+        "@type": "@id"
+      },
+      "support": {
+        "@type": "sc:Text",
+        "@id": "pt:support"
+      },
+      "lemmy": "https://join-lemmy.org/ns#",
+      "postingRestrictedToMods": "lemmy:postingRestrictedToMods",
+      "icons": "as:icon",
+      "Hashtag": "as:Hashtag",
+      "uuid": "sc:identifier",
+      "category": "sc:category",
+      "licence": "sc:license",
+      "subtitleLanguage": "sc:subtitleLanguage",
+      "sensitive": "as:sensitive",
+      "language": "sc:inLanguage",
+      "identifier": "sc:identifier",
+      "isLiveBroadcast": "sc:isLiveBroadcast",
+      "liveSaveReplay": {
+        "@type": "sc:Boolean",
+        "@id": "pt:liveSaveReplay"
+      },
+      "permanentLive": {
+        "@type": "sc:Boolean",
+        "@id": "pt:permanentLive"
+      },
+      "Infohash": "pt:Infohash",
+      "originallyPublishedAt": "sc:datePublished",
+      "views": {
+        "@type": "sc:Number",
+        "@id": "pt:views"
+      },
+      "state": {
+        "@type": "sc:Number",
+        "@id": "pt:state"
+      },
+      "size": {
+        "@type": "sc:Number",
+        "@id": "pt:size"
+      },
+      "fps": {
+        "@type": "sc:Number",
+        "@id": "pt:fps"
+      },
+      "commentsEnabled": {
+        "@type": "sc:Boolean",
+        "@id": "pt:commentsEnabled"
+      },
+      "downloadEnabled": {
+        "@type": "sc:Boolean",
+        "@id": "pt:downloadEnabled"
+      },
+      "waitTranscoding": {
+        "@type": "sc:Boolean",
+        "@id": "pt:waitTranscoding"
+      }
+    }
+  ],
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://peertube.test/accounts/createurs/followers"],
+  "type": "Video",
+  "id": "https://peertube.test/videos/watch/46cc7342-fdd5-4583-ae16-2eeb340d3b60",
+  "name": "Weekly zapping",
+  "duration": "PT383S",
+  "uuid": "46cc7342-fdd5-4583-ae16-2eeb340d3b60",
+  "category": {
+    "identifier": "11",
+    "name": "News & Politics"
+  },
+  "licence": null,
+  "language": {
+    "identifier": "fr",
+    "name": "French"
+  },
+  "views": 83,
+  "sensitive": false,
+  "waitTranscoding": true,
+  "state": 1,
+  "commentsEnabled": true,
+  "downloadEnabled": true,
+  "published": "2023-12-12T17:02:02.188Z",
+  "originallyPublishedAt": "2023-12-11T23:00:00.000Z",
+  "updated": "2023-12-14T06:40:34.279Z",
+  "tag": [
+    {
+      "type": "Hashtag",
+      "name": "zapping"
+    }
+  ],
+  "mediaType": "text/markdown",
+  "content": "A weekly look at **television**.\n\nhttps://peertube.test/c/vu",
+  "support": null,
+  "subtitleLanguage": [],
+  "icon": [
+    {
+      "type": "Image",
+      "url": "https://peertube.test/lazy-static/thumbnails/208d2248.jpg",
+      "mediaType": "image/jpeg",
+      "width": 280,
+      "height": 157
+    },
+    {
+      "type": "Image",
+      "url": "https://peertube.test/lazy-static/previews/73d34e91.jpg",
+      "mediaType": "image/jpeg",
+      "width": 850,
+      "height": 480
+    }
+  ],
+  "url": [
+    {
+      "type": "Link",
+      "mediaType": "text/html",
+      "href": "https://peertube.test/videos/watch/46cc7342-fdd5-4583-ae16-2eeb340d3b60"
+    },
+    {
+      "type": "Link",
+      "mediaType": "application/x-mpegURL",
+      "href": "https://peertube.test/static/streaming-playlists/hls/46cc7342-fdd5-4583-ae16-2eeb340d3b60/master.m3u8",
+      "tag": [
+        {
+          "type": "Infohash",
+          "name": "f50d9a3e851756a1fc1da7fe8b6e40f849c1f3a1"
+        },
+        {
+          "type": "Link",
+          "mediaType": "video/mp4",
+          "href": "https://peertube.test/static/streaming-playlists/hls/46cc7342-fdd5-4583-ae16-2eeb340d3b60/720-fragmented.mp4",
+          "height": 720,
+          "size": 50950797,
+          "fps": 25
+        }
+      ]
+    },
+    {
+      "type": "Link",
+      "name": "tracker-http",
+      "rel": ["tracker", "http"],
+      "href": "https://peertube.test/tracker/announce"
+    }
+  ],
+  "likes": "https://peertube.test/videos/watch/46cc7342-fdd5-4583-ae16-2eeb340d3b60/likes",
+  "dislikes": "https://peertube.test/videos/watch/46cc7342-fdd5-4583-ae16-2eeb340d3b60/dislikes",
+  "shares": "https://peertube.test/videos/watch/46cc7342-fdd5-4583-ae16-2eeb340d3b60/announces",
+  "comments": "https://peertube.test/videos/watch/46cc7342-fdd5-4583-ae16-2eeb340d3b60/comments",
+  "attributedTo": [
+    {
+      "type": "Person",
+      "id": "https://peertube.test/accounts/createurs"
+    },
+    {
+      "type": "Group",
+      "id": "https://peertube.test/video-channels/vu"
+    }
+  ],
+  "isLiveBroadcast": false,
+  "liveSaveReplay": null,
+  "permanentLive": null
+}

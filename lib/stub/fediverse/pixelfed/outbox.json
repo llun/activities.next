@@ -1,0 +1,54 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://pixelfed.test/users/dansup/outbox",
+  "type": "OrderedCollection",
+  "totalItems": 1,
+  "orderedItems": [
+    {
+      "id": "https://pixelfed.test/p/dansup/736419587328737281/activity",
+      "type": "Create",
+      "actor": "https://pixelfed.test/users/dansup",
+      "published": "2024-09-01T18:30:00+00:00",
+      "to": ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc": ["https://pixelfed.test/users/dansup/followers"],
+      "object": {
+        "id": "https://pixelfed.test/p/dansup/736419587328737281",
+        "type": "Note",
+        "summary": null,
+        "content": "Sunset over the bay <a href=\"https://pixelfed.test/discover/tags/sunset?src=hash\" title=\"#sunset\" class=\"u-url hashtag\" rel=\"external nofollow noopener\">#sunset</a>",
+        "inReplyTo": null,
+        "published": "2024-09-01T18:30:00+00:00",
+        "url": "https://pixelfed.test/p/dansup/736419587328737281",
+        "attributedTo": "https://pixelfed.test/users/dansup",
+        "to": ["https://www.w3.org/ns/activitystreams#Public"],
+        "cc": ["https://pixelfed.test/users/dansup/followers"],
+        "sensitive": false,
+        "attachment": [
+          {
+            "type": "Image",
+            "mediaType": "image/jpeg",
+            "url": "https://pixelfed.test/storage/m/_v2/736419587328737281/photo.jpg",
+            "name": "A sunset over water",
+            "blurhash": "U9Fh~B~q00%M?bt7RjWB00M{t7WB-;Rj%MRj",
+            "width": 1080,
+            "height": 1350
+          }
+        ],
+        "tag": [
+          {
+            "type": "Hashtag",
+            "href": "https://pixelfed.test/discover/tags/sunset",
+            "name": "#sunset"
+          }
+        ],
+        "commentsEnabled": true,
+        "capabilities": {
+          "announce": "https://www.w3.org/ns/activitystreams#Public",
+          "like": "https://www.w3.org/ns/activitystreams#Public",
+          "reply": null
+        },
+        "location": null
+      }
+    }
+  ]
+}

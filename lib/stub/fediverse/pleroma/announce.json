@@ -1,0 +1,17 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://pleroma.test/schemas/litepub-0.1.jsonld",
+    {
+      "@language": "und"
+    }
+  ],
+  "actor": "https://pleroma.test/users/lanodan",
+  "cc": ["https://pleroma.test/users/lanodan/followers"],
+  "context": "https://pleroma.test/contexts/34cba3d2-2f35-4169-aeff-56af9bfeb753",
+  "id": "https://pleroma.test/activities/4b5c6d7e-0000-4111-8222-933344445555",
+  "object": "https://pleroma.test/objects/8d4973f4-53de-49cd-8c27-df160e16a9c2",
+  "published": "2025-02-03T19:00:00.000000Z",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "type": "Announce"
+}

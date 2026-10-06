@@ -1,0 +1,109 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "Key": "sec:Key",
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag",
+      "quoteUrl": "as:quoteUrl",
+      "fedibird": "http://fedibird.com/ns#",
+      "quoteUri": "fedibird:quoteUri",
+      "toot": "http://joinmastodon.org/ns#",
+      "Emoji": "toot:Emoji",
+      "featured": "toot:featured",
+      "discoverable": "toot:discoverable",
+      "indexable": "toot:indexable",
+      "schema": "http://schema.org#",
+      "PropertyValue": "schema:PropertyValue",
+      "value": "schema:value",
+      "misskey": "https://misskey-hub.net/ns#",
+      "_misskey_content": "misskey:_misskey_content",
+      "_misskey_quote": "misskey:_misskey_quote",
+      "_misskey_reaction": "misskey:_misskey_reaction",
+      "_misskey_votes": "misskey:_misskey_votes",
+      "_misskey_summary": "misskey:_misskey_summary",
+      "_misskey_followedMessage": "misskey:_misskey_followedMessage",
+      "_misskey_requireSigninToViewContents": "misskey:_misskey_requireSigninToViewContents",
+      "_misskey_makeNotesFollowersOnlyBefore": "misskey:_misskey_makeNotesFollowersOnlyBefore",
+      "_misskey_makeNotesHiddenBefore": "misskey:_misskey_makeNotesHiddenBefore",
+      "_misskey_license": "misskey:_misskey_license",
+      "freeText": {
+        "@id": "misskey:freeText",
+        "@type": "schema:text"
+      },
+      "isCat": "misskey:isCat",
+      "firefish": "https://joinfirefish.org/ns#",
+      "speakAsCat": "firefish:speakAsCat",
+      "sharkey": "https://joinsharkey.org/ns#",
+      "hideOnlineStatus": "sharkey:hideOnlineStatus",
+      "backgroundUrl": "sharkey:backgroundUrl",
+      "listenbrainz": "sharkey:listenbrainz",
+      "enableRss": "sharkey:enableRss",
+      "vcard": "http://www.w3.org/2006/vcard/ns#"
+    }
+  ],
+  "type": "Person",
+  "id": "https://misskey.test/users/9tjwl4bvxw",
+  "inbox": "https://misskey.test/users/9tjwl4bvxw/inbox",
+  "outbox": "https://misskey.test/users/9tjwl4bvxw/outbox",
+  "followers": "https://misskey.test/users/9tjwl4bvxw/followers",
+  "following": "https://misskey.test/users/9tjwl4bvxw/following",
+  "featured": "https://misskey.test/users/9tjwl4bvxw/collections/featured",
+  "sharedInbox": "https://misskey.test/inbox",
+  "endpoints": {
+    "sharedInbox": "https://misskey.test/inbox"
+  },
+  "url": "https://misskey.test/@mimi",
+  "preferredUsername": "mimi",
+  "name": "Mimi :blobcat:",
+  "summary": "<p>Misskey user. Likes <a href=\"https://misskey.test/tags/cats\" rel=\"tag\">#cats</a></p>",
+  "_misskey_summary": "Misskey user. Likes #cats",
+  "_misskey_followedMessage": null,
+  "_misskey_requireSigninToViewContents": false,
+  "_misskey_makeNotesFollowersOnlyBefore": null,
+  "_misskey_makeNotesHiddenBefore": null,
+  "icon": {
+    "type": "Image",
+    "url": "https://misskey.test/files/webpublic-2a7c3b1e-avatar.webp",
+    "sensitive": false,
+    "name": null
+  },
+  "image": null,
+  "backgroundUrl": null,
+  "tag": [
+    {
+      "id": "https://misskey.test/emojis/blobcat",
+      "type": "Emoji",
+      "name": ":blobcat:",
+      "updated": "2024-03-01T00:00:00.000Z",
+      "icon": {
+        "type": "Image",
+        "mediaType": "image/png",
+        "url": "https://misskey.test/files/blobcat.png"
+      }
+    }
+  ],
+  "manuallyApprovesFollowers": false,
+  "discoverable": true,
+  "indexable": true,
+  "publicKey": {
+    "id": "https://misskey.test/users/9tjwl4bvxw#main-key",
+    "type": "Key",
+    "owner": "https://misskey.test/users/9tjwl4bvxw",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0lP99/s5Vv+XbPdkeqIJ\nwoD4GFnHmBnBHdEKChEUWfWj1TtioC/rGNoXFQeXQA3Amhy4nxSceiDnUgwkkuQY\nv0MtIW58NzgknEavtllxL+LSds5pg3gANaDIk8UiWTkqXTg0GnlJMpCK1Chen0l/\nszL6DEvUyTSuS5ZYDXFgewF89Pe7U0S15V5U2Harv7AgJYDyxmUL0D1pGuUCRqcE\nl5MTHJjrXeNnH1w2g8aly8YlO/Cr0L51rFg/lBF23vni7ZLv8HbmWh6YpaAf1R8h\nE45zKR7OHqymdjzrg1ITBwovefpwMkVgnJ+Wdr4HPnFlBSkXPoZeM11+Z8L0anzA\nXwIDAQAB\n-----END PUBLIC KEY-----\n"
+  },
+  "isCat": true,
+  "noindex": false,
+  "speakAsCat": true,
+  "attachment": [
+    {
+      "type": "PropertyValue",
+      "name": "Website",
+      "value": "<a href=\"https://mimi.example\" rel=\"me nofollow noopener\" target=\"_blank\">https://mimi.example</a>"
+    }
+  ],
+  "vcard:bday": "2000-02-22",
+  "vcard:Address": "Tokyo"
+}
