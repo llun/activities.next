@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "nodemailer": "10.0.13"
+    "nodemailer": "10.0.14"
   },
   "devDependencies": {
     "@types/nodemailer": "^8.0.2"
