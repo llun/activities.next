@@ -104,7 +104,7 @@ describe('getActorCollections context inheritance', () => {
     const item = { id: 'https://example.com/status/1', type: 'Note' }
     mockRequest.mockResolvedValueOnce({
       statusCode: 200,
-      headers: {},
+      headers: ACTIVITY_JSON_HEADERS,
       body: JSON.stringify({
         '@context': 'https://www.w3.org/ns/activitystreams',
         id: 'https://example.com/outbox',
