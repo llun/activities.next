@@ -1,4 +1,7 @@
+import { Span } from '@opentelemetry/api'
+
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import { Database } from '@/lib/database/types'
 import {
   getForwardActivityJobMessages,
   getForwardingTargetLocalActorIds,
@@ -6,6 +9,7 @@ import {
   shouldForwardActivity
 } from '@/lib/services/federation/forwardingDelivery'
 import { getQueue } from '@/lib/services/queue'
+import { JobMessage } from '@/lib/services/queue/type'
 import { Announce, Tombstone } from '@/lib/types/activitypub'
 import { DeleteAction } from '@/lib/types/activitypub/activities'
 import { getOriginalStatus } from '@/lib/types/domain/status'
@@ -36,6 +40,75 @@ const getStampUri = (data: unknown): string | null => {
     return (data as { id: string }).id
   }
   return null
+}
+
+// Deletes a remote status named by a Delete, scoped to the verified sender,
+// and fans the Delete out to local followers when inbox forwarding applies.
+const deleteStatusFromTombstone = async (
+  database: Database,
+  message: JobMessage,
+  span: Span,
+  tombStone: Tombstone,
+  existingStatus: Awaited<ReturnType<Database['getStatus']>>
+) => {
+  span.setAttribute('statusId', tombStone.id)
+
+  // Outbound Inbox Forwarding (W3C ActivityPub §7.1.2):
+  // Fan out verified public delete of replies and mentions of local users to their followers.
+  if (
+    existingStatus &&
+    shouldForwardActivity({
+      message,
+      authorActorId: existingStatus.actorId,
+      activityId: tombStone.id,
+      to: existingStatus.to,
+      cc: existingStatus.cc
+    })
+  ) {
+    const targetLocalActorIds = await getForwardingTargetLocalActorIds({
+      database,
+      inReplyTo: 'reply' in existingStatus ? existingStatus.reply : undefined,
+      tags: 'tags' in existingStatus ? existingStatus.tags : undefined,
+      to: existingStatus.to,
+      cc: existingStatus.cc
+    })
+
+    if (targetLocalActorIds.length > 0) {
+      const inboxes = await resolveForwardingInboxes({
+        database,
+        targetLocalActorIds,
+        authorActorId: existingStatus.actorId,
+        to: existingStatus.to,
+        cc: existingStatus.cc
+      })
+
+      if (inboxes.length > 0) {
+        const deleteActivity = {
+          '@context': NOTE_ACTIVITY_CONTEXT,
+          id: `${tombStone.id}#delete`,
+          type: DeleteAction,
+          actor: existingStatus.actorId,
+          to: existingStatus.to,
+          cc: existingStatus.cc,
+          object: tombStone
+        }
+
+        for (const forwardMessage of getForwardActivityJobMessages({
+          id: `${getHashFromString(tombStone.id)}#forward-delete`,
+          activity: deleteActivity,
+          inboxes,
+          localActorId: targetLocalActorIds[0]
+        })) {
+          await getQueue().publish(forwardMessage)
+        }
+      }
+    }
+  }
+
+  await database.deleteStatus({
+    statusId: tombStone.id,
+    actorId: getVerifiedSenderActorId(message.verifiedSenderActorId)
+  })
 }
 
 export const deleteObjectJob = createJobHandle(
@@ -106,6 +179,26 @@ export const deleteObjectJob = createJobHandle(
       }
 
       if (typeof data === 'string') {
+        // Pleroma/Akkoma, GoToSocial and Lemmy delete a post with a bare id
+        // (`object: "https://host/objects/<id>"`) instead of a Tombstone, so a
+        // string is only an ACCOUNT delete when it names no stored status. The
+        // status delete stays scoped to the verified sender, so naming someone
+        // else's status deletes nothing.
+        const existingStatus = await database.getStatus({
+          statusId: data,
+          withReplies: false
+        })
+        if (existingStatus) {
+          await deleteStatusFromTombstone(
+            database,
+            message,
+            span,
+            { type: 'Tombstone', id: data },
+            existingStatus
+          )
+          return
+        }
+
         if (!actorMatchesVerifiedSender(data, message)) {
           // Not a mismatch when we just revoked: `senderMismatch` means someone
           // tried to delete something they do not own, and the quoted author
@@ -124,70 +217,16 @@ export const deleteObjectJob = createJobHandle(
       const tombStoneResult = Tombstone.safeParse(data)
       if (tombStoneResult.success) {
         const tombStone = tombStoneResult.data
-        span.setAttribute('statusId', tombStone.id)
-
-        const existingStatus = await database.getStatus({
-          statusId: tombStone.id,
-          withReplies: false
-        })
-
-        // Outbound Inbox Forwarding (W3C ActivityPub §7.1.2):
-        // Fan out verified public delete of replies and mentions of local users to their followers.
-        if (
-          existingStatus &&
-          shouldForwardActivity({
-            message,
-            authorActorId: existingStatus.actorId,
-            activityId: tombStone.id,
-            to: existingStatus.to,
-            cc: existingStatus.cc
+        await deleteStatusFromTombstone(
+          database,
+          message,
+          span,
+          tombStone,
+          await database.getStatus({
+            statusId: tombStone.id,
+            withReplies: false
           })
-        ) {
-          const targetLocalActorIds = await getForwardingTargetLocalActorIds({
-            database,
-            inReplyTo:
-              'reply' in existingStatus ? existingStatus.reply : undefined,
-            tags: 'tags' in existingStatus ? existingStatus.tags : undefined,
-            to: existingStatus.to,
-            cc: existingStatus.cc
-          })
-
-          if (targetLocalActorIds.length > 0) {
-            const inboxes = await resolveForwardingInboxes({
-              database,
-              targetLocalActorIds,
-              authorActorId: existingStatus.actorId,
-              to: existingStatus.to,
-              cc: existingStatus.cc
-            })
-
-            if (inboxes.length > 0) {
-              const deleteActivity = {
-                '@context': NOTE_ACTIVITY_CONTEXT,
-                id: `${tombStone.id}#delete`,
-                type: DeleteAction,
-                actor: existingStatus.actorId,
-                to: existingStatus.to,
-                cc: existingStatus.cc,
-                object: tombStone
-              }
-
-              for (const forwardMessage of getForwardActivityJobMessages({
-                id: `${getHashFromString(tombStone.id)}#forward-delete`,
-                activity: deleteActivity,
-                inboxes,
-                localActorId: targetLocalActorIds[0]
-              })) {
-                await getQueue().publish(forwardMessage)
-              }
-            }
-          }
-        }
-
-        await database.deleteStatus({
-          statusId: tombStone.id,
-          actorId: getVerifiedSenderActorId(message.verifiedSenderActorId)
-        })
+        )
         return
       }
 

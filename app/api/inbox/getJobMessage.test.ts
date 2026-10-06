@@ -1,10 +1,14 @@
+import { compactActivityPub } from '@/lib/activities/jsonld'
 import {
+  CREATE_ANNOUNCE_JOB_NAME,
   CREATE_NOTE_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
-  HANDLE_QUOTE_REQUEST_JOB_NAME
+  HANDLE_QUOTE_REQUEST_JOB_NAME,
+  PROCESS_FORWARDED_ACTIVITY_JOB_NAME
 } from '@/lib/jobs/names'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
+import { getInboxJobId } from './getInboxJobId'
 import { getJobMessage } from './getJobMessage'
 
 const verifiedSenderActorId = 'https://remote.test/users/alice'
@@ -374,6 +378,206 @@ describe('getJobMessage', () => {
       )
 
       expect(result).toBeNull()
+    })
+  })
+
+  // Payloads in the shape Lemmy 0.19 and Mbin send from a community (`Group`)
+  // inbox: the group signs an Announce that wraps a member's whole activity.
+  // Each is compacted first, as both inbox routes do before matching.
+  describe('community (Group) announces', () => {
+    const lemmyCommunity = 'https://lemmy.test/c/technology'
+    const lemmyUser = 'https://lemmy.test/u/alice'
+    const lemmyContext = [
+      'https://join-lemmy.org/context.json',
+      'https://www.w3.org/ns/activitystreams'
+    ]
+    const lemmyAnnounce = (object: Record<string, unknown>) => ({
+      '@context': lemmyContext,
+      actor: lemmyCommunity,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      object,
+      cc: [`${lemmyCommunity}/followers`],
+      type: 'Announce',
+      id: 'https://lemmy.test/activities/announce/5e1f0b8e-3c38-4c1b-9d6b-0b8e4a7f2a11'
+    })
+
+    const route = async (activity: unknown, sender: string) =>
+      getJobMessage((await compactActivityPub(activity)) as never, sender)
+
+    it('routes an announced Lemmy Delete of a post to the origin re-fetch job', async () => {
+      const inner = {
+        actor: lemmyUser,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        object: 'https://lemmy.test/post/123',
+        cc: [lemmyCommunity],
+        type: 'Delete',
+        id: 'https://lemmy.test/activities/delete/0a3a4c3e-6a59-4d4b-8b0e-2a9b5c1d7e44',
+        audience: lemmyCommunity
+      }
+
+      const result = await route(lemmyAnnounce(inner), lemmyCommunity)
+
+      expect(result?.name).toBe(PROCESS_FORWARDED_ACTIVITY_JOB_NAME)
+      expect(result?.id).toBe(getInboxJobId(inner.id, '#forwarded'))
+      expect(result?.data).toMatchObject({
+        id: inner.id,
+        type: 'Delete',
+        actor: lemmyUser,
+        object: 'https://lemmy.test/post/123'
+      })
+      // The group signed the envelope, not the delete: the job must derive
+      // trust from the origin fetch alone.
+      expect(result).not.toHaveProperty('verifiedSenderActorId')
+    })
+
+    it('routes an announced Lemmy Update of a post to the origin re-fetch job', async () => {
+      const inner = {
+        actor: lemmyUser,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        object: {
+          type: 'Page',
+          id: 'https://lemmy.test/post/123',
+          attributedTo: lemmyUser,
+          to: [lemmyCommunity, 'https://www.w3.org/ns/activitystreams#Public'],
+          name: 'Edited title',
+          cc: [],
+          content: '<p>Edited body</p>',
+          mediaType: 'text/html',
+          source: { content: 'Edited body', mediaType: 'text/markdown' },
+          sensitive: false,
+          published: '2026-10-01T10:00:00.000000Z',
+          updated: '2026-10-01T11:00:00.000000Z',
+          audience: lemmyCommunity
+        },
+        cc: [lemmyCommunity],
+        type: 'Update',
+        id: 'https://lemmy.test/activities/update/7f6d3b2a-1c0e-4e8f-9a7b-3d2c1b0a9f88',
+        audience: lemmyCommunity
+      }
+
+      const result = await route(lemmyAnnounce(inner), lemmyCommunity)
+
+      expect(result?.name).toBe(PROCESS_FORWARDED_ACTIVITY_JOB_NAME)
+      expect(result?.data).toMatchObject({
+        id: inner.id,
+        type: 'Update',
+        actor: lemmyUser,
+        object: { id: 'https://lemmy.test/post/123', type: 'Page' }
+      })
+    })
+
+    it('routes an announced Mbin Delete carrying a Tombstone to the origin re-fetch job', async () => {
+      const magazine = 'https://mbin.test/m/tech'
+      const author = 'https://mbin.test/u/bob'
+      const announce = {
+        '@context': [
+          'https://www.w3.org/ns/activitystreams',
+          'https://w3id.org/security/v1'
+        ],
+        id: 'https://mbin.test/f/object/3b8e6a62-5f0e-4a7e-8f51-1f7e1c2d3a44',
+        type: 'Announce',
+        actor: magazine,
+        object: {
+          id: 'https://mbin.test/f/object/8c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f',
+          type: 'Delete',
+          actor: author,
+          object: {
+            id: 'https://mbin.test/m/tech/t/42',
+            type: 'Tombstone'
+          },
+          to: ['https://www.w3.org/ns/activitystreams#Public'],
+          cc: [magazine, `${author}/followers`]
+        },
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [`${magazine}/followers`],
+        published: '2026-10-01T12:00:00+00:00'
+      }
+
+      const result = await route(announce, magazine)
+
+      expect(result?.name).toBe(PROCESS_FORWARDED_ACTIVITY_JOB_NAME)
+      expect(result?.data).toMatchObject({
+        type: 'Delete',
+        actor: author,
+        object: { id: 'https://mbin.test/m/tech/t/42' }
+      })
+    })
+
+    it('drops an announced Lemmy vote instead of boosting the vote id', async () => {
+      const inner = {
+        actor: lemmyUser,
+        object: 'https://lemmy.test/post/123',
+        type: 'Like',
+        id: 'https://lemmy.test/activities/like/2b9c8d7e-6f5a-4b3c-9d2e-1f0a9b8c7d66',
+        audience: lemmyCommunity
+      }
+
+      expect(await route(lemmyAnnounce(inner), lemmyCommunity)).toBeNull()
+    })
+
+    it('rejects a wrapped activity when the Announce actor is not the signer', async () => {
+      const inner = {
+        actor: lemmyUser,
+        object: 'https://lemmy.test/post/123',
+        type: 'Delete',
+        id: 'https://lemmy.test/activities/delete/9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b55'
+      }
+
+      expect(
+        await route(lemmyAnnounce(inner), 'https://evil.test/c/fake')
+      ).toBeNull()
+    })
+
+    it('drops a wrapped activity whose id is not on its actor origin', async () => {
+      // A mangled replay of another server's activity must not reach the
+      // re-fetch job, where it would spend that activity's dedup key.
+      const inner = {
+        actor: 'https://evil.test/u/mallory',
+        object: 'https://evil.test/post/1',
+        type: 'Delete',
+        id: 'https://lemmy.test/activities/delete/0a3a4c3e-6a59-4d4b-8b0e-2a9b5c1d7e44'
+      }
+
+      expect(await route(lemmyAnnounce(inner), lemmyCommunity)).toBeNull()
+    })
+
+    it('keeps an announced Create on the boost path', async () => {
+      const announce = lemmyAnnounce({
+        actor: lemmyUser,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        object: {
+          type: 'Page',
+          id: 'https://lemmy.test/post/124',
+          attributedTo: lemmyUser,
+          to: [lemmyCommunity, 'https://www.w3.org/ns/activitystreams#Public'],
+          name: 'A new post',
+          content: '<p>Hello</p>',
+          published: '2026-10-01T10:00:00.000000Z',
+          audience: lemmyCommunity
+        },
+        cc: [lemmyCommunity],
+        type: 'Create',
+        id: 'https://lemmy.test/activities/create/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d',
+        audience: lemmyCommunity
+      })
+
+      const result = await route(announce, lemmyCommunity)
+
+      expect(result?.name).toBe(CREATE_ANNOUNCE_JOB_NAME)
+    })
+
+    it('keeps a plain boost of a post on the boost path', async () => {
+      const result = await route(
+        lemmyAnnounce({
+          type: 'Page',
+          id: 'https://lemmy.test/post/125',
+          attributedTo: lemmyUser,
+          content: '<p>Boosted</p>'
+        }),
+        lemmyCommunity
+      )
+
+      expect(result?.name).toBe(CREATE_ANNOUNCE_JOB_NAME)
     })
   })
 })

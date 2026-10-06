@@ -233,6 +233,62 @@ describe('normalizeActivityPubContent', () => {
     })
   })
 
+  it('adds a community audience missing from to and cc to cc', () => {
+    const result = normalizeActivityPubContent({
+      type: 'Page',
+      id: 'https://kbin.test/m/tech/t/42',
+      attributedTo: 'https://kbin.test/u/alice',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: 'https://kbin.test/u/alice/followers',
+      audience: 'https://kbin.test/m/tech'
+    }) as { cc: unknown }
+
+    expect(result.cc).toEqual([
+      'https://kbin.test/u/alice/followers',
+      'https://kbin.test/m/tech'
+    ])
+  })
+
+  it('leaves cc untouched when the audience is already addressed', () => {
+    // Lemmy addresses the community in `to` and repeats it as `audience`.
+    const result = normalizeActivityPubContent({
+      type: 'Page',
+      to: [
+        'https://lemmy.test/c/main',
+        'https://www.w3.org/ns/activitystreams#Public'
+      ],
+      cc: [],
+      audience: 'https://lemmy.test/c/main'
+    }) as { cc: unknown }
+
+    expect(result.cc).toEqual([])
+  })
+
+  it('adds an audience given as an object when the note has no cc', () => {
+    const result = normalizeActivityPubContent({
+      type: 'Note',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      audience: { id: 'https://lemmy.test/c/main', type: 'Group' }
+    }) as { cc: unknown }
+
+    expect(result.cc).toEqual(['https://lemmy.test/c/main'])
+  })
+
+  it.each([
+    'https://www.w3.org/ns/activitystreams#Public',
+    'as:Public',
+    'https://remote.test/users/alice/followers'
+  ])('never folds %s from audience into cc', (audience) => {
+    const result = normalizeActivityPubContent({
+      type: 'Note',
+      to: ['https://remote.test/users/bob'],
+      cc: [],
+      audience
+    }) as { cc: unknown }
+
+    expect(result.cc).toEqual([])
+  })
+
   it('returns non-record value as-is', () => {
     expect(normalizeActivityPubContent('string')).toEqual('string')
     expect(normalizeActivityPubContent(null)).toEqual(null)
