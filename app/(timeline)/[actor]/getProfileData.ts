@@ -2,11 +2,11 @@ import {
   getPersistableActorPerson,
   getPersistableProfile
 } from '@/lib/actions/utils'
+import { confirmActorHandle } from '@/lib/activities/confirmActorHandle'
 import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
-import { isActorHandleConfirmed } from '@/lib/activities/isActorHandleConfirmed'
 import { isUniqueConstraintError } from '@/lib/database/sql/utils/isUniqueConstraintError'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
@@ -259,16 +259,18 @@ export const getProfileData = async (
   }
   // A new row fixes `username@domain` for good, and the `self` link above came
   // from the handle's domain, which need not be the actor's: a hostile
-  // `@x@evil.example` can point it at any URL on any host. The host the row is
-  // stored under must confirm the handle itself before the row exists.
-  if (
-    persistablePerson &&
-    !storedActor &&
-    !(await isActorHandleConfirmed({
-      actorId: persistablePerson.id,
-      username: persistablePerson.preferredUsername
-    }))
-  ) {
+  // `@x@evil.example` can point it at any URL on any host. WebFinger must
+  // confirm the handle the row is stored under before the row exists.
+  const handle =
+    persistablePerson && !storedActor
+      ? await confirmActorHandle({
+          database,
+          actorId: persistablePerson.id,
+          username: persistablePerson.preferredUsername,
+          webfinger: persistablePerson.webfinger
+        })
+      : null
+  if (!storedActor && !handle) {
     persistablePerson = null
   }
   if (persistablePerson && storedActor) {
@@ -279,7 +281,7 @@ export const getProfileData = async (
       actorId: persistablePerson.id,
       ...getPersistableProfile(persistablePerson)
     })
-  } else if (persistablePerson) {
+  } else if (persistablePerson && handle) {
     const persistableProfile = getPersistableProfile(persistablePerson)
     // A concurrent render can insert the same id between the read above and
     // this insert. Rather than serialize the whole render, treat the unique
@@ -288,8 +290,8 @@ export const getProfileData = async (
     try {
       await database.createActor({
         actorId: persistablePerson.id,
-        username: persistablePerson.preferredUsername,
-        domain: new URL(persistablePerson.id).host,
+        username: handle.username,
+        domain: handle.domain,
         ...persistableProfile,
         createdAt: new Date(persistablePerson.published ?? Date.now()).getTime()
       })

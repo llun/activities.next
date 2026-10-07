@@ -115,7 +115,7 @@ describe('getProfileData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Creating a newly discovered remote actor asks the actor's host for its
-    // WebFinger (`isActorHandleConfirmed`); the stub confirms
+    // WebFinger (`confirmActorHandle`); the stub confirms
     // `<name>@<host>` -> `https://<host>/users/<name>`.
     fetchMock.resetMocks()
     mockRequests(fetchMock)

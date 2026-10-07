@@ -30,6 +30,21 @@ describe('localizeAccount', () => {
     }
   )
 
+  // A remote actor confirmed through its host's WebFinger redirect is stored under
+  // that domain, not the host of its id, and is shown that way.
+  it('keeps the stored handle domain of a qualified acct', () => {
+    const input = account({
+      username: 'alice',
+      acct: 'alice@remote.test',
+      url: 'https://ap.remote.test/users/1234'
+    })
+
+    expect(localizeAccount(input, 'llun.dev').acct).toBe('alice@remote.test')
+    expect(localizeAccount(input, 'ap.remote.test').acct).toBe(
+      'alice@remote.test'
+    )
+  })
+
   it('strips a scheme from the access domain before comparing', () => {
     expect(localizeAccount(account(), 'https://llun.dev').acct).toBe('null')
   })

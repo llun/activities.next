@@ -351,6 +351,128 @@ describe('getSenderPublicKey', () => {
       )
       expect(fetchMock).not.toHaveBeenCalled()
     })
+
+    // The owner's host may redirect to the handle's domain with its
+    // `subject`, which is then asked on the same budget.
+    it('accepts a key whose host redirects to a handle domain naming its owner', async () => {
+      forgedKeyDocument()
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          ...MockWebfinger({
+            account: 'admin@remote.test',
+            userUrl: 'https://remote.test/users/other'
+          }),
+          subject: 'acct:admin@handle.test'
+        }),
+        { status: 200, headers: JRD_JSON_HEADERS }
+      )
+      fetchMock.mockResponseOnce(
+        ...webfingerResponse('admin@handle.test', uploadId)
+      )
+      vi.mocked(request).mockClear()
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${uploadId}#main-key`)
+      ).resolves.toEqual({ owner: uploadId, publicKey: 'forged-public-key' })
+      expect(vi.mocked(request)).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          url: webfingerUrl('admin@handle.test'),
+          numberOfRetry: 0,
+          responseTimeout: 3000,
+          allowCrossHostRedirects: false
+        })
+      )
+    })
+
+    // FEP-2c59, as Mastodon follows it: an owner whose host does not know
+    // its handle names the handle's domain, asked on the same budget.
+    it('accepts a key whose webfinger property domain names its owner', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          ...createActorDocument({
+            id: uploadId,
+            publicKeyPem: 'handle-domain-key'
+          }),
+          preferredUsername: 'admin',
+          webfinger: 'admin@handle.test'
+        }),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+      fetchMock.mockResponseOnce('Not Found', { status: 404 })
+      fetchMock.mockResponseOnce(
+        ...webfingerResponse('admin@handle.test', uploadId)
+      )
+      vi.mocked(request).mockClear()
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${uploadId}#main-key`)
+      ).resolves.toEqual({ owner: uploadId, publicKey: 'handle-domain-key' })
+      expect(vi.mocked(request)).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          url: webfingerUrl('admin@handle.test'),
+          numberOfRetry: 0,
+          responseTimeout: 3000,
+          allowCrossHostRedirects: false
+        })
+      )
+    })
+
+    // A relay's actor never gets a row, so without this every relayed post
+    // would pay a WebFinger lookup, and a slow one would refuse it.
+    it('trusts an accepted relay without asking WebFinger', async () => {
+      const relayActorId = 'https://relay.test/actor'
+      const relay = await database.createRelay({
+        inboxUrl: 'https://relay.test/inbox'
+      })
+      await database.updateRelay({
+        id: relay.id,
+        state: 'accepted',
+        actorId: relayActorId
+      })
+      fetchMock.resetMocks()
+      fetchMock.mockResponseOnce(
+        JSON.stringify(
+          createActorDocument({
+            id: relayActorId,
+            publicKeyPem: 'relay-public-key'
+          })
+        ),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${relayActorId}#main-key`)
+      ).resolves.toEqual({ owner: relayActorId, publicKey: 'relay-public-key' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    // The Accept that makes a relay known is itself verified, so a pending
+    // relay is confirmed like any other unknown sender.
+    it('asks WebFinger about a relay that is not accepted yet', async () => {
+      const relayActorId = 'https://pending-relay.test/actor'
+      const relay = await database.createRelay({
+        inboxUrl: 'https://pending-relay.test/inbox'
+      })
+      await database.updateRelay({ id: relay.id, actorId: relayActorId })
+      fetchMock.resetMocks()
+      fetchMock.mockResponseOnce(
+        JSON.stringify(
+          createActorDocument({
+            id: relayActorId,
+            publicKeyPem: 'relay-public-key'
+          })
+        ),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+      fetchMock.mockResponseOnce('Not Found', { status: 404 })
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${relayActorId}#main-key`)
+      ).resolves.toEqual({ owner: null, publicKey: '' })
+      expect(fetchMock.mock.calls.map(([input]) => String(input))).toContain(
+        webfingerUrl('actor@pending-relay.test')
+      )
+    })
   })
 
   it('accepts actor key identifiers that only differ by URI casing', async () => {

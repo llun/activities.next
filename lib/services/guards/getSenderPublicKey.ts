@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { activityPubRequestHeaders } from '@/lib/activities/activityPubHeaders'
 import { isActivityPubDocumentResponse } from '@/lib/activities/activityPubResponse'
-import { isActorHandleConfirmed } from '@/lib/activities/isActorHandleConfirmed'
+import { confirmActorHandle } from '@/lib/activities/confirmActorHandle'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -33,6 +33,7 @@ type ParsedSenderPublicKey =
       type: 'actor'
       actorId: string
       username: string
+      webfinger?: string
       keyId: string
       requiresOwnerValidation: boolean
       details: SenderPublicKeyDetails
@@ -131,6 +132,7 @@ const parseSenderPublicKey = ({
       type: 'actor',
       actorId: actor.data.id,
       username: actor.data.preferredUsername,
+      webfinger: actor.data.webfinger,
       keyId: actor.data.publicKey.id,
       requiresOwnerValidation: normalizedActorId !== normalizedKeyOwner,
       details: {
@@ -240,6 +242,7 @@ const validateOwnerActorKey = async (
   return {
     owner: ownerDocument.actorId,
     username: ownerDocument.username,
+    webfinger: ownerDocument.webfinger,
     publicKey
   }
 }
@@ -255,6 +258,7 @@ const resolveFetchedPublicKey = async (
       return {
         owner: document.actorId,
         username: document.username,
+        webfinger: document.webfinger,
         publicKey: document.details.publicKey
       }
     }
@@ -280,6 +284,16 @@ const resolveFetchedPublicKey = async (
   )
 }
 
+const isKnownKeyOwner = async (database: Database, owner: string) => {
+  if (await database.getActorFromId({ id: owner })) return true
+  const relayActorId = normalizeActorId(owner)
+  if (!relayActorId) return false
+  // Not `getRelayByActorId`: the id is not unique (an unsubscribed row keeps
+  // it), and an idle row returned first would send the relay to WebFinger.
+  const relays = await database.getAcceptedRelays()
+  return relays.some((relay) => relay.actorId === relayActorId)
+}
+
 const fetchSenderPublicKeyDetails = async (
   actorId: string,
   signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>,
@@ -291,29 +305,36 @@ const fetchSenderPublicKeyDetails = async (
     signingActor,
     database
   )
-  // A key from a sender with no stored row is accepted only once the owner's
-  // host confirms its handle, as Mastodon does before trusting an unknown
+  // A key from a sender with no stored row is accepted only once WebFinger
+  // confirms the owner's handle, as Mastodon does before trusting an unknown
   // signer. The content-type gate alone leaves any host that serves user bytes
   // as ActivityPub able to sign as a URL there, and a status from a signer
   // with no row still renders under that host's name. An owner that already
   // has a row holds its handle there and is not asked again: a `#main-key`
   // keyId is answered from the row before any fetch, but a path-based one
   // (GoToSocial's `/users/x/main-key`) is fetched on every request and would
-  // otherwise pay a WebFinger lookup each time.
+  // otherwise pay a WebFinger lookup each time. An accepted relay is known the
+  // same way: its actor never gets a row, only the relay subscription's
+  // `actorId`, recorded from an Accept whose signer passed this check.
   const isConfirmed =
     resolved !== null &&
-    (Boolean(await database.getActorFromId({ id: resolved.owner })) ||
-      (await isActorHandleConfirmed({
+    ((await isKnownKeyOwner(database, resolved.owner)) ||
+      (await confirmActorHandle({
+        database,
         actorId: resolved.owner,
         username: resolved.username,
+        webfinger: resolved.webfinger,
         withNetworkRetry: false,
         responseTimeout: SENDER_KEY_FETCH_TIMEOUT_MS,
         // Like the key fetch: this runs before the signature is verified, and
         // a hop would send the request to a host no domain block was checked
-        // against. The lookup goes to the owner's own host, so a split-domain
-        // deployment still confirms without one.
+        // against. The lookups go to the owner's own host and, failing that,
+        // to the handle domain its `webfinger` property or its host's
+        // `subject` names, which `confirmActorHandle` checks against the
+        // federation policy first, so a split-domain deployment still
+        // confirms without one.
         allowCrossHostRedirects: false
-      })))
+      })) !== null)
   return {
     details: isConfirmed
       ? { owner: resolved.owner, publicKey: resolved.publicKey }

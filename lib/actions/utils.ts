@@ -1,6 +1,6 @@
+import { confirmActorHandle } from '@/lib/activities/confirmActorHandle'
 import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCounts'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
-import { isActorHandleConfirmed } from '@/lib/activities/isActorHandleConfirmed'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
@@ -133,8 +133,8 @@ export const getPersistableProfile = (person: ActivityPubActor) => {
 // records — under the fetched id, see recordActorIfNeeded. Sharing an origin
 // proves only that one host vouches for the id, username and domain, not that
 // the handle is genuine: any document that host serves can claim any username
-// on it, which is why a new row is created only once the host's WebFinger
-// confirms the handle (`isActorHandleConfirmed`).
+// on it, which is why a new row is created only once WebFinger confirms the
+// handle (`confirmActorHandle`).
 const getRequestedActorPerson = async ({
   actorId,
   signingActor
@@ -245,20 +245,27 @@ export const recordActorIfNeeded = async ({
       signingActor: resolvedSigningActor
     })
     if (!person) return
-    // host (not hostname) so instances on non-standard ports keep the port
-    // in the stored domain, matching getActorDomain and handle lookups.
-    const domain = new URL(person.id).host
+    // The row fixes `username@domain` for good (the refresh path below never
+    // rewrites it), so WebFinger must vouch for the handle before it exists.
+    // The handle is normally `preferredUsername@<actor host>` — host, not
+    // hostname, so instances on non-standard ports keep the port in the stored
+    // domain, matching getActorDomain and handle lookups — and is the handle
+    // domain's own answer when only that domain confirms it.
+    const handle = await confirmActorHandle({
+      database,
+      actorId: person.id,
+      username: person.preferredUsername,
+      webfinger: person.webfinger
+    })
+    if (!handle) return
     // A row recorded under an alias before the rule above still holds the
     // handle. It is not re-keyed here (statuses, follows and counters point at
     // its id); refuse instead of failing on the unique constraint, and leave
     // the row for an operator to remove.
-    const handleOwner = await database.getActorFromUsername({
-      username: person.preferredUsername,
-      domain
-    })
+    const handleOwner = await database.getActorFromUsername(handle)
     if (
       handleOwner &&
-      handleOwner.username === person.preferredUsername &&
+      handleOwner.username === handle.username &&
       handleOwner.id !== person.id
     ) {
       logger.warn({
@@ -269,20 +276,10 @@ export const recordActorIfNeeded = async ({
       })
       return
     }
-    // The row fixes `username@domain` for good (the refresh path below never
-    // rewrites it), so the host must vouch for the handle before it exists.
-    if (
-      !(await isActorHandleConfirmed({
-        actorId: person.id,
-        username: person.preferredUsername
-      }))
-    ) {
-      return
-    }
     const actor = await database.createActor({
       actorId: person.id,
-      username: person.preferredUsername,
-      domain,
+      username: handle.username,
+      domain: handle.domain,
       ...getPersistableProfile(person),
       createdAt: new Date(person.published ?? Date.now()).getTime()
     })
