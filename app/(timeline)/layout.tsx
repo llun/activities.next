@@ -1,5 +1,9 @@
 import { FC, ReactNode } from 'react'
 
+import {
+  PendingProfileNavigationProvider,
+  PendingProfileOverlay
+} from '@/app/(timeline)/PendingProfileNavigation'
 import { Modal } from '@/app/Modal'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { MobileNav } from '@/lib/components/layout/mobile-nav'
@@ -57,7 +61,9 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
     return (
       <InstanceLimitsProvider {...instanceLimits}>
         <PlaybackPreferencesProvider actorId={null} initialAutoplayGifs={false}>
-          {children}
+          <PendingProfileNavigationProvider>
+            {children}
+          </PendingProfileNavigationProvider>
         </PlaybackPreferencesProvider>
       </InstanceLimitsProvider>
     )
@@ -135,40 +141,43 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
           initialHidden={actorSettings?.navHidden}
         >
           <MobileNavigationProvider>
-            <div className="min-h-dvh">
-              <Sidebar
-                user={user}
-                currentActor={currentActor}
-                actors={formattedActors}
-                unreadCount={unreadCount}
-                fitnessUrl={fitnessUrl}
-                isAdmin={isAdmin}
-                lists={formattedLists}
-                features={features}
-              />
-              <MobileNav
-                user={user}
-                currentActor={currentActor}
-                actors={formattedActors}
-                unreadCount={unreadCount}
-                fitnessUrl={fitnessUrl}
-                isAdmin={isAdmin}
-                lists={formattedLists}
-                features={features}
-              />
-              <main
-                className={cn(
-                  'flex min-h-dvh flex-col overflow-x-clip pb-6',
-                  'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
-                )}
-              >
-                <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
-                  {children}
-                </div>
-              </main>
-              <Modal />
-              <SessionKeepAlive />
-            </div>
+            <PendingProfileNavigationProvider>
+              <div className="min-h-dvh">
+                <Sidebar
+                  user={user}
+                  currentActor={currentActor}
+                  actors={formattedActors}
+                  unreadCount={unreadCount}
+                  fitnessUrl={fitnessUrl}
+                  isAdmin={isAdmin}
+                  lists={formattedLists}
+                  features={features}
+                />
+                <MobileNav
+                  user={user}
+                  currentActor={currentActor}
+                  actors={formattedActors}
+                  unreadCount={unreadCount}
+                  fitnessUrl={fitnessUrl}
+                  isAdmin={isAdmin}
+                  lists={formattedLists}
+                  features={features}
+                />
+                <main
+                  className={cn(
+                    'flex min-h-dvh flex-col overflow-x-clip pb-6',
+                    'md:pl-[72px] md:[--sidebar-w:72px] xl:pl-[280px] xl:[--sidebar-w:280px]'
+                  )}
+                >
+                  <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 pb-6">
+                    {children}
+                  </div>
+                  <PendingProfileOverlay variant="signed-in" />
+                </main>
+                <Modal />
+                <SessionKeepAlive />
+              </div>
+            </PendingProfileNavigationProvider>
           </MobileNavigationProvider>
         </NavPreferencesProvider>
       </PlaybackPreferencesProvider>

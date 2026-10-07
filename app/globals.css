@@ -367,7 +367,16 @@
   }
 
   body {
-    @apply min-h-screen bg-background text-foreground font-sans antialiased;
+    @apply min-h-screen text-foreground font-sans antialiased;
+  }
+
+  /* The app backdrop. Shared with `.app-backdrop` surfaces that paint over the
+     page in its place (the pending profile skeleton), so they match the body
+     exactly: `fixed` attachment positions the gradients against the viewport
+     whatever element carries them. */
+  body,
+  .app-backdrop {
+    @apply bg-background;
     background-image:
       radial-gradient(
         1200px 600px at 10% -10%,
@@ -387,7 +396,8 @@
      tints — warm orange #492812 top-left and sky #193543 top-right, both at
      60 % — so the brand backdrop reads on the near-black canvas instead of
      collapsing to flat black. */
-  .dark body {
+  .dark body,
+  .dark .app-backdrop {
     background-image:
       radial-gradient(
         1200px 600px at 10% -10%,
