@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { MediaDetailsSettings } from '@/lib/components/settings/MediaDetailsSettings'
 import { MediaManagement } from '@/lib/components/settings/MediaManagement'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -53,28 +54,31 @@ const Page = async ({
   })
 
   return (
-    <MediaManagement
-      used={used}
-      limit={limit}
-      medias={result.items.map((media) => {
-        // Use full path for the URL to support Object Storage keys
-        const url = `/api/v1/files/${media.original.path}`
-        return {
-          id: media.id,
-          actorId: media.actorId,
-          bytes: media.original.bytes + (media.thumbnail?.bytes ?? 0),
-          mimeType: media.original.mimeType,
-          width: media.original.metaData.width,
-          height: media.original.metaData.height,
-          description: media.description,
-          url,
-          statusId: media.statusId
-        }
-      })}
-      currentPage={page}
-      itemsPerPage={itemsPerPage}
-      totalItems={result.total}
-    />
+    <div className="space-y-6">
+      <MediaDetailsSettings />
+      <MediaManagement
+        used={used}
+        limit={limit}
+        medias={result.items.map((media) => {
+          // Use full path for the URL to support Object Storage keys
+          const url = `/api/v1/files/${media.original.path}`
+          return {
+            id: media.id,
+            actorId: media.actorId,
+            bytes: media.original.bytes + (media.thumbnail?.bytes ?? 0),
+            mimeType: media.original.mimeType,
+            width: media.original.metaData.width,
+            height: media.original.metaData.height,
+            description: media.description,
+            url,
+            statusId: media.statusId
+          }
+        })}
+        currentPage={page}
+        itemsPerPage={itemsPerPage}
+        totalItems={result.total}
+      />
+    </div>
   )
 }
 

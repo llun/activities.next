@@ -2,9 +2,12 @@ import { ChevronLeft, ChevronRight, Pause, Play, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { getMediaPublicDetails } from '@/lib/client'
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
+import { MediaDetailsPanel } from '@/lib/components/medias-modal/media-details-panel'
 import { Media } from '@/lib/components/posts/media'
 import { Button } from '@/lib/components/ui/button'
+import type { MediaPublicDetails } from '@/lib/services/gallery/galleryEntities'
 import { ActorEmojiTag } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Tag } from '@/lib/types/domain/tag'
@@ -46,6 +49,31 @@ export const MediasModal: FC<Props> = ({
   const touchEndX = useRef<number | null>(null)
   const isSwipeGesture = useRef(false)
   const swipeTrackRef = useRef<HTMLDivElement>(null)
+  // Public details, keyed by media id so going back to a photo reuses the
+  // answer. Requested ids are remembered so a photo is fetched at most once
+  // (a failed request is forgotten, so a later visit retries it).
+  const [detailsByMediaId, setDetailsByMediaId] = useState<
+    Record<string, MediaPublicDetails | null>
+  >({})
+  const requestedMediaIds = useRef<Set<string>>(new Set())
+  const currentMediaId = medias?.[currentIndex]?.mediaId ?? null
+
+  useEffect(() => {
+    if (!currentMediaId || requestedMediaIds.current.has(currentMediaId)) {
+      return
+    }
+    requestedMediaIds.current.add(currentMediaId)
+    getMediaPublicDetails(currentMediaId).then(
+      (details) =>
+        setDetailsByMediaId((current) => ({
+          ...current,
+          [currentMediaId]: details
+        })),
+      () => {
+        requestedMediaIds.current.delete(currentMediaId)
+      }
+    )
+  }, [currentMediaId])
 
   useEffect(() => {
     setMounted(true)
@@ -221,6 +249,9 @@ export const MediasModal: FC<Props> = ({
   const visibleIndices = [previousIndex, currentIndex, nextIndex]
   const hasDuplicateVisibleIndices =
     new Set(visibleIndices).size !== visibleIndices.length
+  const currentDetails = currentMediaId
+    ? (detailsByMediaId[currentMediaId] ?? null)
+    : null
 
   return createPortal(
     <div
@@ -373,6 +404,9 @@ export const MediasModal: FC<Props> = ({
                             tags={tags}
                           />
                         </p>
+                      ) : null}
+                      {panelIndex === 1 && currentDetails ? (
+                        <MediaDetailsPanel details={currentDetails} />
                       ) : null}
                     </div>
                   </div>
