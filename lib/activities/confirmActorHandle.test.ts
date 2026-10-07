@@ -186,6 +186,39 @@ describe('confirmActorHandle', () => {
       expect(askedAccounts()).toEqual(['acct:alice@ap.remote.test'])
     })
 
+    // WordPress sets the property to the actor host handle itself, and a
+    // property this instance cannot ask must not end the check either.
+    it.each([
+      ['names the actor host handle', 'alice@ap.remote.test'],
+      ['names a blocked domain', 'alice@blocked-handle.test'],
+      ['names this instance', `alice@${TEST_DOMAIN}`]
+    ])(
+      'falls back to the host subject when the property %s',
+      async (_label, webfinger) => {
+        await database.createDomainBlock({ domain: 'blocked-handle.test' })
+        serveWebfinger({
+          'alice@ap.remote.test': {
+            self: 'https://ap.remote.test/users/other',
+            subject: 'acct:alice@subject.test'
+          },
+          'alice@subject.test': { self: actorId }
+        })
+
+        await expect(
+          confirmActorHandle({
+            database,
+            actorId,
+            username: 'alice',
+            webfinger
+          })
+        ).resolves.toEqual({ username: 'alice', domain: 'subject.test' })
+        expect(askedAccounts()).toEqual([
+          'acct:alice@ap.remote.test',
+          'acct:alice@subject.test'
+        ])
+      }
+    )
+
     it.each([
       'alice',
       'alice@handle.test@x.test',

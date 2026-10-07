@@ -110,17 +110,28 @@ export const confirmActorHandle = async ({
   const hostDocument = await lookup(hostHandle)
   if (namesActor(hostDocument)) return hostHandle
 
-  const handle = parseAcct(webfinger) ?? parseAcct(hostDocument?.subject)
-  const canAskHandleDomain =
-    handle !== null &&
-    !sameHandle(handle, hostHandle) &&
+  // The property first, then the host's `subject`: the first that can be
+  // asked gets the one question. A property naming the actor host itself (as
+  // WordPress's always does), a blocked domain or this instance falls through
+  // to the `subject` rather than ending the check.
+  const canAsk = async (candidate: ConfirmedActorHandle) =>
+    !sameHandle(candidate, hostHandle) &&
     // Our own WebFinger answers only for local actors, never a remote id.
-    !(await isLocalFederationDomain(database, `https://${handle.domain}`)) &&
-    (await canFederateWithDomain(database, `https://${handle.domain}`))
+    !(await isLocalFederationDomain(database, `https://${candidate.domain}`)) &&
+    (await canFederateWithDomain(database, `https://${candidate.domain}`))
+  let handle: ConfirmedActorHandle | null = null
+  for (const candidate of [
+    parseAcct(webfinger),
+    parseAcct(hostDocument?.subject)
+  ]) {
+    if (candidate && (await canAsk(candidate))) {
+      handle = candidate
+      break
+    }
+  }
   // Never across hosts: the domain was checked against the federation policy,
   // and a redirect would reach one that was not.
-  const handleDocument =
-    handle && canAskHandleDomain ? await lookup(handle, false) : null
+  const handleDocument = handle ? await lookup(handle, false) : null
   const handleSubject = parseAcct(handleDocument?.subject)
   if (
     handle &&
@@ -137,8 +148,8 @@ export const confirmActorHandle = async ({
     account: `${username}@${host}`,
     // The host chooses these strings; a few are enough to diagnose.
     webfingerSelf: hostDocument ? getSelfHrefs(hostDocument).slice(0, 5) : null,
-    handleDomainAccount: handle ? `${handle.username}@${handle.domain}` : null,
-    handleDomainAsked: canAskHandleDomain
+    webfingerProperty: webfinger?.slice(0, 256) ?? null,
+    handleDomainAsked: handle ? `${handle.username}@${handle.domain}` : null
   })
   return null
 }
