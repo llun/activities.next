@@ -58,22 +58,23 @@ const getSelfHrefs = (document: WebFinger | null) =>
 // host>` too, and the row keeps the actor host as its domain, as it always
 // has.
 //
-// When the actor host does not confirm but answers with a `subject` naming
-// another handle, that handle gets one question, like Mastodon's `subject`
-// redirect: its domain must name the same handle as its `subject` and this
-// actor id as `self`, and the returned handle is THAT one — the caller stores
-// it, so the row never carries a username on the actor host that the actor
-// host did not vouch for. The redirect is the actor host's own answer, so a
-// document the host merely serves cannot steer it. An actor document's
-// FEP-2c59 `webfinger` property is deliberately NOT followed: it is chosen by
-// the document, so an upload the host serves as ActivityPub could name an
-// attacker's domain, be confirmed there, and then sign — and pass every
-// same-origin check — as a URL on the host that served it. The redirected
-// domain is still checked against the federation policy before it is asked.
+// When the actor host does not confirm, the handle the actor claims gets one
+// question, as Mastodon does: the domain the actor document names in its
+// FEP-2c59 `webfinger` property, or else the `subject` the actor host answered
+// with (Mastodon's `subject` redirect). That domain must name the same handle
+// as its `subject` and this actor id as `self`, and the returned handle is
+// THAT one — the caller stores it, so a document on one host confirmed
+// through another domain is only ever recorded under the other domain's name,
+// never under a username on the actor host that the actor host did not vouch
+// for. The `webfinger` property is chosen by the document, so the domain is
+// checked against the federation policy before it is asked, and a document a
+// host merely serves can still be confirmed by a domain its author controls;
+// docs/mastodon-api-compatibility.md records that accepted trade-off.
 export const confirmActorHandle = async ({
   database,
   actorId,
   username,
+  webfinger,
   withNetworkRetry = true,
   responseTimeout,
   allowCrossHostRedirects
@@ -81,6 +82,8 @@ export const confirmActorHandle = async ({
   database: Database
   actorId: string
   username: string
+  /** The actor document's FEP-2c59 `webfinger` property, when it has one. */
+  webfinger?: string
   withNetworkRetry?: boolean
   responseTimeout?: number
   allowCrossHostRedirects?: boolean
@@ -107,7 +110,7 @@ export const confirmActorHandle = async ({
   const hostDocument = await lookup(hostHandle)
   if (namesActor(hostDocument)) return hostHandle
 
-  const handle = parseAcct(hostDocument?.subject)
+  const handle = parseAcct(webfinger) ?? parseAcct(hostDocument?.subject)
   const canAskHandleDomain =
     handle !== null &&
     !sameHandle(handle, hostHandle) &&

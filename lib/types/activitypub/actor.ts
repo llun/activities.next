@@ -29,6 +29,11 @@ export const APActor = z.object({
   // FEP-7aa9: collection of the actor's public FeaturedCollection objects.
   featuredCollections: ActorCollectionReference.optional(),
   preferredUsername: z.string(),
+  // FEP-2c59: the actor's `user@domain` handle, for an actor whose handle
+  // lives on another domain than its id. A hint for `confirmActorHandle`,
+  // which asks that domain before believing it; a malformed value is dropped
+  // rather than failing the whole actor.
+  webfinger: z.string().optional().catch(undefined),
   name: z.string().optional(),
   summary: z.string().nullish(),
   url: z.union([ActorUrl, ActorUrl.array()]).optional(),

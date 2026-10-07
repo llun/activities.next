@@ -33,6 +33,7 @@ type ParsedSenderPublicKey =
       type: 'actor'
       actorId: string
       username: string
+      webfinger?: string
       keyId: string
       requiresOwnerValidation: boolean
       details: SenderPublicKeyDetails
@@ -131,6 +132,7 @@ const parseSenderPublicKey = ({
       type: 'actor',
       actorId: actor.data.id,
       username: actor.data.preferredUsername,
+      webfinger: actor.data.webfinger,
       keyId: actor.data.publicKey.id,
       requiresOwnerValidation: normalizedActorId !== normalizedKeyOwner,
       details: {
@@ -240,6 +242,7 @@ const validateOwnerActorKey = async (
   return {
     owner: ownerDocument.actorId,
     username: ownerDocument.username,
+    webfinger: ownerDocument.webfinger,
     publicKey
   }
 }
@@ -255,6 +258,7 @@ const resolveFetchedPublicKey = async (
       return {
         owner: document.actorId,
         username: document.username,
+        webfinger: document.webfinger,
         publicKey: document.details.publicKey
       }
     }
@@ -319,14 +323,16 @@ const fetchSenderPublicKeyDetails = async (
         database,
         actorId: resolved.owner,
         username: resolved.username,
+        webfinger: resolved.webfinger,
         withNetworkRetry: false,
         responseTimeout: SENDER_KEY_FETCH_TIMEOUT_MS,
         // Like the key fetch: this runs before the signature is verified, and
         // a hop would send the request to a host no domain block was checked
-        // against. The lookups go to the owner's own host and, when that host
-        // redirects with its `subject`, to a domain `confirmActorHandle`
-        // checks against the federation policy first, so a split-domain
-        // deployment still confirms without one.
+        // against. The lookups go to the owner's own host and, failing that,
+        // to the handle domain its `webfinger` property or its host's
+        // `subject` names, which `confirmActorHandle` checks against the
+        // federation policy first, so a split-domain deployment still
+        // confirms without one.
         allowCrossHostRedirects: false
       })) !== null)
   return {

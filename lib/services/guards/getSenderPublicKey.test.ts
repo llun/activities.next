@@ -384,32 +384,37 @@ describe('getSenderPublicKey', () => {
       )
     })
 
-    // FEP-2c59's `webfinger` is chosen by the document: an upload the host
-    // serves as ActivityPub could name a domain its author controls and sign
-    // as a URL on the host that served it.
-    it('does not follow a handle domain the key document names itself', async () => {
+    // FEP-2c59, as Mastodon follows it: an owner whose host does not know
+    // its handle names the handle's domain, asked on the same budget.
+    it('accepts a key whose webfinger property domain names its owner', async () => {
       fetchMock.mockResponseOnce(
         JSON.stringify({
           ...createActorDocument({
             id: uploadId,
-            publicKeyPem: 'forged-public-key'
+            publicKeyPem: 'handle-domain-key'
           }),
           preferredUsername: 'admin',
-          webfinger: 'admin@evil.test'
+          webfinger: 'admin@handle.test'
         }),
         { status: 200, headers: ACTIVITY_JSON_HEADERS }
       )
       fetchMock.mockResponseOnce('Not Found', { status: 404 })
       fetchMock.mockResponseOnce(
-        ...webfingerResponse('admin@evil.test', uploadId)
+        ...webfingerResponse('admin@handle.test', uploadId)
       )
+      vi.mocked(request).mockClear()
 
       await expect(
         getSenderPublicKeyDetails(database, `${uploadId}#main-key`)
-      ).resolves.toEqual({ owner: null, publicKey: '' })
-      expect(
-        fetchMock.mock.calls.map(([input]) => String(input))
-      ).not.toContain(webfingerUrl('admin@evil.test'))
+      ).resolves.toEqual({ owner: uploadId, publicKey: 'handle-domain-key' })
+      expect(vi.mocked(request)).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          url: webfingerUrl('admin@handle.test'),
+          numberOfRetry: 0,
+          responseTimeout: 3000,
+          allowCrossHostRedirects: false
+        })
+      )
     })
 
     // A relay's actor never gets a row, so without this every relayed post

@@ -266,7 +266,8 @@ export const getProfileData = async (
       ? await confirmActorHandle({
           database,
           actorId: persistablePerson.id,
-          username: persistablePerson.preferredUsername
+          username: persistablePerson.preferredUsername,
+          webfinger: persistablePerson.webfinger
         })
       : null
   if (!storedActor && !handle) {

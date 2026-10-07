@@ -128,6 +128,93 @@ describe('confirmActorHandle', () => {
     }
   )
 
+  describe('when the actor document names its handle (FEP-2c59)', () => {
+    const actorId = 'https://ap.remote.test/users/1234'
+
+    // Mastodon follows the `webfinger` property: only that domain knows the
+    // handle, and the row is stored under it.
+    it('confirms through the domain the webfinger property names', async () => {
+      serveWebfinger({ 'alice@handle.test': { self: actorId } })
+
+      await expect(
+        confirmActorHandle({
+          database,
+          actorId,
+          username: 'admin',
+          webfinger: 'alice@handle.test'
+        })
+      ).resolves.toEqual({ username: 'alice', domain: 'handle.test' })
+      expect(askedAccounts()).toEqual([
+        'acct:admin@ap.remote.test',
+        'acct:alice@handle.test'
+      ])
+    })
+
+    it('asks the webfinger property domain before the host subject', async () => {
+      serveWebfinger({
+        'alice@ap.remote.test': {
+          self: 'https://ap.remote.test/users/other',
+          subject: 'acct:alice@subject.test'
+        },
+        'alice@handle.test': { self: actorId },
+        'alice@subject.test': { self: actorId }
+      })
+
+      await expect(
+        confirmActorHandle({
+          database,
+          actorId,
+          username: 'alice',
+          webfinger: 'alice@handle.test'
+        })
+      ).resolves.toEqual({ username: 'alice', domain: 'handle.test' })
+      expect(askedAccounts()).toHaveLength(2)
+    })
+
+    it('does not ask a blocked webfinger property domain', async () => {
+      await database.createDomainBlock({ domain: 'blocked-handle.test' })
+      serveWebfinger({ 'alice@blocked-handle.test': { self: actorId } })
+
+      await expect(
+        confirmActorHandle({
+          database,
+          actorId,
+          username: 'alice',
+          webfinger: 'alice@blocked-handle.test'
+        })
+      ).resolves.toBeNull()
+      expect(askedAccounts()).toEqual(['acct:alice@ap.remote.test'])
+    })
+
+    it.each([
+      'alice',
+      'alice@handle.test@x.test',
+      'ali/ce@handle.test',
+      'alice@handle.test/path',
+      '@handle.test'
+    ])(
+      'falls back to the host subject for a malformed property (%s)',
+      async (webfinger) => {
+        serveWebfinger({
+          'alice@ap.remote.test': {
+            self: 'https://ap.remote.test/users/other',
+            subject: 'acct:alice@subject.test'
+          },
+          'alice@subject.test': { self: actorId }
+        })
+
+        await expect(
+          confirmActorHandle({
+            database,
+            actorId,
+            username: 'alice',
+            webfinger
+          })
+        ).resolves.toEqual({ username: 'alice', domain: 'subject.test' })
+      }
+    )
+  })
+
   describe('when the actor host redirects with its subject', () => {
     const actorId = 'https://ap.remote.test/users/1234'
 
