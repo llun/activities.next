@@ -449,11 +449,10 @@ describe('recordActorIfNeeded refuses a handle its host does not vouch for', () 
     await expectNoForgedActor()
   })
 
-  // FEP-2c59 and Mastodon's `subject` redirect let another domain confirm an
-  // actor its host does not answer for, but only under that domain's name:
-  // the stored handle is the one that was confirmed, so a document claiming
-  // `admin` on the actor host can never become `admin@victim.test` this way.
-  it('records an actor confirmed only by its handle domain under that domain', async () => {
+  // FEP-2c59's `webfinger` is chosen by the document, so it is not followed:
+  // an upload naming a domain its author controls would otherwise be recorded
+  // (and sign) as a URL on the host that served it.
+  it('does not follow a handle domain the actor document names itself', async () => {
     serve(
       {
         [uploadId]: actorDocument(uploadId, 'attacker-key', {
@@ -466,19 +465,12 @@ describe('recordActorIfNeeded refuses a handle its host does not vouch for', () 
 
     await expect(
       recordActorIfNeeded({ actorId: uploadId, database })
-    ).resolves.toMatchObject({
-      id: uploadId,
-      username: 'admin',
-      domain: 'evil.test'
-    })
-    await expect(
-      database.getActorFromUsername({
-        username: 'admin',
-        domain: 'victim.test'
-      })
-    ).resolves.toBeNull()
+    ).resolves.toBeUndefined()
+    await expectNoForgedActor()
   })
 
+  // Mastodon's `subject` redirect is the actor host's own answer, and the row
+  // is stored under the handle the redirected domain confirmed.
   it('follows the subject the actor host answers with to the handle domain', async () => {
     const actorId = 'https://ap.remote.test/users/1234'
     serve(

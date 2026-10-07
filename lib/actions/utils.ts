@@ -250,12 +250,11 @@ export const recordActorIfNeeded = async ({
     // The handle is normally `preferredUsername@<actor host>` — host, not
     // hostname, so instances on non-standard ports keep the port in the stored
     // domain, matching getActorDomain and handle lookups — and is the handle
-    // domain's own answer when only that domain confirms it.
+    // domain's own answer when the actor host redirects there.
     const handle = await confirmActorHandle({
       database,
       actorId: person.id,
-      username: person.preferredUsername,
-      webfinger: person.webfinger
+      username: person.preferredUsername
     })
     if (!handle) return
     // A row recorded under an alias before the rule above still holds the

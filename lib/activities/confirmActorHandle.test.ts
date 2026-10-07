@@ -127,29 +127,11 @@ describe('confirmActorHandle', () => {
     }
   )
 
-  describe('when the actor host does not confirm', () => {
+  describe('when the actor host redirects with its subject', () => {
     const actorId = 'https://ap.remote.test/users/1234'
 
-    // FEP-2c59: the actor names its handle, and only that domain knows it.
-    it('confirms through the domain the webfinger property names', async () => {
-      serveWebfinger({ 'alice@handle.test': { self: actorId } })
-
-      await expect(
-        confirmActorHandle({
-          database,
-          actorId,
-          username: 'alice',
-          webfinger: 'alice@handle.test'
-        })
-      ).resolves.toEqual({ username: 'alice', domain: 'handle.test' })
-      expect(askedAccounts()).toEqual([
-        'acct:alice@ap.remote.test',
-        'acct:alice@handle.test'
-      ])
-    })
-
-    // Mastodon's `subject` redirect: the actor host knows the actor but not
-    // under its own name, and points at the handle's domain.
+    // Mastodon's `subject` redirect: the actor host knows the handle but
+    // names it on another domain, and only that domain names this actor.
     it('confirms through the subject the actor host answers with', async () => {
       serveWebfinger({
         'alice@ap.remote.test': {
@@ -162,12 +144,20 @@ describe('confirmActorHandle', () => {
       await expect(
         confirmActorHandle({ database, actorId, username: 'alice' })
       ).resolves.toEqual({ username: 'Alice', domain: 'handle.test' })
+      expect(askedAccounts()).toEqual([
+        'acct:alice@ap.remote.test',
+        'acct:Alice@handle.test'
+      ])
     })
 
-    // The confirmed handle is what gets stored, never `preferredUsername` on
-    // the actor host, so it must be the handle domain's own answer.
-    it('returns the handle domain subject, not the requested username', async () => {
+    // The confirmed handle is what gets stored, so it is the handle domain's
+    // own answer, not the casing the redirect used.
+    it('returns the handle domain subject', async () => {
       serveWebfinger({
+        'alice@ap.remote.test': {
+          self: 'https://ap.remote.test/users/other',
+          subject: 'acct:alice@handle.test'
+        },
         'alice@handle.test': {
           self: actorId,
           subject: 'acct:ALICE@handle.test'
@@ -175,33 +165,31 @@ describe('confirmActorHandle', () => {
       })
 
       await expect(
-        confirmActorHandle({
-          database,
-          actorId,
-          username: 'admin',
-          webfinger: 'alice@handle.test'
-        })
+        confirmActorHandle({ database, actorId, username: 'alice' })
       ).resolves.toEqual({ username: 'ALICE', domain: 'handle.test' })
     })
 
     it('refuses when the handle domain names another actor', async () => {
       serveWebfinger({
+        'alice@ap.remote.test': {
+          self: 'https://ap.remote.test/users/other',
+          subject: 'acct:alice@handle.test'
+        },
         'alice@handle.test': { self: 'https://ap.remote.test/users/9999' }
       })
 
       await expect(
-        confirmActorHandle({
-          database,
-          actorId,
-          username: 'alice',
-          webfinger: 'alice@handle.test'
-        })
+        confirmActorHandle({ database, actorId, username: 'alice' })
       ).resolves.toBeNull()
     })
 
     // One hop only, like Mastodon: a second, different subject is a chain.
     it('refuses when the handle domain answers with yet another handle', async () => {
       serveWebfinger({
+        'alice@ap.remote.test': {
+          self: 'https://ap.remote.test/users/other',
+          subject: 'acct:alice@handle.test'
+        },
         'alice@handle.test': {
           self: actorId,
           subject: 'acct:alice@third.test'
@@ -209,48 +197,45 @@ describe('confirmActorHandle', () => {
       })
 
       await expect(
-        confirmActorHandle({
-          database,
-          actorId,
-          username: 'alice',
-          webfinger: 'alice@handle.test'
-        })
+        confirmActorHandle({ database, actorId, username: 'alice' })
       ).resolves.toBeNull()
       expect(askedAccounts()).toHaveLength(2)
     })
 
     it('does not ask a blocked handle domain', async () => {
       await database.createDomainBlock({ domain: 'blocked.test' })
-      serveWebfinger({ 'alice@blocked.test': { self: actorId } })
+      serveWebfinger({
+        'alice@ap.remote.test': {
+          self: 'https://ap.remote.test/users/other',
+          subject: 'acct:alice@blocked.test'
+        },
+        'alice@blocked.test': { self: actorId }
+      })
 
       await expect(
-        confirmActorHandle({
-          database,
-          actorId,
-          username: 'alice',
-          webfinger: 'alice@blocked.test'
-        })
+        confirmActorHandle({ database, actorId, username: 'alice' })
       ).resolves.toBeNull()
       expect(askedAccounts()).toEqual(['acct:alice@ap.remote.test'])
     })
 
     it.each([
-      'alice',
-      'alice@handle.test@x.test',
-      'ali/ce@handle.test',
-      'alice@handle.test/path',
-      'alice@user:pass@handle.test',
-      '@handle.test'
-    ])('ignores a malformed webfinger property (%s)', async (webfinger) => {
-      serveWebfinger({})
+      'acct:alice',
+      'acct:alice@handle.test@x.test',
+      'acct:ali/ce@handle.test',
+      'acct:alice@handle.test/path',
+      'acct:alice@user:pass@handle.test',
+      'acct:@handle.test',
+      'https://handle.test/users/alice'
+    ])('ignores a malformed subject (%s)', async (subject) => {
+      serveWebfinger({
+        'alice@ap.remote.test': {
+          self: 'https://ap.remote.test/users/other',
+          subject
+        }
+      })
 
       await expect(
-        confirmActorHandle({
-          database,
-          actorId,
-          username: 'alice',
-          webfinger
-        })
+        confirmActorHandle({ database, actorId, username: 'alice' })
       ).resolves.toBeNull()
       expect(askedAccounts()).toEqual(['acct:alice@ap.remote.test'])
     })

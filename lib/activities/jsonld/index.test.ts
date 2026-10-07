@@ -474,35 +474,6 @@ describe('compactActivityPub', () => {
     expect(result.id).toBe('https://remote.example/notes/1')
   })
 
-  // FEP-2c59. Mastodon and WordPress declare the term by a context URL the
-  // offline loader does not serve, so both shapes are read through the
-  // extension-term fallback.
-  it.each([
-    {
-      description: 'declared by the socialweb context',
-      context: [
-        ACTIVITY_STREAMS_CONTEXT_URL,
-        'https://purl.archive.org/socialweb/webfinger'
-      ]
-    },
-    {
-      description: 'left undefined by the sender',
-      context: [ACTIVITY_STREAMS_CONTEXT_URL]
-    }
-  ])('keeps an actor webfinger handle $description', async ({ context }) => {
-    const result = asRecord(
-      await compactActivityPub({
-        '@context': context,
-        id: 'https://remote.example/users/alice',
-        type: 'Person',
-        preferredUsername: 'alice',
-        webfinger: 'alice@handle.example'
-      })
-    )
-
-    expect(result.webfinger).toBe('alice@handle.example')
-  })
-
   it('still compacts when an inline context sets @direction but no @language', async () => {
     // Regression: dropping @direction must not synthesize an `@language:
     // undefined` key, which is invalid JSON-LD and would make compaction throw

@@ -242,31 +242,31 @@ describe('getProfileData persists only a document served by its own id', () => {
     ).resolves.toBe(false)
   })
 
-  // The same upload naming evil.test as its FEP-2c59 handle is confirmed by
-  // evil.test, so it is recorded, but as `x@evil.test`, the handle that was
-  // confirmed, never under a username on victim.test.
-  it('records an actor its handle domain confirms under that domain', async () => {
-    const forgedId = 'https://victim.test/media/forged.json'
+  // When the actor host redirects with its `subject`, the row is stored
+  // under the handle the redirected domain confirmed, not the actor host.
+  it('records an actor under the handle its host redirects to', async () => {
+    const actorId = 'https://ap.remote.test/users/1234'
     serve(
       {
-        [forgedId]: actorDocument(forgedId, 'attacker-key', {
-          preferredUsername: 'admin',
-          webfinger: 'x@evil.test'
+        [actorId]: actorDocument(actorId, 'alice-key', {
+          preferredUsername: 'alice'
         })
       },
-      { webfinger: { 'x@evil.test': forgedId } }
+      {
+        webfinger: {
+          'alice@ap.remote.test': {
+            self: [],
+            subject: 'acct:alice@remote.test'
+          },
+          'alice@remote.test': actorId
+        }
+      }
     )
 
-    await renderProfile('@x@evil.test', forgedId)
+    await renderProfile('@alice@remote.test', actorId)
 
     await expect(
-      database.getActorFromId({ id: forgedId })
-    ).resolves.toMatchObject({ username: 'x', domain: 'evil.test' })
-    await expect(
-      database.getActorFromUsername({
-        username: 'admin',
-        domain: 'victim.test'
-      })
-    ).resolves.toBeNull()
+      database.getActorFromId({ id: actorId })
+    ).resolves.toMatchObject({ username: 'alice', domain: 'remote.test' })
   })
 })
