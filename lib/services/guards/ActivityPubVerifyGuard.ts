@@ -14,9 +14,14 @@ import {
   codeMap
 } from '@/lib/utils/response'
 import { parse, verify } from '@/lib/utils/signature'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { isRecord } from '@/lib/utils/typeGuards'
 
-import { getSenderPublicKeyDetails } from './getSenderPublicKey'
+import {
+  getSenderPublicKeyDetails,
+  persistRefreshedSenderPublicKey,
+  refreshSenderPublicKeyDetails
+} from './getSenderPublicKey'
 import { headerHost } from './headerHost'
 import {
   annotateInboxForwarded,
@@ -466,17 +471,51 @@ export const ActivityPubVerifySenderGuard =
     const host = headerHost(request.headers)
     const requestUrl = new URL(request.url, `http://${host}`)
     const requestTarget = `${request.method.toLowerCase()} ${requestUrl.pathname}${requestUrl.search}`
-    const senderPublicKey = await getSenderPublicKeyDetails(
+    const storedSenderPublicKey = await getSenderPublicKeyDetails(
       database,
       signatureParts.keyId
     )
-    const isSignatureVerified = await verify(
+    let senderPublicKey = storedSenderPublicKey
+    let isSignatureVerified = await verify(
       requestTarget,
       request.headers,
       senderPublicKey.publicKey
     )
+    if (!isSignatureVerified && storedSenderPublicKey.publicKey) {
+      // The sender may have rotated its key. One throttled re-fetch; the
+      // stored key is only replaced once this very request verifies with the
+      // fresh one, so a forged request cannot plant a key.
+      const refreshed = await refreshSenderPublicKeyDetails(
+        database,
+        signatureParts.keyId,
+        storedSenderPublicKey
+      )
+      if (
+        refreshed &&
+        (await verify(requestTarget, request.headers, refreshed.publicKey))
+      ) {
+        isSignatureVerified = true
+        senderPublicKey = refreshed
+        // Only the actor's default key replaces the stored one: a request
+        // signed with another key of a multi-key actor is accepted, but
+        // persisting it would leave the row without the default key.
+        if (refreshed.isDefaultKey) {
+          try {
+            await persistRefreshedSenderPublicKey(database, refreshed)
+          } catch (error) {
+            // The request already verified; a failed write only means the
+            // next one refreshes again.
+            logger.error({
+              err: toLoggableError(error),
+              keyId: signatureParts.keyId,
+              message: 'Unable to persist refreshed sender public key'
+            })
+          }
+        }
+      }
+    }
     if (!isSignatureVerified) {
-      const reason = senderPublicKey.publicKey
+      const reason = storedSenderPublicKey.publicKey
         ? 'signature_invalid'
         : 'key_unavailable'
       return rejectRequest(request, 401, allowedMethods, reason, {

@@ -61,4 +61,55 @@ describe('Actor', () => {
       expect(result.data.webfinger).toBe(expected)
     }
   })
+
+  describe('publicKey arrays', () => {
+    const key = (id: string, publicKeyPem: string) => ({
+      id,
+      owner: base.id,
+      publicKeyPem
+    })
+
+    it('prefers the #main-key entry', () => {
+      const result = Actor.safeParse({
+        ...base,
+        publicKey: [
+          key(`${base.id}#key-2`, 'second-pem'),
+          key(`${base.id}#main-key`, 'main-pem')
+        ]
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.publicKey.publicKeyPem).toBe('main-pem')
+      }
+    })
+
+    it('falls back to the first valid entry, ignoring non-key entries', () => {
+      const result = Actor.safeParse({
+        ...base,
+        publicKey: [
+          {
+            id: `${base.id}#multikey`,
+            type: 'Multikey',
+            publicKeyMultibase: 'z6M'
+          },
+          key(`${base.id}#key-2`, 'second-pem'),
+          key(`${base.id}#key-3`, 'third-pem')
+        ]
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.publicKey.publicKeyPem).toBe('second-pem')
+      }
+    })
+
+    it('rejects an empty array and an array with no valid key', () => {
+      expect(Actor.safeParse({ ...base, publicKey: [] }).success).toBe(false)
+      expect(
+        Actor.safeParse({ ...base, publicKey: [{ id: 'x', type: 'Multikey' }] })
+          .success
+      ).toBe(false)
+    })
+  })
 })

@@ -3,8 +3,14 @@ import crypto from 'node:crypto'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
+  KEY_REFRESH_ATTEMPTS_MAX,
+  SENDER_KEY_REFRESH_MIN_INTERVAL_MS,
   getSenderPublicKey,
-  getSenderPublicKeyDetails
+  getSenderPublicKeyDetails,
+  persistRefreshedSenderPublicKey,
+  refreshSenderPublicKeyDetails,
+  reserveKeyRefreshAttempt,
+  resetSenderKeyRefreshAttempts
 } from '@/lib/services/guards/getSenderPublicKey'
 import {
   ACTIVITY_JSON_HEADERS,
@@ -150,6 +156,7 @@ describe('getSenderPublicKey', () => {
     mockSpan.recordException.mockClear()
     mockWithSpan.mockClear()
     mockWarn.mockReset()
+    resetSenderKeyRefreshAttempts()
   })
 
   it('returns public key for local actor', async () => {
@@ -1152,6 +1159,269 @@ describe('getSenderPublicKey', () => {
     expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain(
       redirectTarget
     )
+  })
+
+  describe('publicKey arrays', () => {
+    const owner = 'https://remote.test/users/multi'
+
+    it('selects the entry matching the signature keyId', async () => {
+      const keyId = `${owner}#key-2`
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          ...createActorDocument({ id: owner }),
+          publicKey: [
+            { id: `${owner}#main-key`, owner, publicKeyPem: 'main-pem' },
+            { id: keyId, owner, publicKeyPem: 'second-pem' }
+          ]
+        }),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+
+      await expect(getSenderPublicKeyDetails(database, keyId)).resolves.toEqual(
+        { owner, publicKey: 'second-pem' }
+      )
+    })
+
+    it('uses the default entry when none matches the keyId', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          ...createActorDocument({ id: owner }),
+          publicKey: [
+            { id: `${owner}#other`, owner, publicKeyPem: 'other-pem' },
+            { id: `${owner}#main-key`, owner, publicKeyPem: 'main-pem' }
+          ]
+        }),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+
+      await expect(getSenderPublicKeyDetails(database, owner)).resolves.toEqual(
+        { owner, publicKey: 'main-pem' }
+      )
+    })
+
+    it('rejects a matching entry owned by another actor', async () => {
+      const keyId = `${owner}#key-2`
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          ...createActorDocument({ id: owner }),
+          publicKey: [
+            { id: `${owner}#main-key`, owner, publicKeyPem: 'main-pem' },
+            {
+              id: keyId,
+              owner: 'https://remote.test/users/someone-else',
+              publicKeyPem: 'stolen-pem'
+            }
+          ]
+        }),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+
+      await expect(getSenderPublicKeyDetails(database, keyId)).resolves.toEqual(
+        { owner: null, publicKey: '' }
+      )
+    })
+  })
+
+  describe('refreshSenderPublicKeyDetails', () => {
+    const owner = 'https://rotate.test/users/rot'
+    const keyId = `${owner}#main-key`
+    const stale = { owner, publicKey: 'old-pem', fromStoredActor: true }
+    const rotatedDocument = (publicKeyPem = 'new-pem') =>
+      JSON.stringify(
+        createActorDocument({ id: owner, publicKeyId: keyId, publicKeyPem })
+      )
+    const respondWith = (body: string) =>
+      fetchMock.mockResponseOnce(body, {
+        status: 200,
+        headers: ACTIVITY_JSON_HEADERS
+      })
+
+    beforeAll(async () => {
+      await database.createActor({
+        actorId: owner,
+        type: 'Person',
+        username: 'rot',
+        domain: 'rotate.test',
+        followersUrl: `${owner}/followers`,
+        inboxUrl: `${owner}/inbox`,
+        sharedInboxUrl: 'https://rotate.test/inbox',
+        publicKey: 'old-pem',
+        createdAt: Date.now()
+      })
+    })
+
+    beforeEach(async () => {
+      const stored = await database.getActorFromId({ id: owner })
+      vi.useFakeTimers({ toFake: ['Date'] })
+      // Past the "row was just updated" window, whatever an earlier test wrote.
+      vi.setSystemTime(
+        Math.max(Date.now(), stored?.updatedAt ?? 0) +
+          SENDER_KEY_REFRESH_MIN_INTERVAL_MS * 2
+      )
+      fetchMock.resetMocks()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('returns the rotated key and persists it only on request', async () => {
+      respondWith(rotatedDocument())
+
+      const refreshed = await refreshSenderPublicKeyDetails(
+        database,
+        keyId,
+        stale
+      )
+
+      expect(refreshed).toMatchObject({
+        owner,
+        publicKey: 'new-pem',
+        isDefaultKey: true
+      })
+      expect((await database.getActorFromId({ id: owner }))?.publicKey).toBe(
+        'old-pem'
+      )
+
+      await persistRefreshedSenderPublicKey(database, refreshed!)
+      expect((await database.getActorFromId({ id: owner }))?.publicKey).toBe(
+        'new-pem'
+      )
+    })
+
+    it('does nothing for a row updated within the interval', async () => {
+      const stored = await database.getActorFromId({ id: owner })
+      vi.setSystemTime((stored?.updatedAt ?? 0) + 1000)
+
+      await expect(
+        refreshSenderPublicKeyDetails(database, keyId, stale)
+      ).resolves.toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('throttles after a failed fetch', async () => {
+      fetchMock.mockResponse('', { status: 500 })
+
+      await expect(
+        refreshSenderPublicKeyDetails(database, keyId, stale)
+      ).resolves.toBeNull()
+      await expect(
+        refreshSenderPublicKeyDetails(database, keyId, stale)
+      ).resolves.toBeNull()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+
+      vi.setSystemTime(Date.now() + SENDER_KEY_REFRESH_MIN_INTERVAL_MS + 1)
+      await refreshSenderPublicKeyDetails(database, keyId, stale)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('returns null when the key did not change', async () => {
+      respondWith(rotatedDocument('old-pem'))
+
+      await expect(
+        refreshSenderPublicKeyDetails(database, keyId, stale)
+      ).resolves.toBeNull()
+    })
+
+    it('returns null when the fresh key belongs to a different owner', async () => {
+      respondWith(
+        JSON.stringify(
+          createActorDocument({
+            id: owner,
+            publicKeyId: keyId,
+            publicKeyOwner: 'https://rotate.test/users/other',
+            publicKeyPem: 'new-pem'
+          })
+        )
+      )
+
+      await expect(
+        refreshSenderPublicKeyDetails(database, keyId, stale)
+      ).resolves.toBeNull()
+    })
+
+    it('never refreshes a local actor', async () => {
+      const local = await database.getActorFromUsername({
+        username: seedActor1.username,
+        domain: seedActor1.domain
+      })
+      if (!local) fail('Actor is required')
+
+      await expect(
+        refreshSenderPublicKeyDetails(database, `${local.id}#main-key`, {
+          owner: local.id,
+          publicKey: local.publicKey,
+          fromStoredActor: true
+        })
+      ).resolves.toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('does not refresh a key that was just fetched rather than stored', async () => {
+      await expect(
+        refreshSenderPublicKeyDetails(database, keyId, {
+          owner,
+          publicKey: 'old-pem'
+        })
+      ).resolves.toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('flags a non-default key of a multi-key actor', async () => {
+      const second = `${owner}#key2`
+      respondWith(
+        JSON.stringify({
+          ...createActorDocument({ id: owner }),
+          publicKey: [
+            { id: `${owner}#main-key`, owner, publicKeyPem: 'main-pem' },
+            { id: second, owner, publicKeyPem: 'second-pem' }
+          ]
+        })
+      )
+
+      await expect(
+        refreshSenderPublicKeyDetails(database, second, stale)
+      ).resolves.toMatchObject({ publicKey: 'second-pem', isDefaultKey: false })
+    })
+
+    it('keeps throttling when the attempt map is full', () => {
+      const now = Date.now()
+      expect(reserveKeyRefreshAttempt('https://a.test/users/early', now)).toBe(
+        true
+      )
+      for (let i = 1; i < KEY_REFRESH_ATTEMPTS_MAX; i++) {
+        reserveKeyRefreshAttempt(`https://a.test/users/${i}`, now + 1)
+      }
+
+      // Full of live entries: refuse rather than clear.
+      expect(
+        reserveKeyRefreshAttempt('https://b.test/users/new', now + 2)
+      ).toBe(false)
+      expect(reserveKeyRefreshAttempt('https://a.test/users/1', now + 2)).toBe(
+        false
+      )
+
+      // Once entries age out they are evicted and new owners fit again.
+      const later = now + 1 + SENDER_KEY_REFRESH_MIN_INTERVAL_MS
+      expect(reserveKeyRefreshAttempt('https://b.test/users/new', later)).toBe(
+        true
+      )
+    })
+
+    it('returns null for an owner with no stored row', async () => {
+      await expect(
+        refreshSenderPublicKeyDetails(
+          database,
+          'https://unstored.test/users/x#main-key',
+          {
+            owner: 'https://unstored.test/users/x',
+            publicKey: 'old-pem',
+            fromStoredActor: true
+          }
+        )
+      ).resolves.toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
   })
 
   it('returns empty string when remote actor not found', async () => {
