@@ -545,8 +545,8 @@ export const deleteActor = async ({ currentActor, inbox }: DeleteActorParams) =>
         silenceTimeout: true,
         recordOnlyErrorOnSpan: true,
         // Sent from inside the delete job, which a hosted queue cuts off at
-        // its deadline. A receiver treats a repeated Delete as a no-op, so a
-        // slow inbox is not worth a retry that holds up the local deletion.
+        // its deadline, so a slow inbox gets a short timeout. The request
+        // layer never retries a POST; `numberOfRetry: 0` only keeps it so.
         requestOptions: {
           responseTimeout: DELETE_ACTOR_REQUEST_TIMEOUT_MS,
           numberOfRetry: 0

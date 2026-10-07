@@ -297,18 +297,6 @@ describe('activities', () => {
         to: [ACTIVITY_STREAM_PUBLIC]
       })
     })
-
-    it('does not retry an inbox that fails', async () => {
-      const inbox = 'https://unavailable.test/inbox'
-      fetchMock.mockIf(inbox, async () => ({ status: 503, body: '' }))
-
-      await expect(
-        deleteActor({ currentActor: MockActor({}), inbox })
-      ).resolves.toBe(false)
-      expect(
-        fetchMock.mock.calls.filter(([url]) => String(url) === inbox)
-      ).toHaveLength(1)
-    })
   })
 
   describe('follow', () => {

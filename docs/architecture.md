@@ -1362,8 +1362,9 @@ legacy shape left to copy.
   remote servers that processed one have dropped the account's copy and its
   follows there. The sends share a wall-clock budget
   (`ACTOR_DELETION_FEDERATION_BUDGET_MS`, under QStash's 30s job limit) and
-  each uses a short timeout with no retry: a hosted queue cuts the job off at
-  its deadline and retries from the top, so a fan-out that never fits would
+  each uses a short timeout (the request layer never retries a POST): a
+  hosted queue cuts the job off at its deadline and retries from the top, so a
+  fan-out that never fits would
   keep the account from ever being deleted. Inboxes not reached in time are
   skipped. Inboxes
   of LOCAL followers (`getLocalFollowersForActorId`) are left out: delivering
