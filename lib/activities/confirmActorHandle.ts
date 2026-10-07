@@ -1,6 +1,9 @@
 import { getWebfingerDocument } from '@/lib/activities/getWebfingerDocument'
 import { Database } from '@/lib/database/types'
-import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
+import {
+  canFederateWithDomain,
+  isLocalFederationDomain
+} from '@/lib/services/federation/domainPolicy'
 import { WebFinger } from '@/lib/types/activitypub/webfinger'
 import { normalizeActivityPubUri } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
@@ -108,6 +111,8 @@ export const confirmActorHandle = async ({
   const canAskHandleDomain =
     handle !== null &&
     !sameHandle(handle, hostHandle) &&
+    // Our own WebFinger answers only for local actors, never a remote id.
+    !(await isLocalFederationDomain(database, `https://${handle.domain}`)) &&
     (await canFederateWithDomain(database, `https://${handle.domain}`))
   // Never across hosts: the domain was checked against the federation policy,
   // and a redirect would reach one that was not.

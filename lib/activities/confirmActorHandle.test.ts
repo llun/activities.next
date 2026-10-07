@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { JRD_JSON_HEADERS } from '@/lib/stub/activities'
+import { TEST_DOMAIN } from '@/lib/stub/const'
 import { MockWebfinger } from '@/lib/stub/webfinger'
 
 import { confirmActorHandle } from './confirmActorHandle'
@@ -210,6 +211,22 @@ describe('confirmActorHandle', () => {
           subject: 'acct:alice@blocked.test'
         },
         'alice@blocked.test': { self: actorId }
+      })
+
+      await expect(
+        confirmActorHandle({ database, actorId, username: 'alice' })
+      ).resolves.toBeNull()
+      expect(askedAccounts()).toEqual(['acct:alice@ap.remote.test'])
+    })
+
+    // Our own WebFinger answers only for local actors, so asking it about a
+    // remote id is a wasted request an inbox POST could trigger.
+    it('does not ask this instance', async () => {
+      serveWebfinger({
+        'alice@ap.remote.test': {
+          self: 'https://ap.remote.test/users/other',
+          subject: `acct:alice@${TEST_DOMAIN}`
+        }
       })
 
       await expect(

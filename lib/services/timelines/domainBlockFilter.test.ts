@@ -43,6 +43,30 @@ describe('getRelevantStatusDomains', () => {
   it('skips actor ids that are not valid urls', () => {
     expect(getRelevantStatusDomains(note('urn:1', 'not-a-url'))).toEqual([])
   })
+
+  // A row stored under its redirected handle domain is shown, and blocked
+  // from a client, under that domain.
+  it('includes the stored handle domain of the author and boosted author', () => {
+    const status = {
+      ...announce(
+        'https://llun.test/users/a/statuses/3',
+        'https://ap.remote.test/users/1',
+        'https://ap.other.test/users/2'
+      ),
+      actor: { domain: 'Remote.test' },
+      originalStatus: {
+        actorId: 'https://ap.other.test/users/2',
+        actor: { domain: 'other.test' }
+      }
+    } as unknown as Status
+
+    expect(getRelevantStatusDomains(status).sort()).toEqual([
+      'ap.other.test',
+      'ap.remote.test',
+      'other.test',
+      'remote.test'
+    ])
+  })
 })
 
 describe('filterDomainBlockedStatuses', () => {

@@ -8,8 +8,7 @@
 // The actor's domain is already carried by the account we built — the domain
 // of a qualified `acct`, which is the stored handle and need not be the host of
 // the actor id (a remote actor whose host redirected WebFinger to another
-// handle domain), or else
-// the host of its `url`, the canonical actor id (e.g.
+// handle domain), or else the host of its `url`, the canonical actor id (e.g.
 // `https://llun.dev/users/null`) — and the access domain only exists in the
 // request. So this is a pure PRESENTATION transform of
 // (already-built account, access domain) — the database layer never needs the
@@ -31,8 +30,8 @@ const getAccountDomain = ({ acct, url }: LocalizableAccount) => {
 
 /**
  * Re-render `acct` relative to `accessDomain`: bare when the account's own
- * domain (its qualified `acct`'s, else its canonical `url`'s) matches the host the client connected
- * through, `username@domain` otherwise. Returns the account unchanged when no
+ * domain (its qualified `acct`'s, else its canonical `url`'s) matches the
+ * host the client connected through, `username@domain` otherwise. Returns the account unchanged when no
  * access domain is given (non-request/federation callers) or when `url` is not
  * a parseable absolute URL. Never alters identity (`id`/`url`/keys) — only the
  * display `acct`.

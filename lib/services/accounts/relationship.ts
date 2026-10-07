@@ -40,8 +40,9 @@ export const getRelationship = async ({
     muteRecord,
     note,
     endorsement,
-    isDomainBlocking,
-    targetPublicIds
+    isHostDomainBlocking,
+    targetPublicIds,
+    targetActor
   ] = await Promise.all([
     database.isCurrentActorFollowing({
       currentActorId: currentActor.id,
@@ -94,8 +95,21 @@ export const getRelationship = async ({
     // The relationship id must be the same value the Account entity emits for
     // this actor, so it is resolved the same way — one indexed lookup alongside
     // the relationship queries rather than a separate round trip.
-    database.getActorPublicIds({ actorIds: [targetActorId] })
+    database.getActorPublicIds({ actorIds: [targetActorId] }),
+    database.getActorFromId({ id: targetActorId })
   ])
+  // A row stored under another handle domain than its id's host (its host's
+  // WebFinger redirected there, see `confirmActorHandle`) is shown under that
+  // domain, which is the one a client blocks.
+  const storedDomain = targetActor?.domain?.toLowerCase()
+  const isDomainBlocking =
+    isHostDomainBlocking ||
+    (storedDomain !== undefined && storedDomain !== targetDomain
+      ? await database.isDomainBlockedByActor({
+          actorId: currentActor.id,
+          domain: storedDomain
+        })
+      : false)
 
   const isRequested = Boolean(
     follow && follow.status === FollowStatus.enum.Requested

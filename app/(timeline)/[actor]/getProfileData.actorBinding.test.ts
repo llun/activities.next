@@ -28,7 +28,8 @@ vi.mock('@/lib/activities/getActorCollectionCounts', () => ({
   })
 }))
 vi.mock('@/lib/services/federation/domainPolicy', () => ({
-  canFederateWithDomain: async () => true
+  canFederateWithDomain: async () => true,
+  isLocalFederationDomain: async () => false
 }))
 vi.mock('@/lib/services/federation/getFederationSigningActor', () => ({
   getFederationSigningActorSafe: vi.fn(async () => undefined)

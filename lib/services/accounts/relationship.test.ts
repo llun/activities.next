@@ -430,4 +430,26 @@ describe('getRelationship', () => {
     })
     expect(relationship.domain_blocking).toBe(blocked)
   })
+
+  // A row stored under its redirected handle domain is shown under that
+  // domain, which is what a client blocks.
+  it('returns domain_blocking=true when the stored handle domain is blocked', async () => {
+    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+    mockDatabase.getActorFromId.mockResolvedValue({
+      id: 'https://ap.example.com/users/1234',
+      domain: 'Example.com'
+    })
+    mockDatabase.isDomainBlockedByActor.mockImplementation(
+      async ({ domain }: { domain: string }) => domain === 'example.com'
+    )
+
+    const relationship = await getRelationship({
+      database: mockDatabase as unknown as Database,
+      currentActor: mockCurrentActor as unknown as Actor,
+      targetActorId: 'https://ap.example.com/users/1234'
+    })
+
+    expect(relationship.domain_blocking).toBe(true)
+  })
 })
