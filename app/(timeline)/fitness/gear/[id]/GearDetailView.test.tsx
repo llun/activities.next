@@ -300,7 +300,7 @@ describe('GearDetailView', () => {
 
     expect(await screen.findByText('35,253.7 km')).toBeInTheDocument()
     expect(screen.getByText('Activities')).toBeInTheDocument()
-    expect(screen.getByText('1204')).toBeInTheDocument()
+    expect(screen.getByText('1,204')).toBeInTheDocument()
     expect(screen.getByText('Components installed')).toBeInTheDocument()
     // The retired component counts toward neither the tile nor the header.
     expect(screen.getByText('2 installed')).toBeInTheDocument()
@@ -308,20 +308,23 @@ describe('GearDetailView', () => {
     expect(screen.getAllByText('Distance')).toHaveLength(2)
   })
 
-  it('draws the stat tiles radius 8 and flat, not as the Card default', async () => {
+  it('draws the stats on the overview hairline strip, one column per value', async () => {
     render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     await screen.findByText('Components installed')
-    for (const label of ['Distance', 'Activities', 'Components installed']) {
-      const tile = screen
-        .getAllByText(label)
-        .map((el) => el.closest('[data-slot="card"]'))
-        .find((card) => card?.className.includes('p-4'))
-      expect(tile).toBeDefined()
-      expect(tile).toHaveClass('rounded-lg', 'shadow-none')
-      expect(tile).not.toHaveClass('rounded-xl')
-      expect(tile).not.toHaveClass('shadow-sm')
-    }
+    const strips = ['Distance', 'Activities', 'Components installed'].map(
+      (label) =>
+        screen
+          .getByText(label, { selector: 'dt' })
+          .closest('.bg-border') as HTMLElement
+    )
+    expect(new Set(strips).size).toBe(1)
+    expect(strips[0]).toHaveClass('rounded-lg', 'border')
+    // Three values span three columns; a four-column strip would leave an
+    // empty border-coloured cell at the end of the row.
+    expect(strips[0].querySelector('.grid')?.className).toMatch(
+      /@min-\[30rem\]:grid-cols-3/
+    )
   })
 
   it('renders two stat tiles and the activities feed for shoes', async () => {
@@ -585,6 +588,22 @@ describe('GearDetailView', () => {
     render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     expect(await screen.findByText('Gear service down')).toBeInTheDocument()
+    // A failed read is not a deleted gear.
+    expect(screen.getByText('We couldn’t load this gear')).toBeInTheDocument()
+    expect(screen.queryByText(/may have been deleted/)).not.toBeInTheDocument()
+  })
+
+  it('retries a failed load', async () => {
+    mockGetFitnessGearList
+      .mockRejectedValueOnce(new Error('Gear service down'))
+      .mockResolvedValue([createGear()])
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+
+    expect(
+      await screen.findByRole('heading', { name: /Rocket/ })
+    ).toBeInTheDocument()
   })
 
   it('renders a recording device through the device page, not the bike one', async () => {

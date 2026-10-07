@@ -1,27 +1,39 @@
 'use client'
 
+import {
+  Download,
+  FileUp,
+  Files,
+  Gauge,
+  HardDrive,
+  RefreshCw,
+  Trash2
+} from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { FC, ReactNode, useEffect, useState } from 'react'
 
+import { useViewerTimeZone } from '@/app/(timeline)/fitness/useViewerTimeZone'
 import {
   deleteFitnessFile,
   retryAllFitnessImports,
   retryFitnessImportBatch
 } from '@/lib/client'
+import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
+import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
+import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
+import {
+  FITNESS_STAT_STRIP_CLASS,
+  FitnessStatCell
+} from '@/lib/components/fitness/FitnessStatCell'
+import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import {
   FileListPagination,
   ItemsPerPageDropdown,
   getFileStatusLink
 } from '@/lib/components/settings/fileManagementShared'
+import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -31,6 +43,7 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Progress } from '@/lib/components/ui/progress'
+import { formatInteger } from '@/lib/fitness/calendar/format'
 import { formatFileSize } from '@/lib/utils/formatFileSize'
 
 interface FitnessFileItem {
@@ -72,6 +85,29 @@ interface Props {
   currentPage: number
   itemsPerPage: number
   totalItems: number
+  /** The import section, rendered between the storage strip and the list. */
+  children?: ReactNode
+}
+
+/**
+ * When the file was uploaded, in the viewer's own zone. The zone is unknown on
+ * the server and during hydration, so those renders use UTC and the first
+ * client render switches; `toLocaleString()` in render used to give the
+ * server's zone and the browser's a different string, a hydration mismatch.
+ */
+const FileUploadedAt: FC<{ createdAt: number; timeZone: string }> = ({
+  createdAt,
+  timeZone
+}) => {
+  return (
+    <time dateTime={new Date(createdAt).toISOString()}>
+      {new Intl.DateTimeFormat('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone
+      }).format(createdAt)}
+    </time>
+  )
 }
 
 export function FitnessFileManagement({
@@ -81,11 +117,17 @@ export function FitnessFileManagement({
   hasRetriableImport = false,
   currentPage,
   itemsPerPage,
-  totalItems
+  totalItems,
+  children
 }: Props) {
   const router = useRouter()
   const [fitnessFiles, setFitnessFiles] = useState(initialFitnessFiles)
   const [currentUsed, setCurrentUsed] = useState(used)
+  // Counted down on a delete like `currentUsed`, so the strip and the heading
+  // do not keep counting a file that is gone.
+  const [currentTotal, setCurrentTotal] = useState(totalItems)
+  // Read once here rather than per row; see `FileUploadedAt`.
+  const timeZone = useViewerTimeZone() ?? 'UTC'
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [fileToDelete, setFileToDelete] = useState<FitnessFileItem | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -98,6 +140,7 @@ export function FitnessFileManagement({
   useEffect(() => {
     setFitnessFiles(initialFitnessFiles)
     setCurrentUsed(used)
+    setCurrentTotal(totalItems)
     // Drop the "retry queued" flag for any batch that is still failing in the
     // refreshed data, so its Retry button reappears instead of being stuck on
     // "Retry queued" forever when a retry did not clear the failure.
@@ -115,7 +158,7 @@ export function FitnessFileManagement({
       )
       return next.size === prev.size ? prev : next
     })
-  }, [initialFitnessFiles, used])
+  }, [initialFitnessFiles, used, totalItems])
 
   const handleDeleteClick = (fitnessFile: FitnessFileItem) => {
     setFileToDelete(fitnessFile)
@@ -135,6 +178,7 @@ export function FitnessFileManagement({
         prev.filter((file) => file.id !== fileToDelete.id)
       )
       setCurrentUsed((prev) => Math.max(0, prev - fileToDelete.bytes))
+      setCurrentTotal((prev) => Math.max(0, prev - 1))
       setDeleteDialogOpen(false)
       setFileToDelete(null)
     } catch (error) {
@@ -210,203 +254,216 @@ export function FitnessFileManagement({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Storage Usage</CardTitle>
-          <CardDescription>
-            Fitness files share quota with media uploads.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Progress
-              value={percentUsed}
-              aria-label="Storage quota used by fitness files"
+      <FitnessSection
+        title="Storage"
+        description="Fitness files share quota with media uploads."
+      >
+        <div className="space-y-2">
+          <FitnessStatGrid
+            variant="summary"
+            columns={3}
+            className={FITNESS_STAT_STRIP_CLASS}
+          >
+            <FitnessStatCell
+              label="Used"
+              icon={HardDrive}
+              value={formatFileSize(currentUsed)}
             />
-            {/* Mono caption under the bar: what is used of the quota on the
-                left, the share of it on the right. */}
-            <div className="text-muted-foreground flex justify-between font-mono text-xs">
-              <span>
-                {formatFileSize(currentUsed)} / {formatFileSize(limit)}
-              </span>
-              <span>{percentUsed.toFixed(1)}%</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            <FitnessStatCell
+              label="Quota"
+              icon={Gauge}
+              value={formatFileSize(limit)}
+            />
+            <FitnessStatCell
+              label="Fitness files"
+              icon={Files}
+              value={formatInteger(currentTotal)}
+            />
+          </FitnessStatGrid>
+          <Progress
+            value={percentUsed}
+            aria-label="Storage quota used by fitness files"
+          />
+          <p className="text-muted-foreground text-xs tabular-nums">
+            {percentUsed.toFixed(1)}% of your quota used
+          </p>
+        </div>
+      </FitnessSection>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Your Fitness Files</CardTitle>
-              <CardDescription>
-                All fitness activity files you have uploaded
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              {hasRetriableImport ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRetryAllFailed}
-                  disabled={retryingAll}
-                >
-                  {retryingAll ? 'Retrying…' : 'Retry all failed'}
-                </Button>
-              ) : null}
-              <ItemsPerPageDropdown
-                itemsPerPage={itemsPerPage}
-                onChange={handleItemsPerPageChange}
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {fitnessFiles.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No fitness files uploaded yet.
-            </p>
-          ) : (
-            <>
-              <div className="space-y-2">
-                {fitnessFiles.map((fitnessFile) => {
-                  const postLink = fitnessFile.statusId
-                    ? getFileStatusLink(
-                        fitnessFile.actorId,
-                        fitnessFile.statusId
-                      )
-                    : null
-                  const importFailed = fitnessFile.importStatus === 'failed'
-                  const retryBatchId = importFailed
-                    ? fitnessFile.importBatchId
-                    : undefined
-                  const retryQueued = Boolean(
-                    retryBatchId && queuedBatchIds.has(retryBatchId)
-                  )
+      {children}
 
-                  return (
-                    <div
-                      key={fitnessFile.id}
-                      className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center"
-                    >
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">
-                            {fitnessFile.fileName}
-                          </span>
-                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs uppercase">
-                            {fitnessFile.fileType}
-                          </span>
-                        </div>
-                        <div className="font-mono text-xs text-muted-foreground">
-                          ID: {fitnessFile.id}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {fitnessFile.mimeType} •{' '}
-                          {formatFileSize(fitnessFile.bytes)} •{' '}
-                          {new Date(fitnessFile.createdAt).toLocaleString()}
-                        </div>
-                        {fitnessFile.description && (
-                          <div className="text-sm">
-                            {fitnessFile.description}
-                          </div>
-                        )}
-                        {postLink && (
-                          <div className="pt-1">
-                            <Link
-                              href={postLink}
-                              className="text-xs text-primary-text hover:underline"
-                            >
-                              View in post →
-                            </Link>
-                          </div>
-                        )}
+      <FitnessSection
+        title="Files"
+        meta={`${formatInteger(currentTotal)} ${currentTotal === 1 ? 'file' : 'files'}`}
+        actions={
+          <>
+            {hasRetriableImport ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRetryAllFailed}
+                disabled={retryingAll}
+              >
+                <RefreshCw aria-hidden="true" />
+                {retryingAll ? 'Retrying…' : 'Retry all failed'}
+              </Button>
+            ) : null}
+            <ItemsPerPageDropdown
+              itemsPerPage={itemsPerPage}
+              onChange={handleItemsPerPageChange}
+            />
+          </>
+        }
+      >
+        {retryError && (
+          <FitnessAlert title="We couldn’t retry the import">
+            {retryError}
+          </FitnessAlert>
+        )}
+        {fitnessFiles.length === 0 ? (
+          <FitnessEmptyState
+            icon={FileUp}
+            title="No fitness files uploaded yet."
+          >
+            Import a FIT, GPX, or TCX file above, or connect Strava, and its
+            source file is kept here.
+          </FitnessEmptyState>
+        ) : (
+          <>
+            <ul className="divide-y rounded-lg border">
+              {fitnessFiles.map((fitnessFile) => {
+                const postLink = fitnessFile.statusId
+                  ? getFileStatusLink(fitnessFile.actorId, fitnessFile.statusId)
+                  : null
+                const importFailed = fitnessFile.importStatus === 'failed'
+                const retryBatchId = importFailed
+                  ? fitnessFile.importBatchId
+                  : undefined
+                const retryQueued = Boolean(
+                  retryBatchId && queuedBatchIds.has(retryBatchId)
+                )
+
+                return (
+                  <li
+                    key={fitnessFile.id}
+                    className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center"
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium break-all">
+                          {fitnessFile.fileName}
+                        </span>
+                        <Badge tone="gray" className="uppercase">
+                          {fitnessFile.fileType}
+                        </Badge>
                         {importFailed && (
-                          <div className="space-y-1 pt-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                                Import failed
-                              </span>
-                              {retryQueued && (
-                                <span className="text-xs text-muted-foreground">
-                                  Retry queued — refresh to see the result.
-                                </span>
-                              )}
-                            </div>
+                          <Badge tone="destructive">Import failed</Badge>
+                        )}
+                        {fitnessFile.mapError &&
+                          !importFailed &&
+                          fitnessFile.isPrimary !== false && (
+                            // Muted, not destructive: the activity imported —
+                            // only its route map is wrong. Retrying is offered
+                            // on the post itself.
+                            <Badge tone="gray">
+                              {fitnessFile.hasMapData
+                                ? 'Route map out of date'
+                                : 'No route map'}
+                            </Badge>
+                          )}
+                      </div>
+                      {/* One muted line of facts. The ID stays: it is what the
+                          fitness maintenance scripts take. */}
+                      <div className="text-muted-foreground flex flex-wrap gap-x-2 text-xs tabular-nums">
+                        <span>{formatFileSize(fitnessFile.bytes)}</span>
+                        <span aria-hidden="true">·</span>
+                        <FileUploadedAt
+                          createdAt={fitnessFile.createdAt}
+                          timeZone={timeZone}
+                        />
+                        <span aria-hidden="true">·</span>
+                        <span className="font-mono break-all">
+                          ID: {fitnessFile.id}
+                        </span>
+                      </div>
+                      {fitnessFile.description && (
+                        <div className="text-sm">{fitnessFile.description}</div>
+                      )}
+                      {importFailed &&
+                        (retryQueued || fitnessFile.importError) && (
+                          <div className="space-y-0.5 text-xs">
+                            {retryQueued && (
+                              <p className="text-muted-foreground">
+                                Retry queued — refresh to see the result.
+                              </p>
+                            )}
                             {fitnessFile.importError && (
-                              <p className="text-xs text-destructive">
+                              <p className="text-destructive-text break-words">
                                 {fitnessFile.importError}
                               </p>
                             )}
                           </div>
                         )}
-                        {fitnessFile.mapError &&
-                          !importFailed &&
-                          fitnessFile.isPrimary !== false && (
-                            <div className="space-y-1 pt-1">
-                              {/* Muted, not destructive: the activity imported —
-                                  only its route map is wrong. Retrying is
-                                  offered on the post itself. */}
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                                  {fitnessFile.hasMapData
-                                    ? 'Route map out of date'
-                                    : 'No route map'}
-                                </span>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {fitnessFile.mapError}
-                              </p>
-                            </div>
-                          )}
-                      </div>
-
-                      <div className="flex gap-2">
-                        {retryBatchId && !retryQueued && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRetryImport(retryBatchId)}
-                            disabled={retryingBatchId !== null}
-                          >
-                            {retryingBatchId === retryBatchId
-                              ? 'Retrying…'
-                              : 'Retry import'}
-                          </Button>
+                      {fitnessFile.mapError &&
+                        !importFailed &&
+                        fitnessFile.isPrimary !== false && (
+                          <p className="text-muted-foreground text-xs break-words">
+                            {fitnessFile.mapError}
+                          </p>
                         )}
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={fitnessFile.url} download>
-                            Download
-                          </a>
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteClick(fitnessFile)}
+                      {postLink && (
+                        <Link
+                          href={postLink}
+                          className="text-primary-text inline-block text-xs hover:underline"
                         >
-                          Delete
-                        </Button>
-                      </div>
+                          View in post →
+                        </Link>
+                      )}
                     </div>
-                  )
-                })}
-              </div>
 
-              {retryError && (
-                <p className="pt-3 text-sm text-destructive">{retryError}</p>
-              )}
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {retryBatchId && !retryQueued && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRetryImport(retryBatchId)}
+                          disabled={retryingBatchId !== null}
+                        >
+                          {retryingBatchId === retryBatchId
+                            ? 'Retrying…'
+                            : 'Retry import'}
+                        </Button>
+                      )}
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={fitnessFile.url} download>
+                          <Download aria-hidden="true" />
+                          Download
+                        </a>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+                        onClick={() => handleDeleteClick(fitnessFile)}
+                      >
+                        <Trash2 aria-hidden="true" />
+                        Delete
+                      </Button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
 
-              <FileListPagination
-                currentPage={currentPage}
-                itemsPerPage={itemsPerPage}
-                totalItems={totalItems}
-                onPageChange={goToPage}
-              />
-            </>
-          )}
-        </CardContent>
-      </Card>
+            <FileListPagination
+              currentPage={currentPage}
+              itemsPerPage={itemsPerPage}
+              totalItems={totalItems}
+              onPageChange={goToPage}
+            />
+          </>
+        )}
+      </FitnessSection>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>

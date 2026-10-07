@@ -7,12 +7,13 @@ import {
   Plus,
   Wrench
 } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useId, useState } from 'react'
 
 import { GearProductLink } from '@/app/(timeline)/fitness/gear/GearProductLink'
 import {
   GEAR_TABLE_SCROLLER,
   STICKY_COLUMN,
+  STICKY_HEAD_CELL,
   STICKY_LEFT_SHADOW,
   STICKY_RIGHT_COLUMN,
   STICKY_RIGHT_SHADOW,
@@ -26,8 +27,10 @@ import {
   refitFitnessGearComponent,
   retireFitnessGearComponent
 } from '@/lib/client'
+import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
+import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
+import { FITNESS_TABLE_HEAD_ROW_CLASS } from '@/lib/components/fitness/FitnessSection'
 import { Button } from '@/lib/components/ui/button'
-import { Card } from '@/lib/components/ui/card'
 import type { GearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { cn } from '@/lib/utils'
 
@@ -213,6 +216,7 @@ export const GearComponentsCard: FC<Props> = ({
   components,
   onChanged
 }) => {
+  const headingId = useId()
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [editingComponent, setEditingComponent] =
     useState<GearComponentEntity | null>(null)
@@ -333,10 +337,14 @@ export const GearComponentsCard: FC<Props> = ({
   }
 
   return (
-    <Card className="gap-4 py-4">
-      <div className="flex flex-wrap items-center gap-2 px-4">
-        <Wrench className="size-4 text-primary" />
-        <h2 className="text-base font-medium">Components</h2>
+    <section aria-labelledby={headingId} className="space-y-3">
+      {/* The overview's section heading row (see `FitnessSection`), built by
+          hand because the scroll steppers sit between the count and Add. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Wrench aria-hidden className="-mr-1 size-4 shrink-0 text-primary" />
+        <h2 id={headingId} className="text-base font-semibold">
+          Components
+        </h2>
         <span className="text-sm text-muted-foreground">
           {installed.length} installed
         </span>
@@ -387,7 +395,7 @@ export const GearComponentsCard: FC<Props> = ({
         </Button>
       </div>
 
-      {error && <p className="px-4 text-sm text-destructive">{error}</p>}
+      {error && <FitnessAlert title={error} />}
 
       <GearComponentFormDialog
         open={isAddOpen || Boolean(editingComponent)}
@@ -403,10 +411,10 @@ export const GearComponentsCard: FC<Props> = ({
       />
 
       {visible.length === 0 ? (
-        <p className="px-4 text-sm text-muted-foreground">
-          No components yet. Add the parts you want to track and each one
-          accrues distance from its added date.
-        </p>
+        <FitnessEmptyState icon={Wrench} title="No components yet.">
+          Add the parts you want to track and each one accrues distance from its
+          added date.
+        </FitnessEmptyState>
       ) : (
         // Below the full-width threshold (1160px: 120px Type + 140px Actions +
         // 6x150px middle) this snaps whole columns per swipe with dual-pinned
@@ -423,11 +431,12 @@ export const GearComponentsCard: FC<Props> = ({
         >
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs font-medium text-muted-foreground">
+              <tr className={FITNESS_TABLE_HEAD_ROW_CLASS}>
                 <th
                   className={cn(
                     STICKY_COLUMN,
-                    'px-4 pb-2 font-medium',
+                    STICKY_HEAD_CELL,
+                    'px-4 py-2.5 font-medium',
                     EDGE_SHADOW_TRANSITION,
                     canScrollLeft && STICKY_LEFT_SHADOW
                   )}
@@ -436,37 +445,37 @@ export const GearComponentsCard: FC<Props> = ({
                   Type
                 </th>
                 <th
-                  className="px-3 pb-2 font-medium"
+                  className="px-3 py-2.5 font-medium"
                   style={dataColumnStyle(BRAND_COLUMN_WIDTH)}
                 >
                   Brand
                 </th>
                 <th
-                  className="px-3 pb-2 font-medium"
+                  className="px-3 py-2.5 font-medium"
                   style={dataColumnStyle(MODEL_COLUMN_WIDTH)}
                 >
                   Model
                 </th>
                 <th
-                  className="px-3 pb-2 font-medium"
+                  className="px-3 py-2.5 font-medium"
                   style={dataColumnStyle(PRODUCT_PAGE_COLUMN_WIDTH)}
                 >
                   Product page
                 </th>
                 <th
-                  className="px-3 pb-2 text-right font-medium"
+                  className="px-3 py-2.5 text-right font-medium"
                   style={dataColumnStyle(DISTANCE_COLUMN_WIDTH)}
                 >
                   Distance
                 </th>
                 <th
-                  className="px-3 pb-2 font-medium"
+                  className="px-3 py-2.5 font-medium"
                   style={dataColumnStyle(ADDED_COLUMN_WIDTH)}
                 >
                   Added
                 </th>
                 <th
-                  className="px-3 pb-2 font-medium"
+                  className="px-3 py-2.5 font-medium"
                   style={dataColumnStyle(RETIRED_COLUMN_WIDTH)}
                 >
                   Retired
@@ -476,11 +485,12 @@ export const GearComponentsCard: FC<Props> = ({
                     isRightPinned
                       ? cn(
                           STICKY_RIGHT_COLUMN,
-                          'px-2 pb-2 font-medium',
+                          STICKY_HEAD_CELL,
+                          'px-2 py-2.5 font-medium',
                           EDGE_SHADOW_TRANSITION,
                           canScrollRight && STICKY_RIGHT_SHADOW
                         )
-                      : 'px-3 pr-4 pb-2 font-medium'
+                      : 'px-3 pr-4 py-2.5 font-medium'
                   }
                   style={
                     isRightPinned
@@ -702,7 +712,7 @@ export const GearComponentsCard: FC<Props> = ({
       )}
 
       {retired.length > 0 && (
-        <div className="px-4">
+        <div>
           <button
             type="button"
             className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary-text hover:underline"
@@ -728,6 +738,6 @@ export const GearComponentsCard: FC<Props> = ({
           </button>
         </div>
       )}
-    </Card>
+    </section>
   )
 }

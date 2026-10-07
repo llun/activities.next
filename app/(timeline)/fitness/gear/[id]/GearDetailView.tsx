@@ -5,7 +5,9 @@ import {
   Archive,
   ArrowLeft,
   History,
+  MapPin,
   Pencil,
+  RefreshCw,
   Trash2,
   Wrench
 } from 'lucide-react'
@@ -27,6 +29,12 @@ import {
   getFitnessGearList,
   setFitnessGearRetired
 } from '@/lib/client'
+import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
+import {
+  FITNESS_STAT_STRIP_CLASS,
+  FitnessStatCell
+} from '@/lib/components/fitness/FitnessStatCell'
+import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { PageHeader } from '@/lib/components/page-header'
 import {
   SectionNavSelect,
@@ -34,7 +42,6 @@ import {
 } from '@/lib/components/section-nav-select'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
-import { Card } from '@/lib/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -43,6 +50,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/lib/components/ui/dialog'
+import { formatInteger } from '@/lib/fitness/calendar/format'
 import { getSportLabel } from '@/lib/services/fitness-files/sportTypes'
 import type {
   GearComponentEntity,
@@ -79,19 +87,7 @@ interface Props {
   feed: GearActivityFeedContext
 }
 
-interface StatTileProps {
-  label: string
-  value: string
-}
-
-// `rounded-lg shadow-none` override the Card's own `rounded-xl shadow-sm`: the
-// design's gear stat tiles are radius 8 and flat.
-const StatTile: FC<StatTileProps> = ({ label, value }) => (
-  <Card className="flex min-w-0 flex-col gap-2 rounded-lg p-4 shadow-none">
-    <div className="text-xs text-muted-foreground">{label}</div>
-    <div className="text-xl font-semibold tabular-nums">{value}</div>
-  </Card>
-)
+const GEAR_NOT_FOUND = 'Gear not found.'
 
 const getBrandModel = (gear: GearEntity): string =>
   [gear.brand, gear.model].filter(Boolean).join(' ')
@@ -174,7 +170,7 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
         const found = list.find((item) => item.id === gearId) ?? null
         if (cancelled) return
         setGear(found)
-        setError(found ? null : 'Gear not found.')
+        setError(found ? null : GEAR_NOT_FOUND)
         if (!found || found.kind !== 'bike') {
           setComponents([])
           return
@@ -234,20 +230,56 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
 
   if (isInitialLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         {backLink}
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          Loading...
+        <p role="status" className="sr-only">
+          Loading gear
         </p>
+        {/* The title, meta line and stat strip in static `--skeleton` bars,
+            as the overview loads. */}
+        <div aria-hidden="true" className="space-y-6">
+          <div className="space-y-2">
+            <span className="block h-7 w-48 rounded-md bg-(--skeleton)" />
+            <span className="block h-4 w-72 max-w-full rounded bg-(--skeleton)" />
+          </div>
+          {/* The kind is not known yet, so neither are the labels: bars
+              only, in the stat strip's frame. */}
+          <div className="h-[70px] rounded-lg border p-4">
+            <span className="block h-5 w-24 rounded bg-(--skeleton)" />
+            <span className="mt-2 block h-3.5 w-16 rounded bg-(--skeleton)" />
+          </div>
+        </div>
       </div>
     )
   }
 
   if (!gear) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         {backLink}
-        <p className="text-sm text-destructive">{error ?? 'Gear not found.'}</p>
+        {error && error !== GEAR_NOT_FOUND ? (
+          // A failed read, not a missing row: say so and offer to try again.
+          <FitnessAlert
+            title="We couldn’t load this gear"
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11"
+                onClick={reload}
+              >
+                <RefreshCw className="size-4" aria-hidden="true" />
+                Retry
+              </Button>
+            }
+          >
+            {error}
+          </FitnessAlert>
+        ) : (
+          <FitnessAlert title={GEAR_NOT_FOUND}>
+            It may have been deleted. Go back to your gear to pick another.
+          </FitnessAlert>
+        )}
       </div>
     )
   }
@@ -349,32 +381,33 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
 
       {/* This copy of the error is the one a retire/unretire failure lands in,
           so it announces itself rather than waiting to be noticed. */}
-      {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <FitnessAlert title={error} />}
 
       <div className="space-y-4">
-        <div
-          className={
-            gear.kind === 'bike'
-              ? 'grid grid-cols-1 gap-3 sm:grid-cols-3'
-              : 'grid grid-cols-1 gap-3 sm:grid-cols-2'
-          }
+        {/* The overview's hairline strip, one column per value. */}
+        <FitnessStatGrid
+          variant="summary"
+          columns={gear.kind === 'bike' ? 3 : 2}
+          className={FITNESS_STAT_STRIP_CLASS}
         >
-          <StatTile
+          <FitnessStatCell
             label="Distance"
+            icon={MapPin}
             value={formatGearDistanceKm(gear.distanceMeters)}
           />
-          <StatTile label="Activities" value={String(gear.activityCount)} />
+          <FitnessStatCell
+            label="Activities"
+            icon={Activity}
+            value={formatInteger(gear.activityCount)}
+          />
           {gear.kind === 'bike' && (
-            <StatTile
+            <FitnessStatCell
               label="Components installed"
-              value={String(installedCount)}
+              icon={Wrench}
+              value={formatInteger(installedCount)}
             />
           )}
-        </div>
+        </FitnessStatGrid>
 
         {/* The design puts the actions in a left-aligned row under the stat
             tiles, not beside the title. */}

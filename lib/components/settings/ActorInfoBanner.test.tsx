@@ -36,4 +36,16 @@ describe('ActorInfoBanner', () => {
       'p-3'
     )
   })
+
+  it('has dark-mode colours, so it is not a pale block on a dark page', () => {
+    const { container } = render(
+      <ActorInfoBanner actorHandle="@test@domain.com" />
+    )
+
+    const banner = container.firstChild as HTMLElement
+    expect(banner).toHaveClass('dark:border-blue-900', 'dark:bg-blue-950/40')
+    expect(screen.getByText(/All fitness imports/i)).toHaveClass(
+      'dark:text-blue-200'
+    )
+  })
 })

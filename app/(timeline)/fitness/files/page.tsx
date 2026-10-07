@@ -79,7 +79,6 @@ const Page = async ({
         title="Files"
         description="Import activities and manage your fitness file storage."
       />
-      <FitnessImport actorHandle={actorHandle} />
       <FitnessFileManagement
         used={used}
         limit={limit}
@@ -105,7 +104,9 @@ const Page = async ({
         currentPage={page}
         itemsPerPage={itemsPerPage}
         totalItems={result.total}
-      />
+      >
+        <FitnessImport actorHandle={actorHandle} />
+      </FitnessFileManagement>
     </div>
   )
 }

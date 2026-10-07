@@ -1,14 +1,19 @@
 'use client'
 
-import { Bike, Footprints, Pencil, Plus, Watch } from 'lucide-react'
+import { Bike, Footprints, Pencil, Plus, RefreshCw, Watch } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
 
 import { getFitnessGearList } from '@/lib/client'
+import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
+import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
+import {
+  FITNESS_TABLE_HEAD_ROW_CLASS,
+  FitnessSection
+} from '@/lib/components/fitness/FitnessSection'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
-import { Card } from '@/lib/components/ui/card'
 import {
   type FitnessGearKind,
   type UserCreatableGearKind,
@@ -23,6 +28,7 @@ import {
   GEAR_TABLE_SCROLLER,
   STICKY_CLICKABLE_COLUMN,
   STICKY_COLUMN,
+  STICKY_HEAD_CELL,
   formatGearDistanceKm,
   getGearDisplayName
 } from './gearUi'
@@ -31,6 +37,7 @@ interface KindCopy {
   sectionTitle: string
   columnHeader: string
   addLabel: string
+  emptyTitle: string
   emptyState: string
   retiredCountLabel: (count: number) => string
   hideRetiredLabel: string
@@ -47,8 +54,8 @@ const KIND_COPY: Record<UserCreatableGearKind, KindCopy> = {
     sectionTitle: 'Bikes',
     columnHeader: 'Bike',
     addLabel: 'Add bike',
-    emptyState:
-      'No bikes yet. Add one and new activities will start counting toward it.',
+    emptyTitle: 'No bikes yet.',
+    emptyState: 'Add one and new activities will start counting toward it.',
     retiredCountLabel: (count) =>
       `${count} retired bike${count === 1 ? '' : 's'}`,
     hideRetiredLabel: 'Hide retired bikes'
@@ -57,8 +64,8 @@ const KIND_COPY: Record<UserCreatableGearKind, KindCopy> = {
     sectionTitle: 'Shoes',
     columnHeader: 'Shoes',
     addLabel: 'Add shoes',
-    emptyState:
-      'No shoes yet. Add a pair and new activities will start counting toward it.',
+    emptyTitle: 'No shoes yet.',
+    emptyState: 'Add a pair and new activities will start counting toward it.',
     retiredCountLabel: (count) =>
       `${count} retired pair${count === 1 ? '' : 's'} of shoes`,
     hideRetiredLabel: 'Hide retired shoes'
@@ -130,26 +137,21 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
   const visible = showRetired ? [...active, ...retired] : active
 
   return (
-    <Card className="gap-4 py-4">
-      <div className="flex flex-wrap items-center gap-2 px-4">
-        <KindIcon className="size-4 text-primary" />
-        <h2 className="text-base font-medium">{copy.sectionTitle}</h2>
-        <span className="text-sm text-muted-foreground">
-          {active.length} active
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto"
-          onClick={() => onAdd(kind)}
-        >
+    <FitnessSection
+      title={copy.sectionTitle}
+      icon={KindIcon}
+      meta={`${active.length} active`}
+      actions={
+        <Button variant="outline" size="sm" onClick={() => onAdd(kind)}>
           <Plus />
           {copy.addLabel}
         </Button>
-      </div>
-
+      }
+    >
       {visible.length === 0 ? (
-        <p className="px-4 text-sm text-muted-foreground">{copy.emptyState}</p>
+        <FitnessEmptyState icon={KindIcon} title={copy.emptyTitle}>
+          {copy.emptyState}
+        </FitnessEmptyState>
       ) : (
         <div className={GEAR_TABLE_SCROLLER}>
           <table className="w-full min-w-[560px] table-fixed text-sm">
@@ -171,21 +173,22 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
               <col className="w-[10%]" />
             </colgroup>
             <thead>
-              <tr className="text-left text-xs font-medium text-muted-foreground">
+              <tr className={FITNESS_TABLE_HEAD_ROW_CLASS}>
                 <th
                   className={cn(
                     STICKY_COLUMN,
-                    'min-w-[150px] px-4 pb-2 font-medium'
+                    STICKY_HEAD_CELL,
+                    'min-w-[150px] px-4 py-2.5 font-medium'
                   )}
                 >
                   {copy.columnHeader}
                 </th>
-                <th className="px-3 pb-2 font-medium">Product page</th>
-                <th className="px-3 pb-2 font-medium whitespace-nowrap">
+                <th className="px-3 py-2.5 font-medium">Product page</th>
+                <th className="px-3 py-2.5 font-medium whitespace-nowrap">
                   Default sports
                 </th>
-                <th className="px-3 pb-2 text-right font-medium">Distance</th>
-                <th className="px-2 pb-2 font-medium">
+                <th className="px-3 py-2.5 text-right font-medium">Distance</th>
+                <th className="px-2 py-2.5 font-medium">
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
@@ -271,7 +274,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
       )}
 
       {retired.length > 0 && (
-        <div className="px-4">
+        <div>
           <button
             type="button"
             className="cursor-pointer text-xs font-medium text-primary-text hover:underline"
@@ -283,7 +286,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
           </button>
         </div>
       )}
-    </Card>
+    </FitnessSection>
   )
 }
 
@@ -306,15 +309,11 @@ const DeviceSection: FC<{
   if (gears.length === 0) return null
 
   return (
-    <Card className="gap-4 py-4">
-      <div className="flex flex-wrap items-center gap-2 px-4">
-        <Watch className="size-4 text-primary" />
-        <h2 className="text-base font-medium">Devices</h2>
-        <span className="text-sm text-muted-foreground">
-          {gears.length} recording
-        </span>
-      </div>
-
+    <FitnessSection
+      title="Devices"
+      icon={Watch}
+      meta={`${gears.length} recording`}
+    >
       <div className={GEAR_TABLE_SCROLLER}>
         <table className="w-full min-w-[560px] table-fixed text-sm">
           {/* 33.5/22.5/34/10: the first two columns and the Actions column are
@@ -328,18 +327,19 @@ const DeviceSection: FC<{
             <col className="w-[10%]" />
           </colgroup>
           <thead>
-            <tr className="text-left text-xs font-medium text-muted-foreground">
+            <tr className={FITNESS_TABLE_HEAD_ROW_CLASS}>
               <th
                 className={cn(
                   STICKY_COLUMN,
-                  'min-w-[150px] px-4 pb-2 font-medium'
+                  STICKY_HEAD_CELL,
+                  'min-w-[150px] px-4 py-2.5 font-medium'
                 )}
               >
                 Device
               </th>
-              <th className="px-3 pb-2 font-medium">Product page</th>
-              <th className="px-3 pb-2 text-right font-medium">Activities</th>
-              <th className="px-2 pb-2 font-medium">
+              <th className="px-3 py-2.5 font-medium">Product page</th>
+              <th className="px-3 py-2.5 text-right font-medium">Activities</th>
+              <th className="px-2 py-2.5 font-medium">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -393,9 +393,42 @@ const DeviceSection: FC<{
           </tbody>
         </table>
       </div>
-    </Card>
+    </FitnessSection>
   )
 }
+
+/**
+ * The first load's placeholder: the bikes and shoes sections' shape in static
+ * `--skeleton` bars (no shimmer), as the overview loads, so the page does not
+ * jump from a centred "Loading..." line to two tables.
+ */
+const GearListSkeleton: FC = () => (
+  <div className="space-y-6">
+    <p role="status" className="sr-only">
+      Loading gear
+    </p>
+    {[0, 1].map((section) => (
+      <div key={section} aria-hidden="true" className="space-y-3">
+        <div className="flex items-center gap-3">
+          <span className="block h-5 w-16 rounded bg-(--skeleton)" />
+          <span className="ml-auto block h-8 w-24 rounded-md bg-(--skeleton)" />
+        </div>
+        <div className="rounded-lg border">
+          <div className="bg-muted/40 h-9 border-b" />
+          {[0, 1].map((row) => (
+            <div
+              key={row}
+              className="flex items-center gap-6 border-b px-4 py-4 last:border-b-0"
+            >
+              <span className="block h-3.5 w-1/3 max-w-40 rounded bg-(--skeleton)" />
+              <span className="ml-auto block h-3.5 w-16 rounded bg-(--skeleton)" />
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+)
 
 export const GearListView: FC = () => {
   const [gears, setGears] = useState<GearEntity[]>([])
@@ -446,15 +479,34 @@ export const GearListView: FC = () => {
   const reload = () => setReloadToken((token) => token + 1)
 
   return (
-    <div className="space-y-4">
-      {error && <p className="text-sm text-destructive">{error}</p>}
+    <div className="space-y-6">
+      {error && (
+        <FitnessAlert
+          title="We couldn’t load your gear"
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11"
+              onClick={reload}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className="size-4" aria-hidden="true" />
+              Retry
+            </Button>
+          }
+        >
+          {error}
+        </FitnessAlert>
+      )}
       {isInitialLoading ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          Loading...
-        </p>
+        <GearListSkeleton />
       ) : (
         <div
-          className={cn('space-y-4', isRefreshing && 'opacity-60')}
+          className={cn(
+            'space-y-6 transition-opacity duration-150',
+            isRefreshing && 'opacity-60'
+          )}
           aria-busy={isRefreshing}
         >
           <GearSection

@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  AlertTriangle,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -22,6 +21,9 @@ import {
   useState
 } from 'react'
 
+import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
+import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
+import { FITNESS_STAT_STRIP_CLASS } from '@/lib/components/fitness/FitnessStatCell'
 import {
   AnnualCalendar,
   AnnualCalendarHandle
@@ -581,48 +583,40 @@ function FitnessOverview({
       )}
 
       {status === 'error' && (
-        <div
-          role="alert"
-          className="border-l-destructive flex flex-wrap items-center gap-3 rounded-lg border border-l-4 p-4"
+        <FitnessAlert
+          title={
+            showingPrevious && result
+              ? `Showing previous results for ${formatRange(result.range.from, result.range.to)}`
+              : `We couldn’t load ${formatRange(applied.from, applied.to)}`
+          }
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11"
+              onClick={data.retry}
+            >
+              <RefreshCw className="size-4" aria-hidden="true" />
+              Retry
+            </Button>
+          }
         >
-          <AlertTriangle
-            className="text-destructive-text size-5 shrink-0"
-            aria-hidden="true"
-          />
-          <div className="min-w-0 flex-[1_1_16rem] text-sm">
-            <p className="font-semibold">
-              {showingPrevious && result
-                ? `Showing previous results for ${formatRange(result.range.from, result.range.to)}`
-                : `We couldn’t load ${formatRange(applied.from, applied.to)}`}
-            </p>
-            {/* Friendly copy only. The reason a read failed is a status
-                line or the browser's own words ("Failed to fetch"); neither
-                belongs in front of the viewer, and neither says what to do. */}
-            {/* With nothing to fall back on, the line above already names
-                the range that failed. */}
-            <p className="text-muted-foreground break-words">
-              {showingPrevious
-                ? `We couldn’t load ${formatRange(applied.from, applied.to)}. Check your connection and try again. Totals and calendar below are from the previous range.`
-                : 'Check your connection and try again. Nothing is shown for this range until it loads.'}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11"
-            onClick={data.retry}
-          >
-            <RefreshCw className="size-4" aria-hidden="true" />
-            Retry
-          </Button>
-        </div>
+          {/* Friendly copy only. The reason a read failed is a status line or
+              the browser's own words ("Failed to fetch"); neither belongs in
+              front of the viewer, and neither says what to do. With nothing
+              to fall back on, the title already names the range that failed. */}
+          {showingPrevious
+            ? `We couldn’t load ${formatRange(applied.from, applied.to)}. Check your connection and try again. Totals and calendar below are from the previous range.`
+            : 'Check your connection and try again. Nothing is shown for this range until it loads.'}
+        </FitnessAlert>
       )}
 
       <FitnessSummaryStrip
         totals={totals}
         loading={loading}
         className={cn(
-          'bg-border overflow-hidden rounded-lg border transition-opacity duration-150',
+          FITNESS_STAT_STRIP_CLASS,
+          'transition-opacity duration-150',
           loading && 'opacity-60'
         )}
       />
@@ -812,38 +806,32 @@ function FitnessOverview({
       </section>
 
       {isEmpty ? (
-        <div className="bg-muted/40 flex items-start gap-3 rounded-lg border p-4">
-          <span
-            aria-hidden="true"
-            className="bg-background flex size-10 shrink-0 items-center justify-center rounded-lg border"
-          >
-            <CalendarDays className="text-muted-foreground size-5" />
-          </span>
-          <div className="min-w-0 text-sm">
-            <p className="font-semibold">
-              No activities recorded in {formatRange(applied.from, applied.to)}.
-            </p>
-            <p className="text-muted-foreground">
-              Try another date range, or{' '}
-              <Link
-                href="/fitness/files"
-                prefetch={false}
-                className="text-primary-text hover:underline"
-              >
-                upload an activity file
-              </Link>
-              .
-            </p>
+        <FitnessEmptyState
+          icon={CalendarDays}
+          title={`No activities recorded in ${formatRange(applied.from, applied.to)}.`}
+          action={
             <Button
               type="button"
               variant="outline"
-              className="mt-3 h-11"
+              className="h-11"
               onClick={() => dispatch({ type: 'OPEN_PICKER' })}
             >
               Choose a range
             </Button>
-          </div>
-        </div>
+          }
+        >
+          <p>
+            Try another date range, or{' '}
+            <Link
+              href="/fitness/files"
+              prefetch={false}
+              className="text-primary-text hover:underline"
+            >
+              upload an activity file
+            </Link>
+            .
+          </p>
+        </FitnessEmptyState>
       ) : unavailable ? null : (
         <ActivityTypeBreakdown
           summary={shown?.summary ?? []}

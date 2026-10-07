@@ -19,6 +19,7 @@ import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { createDeferred } from '@/lib/testing/deferred'
 
 import { GearListView } from './GearListView'
+import { STICKY_HEAD_CELL } from './gearUi'
 
 vi.mock('@/lib/client', () => ({
   createFitnessGear: vi.fn(),
@@ -89,8 +90,8 @@ const createDevice = (overrides: Partial<GearEntity> = {}): GearEntity =>
 
 const getSection = async (title: string) => {
   const heading = await screen.findByRole('heading', { name: title })
-  const section = heading.closest('[data-slot="card"]')
-  if (!section) throw new Error(`No card found for section ${title}`)
+  const section = heading.closest('section')
+  if (!section) throw new Error(`No section found for ${title}`)
   return within(section as HTMLElement)
 }
 
@@ -138,14 +139,16 @@ describe('GearListView', () => {
   it('shows the per-kind empty state when there is no gear', async () => {
     render(<GearListView />)
 
-    expect(
-      await screen.findByText(
-        'No bikes yet. Add one and new activities will start counting toward it.'
-      )
-    ).toBeInTheDocument()
+    expect(await screen.findByText('No bikes yet.')).toBeInTheDocument()
     expect(
       screen.getByText(
-        'No shoes yet. Add a pair and new activities will start counting toward it.'
+        'Add one and new activities will start counting toward it.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByText('No shoes yet.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Add a pair and new activities will start counting toward it.'
       )
     ).toBeInTheDocument()
   })
@@ -619,17 +622,9 @@ describe('GearListView', () => {
       render(<GearListView />)
 
       const bikes = await getSection('Bikes')
-      expect(
-        bikes.getByText(
-          'No bikes yet. Add one and new activities will start counting toward it.'
-        )
-      ).toBeInTheDocument()
+      expect(bikes.getByText('No bikes yet.')).toBeInTheDocument()
       const shoes = await getSection('Shoes')
-      expect(
-        shoes.getByText(
-          'No shoes yet. Add a pair and new activities will start counting toward it.'
-        )
-      ).toBeInTheDocument()
+      expect(shoes.getByText('No shoes yet.')).toBeInTheDocument()
     })
   })
 
@@ -657,12 +652,14 @@ describe('GearListView', () => {
 
         const section = await getSection(title)
         const cell = section.getByRole('link', { name: rowName }).closest('td')
-        expect(cell).toHaveClass('sticky', 'left-0', 'bg-card')
+        // The page's own surface: the table sits on the page, not in a card.
+        expect(cell).toHaveClass('sticky', 'left-0', 'bg-background')
 
         // The header cell is pinned too, or it scrolls away from the column it
-        // labels.
+        // labels, and paints the header band opaque rather than the page.
         const header = cell?.closest('table')?.querySelector('thead th')
-        expect(header).toHaveClass('sticky', 'left-0', 'bg-card')
+        expect(header).toHaveClass('sticky', 'left-0', STICKY_HEAD_CELL)
+        expect(header).not.toHaveClass('bg-background')
       }
     )
 

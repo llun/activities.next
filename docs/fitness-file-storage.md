@@ -1207,20 +1207,17 @@ null }` remains the precise "this retirement never happened" — it reopens the
   is the table's only vertical rule, and it is what separates each row's subject
   from its numbers. Rendered as plain columns with no rule, the rows read as
   loose text, which is what these tables looked like before. Four details are
-  load-bearing. **The pinned column's surface is `bg-card` — the same grey as
-  the card behind it — not `bg-background`.** This is the design's own
-  relationship, verified against the kit: `useGKSnapCols` pins the cell with
-  `background: 'white'` and every card holding one of these tables is
-  `bg-white/80`, so the lane is painted the **card's** colour and the hairline is
-  the only thing separating it. That literal white is there to make the sticky
-  cell opaque, not to step the column off anything — there is no recessed lane
-  anywhere in the kit. `bg-background` copied the colour rather than the
-  relationship and broke it in **both** themes: the kit is a static prototype
-  that hardcodes white instead of reading `--card`, while its `app/globals.css`
-  carries the same tokens this app has (light `--background` 100% / `--card` 98%,
-  dark 3.9% / 9%), so against a `bg-card` table it came out a bright white stripe
-  in light mode — a third of the table's width on a phone — and a well sunk below
-  the card in dark. Whatever the colour, it must be **opaque**, or the data
+  load-bearing. **The pinned column's surface is the surface the table sits on.** Since the
+  fitness pages took the overview's layout, the tables sit on the page in a
+  `rounded-lg border` frame rather than in a `Card`, so that is `bg-background`;
+  the pinned header cell paints the header band's tint pre-mixed and opaque
+  (`STICKY_HEAD_CELL`). This is the design's own relationship, verified against
+  the kit: `useGKSnapCols` pins the cell with the colour of what holds the
+  table, so the hairline is the only thing separating it. That literal colour is
+  there to make the sticky cell opaque, not to step the column off anything —
+  there is no recessed lane anywhere in the kit; a colour other than the table's
+  own came out a bright stripe in light mode — a third of the table's width on a
+  phone — and a sunk well in dark. Whatever the colour, it must be **opaque**, or the data
   columns
   scroll straight through the pinned cell. The divider is an inset shadow, not a
   `border-r`, because `border-collapse: collapse` (Tailwind's preflight default)

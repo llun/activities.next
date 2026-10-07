@@ -8,6 +8,7 @@ import {
   regenerateFitnessMaps,
   updateFitnessGeneralSettings
 } from '@/lib/client'
+import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
 import {
   PrivacyZoneMapKit,
   ZONE_COLOR,
@@ -16,13 +17,6 @@ import {
 } from '@/lib/components/fitness/PrivacyZoneMapKit'
 import { circleToPolygon } from '@/lib/components/fitness/mapGeometry'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
@@ -1033,17 +1027,11 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Privacy Location</CardTitle>
-          <CardDescription>
-            Trim the start and finish of your routes around your saved privacy
-            locations, on your activity maps and generated route images. Route
-            heatmaps are not trimmed: hiding the ends there would leave a gap
-            that points at the location just as clearly.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <FitnessSection
+        title="Privacy location"
+        description="Trim the start and finish of your routes around your saved privacy locations, on your activity maps and generated route images. Route heatmaps are not trimmed: hiding the ends there would leave a gap that points at the location just as clearly."
+      >
+        <div className="space-y-4 rounded-lg border p-4">
           {/* Every provider renders an interactive picker; the manual latitude /
             longitude fields below stay as the fallback when it fails to load. */}
           <div className="space-y-2">
@@ -1274,17 +1262,14 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
                 : 'Regenerate maps for old statuses'}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </FitnessSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Route Map Description</CardTitle>
-          <CardDescription>
-            Configure accessibility descriptions for your activity route maps.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <FitnessSection
+        title="Route map description"
+        description="Configure accessibility descriptions for your activity route maps."
+      >
+        <div className="space-y-4 rounded-lg border p-4">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 space-y-0.5">
               <Label
@@ -1313,8 +1298,8 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
           {routeDescriptionMessage ? (
             <p className="text-sm text-green-600">{routeDescriptionMessage}</p>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </FitnessSection>
     </div>
   )
 }

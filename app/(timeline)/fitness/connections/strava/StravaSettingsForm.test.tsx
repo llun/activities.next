@@ -95,9 +95,9 @@ describe('StravaSettingsForm', () => {
       // Save / Unlink)…
       expect(form).toContainElement(screen.getByLabelText(/^client secret/i))
       expect(form).not.toContainElement(archive)
-      // …but in a card of its own, beside the settings card.
-      const archiveCard = archive.closest('[data-slot="card"]')
-      const settingsCard = form.closest('[data-slot="card"]')
+      // …but in a panel of its own, beside the settings panel.
+      const archiveCard = archive.closest('[data-slot="panel"]')
+      const settingsCard = form.closest('[data-slot="panel"]')
       expect(archiveCard).not.toBeNull()
       expect(settingsCard).not.toBeNull()
       expect(archiveCard).not.toBe(settingsCard)

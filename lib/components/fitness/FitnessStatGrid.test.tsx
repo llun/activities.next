@@ -85,4 +85,25 @@ describe('FitnessStatGrid', () => {
     expect(classes).toMatch(/(^|\s)@min-\[43\.75rem\]:grid-cols-4/)
     expect(classes).not.toMatch(/@min-\[\d+px\]/)
   })
+
+  it.each([2, 3] as const)(
+    'spans a %i-value summary strip over exactly that many columns, never four',
+    (columns) => {
+      renderGrid({
+        variant: 'summary',
+        columns,
+        children: <div data-testid="cell" />
+      })
+
+      // Four columns with fewer cells leaves an empty, border-coloured cell at
+      // the end of the hairline strip.
+      const classes = getGrid().className
+      expect(getGrid()).toHaveClass('gap-px', 'grid-cols-1')
+      expect(classes).not.toMatch(/grid-cols-4/)
+      expect(classes).toMatch(
+        new RegExp(`(^|\\s)@min-\\[[\\d.]+rem\\]:grid-cols-${columns}`)
+      )
+      expect(classes).not.toMatch(/@min-\[\d+px\]/)
+    }
+  )
 })

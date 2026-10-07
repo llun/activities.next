@@ -9,7 +9,6 @@ import {
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { Button } from '@/lib/components/ui/button'
-import { Card } from '@/lib/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -201,9 +200,9 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
   // loads.
   return (
     <>
-      <Card className="p-6">
+      <div data-slot="panel" className="rounded-lg border p-6">
         <div className="mb-6 space-y-1">
-          <h2 className="text-lg font-semibold">Strava settings</h2>
+          <h2 className="text-base font-semibold">Strava settings</h2>
           <p className="text-sm text-muted-foreground">
             Connect your Strava account to sync fitness activities. You&apos;ll
             need to create an application in the{' '}
@@ -357,11 +356,11 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
             </Button>
           </div>
         </form>
-      </Card>
+      </div>
 
-      <Card className="p-6">
+      <div data-slot="panel" className="rounded-lg border p-6">
         <StravaArchiveImportSection actorHandle={archiveActorHandle} />
-      </Card>
+      </div>
 
       <Dialog open={showUnlinkDialog} onOpenChange={setShowUnlinkDialog}>
         <DialogContent>

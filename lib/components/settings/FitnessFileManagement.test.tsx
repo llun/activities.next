@@ -529,6 +529,52 @@ describe('FitnessFileManagement', () => {
     })
   })
 
+  describe('delete', () => {
+    it('counts the deleted file out of the strip and the heading', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({})
+      } as Response)
+
+      render(
+        <FitnessFileManagement
+          used={2048}
+          limit={10485760}
+          fitnessFiles={[
+            {
+              id: 'fitness-5',
+              actorId: 'https://example.com/users/alice',
+              fileName: 'swim.fit',
+              fileType: 'fit' as const,
+              mimeType: 'application/vnd.ant.fit',
+              bytes: 1024,
+              createdAt: Date.now(),
+              url: '/api/v1/fitness-files/fitness-5'
+            }
+          ]}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={2}
+        />
+      )
+
+      expect(screen.getByText('2 files')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+      const deleteButtons = await screen.findAllByRole('button', {
+        name: /^Delete$/
+      })
+      fireEvent.click(deleteButtons[deleteButtons.length - 1])
+
+      await waitFor(() => {
+        expect(screen.getByText('1 file')).toBeInTheDocument()
+      })
+      const filesValue = screen
+        .getByText('Fitness files', { selector: 'dt' })
+        .parentElement?.querySelector('dd')
+      expect(filesValue).toHaveTextContent('1')
+    })
+  })
+
   describe('delete error handling', () => {
     it('shows an error message when deletion fails', async () => {
       vi.spyOn(global, 'fetch').mockResolvedValue({
@@ -621,7 +667,7 @@ describe('FitnessFileManagement', () => {
   })
 
   describe('storage meter', () => {
-    it('captions the bar with the mono used / limit on the left and the percent on the right', () => {
+    it('puts used, quota and file count on the overview stat strip, with the share under the bar', () => {
       render(
         <FitnessFileManagement
           used={524288}
@@ -629,19 +675,24 @@ describe('FitnessFileManagement', () => {
           fitnessFiles={[]}
           currentPage={1}
           itemsPerPage={25}
-          totalItems={0}
+          totalItems={3}
         />
       )
+
+      const valueOf = (label: string) =>
+        screen
+          .getByText(label, { selector: 'dt' })
+          .parentElement?.querySelector('dd')?.textContent
+      expect(valueOf('Used')).toBe('512 KB')
+      expect(valueOf('Quota')).toBe('1 MB')
+      expect(valueOf('Fitness files')).toBe('3')
 
       const bar = screen.getByRole('progressbar', {
         name: 'Storage quota used by fitness files'
       })
-      const caption = bar.nextElementSibling as HTMLElement
-      expect(caption).toHaveClass('font-mono', 'text-xs', 'justify-between')
-      expect(caption.children).toHaveLength(2)
-      expect(caption.children[0]).toHaveTextContent('512 KB / 1 MB')
-      expect(caption.children[1]).toHaveTextContent('50.0%')
-      expect(screen.queryByText('Used')).not.toBeInTheDocument()
+      expect(bar.nextElementSibling).toHaveTextContent(
+        '50.0% of your quota used'
+      )
     })
   })
 })

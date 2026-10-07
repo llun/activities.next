@@ -1,11 +1,12 @@
+import { Activity } from 'lucide-react'
 import { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
+import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
 import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
-import { Card } from '@/lib/components/ui/card'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -60,23 +61,24 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return (
       <div className="space-y-6">
         <PageHeader title="Overview" description={OVERVIEW_DESCRIPTION} />
-        <Card className="flex flex-col items-start gap-4 p-6">
-          <div className="space-y-1">
-            <h2 className="text-base font-semibold">No activity yet</h2>
-            <p className="text-sm text-muted-foreground">
-              Import a FIT, GPX, or TCX file — or connect Strava — to start
-              tracking your fitness here.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild>
-              <Link href="/fitness/files">Import activities</Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/fitness/strava">Connect Strava</Link>
-            </Button>
-          </div>
-        </Card>
+        <FitnessEmptyState
+          icon={Activity}
+          title="No activity yet"
+          titleAs="h2"
+          action={
+            <div className="flex flex-wrap gap-2">
+              <Button asChild>
+                <Link href="/fitness/files">Import activities</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/fitness/strava">Connect Strava</Link>
+              </Button>
+            </div>
+          }
+        >
+          Import a FIT, GPX, or TCX file — or connect Strava — to start tracking
+          your fitness here.
+        </FitnessEmptyState>
       </div>
     )
   }
