@@ -890,6 +890,17 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Review: Database & migrations](#review-database-migrations)
 - [Review: Stored media](#review-stored-media)
 
+### Media Details, EXIF and Gallery Settings
+
+An uploaded image carries optional owner-edited details on its `medias` row: `subjectName`, `subjectScientificName`, `subjectCategory`, `takenAt`, `cameraGearId`, `lensGearId`, `exposure` (JSON text: focal length, aperture, shutter, ISO), the place (`placeName`, `placeLatitude`, `placeLongitude`, `placePrecision`) and `inGallery`. Camera and lens live in `gallery_gears` (unique per actor on `deviceKey`); per-actor behaviour lives in `gallery_settings` (one row per actor, defaults returned when absent).
+
+- **EXIF is read once, at upload, from the original bytes, and the stored file is never rewritten.** `readMediaExif` (`lib/services/medias/exif/readMediaExif.ts`) uses `exifr`, never throws, applies `OffsetTimeOriginal`, and treats `0,0` and out-of-range GPS as missing. `buildUploadMediaDetails` (`lib/services/gallery/uploadMediaDetails.ts`) turns it into row details for both the synchronous path (`saveMediaFile`) and the presigned completion (`S3StorageFile`), honouring `galleryDefault` and `defaultPlacePrecision`. Videos skip EXIF.
+- **Gear is resolved by `resolveGalleryGear` (`lib/services/gallery/galleryGear.ts`)** from a normalised `camera:<make>|<model>` / `lens:<lensModel>` key; it is race-safe, reuses an existing row and never edits one. A client-supplied `camera_gear_id` / `lens_gear_id` must belong to the media's actor and be of the right kind, else 422.
+- **Public details never leak more than the owner chose.** `GET /api/v1/gallery/media/:mediaId/details` answers only for media attached to a status the viewer may read (404 otherwise). `placePrecision` `exact` returns coordinates, `area` snaps them to a 0.05° grid, `country`/unset returns the name only, `hidden` returns nothing; gear and exposure are returned only when `showGear` is on (`lib/services/gallery/publicMediaDetails.ts`).
+- **Owner routes**: `GET`/`PUT`/`PATCH /api/v1/media/:id` return and accept the details (snake_case); `POST /api/v1/media/:id/describe` returns generated alt text without saving it; `GET`/`POST /api/v1/gallery/gears` and `GET`/`PUT /api/v1/gallery/settings` are session-authenticated.
+- **Subject hashtags** (`appendSubjectHashtags`, called from `createNote`) append a de-duplicated PascalCase tag per attached subject before hashtags are extracted, when the `subjectHashtags` setting is on. `autoDescribe` gates automatic alt text on upload.
+- Covered by the tests beside each module, `lib/database/sql/gallery.test.ts`, `lib/database/sql/mediaDetails.test.ts` and `app/api/v1/gallery/**/route.test.ts`.
+
 <a id="agents-deleting-media-a-post-uses"></a>
 
 ### Deleting Media a Post Uses

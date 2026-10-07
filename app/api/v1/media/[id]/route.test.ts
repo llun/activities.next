@@ -638,4 +638,306 @@ describe('/api/v1/media/[id]', () => {
 
     expect(response.status).toBe(422)
   })
+
+  describe('media details', () => {
+    const put = async (id: string, body: Record<string, unknown>) =>
+      PUT(putRequest(id, body), { params: Promise.resolve({ id }) })
+
+    const detailsOf = async (id: string) => {
+      const response = await GET(getRequest(id), {
+        params: Promise.resolve({ id })
+      })
+      return (await response.json()).details
+    }
+
+    beforeEach(async () => {
+      await database.updateGallerySettings({
+        actorId: ACTOR1_ID,
+        galleryDefault: 'subject'
+      })
+    })
+
+    it('GET includes the empty details for a media that has none', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-empty')
+
+      expect(await detailsOf(id)).toEqual({
+        subject: null,
+        takenAt: null,
+        camera: null,
+        lens: null,
+        exposure: null,
+        place: null,
+        inGallery: false
+      })
+    })
+
+    it('PUT saves subject, place and gallery membership and returns them', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-save')
+
+      const response = await put(id, {
+        subject_name: 'Common Kingfisher',
+        subject_scientific_name: 'Alcedo atthis',
+        subject_category: 'bird',
+        place_name: 'Lea Valley',
+        place_latitude: 51.5543,
+        place_longitude: -0.0231,
+        place_precision: 'area',
+        in_gallery: true
+      })
+
+      expect(response.status).toBe(200)
+      const expected = {
+        subject: {
+          name: 'Common Kingfisher',
+          scientificName: 'Alcedo atthis',
+          category: 'bird'
+        },
+        place: {
+          name: 'Lea Valley',
+          latitude: 51.5543,
+          longitude: -0.0231,
+          precision: 'area'
+        },
+        inGallery: true
+      }
+      expect((await response.json()).details).toMatchObject(expected)
+      expect(await detailsOf(id)).toMatchObject(expected)
+    })
+
+    it('PATCH accepts the same fields', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-patch')
+
+      const response = await PATCH(
+        patchRequest(id, { subject_name: 'Otter' }),
+        {
+          params: Promise.resolve({ id })
+        }
+      )
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).details.subject.name).toBe('Otter')
+    })
+
+    it('leaves the description and every other detail alone on a partial update', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-partial')
+      await put(id, { subject_name: 'Grey Heron', place_name: 'Marsh' })
+
+      const response = await put(id, { place_name: 'Reedbed' })
+
+      const data = await response.json()
+      expect(data.description).toBe('before')
+      expect(data.details).toMatchObject({
+        subject: { name: 'Grey Heron' },
+        place: { name: 'Reedbed' }
+      })
+    })
+
+    it('does not touch details on a description-only update', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-description')
+      await put(id, { subject_name: 'Otter', place_name: 'River' })
+
+      const response = await put(id, { description: 'An otter' })
+
+      expect((await response.json()).details).toMatchObject({
+        subject: { name: 'Otter' },
+        place: { name: 'River' }
+      })
+    })
+
+    it.each([
+      ['null', null],
+      ['an empty string', ''],
+      ['whitespace', '   ']
+    ])('clears a text detail sent as %s', async (_, value) => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-clear')
+      await put(id, { subject_name: 'Otter', place_name: 'River' })
+
+      const response = await put(id, { subject_name: value })
+
+      expect((await response.json()).details).toMatchObject({
+        subject: null,
+        place: { name: 'River' }
+      })
+    })
+
+    it('clears the place coordinates with null', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-clear-place')
+      await put(id, {
+        place_latitude: 10,
+        place_longitude: 20,
+        place_precision: 'exact'
+      })
+
+      const response = await put(id, {
+        place_latitude: null,
+        place_longitude: null
+      })
+
+      expect((await response.json()).details.place).toEqual({
+        name: null,
+        latitude: null,
+        longitude: null,
+        precision: 'exact'
+      })
+    })
+
+    it('reads multipart form fields, including numbers and booleans', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-form')
+      const form = new FormData()
+      form.append('subject_name', 'Red Fox')
+      form.append('place_latitude', '51.5')
+      form.append('place_longitude', '-0.1')
+      form.append('place_precision', 'country')
+      form.append('in_gallery', 'true')
+
+      const response = await PUT(
+        new NextRequest(`https://llun.test/api/v1/media/${id}`, {
+          method: 'PUT',
+          headers: { origin: 'https://llun.test' },
+          body: form
+        }),
+        { params: Promise.resolve({ id }) }
+      )
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).details).toMatchObject({
+        subject: { name: 'Red Fox' },
+        place: { latitude: 51.5, longitude: -0.1, precision: 'country' },
+        inGallery: true
+      })
+    })
+
+    it('answers 404 for another account’s media', async () => {
+      const id = await createMediaFor(ACTOR2_ID, 'details-foreign')
+
+      const response = await put(id, { subject_name: 'Otter' })
+
+      expect(response.status).toBe(404)
+    })
+
+    it.each([
+      ['an unknown subject category', { subject_category: 'dragon' }],
+      ['a subject name over 255 characters', { subject_name: 'x'.repeat(256) }],
+      ['a place name over 255 characters', { place_name: 'x'.repeat(256) }],
+      ['a latitude above 90', { place_latitude: 91, place_longitude: 0 }],
+      ['a latitude below -90', { place_latitude: -91, place_longitude: 0 }],
+      ['a longitude above 180', { place_latitude: 0, place_longitude: 181 }],
+      ['a longitude below -180', { place_latitude: 0, place_longitude: -181 }],
+      [
+        'a latitude that is not a number',
+        { place_latitude: 'north', place_longitude: 0 }
+      ],
+      ['a latitude without a longitude', { place_latitude: 10 }],
+      ['a longitude without a latitude', { place_longitude: 10 }],
+      ['an unknown precision', { place_precision: 'street' }],
+      ['gear that does not exist', { camera_gear_id: 'no-such-gear' }]
+    ])('answers 422 for %s', async (_, body) => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-invalid')
+
+      const response = await put(id, body)
+
+      expect(response.status).toBe(422)
+      expect(await detailsOf(id)).toMatchObject({ subject: null, place: null })
+    })
+
+    describe('gear', () => {
+      const gear = (actorId: string, kind: 'camera' | 'lens', name: string) =>
+        database.createGalleryGear({ actorId, kind, name })
+
+      it('links the owner’s camera and lens and returns their names', async () => {
+        const camera = await gear(ACTOR1_ID, 'camera', 'Canon EOS R5')
+        const lens = await gear(ACTOR1_ID, 'lens', 'RF100-500mm')
+        const id = await createMediaFor(ACTOR1_ID, 'details-gear')
+
+        const response = await put(id, {
+          camera_gear_id: camera.id,
+          lens_gear_id: lens.id
+        })
+
+        expect(response.status).toBe(200)
+        expect((await response.json()).details).toMatchObject({
+          camera: { id: camera.id, name: 'Canon EOS R5' },
+          lens: { id: lens.id, name: 'RF100-500mm' }
+        })
+      })
+
+      it('clears gear with null', async () => {
+        const camera = await gear(ACTOR1_ID, 'camera', 'To clear')
+        const id = await createMediaFor(ACTOR1_ID, 'details-gear-clear')
+        await put(id, { camera_gear_id: camera.id })
+
+        const response = await put(id, { camera_gear_id: null })
+
+        expect((await response.json()).details.camera).toBeNull()
+      })
+
+      it.each([
+        ['another actor’s camera', 'camera_gear_id', ACTOR2_ID, 'camera'],
+        ['another actor’s lens', 'lens_gear_id', ACTOR2_ID, 'lens'],
+        ['a lens as the camera', 'camera_gear_id', ACTOR1_ID, 'lens'],
+        ['a camera as the lens', 'lens_gear_id', ACTOR1_ID, 'camera']
+      ] as const)('answers 422 for %s', async (_, field, ownerId, kind) => {
+        const other = await gear(ownerId, kind, 'Not usable')
+        const id = await createMediaFor(ACTOR1_ID, 'details-gear-invalid')
+
+        const response = await put(id, { [field]: other.id })
+
+        expect(response.status).toBe(422)
+        expect(await response.json()).toEqual({
+          error: `Unknown ${field === 'camera_gear_id' ? 'camera' : 'lens'} gear`
+        })
+      })
+    })
+
+    describe('gallery default when a subject is first set', () => {
+      it.each([
+        ['subject', undefined, true],
+        ['subject', false, false],
+        ['always', undefined, false],
+        ['never', undefined, false]
+      ] as const)(
+        'with default "%s" and in_gallery %s the media ends up in the gallery: %s',
+        async (galleryDefault, inGallery, expected) => {
+          await database.updateGallerySettings({
+            actorId: ACTOR1_ID,
+            galleryDefault
+          })
+          const id = await createMediaFor(ACTOR1_ID, 'details-default')
+
+          const response = await put(id, {
+            subject_name: 'Otter',
+            ...(inGallery === undefined ? {} : { in_gallery: inGallery })
+          })
+
+          expect((await response.json()).details.inGallery).toBe(expected)
+        }
+      )
+
+      it('does not put a media back in the gallery when only its subject is renamed', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'details-rename')
+        await put(id, { subject_name: 'Otter' })
+        await put(id, { in_gallery: false })
+
+        const response = await put(id, { subject_name: 'River Otter' })
+
+        expect((await response.json()).details.inGallery).toBeFalse()
+      })
+
+      it('does not change membership when the subject is not what changed', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'details-place-only')
+
+        const response = await put(id, { place_name: 'River' })
+
+        expect((await response.json()).details.inGallery).toBeFalse()
+      })
+
+      it('does not treat clearing a subject as setting one', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'details-clear-subject')
+
+        const response = await put(id, { subject_name: null })
+
+        expect((await response.json()).details.inGallery).toBeFalse()
+      })
+    })
+  })
 })

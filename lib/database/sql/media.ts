@@ -10,6 +10,15 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import {
+  EMPTY_MEDIA_DETAILS,
+  MEDIA_PLACE_PRECISIONS,
+  MEDIA_SUBJECT_CATEGORIES,
+  MediaDetailsRecord,
+  MediaExposure,
+  MediaPlacePrecision,
+  MediaSubjectCategory
+} from '@/lib/types/database/gallery'
+import {
   AttachmentWithMedia,
   CreateAttachmentParams,
   CreateMediaParams,
@@ -23,13 +32,16 @@ import {
   GetAttachmentsWithMediaParams,
   GetMediaByIdParams,
   GetMediaByIdsForAccountParams,
+  GetMediaWithAttachedStatusIdsParams,
   GetMediasForAccountParams,
   GetStorageUsageForAccountParams,
   MarkMediaUploadVerifiedParams,
   Media,
   MediaDatabase,
+  MediaWithAttachedStatusIds,
   PaginatedMediaWithStatus,
   UpdateAttachmentPlaybackParams,
+  UpdateMediaDetailsParams,
   UpdateMediaParams,
   UpdateMediaResult
 } from '@/lib/types/database/operations'
@@ -160,6 +172,18 @@ type MediaRow = {
   focusX?: number | string | null
   focusY?: number | string | null
   blurhash?: string | null
+  subjectName?: string | null
+  subjectScientificName?: string | null
+  subjectCategory?: string | null
+  takenAt?: number | string | Date | null
+  cameraGearId?: string | null
+  lensGearId?: string | null
+  exposure?: string | MediaExposure | null
+  placeName?: string | null
+  placeLatitude?: number | string | null
+  placeLongitude?: number | string | null
+  placePrecision?: string | null
+  inGallery?: boolean | number | null
 }
 
 type MediaMetaData = Media['original']['metaData']
@@ -168,6 +192,67 @@ const parseMediaMetaData = (
   input?: string | MediaMetaData | null
 ): MediaMetaData =>
   getCompatibleJSON<MediaMetaData>(input ?? ({} as MediaMetaData))
+
+const parseNullableNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const parseMediaExposure = (
+  input: string | MediaExposure | null | undefined
+): MediaExposure | null => {
+  if (!input) return null
+  let value: unknown = input
+  if (typeof input === 'string') {
+    try {
+      value = JSON.parse(input)
+    } catch {
+      // A corrupt blob is treated as "no exposure": the column is display-only.
+      return null
+    }
+  }
+  if (!value || typeof value !== 'object') return null
+
+  const { focalLengthMm, aperture, exposureTime, iso } = value as Record<
+    string,
+    unknown
+  >
+  const exposure: MediaExposure = {
+    ...(typeof focalLengthMm === 'number' ? { focalLengthMm } : {}),
+    ...(typeof aperture === 'number' ? { aperture } : {}),
+    ...(typeof exposureTime === 'string' && exposureTime
+      ? { exposureTime }
+      : {}),
+    ...(typeof iso === 'number' ? { iso } : {})
+  }
+  return Object.keys(exposure).length > 0 ? exposure : null
+}
+
+const parseMediaDetails = (data: MediaRow): MediaDetailsRecord => ({
+  ...EMPTY_MEDIA_DETAILS,
+  subjectName: data.subjectName ?? null,
+  subjectScientificName: data.subjectScientificName ?? null,
+  subjectCategory: (MEDIA_SUBJECT_CATEGORIES as readonly string[]).includes(
+    data.subjectCategory ?? ''
+  )
+    ? (data.subjectCategory as MediaSubjectCategory)
+    : null,
+  takenAt: data.takenAt ? getCompatibleTime(data.takenAt) : null,
+  cameraGearId: data.cameraGearId ?? null,
+  lensGearId: data.lensGearId ?? null,
+  exposure: parseMediaExposure(data.exposure),
+  placeName: data.placeName ?? null,
+  placeLatitude: parseNullableNumber(data.placeLatitude),
+  placeLongitude: parseNullableNumber(data.placeLongitude),
+  placePrecision: (MEDIA_PLACE_PRECISIONS as readonly string[]).includes(
+    data.placePrecision ?? ''
+  )
+    ? (data.placePrecision as MediaPlacePrecision)
+    : null,
+  // SQLite hands the boolean back as 0/1.
+  inGallery: Boolean(data.inGallery)
+})
 
 const parseMediaRow = (data: MediaRow): Media => ({
   id: String(data.id),
@@ -196,8 +281,54 @@ const parseMediaRow = (data: MediaRow): Media => ({
   data.focusY !== undefined
     ? { focus: { x: Number(data.focusX), y: Number(data.focusY) } }
     : {}),
-  ...(data.blurhash ? { blurhash: data.blurhash } : {})
+  ...(data.blurhash ? { blurhash: data.blurhash } : {}),
+  details: parseMediaDetails(data)
 })
+
+// Maps the details an update or create may write to `medias` columns. Presence
+// semantics: only keys present in `details` produce a column, so a partial
+// update never blanks a column the caller did not mention.
+const getDetailsColumns = (
+  details: UpdateMediaDetailsParams | undefined
+): Record<string, unknown> => {
+  if (!details) return {}
+  const columns: Record<string, unknown> = {}
+  if ('subjectName' in details)
+    columns.subjectName = details.subjectName ?? null
+  if ('subjectScientificName' in details) {
+    columns.subjectScientificName = details.subjectScientificName ?? null
+  }
+  if ('subjectCategory' in details) {
+    columns.subjectCategory = details.subjectCategory ?? null
+  }
+  if ('takenAt' in details) {
+    columns.takenAt =
+      details.takenAt === null || details.takenAt === undefined
+        ? null
+        : new Date(details.takenAt)
+  }
+  if ('cameraGearId' in details) {
+    columns.cameraGearId = details.cameraGearId ?? null
+  }
+  if ('lensGearId' in details) columns.lensGearId = details.lensGearId ?? null
+  if ('exposure' in details) {
+    columns.exposure = details.exposure
+      ? JSON.stringify(details.exposure)
+      : null
+  }
+  if ('placeName' in details) columns.placeName = details.placeName ?? null
+  if ('placeLatitude' in details) {
+    columns.placeLatitude = details.placeLatitude ?? null
+  }
+  if ('placeLongitude' in details) {
+    columns.placeLongitude = details.placeLongitude ?? null
+  }
+  if ('placePrecision' in details) {
+    columns.placePrecision = details.placePrecision ?? null
+  }
+  if (details.inGallery !== undefined) columns.inGallery = details.inGallery
+  return columns
+}
 
 // `medias` columns needed to rebuild a full Media row (used by every read).
 const MEDIA_COLUMNS = [
@@ -215,7 +346,19 @@ const MEDIA_COLUMNS = [
   'description',
   'focusX',
   'focusY',
-  'blurhash'
+  'blurhash',
+  'subjectName',
+  'subjectScientificName',
+  'subjectCategory',
+  'takenAt',
+  'cameraGearId',
+  'lensGearId',
+  'exposure',
+  'placeName',
+  'placeLatitude',
+  'placeLongitude',
+  'placePrecision',
+  'inGallery'
 ] as const
 
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
@@ -225,7 +368,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     thumbnail,
     description,
     focus,
-    blurhash
+    blurhash,
+    details
   }: CreateMediaParams) {
     if (!actorId) return null
 
@@ -252,7 +396,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           : null),
         ...(description ? { description } : null),
         ...(focus ? { focusX: focus.x, focusY: focus.y } : null),
-        ...(blurhash ? { blurhash } : null)
+        ...(blurhash ? { blurhash } : null),
+        ...getDetailsColumns(details)
       }
 
       const ids = await trx('medias').insert(content, ['id'])
@@ -290,7 +435,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         ...(thumbnail ? { thumbnail } : null),
         ...(description ? { description } : null),
         ...(focus ? { focus } : null),
-        ...(blurhash ? { blurhash } : null)
+        ...(blurhash ? { blurhash } : null),
+        details: { ...EMPTY_MEDIA_DETAILS, ...details }
       } as Media
     })
   },
@@ -307,23 +453,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .join('actors', 'medias.actorId', 'actors.id')
       .where('medias.id', id)
       .where('actors.accountId', accountId)
-      .select(
-        'medias.id',
-        'medias.actorId',
-        'medias.original',
-        'medias.originalBytes',
-        'medias.originalMimeType',
-        'medias.originalMetaData',
-        'medias.originalFileName',
-        'medias.thumbnail',
-        'medias.thumbnailBytes',
-        'medias.thumbnailMimeType',
-        'medias.thumbnailMetaData',
-        'medias.description',
-        'medias.focusX',
-        'medias.focusY',
-        'medias.blurhash'
-      )
+      .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
       .first<MediaRow>()
 
     if (!data) return null
@@ -734,7 +864,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     description,
     focus,
     blurhash,
-    thumbnail
+    thumbnail,
+    details
   }: UpdateMediaParams): Promise<UpdateMediaResult | null> {
     const id = toMediaRowId(mediaId)
     if (id === null) return null
@@ -768,7 +899,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         thumbnailBytes?: number
         thumbnailMimeType?: string
         thumbnailMetaData?: string
-      } = { updatedAt: new Date() }
+      } & Record<string, unknown> = { updatedAt: new Date() }
 
       if (description !== undefined) {
         updates.description = description
@@ -780,6 +911,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       if (blurhash !== undefined) {
         updates.blurhash = blurhash
       }
+
+      Object.assign(updates, getDetailsColumns(details))
 
       let thumbnailUsageDelta = 0
       let replacedThumbnailPath: string | null = null
@@ -824,6 +957,35 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
 
       return { media: parseMediaRow(data), replacedThumbnailPath }
     })
+  },
+
+  async getMediaWithAttachedStatusIds({
+    mediaId
+  }: GetMediaWithAttachedStatusIdsParams): Promise<MediaWithAttachedStatusIds | null> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return null
+
+    const data = await database('medias')
+      .where('medias.id', id)
+      .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
+      .first<MediaRow>()
+    if (!data) return null
+
+    // `attachments.mediaId` is `varchar` on SQLite and `integer` on PostgreSQL;
+    // joining on `medias.id` lets each backend compare it its own way, as
+    // `getMediasWithStatusForAccount` does.
+    const rows = await database('attachments')
+      .join('medias', 'medias.id', 'attachments.mediaId')
+      .where('medias.id', id)
+      .whereNotNull('attachments.statusId')
+      .where('attachments.statusId', '<>', '')
+      .distinct('attachments.statusId')
+      .select<{ statusId: string }[]>('attachments.statusId')
+
+    return {
+      media: parseMediaRow(data),
+      statusIds: rows.map((row) => row.statusId)
+    }
   },
 
   async getStorageUsageForAccount({

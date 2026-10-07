@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { JobMessage } from '@/lib/services/queue/type'
 import { Timeline } from '@/lib/services/timelines/types'
+import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 import {
   ActorSettings,
   PostLineLimit,
@@ -3337,6 +3338,9 @@ interface BaseMedia {
   // MediaAttachment `meta.focus`.
   focus?: { x: number; y: number }
   blurhash?: string | null
+  // Subject, EXIF-derived and owner-edited details (see MediaDetailsRecord).
+  // Omitted fields take the column default.
+  details?: Partial<MediaDetailsRecord>
 }
 
 // A processed thumbnail ready to persist on an existing media row. Mirrors the
@@ -3348,8 +3352,11 @@ export type MediaThumbnailInput = {
   metaData: { width: number; height: number }
 }
 
-export interface Media extends BaseMedia {
+export interface Media extends Omit<BaseMedia, 'details'> {
   id: string
+  // Always present on a row read from the database; may be absent on a Media
+  // built by hand (tests, in-memory fixtures).
+  details?: MediaDetailsRecord
 }
 
 export interface MediaWithStatus extends Media {
@@ -3462,7 +3469,14 @@ export type UpdateMediaParams = {
   focus?: { x: number; y: number }
   blurhash?: string | null
   thumbnail?: MediaThumbnailInput
+  // Presence semantics, like the fields above: an omitted key is left alone and
+  // an explicit null clears the column. `details` is narrowed to what an update
+  // may write — `inGallery` is a boolean, never null.
+  details?: UpdateMediaDetailsParams
 }
+export type UpdateMediaDetailsParams = Partial<
+  Omit<MediaDetailsRecord, 'inGallery'>
+> & { inGallery?: boolean }
 export type UpdateMediaResult = {
   media: Media
   // Path of the thumbnail this update replaced, captured inside the update
@@ -3479,8 +3493,22 @@ export type MarkMediaUploadVerifiedParams = {
   dimensions?: { width: number; height: number }
 }
 
+export type GetMediaWithAttachedStatusIdsParams = {
+  mediaId: string
+}
+// A media row together with the statuses it is attached to, for the public
+// details endpoint — which has no account to scope by and therefore must be
+// paired with a status visibility check.
+export type MediaWithAttachedStatusIds = {
+  media: Media
+  statusIds: string[]
+}
+
 export interface MediaDatabase {
   createMedia(params: CreateMediaParams): Promise<Media | null>
+  getMediaWithAttachedStatusIds(
+    params: GetMediaWithAttachedStatusIdsParams
+  ): Promise<MediaWithAttachedStatusIds | null>
   markMediaUploadVerified(
     params: MarkMediaUploadVerifiedParams
   ): Promise<Media | null>

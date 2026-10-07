@@ -699,6 +699,58 @@ How are you?
       })
     })
 
+    describe('subject hashtags', () => {
+      const createSubjectMedia = async () => {
+        const media = await database.createMedia({
+          actorId: actor1.id,
+          original: {
+            path: `/test/subject-${Math.random()}.jpg`,
+            bytes: 100,
+            mimeType: 'image/jpeg',
+            metaData: { width: 10, height: 10 }
+          },
+          details: { subjectName: 'Common Kingfisher' }
+        })
+        return media!.id
+      }
+
+      const postWith = async (mediaId: string) =>
+        (await createNoteFromUserInput({
+          text: 'Morning walk',
+          currentActor: actor1,
+          attachments: [
+            {
+              type: 'upload',
+              id: mediaId,
+              mediaType: 'image/jpeg',
+              url: 'https://example.com/media/bird.jpg',
+              width: 10,
+              height: 10,
+              name: 'bird.jpg'
+            }
+          ],
+          database
+        })) as StatusNote
+
+      it('appends the subject as a hashtag when the setting is on', async () => {
+        await database.updateGallerySettings({
+          actorId: actor1.id,
+          subjectHashtags: true
+        })
+        const status = await postWith(await createSubjectMedia())
+        expect(status.text).toContain('#CommonKingfisher')
+      })
+
+      it('leaves the text alone when the setting is off', async () => {
+        await database.updateGallerySettings({
+          actorId: actor1.id,
+          subjectHashtags: false
+        })
+        const status = await postWith(await createSubjectMedia())
+        expect(status.text).not.toContain('#CommonKingfisher')
+      })
+    })
+
     it('does not serialize fitness file attachments in note payload', async () => {
       const status = (await createNoteFromUserInput({
         text: 'Post with mixed attachments',

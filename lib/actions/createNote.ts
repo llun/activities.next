@@ -6,6 +6,7 @@ import {
 } from '@/lib/jobs/names'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
+import { appendSubjectHashtags } from '@/lib/services/gallery/subjectHashtags'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import {
@@ -358,6 +359,18 @@ export const createNoteFromUserInput = async ({
   database
 }: CreateNoteFromUserInputParams) =>
   withSpan('actions', 'createNoteFromUser', { text, replyNoteId }, async () => {
+    // Subject hashtags are part of the post: appended here, before the text is
+    // stored and before its hashtags are extracted below, so they are rendered,
+    // federated and counted like tags the author typed.
+    text = await appendSubjectHashtags({
+      database,
+      accountId: currentActor.account?.id,
+      text,
+      mediaIds: attachments
+        .map((attachment) => attachment.id)
+        .filter((id): id is string => Boolean(id))
+    })
+
     const fitnessFile = fitnessFileId
       ? await database.getFitnessFile({ id: fitnessFileId })
       : null

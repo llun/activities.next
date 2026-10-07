@@ -19,6 +19,10 @@ import { getConfig } from '@/lib/config'
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { generateAltText } from '@/lib/services/altText/openai'
+import {
+  buildUploadMediaDetails,
+  getGallerySettingsOrDefaults
+} from '@/lib/services/gallery/uploadMediaDetails'
 import { PRESIGNED_ANALYSIS_MAX_BYTES } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
@@ -28,7 +32,6 @@ import {
   getStoredMediaExtension,
   sanitizeStoredFileName
 } from '@/lib/services/medias/fileName'
-import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
 import {
   ImageAnalysisResult,
   analyzeImageBuffer
@@ -39,6 +42,7 @@ import {
   encodeImageOutput,
   getImageOutputFormatDetail
 } from '@/lib/services/medias/imageOutputFormat'
+import { getOwnerMediaAttachment } from '@/lib/services/medias/mediaDetails'
 import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import {
   PresignedUploadValidationError,
@@ -373,7 +377,7 @@ export class S3FileStorage implements MediaStorage {
 
     const upload = media.original.metaData.upload
     if (upload?.state === 'verified') {
-      return this._getSaveFileOutput(media)
+      return await this._getSaveFileOutput(media)
     }
     if (!upload || upload.state !== 'pending') {
       throw new Error('Media upload is not pending verification')
@@ -470,7 +474,7 @@ export class S3FileStorage implements MediaStorage {
           tempFilePath,
           expectedSize
         )
-        return output ?? this._getSaveFileOutput(verifiedMedia)
+        return output ?? (await this._getSaveFileOutput(verifiedMedia))
       } finally {
         await fs.unlink(tempFilePath).catch(() => undefined)
       }
@@ -554,10 +558,22 @@ export class S3FileStorage implements MediaStorage {
       const analysis = await analyzeImageBuffer(previewBuffer, {
         manualFocus: media.focus
       })
+      // Read from the uploaded original, before anything re-encodes it. A video
+      // has no readable EXIF here but still gets `inGallery` from the owner's
+      // gallery default.
+      const details = await buildUploadMediaDetails({
+        database: this._database,
+        actorId: media.actorId,
+        original: isVideo ? null : buffer
+      })
       let generatedDescription: string | null = null
       if (media.description == null) {
         const { altText } = getConfig()
-        if (altText) {
+        const { autoDescribe } = await getGallerySettingsOrDefaults(
+          this._database,
+          media.actorId
+        )
+        if (altText && autoDescribe) {
           // generateAltText never throws — its entire body is wrapped in
           // try/catch and it returns null on any failure, logging its own
           // warn. A try/catch here would be dead code that only double-logs
@@ -592,7 +608,8 @@ export class S3FileStorage implements MediaStorage {
         !analysis.blurhash &&
         !analysis.focus &&
         !generatedDescription &&
-        !storedThumbnail
+        !storedThumbnail &&
+        Object.keys(details).length === 0
       ) {
         return null
       }
@@ -604,6 +621,7 @@ export class S3FileStorage implements MediaStorage {
           blurhash: analysis.blurhash,
           focus: analysis.focus ?? undefined,
           description: generatedDescription ?? undefined,
+          details,
           ...(storedThumbnail
             ? {
                 thumbnail: {
@@ -624,7 +642,7 @@ export class S3FileStorage implements MediaStorage {
               () => false
             )
           }
-          return this._getSaveFileOutput(updated.media)
+          return await this._getSaveFileOutput(updated.media)
         }
         if (storedThumbnail) {
           await this.deleteFile(storedThumbnail.path).catch(() => false)
@@ -875,7 +893,9 @@ export class S3FileStorage implements MediaStorage {
     }
   }
 
-  private _getSaveFileOutput(media: Media): MediaStorageSaveFileOutput {
-    return getMediaAttachment(media, this._host)
+  private _getSaveFileOutput(
+    media: Media
+  ): Promise<MediaStorageSaveFileOutput> {
+    return getOwnerMediaAttachment(this._database, media, this._host)
   }
 }

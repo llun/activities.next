@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { generateAltText } from '@/lib/services/altText/openai'
+import { getGallerySettingsOrDefaults } from '@/lib/services/gallery/uploadMediaDetails'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { getStoredMediaExtension } from '@/lib/services/medias/fileName'
@@ -86,7 +87,13 @@ export const handleSyncMediaUpload = async (
       currentActor.account?.id
     ) {
       const { altText } = getConfig()
-      if (altText) {
+      // The owner can turn auto-describe off in their gallery settings; the
+      // instance having an alt text service configured is not enough.
+      const { autoDescribe } = await getGallerySettingsOrDefaults(
+        database,
+        currentActor.id
+      )
+      if (altText && autoDescribe) {
         // generateAltText itself never throws, but this try/catch also
         // guards the buffer read, the frame extraction and the
         // database.updateMedia() write below, all of which can — so it

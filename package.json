@@ -58,6 +58,7 @@
     "csv-parse": "^7.0.3",
     "date-fns": "^4.4.0",
     "eld": "^2.1.0",
+    "exifr": "^7.1.3",
     "fast-xml-parser": "^5.11.2",
     "fit-file-parser": "^6.1.2",
     "got": "^16.0.0",

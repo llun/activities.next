@@ -496,7 +496,8 @@ the matcher with Next's own config parser and runtime matcher. Do not fold the
          │ follows  │ │ likes  │ │attachments │ │ tags  │ │timelines │
          └──────────┘ └────────┘ └────────────┘ └───────┘ └──────────┘
 
-Other tables: sessions, notifications, medias, fitness_files,
+Other tables: sessions, notifications, medias, gallery_gears,
+              gallery_settings, fitness_files,
               fitness_settings, strava_archive_imports,
               wahoo_imports, wahoo_history_imports,
               fitness_route_heatmaps, fitness_route_heatmap_region_names,

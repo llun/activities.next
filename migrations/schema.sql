@@ -630,6 +630,36 @@ CREATE TABLE public.follows (
     languages text
 );
 
+CREATE TABLE public.gallery_gears (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    kind character varying(255) NOT NULL,
+    name character varying(255) NOT NULL,
+    brand character varying(255),
+    model character varying(255),
+    "productUrl" character varying(255),
+    "deviceKey" character varying(255),
+    "retiredAt" timestamp with time zone,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
+    "deletedAt" timestamp with time zone
+);
+
+CREATE TABLE public.gallery_settings (
+    "actorId" character varying(255) NOT NULL,
+    "autoDescribe" boolean DEFAULT true NOT NULL,
+    "allowEmptyDescription" boolean DEFAULT true NOT NULL,
+    "subjectHashtags" boolean DEFAULT true NOT NULL,
+    "galleryDefault" character varying(255) DEFAULT 'subject'::character varying NOT NULL,
+    "defaultPlacePrecision" character varying(255) DEFAULT 'area'::character varying NOT NULL,
+    "showGear" boolean DEFAULT true NOT NULL,
+    "mapPublic" boolean DEFAULT true NOT NULL,
+    "lifeListPublic" boolean DEFAULT false NOT NULL,
+    "hiddenLocations" text DEFAULT '[]'::text NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.idempotency_keys (
     "actorId" character varying(255) NOT NULL,
     key character varying(255) NOT NULL,
@@ -767,7 +797,19 @@ CREATE TABLE public.medias (
     "originalFileName" character varying(255),
     "focusX" double precision,
     "focusY" double precision,
-    blurhash character varying(255)
+    blurhash character varying(255),
+    "subjectName" character varying(255),
+    "subjectScientificName" character varying(255),
+    "subjectCategory" character varying(32),
+    "takenAt" timestamp with time zone,
+    "cameraGearId" character varying(255),
+    "lensGearId" character varying(255),
+    exposure text,
+    "placeName" character varying(255),
+    "placeLatitude" double precision,
+    "placeLongitude" double precision,
+    "placePrecision" character varying(16),
+    "inGallery" boolean DEFAULT false NOT NULL
 );
 
 CREATE SEQUENCE public.medias_id_seq
@@ -1598,6 +1640,15 @@ ALTER TABLE ONLY public.followed_tags
 ALTER TABLE ONLY public.follows
     ADD CONSTRAINT follows_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.gallery_gears
+    ADD CONSTRAINT gallery_gears_actor_device_key_unique UNIQUE ("actorId", "deviceKey");
+
+ALTER TABLE ONLY public.gallery_gears
+    ADD CONSTRAINT gallery_gears_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.gallery_settings
+    ADD CONSTRAINT gallery_settings_pkey PRIMARY KEY ("actorId");
+
 ALTER TABLE ONLY public.idempotency_keys
     ADD CONSTRAINT idempotency_keys_pkey PRIMARY KEY ("actorId", key);
 
@@ -1936,6 +1987,8 @@ CREATE INDEX followed_tags_name ON public.followed_tags USING btree ("nameNormal
 
 CREATE INDEX "followsIndex" ON public.follows USING btree ("actorId", "actorHost", "targetActorId", "targetActorHost", status, "createdAt", "updatedAt");
 
+CREATE INDEX gallery_gears_actor_id_idx ON public.gallery_gears USING btree ("actorId");
+
 CREATE INDEX idempotency_keys_created ON public.idempotency_keys USING btree ("createdAt");
 
 CREATE INDEX idempotency_keys_status ON public.idempotency_keys USING btree ("statusId");
@@ -2137,6 +2190,12 @@ ALTER TABLE ONLY public.fitness_route_heatmaps
 
 ALTER TABLE ONLY public.fitness_settings
     ADD CONSTRAINT fitness_settings_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id);
+
+ALTER TABLE ONLY public.gallery_gears
+    ADD CONSTRAINT gallery_gears_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.gallery_settings
+    ADD CONSTRAINT gallery_settings_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public."oauthAccessToken"
     ADD CONSTRAINT oauthaccesstoken_clientid_foreign FOREIGN KEY ("clientId") REFERENCES public."oauthClient"("clientId");
