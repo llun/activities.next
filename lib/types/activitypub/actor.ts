@@ -9,6 +9,24 @@ const ActorUrl = z.union([z.string(), z.looseObject({})])
 const ActorTag = z.union([Emoji, HashTag, z.looseObject({})])
 const ActorAttachment = z.union([PropertyValue, z.looseObject({})])
 
+const ActorPublicKey = z.object({
+  id: z.string(),
+  owner: z.string(),
+  publicKeyPem: z.string()
+})
+
+// Picks the key an array-valued `publicKey` is read as: among the entries that
+// are an RSA-style key object (a Multikey or other shape is ignored), the
+// `#main-key` one Mastodon publishes, else the first. Returns `undefined` for
+// an empty or all-invalid array, which the piped schema then rejects.
+export const selectDefaultActorPublicKey = (entries: unknown[]) => {
+  const keys = entries.flatMap((entry) => {
+    const parsed = ActorPublicKey.safeParse(entry)
+    return parsed.success ? [parsed.data] : []
+  })
+  return keys.find((key) => key.id.endsWith('#main-key')) ?? keys[0]
+}
+
 // APActor - ActivityPub Actor (Person, Service, etc.)
 // Prefixed with "AP" to distinguish from domain Actor type
 export const APActor = z.object({
@@ -53,11 +71,15 @@ export const APActor = z.object({
     .transform((value) => (Array.isArray(value) ? value : [value]))
     .optional(),
   movedTo: z.string().optional(),
-  publicKey: z.object({
-    id: z.string(),
-    owner: z.string(),
-    publicKeyPem: z.string()
-  }),
+  // A peer may publish several keys (FEP-521a style arrays, or a key per
+  // algorithm); the output stays the single key the rest of the codebase
+  // verifies against.
+  publicKey: z
+    .union([ActorPublicKey, z.array(z.unknown())])
+    .transform((value) =>
+      Array.isArray(value) ? selectDefaultActorPublicKey(value) : value
+    )
+    .pipe(ActorPublicKey),
   endpoints: z
     .object({
       sharedInbox: z.string().url().optional()

@@ -13,7 +13,9 @@ import {
 } from '@/lib/utils/activitypub'
 import { logger } from '@/lib/utils/logger'
 import { request } from '@/lib/utils/request'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
+import { isRecord } from '@/lib/utils/typeGuards'
 
 const PublicKeyDocument = z
   .object({
@@ -90,17 +92,39 @@ const parseJsonBody = ({ body, keyId }: { body: string; keyId: string }) => {
   }
 }
 
+// An actor publishing several keys is read as the key the signature names, so
+// a request signed with a non-default key still resolves. With no matching
+// entry the array is left for the schema's default pick. Ownership is checked
+// afterwards exactly as for a single key.
+const narrowPublicKeyToKeyId = (json: unknown, selectKeyId: string) => {
+  if (!isRecord(json) || !Array.isArray(json.publicKey)) return json
+  const normalizedSelectKeyId = normalizeActivityPubUri(selectKeyId)
+  if (!normalizedSelectKeyId) return json
+
+  const matching = json.publicKey.find(
+    (entry) =>
+      isRecord(entry) &&
+      typeof entry.id === 'string' &&
+      normalizeActivityPubUri(entry.id) === normalizedSelectKeyId
+  )
+  return matching ? { ...json, publicKey: matching } : json
+}
+
 const parseSenderPublicKey = ({
   body,
-  keyId
+  keyId,
+  selectKeyId
 }: {
   body: string
   keyId: string
+  selectKeyId?: string
 }): ParsedSenderPublicKey | null => {
   const json = parseJsonBody({ body, keyId })
   if (!json) return null
 
-  const actor = Actor.safeParse(json)
+  const actor = Actor.safeParse(
+    narrowPublicKeyToKeyId(json, selectKeyId ?? keyId)
+  )
   const normalizedKeyId = normalizeActivityPubUri(keyId)
   const normalizedKeyOwner = normalizeActorId(keyId)
   if (!normalizedKeyId || !normalizedKeyOwner) return null
@@ -170,7 +194,8 @@ const SENDER_KEY_FETCH_TIMEOUT_MS = 3000
 
 const fetchSenderPublicKey = async (
   actorId: string,
-  signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>
+  signingActor: Awaited<ReturnType<typeof getFederationSigningActor>>,
+  selectKeyId?: string
 ) => {
   const response = await request({
     url: actorId,
@@ -198,7 +223,8 @@ const fetchSenderPublicKey = async (
   return {
     document: parseSenderPublicKey({
       body: response.body,
-      keyId: actorId
+      keyId: actorId,
+      selectKeyId
     }),
     statusCode: response.statusCode
   }
@@ -225,7 +251,8 @@ const validateOwnerActorKey = async (
 
   const ownerResponse = await fetchSenderPublicKey(
     normalizedOwner,
-    signingActor
+    signingActor,
+    keyId
   )
   if (ownerResponse.statusCode !== 200) return null
   if (ownerResponse.document?.type !== 'actor') return null
@@ -341,6 +368,83 @@ const fetchSenderPublicKeyDetails = async (
       : null,
     statusCode: response.statusCode
   }
+}
+
+// A peer that rotates its key leaves the stored one stale until the periodic
+// actor refresh (days). A request signed with the new key is retried once
+// against a fresh fetch — but the fetch runs inside an UNAUTHENTICATED inbox
+// request, so refreshes are throttled per owner, and the throttle is recorded
+// before the fetch so a failing or slow peer cannot be made to cost a fetch per
+// request either. In-memory and per process: a few extra fetches across
+// instances are acceptable, a shared counter is not worth a table.
+export const SENDER_KEY_REFRESH_MIN_INTERVAL_MS = 5 * 60_000
+const KEY_REFRESH_ATTEMPTS_MAX = 1000
+const keyRefreshAttempts = new Map<string, number>()
+
+export const resetSenderKeyRefreshAttempts = () => keyRefreshAttempts.clear()
+
+const reserveKeyRefreshAttempt = (owner: string, now: number) => {
+  const lastAttempt = keyRefreshAttempts.get(owner)
+  if (
+    lastAttempt !== undefined &&
+    now - lastAttempt < SENDER_KEY_REFRESH_MIN_INTERVAL_MS
+  ) {
+    return false
+  }
+  if (keyRefreshAttempts.size >= KEY_REFRESH_ATTEMPTS_MAX) {
+    keyRefreshAttempts.clear()
+  }
+  keyRefreshAttempts.set(owner, now)
+  return true
+}
+
+// Re-fetches the key a failed signature named and returns it only when it can
+// replace the stored one: same owner as the stale key, and different bytes.
+// Never persists — the caller stores it once the request verifies with it.
+export const refreshSenderPublicKeyDetails = async (
+  database: Database,
+  keyId: string,
+  stale: SenderPublicKeyDetails
+): Promise<SenderPublicKeyDetails | null> => {
+  const owner = normalizeActorId(stale.owner)
+  if (!owner || !stale.publicKey) return null
+
+  try {
+    const stored = await database.getActorFromId({ id: owner })
+    // Local actors are the source of truth for their own keys, and a row
+    // written moments ago was just refreshed by another path.
+    if (!stored || stored.privateKey) return null
+    const now = Date.now()
+    if (now - stored.updatedAt < SENDER_KEY_REFRESH_MIN_INTERVAL_MS) return null
+    if (!reserveKeyRefreshAttempt(owner, now)) return null
+
+    const { details } = await fetchSenderPublicKeyDetails(
+      keyId,
+      await getFederationSigningActor(database),
+      database
+    )
+    if (!details) return null
+    if (normalizeActorId(details.owner) !== owner) return null
+    if (details.publicKey === stale.publicKey) return null
+    return details
+  } catch (error) {
+    logger.warn({
+      err: toLoggableError(error),
+      keyId,
+      message: 'Unable to refresh sender public key'
+    })
+    return null
+  }
+}
+
+// Called only after a request verified with the refreshed key.
+export const persistRefreshedSenderPublicKey = async (
+  database: Database,
+  details: SenderPublicKeyDetails
+) => {
+  const actorId = normalizeActorId(details.owner)
+  if (!actorId) return
+  await database.updateActor({ actorId, publicKey: details.publicKey })
 }
 
 const resolveSenderPublicKeyDetails = async (

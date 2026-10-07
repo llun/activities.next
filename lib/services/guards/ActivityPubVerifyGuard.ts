@@ -16,7 +16,11 @@ import {
 import { parse, verify } from '@/lib/utils/signature'
 import { isRecord } from '@/lib/utils/typeGuards'
 
-import { getSenderPublicKeyDetails } from './getSenderPublicKey'
+import {
+  getSenderPublicKeyDetails,
+  persistRefreshedSenderPublicKey,
+  refreshSenderPublicKeyDetails
+} from './getSenderPublicKey'
 import { headerHost } from './headerHost'
 import {
   annotateInboxForwarded,
@@ -466,17 +470,36 @@ export const ActivityPubVerifySenderGuard =
     const host = headerHost(request.headers)
     const requestUrl = new URL(request.url, `http://${host}`)
     const requestTarget = `${request.method.toLowerCase()} ${requestUrl.pathname}${requestUrl.search}`
-    const senderPublicKey = await getSenderPublicKeyDetails(
+    const storedSenderPublicKey = await getSenderPublicKeyDetails(
       database,
       signatureParts.keyId
     )
-    const isSignatureVerified = await verify(
+    let senderPublicKey = storedSenderPublicKey
+    let isSignatureVerified = await verify(
       requestTarget,
       request.headers,
       senderPublicKey.publicKey
     )
+    if (!isSignatureVerified && storedSenderPublicKey.publicKey) {
+      // The sender may have rotated its key. One throttled re-fetch; the
+      // stored key is only replaced once this very request verifies with the
+      // fresh one, so a forged request cannot plant a key.
+      const refreshed = await refreshSenderPublicKeyDetails(
+        database,
+        signatureParts.keyId,
+        storedSenderPublicKey
+      )
+      if (
+        refreshed &&
+        (await verify(requestTarget, request.headers, refreshed.publicKey))
+      ) {
+        isSignatureVerified = true
+        senderPublicKey = refreshed
+        await persistRefreshedSenderPublicKey(database, refreshed)
+      }
+    }
     if (!isSignatureVerified) {
-      const reason = senderPublicKey.publicKey
+      const reason = storedSenderPublicKey.publicKey
         ? 'signature_invalid'
         : 'key_unavailable'
       return rejectRequest(request, 401, allowedMethods, reason, {
