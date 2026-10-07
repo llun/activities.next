@@ -504,6 +504,8 @@ export const PostBox: FC<Props> = ({
   }
 
   const openDetails = async (id: string) => {
+    // The post is about to use this media; nothing may change it mid-submit.
+    if (isPosting || submitInFlightRef.current) return
     const missing = postExtensionRef.current.attachments.filter(
       (item) => !item.file && !item.isLoading && !detailsById[item.id]
     )
@@ -538,7 +540,10 @@ export const PostBox: FC<Props> = ({
     })
     // In edit mode a description-only change makes the draft dirty (the
     // description is sent as media_attributes on Update).
-    if (editStatus) setAllowPost(isEditSubmittable())
+    // Not mid-submit: that would re-enable Update while the request is in flight.
+    if (editStatus && !submitInFlightRef.current) {
+      setAllowPost(isEditSubmittable())
+    }
   }
 
   const resetMediaState = () => {
@@ -766,6 +771,8 @@ export const PostBox: FC<Props> = ({
   }
 
   const onRemoveAttachment = (attachmentIndex: number) => {
+    // Removing deletes the uploaded media, which the in-flight post is using.
+    if (isPosting || submitInFlightRef.current) return
     const attachment = postExtension.attachments[attachmentIndex]
     revokeAttachmentUrls(attachment)
     discardUploadedMedia([attachment])
@@ -1429,6 +1436,7 @@ export const PostBox: FC<Props> = ({
           decorativeIds={decorativeIds}
           uploadErrors={uploadErrors}
           detailsPending={detailsPending}
+          disabled={isPosting}
           onOpen={(id) => void openDetails(id)}
           onRemove={onRemoveAttachment}
           onRetry={(id) => {

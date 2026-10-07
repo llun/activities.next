@@ -14,6 +14,8 @@ interface Props {
   uploadErrors: Record<string, string>
   /** Ids whose owner details are still being read after the upload. */
   detailsPending: Record<string, true>
+  /** True while a submit is in flight: every tile control renders disabled. */
+  disabled?: boolean
   onOpen: (id: string) => void
   onRemove: (index: number) => void
   onRetry: (id: string) => void
@@ -43,7 +45,7 @@ const TileStatus: FC<{
     return (
       <span className="flex items-center gap-1 text-xs text-muted-foreground">
         <Loader2 className="size-3 animate-spin" />
-        Reading details…
+        {attachment.isLoading ? 'Uploading…' : 'Reading details…'}
       </span>
     )
   }
@@ -73,6 +75,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
   decorativeIds,
   uploadErrors,
   detailsPending,
+  disabled = false,
   onOpen,
   onRemove,
   onRetry
@@ -109,8 +112,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
             <li key={item.id} className="relative">
               <button
                 type="button"
-                aria-label={`Review details of ${label}`}
-                disabled={busy || Boolean(error)}
+                disabled={disabled || busy || Boolean(error)}
                 onClick={() => onOpen(item.id)}
                 className={cn(
                   'block w-full space-y-1.5 rounded-lg border p-1.5 text-left outline-none transition-colors',
@@ -139,6 +141,12 @@ export const ComposerAttachmentTiles: FC<Props> = ({
                   reading={reading}
                   needsReview={needsReview}
                 />
+                {/* The accessible name is the visible status text followed by
+                    this (WCAG 2.5.3 Label in Name), e.g. "Edit details of a.png". */}
+                {error ? null : ' '}
+                <span className="sr-only">
+                  {error ? label : `details of ${label}`}
+                </span>
               </button>
               {error ? (
                 <div className="flex items-center justify-between gap-2 px-1.5 pt-1.5">
@@ -154,6 +162,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
                     type="button"
                     aria-label={`Retry upload of ${label}`}
                     aria-describedby={`${errorId}-${item.id}`}
+                    disabled={disabled}
                     onClick={() => onRetry(item.id)}
                     className="flex items-center gap-1 rounded-md border bg-background px-1.5 py-0.5 text-xs font-medium shadow-xs"
                   >
@@ -165,6 +174,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
               <button
                 type="button"
                 aria-label={`Remove media ${label}`}
+                disabled={disabled}
                 onClick={() => onRemove(index)}
                 className="absolute top-0 right-0 flex size-6 translate-x-1/3 -translate-y-1/3 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs hover:text-foreground"
               >

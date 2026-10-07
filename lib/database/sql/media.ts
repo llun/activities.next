@@ -495,7 +495,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .where('id', id)
         .whereRaw(
           isPostgresClient(database)
-            ? `"originalMetaData"->'upload'->>'state' = ?`
+            ? `??->'upload'->>'state' = ?`
             : `json_extract(??, '$.upload.state') = ?`,
           ['originalMetaData', 'pending']
         )

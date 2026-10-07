@@ -173,7 +173,7 @@ describe('PostBox media details', () => {
       )
     )
     expect(getGallerySettingsMock).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('Reading details…')).toBeInTheDocument()
+    expect(screen.getByText('Uploading…')).toBeInTheDocument()
     expect(getMediaMock).not.toHaveBeenCalled()
 
     upload.resolve(uploaded('media-heron', 'heron.png'))
@@ -182,7 +182,7 @@ describe('PostBox media details', () => {
       expect(getMediaMock).toHaveBeenCalledWith('media-heron')
     )
     await waitFor(() =>
-      expect(screen.queryByText('Reading details…')).not.toBeInTheDocument()
+      expect(screen.queryByText('Uploading…')).not.toBeInTheDocument()
     )
     // No description yet: the tile asks for a review.
     expect(screen.getByText('Review')).toBeInTheDocument()
@@ -409,7 +409,7 @@ describe('PostBox media details', () => {
     uploadAttachmentMock.mockReturnValueOnce(upload.promise)
     renderPostBox()
     attach('heron.png')
-    await screen.findByText('Reading details…')
+    await screen.findByText('Uploading…')
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Remove media heron.png' })
@@ -426,7 +426,7 @@ describe('PostBox media details', () => {
     uploadAttachmentMock.mockReturnValueOnce(upload.promise)
     renderPostBox()
     attach('heron.png')
-    await screen.findByText('Reading details…')
+    await screen.findByText('Uploading…')
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Remove media heron.png' })
@@ -453,6 +453,60 @@ describe('PostBox media details', () => {
     })
   })
 
+  it('shows Reading details only after the upload, while the details load', async () => {
+    const details = createDeferred<ReturnType<typeof mediaEntity>>()
+    getMediaMock.mockReturnValueOnce(details.promise)
+    renderPostBox()
+    attach('heron.png')
+
+    expect(await screen.findByText('Reading details…')).toBeInTheDocument()
+    expect(screen.queryByText('Uploading…')).not.toBeInTheDocument()
+    details.resolve(mediaEntity('media-heron.png', null))
+    await screen.findByText('Review')
+  })
+
+  it('names the tile button after its visible status text', async () => {
+    renderPostBox()
+    attach('a.png')
+    const button = await screen.findByRole('button', {
+      name: 'Review details of a.png'
+    })
+    // WCAG 2.5.3: the accessible name starts with the visible text.
+    expect(button).not.toHaveAttribute('aria-label')
+    expect(button.textContent?.trim().startsWith('Review')).toBe(true)
+  })
+
+  it('ignores tile controls while a submit is in flight', async () => {
+    const post = createDeferred<Awaited<ReturnType<typeof createNote>>>()
+    createNoteMock.mockReturnValueOnce(post.promise)
+    renderPostBox()
+    attach('a.png')
+    await screen.findByText('Review')
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'hello' }
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalled())
+
+    const remove = screen.getByRole('button', { name: 'Remove media a.png' })
+    const open = screen.getByRole('button', { name: 'Review details of a.png' })
+    expect(remove).toBeDisabled()
+    expect(open).toBeDisabled()
+    fireEvent.click(remove)
+    fireEvent.click(open)
+    expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Remove media a.png' })
+    ).toBeInTheDocument()
+
+    post.resolve({ status: {} as never, attachments: [] })
+  })
+
   it('deletes uploaded media when the composer unmounts without posting', async () => {
     const { unmount } = renderPostBox()
     attach('a.png')
@@ -470,7 +524,7 @@ describe('PostBox media details', () => {
     uploadAttachmentMock.mockReturnValueOnce(upload.promise)
     const { unmount } = renderPostBox()
     attach('heron.png')
-    await screen.findByText('Reading details…')
+    await screen.findByText('Uploading…')
 
     unmount()
     expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
@@ -603,9 +657,7 @@ describe('PostBox media details', () => {
     )
     expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled()
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: /Review details of/ })
-    )
+    fireEvent.click(await screen.findByRole('button', { name: /details of/ }))
     await screen.findByRole('dialog')
     fireEvent.change(screen.getByLabelText('Description (alt text)'), {
       target: { value: 'new alt' }
@@ -681,6 +733,48 @@ describe('PostBox media details', () => {
           onDiscardEdit={vi.fn()}
         />
       )
+
+    it('keeps Update disabled when details finish saving mid-submit', async () => {
+      const save = createDeferred<ReturnType<typeof mediaEntity>>()
+      updateMediaDetailsMock.mockReturnValueOnce(save.promise as never)
+      const update = createDeferred<Awaited<ReturnType<typeof updateNote>>>()
+      vi.mocked(updateNote).mockReturnValueOnce(update.promise)
+      renderEdit()
+      fireEvent.change(await screen.findByRole('textbox'), {
+        target: { value: 'hello there' }
+      })
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /details of/ }))
+      await screen.findByRole('dialog')
+      fireEvent.change(screen.getByLabelText('Description (alt text)'), {
+        target: { value: 'new alt' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+      await waitFor(() => expect(updateMediaDetailsMock).toHaveBeenCalled())
+      // Update is sent while the details save is still pending.
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Update', hidden: true })
+      )
+      await waitFor(() => expect(vi.mocked(updateNote)).toHaveBeenCalled())
+
+      save.resolve(mediaEntity('media-existing', 'new alt'))
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      )
+      expect(
+        screen.getByRole('button', { name: 'Update', hidden: true })
+      ).toBeDisabled()
+
+      update.resolve({
+        content: '',
+        spoilerText: '',
+        mediaAttachments: [],
+        status: { id: 'status-1', text: 'hello', createdAt: 1, reply: '' }
+      } as never)
+    })
 
     it('does not require a description for legacy undescribed media', async () => {
       getGallerySettingsMock.mockResolvedValue(

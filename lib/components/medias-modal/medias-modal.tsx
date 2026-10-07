@@ -4,7 +4,10 @@ import { createPortal } from 'react-dom'
 
 import { getMediaPublicDetails } from '@/lib/client'
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
-import { MediaDetailsPanel } from '@/lib/components/medias-modal/media-details-panel'
+import {
+  MediaDetailsPanel,
+  hasPublicDetailsContent
+} from '@/lib/components/medias-modal/media-details-panel'
 import { Media } from '@/lib/components/posts/media'
 import { Button } from '@/lib/components/ui/button'
 import type { MediaPublicDetails } from '@/lib/services/gallery/galleryEntities'
@@ -267,8 +270,13 @@ export const MediasModal: FC<Props> = ({
   const visibleIndices = [previousIndex, currentIndex, nextIndex]
   const hasDuplicateVisibleIndices =
     new Set(visibleIndices).size !== visibleIndices.length
-  const currentDetails = currentMediaId
+  const loadedDetails = currentMediaId
     ? (detailsByMediaId[currentMediaId] ?? null)
+    : null
+  // Only details the panel will actually show: an all-null payload must not
+  // shrink the photo and leave empty space under it.
+  const currentDetails = hasPublicDetailsContent(loadedDetails)
+    ? loadedDetails
     : null
 
   return createPortal(

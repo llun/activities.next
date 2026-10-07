@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getMediaPublicDetails } from '@/lib/client'
 import { PlaybackPreferencesProvider } from '@/lib/components/preferences/PlaybackPreferencesContext'
@@ -93,6 +93,29 @@ describe('MediasModal media details', () => {
 
     await waitFor(() => expect(mockGetMediaPublicDetails).toHaveBeenCalled())
     expect(document.querySelector('img')).toHaveClass('max-h-[80vh]')
+  })
+
+  it('keeps the full image cap when the details payload is all null', async () => {
+    mockGetMediaPublicDetails.mockResolvedValue({
+      subject: null,
+      takenAt: null,
+      camera: null,
+      lens: null,
+      exposure: null,
+      place: null
+    } as MediaPublicDetails)
+
+    renderModal([buildAttachment({ mediaId: 'media-1' })])
+
+    await waitFor(() => expect(mockGetMediaPublicDetails).toHaveBeenCalled())
+    // Let the resolved payload reach state before asserting on the layout.
+    await act(async () => {
+      await Promise.resolve()
+    })
+    const image = document.querySelector('img')
+    expect(image).toHaveClass('max-h-[80vh]')
+    expect(image).not.toHaveClass('max-h-[45vh]')
+    expect(document.querySelector('.max-h-\\[25vh\\]')).toBeNull()
   })
 
   it('renders the public details of the shown photo', async () => {

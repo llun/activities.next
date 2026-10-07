@@ -37,9 +37,7 @@ interface Props {
   details: MediaPublicDetails
 }
 
-// Compact, read-only summary of a photo's public details, shown under the
-// viewer's alt text. Renders nothing when none of the details are present.
-export const MediaDetailsPanel: FC<Props> = ({ details }) => {
+const summarize = (details: MediaPublicDetails) => {
   const subjectName = details.subject?.name?.trim() || null
   const scientificName = details.subject?.scientificName?.trim() || null
   const category = details.subject?.category ?? null
@@ -49,11 +47,45 @@ export const MediaDetailsPanel: FC<Props> = ({ details }) => {
   const exposure = details.exposure ? formatExposure(details.exposure) : null
   const place = formatPlace(details.place)
   const takenAt = formatTakenAt(details.takenAt)
-
   const hasSubject = Boolean(subjectName || scientificName || category)
-  if (!hasSubject && gear.length === 0 && !exposure && !place && !takenAt) {
-    return null
+  const hasContent =
+    hasSubject || gear.length > 0 || Boolean(exposure || place || takenAt)
+  return {
+    subjectName,
+    scientificName,
+    category,
+    gear,
+    exposure,
+    place,
+    takenAt,
+    hasSubject,
+    hasContent
   }
+}
+
+// True when the panel would render something. The viewer uses it to decide
+// whether to make room under the photo, so it must match the panel exactly.
+export const hasPublicDetailsContent = (
+  details: MediaPublicDetails | null | undefined
+): details is MediaPublicDetails =>
+  details != null && summarize(details).hasContent
+
+// Compact, read-only summary of a photo's public details, shown under the
+// viewer's alt text. Renders nothing when none of the details are present.
+export const MediaDetailsPanel: FC<Props> = ({ details }) => {
+  const {
+    subjectName,
+    scientificName,
+    category,
+    gear,
+    exposure,
+    place,
+    takenAt,
+    hasSubject,
+    hasContent
+  } = summarize(details)
+
+  if (!hasContent) return null
 
   return (
     <div
