@@ -1,0 +1,29 @@
+{
+  "@context": ["https://www.w3.org/ns/activitystreams"],
+  "id": "https://funkwhale.test/federation/music/uploads/1/activity",
+  "type": "Create",
+  "actor": "https://funkwhale.test/federation/actors/dj",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": [],
+  "object": {
+    "id": "https://funkwhale.test/federation/music/uploads/1",
+    "type": "Audio",
+    "attributedTo": "https://funkwhale.test/federation/actors/dj",
+    "name": "Night Drive",
+    "published": "2026-01-02T03:04:05Z",
+    "to": ["https://www.w3.org/ns/activitystreams#Public"],
+    "cc": [],
+    "url": [
+      {
+        "type": "Link",
+        "mimeType": "audio/ogg",
+        "href": "https://funkwhale.test/api/v1/listen/1.ogg"
+      },
+      {
+        "type": "Link",
+        "mediaType": "text/html",
+        "href": "https://funkwhale.test/library/tracks/1"
+      }
+    ]
+  }
+}

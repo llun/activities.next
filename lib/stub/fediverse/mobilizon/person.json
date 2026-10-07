@@ -1,0 +1,25 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1"
+  ],
+  "type": "Person",
+  "id": "https://mobilizon.test/@organizer",
+  "preferredUsername": "organizer",
+  "name": "Organizer",
+  "url": "https://mobilizon.test/@organizer",
+  "inbox": "https://mobilizon.test/@organizer/inbox",
+  "outbox": "https://mobilizon.test/@organizer/outbox",
+  "followers": "https://mobilizon.test/@organizer/followers",
+  "following": "https://mobilizon.test/@organizer/following",
+  "endpoints": {
+    "sharedInbox": "https://mobilizon.test/inbox"
+  },
+  "publicKey": {
+    "id": "https://mobilizon.test/@organizer#main-key",
+    "owner": "https://mobilizon.test/@organizer",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0lP99/s5Vv+XbPdkeqIJ\nwoD4GFnHmBnBHdEKChEUWfWj1TtioC/rGNoXFQeXQA3Amhy4nxSceiDnUgwkkuQY\nv0MtIW58NzgknEavtllxL+LSds5pg3gANaDIk8UiWTkqXTg0GnlJMpCK1Chen0l/\nszL6DEvUyTSuS5ZYDXFgewF89Pe7U0S15V5U2Harv7AgJYDyxmUL0D1pGuUCRqcE\nl5MTHJjrXeNnH1w2g8aly8YlO/Cr0L51rFg/lBF23vni7ZLv8HbmWh6YpaAf1R8h\nE45zKR7OHqymdjzrg1ITBwovefpwMkVgnJ+Wdr4HPnFlBSkXPoZeM11+Z8L0anzA\nXwIDAQAB\n-----END PUBLIC KEY-----\n"
+  },
+  "published": "2020-04-15T09:48:39.411Z",
+  "summary": null
+}

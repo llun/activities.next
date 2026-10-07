@@ -1,0 +1,25 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1"
+  ],
+  "type": "Person",
+  "id": "https://funkwhale.test/federation/actors/dj",
+  "preferredUsername": "dj",
+  "name": "DJ",
+  "url": "https://funkwhale.test/federation/actors/dj",
+  "inbox": "https://funkwhale.test/federation/actors/dj/inbox",
+  "outbox": "https://funkwhale.test/federation/actors/dj/outbox",
+  "followers": "https://funkwhale.test/federation/actors/dj/followers",
+  "following": "https://funkwhale.test/federation/actors/dj/following",
+  "endpoints": {
+    "sharedInbox": "https://funkwhale.test/inbox"
+  },
+  "publicKey": {
+    "id": "https://funkwhale.test/federation/actors/dj#main-key",
+    "owner": "https://funkwhale.test/federation/actors/dj",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0lP99/s5Vv+XbPdkeqIJ\nwoD4GFnHmBnBHdEKChEUWfWj1TtioC/rGNoXFQeXQA3Amhy4nxSceiDnUgwkkuQY\nv0MtIW58NzgknEavtllxL+LSds5pg3gANaDIk8UiWTkqXTg0GnlJMpCK1Chen0l/\nszL6DEvUyTSuS5ZYDXFgewF89Pe7U0S15V5U2Harv7AgJYDyxmUL0D1pGuUCRqcE\nl5MTHJjrXeNnH1w2g8aly8YlO/Cr0L51rFg/lBF23vni7ZLv8HbmWh6YpaAf1R8h\nE45zKR7OHqymdjzrg1ITBwovefpwMkVgnJ+Wdr4HPnFlBSkXPoZeM11+Z8L0anzA\nXwIDAQAB\n-----END PUBLIC KEY-----\n"
+  },
+  "published": "2020-04-15T09:48:39.411Z",
+  "summary": null
+}

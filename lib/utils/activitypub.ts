@@ -221,6 +221,7 @@ export const normalizeActivityPubContent = (data: unknown) => {
   const isVideoOrComplexUrl =
     Array.isArray(data.url) &&
     (data.type === 'Video' ||
+      data.type === 'Audio' ||
       data.url.some((u) => {
         if (typeof u === 'string') {
           return /\.(mp4|m3u8|webm|ogv)(?:[?#]|$)/i.test(u)
@@ -234,6 +235,7 @@ export const normalizeActivityPubContent = (data: unknown) => {
           const href = typeof rawHref === 'string' ? rawHref.toLowerCase() : ''
           return (
             mt.startsWith('video/') ||
+            mt.startsWith('audio/') ||
             mt.includes('mpegurl') ||
             /\.(mp4|m3u8|webm|ogv)(?:[?#]|$)/i.test(href)
           )

@@ -35,6 +35,8 @@ const isSupportedNoteType = (type: string): boolean =>
   type === 'Page' ||
   type === 'Article' ||
   type === 'Video' ||
+  type === 'Audio' ||
+  type === 'Event' ||
   type === ENTITY_TYPE_QUESTION
 
 export type FetchQuoteTargetForCreateParams = {

@@ -10,6 +10,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Notes** — Create, receive, edit, and delete posts
 - ✅ **Profile federation** — Profile edits are sent to followers and relays as `Update(Person)`, deleting an account sends `Delete(actor)`, and a remote `Update(Person)` refreshes the stored profile right away from the actor's own server. The actor document carries `manuallyApprovesFollowers`, and notes send and receive the "mark media as sensitive" flag
 - ✅ **Replies** — Threaded conversation support, including on-demand fetching of full remote reply threads when viewing a remote status
+- ✅ **Federated Audio and Event objects** — Funkwhale tracks and Mobilizon/Gancio events from other servers are stored as posts, with the title, the event's time and place, and the track's audio attached
 - ✅ **Image and video attachments** — Upload and display images and video in posts (with automatic preview frames and blurhash)
 - ✅ **Boost / Repost** — Share other users' posts (with undo)
 - ✅ **Like / Favorite** — React to posts (with undo)

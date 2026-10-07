@@ -8,6 +8,7 @@ import {
   getContent,
   getLanguage,
   getReply,
+  getStatusUrl,
   getSummary
 } from '@/lib/activities/note'
 import {
@@ -328,6 +329,8 @@ const getActorIdFromAttributedTo = (
 // Note: The TypeScript schema types url as string | null | undefined, but some
 // implementations like Mastodon/ruby.social actually send arrays
 const getUrlFromNote = (note: BaseNote): string => {
+  // A Funkwhale Audio leads with its audio file; its status url is the page.
+  if (note.type === 'Audio') return getStatusUrl(note) ?? note.id
   const noteUrl = note.url as unknown
   // Only an http(s) url may become the status `url`: it is served to clients
   // as a link target, and a remote note can put `javascript:` here.
