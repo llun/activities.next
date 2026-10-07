@@ -1,11 +1,20 @@
 import { SpanStatusCode } from '@opentelemetry/api'
 import { z } from 'zod'
 
+import { deleteActor } from '@/lib/activities'
 import { getConfig } from '@/lib/config'
+import { Database } from '@/lib/database/types'
+import {
+  MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
+  runWithConcurrencyLimit
+} from '@/lib/jobs/sendNoteJob'
 import { sendMail } from '@/lib/services/email'
 import { buildActorDeletedEmail } from '@/lib/services/email/templates/actorDeleted'
+import { getFederatedStatusDeliveryInboxes } from '@/lib/services/federation/statusDelivery'
 import { getQueue } from '@/lib/services/queue'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
+import { Actor } from '@/lib/types/domain/actor'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { withSpan } from '@/lib/utils/trace'
@@ -20,6 +29,55 @@ const DeleteActorJobData = z.object({
   // by a new schedule, and is discarded.
   scheduledAt: z.number().optional()
 })
+
+// Tell remote servers the account is gone, so they drop its profile, posts
+// and follow relationships instead of keeping a copy that only expires when
+// a fetch finally answers 410. Reaches followers and accepted relays, the
+// audience Mastodon uses. The Delete must be signed with the actor's key,
+// which `deleteActorData` removes with the row, so the sends happen in this job
+// rather than as queued deliveries that would find no key on retry.
+// Best effort: a failure is logged and never stops the local deletion.
+const federateActorDeletion = async (database: Database, actor: Actor) => {
+  if (!actor.privateKey) return
+  try {
+    const [inboxes, localFollows] = await Promise.all([
+      getFederatedStatusDeliveryInboxes({
+        database,
+        currentActor: actor,
+        status: { to: [ACTIVITY_STREAM_PUBLIC], cc: [actor.followersUrl] }
+      }),
+      database.getLocalFollowersForActorId({ targetActorId: actor.id })
+    ])
+    // A local follower's inbox is this server. Delivering there would run the
+    // inbound actor delete on the row this job is still emptying.
+    const localInboxes = new Set(
+      localFollows.flatMap((follow) =>
+        [follow.inbox, follow.sharedInbox].filter(Boolean)
+      )
+    )
+    const remoteInboxes = inboxes.filter((inbox) => !localInboxes.has(inbox))
+    const results = await runWithConcurrencyLimit(
+      remoteInboxes,
+      MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
+      (inbox) => deleteActor({ currentActor: actor, inbox })
+    )
+    const delivered = results.filter(
+      (result) => result.status === 'fulfilled' && result.value
+    ).length
+    logger.info({
+      message: 'Federated actor deletion',
+      actorId: actor.id,
+      inboxCount: remoteInboxes.length,
+      deliveredCount: delivered
+    })
+  } catch (err) {
+    logger.error({
+      message: 'Failed to federate actor deletion',
+      actorId: actor.id,
+      err: toLoggableError(err)
+    })
+  }
+}
 
 export const deleteActorJob = createJobHandle(
   DELETE_ACTOR_JOB_NAME,
@@ -147,6 +205,30 @@ export const deleteActorJob = createJobHandle(
           })
         }
         span.setStatus({ code: SpanStatusCode.OK, message: 'Not yet due' })
+        return
+      }
+
+      // Federate while the row is still `scheduled`: a worker that dies during
+      // the sends is retried from here, whereas one marked `deleting` would be
+      // skipped by the status check above and never finish. A repeated Delete
+      // is a no-op for the receiver.
+      await federateActorDeletion(database, actor)
+
+      // The sends take a while, and a cancel landing meanwhile must still win
+      // over the local delete.
+      const statusAfterFederation = await database.getActorDeletionStatus({
+        id: actorId
+      })
+      if (statusAfterFederation?.status !== 'scheduled') {
+        logger.info({
+          message: 'Actor deletion was cancelled while federating',
+          actorId,
+          currentStatus: statusAfterFederation?.status ?? null
+        })
+        span.setStatus({
+          code: SpanStatusCode.OK,
+          message: 'Deletion cancelled or processed'
+        })
         return
       }
 

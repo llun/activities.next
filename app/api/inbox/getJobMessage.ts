@@ -10,6 +10,7 @@ import {
   DELETE_OBJECT_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
+  UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
 } from '@/lib/jobs/names'
@@ -24,6 +25,7 @@ import {
   UndoAction,
   UpdateAction
 } from '@/lib/types/activitypub/activities'
+import { ACTOR_TYPES } from '@/lib/types/domain/actor'
 import {
   extractActivityPubId,
   isSameActivityPubOrigin,
@@ -167,6 +169,47 @@ const getWrappedActivity = (object: unknown): StatusActivity | null => {
   return { ...object, actor } as unknown as StatusActivity
 }
 
+const isActorType = (type: unknown) =>
+  typeof type === 'string' && (ACTOR_TYPES as readonly string[]).includes(type)
+
+// An Update whose object is an actor (Mastodon, Misskey, GoToSocial and
+// Pleroma all send one when a profile changes). Returns `undefined` when the
+// object is not an actor, so the caller goes on to the note and poll updates;
+// `null` when it is one but may not be applied. Only an actor may update
+// itself: the signer, the activity's actor and the object must be the same id.
+// The job re-fetches the profile from origin rather than trusting this body.
+export const getActorUpdateJobMessage = (
+  activity: StatusActivity,
+  verifiedSenderActorId: string,
+  deduplicationId: string
+) => {
+  const object: unknown = activity.object
+  const objectId = extractActivityPubId(object)
+  const isActorObject = isRecord(object)
+    ? isActorType(object.type)
+    : // A bare id can only be read as a profile update when it names the actor.
+      typeof objectId === 'string' &&
+      normalizeActorId(objectId) ===
+        normalizeActorId(extractActivityPubId(activity.actor))
+  if (!isActorObject) return undefined
+
+  const normalizedSenderId = normalizeActorId(verifiedSenderActorId)
+  if (
+    !normalizedSenderId ||
+    activityActorMismatch(activity, verifiedSenderActorId) ||
+    normalizeActorId(objectId) !== normalizedSenderId
+  ) {
+    return null
+  }
+
+  return createJobMessage({
+    id: deduplicationId,
+    name: UPDATE_ACTOR_JOB_NAME,
+    data: { actorId: verifiedSenderActorId },
+    verifiedSenderActorId
+  })
+}
+
 export const getJobMessage = (
   activity: StatusActivity,
   verifiedSenderActorId: string
@@ -227,6 +270,13 @@ export const getJobMessage = (
   }
 
   if (activity.type === UpdateAction) {
+    const actorUpdateMessage = getActorUpdateJobMessage(
+      activity,
+      verifiedSenderActorId,
+      deduplicationId
+    )
+    if (actorUpdateMessage !== undefined) return actorUpdateMessage
+
     if (
       typeof activity.object === 'object' &&
       activity.object !== null &&

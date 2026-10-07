@@ -8,7 +8,8 @@ describe('getPersonFromActor', () => {
       '@context': [
         'https://www.w3.org/ns/activitystreams',
         'https://w3id.org/security/v1',
-        'https://w3id.org/fep/7aa9'
+        'https://w3id.org/fep/7aa9',
+        { manuallyApprovesFollowers: 'as:manuallyApprovesFollowers' }
       ],
       id: 'https://chat.llun.dev/users/me',
       type: 'Person',
@@ -24,6 +25,7 @@ describe('getPersonFromActor', () => {
       summary: '',
       url: `https://chat.llun.dev/@me`,
       published: expect.toBeString(),
+      manuallyApprovesFollowers: false,
       publicKey: {
         id: `https://chat.llun.dev/users/me#main-key`,
         owner: 'https://chat.llun.dev/users/me',
@@ -50,6 +52,7 @@ describe('getPersonFromActor', () => {
     }
     const person = getPersonFromActor(actorWithTags)
     expect(person['@context']).toContainEqual({
+      manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
       toot: 'http://joinmastodon.org/ns#',
       Emoji: 'toot:Emoji'
     })
@@ -66,4 +69,16 @@ describe('getPersonFromActor', () => {
       }
     ])
   })
+
+  it.each([
+    [true, true],
+    [false, false],
+    [undefined, false]
+  ])(
+    'serializes manuallyApprovesFollowers %s as %s',
+    (manuallyApprovesFollowers, expected) => {
+      const actor = { ...MockActor({}), manuallyApprovesFollowers }
+      expect(getPersonFromActor(actor).manuallyApprovesFollowers).toBe(expected)
+    }
+  )
 })

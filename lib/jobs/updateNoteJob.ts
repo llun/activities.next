@@ -128,6 +128,10 @@ export const updateNoteJob = createJobHandle(
       statusId: note.id,
       summary,
       text,
+      // An edit that carries no flag keeps the stored one; an explicit `false`
+      // is the author un-marking their media.
+      sensitive:
+        typeof note.sensitive === 'boolean' ? note.sensitive : undefined,
       language
     })
 

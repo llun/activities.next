@@ -60,7 +60,9 @@ import {
   SEND_UNBLOCK_JOB_NAME,
   SEND_UNDO_ANNOUNCE_JOB_NAME,
   SEND_UNDO_FOLLOW_JOB_NAME,
+  SEND_UPDATE_ACTOR_JOB_NAME,
   SEND_UPDATE_NOTE_JOB_NAME,
+  UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME,
   UPDATE_POLL_JOB_NAME
 } from './names'
@@ -80,7 +82,9 @@ import { sendQuoteRevokeJob } from './sendQuoteRevokeJob'
 import { sendUnblockJob } from './sendUnblockJob'
 import { sendUndoAnnounceJob } from './sendUndoAnnounceJob'
 import { sendUndoFollowJob } from './sendUndoFollowJob'
+import { sendUpdateActorJob } from './sendUpdateActorJob'
 import { sendUpdateNoteJob } from './sendUpdateNoteJob'
+import { updateActorJob } from './updateActorJob'
 import { updateNoteJob } from './updateNoteJob'
 import { updatePollJob } from './updatePollJob'
 
@@ -171,6 +175,12 @@ export const JOBS: Record<string, JobHandle> = {
   },
   get [SEND_UPDATE_NOTE_JOB_NAME]() {
     return sendUpdateNoteJob
+  },
+  get [SEND_UPDATE_ACTOR_JOB_NAME]() {
+    return sendUpdateActorJob
+  },
+  get [UPDATE_ACTOR_JOB_NAME]() {
+    return updateActorJob
   },
   get [SEND_DELETE_NOTE_JOB_NAME]() {
     return sendDeleteNoteJob

@@ -222,6 +222,45 @@ describe('recordActorIfNeeded', () => {
     expect(mockGetActorPerson).not.toHaveBeenCalled()
   })
 
+  it('re-fetches a fresh, synced actor when a refresh is forced', async () => {
+    const actorId = 'https://remote-forced.test/users/renamed'
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, { name: 'Old Name' })
+    )
+    await recordActorIfNeeded({ actorId, database })
+
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, { name: 'New Name', manuallyApprovesFollowers: true })
+    )
+    const actor = await recordActorIfNeeded({
+      actorId,
+      database,
+      forceRefresh: true
+    })
+
+    expect(actor).toMatchObject({ id: actorId, name: 'New Name' })
+    await expect(
+      database.getMastodonActorFromId({ id: actorId })
+    ).resolves.toMatchObject({ display_name: 'New Name', locked: true })
+  })
+
+  it('keeps the stored actor when a forced refresh cannot fetch the person', async () => {
+    const actorId = 'https://remote-forced-offline.test/users/kept'
+    mockGetActorPerson.mockResolvedValue(
+      mockPerson(actorId, { name: 'Kept Name' })
+    )
+    await recordActorIfNeeded({ actorId, database })
+
+    mockGetActorPerson.mockResolvedValue(null)
+    const actor = await recordActorIfNeeded({
+      actorId,
+      database,
+      forceRefresh: true
+    })
+
+    expect(actor).toMatchObject({ id: actorId, name: 'Kept Name' })
+  })
+
   it('refreshes the persisted actor type for stale remote actors', async () => {
     const sql = knex({
       client: 'better-sqlite3',

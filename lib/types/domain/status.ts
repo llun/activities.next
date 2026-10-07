@@ -562,6 +562,10 @@ export const toActivityPubObject = (status: Status): Note | Question => {
     tag: originalStatus.tags
       .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))
       .filter((tag) => tag !== null),
+    // Mirrors getNoteFromStatus so a fetched note hides the same media as a
+    // delivered one.
+    sensitive:
+      'sensitive' in originalStatus && Boolean(originalStatus.sensitive),
     replies: {
       id: `${originalStatus.id}/replies`,
       type: 'Collection',

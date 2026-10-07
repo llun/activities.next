@@ -279,6 +279,7 @@ describe('Status', () => {
           content: status.text,
           attachment: [],
           tag: [],
+          sensitive: false,
           replies: {
             id: `${status.id}/replies`,
             type: 'Collection',
@@ -343,6 +344,27 @@ describe('Status', () => {
           updated: getISOTimeUTC(status.updatedAt)
         })
       })
+
+      it.each([true, false])(
+        'carries sensitive %s from the status into its Note object',
+        async (sensitive) => {
+          const statusId = `${actor1?.id}/statuses/sensitive-${sensitive}-activitypub-object`
+          const status = (await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: actor1?.id ?? ACTOR1_ID,
+            text: 'Media',
+            sensitive,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: []
+          })) as StatusNote
+
+          expect(toActivityPubObject(status)).toMatchObject({
+            id: statusId,
+            sensitive
+          })
+        }
+      )
 
       it('includes database-backed share totals in Note objects', async () => {
         const statusId = `${actor1?.id}/statuses/post-1`

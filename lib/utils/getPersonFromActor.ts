@@ -68,6 +68,9 @@ export const getPersonFromActor = (
     summary: actor.summary || '',
     url: profileUrl,
     published: getISOTimeUTC(actor.createdAt),
+    // Mastodon, Misskey and GoToSocial read this to show a locked account and
+    // to expect a follow request rather than an immediate Accept.
+    manuallyApprovesFollowers: actor.manuallyApprovesFollowers ?? false,
     publicKey: {
       id: `${actor.id}#main-key`,
       owner: actor.id,
@@ -88,9 +91,14 @@ export const getPersonFromActor = (
       'https://www.w3.org/ns/activitystreams',
       'https://w3id.org/security/v1',
       FEP_7AA9_CONTEXT_URL,
-      ...(emojiTags.length > 0
-        ? [{ toot: 'http://joinmastodon.org/ns#', Emoji: 'toot:Emoji' }]
-        : [])
+      {
+        // Not in the ActivityStreams context document; Mastodon declares it
+        // the same way so compacting peers keep the term.
+        manuallyApprovesFollowers: 'as:manuallyApprovesFollowers',
+        ...(emojiTags.length > 0
+          ? { toot: 'http://joinmastodon.org/ns#', Emoji: 'toot:Emoji' }
+          : null)
+      }
     ],
     ...person
   }

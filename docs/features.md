@@ -8,6 +8,7 @@ This document tracks the implemented and planned features for Activity.next.
 
 - ✅ **ActivityPub federation** — Send and receive activities with other Fediverse servers
 - ✅ **Notes** — Create, receive, edit, and delete posts
+- ✅ **Profile federation** — Profile edits are sent to followers and relays as `Update(Person)`, deleting an account sends `Delete(actor)`, and a remote `Update(Person)` refreshes the stored profile right away from the actor's own server. The actor document carries `manuallyApprovesFollowers`, and the "mark media as sensitive" flag federates in both directions
 - ✅ **Replies** — Threaded conversation support, including on-demand fetching of full remote reply threads when viewing a remote status
 - ✅ **Image and video attachments** — Upload and display images and video in posts (with automatic preview frames and blurhash)
 - ✅ **Boost / Repost** — Share other users' posts (with undo)

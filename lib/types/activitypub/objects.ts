@@ -136,6 +136,10 @@ export const BaseContent = z.object({
 
   attachment: z.union([Attachment, Attachment.array()]).nullish(),
   tag: z.union([Tag, Tag.array()]).nullish(),
+  // Mastodon's "mark media as sensitive" flag (`as:sensitive`). Separate from
+  // `summary`: a note can hide its media without a content warning. A value
+  // that is not a boolean reads as absent rather than rejecting the note.
+  sensitive: z.boolean().nullish().catch(undefined),
 
   // Quote-post fields (FEP-044f / Mastodon 4.5). Kept liberal: the target may be
   // a bare id string or an embedded object (`quote`), and legacy servers carry

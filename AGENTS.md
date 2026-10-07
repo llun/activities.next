@@ -244,6 +244,10 @@ The durable rule source moved to [docs/mastodon-api-compatibility.md](docs/masto
 
 The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-status-delete-unboost-federation); read it before changing this subsystem.
 
+## Actor Profile & Deletion Federation
+
+The durable rule source lives in [docs/architecture.md](docs/architecture.md#agents-actor-profile-deletion-federation); read it before changing this subsystem.
+
 ## Deleting Media a Post Uses
 
 The durable rule source moved to [docs/maintenance.md](docs/maintenance.md#agents-deleting-media-a-post-uses); read it before changing this subsystem.

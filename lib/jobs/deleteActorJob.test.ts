@@ -1,11 +1,14 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { deleteActor } from '@/lib/activities'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { deleteActorJob } from '@/lib/jobs/deleteActorJob'
 import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
-import { seedDatabase } from '@/lib/stub/database'
+import { TEST_SHARED_INBOX, seedDatabase } from '@/lib/stub/database'
+import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { logger } from '@/lib/utils/logger'
 
 enableFetchMocks()
@@ -14,6 +17,14 @@ const publish = vi.fn().mockResolvedValue(undefined)
 vi.mock('@/lib/services/queue', () => ({
   getQueue: vi.fn()
 }))
+
+// The sends are asserted at this seam: the stub accounts carry placeholder keys
+// that cannot sign a real request.
+vi.mock('@/lib/activities', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/lib/activities')>('@/lib/activities')
+  return { ...actual, deleteActor: vi.fn().mockResolvedValue(true) }
+})
 
 vi.mock('@/lib/services/email', () => ({
   sendMail: vi.fn().mockResolvedValue(undefined)
@@ -61,6 +72,9 @@ describe('deleteActorJob', () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     vi.clearAllMocks()
+    // A factory mock keeps its implementation through clearAllMocks, so a
+    // test that rejects or inspects the send would leak into the next one.
+    vi.mocked(deleteActor).mockReset().mockResolvedValue(true)
     vi.mocked(getQueue).mockReturnValue({
       runsInline: true,
       publish,
@@ -169,6 +183,99 @@ describe('deleteActorJob', () => {
       })
     )
     expect(loggedCalls()).not.toContain(`${username}@test.social`)
+  })
+
+  describe('federating the deletion', () => {
+    const REMOTE_FOLLOWER_INBOX = 'https://remote.test/inbox'
+
+    const createFollowedActor = async (suffix: string) => {
+      const username = `delete-job-federate-${suffix}`
+      const actorId = `https://test.social/users/${username}`
+      await database.createAccount({
+        email: `${username}@test.social`,
+        username,
+        domain: 'test.social',
+        passwordHash: 'hash',
+        privateKey: `privateKey-${suffix}`,
+        publicKey: `publicKey-${suffix}`
+      })
+      await database.createFollow({
+        actorId: 'https://remote.test/users/follower',
+        targetActorId: actorId,
+        inbox: 'https://remote.test/users/follower/inbox',
+        sharedInbox: REMOTE_FOLLOWER_INBOX,
+        status: FollowStatus.enum.Accepted
+      })
+      await database.createFollow({
+        actorId: ACTOR1_ID,
+        targetActorId: actorId,
+        inbox: `${ACTOR1_ID}/inbox`,
+        sharedInbox: TEST_SHARED_INBOX,
+        status: FollowStatus.enum.Accepted
+      })
+      await database.scheduleActorDeletion({ actorId, scheduledAt: null })
+      return actorId
+    }
+
+    it('sends the Delete to remote follower inboxes only, while the deletion is still scheduled', async () => {
+      const suffix = `${Date.now()}-remote`
+      const actorId = await createFollowedActor(suffix)
+      let statusDuringSend: string | null | undefined
+      vi.mocked(deleteActor).mockImplementation(async () => {
+        statusDuringSend = (
+          await database.getActorDeletionStatus({ id: actorId })
+        )?.status
+        return true
+      })
+
+      await deleteActorJob(database, {
+        id: `delete-job-federate-${suffix}`,
+        name: DELETE_ACTOR_JOB_NAME,
+        data: { actorId }
+      })
+
+      expect(
+        vi.mocked(deleteActor).mock.calls.map(([args]) => args.inbox)
+      ).toEqual([REMOTE_FOLLOWER_INBOX])
+      expect(vi.mocked(deleteActor).mock.calls[0][0].currentActor.id).toBe(
+        actorId
+      )
+      expect(statusDuringSend).toBe('scheduled')
+      expect(await database.getActorFromId({ id: actorId })).toBeNull()
+    })
+
+    it('keeps the actor when the deletion is cancelled while federating', async () => {
+      const suffix = `${Date.now()}-cancel`
+      const actorId = await createFollowedActor(suffix)
+      vi.mocked(deleteActor).mockImplementation(async () => {
+        await database.cancelActorDeletion({ actorId })
+        return true
+      })
+
+      await deleteActorJob(database, {
+        id: `delete-job-federate-${suffix}`,
+        name: DELETE_ACTOR_JOB_NAME,
+        data: { actorId }
+      })
+
+      expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
+    })
+
+    it('still deletes the actor when the Delete cannot be sent', async () => {
+      const suffix = `${Date.now()}-failure`
+      const actorId = await createFollowedActor(suffix)
+      vi.mocked(deleteActor).mockRejectedValue(new Error('network down'))
+
+      await expect(
+        deleteActorJob(database, {
+          id: `delete-job-federate-${suffix}`,
+          name: DELETE_ACTOR_JOB_NAME,
+          data: { actorId }
+        })
+      ).resolves.toBeUndefined()
+
+      expect(await database.getActorFromId({ id: actorId })).toBeNull()
+    })
   })
 
   it('handles non-existent actor gracefully', async () => {

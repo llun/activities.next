@@ -2,12 +2,17 @@ import { NextRequest } from 'next/server'
 import sharp from 'sharp'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { PATCH } from './route'
+
+vi.mock('@/lib/services/actors/actorUpdate', () => ({
+  publishActorUpdate: vi.fn().mockResolvedValue(undefined)
+}))
 
 vi.mock('@/lib/services/medias', () => ({
   saveMedia: vi.fn(),
@@ -132,6 +137,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     )
     const data = await response.json()
     expect(data).toEqual(expect.objectContaining({ id: expect.any(String) }))
+    expect(publishActorUpdate).toHaveBeenCalledWith({ actorId: ACTOR1_ID })
     updateActor.mockRestore()
   })
 
@@ -502,6 +508,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
 
     expect(response.status).toBe(422)
     expect(updateActor).not.toHaveBeenCalled()
+    expect(publishActorUpdate).not.toHaveBeenCalled()
     updateActor.mockRestore()
   })
 

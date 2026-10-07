@@ -17,6 +17,9 @@ interface RecordActorIfNeededParams {
   actorId: string
   database: Database
   signingActor?: Actor
+  // Re-fetch a stored remote actor even when it is not stale, because its
+  // origin just announced a change (an inbound Update(Person)).
+  forceRefresh?: boolean
 }
 
 const REMOTE_ACTOR_REFRESH_INTERVAL_MS = 3 * 86_400_000
@@ -195,7 +198,8 @@ export const getPersistableActorPerson = async ({
 export const recordActorIfNeeded = async ({
   actorId,
   database,
-  signingActor
+  signingActor,
+  forceRefresh = false
 }: RecordActorIfNeededParams): Promise<Actor | undefined> => {
   await assertActorCanFederate({ actorId, database })
 
@@ -299,7 +303,11 @@ export const recordActorIfNeeded = async ({
   // followers/following until the next stale refresh.
   const isStale =
     currentTime - existingActor.updatedAt > REMOTE_ACTOR_REFRESH_INTERVAL_MS
-  if (!isStale && (await database.hasActorCounters({ actorId }))) {
+  if (
+    !forceRefresh &&
+    !isStale &&
+    (await database.hasActorCounters({ actorId }))
+  ) {
     return existingActor
   }
 
@@ -310,6 +318,9 @@ export const recordActorIfNeeded = async ({
   })
   if (!person) {
     if (isStale) return undefined
+    // A failed forced refresh leaves the fresh row as it was; the counter
+    // marker below belongs to the counter-only sync.
+    if (forceRefresh) return existingActor
     // A counter-only sync must not degrade the previous behavior of returning
     // the stored actor when the remote fetch fails (so the marker write is
     // best-effort too). Stamp the sync marker so an unreachable actor doesn't

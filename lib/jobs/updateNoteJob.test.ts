@@ -85,6 +85,42 @@ describe('updateNoteJob', () => {
     expect(status.type).toEqual(StatusType.enum.Note)
   })
 
+  it.each([
+    { initial: false, edit: true, expected: true },
+    { initial: true, edit: false, expected: false },
+    { initial: true, edit: undefined, expected: true }
+  ])(
+    'applies an edit carrying sensitive $edit to a note stored as $initial',
+    async ({ initial, edit, expected }) => {
+      const note = MockMastodonActivityPubNote({
+        content: '<p>Media</p>',
+        sensitive: initial
+      })
+      await createNoteJob(database, {
+        id: `id-sensitive-${initial}-${edit}`,
+        name: CREATE_NOTE_JOB_NAME,
+        data: note
+      })
+
+      const { sensitive: _sensitive, ...noteWithoutFlag } = note
+      const updatedNote = {
+        ...noteWithoutFlag,
+        content: '<p>Media edited</p>',
+        ...(edit === undefined ? null : { sensitive: edit })
+      }
+      await updateNoteJob(database, {
+        id: `id-sensitive-${initial}-${edit}`,
+        name: UPDATE_NOTE_JOB_NAME,
+        data: updatedNote
+      })
+
+      const status = (await database.getStatus({
+        statusId: note.id
+      })) as StatusNote
+      expect(status.sensitive).toBe(expected)
+    }
+  )
+
   it('refreshes the language when the edit carries a contentMap', async () => {
     const note = MockMastodonActivityPubNote({
       id: 'https://somewhere.test/notes/update-language',

@@ -1,4 +1,5 @@
 import { buildCredentialAccount } from '@/lib/services/accounts/credentialAccount'
+import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
@@ -37,6 +38,7 @@ export const deleteProfileImageHandler = (
         actorId: currentActor.id,
         ...(field === 'iconUrl' ? { iconUrl: null } : { headerImageUrl: null })
       })
+      await publishActorUpdate({ actorId: currentActor.id })
       const [account, followRequestsCount] = await Promise.all([
         database.getMastodonActorFromId({ id: currentActor.id }),
         database.getFollowRequestsCount({ targetActorId: currentActor.id })
