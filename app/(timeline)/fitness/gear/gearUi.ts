@@ -211,21 +211,23 @@ export const COMPONENT_TYPE_OPTIONS = [
 // numbers. Rendered as plain columns with no rule, as these were, the rows read
 // as loose text.
 //
-// The column's surface is `bg-card`, the same grey as the card behind it, and
-// the hairline is the only thing separating the two. That is what the design
-// does: `useGKSnapCols` pins the cell with `background: 'white'`, and every
-// card holding one of these tables is `bg-white/80`, so the lane is painted the
-// CARD's own colour. The literal white is there to make the sticky cell opaque,
-// not to step it off anything — there is no recessed lane anywhere in the kit.
+// The column's surface is the colour of whatever the table sits on, and the
+// hairline is the only thing separating the two. That is what the design does:
+// `useGKSnapCols` pins the cell with the surface's own colour — the literal is
+// there to make the sticky cell opaque, not to step it off anything; there is
+// no recessed lane anywhere in the kit.
 //
-// `bg-background` copied that literal colour instead of the relationship, and so
-// broke it in BOTH themes. The kit is a static prototype that hardcodes white
-// rather than reading `--card`, while its `app/globals.css` carries the same
-// tokens this app has (light `--background` 100% / `--card` 98%, dark 3.9% /
-// 9%). Against a `bg-card` table, then, `bg-background` came out a bright white
-// stripe in light mode — a third of the table's width on a phone — and a well
-// sunk below the card in dark. Taking the card's token gives the design's
-// relationship in both.
+// The tables used to sit in `Card`s (`bg-card`), so the lane was `bg-card`.
+// Since the fitness pages took the overview's layout (a plain heading over a
+// bordered table on the page itself, like Activity types), the table sits on
+// `bg-background`, so the lane is `bg-background` in both themes. Taking a
+// colour that is not the table's own shows as a stripe a third of the table's
+// width on a phone (light) or a sunk well (dark).
+//
+// The header row is the overview's faint `bg-muted/40` band. A translucent
+// fill on a sticky cell lets the columns scroll through it, so the pinned
+// header cell paints the same band pre-mixed onto the background, opaque:
+// `STICKY_HEAD_CELL`.
 //
 // Whatever the colour, it has to be OPAQUE: a sticky cell with a transparent
 // background lets the data columns scroll straight through it. That rules out
@@ -243,7 +245,15 @@ export const COMPONENT_TYPE_OPTIONS = [
 // keeps more of that width as padding, which is a per-caller decision precisely
 // because it lives with the caller's padding.
 export const STICKY_COLUMN =
-  'sticky left-0 z-1 bg-card shadow-[inset_-1px_0_0_var(--border)]'
+  'sticky left-0 z-1 bg-background shadow-[inset_-1px_0_0_var(--border)]'
+
+/**
+ * The header row's band (`FITNESS_TABLE_HEAD_ROW_CLASS`'s `bg-muted/40`),
+ * opaque, for a pinned header cell. Add it after `STICKY_COLUMN` /
+ * `STICKY_RIGHT_COLUMN`; `cn` lets it replace their background.
+ */
+export const STICKY_HEAD_CELL =
+  'bg-[color-mix(in_oklab,var(--muted)_40%,var(--background))]'
 
 /**
  * The horizontal scroller around every gear table. `relative` is load-bearing:
@@ -258,14 +268,14 @@ export const STICKY_COLUMN =
  * their unscrolled x, and widen the document: a 390px phone grew to ~1,770px
  * wide on a gear's page and ~560px on the gear list.
  */
-export const GEAR_TABLE_SCROLLER = 'relative overflow-x-auto'
+export const GEAR_TABLE_SCROLLER = 'relative overflow-x-auto rounded-lg border'
 
 /**
  * Pinned last cell of a row (such as the Actions column on the components
  * table). Pinned to the right edge with a left-edge hairline separator.
  */
 export const STICKY_RIGHT_COLUMN =
-  'sticky right-0 z-1 bg-card shadow-[inset_1px_0_0_var(--border)]'
+  'sticky right-0 z-1 bg-background shadow-[inset_1px_0_0_var(--border)]'
 
 /**
  * Elevation shadows indicating scrollable content slipping under pinned columns.
@@ -285,7 +295,7 @@ export const STICKY_RIGHT_SHADOW =
  * highlights.
  *
  * Both surfaces use the OPAQUE `bg-muted`, never `bg-muted/50`. A translucent
- * hover does not layer over the cell's own `bg-card`, it replaces it, so the
+ * hover does not layer over the cell's own background, it replaces it, so the
  * cell would be 50% transparent precisely while the pointer is on the row — the
  * scrolled-under columns ghosting through in the one state a pinned column most
  * needs to be solid — and it would composite two tint layers against the row's

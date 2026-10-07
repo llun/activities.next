@@ -1,6 +1,7 @@
 import { Activity, Clock, LucideIcon, MapPin, Mountain } from 'lucide-react'
 import { FC } from 'react'
 
+import { FitnessStatCell } from '@/lib/components/fitness/FitnessStatCell'
 import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import {
   formatDistance,
@@ -9,7 +10,6 @@ import {
   formatInteger
 } from '@/lib/fitness/calendar/format'
 import type { FitnessActivitySummary } from '@/lib/fitness/calendar/types'
-import { cn } from '@/lib/utils'
 
 export interface SummaryTotals {
   count: number
@@ -92,46 +92,14 @@ export const FitnessSummaryStrip: FC<Props> = ({
   className
 }) => (
   <FitnessStatGrid variant="summary" className={className}>
-    {STATS.map(({ label, icon: Icon, value }) => (
-      <div
+    {STATS.map(({ label, icon, value }) => (
+      <FitnessStatCell
         key={label}
-        className="bg-background flex min-w-0 items-center gap-3 px-4 py-3"
-      >
-        {/* Four across there is room for the icon; in the 2×2 card (a phone)
-            the value needs the whole cell, as in the designs. The skeleton is
-            a STATIC block (`--skeleton`), never the shared shimmering
-            `.skeleton`: loading is a 0.6 dim and still bars, no motion. */}
-        <Icon
-          className="text-muted-foreground hidden size-5 shrink-0 @min-[43.75rem]:block"
-          aria-hidden="true"
-        />
-        <dl className="flex min-w-0 flex-col-reverse">
-          <dt className="text-muted-foreground text-sm">{label}</dt>
-          <dd
-            className={cn(
-              'text-xl font-semibold tabular-nums break-words',
-              loading && 'text-transparent'
-            )}
-          >
-            {loading ? (
-              <>
-                <span className="sr-only">Loading</span>
-                <span
-                  aria-hidden="true"
-                  className="my-1 block h-5 w-20 rounded bg-(--skeleton)"
-                />
-              </>
-            ) : totals === null ? (
-              <>
-                <span aria-hidden="true">–</span>
-                <span className="sr-only">Unavailable</span>
-              </>
-            ) : (
-              value(totals)
-            )}
-          </dd>
-        </dl>
-      </div>
+        label={label}
+        icon={icon}
+        loading={loading}
+        value={totals === null ? null : value(totals)}
+      />
     ))}
   </FitnessStatGrid>
 )

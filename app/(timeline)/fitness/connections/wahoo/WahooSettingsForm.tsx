@@ -159,7 +159,7 @@ export const WahooSettingsForm = () => {
     <div className="space-y-8">
       <form onSubmit={save} className="space-y-6">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Application settings</h2>
+          <h2 className="text-base font-semibold">Application settings</h2>
           <p className="text-sm text-muted-foreground">
             Create a confidential Wahoo application with workouts_read,
             offline_data, and user_read scopes. power_zones_read may remain

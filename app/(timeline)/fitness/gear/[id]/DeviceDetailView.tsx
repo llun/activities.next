@@ -1,6 +1,6 @@
 'use client'
 
-import { Pencil } from 'lucide-react'
+import { Activity, CalendarDays, Pencil } from 'lucide-react'
 import { FC } from 'react'
 
 import { GearProductLink } from '@/app/(timeline)/fitness/gear/GearProductLink'
@@ -8,9 +8,14 @@ import {
   formatGearDate,
   getGearDisplayName
 } from '@/app/(timeline)/fitness/gear/gearUi'
+import {
+  FITNESS_STAT_STRIP_CLASS,
+  FitnessStatCell
+} from '@/lib/components/fitness/FitnessStatCell'
+import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { PageHeader } from '@/lib/components/page-header'
 import { Button } from '@/lib/components/ui/button'
-import { Card } from '@/lib/components/ui/card'
+import { formatInteger } from '@/lib/fitness/calendar/format'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 
 import {
@@ -24,15 +29,6 @@ interface Props {
   onEdit: () => void
   feed: GearActivityFeedContext
 }
-
-// `rounded-lg shadow-none` override the Card's own `rounded-xl shadow-sm`: the
-// design's gear stat tiles are radius 8 and flat.
-const StatTile: FC<{ label: string; value: string }> = ({ label, value }) => (
-  <Card className="flex min-w-0 flex-col gap-2 rounded-lg p-4 shadow-none">
-    <div className="text-xs text-muted-foreground">{label}</div>
-    <div className="text-xl font-semibold tabular-nums">{value}</div>
-  </Card>
-)
 
 const getMetaLine = (gear: GearEntity): string =>
   [
@@ -89,15 +85,24 @@ export const DeviceDetailView: FC<Props> = ({
         }
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <StatTile label="Activities" value={String(gear.activityCount)} />
-        <StatTile
+      <FitnessStatGrid
+        variant="summary"
+        columns={2}
+        className={FITNESS_STAT_STRIP_CLASS}
+      >
+        <FitnessStatCell
+          label="Activities"
+          icon={Activity}
+          value={formatInteger(gear.activityCount)}
+        />
+        <FitnessStatCell
           label="First used"
+          icon={CalendarDays}
           value={
             gear.firstUsedAt === null ? '—' : formatGearDate(gear.firstUsedAt)
           }
         />
-      </div>
+      </FitnessStatGrid>
 
       <GearActivitiesFeed
         gearId={gear.id}

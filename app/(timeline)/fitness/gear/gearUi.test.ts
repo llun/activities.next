@@ -320,15 +320,15 @@ describe('getProductUrlHostname', () => {
 })
 
 describe('STICKY_COLUMN', () => {
-  // The pinned column sits inside a `Card`, so its surface is the card's own
-  // grey and the hairline down its right edge does the separating — which is the
-  // design's relationship, where the lane and the card are both white. It was
-  // `bg-background` first, copying that white literally, which against a
-  // `bg-card` table painted a bright stripe in light mode and a sunken well in
-  // dark.
-  it('paints the pinned column in the card surface, not the page background', () => {
-    expect(STICKY_COLUMN).toContain('bg-card')
-    expect(STICKY_COLUMN).not.toContain('bg-background')
+  // The pinned column's surface is whatever the table sits on, and the
+  // hairline down its right edge does the separating — the design's
+  // relationship. A colour other than the table's own paints a bright stripe in
+  // light mode and a sunken well in dark.
+  // The tables now sit on the page itself (the overview's layout), not in a
+  // card, so the lane is the page's surface.
+  it('paints the pinned column in the page surface the table sits on', () => {
+    expect(STICKY_COLUMN).toContain('bg-background')
+    expect(STICKY_COLUMN).not.toContain('bg-card')
   })
 
   // A sticky cell with a see-through background lets the data columns scroll

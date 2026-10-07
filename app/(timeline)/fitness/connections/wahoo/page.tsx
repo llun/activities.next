@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { Card } from '@/lib/components/ui/card'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -24,9 +23,9 @@ const WahooPage: FC = async () => {
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
+      <div data-slot="panel" className="rounded-lg border p-6">
         <WahooSettingsForm />
-      </Card>
+      </div>
     </div>
   )
 }

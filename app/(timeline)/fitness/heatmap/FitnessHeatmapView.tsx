@@ -18,6 +18,8 @@ import {
   triggerFitnessRouteHeatmap,
   unshareFitnessRouteHeatmap
 } from '@/lib/client'
+import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
+import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
 import {
   HeatmapRegionPicker,
   PickerRegion,
@@ -731,26 +733,15 @@ export const FitnessHeatmapView: FC<Props> = ({
   }).length
 
   return (
-    <div className="space-y-4">
-      {error && (
-        <div
-          role="alert"
-          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {error}
-        </div>
-      )}
+    <div className="space-y-6">
+      {error && <FitnessAlert title={error} />}
 
       {/* Region list — each opens its own heatmap page. */}
-      <section className="rounded-xl border bg-card p-4 shadow-sm">
-        <div className="mb-3">
-          <div className="text-sm font-semibold">Regions</div>
-          <div className="text-[11px] text-muted-foreground">
-            {regions.length} region{regions.length === 1 ? '' : 's'} ·{' '}
-            {generatedCount} generated. Open one to view its heatmap &amp;
-            generate.
-          </div>
-        </div>
+      <FitnessSection
+        title="Regions"
+        meta={`${regions.length} region${regions.length === 1 ? '' : 's'} · ${generatedCount} generated`}
+        description="Open a region to view its heatmap and generate it."
+      >
         <HeatmapRegionPicker
           value={regions}
           onChange={setRegions}
@@ -760,7 +751,7 @@ export const FitnessHeatmapView: FC<Props> = ({
           onRegionRemoved={handleRegionRemoved}
           onRegionSaved={handleRegionSaved}
         />
-      </section>
+      </FitnessSection>
     </div>
   )
 }

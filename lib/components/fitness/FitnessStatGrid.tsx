@@ -48,6 +48,22 @@ const VARIANT_CLASS_NAMES = {
 export type FitnessStatGridVariant = keyof typeof VARIANT_CLASS_NAMES
 
 /**
+ * The `summary` strip with fewer than four cells — the gear pages' totals use
+ * the overview's hairline strip too, with two or three values. Four columns
+ * there would leave an empty, border-coloured cell at the end of the row, so
+ * the strip spans exactly as many columns as it has cells. Three values go
+ * 3-up from 30rem (a 480px column still gives each "35,670.2 km" ~160px); two
+ * follow the four-cell strip's own 16rem step. Same `rem` reasoning as above.
+ */
+const SUMMARY_COLUMN_CLASS_NAMES = {
+  2: 'gap-px grid-cols-1 @min-[16rem]:grid-cols-2',
+  3: 'gap-px grid-cols-1 @min-[30rem]:grid-cols-3',
+  4: VARIANT_CLASS_NAMES.summary
+} as const
+
+export type FitnessSummaryColumns = keyof typeof SUMMARY_COLUMN_CLASS_NAMES
+
+/**
  * The wrapper is what carries `@container`: a container query styles a
  * container's *descendants*, never the container itself, so the grid cannot
  * both establish the container and read it. The wrapper is a plain block, so
@@ -55,10 +71,21 @@ export type FitnessStatGridVariant = keyof typeof VARIANT_CLASS_NAMES
  */
 export const FitnessStatGrid: FC<{
   variant?: FitnessStatGridVariant
+  /** `summary` only: how many cells the strip holds (default four). */
+  columns?: FitnessSummaryColumns
   className?: string
   children: ReactNode
-}> = ({ variant = 'detail', className, children }) => (
+}> = ({ variant = 'detail', columns = 4, className, children }) => (
   <div className={cn('@container', className)}>
-    <div className={cn('grid', VARIANT_CLASS_NAMES[variant])}>{children}</div>
+    <div
+      className={cn(
+        'grid',
+        variant === 'summary'
+          ? SUMMARY_COLUMN_CLASS_NAMES[columns]
+          : VARIANT_CLASS_NAMES[variant]
+      )}
+    >
+      {children}
+    </div>
   </div>
 )

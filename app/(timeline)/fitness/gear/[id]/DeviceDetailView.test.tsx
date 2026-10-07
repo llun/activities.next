@@ -118,15 +118,12 @@ describe('DeviceDetailView', () => {
     expect(screen.queryByText('Distance')).not.toBeInTheDocument()
   })
 
-  it('draws the stat tiles radius 8 and flat, not as the Card default', () => {
+  it('draws the stats on the overview hairline strip', () => {
     renderView({})
 
-    for (const label of ['Activities', 'First used']) {
-      const tile = screen.getByText(label).closest('[data-slot="card"]')
-      expect(tile).toHaveClass('rounded-lg', 'shadow-none')
-      expect(tile).not.toHaveClass('rounded-xl')
-      expect(tile).not.toHaveClass('shadow-sm')
-    }
+    const strip = screen.getByText('Activities').closest('.bg-border')
+    expect(strip).toHaveClass('rounded-lg', 'border')
+    expect(strip).toContainElement(screen.getByText('First used'))
   })
 
   it('renders an em dash for a device with no dated activity yet', () => {

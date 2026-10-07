@@ -12,9 +12,8 @@ import {
 } from '@testing-library/react'
 
 import {
-  STICKY_COLUMN,
+  STICKY_HEAD_CELL,
   STICKY_LEFT_SHADOW,
-  STICKY_RIGHT_COLUMN,
   STICKY_RIGHT_SHADOW
 } from '@/app/(timeline)/fitness/gear/gearUi'
 import {
@@ -473,7 +472,8 @@ describe('GearComponentsCard', () => {
       const actionsHeader = screen.getByRole('columnheader', {
         name: 'Actions'
       })
-      expect(typeHeader.className).toContain(STICKY_COLUMN)
+      // The pinned header paints the header band rather than the page.
+      expect(typeHeader).toHaveClass('sticky', 'left-0', STICKY_HEAD_CELL)
       expect(typeHeader.className).not.toContain(STICKY_LEFT_SHADOW)
       expect(actionsHeader.className).toContain(STICKY_RIGHT_SHADOW)
       // The shadows fade, so reduced motion has to opt them out; nothing
@@ -501,7 +501,7 @@ describe('GearComponentsCard', () => {
       expect(typeHeader.className.split(' ')).not.toContain(
         'shadow-[inset_-1px_0_0_var(--border)]'
       )
-      expect(actionsHeader.className).toContain(STICKY_RIGHT_COLUMN)
+      expect(actionsHeader).toHaveClass('sticky', 'right-0', STICKY_HEAD_CELL)
       expect(actionsHeader.className).not.toContain(STICKY_RIGHT_SHADOW)
     })
   })
@@ -509,9 +509,10 @@ describe('GearComponentsCard', () => {
   it('shows the empty state when there is nothing installed', () => {
     renderCard([])
 
+    expect(screen.getByText('No components yet.')).toBeInTheDocument()
     expect(
       screen.getByText(
-        'No components yet. Add the parts you want to track and each one accrues distance from its added date.'
+        'Add the parts you want to track and each one accrues distance from its added date.'
       )
     ).toBeInTheDocument()
   })
@@ -1230,17 +1231,20 @@ describe('GearComponentsCard', () => {
     it('pins the type column on an opaque surface', () => {
       renderCard([createComponent()])
 
-      expect(getTypeCell('Chain')).toHaveClass('sticky', 'left-0', 'bg-card')
+      expect(getTypeCell('Chain')).toHaveClass(
+        'sticky',
+        'left-0',
+        'bg-background'
+      )
     })
 
     it('pins the type column header too', () => {
       renderCard([createComponent()])
 
-      expect(screen.getByText('Type').closest('th')).toHaveClass(
-        'sticky',
-        'left-0',
-        'bg-card'
-      )
+      // On the header band's opaque tint, not the page's surface.
+      const header = screen.getByText('Type').closest('th')
+      expect(header).toHaveClass('sticky', 'left-0', STICKY_HEAD_CELL)
+      expect(header).not.toHaveClass('bg-background')
     })
 
     it('leaves the pinned cell unlit, since the rows are not clickable', () => {

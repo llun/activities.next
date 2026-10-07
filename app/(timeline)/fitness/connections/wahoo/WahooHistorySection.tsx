@@ -110,7 +110,7 @@ export const WahooHistorySection = ({
       className="space-y-4 border-t pt-6"
     >
       <div className="space-y-1">
-        <h2 id="wahoo-history-heading" className="text-lg font-semibold">
+        <h2 id="wahoo-history-heading" className="text-base font-semibold">
           Import workout history
         </h2>
         <p className="text-sm text-muted-foreground">

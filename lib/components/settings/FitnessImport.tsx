@@ -9,6 +9,8 @@ import {
   retryFitnessImportBatch,
   startFitnessImport
 } from '@/lib/client'
+import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
+import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { ActorInfoBanner } from '@/lib/components/settings/ActorInfoBanner'
 import {
@@ -17,13 +19,6 @@ import {
   getFitnessImportFileState
 } from '@/lib/components/settings/fitnessImportStatus'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
 import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/constants'
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
@@ -165,16 +160,16 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Import Fitness Files</CardTitle>
-        <CardDescription>
+    <FitnessSection
+      title="Import activities"
+      description={
+        <>
           Upload and import multiple <code>.fit</code>, <code>.gpx</code>, or{' '}
           <code>.tcx</code> files in one batch.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
+        </>
+      }
+    >
+      <div className="space-y-4 rounded-lg border p-4">
         {actorHandle && <ActorInfoBanner actorHandle={actorHandle} />}
 
         <input
@@ -212,7 +207,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
         </div>
 
         {selectedFileNames.length > 0 && (
-          <div className="rounded-md border p-3">
+          <div className="bg-muted/40 rounded-lg border p-3">
             <p className="mb-2 text-sm font-medium">
               Selected files ({selectedFileNames.length})
             </p>
@@ -225,7 +220,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
         )}
 
         {batchResult && (
-          <div className="space-y-3 rounded-md border p-3">
+          <div className="space-y-3 rounded-lg border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium">
                 Batch {batchResult.batchId} • {batchResult.status}
@@ -236,7 +231,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
               </p>
             </div>
 
-            <div className="space-y-2">
+            <div className="divide-y rounded-lg border">
               {batchResult.files.map((file) => {
                 const fileState = getFitnessImportFileState(file)
                 const fileError = getFitnessImportFileError(file)
@@ -247,7 +242,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
                 return (
                   <div
                     key={file.id}
-                    className="flex flex-col gap-1 rounded border px-3 py-2 text-sm"
+                    className="flex flex-col gap-1 px-3 py-2 text-sm"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span>{getFitnessImportFileIcon(fileState)}</span>
@@ -270,7 +265,9 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
                       )}
                     </div>
                     {fileError && (
-                      <p className="text-xs text-destructive">{fileError}</p>
+                      <p className="text-destructive-text text-xs">
+                        {fileError}
+                      </p>
                     )}
                   </div>
                 )
@@ -290,8 +287,12 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
           </div>
         )}
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
-      </CardContent>
-    </Card>
+        {error && (
+          <FitnessAlert title="We couldn’t import these files">
+            {error}
+          </FitnessAlert>
+        )}
+      </div>
+    </FitnessSection>
   )
 }
