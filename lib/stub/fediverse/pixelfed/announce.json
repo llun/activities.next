@@ -1,0 +1,13 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://pixelfed.test/p/dansup/736419587328737290/activity",
+  "type": "Announce",
+  "actor": "https://pixelfed.test/users/dansup",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": [
+    "https://pixelfed.test/users/dansup",
+    "https://pixelfed.test/users/dansup/followers"
+  ],
+  "published": "2024-09-02T08:00:00+00:00",
+  "object": "https://pixelfed.test/p/dansup/736419587328737281"
+}

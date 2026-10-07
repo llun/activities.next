@@ -1,0 +1,23 @@
+{
+  "@context": [
+    "https://gotosocial.org/ns",
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "discoverable": "toot:discoverable",
+      "featured": {
+        "@id": "toot:featured",
+        "@type": "@id"
+      },
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "toot": "http://joinmastodon.org/ns#",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag",
+      "Emoji": "toot:Emoji"
+    }
+  ],
+  "first": "https://gts.test/users/the_mighty_zork/outbox?limit=40",
+  "id": "https://gts.test/users/the_mighty_zork/outbox",
+  "totalItems": 1,
+  "type": "OrderedCollection"
+}

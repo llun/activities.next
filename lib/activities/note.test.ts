@@ -508,6 +508,35 @@ describe('note entity utilities', () => {
       })
     })
 
+    it('takes the mediaType of the chosen Link in a typed attachment', () => {
+      const note = {
+        type: 'Note',
+        id: 'https://example.com/note/1',
+        content: 'Test',
+        attachment: [
+          {
+            type: 'Video',
+            url: [
+              {
+                type: 'Link',
+                mediaType: 'video/webm',
+                href: 'https://example.com/video.webm'
+              }
+            ]
+          },
+          { type: 'constructor', url: 'https://example.com/file' }
+        ]
+      } as BaseNote
+
+      expect(getAttachments(note)).toEqual([
+        expect.objectContaining({
+          type: 'Document',
+          mediaType: 'video/webm',
+          url: 'https://example.com/video.webm'
+        })
+      ])
+    })
+
     it('returns attachments array', () => {
       const note: BaseNote = {
         type: 'Note',

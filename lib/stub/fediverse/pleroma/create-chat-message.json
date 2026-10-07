@@ -1,0 +1,23 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://pleroma.test/schemas/litepub-0.1.jsonld",
+    {
+      "@language": "und"
+    }
+  ],
+  "actor": "https://pleroma.test/users/lanodan",
+  "id": "https://pleroma.test/activities/c0c0c0c0-1111-4222-8333-944455556666",
+  "object": {
+    "actor": "https://pleroma.test/users/lanodan",
+    "attributedTo": "https://pleroma.test/users/lanodan",
+    "content": "private chat",
+    "id": "https://pleroma.test/objects/c1c1c1c1-1111-4222-8333-944455556666",
+    "published": "2025-02-03T19:20:00.000000Z",
+    "to": ["https://llun.test/users/test1"],
+    "type": "ChatMessage"
+  },
+  "published": "2025-02-03T19:20:00.000000Z",
+  "to": ["https://llun.test/users/test1"],
+  "type": "Create"
+}

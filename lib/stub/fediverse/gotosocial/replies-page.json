@@ -1,0 +1,24 @@
+{
+  "@context": [
+    "https://gotosocial.org/ns",
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "discoverable": "toot:discoverable",
+      "featured": {
+        "@id": "toot:featured",
+        "@type": "@id"
+      },
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "toot": "http://joinmastodon.org/ns#",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag",
+      "Emoji": "toot:Emoji"
+    }
+  ],
+  "id": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY/replies?only_other_accounts=false&page=true",
+  "items": "https://gts.test/users/1happyturtle/statuses/01HXYZREPLY0000000000000000",
+  "next": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY/replies?only_other_accounts=false&page=true&min_id=01HXYZREPLY0000000000000000",
+  "partOf": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY/replies",
+  "type": "CollectionPage"
+}

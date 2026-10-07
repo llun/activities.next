@@ -1,0 +1,42 @@
+{
+  "@context": [
+    "https://join-lemmy.org/context.json",
+    "https://www.w3.org/ns/activitystreams"
+  ],
+  "id": "https://lemmy.test/c/tenforward",
+  "type": "Group",
+  "preferredUsername": "tenforward",
+  "name": "Ten Forward",
+  "summary": "<p>Lounge and recreation facility</p>\n",
+  "source": {
+    "content": "Lounge and recreation facility",
+    "mediaType": "text/markdown"
+  },
+  "sensitive": false,
+  "icon": {
+    "type": "Image",
+    "url": "https://lemmy.test/pictrs/image/waqyZwLAy4.webp"
+  },
+  "inbox": "https://lemmy.test/c/tenforward/inbox",
+  "followers": "https://lemmy.test/c/tenforward/followers",
+  "attributedTo": "https://lemmy.test/c/tenforward/moderators",
+  "featured": "https://lemmy.test/c/tenforward/featured",
+  "postingRestrictedToMods": false,
+  "endpoints": {
+    "sharedInbox": "https://lemmy.test/inbox"
+  },
+  "outbox": "https://lemmy.test/c/tenforward/outbox",
+  "publicKey": {
+    "id": "https://lemmy.test/c/tenforward#main-key",
+    "owner": "https://lemmy.test/c/tenforward",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0lP99/s5Vv+XbPdkeqIJ\nwoD4GFnHmBnBHdEKChEUWfWj1TtioC/rGNoXFQeXQA3Amhy4nxSceiDnUgwkkuQY\nv0MtIW58NzgknEavtllxL+LSds5pg3gANaDIk8UiWTkqXTg0GnlJMpCK1Chen0l/\nszL6DEvUyTSuS5ZYDXFgewF89Pe7U0S15V5U2Harv7AgJYDyxmUL0D1pGuUCRqcE\nl5MTHJjrXeNnH1w2g8aly8YlO/Cr0L51rFg/lBF23vni7ZLv8HbmWh6YpaAf1R8h\nE45zKR7OHqymdjzrg1ITBwovefpwMkVgnJ+Wdr4HPnFlBSkXPoZeM11+Z8L0anzA\nXwIDAQAB\n-----END PUBLIC KEY-----\n"
+  },
+  "language": [
+    {
+      "identifier": "en",
+      "name": "English"
+    }
+  ],
+  "published": "2019-06-02T16:43:50.799554Z",
+  "updated": "2021-03-10T17:18:10.498868Z"
+}

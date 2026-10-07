@@ -1,0 +1,55 @@
+{
+  "@context": [
+    "https://join-lemmy.org/context.json",
+    "https://www.w3.org/ns/activitystreams"
+  ],
+  "actor": "https://lemmy.test/c/tenforward",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "object": {
+    "actor": "https://lemmy.test/u/picard",
+    "to": ["https://www.w3.org/ns/activitystreams#Public"],
+    "object": {
+      "id": "https://lemmy.test/post/55143",
+      "type": "Page",
+      "attributedTo": "https://lemmy.test/u/picard",
+      "to": [
+        "https://lemmy.test/c/tenforward",
+        "https://www.w3.org/ns/activitystreams#Public"
+      ],
+      "cc": [],
+      "audience": "https://lemmy.test/c/tenforward",
+      "name": "Post title",
+      "content": "<p>This is a post in the /c/tenforward community</p>\n",
+      "mediaType": "text/html",
+      "source": {
+        "content": "This is a post in the /c/tenforward community",
+        "mediaType": "text/markdown"
+      },
+      "attachment": [
+        {
+          "type": "Link",
+          "href": "https://example.org/article"
+        }
+      ],
+      "image": {
+        "type": "Image",
+        "url": "https://lemmy.test/pictrs/image/eOtYb9iEiB.png"
+      },
+      "sensitive": false,
+      "commentsEnabled": true,
+      "stickied": false,
+      "language": {
+        "identifier": "en",
+        "name": "English"
+      },
+      "published": "2021-02-26T12:35:34.292626Z"
+    },
+    "cc": ["https://lemmy.test/c/tenforward"],
+    "type": "Create",
+    "id": "https://lemmy.test/activities/create/eee6a57a-622f-464d-b560-73ae1fcd3ddf",
+    "audience": "https://lemmy.test/c/tenforward"
+  },
+  "cc": ["https://lemmy.test/c/tenforward/followers"],
+  "type": "Announce",
+  "id": "https://lemmy.test/activities/announce/create/8030b171-803a-4108-94b1-342688f375cf"
+}

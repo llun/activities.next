@@ -1,0 +1,34 @@
+{
+  "@context": [
+    "https://gotosocial.org/ns",
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "discoverable": "toot:discoverable",
+      "featured": {
+        "@id": "toot:featured",
+        "@type": "@id"
+      },
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "toot": "http://joinmastodon.org/ns#",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag",
+      "Emoji": "toot:Emoji"
+    }
+  ],
+  "id": "https://gts.test/users/the_mighty_zork/outbox?limit=40",
+  "next": "https://gts.test/users/the_mighty_zork/outbox?limit=40&max_id=01F8MHAMCHF6Y650WCRSCP4WMY",
+  "orderedItems": {
+    "actor": "https://gts.test/users/the_mighty_zork",
+    "cc": "https://gts.test/users/the_mighty_zork/followers",
+    "id": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY/activity#Create",
+    "object": "https://gts.test/users/the_mighty_zork/statuses/01F8MHAMCHF6Y650WCRSCP4WMY",
+    "published": "2021-10-20T10:40:37Z",
+    "to": "https://www.w3.org/ns/activitystreams#Public",
+    "type": "Create"
+  },
+  "partOf": "https://gts.test/users/the_mighty_zork/outbox",
+  "prev": "https://gts.test/users/the_mighty_zork/outbox?limit=40&min_id=01F8MHAMCHF6Y650WCRSCP4WMY",
+  "totalItems": 1,
+  "type": "OrderedCollectionPage"
+}

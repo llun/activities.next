@@ -1,0 +1,61 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://pleroma.test/schemas/litepub-0.1.jsonld",
+    {
+      "@language": "und"
+    }
+  ],
+  "actor": "https://pleroma.test/users/lanodan",
+  "cc": ["https://pleroma.test/users/lanodan/followers"],
+  "context": "https://pleroma.test/contexts/34cba3d2-2f35-4169-aeff-56af9bfeb753",
+  "directMessage": false,
+  "id": "https://pleroma.test/activities/f3d1b7a0-3c2c-4b25-9d3d-1f5b1c4d6e7f",
+  "object": {
+    "actor": "https://pleroma.test/users/lanodan",
+    "attachment": [],
+    "attributedTo": "https://pleroma.test/users/lanodan",
+    "cc": ["https://pleroma.test/users/lanodan/followers"],
+    "content": "Pleroma says hi :blobfox:",
+    "context": "https://pleroma.test/contexts/34cba3d2-2f35-4169-aeff-56af9bfeb753",
+    "conversation": "https://pleroma.test/contexts/34cba3d2-2f35-4169-aeff-56af9bfeb753",
+    "id": "https://pleroma.test/objects/8d4973f4-53de-49cd-8c27-df160e16a9c2",
+    "published": "2025-02-03T18:06:52.555500Z",
+    "repliesCount": 1,
+    "replies": {
+      "id": "https://pleroma.test/objects/8d4973f4-53de-49cd-8c27-df160e16a9c2/replies",
+      "type": "Collection",
+      "first": {
+        "type": "CollectionPage",
+        "id": "https://pleroma.test/objects/8d4973f4-53de-49cd-8c27-df160e16a9c2/replies?page=true",
+        "partOf": "https://pleroma.test/objects/8d4973f4-53de-49cd-8c27-df160e16a9c2/replies",
+        "items": [
+          "https://pleroma.test/objects/0a1b2c3d-1111-4222-8333-944455556666"
+        ]
+      }
+    },
+    "sensitive": null,
+    "source": {
+      "content": "Pleroma says hi :blobfox:",
+      "mediaType": "text/plain"
+    },
+    "summary": "",
+    "tag": [
+      {
+        "icon": {
+          "type": "Image",
+          "url": "https://pleroma.test/emoji/blobfox.png"
+        },
+        "id": "https://pleroma.test/emoji/blobfox.png",
+        "name": ":blobfox:",
+        "type": "Emoji",
+        "updated": "1970-01-01T00:00:00Z"
+      }
+    ],
+    "to": ["https://www.w3.org/ns/activitystreams#Public"],
+    "type": "Note"
+  },
+  "published": "2025-02-03T18:06:52.555500Z",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "type": "Create"
+}

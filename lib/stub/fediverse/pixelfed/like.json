@@ -1,0 +1,7 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://pixelfed.test/users/dansup#likes/736419587328737300",
+  "type": "Like",
+  "actor": "https://pixelfed.test/users/dansup",
+  "object": "https://llun.test/users/test1/statuses/post-1"
+}

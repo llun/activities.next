@@ -1,0 +1,22 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://pleroma.test/schemas/litepub-0.1.jsonld",
+    {
+      "@language": "und"
+    }
+  ],
+  "actor": "https://pleroma.test/users/lanodan",
+  "cc": ["https://www.w3.org/ns/activitystreams#Public"],
+  "content": "🔥",
+  "context": "https://pleroma.test/contexts/34cba3d2-2f35-4169-aeff-56af9bfeb753",
+  "id": "https://pleroma.test/activities/aa11bb22-cc33-4d44-8e55-f66677778888",
+  "object": "https://llun.test/users/test1/statuses/post-1",
+  "published": "2025-02-03T19:05:00.000000Z",
+  "tag": [],
+  "to": [
+    "https://llun.test/users/test1",
+    "https://pleroma.test/users/lanodan/followers"
+  ],
+  "type": "EmojiReact"
+}

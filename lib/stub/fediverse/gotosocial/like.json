@@ -1,0 +1,8 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://gts.test/users/the_mighty_zork",
+  "id": "https://gts.test/users/the_mighty_zork/liked/01F8MY0T6HRYK1W1YWEXR2BMGH",
+  "object": "https://llun.test/users/test1/statuses/post-1",
+  "to": "https://llun.test/users/test1",
+  "type": "Like"
+}

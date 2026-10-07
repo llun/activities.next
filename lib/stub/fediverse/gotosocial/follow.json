@@ -1,0 +1,8 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://gts.test/users/the_mighty_zork",
+  "id": "https://gts.test/users/the_mighty_zork/follow/01HF0LLOW00000000000000000",
+  "object": "https://llun.test/users/test1",
+  "to": "https://llun.test/users/test1",
+  "type": "Follow"
+}

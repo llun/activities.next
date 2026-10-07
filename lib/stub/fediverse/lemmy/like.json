@@ -1,0 +1,10 @@
+{
+  "@context": [
+    "https://join-lemmy.org/context.json",
+    "https://www.w3.org/ns/activitystreams"
+  ],
+  "actor": "https://lemmy.test/u/picard",
+  "object": "https://llun.test/users/test1/statuses/post-1",
+  "type": "Like",
+  "id": "https://lemmy.test/activities/like/fd61d070-7382-46a9-b2b7-6bb253732877"
+}

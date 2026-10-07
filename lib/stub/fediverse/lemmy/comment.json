@@ -1,0 +1,33 @@
+{
+  "@context": [
+    "https://join-lemmy.org/context.json",
+    "https://www.w3.org/ns/activitystreams"
+  ],
+  "id": "https://lemmy.test/comment/38741",
+  "type": "Note",
+  "attributedTo": "https://lemmy.test/u/picard",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": ["https://lemmy.test/c/tenforward", "https://lemmy.test/u/picard"],
+  "audience": "https://lemmy.test/c/tenforward",
+  "inReplyTo": "https://lemmy.test/post/55143",
+  "content": "<p>first comment!</p>\n",
+  "mediaType": "text/html",
+  "source": {
+    "content": "first comment!",
+    "mediaType": "text/markdown"
+  },
+  "tag": [
+    {
+      "href": "https://lemmy.test/u/picard",
+      "type": "Mention",
+      "name": "@picard@lemmy.test"
+    }
+  ],
+  "distinguished": false,
+  "language": {
+    "identifier": "en",
+    "name": "English"
+  },
+  "published": "2021-03-01T13:42:43.966208Z",
+  "updated": "2021-03-01T13:43:03.955787Z"
+}
