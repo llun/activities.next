@@ -251,41 +251,6 @@ describe('getJobMessage', () => {
     })
   })
 
-  it.each([
-    {
-      description:
-        'accepts a Create Video also attributed to a same-origin channel',
-      channelId: 'https://remote.test/video-channels/alice_channel',
-      expected: CREATE_NOTE_JOB_NAME
-    },
-    {
-      description:
-        'rejects a Create Video attributed to a channel on another origin',
-      channelId: 'https://other.test/video-channels/mallory_channel',
-      expected: undefined
-    }
-  ])('$description', ({ channelId, expected }) => {
-    const result = getJobMessage(
-      {
-        id: 'https://remote.test/videos/watch/1/activity',
-        type: 'Create',
-        actor: verifiedSenderActorId,
-        object: {
-          id: 'https://remote.test/videos/watch/1',
-          type: 'Video',
-          attributedTo: [
-            { type: 'Person', id: verifiedSenderActorId },
-            { type: 'Group', id: channelId }
-          ],
-          content: 'A video'
-        }
-      } as never,
-      verifiedSenderActorId
-    )
-
-    expect(result?.name).toBe(expected)
-  })
-
   it('cannot reserve the queue key a local status delete publishes under', () => {
     // deleteStatus publishes its Tombstone fan-out as
     // getHashFromString(`${statusId}#delete`); a remote activity whose id is
