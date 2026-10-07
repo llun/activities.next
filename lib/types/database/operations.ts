@@ -3495,6 +3495,19 @@ export type MarkMediaUploadVerifiedParams = {
   // replacing the declared size. The account's media usage counter moves by the
   // difference.
   originalBytes?: number
+  // The key the rewritten original was stored under. Completion writes the
+  // stripped copy to a NEW key and swaps it in here, so the client's upload is
+  // never overwritten while the row is still pending.
+  originalPath?: string
+}
+// `transitioned` is true only for the one call whose conditional
+// pending → verified update changed the row; a concurrent or repeated
+// completion gets the already-verified media back with `transitioned: false`
+// and must not apply its own side effects (the usage counter moves only on the
+// transition).
+export type MarkMediaUploadVerifiedResult = {
+  media: Media
+  transitioned: boolean
 }
 
 export type GetMediaWithAttachedStatusIdsParams = {
@@ -3515,7 +3528,7 @@ export interface MediaDatabase {
   ): Promise<MediaWithAttachedStatusIds | null>
   markMediaUploadVerified(
     params: MarkMediaUploadVerifiedParams
-  ): Promise<Media | null>
+  ): Promise<MarkMediaUploadVerifiedResult | null>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   updateAttachmentPlayback(

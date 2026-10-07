@@ -11,9 +11,6 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-const normalizeGearName = (name: string) =>
-  name.trim().replace(/\s+/g, ' ').toLowerCase()
-
 // The actor's camera and lens gear. Full CRUD (edit, retire, delete) arrives
 // with the gallery's Gear section; uploads create rows here on their own, keyed
 // on the EXIF identity, via `resolveGalleryGear`.
@@ -52,28 +49,24 @@ export const POST = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
     }
 
-    const existingGears = await database.getGalleryGearsByActor({
-      actorId: currentActor.id
+    // The duplicate check, the cap and the insert run in one transaction
+    // serialised on the actor row, so a double-submit or a retry while the
+    // first request is still in flight hands back the row already there
+    // instead of adding a twin, and concurrent creates cannot overshoot the
+    // cap. `gallery_gears` has no name index to enforce this: manual gear has
+    // no `deviceKey`, the one column it is unique on.
+    const result = await database.createGalleryGearWithinLimit({
+      actorId: currentActor.id,
+      kind: parsed.data.kind,
+      name: parsed.data.name,
+      brand: parsed.data.brand,
+      model: parsed.data.model,
+      productUrl: parsed.data.productUrl,
+      limit: MAX_GALLERY_GEAR_PER_ACTOR,
+      dedupeByName: true
     })
 
-    // A double-submit (or a retry) of the same camera is the same camera: hand
-    // back the row that is already there instead of adding a twin.
-    const requestedName = normalizeGearName(parsed.data.name)
-    const duplicate = existingGears.find(
-      (existing) =>
-        existing.kind === parsed.data.kind &&
-        normalizeGearName(existing.name) === requestedName
-    )
-    if (duplicate) {
-      return apiResponse({
-        req,
-        allowedMethods: [],
-        data: { gear: toGalleryGearEntity(duplicate) },
-        responseStatusCode: 200
-      })
-    }
-
-    if (existingGears.length >= MAX_GALLERY_GEAR_PER_ACTOR) {
+    if (result.status === 'limit-reached') {
       return apiResponse({
         req,
         allowedMethods: [],
@@ -81,15 +74,7 @@ export const POST = traceApiRoute(
         responseStatusCode: 422
       })
     }
-
-    const gear = await database.createGalleryGear({
-      actorId: currentActor.id,
-      kind: parsed.data.kind,
-      name: parsed.data.name,
-      brand: parsed.data.brand,
-      model: parsed.data.model,
-      productUrl: parsed.data.productUrl
-    })
+    const { gear } = result
 
     return apiResponse({
       req,

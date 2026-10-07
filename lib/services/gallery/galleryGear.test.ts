@@ -10,6 +10,7 @@ import {
   resolveGalleryGear,
   resolveGalleryGearFromExif
 } from '@/lib/services/gallery/galleryGear'
+import { MAX_GALLERY_GEAR_PER_ACTOR } from '@/lib/services/gallery/galleryRequests'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
@@ -212,6 +213,67 @@ describe('resolveGalleryGear', () => {
       })
     })
 
+    it('creates no gear past the per-actor cap and links none', async () => {
+      const actorId = actors.empty.id
+      const existing = await database.getGalleryGearsByActor({ actorId })
+      for (
+        let index = existing.length;
+        index < MAX_GALLERY_GEAR_PER_ACTOR;
+        index += 1
+      ) {
+        await database.createGalleryGear({
+          actorId,
+          kind: 'lens',
+          name: `Lens ${index}`,
+          deviceKey: `lens:cap-${index}`
+        })
+      }
+
+      const resolved = await resolveGalleryGearFromExif({
+        database,
+        actorId,
+        exif: { make: 'Canon', model: 'Forged Model', lensModel: 'Forged Lens' }
+      })
+
+      expect(resolved).toEqual({ cameraGearId: null, lensGearId: null })
+      expect(await database.getGalleryGearsByActor({ actorId })).toHaveLength(
+        MAX_GALLERY_GEAR_PER_ACTOR
+      )
+      // Gear already held still resolves at the cap.
+      expect(
+        (
+          await resolveGalleryGear({
+            database,
+            actorId,
+            kind: 'lens',
+            seed: buildLensGearSeed('cap-0')
+          })
+        )?.id
+      ).toBeString()
+    })
+
+    it('serialises concurrent creates of one device into one row', async () => {
+      const seed = buildCameraGearSeed('Nikon', 'Z 9 concurrent')
+      const results = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          resolveGalleryGear({
+            database,
+            actorId: actors.extra.id,
+            kind: 'camera',
+            seed
+          })
+        )
+      )
+
+      expect(new Set(results.map((result) => result?.id)).size).toBe(1)
+      const gears = await database.getGalleryGearsByActor({
+        actorId: actors.extra.id
+      })
+      expect(
+        gears.filter((gear) => gear.deviceKey === seed!.deviceKey)
+      ).toHaveLength(1)
+    })
+
     it('resolves to nulls when EXIF names no gear', async () => {
       expect(
         await resolveGalleryGearFromExif({
@@ -233,7 +295,7 @@ describe('resolveGalleryGear', () => {
           .fn()
           .mockResolvedValueOnce(null)
           .mockResolvedValueOnce(winner),
-        createGalleryGear: vi
+        createGalleryGearWithinLimit: vi
           .fn()
           .mockRejectedValue(new Error('unique violation'))
       }
@@ -253,7 +315,7 @@ describe('resolveGalleryGear', () => {
         findGalleryGearByDeviceKey: vi
           .fn()
           .mockRejectedValue(new Error('down')),
-        createGalleryGear: vi.fn()
+        createGalleryGearWithinLimit: vi.fn()
       }
 
       expect(
@@ -264,13 +326,15 @@ describe('resolveGalleryGear', () => {
           seed
         })
       ).toBeNull()
-      expect(database.createGalleryGear).not.toHaveBeenCalled()
+      expect(database.createGalleryGearWithinLimit).not.toHaveBeenCalled()
     })
 
     it('returns null when the create fails and nobody else created the row', async () => {
       const database = {
         findGalleryGearByDeviceKey: vi.fn().mockResolvedValue(null),
-        createGalleryGear: vi.fn().mockRejectedValue(new Error('down'))
+        createGalleryGearWithinLimit: vi
+          .fn()
+          .mockRejectedValue(new Error('down'))
       }
 
       expect(

@@ -297,6 +297,36 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
 
       expect((await request(id)).status).toBe(200)
     })
+
+    it("answers 404 when only another actor's public post points at the media", async () => {
+      // ACTOR1's media sits in a followers-only post; ACTOR2 writes a public
+      // post whose attachment carries ACTOR1's media id. That attachment is not
+      // evidence ACTOR1 published the photo, so it must not unlock its details.
+      const { id } = await createMedia({ to: followersOnly })
+      const attackerStatusId = `${ACTOR2_ID}/statuses/gallery-details-foreign`
+      await database.createNote({
+        id: attackerStatusId,
+        url: attackerStatusId,
+        actorId: ACTOR2_ID,
+        text: 'Not my photo',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.createAttachment({
+        actorId: ACTOR2_ID,
+        statusId: attackerStatusId,
+        mediaType: 'image/jpeg',
+        url: 'x',
+        mediaId: id
+      })
+
+      const response = await request(id)
+
+      expect(response.status).toBe(404)
+      expect(await response.json()).toEqual(
+        await (await request('987654321')).json()
+      )
+    })
   })
 
   it.each(['abc', '0', '-1', '1.5', '2147483648', '1e3'])(

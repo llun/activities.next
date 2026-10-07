@@ -470,9 +470,13 @@ export class S3FileStorage implements MediaStorage {
 
         // The object is public and the client's bytes still carry their EXIF
         // (GPS position, device serials), which the owner's place precision
-        // exists to withhold. Rewrite it without, and only then call the
-        // upload verified, so a failure leaves it pending rather than usable.
-        const strippedBytes = media.original.mimeType.startsWith('image')
+        // exists to withhold. Write a copy without it to a NEW key and swap
+        // that in as the original in the same update that marks the upload
+        // verified. The client's object is left untouched until then, so a
+        // retried or concurrent completion still finds the bytes it validates
+        // against (an in-place overwrite made every retry fail the size check
+        // and delete a good upload).
+        const stripped = media.original.mimeType.startsWith('image')
           ? await this._stripPresignedImageMetadata(
               media.original.path,
               tempFilePath,
@@ -480,17 +484,36 @@ export class S3FileStorage implements MediaStorage {
             )
           : undefined
 
-        const verifiedMedia = await this._database.markMediaUploadVerified({
-          mediaId,
-          accountId,
-          verifiedAt: Date.now(),
-          dimensions,
-          ...(strippedBytes === undefined
-            ? null
-            : { originalBytes: strippedBytes })
-        })
-        if (!verifiedMedia) {
-          return null
+        let result
+        try {
+          result = await this._database.markMediaUploadVerified({
+            mediaId,
+            accountId,
+            verifiedAt: Date.now(),
+            dimensions,
+            ...(stripped === undefined
+              ? null
+              : { originalBytes: stripped.bytes, originalPath: stripped.key })
+          })
+        } catch (error) {
+          // The upload stays pending with the client's object intact, so a
+          // retry starts over; only the copy made for this attempt goes.
+          if (stripped) {
+            await this.deleteFile(stripped.key).catch(() => false)
+          }
+          throw error
+        }
+        if (!result || !result.transitioned) {
+          // Gone, or another completion verified it first: that call owns the
+          // swap and the decoration, and this attempt's copy is unused.
+          if (stripped) {
+            await this.deleteFile(stripped.key).catch(() => false)
+          }
+          return result ? await this._getSaveFileOutput(result.media) : null
+        }
+        const verifiedMedia = result.media
+        if (stripped) {
+          await this._deleteReplacedPresignedOriginal(media.original.path)
         }
 
         const output = await this._decoratePresignedMedia(
@@ -506,10 +529,39 @@ export class S3FileStorage implements MediaStorage {
       }
     } catch (error) {
       if (error instanceof PresignedUploadValidationError) {
+        // A concurrent completion may have verified the upload and removed
+        // the client's object while this one was reading it — the "missing"
+        // seen here is then that call's cleanup, not a bad upload. Never
+        // delete a row that is no longer pending.
+        const current = await this._database
+          .getMediaByIdForAccount({ mediaId, accountId })
+          .catch(() => null)
+        if (current?.original.metaData.upload?.state === 'verified') {
+          return await this._getSaveFileOutput(current)
+        }
         await this.deleteFile(media.original.path).catch(() => false)
         await this._database.deleteMedia({ mediaId }).catch(() => false)
       }
       throw error
+    }
+  }
+
+  // The client's own object, replaced by the stripped copy the row now points
+  // at. It still carries the EXIF the strip removed and the files route serves
+  // any media key, so a failure to remove it is logged as an error rather than
+  // swallowed.
+  private async _deleteReplacedPresignedOriginal(key: string) {
+    try {
+      await this._client.send(
+        new DeleteObjectCommand({ Bucket: this._config.bucket, Key: key })
+      )
+    } catch (error) {
+      logger.error({
+        message:
+          'Failed to delete the unstripped original of a presigned image upload',
+        key,
+        err: toLoggableError(error)
+      })
     }
   }
 
@@ -589,19 +641,20 @@ export class S3FileStorage implements MediaStorage {
     return { buffer, details }
   }
 
-  // Rewrites the stored original without its metadata and returns the new
-  // size. The re-encode keeps the declared format (so the key, content type and
-  // extension stay valid) and applies the EXIF orientation, which is the one
-  // piece of metadata that changes how the pixels display — the probed
-  // dimensions already account for it. Failing to produce a clean copy fails
-  // closed: the upload is refused and removed rather than left public with its
-  // metadata. A transient storage error propagates, leaving the upload pending
-  // for a retry.
+  // Stores a copy of the original without its metadata under a fresh key next
+  // to it, and returns that key and its size. The re-encode keeps the declared
+  // format (so the content type and extension stay valid) and applies the EXIF
+  // orientation, which is the one piece of metadata that changes how the
+  // pixels display — the probed dimensions already account for it. Failing to
+  // produce a clean copy fails closed: the upload is refused and removed
+  // rather than left public with its metadata. A transient storage error
+  // propagates, leaving the upload pending (and the client's object as it
+  // was) for a retry.
   private async _stripPresignedImageMetadata(
     key: string,
     tempFilePath: string,
     contentType: string
-  ): Promise<number> {
+  ): Promise<{ key: string; bytes: number }> {
     let stripped: Buffer
     try {
       const image = sharp(tempFilePath).rotate()
@@ -617,15 +670,24 @@ export class S3FileStorage implements MediaStorage {
         'Uploaded image could not be processed'
       )
     }
+    // Same directory and extension as the presigned key (both server-made),
+    // new random name.
+    const nameStart = key.lastIndexOf('/') + 1
+    const extensionStart = key.lastIndexOf('.')
+    const extension =
+      extensionStart >= nameStart ? key.slice(extensionStart) : ''
+    const strippedKey = `${key.slice(0, nameStart)}${crypto
+      .randomBytes(8)
+      .toString('hex')}${extension}`
     await this._client.send(
       new PutObjectCommand({
         Bucket: this._config.bucket,
-        Key: key,
+        Key: strippedKey,
         ContentType: contentType,
         Body: stripped
       })
     )
-    return stripped.length
+    return { key: strippedKey, bytes: stripped.length }
   }
 
   // Blurhash, focus, alt text and a video's poster. Decoration only: the media

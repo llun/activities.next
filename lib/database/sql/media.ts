@@ -36,6 +36,7 @@ import {
   GetMediasForAccountParams,
   GetStorageUsageForAccountParams,
   MarkMediaUploadVerifiedParams,
+  MarkMediaUploadVerifiedResult,
   Media,
   MediaDatabase,
   MediaWithAttachedStatusIds,
@@ -49,7 +50,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
-import { chunkArray, getWhereInBatchSize } from './utils/knex'
+import { chunkArray, getWhereInBatchSize, isPostgresClient } from './utils/knex'
 
 // PostgreSQL `integer` upper bound. An id above it does not merely miss: the
 // driver sends it as a parameter to an integer column and PostgreSQL answers
@@ -445,42 +446,73 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     accountId,
     verifiedAt,
     dimensions,
-    originalBytes
-  }: MarkMediaUploadVerifiedParams): Promise<Media | null> {
+    originalBytes,
+    originalPath
+  }: MarkMediaUploadVerifiedParams): Promise<MarkMediaUploadVerifiedResult | null> {
     const id = toMediaRowId(mediaId)
     if (id === null) return null
 
-    const data = await database('medias')
-      .join('actors', 'medias.actorId', 'actors.id')
-      .where('medias.id', id)
-      .where('actors.accountId', accountId)
-      .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
-      .first<MediaRow>()
+    // A read-check-write inside one transaction, with the row locked on
+    // PostgreSQL (SQLite serialises transactions on its single connection), so
+    // two completions of the same upload cannot both see `pending`: the second
+    // waits, then reads the first one's `verified` row and changes nothing. The
+    // usage delta is computed from the row read under that lock and applied
+    // only by the call that made the transition.
+    return database.transaction(async (trx) => {
+      const query = trx('medias')
+        .join('actors', 'medias.actorId', 'actors.id')
+        .where('medias.id', id)
+        .where('actors.accountId', accountId)
+        .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
+        .first<MediaRow>()
+      if (isPostgresClient(database)) query.forUpdate('medias')
+      const data = await query
+      if (!data) return null
 
-    if (!data) return null
-
-    const media = parseMediaRow(data)
-    const metaData = {
-      ...media.original.metaData,
-      ...(dimensions
-        ? { width: dimensions.width, height: dimensions.height }
-        : {}),
-      upload: {
-        ...media.original.metaData.upload,
-        state: 'verified' as const,
-        verifiedAt
+      const media = parseMediaRow(data)
+      if (media.original.metaData.upload?.state !== 'pending') {
+        return { media, transitioned: false }
       }
-    }
 
-    const bytesDelta =
-      originalBytes === undefined ? 0 : originalBytes - media.original.bytes
-    await database.transaction(async (trx) => {
-      await trx('medias')
-        .where('id', media.id)
+      const metaData = {
+        ...media.original.metaData,
+        ...(dimensions
+          ? { width: dimensions.width, height: dimensions.height }
+          : {}),
+        upload: {
+          ...media.original.metaData.upload,
+          state: 'verified' as const,
+          verifiedAt
+        }
+      }
+
+      const bytesDelta =
+        originalBytes === undefined ? 0 : originalBytes - media.original.bytes
+      // The update is itself conditional on `pending` and the side effects
+      // below run only when it changed the row, so the counter moves once
+      // even if the lock above were ever bypassed.
+      const changed = await trx('medias')
+        .where('id', id)
+        .whereRaw(
+          isPostgresClient(database)
+            ? `"originalMetaData"->'upload'->>'state' = ?`
+            : `json_extract("originalMetaData", '$.upload.state') = ?`,
+          ['pending']
+        )
         .update({
           originalMetaData: JSON.stringify(metaData),
-          ...(originalBytes === undefined ? null : { originalBytes })
+          ...(originalBytes === undefined ? null : { originalBytes }),
+          ...(originalPath === undefined ? null : { original: originalPath })
         })
+      if (changed === 0) {
+        const current = await trx('medias')
+          .where('id', id)
+          .select(MEDIA_COLUMNS)
+          .first<MediaRow>()
+        return current
+          ? { media: parseMediaRow(current), transitioned: false }
+          : null
+      }
       // Keep the per-account usage counter in step with the rewritten object.
       if (bytesDelta > 0) {
         await increaseCounterValue(
@@ -495,16 +527,20 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           -bytesDelta
         )
       }
-    })
 
-    return {
-      ...media,
-      original: {
-        ...media.original,
-        ...(originalBytes === undefined ? null : { bytes: originalBytes }),
-        metaData
+      return {
+        media: {
+          ...media,
+          original: {
+            ...media.original,
+            ...(originalBytes === undefined ? null : { bytes: originalBytes }),
+            ...(originalPath === undefined ? null : { path: originalPath }),
+            metaData
+          }
+        },
+        transitioned: true
       }
-    }
+    })
   },
   // NOTE: `mediaId` is WRITTEN here, not compared, so it does not go through
   // `toMediaRowId` — coercing would silently drop the link rather than surface
@@ -997,9 +1033,35 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     // `attachments.mediaId` is `varchar` on SQLite and `integer` on PostgreSQL;
     // joining on `medias.id` lets each backend compare it its own way, as
     // `getMediasWithStatusForAccount` does.
+    //
+    // Only an attachment written by the media's OWNER counts as evidence the
+    // owner published it. `attachments.mediaId` is a bare pointer, and any
+    // actor can write one (the outbox takes attachment objects from the
+    // client), so without this an attacker's public post pointing at someone
+    // else's media id would unlock that media's private details. Ownership is
+    // account-wide, matching the upload and attach routes: a second persona on
+    // the owner's account attaching the media still counts.
     const rows = await database('attachments')
       .join('medias', 'medias.id', 'attachments.mediaId')
+      .join(
+        'actors as attachmentActors',
+        'attachmentActors.id',
+        'attachments.actorId'
+      )
+      .join('actors as mediaActors', 'mediaActors.id', 'medias.actorId')
       .where('medias.id', id)
+      .where((builder) =>
+        builder
+          .where('attachments.actorId', database.ref('medias.actorId'))
+          .orWhere((sameAccount) =>
+            sameAccount
+              .whereNotNull('mediaActors.accountId')
+              .where(
+                'attachmentActors.accountId',
+                database.ref('mediaActors.accountId')
+              )
+          )
+      )
       .whereNotNull('attachments.statusId')
       .where('attachments.statusId', '<>', '')
       .distinct('attachments.statusId')

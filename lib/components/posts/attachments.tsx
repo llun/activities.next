@@ -70,7 +70,7 @@ const COUNTER_EDGE_TOLERANCE = 4
 
 // The 0-based card the 1-based position counter names. At the end of the strip
 // it is the last card, so the counter reads N / N exactly when the Next arrow
-// is gone. Otherwise it is the first card whose left edge has reached the
+// is disabled. Otherwise it is the first card whose left edge has reached the
 // viewport's left edge: a card still partly scrolled off to the left counts as
 // passed.
 const getActivePosition = (strip: HTMLElement) => {
@@ -90,6 +90,9 @@ const STRIP_ARROW_CLASS =
   'group absolute left-1.5 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 const STRIP_ARROW_FACE_CLASS =
   'flex size-10 items-center justify-center rounded-full bg-background/95 shadow-md transition-colors group-hover:bg-background'
+// An arrow with nowhere to go stays mounted for focus but is invisible and
+// takes no pointer input; aria-disabled tells assistive tech it is unavailable.
+const STRIP_ARROW_EDGE_CLASS = 'pointer-events-none opacity-0'
 
 const MEDIA_BOX_CLASS =
   'relative block cursor-zoom-in overflow-hidden border border-border/60 bg-muted/20'
@@ -362,6 +365,24 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
     window.addEventListener('resize', syncActiveIndex)
     return () => window.removeEventListener('resize', syncActiveIndex)
   }, [syncActiveIndex])
+  // An arrow at its edge stays mounted (aria-disabled, out of the tab order) so
+  // a focused arrow never unmounts under the keyboard. If the arrow that holds
+  // focus reaches its edge, focus moves to the opposite arrow, which is the one
+  // with somewhere to go.
+  const previousArrow = useRef<HTMLButtonElement | null>(null)
+  const nextArrow = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => {
+    const focused = document.activeElement
+    if (focused === previousArrow.current && !canScrollLeft && canScrollRight) {
+      nextArrow.current?.focus()
+    } else if (
+      focused === nextArrow.current &&
+      !canScrollRight &&
+      canScrollLeft
+    ) {
+      previousArrow.current?.focus()
+    }
+  }, [canScrollLeft, canScrollRight])
 
   if (status.type !== StatusType.enum.Note) return null
   if (!pictures.length && !players.length) return null
@@ -563,46 +584,59 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
               </span>
             ) : null}
             {showChrome && canScrollLeft ? (
-              <>
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-linear-to-r from-background/70 to-transparent"
-                />
-                <button
-                  type="button"
-                  aria-label="Previous media"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    strip.scrollByPage(-1)
-                  }}
-                  className={STRIP_ARROW_CLASS}
-                >
-                  <span aria-hidden="true" className={STRIP_ARROW_FACE_CLASS}>
-                    <ChevronLeft className="size-5" />
-                  </span>
-                </button>
-              </>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-linear-to-r from-background/70 to-transparent"
+              />
             ) : null}
             {showChrome && canScrollRight ? (
-              <>
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-linear-to-l from-background/70 to-transparent"
-                />
-                <button
-                  type="button"
-                  aria-label="Next media"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    strip.scrollByPage(1)
-                  }}
-                  className={cn(STRIP_ARROW_CLASS, 'right-1.5 left-auto')}
-                >
-                  <span aria-hidden="true" className={STRIP_ARROW_FACE_CLASS}>
-                    <ChevronRight className="size-5" />
-                  </span>
-                </button>
-              </>
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-linear-to-l from-background/70 to-transparent"
+              />
+            ) : null}
+            {showChrome ? (
+              <button
+                ref={previousArrow}
+                type="button"
+                aria-label="Previous media"
+                aria-disabled={!canScrollLeft}
+                tabIndex={canScrollLeft ? undefined : -1}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (canScrollLeft) strip.scrollByPage(-1)
+                }}
+                className={cn(
+                  STRIP_ARROW_CLASS,
+                  !canScrollLeft && STRIP_ARROW_EDGE_CLASS
+                )}
+              >
+                <span aria-hidden="true" className={STRIP_ARROW_FACE_CLASS}>
+                  <ChevronLeft className="size-5" />
+                </span>
+              </button>
+            ) : null}
+            {showChrome ? (
+              <button
+                ref={nextArrow}
+                type="button"
+                aria-label="Next media"
+                aria-disabled={!canScrollRight}
+                tabIndex={canScrollRight ? undefined : -1}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (canScrollRight) strip.scrollByPage(1)
+                }}
+                className={cn(
+                  STRIP_ARROW_CLASS,
+                  'right-1.5 left-auto',
+                  !canScrollRight && STRIP_ARROW_EDGE_CLASS
+                )}
+              >
+                <span aria-hidden="true" className={STRIP_ARROW_FACE_CLASS}>
+                  <ChevronRight className="size-5" />
+                </span>
+              </button>
             ) : null}
           </div>
         </div>

@@ -178,7 +178,7 @@ describe('buildUploadMediaDetails', () => {
     const database = {
       getGallerySettings: vi.fn().mockRejectedValue(new Error('down')),
       findGalleryGearByDeviceKey: vi.fn().mockRejectedValue(new Error('down')),
-      createGalleryGear: vi.fn()
+      createGalleryGearWithinLimit: vi.fn()
     }
 
     const details = await buildUploadMediaDetails({

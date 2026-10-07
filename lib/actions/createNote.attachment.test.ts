@@ -250,5 +250,48 @@ describe('Create note action with attachments', () => {
 
       expect(status).toBeNull()
     })
+
+    it('links an attachment to its media row only when the author owns it', async () => {
+      const createImage = (actorId: string, name: string) =>
+        database.createMedia({
+          actorId,
+          original: {
+            path: `/test/create-note-owner-${name}-${Date.now()}.jpg`,
+            bytes: 100,
+            mimeType: 'image/jpeg',
+            metaData: { width: 10, height: 10 }
+          }
+        })
+      const owned = await createImage(actor1.id, 'owned')
+      const foreign = await createImage(actor2.id, 'foreign')
+
+      const status = (await createNoteFromUserInput({
+        text: 'One mine, one not',
+        currentActor: actor1,
+        attachments: [owned!, foreign!].map((media) => ({
+          type: 'upload' as const,
+          id: media.id,
+          mediaType: 'image/jpeg',
+          url: `https://example.com/${media.id}.jpg`,
+          width: 10,
+          height: 10,
+          name: ''
+        })),
+        database
+      })) as StatusNote
+
+      const stored = await database.getAttachments({ statusId: status.id })
+      const byUrl = new Map(stored.map((row) => [row.url, row]))
+      expect(byUrl.get(`https://example.com/${owned!.id}.jpg`)?.mediaId).toBe(
+        owned!.id
+      )
+      expect(
+        byUrl.get(`https://example.com/${foreign!.id}.jpg`)?.mediaId ?? null
+      ).toBeNull()
+      // The foreign media gains no attached status from the attacker's post.
+      expect(
+        await database.getMediaWithAttachedStatusIds({ mediaId: foreign!.id })
+      ).toMatchObject({ statusIds: [] })
+    })
   })
 })

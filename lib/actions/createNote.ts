@@ -612,8 +612,16 @@ export const createNoteFromUserInput = async ({
 
     await Promise.all([
       addStatusToTimelines(database, createdStatus),
-      ...attachments.map((attachment) =>
-        database.createAttachment({
+      ...attachments.map((attachment) => {
+        // Link the attachment to a media row only when that row belongs to
+        // the author's account. The outbox takes attachment ids from the
+        // client, and `attachments.mediaId` is read as proof the media's owner
+        // published it (the public details endpoint relies on it), so an id
+        // that did not resolve to an owned row is written without a link.
+        const ownedMetadata = attachment.id
+          ? mediaMetadataById.get(String(attachment.id))
+          : undefined
+        return database.createAttachment({
           actorId: currentActor.id,
           statusId,
           mediaType: attachment.mediaType,
@@ -621,13 +629,10 @@ export const createNoteFromUserInput = async ({
           width: attachment.width,
           height: attachment.height,
           name: attachment.name,
-          mediaId: attachment.id,
-          ...(attachment.id
-            ? (mediaMetadataById.get(String(attachment.id)) ??
-              EMPTY_ATTACHMENT_MEDIA_METADATA)
-            : EMPTY_ATTACHMENT_MEDIA_METADATA)
+          ...(ownedMetadata ? { mediaId: String(attachment.id) } : {}),
+          ...(ownedMetadata ?? EMPTY_ATTACHMENT_MEDIA_METADATA)
         })
-      )
+      })
     ])
 
     if (fitnessFile) {

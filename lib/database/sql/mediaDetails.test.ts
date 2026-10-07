@@ -212,6 +212,26 @@ describe('MediaDatabase details', () => {
         )
       })
 
+      it('ignores an attachment written by an actor that does not own the media', async () => {
+        const media = await createMedia('foreign-attachment')
+        const [status] = await database.getActorStatuses({
+          actorId: actors.replyAuthor.id,
+          limit: 1
+        })
+        expect(status).toBeDefined()
+        await database.createAttachment({
+          actorId: actors.replyAuthor.id,
+          statusId: status.id,
+          mediaType: 'image/jpeg',
+          url: 'x',
+          mediaId: media!.id
+        })
+
+        expect(
+          await database.getMediaWithAttachedStatusIds({ mediaId: media!.id })
+        ).toMatchObject({ statusIds: [] })
+      })
+
       it('returns no statuses for an unattached media', async () => {
         const media = await createMedia('unattached')
 

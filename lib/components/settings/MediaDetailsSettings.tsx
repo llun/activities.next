@@ -63,7 +63,11 @@ export const MediaDetailsSettings: FC = () => {
   const [settings, setSettings] = useState<GallerySettingsEntity | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [savingKey, setSavingKey] = useState<ToggleKey | null>(null)
+  // Keys with a save in flight. Only the switch whose save is pending is
+  // disabled; the others stay usable.
+  const [savingKeys, setSavingKeys] = useState<ReadonlySet<ToggleKey>>(
+    () => new Set()
+  )
   const [savedStatus, setSavedStatus] = useState<string | null>(null)
   // Each load gets a number; only the newest one may apply its result, so a
   // retry cannot be overwritten by an older request that finishes later.
@@ -115,7 +119,7 @@ export const MediaDetailsSettings: FC = () => {
     setSavedStatus(null)
     setSettings((current) => (current ? { ...current, [key]: value } : current))
     setSaveError(null)
-    setSavingKey(key)
+    setSavingKeys((current) => new Set(current).add(key))
     try {
       const saved = await updateGallerySettings({ [key]: value })
       if (!isLatest()) return
@@ -137,7 +141,11 @@ export const MediaDetailsSettings: FC = () => {
       setSaveError(SAVE_ERROR)
     } finally {
       pendingKeys.current.delete(key)
-      setSavingKey(null)
+      setSavingKeys((current) => {
+        const next = new Set(current)
+        next.delete(key)
+        return next
+      })
     }
   }
 
@@ -191,7 +199,9 @@ export const MediaDetailsSettings: FC = () => {
               : undefined
           }
           checked={settings?.autoDescribe ?? false}
-          disabled={!loaded || !altTextAvailable || savingKey !== null}
+          disabled={
+            !loaded || !altTextAvailable || savingKeys.has('autoDescribe')
+          }
           onCheckedChange={(checked) => handleToggle('autoDescribe', checked)}
         />
 
@@ -200,7 +210,7 @@ export const MediaDetailsSettings: FC = () => {
           label="Allow posting media without a description"
           description="When off, every item needs a description or must be marked decorative."
           checked={settings?.allowEmptyDescription ?? false}
-          disabled={!loaded || savingKey !== null}
+          disabled={!loaded || savingKeys.has('allowEmptyDescription')}
           onCheckedChange={(checked) =>
             handleToggle('allowEmptyDescription', checked)
           }
@@ -220,7 +230,7 @@ export const MediaDetailsSettings: FC = () => {
           label="Add subjects as hashtags"
           description="Adds a hashtag such as #CommonKingfisher to the post for each subject."
           checked={settings?.subjectHashtags ?? false}
-          disabled={!loaded || savingKey !== null}
+          disabled={!loaded || savingKeys.has('subjectHashtags')}
           onCheckedChange={(checked) =>
             handleToggle('subjectHashtags', checked)
           }

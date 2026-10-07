@@ -28,6 +28,7 @@ import { PostBox } from './post-box'
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
   createPoll: vi.fn(),
+  deleteAccountMedia: vi.fn().mockResolvedValue(true),
   deleteFitnessFile: vi.fn(),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
   getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),

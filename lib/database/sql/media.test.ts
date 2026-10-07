@@ -1341,7 +1341,7 @@ describe('MediaDatabase', () => {
           verifiedAt
         })
 
-        expect(verified?.original.metaData.upload).toMatchObject({
+        expect(verified?.media.original.metaData.upload).toMatchObject({
           state: 'verified',
           verifiedAt,
           // The rest of the upload metadata survives the rewrite.
@@ -1400,7 +1400,7 @@ describe('MediaDatabase', () => {
           originalBytes: 700
         })
 
-        expect(verified?.original.bytes).toBe(700)
+        expect(verified?.media.original.bytes).toBe(700)
         const reread = await database.getMediaByIdForAccount({
           mediaId: media!.id,
           accountId
@@ -1408,6 +1408,78 @@ describe('MediaDatabase', () => {
         expect(reread?.original.bytes).toBe(700)
         expect(await database.getStorageUsageForAccount({ accountId })).toBe(
           before - 300
+        )
+      })
+
+      it('swaps in the stripped original path with the verification', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-swap.jpg')
+
+        const verified = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          originalBytes: 800,
+          originalPath: '/test/verify-swap-stripped.jpg'
+        })
+
+        expect(verified).toMatchObject({
+          transitioned: true,
+          media: { original: { path: '/test/verify-swap-stripped.jpg' } }
+        })
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original).toMatchObject({
+          path: '/test/verify-swap-stripped.jpg',
+          bytes: 800
+        })
+      })
+
+      // A retried or concurrent completion must not move the usage counter a
+      // second time, nor overwrite the first call's path and size.
+      it('transitions once and adjusts usage once under repeated and concurrent calls', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-once.jpg')
+        const before = await database.getStorageUsageForAccount({ accountId })
+
+        const results = await Promise.all(
+          [600, 650].map((bytes) =>
+            database.markMediaUploadVerified({
+              mediaId: media!.id,
+              accountId,
+              verifiedAt: Date.now(),
+              originalBytes: bytes,
+              originalPath: `/test/verify-once-${bytes}.jpg`
+            })
+          )
+        )
+        const repeated = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          originalBytes: 100,
+          originalPath: '/test/verify-once-late.jpg'
+        })
+
+        const winners = results.filter((result) => result?.transitioned)
+        expect(winners).toHaveLength(1)
+        expect(repeated?.transitioned).toBe(false)
+        const winningBytes = winners[0]!.media.original.bytes
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original).toMatchObject({
+          bytes: winningBytes,
+          path: `/test/verify-once-${winningBytes}.jpg`
+        })
+        expect(repeated?.media.original.bytes).toBe(winningBytes)
+        expect(await database.getStorageUsageForAccount({ accountId })).toBe(
+          before - (1000 - winningBytes)
         )
       })
 

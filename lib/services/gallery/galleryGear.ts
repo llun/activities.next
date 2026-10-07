@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { MAX_GALLERY_GEAR_PER_ACTOR } from '@/lib/services/gallery/galleryRequests'
 import { MediaExif } from '@/lib/services/medias/exif/readMediaExif'
 import { GalleryGearKind } from '@/lib/types/database/gallery'
 import { logger } from '@/lib/utils/logger'
@@ -143,15 +144,28 @@ export const resolveGalleryGear = async ({
   }
 
   try {
-    const created = await database.createGalleryGear({
+    // The key comes from client-controlled EXIF strings, so a new key per
+    // upload is cheap to forge: creation honours the same per-actor cap as
+    // `POST /api/v1/gallery/gears`. At the cap the photo simply gets no gear
+    // link — it is a nicety, and the upload stands.
+    const result = await database.createGalleryGearWithinLimit({
       actorId,
       kind,
       name: seed.name,
       brand: seed.brand,
       model: seed.model,
-      deviceKey: seed.deviceKey
+      deviceKey: seed.deviceKey,
+      limit: MAX_GALLERY_GEAR_PER_ACTOR
     })
-    return { id: created.id }
+    if (result.status === 'limit-reached') {
+      logger.info({
+        message: 'Skipped creating gallery gear for an upload at the gear cap',
+        actorId,
+        deviceKey: seed.deviceKey
+      })
+      return null
+    }
+    return { id: result.gear.id }
   } catch (error) {
     // `(actorId, deviceKey)` is UNIQUE and the index covers soft-deleted rows
     // too, while the lookup ignores them. That is coherent only because

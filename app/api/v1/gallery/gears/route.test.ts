@@ -5,6 +5,7 @@ import { MAX_GALLERY_GEAR_PER_ACTOR } from '@/lib/services/gallery/galleryReques
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
 
 import { GET, POST } from './route'
 
@@ -136,26 +137,79 @@ describe('/api/v1/gallery/gears', () => {
       expect((await lens.json()).gear.id).not.toBe(gear.id)
     })
 
-    it('answers 422 once the actor holds the maximum number of gear items', async () => {
-      const spy = vi
-        .spyOn(database, 'getGalleryGearsByActor')
-        .mockResolvedValueOnce(
-          Array.from({ length: MAX_GALLERY_GEAR_PER_ACTOR }, (_, index) => ({
-            id: `gear-${index}`,
-            actorId: ACTOR1_ID,
-            kind: 'camera' as const,
-            name: `Camera ${index}`,
-            brand: null,
-            model: null,
-            productUrl: null,
-            deviceKey: null,
-            retiredAt: null,
-            createdAt: 1,
-            updatedAt: 1
-          })) as never
+    // Fills ACTOR3's gear to `count` rows, so the cap tests do not crowd the
+    // signed-in ACTOR1 used everywhere else.
+    const fillActor3Gear = async (count: number) => {
+      const existing = await database.getGalleryGearsByActor({
+        actorId: ACTOR3_ID
+      })
+      for (let index = existing.length; index < count; index += 1) {
+        await database.createGalleryGear({
+          actorId: ACTOR3_ID,
+          kind: 'camera',
+          name: `Camera ${index}`
+        })
+      }
+    }
+
+    // Concurrency: the check and the insert are one transaction serialised on
+    // the actor row, so in-flight requests cannot both pass either check.
+    it('adds one row for concurrent submits of the same new gear', async () => {
+      const responses = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          POST(postRequest({ kind: 'lens', name: 'Concurrent 70-200mm' }), {
+            params: Promise.resolve({})
+          })
         )
-      const createSpy = vi.spyOn(database, 'createGalleryGear')
-      createSpy.mockClear()
+      )
+
+      const ids = await Promise.all(
+        responses.map(async (response) => {
+          expect(response.status).toBe(200)
+          return (await response.json()).gear.id
+        })
+      )
+      expect(new Set(ids).size).toBe(1)
+      const gears = await database.getGalleryGearsByActor({
+        actorId: ACTOR1_ID
+      })
+      expect(
+        gears.filter((gear) => gear.name === 'Concurrent 70-200mm')
+      ).toHaveLength(1)
+    })
+
+    // Runs before the 422 test below, which relies on the cap it leaves full.
+    it('does not overshoot the cap under concurrent creates', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+      await fillActor3Gear(MAX_GALLERY_GEAR_PER_ACTOR - 1)
+      const count = (
+        await database.getGalleryGearsByActor({ actorId: ACTOR3_ID })
+      ).length
+      expect(count).toBe(MAX_GALLERY_GEAR_PER_ACTOR - 1)
+
+      const responses = await Promise.all(
+        ['Racing A', 'Racing B', 'Racing C'].map((name) =>
+          POST(postRequest({ kind: 'lens', name }), {
+            params: Promise.resolve({})
+          })
+        )
+      )
+
+      expect(responses.map((response) => response.status).toSorted()).toEqual([
+        200, 422, 422
+      ])
+      expect(
+        await database.getGalleryGearsByActor({ actorId: ACTOR3_ID })
+      ).toHaveLength(MAX_GALLERY_GEAR_PER_ACTOR)
+    })
+
+    it('answers 422 once the actor holds the maximum number of gear items', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+      await fillActor3Gear(MAX_GALLERY_GEAR_PER_ACTOR)
 
       const response = await POST(
         postRequest({ kind: 'camera', name: 'One camera too many' }),
@@ -164,9 +218,16 @@ describe('/api/v1/gallery/gears', () => {
 
       expect(response.status).toBe(422)
       expect(await response.json()).toEqual({ error: 'Too many gear items' })
-      expect(createSpy).not.toHaveBeenCalled()
-      spy.mockRestore()
-      createSpy.mockRestore()
+      expect(
+        await database.getGalleryGearsByActor({ actorId: ACTOR3_ID })
+      ).toHaveLength(MAX_GALLERY_GEAR_PER_ACTOR)
+
+      // A name already held is still handed back at the cap.
+      const existing = await POST(
+        postRequest({ kind: 'camera', name: 'camera 0' }),
+        { params: Promise.resolve({}) }
+      )
+      expect(existing.status).toBe(200)
     })
 
     it.each([

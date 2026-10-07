@@ -1210,36 +1210,81 @@ describe('Attachments', () => {
     })
 
     it.each([
-      {
-        scrollLeft: 0,
-        present: ['Next media'],
-        absent: 'Previous media'
-      },
-      {
-        scrollLeft: 250,
-        present: ['Previous media', 'Next media'],
-        absent: undefined
-      },
-      {
-        scrollLeft: 500,
-        present: ['Previous media'],
-        absent: 'Next media'
-      }
+      { scrollLeft: 0, disabled: 'Previous media' },
+      { scrollLeft: 250, disabled: undefined },
+      { scrollLeft: 500, disabled: 'Next media' }
     ])(
-      'shows only the arrows with somewhere to go at scrollLeft $scrollLeft',
-      ({ scrollLeft, present, absent }) => {
+      'keeps both arrows mounted and disables only the one at an edge at scrollLeft $scrollLeft',
+      ({ scrollLeft, disabled }) => {
         renderScrolledStrip({ scrollLeft })
 
-        present.forEach((name) =>
-          expect(screen.getByRole('button', { name })).toBeInTheDocument()
-        )
-        if (absent) {
-          expect(
-            screen.queryByRole('button', { name: absent })
-          ).not.toBeInTheDocument()
+        for (const name of ['Previous media', 'Next media']) {
+          const arrow = screen.getByRole('button', { name })
+          if (name === disabled) {
+            expect(arrow).toHaveAttribute('aria-disabled', 'true')
+            expect(arrow).toHaveAttribute('tabindex', '-1')
+            expect(arrow).toHaveClass('pointer-events-none', 'opacity-0')
+          } else {
+            expect(arrow).toHaveAttribute('aria-disabled', 'false')
+            expect(arrow).not.toHaveAttribute('tabindex')
+            expect(arrow).not.toHaveClass('opacity-0')
+          }
         }
       }
     )
+
+    it('does not scroll when an edge arrow is clicked', () => {
+      const strip = renderScrolledStrip({ scrollLeft: 0 })
+      const scrollBy = vi.fn()
+      Object.defineProperty(strip, 'scrollBy', {
+        configurable: true,
+        value: scrollBy
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Previous media' }))
+
+      expect(scrollBy).not.toHaveBeenCalled()
+    })
+
+    it('keeps keyboard focus on the forward arrow when it moves to the end', () => {
+      // Focus on a button that unmounts drops to <body>, which would send the
+      // next Tab back to the top of the page. The arrow stays in place and
+      // focus moves to the back arrow, which now has somewhere to go.
+      const strip = renderScrolledStrip({ scrollLeft: 250 })
+      const next = screen.getByRole('button', { name: 'Next media' })
+      next.focus()
+      expect(document.activeElement).toBe(next)
+
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 500
+      })
+      fireEvent.scroll(strip)
+
+      expect(next).toHaveAttribute('aria-disabled', 'true')
+      expect(document.activeElement).not.toBe(document.body)
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Previous media' })
+      )
+    })
+
+    it('keeps keyboard focus on the back arrow when it moves to the start', () => {
+      const strip = renderScrolledStrip({ scrollLeft: 250 })
+      const previous = screen.getByRole('button', { name: 'Previous media' })
+      previous.focus()
+
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 0
+      })
+      fireEvent.scroll(strip)
+
+      expect(previous).toHaveAttribute('aria-disabled', 'true')
+      expect(document.activeElement).not.toBe(document.body)
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Next media' })
+      )
+    })
 
     it('renders no button row below the strip', () => {
       renderScrolledStrip({ scrollLeft: 250 })
@@ -1357,19 +1402,19 @@ describe('Attachments', () => {
 
       expect(screen.getByText('3 / 3')).toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Next media' })
-      ).not.toBeInTheDocument()
+        screen.getByRole('button', { name: 'Next media' })
+      ).toHaveAttribute('aria-disabled', 'true')
     })
 
     it('reads the last position at the end even when the last card is narrow', () => {
-      // Five 200px cards: the Next arrow is gone at scrollLeft 500, yet the
+      // Five 200px cards: the Next arrow is disabled at scrollLeft 500, yet the
       // first card whose midpoint is past the edge would be card 3.
       renderLaidOutStrip({ count: 5, cardWidth: 200, scrollLeft: 500 })
 
       expect(screen.getByText('5 / 5')).toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Next media' })
-      ).not.toBeInTheDocument()
+        screen.getByRole('button', { name: 'Next media' })
+      ).toHaveAttribute('aria-disabled', 'true')
     })
 
     it('counts a card as reached once its left edge is within sub-pixel slack of the viewport', () => {
@@ -1477,6 +1522,7 @@ describe('Attachments', () => {
         />
       )
 
+      // Nothing overflows any more, so the chrome itself is gone.
       expect(
         screen.queryByRole('button', { name: 'Next media' })
       ).not.toBeInTheDocument()

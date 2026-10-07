@@ -160,6 +160,10 @@ export const PostBox: FC<Props> = ({
     createDefaultState
   )
   const postExtensionRef = useRef(postExtension)
+  // Media ids that belong to the status being edited. They are the status's own
+  // media, so abandoning the composer must never delete them.
+  const originalMediaIdsRef = useRef<Set<string>>(new Set())
+  const isMountedRef = useRef(true)
   // Media details live beside the attachments, keyed by media id, rather than
   // on PostBoxAttachment: that type is what goes to the outbox, and the details
   // (subject, gear, place) are already saved on the media row by the dialog.
@@ -303,7 +307,14 @@ export const PostBox: FC<Props> = ({
   }, [maxStatusCharacters, isPosting, editStatus])
 
   useEffect(() => {
+    isMountedRef.current = true
     return () => {
+      isMountedRef.current = false
+      // Uploads happen on attach, so media still in the composer when it goes
+      // away was never posted: delete it (unless a submit is using it).
+      if (!submitInFlightRef.current) {
+        discardUploadedMedia(postExtensionRef.current.attachments)
+      }
       postExtensionRef.current.attachments.forEach((attachment) => {
         if (attachment.url.startsWith('blob:')) {
           URL.revokeObjectURL(attachment.url)
@@ -314,6 +325,17 @@ export const PostBox: FC<Props> = ({
       })
     }
   }, [])
+
+  // Best-effort delete of media that was uploaded on attach but never posted.
+  // Attachments still holding a file have no server copy yet, and the original
+  // attachments of a status being edited are never deleted.
+  function discardUploadedMedia(attachments: PostBoxAttachment[]) {
+    attachments.forEach((attachment) => {
+      if (attachment.file || attachment.isLoading) return
+      if (originalMediaIdsRef.current.has(attachment.id)) return
+      deleteAccountMedia({ mediaId: attachment.id }).catch(() => undefined)
+    })
+  }
 
   const revokeAttachmentUrls = (
     attachment: Pick<PostBoxAttachment, 'url' | 'posterUrl'>
@@ -417,9 +439,9 @@ export const PostBox: FC<Props> = ({
         if (!uploaded) throw new Error('The server rejected the upload')
         revokeAttachmentUrls(attachment)
         const current = findAttachment(tempId)
-        // Removed while uploading: the server copy is an orphan, so delete it
-        // (best effort) and leave no state behind.
-        if (!current) {
+        // Removed (or the composer unmounted) while uploading: the server copy
+        // is an orphan, so delete it (best effort) and leave no state behind.
+        if (!current || !isMountedRef.current) {
           deleteAccountMedia({ mediaId: uploaded.id }).catch(() => undefined)
           return
         }
@@ -435,7 +457,7 @@ export const PostBox: FC<Props> = ({
       } catch (error) {
         const current = findAttachment(tempId)
         // Removed while uploading: nothing to mark as failed.
-        if (!current) return
+        if (!current || !isMountedRef.current) return
         replaceAttachment(tempId, { ...current, isLoading: false })
         // Never store '': the tile treats a falsy error as "no error".
         setUploadError(
@@ -521,8 +543,13 @@ export const PostBox: FC<Props> = ({
   const descriptionRequired = gallerySettings?.allowEmptyDescription === false
   // Post waits for the settings so the description requirement cannot be
   // skipped by posting before they arrive; a failed load fails open.
+  // Media already on the status being edited is not re-validated: a legacy
+  // item posted without a description must not block a typo fix.
   const hasUndescribedAttachment = postExtension.attachments.some(
-    (item) => !(item.name ?? '').trim() && !decorativeIds[item.id]
+    (item) =>
+      !originalMediaIdsRef.current.has(item.id) &&
+      !(item.name ?? '').trim() &&
+      !decorativeIds[item.id]
   )
   const settingsLoading =
     hasUndescribedAttachment && !gallerySettings && !settingsFailed
@@ -727,6 +754,7 @@ export const PostBox: FC<Props> = ({
   const onRemoveAttachment = (attachmentIndex: number) => {
     const attachment = postExtension.attachments[attachmentIndex]
     revokeAttachmentUrls(attachment)
+    discardUploadedMedia([attachment])
     setUploadError(attachment.id, null)
     const prune = <T,>(record: Record<string, T>) => {
       const { [attachment.id]: _removed, ...rest } = record
@@ -916,9 +944,17 @@ export const PostBox: FC<Props> = ({
   }, [replyStatus, postExtension.fitnessFile, onRemoveFitnessFile])
 
   useEffect(() => {
+    // The composer is being re-targeted: media uploaded for the previous draft
+    // and never posted is abandoned (unless a submit is still using it).
+    if (!submitInFlightRef.current) {
+      discardUploadedMedia(postExtensionRef.current.attachments)
+    }
     if (editStatus) {
       const editText = getEditableStatusText(editStatus)
       const attachments = getEditableStatusAttachments(editStatus)
+      originalMediaIdsRef.current = new Set(
+        attachments.map((attachment) => attachment.id)
+      )
       const nextExtension = {
         ...createDefaultState(),
         attachments,
@@ -935,6 +971,7 @@ export const PostBox: FC<Props> = ({
       setAllowPost(false)
       return
     } else {
+      originalMediaIdsRef.current = new Set()
       setText('')
       textRef.current = ''
       postExtensionRef.current = createDefaultState()
@@ -1184,6 +1221,8 @@ export const PostBox: FC<Props> = ({
                 disabled={isPosting}
                 onFileSelected={(file) => {
                   setWarningMsg(null)
+                  discardUploadedMedia(postExtensionRef.current.attachments)
+                  resetMediaState()
                   postExtensionRef.current.attachments.forEach((attachment) => {
                     if (attachment.url.startsWith('blob:')) {
                       URL.revokeObjectURL(attachment.url)

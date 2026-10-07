@@ -176,25 +176,28 @@ describe('S3FileStorage presigned upload completion', () => {
       }
     } as never)
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-1',
-      actorId: 'actor-1',
-      original: {
-        path: 'medias/2026-01-01/upload.png',
-        bytes: 1024,
-        mimeType: 'image/png',
-        metaData: {
-          width: 10,
-          height: 10,
-          upload: {
-            state: 'verified',
-            checksumSha1: checksumHex,
-            checksumSha1Base64: checksumBase64,
-            contentType: 'image/png',
-            size: 1024,
-            verifiedAt: 1
-          }
-        },
-        fileName: 'upload.png'
+      transitioned: true,
+      media: {
+        id: 'media-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/upload.png',
+          bytes: 1024,
+          mimeType: 'image/png',
+          metaData: {
+            width: 10,
+            height: 10,
+            upload: {
+              state: 'verified',
+              checksumSha1: checksumHex,
+              checksumSha1Base64: checksumBase64,
+              contentType: 'image/png',
+              size: 1024,
+              verifiedAt: 1
+            }
+          },
+          fileName: 'upload.png'
+        }
       }
     } as never)
     database.deleteMedia.mockResolvedValue(true)
@@ -507,21 +510,24 @@ describe('S3FileStorage presigned upload completion', () => {
     } as never)
 
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-1',
-      actorId: 'actor-1',
-      original: {
-        path: 'medias/2026-01-01/upload.png',
-        bytes: pngBuffer.length,
-        mimeType: 'image/png',
-        metaData: {
-          width: 10,
-          height: 10,
-          upload: {
-            state: 'verified',
-            verifiedAt: Date.now()
-          }
-        },
-        fileName: 'upload.png'
+      transitioned: true,
+      media: {
+        id: 'media-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/upload.png',
+          bytes: pngBuffer.length,
+          mimeType: 'image/png',
+          metaData: {
+            width: 10,
+            height: 10,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'upload.png'
+        }
       }
     } as never)
 
@@ -700,21 +706,24 @@ describe('S3FileStorage presigned upload completion', () => {
     } as never)
 
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-1',
-      actorId: 'actor-1',
-      original: {
-        path: 'medias/2026-01-01/upload.png',
-        bytes: pngBuffer.length,
-        mimeType: 'image/png',
-        metaData: {
-          width: 10,
-          height: 10,
-          upload: {
-            state: 'verified',
-            verifiedAt: Date.now()
-          }
-        },
-        fileName: 'upload.png'
+      transitioned: true,
+      media: {
+        id: 'media-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/upload.png',
+          bytes: pngBuffer.length,
+          mimeType: 'image/png',
+          metaData: {
+            width: 10,
+            height: 10,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'upload.png'
+        }
       }
     } as never)
 
@@ -836,22 +845,25 @@ describe('S3FileStorage presigned upload completion', () => {
     } as never)
 
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-1',
-      actorId: 'actor-1',
-      description: 'Existing description',
-      original: {
-        path: 'medias/2026-01-01/upload.png',
-        bytes: pngBuffer.length,
-        mimeType: 'image/png',
-        metaData: {
-          width: 10,
-          height: 10,
-          upload: {
-            state: 'verified',
-            verifiedAt: Date.now()
-          }
-        },
-        fileName: 'upload.png'
+      transitioned: true,
+      media: {
+        id: 'media-1',
+        actorId: 'actor-1',
+        description: 'Existing description',
+        original: {
+          path: 'medias/2026-01-01/upload.png',
+          bytes: pngBuffer.length,
+          mimeType: 'image/png',
+          metaData: {
+            width: 10,
+            height: 10,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'upload.png'
+        }
       }
     } as never)
 
@@ -969,21 +981,24 @@ describe('S3FileStorage presigned upload completion', () => {
     } as never)
 
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-1',
-      actorId: 'actor-1',
-      original: {
-        path: 'medias/2026-01-01/upload.png',
-        bytes: pngBuffer.length,
-        mimeType: 'image/png',
-        metaData: {
-          width: 10,
-          height: 10,
-          upload: {
-            state: 'verified',
-            verifiedAt: Date.now()
-          }
-        },
-        fileName: 'upload.png'
+      transitioned: true,
+      media: {
+        id: 'media-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/upload.png',
+          bytes: pngBuffer.length,
+          mimeType: 'image/png',
+          metaData: {
+            width: 10,
+            height: 10,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'upload.png'
+        }
       }
     } as never)
 
@@ -1082,21 +1097,24 @@ describe('S3FileStorage presigned upload completion', () => {
     } as never)
 
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-audio-1',
-      actorId: 'actor-1',
-      original: {
-        path: 'medias/2026-01-01/voice.m4a',
-        bytes: 2048,
-        mimeType: 'audio/mp4',
-        metaData: {
-          width: 0,
-          height: 0,
-          upload: {
-            state: 'verified',
-            verifiedAt: Date.now()
-          }
-        },
-        fileName: 'voice.m4a'
+      transitioned: true,
+      media: {
+        id: 'media-audio-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/voice.m4a',
+          bytes: 2048,
+          mimeType: 'audio/mp4',
+          metaData: {
+            width: 0,
+            height: 0,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'voice.m4a'
+        }
       }
     } as never)
 
@@ -1183,21 +1201,24 @@ describe('S3FileStorage presigned upload completion', () => {
     } as never)
 
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-video-1',
-      actorId: 'actor-1',
-      original: {
-        path: 'medias/2026-01-01/video.mp4',
-        bytes: videoBuffer.length,
-        mimeType: 'video/mp4',
-        metaData: {
-          width: 1920,
-          height: 1080,
-          upload: {
-            state: 'verified',
-            verifiedAt: Date.now()
-          }
-        },
-        fileName: 'video.mp4'
+      transitioned: true,
+      media: {
+        id: 'media-video-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/video.mp4',
+          bytes: videoBuffer.length,
+          mimeType: 'video/mp4',
+          metaData: {
+            width: 1920,
+            height: 1080,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'video.mp4'
+        }
       }
     } as never)
 
@@ -1342,18 +1363,21 @@ describe('S3FileStorage presigned upload completion', () => {
     } as never)
 
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-video-1',
-      actorId: 'actor-1',
-      original: {
-        path: 'medias/2026-01-01/video.mp4',
-        bytes: videoBuffer.length,
-        mimeType: 'video/mp4',
-        metaData: {
-          width: 1920,
-          height: 1080,
-          upload: { state: 'completed' }
-        },
-        fileName: 'video.mp4'
+      transitioned: true,
+      media: {
+        id: 'media-video-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/video.mp4',
+          bytes: videoBuffer.length,
+          mimeType: 'video/mp4',
+          metaData: {
+            width: 1920,
+            height: 1080,
+            upload: { state: 'completed' }
+          },
+          fileName: 'video.mp4'
+        }
       }
     } as never)
 
@@ -1445,18 +1469,21 @@ describe('S3FileStorage presigned upload completion', () => {
     } as never)
 
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-video-1',
-      actorId: 'actor-1',
-      original: {
-        path: 'medias/2026-01-01/video.mp4',
-        bytes: videoBuffer.length,
-        mimeType: 'video/mp4',
-        metaData: {
-          width: 1920,
-          height: 1080,
-          upload: { state: 'completed' }
-        },
-        fileName: 'video.mp4'
+      transitioned: true,
+      media: {
+        id: 'media-video-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/video.mp4',
+          bytes: videoBuffer.length,
+          mimeType: 'video/mp4',
+          metaData: {
+            width: 1920,
+            height: 1080,
+            upload: { state: 'completed' }
+          },
+          fileName: 'video.mp4'
+        }
       }
     } as never)
 
@@ -1569,21 +1596,24 @@ describe('S3FileStorage presigned upload completion', () => {
     } as never)
 
     database.markMediaUploadVerified.mockResolvedValue({
-      id: 'media-video-1',
-      actorId: 'actor-1',
-      original: {
-        path: 'medias/2026-01-01/video.mp4',
-        bytes: videoBuffer.length,
-        mimeType: 'video/mp4',
-        metaData: {
-          width: 1920,
-          height: 1080,
-          upload: {
-            state: 'verified',
-            verifiedAt: Date.now()
-          }
-        },
-        fileName: 'video.mp4'
+      transitioned: true,
+      media: {
+        id: 'media-video-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/video.mp4',
+          bytes: videoBuffer.length,
+          mimeType: 'video/mp4',
+          metaData: {
+            width: 1920,
+            height: 1080,
+            upload: {
+              state: 'verified',
+              verifiedAt: Date.now()
+            }
+          },
+          fileName: 'video.mp4'
+        }
       }
     } as never)
 
@@ -1648,7 +1678,7 @@ describe('S3FileStorage presigned upload completion', () => {
     const gallery = database as unknown as {
       getGallerySettings: ReturnType<typeof vi.fn>
       findGalleryGearByDeviceKey: ReturnType<typeof vi.fn>
-      createGalleryGear: ReturnType<typeof vi.fn>
+      createGalleryGearWithinLimit: ReturnType<typeof vi.fn>
       getGalleryGearNamesByIds: ReturnType<typeof vi.fn>
     }
 
@@ -1689,9 +1719,10 @@ describe('S3FileStorage presigned upload completion', () => {
         }
       })
       database.getMediaByIdForAccount.mockResolvedValue(row('pending') as never)
-      database.markMediaUploadVerified.mockResolvedValue(
-        row('verified') as never
-      )
+      database.markMediaUploadVerified.mockResolvedValue({
+        transitioned: true,
+        media: row('verified')
+      } as never)
       database.updateMedia.mockImplementation((async (params: {
         details?: Record<string, unknown>
       }) => ({
@@ -1701,10 +1732,14 @@ describe('S3FileStorage presigned upload completion', () => {
         }
       })) as never)
       gallery.findGalleryGearByDeviceKey.mockResolvedValue(null)
-      gallery.createGalleryGear.mockResolvedValue({ id: 'gear-1' })
+      gallery.createGalleryGearWithinLimit.mockResolvedValue({
+        status: 'created',
+        gear: { id: 'gear-1' }
+      })
       gallery.getGalleryGearNamesByIds.mockResolvedValue({})
 
       const puts: Buffer[] = []
+      deletedKeys = []
       send.mockImplementation(async (command) => {
         if (command instanceof HeadObjectCommand) {
           return {
@@ -1720,12 +1755,25 @@ describe('S3FileStorage presigned upload completion', () => {
           puts.push(readUploadBody(command.input.Body))
           return {}
         }
+        if (command instanceof DeleteObjectCommand) {
+          deletedKeys.push(command.input.Key as string)
+          return {}
+        }
         throw new Error('Unexpected command')
       })
 
-      await createStorage().completePresignedUpload(actor, 'media-1')
+      lastResult = await createStorage().completePresignedUpload(
+        actor,
+        'media-1'
+      )
       return puts
     }
+    let deletedKeys: string[] = []
+    let lastResult: unknown = null
+    const putKeys = () =>
+      vi
+        .mocked(PutObjectCommand)
+        .mock.calls.map(([input]) => input.Key as string)
 
     const jpegWithExif = () =>
       sharp({
@@ -1747,7 +1795,7 @@ describe('S3FileStorage presigned upload completion', () => {
     beforeEach(() => {
       gallery.getGallerySettings = vi.fn().mockResolvedValue(settings())
       gallery.findGalleryGearByDeviceKey = vi.fn()
-      gallery.createGalleryGear = vi.fn()
+      gallery.createGalleryGearWithinLimit = vi.fn()
       gallery.getGalleryGearNamesByIds = vi.fn()
     })
 
@@ -1781,16 +1829,134 @@ describe('S3FileStorage presigned upload completion', () => {
       const stored = await sharp(puts[0]).metadata()
       expect(stored.format).toBe('jpeg')
       expect(stored.exif).toBeUndefined()
+      // The stripped copy goes to a fresh key beside the client's object,
+      // never over it, and the row is swapped to it on verification.
+      const [strippedKey] = putKeys()
+      expect(strippedKey).toMatch(/^medias\/2026-01-01\/[0-9a-f]{16}\.jpg$/)
       expect(PutObjectCommand).toHaveBeenCalledWith(
         expect.objectContaining({
           Bucket: 'bucket',
-          Key: 'medias/2026-01-01/photo.jpg',
+          Key: strippedKey,
           ContentType: 'image/jpeg'
         })
       )
       expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
-        expect.objectContaining({ originalBytes: puts[0].length })
+        expect.objectContaining({
+          originalBytes: puts[0].length,
+          originalPath: strippedKey
+        })
       )
+      // Only once the swap is committed does the unstripped object go.
+      expect(deletedKeys).toEqual(['medias/2026-01-01/photo.jpg'])
+    })
+
+    it('keeps the upload pending and intact for a retry when verification fails', async () => {
+      database.markMediaUploadVerified.mockRejectedValueOnce(
+        new Error('database unavailable')
+      )
+      const original = await jpegWithExif()
+
+      await expect(
+        completeUpload(original, 'image/jpeg', 'photo.jpg')
+      ).rejects.toThrow('database unavailable')
+
+      // The client's object is untouched and the row survives; only this
+      // attempt's stripped copy is removed.
+      const [strippedKey] = putKeys()
+      expect(deletedKeys).toEqual([strippedKey])
+      expect(database.deleteMedia).not.toHaveBeenCalled()
+
+      // The retry validates the same bytes and completes.
+      vi.mocked(PutObjectCommand).mockClear()
+      await completeUpload(original, 'image/jpeg', 'photo.jpg')
+      const [retryKey] = putKeys()
+      expect(database.markMediaUploadVerified).toHaveBeenLastCalledWith(
+        expect.objectContaining({ originalPath: retryKey })
+      )
+      expect(deletedKeys).toEqual(['medias/2026-01-01/photo.jpg'])
+      expect(database.deleteMedia).not.toHaveBeenCalled()
+      expect(lastResult).toMatchObject({ id: 'media-1' })
+    })
+
+    it('leaves the swap to the completion that verified first', async () => {
+      const verifiedRow = {
+        id: 'media-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/winner.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 8, height: 8, upload: { state: 'verified' } },
+          fileName: 'photo.jpg'
+        }
+      }
+      // A queued result outranks the default `completeUpload` installs.
+      database.markMediaUploadVerified.mockResolvedValueOnce({
+        transitioned: false,
+        media: verifiedRow
+      } as never)
+
+      await completeUpload(await jpegWithExif(), 'image/jpeg', 'photo.jpg')
+
+      const [strippedKey] = putKeys()
+      // Its own copy is discarded; the winner's original and row are kept,
+      // and the winner's decoration is not redone.
+      expect(deletedKeys).toEqual([strippedKey])
+      expect(database.deleteMedia).not.toHaveBeenCalled()
+      expect(database.updateMedia).not.toHaveBeenCalled()
+      expect(lastResult).toMatchObject({
+        id: 'media-1',
+        url: expect.stringContaining('medias/2026-01-01/winner.jpg')
+      })
+    })
+
+    it('does not delete an upload a concurrent completion verified', async () => {
+      const verifiedRow = {
+        id: 'media-1',
+        actorId: 'actor-1',
+        original: {
+          path: 'medias/2026-01-01/winner.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 8, height: 8, upload: { state: 'verified' } },
+          fileName: 'photo.jpg'
+        }
+      }
+      database.getMediaByIdForAccount
+        .mockResolvedValueOnce({
+          ...verifiedRow,
+          original: {
+            ...verifiedRow.original,
+            path: 'medias/2026-01-01/photo.jpg',
+            metaData: {
+              width: 8,
+              height: 8,
+              upload: { state: 'pending', size: 10, contentType: 'image/jpeg' }
+            }
+          }
+        } as never)
+        .mockResolvedValueOnce(verifiedRow as never)
+      deletedKeys = []
+      // The winner removed the client's object after its swap.
+      send.mockImplementation(async (command) => {
+        if (command instanceof HeadObjectCommand) {
+          throw Object.assign(new Error('missing'), { name: 'NotFound' })
+        }
+        if (command instanceof DeleteObjectCommand) {
+          deletedKeys.push(command.input.Key as string)
+          return {}
+        }
+        throw new Error('Unexpected command')
+      })
+
+      const result = await createStorage().completePresignedUpload(
+        actor,
+        'media-1'
+      )
+
+      expect(result).toMatchObject({ id: 'media-1' })
+      expect(deletedKeys).toEqual([])
+      expect(database.deleteMedia).not.toHaveBeenCalled()
     })
 
     it('refuses and removes an image that cannot be re-encoded', async () => {

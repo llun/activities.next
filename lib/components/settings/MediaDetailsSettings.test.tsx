@@ -164,7 +164,7 @@ describe('MediaDetailsSettings', () => {
     expect(screen.getByRole('status')).toBeEmptyDOMElement()
   })
 
-  it('keeps every switch disabled until the in-flight save settles', async () => {
+  it('disables only the switch whose save is in flight', async () => {
     let resolveSave: (value: GallerySettingsEntity) => void = () => {}
     mockUpdateGallerySettings.mockReturnValue(
       new Promise<GallerySettingsEntity>((resolve) => {
@@ -180,14 +180,45 @@ describe('MediaDetailsSettings', () => {
     fireEvent.click(hashtags)
 
     expect(hashtags).toBeChecked()
-    expect(screen.getByRole('switch', { name: ALLOW_EMPTY })).toBeDisabled()
-    expect(screen.getByRole('switch', { name: AUTO_DESCRIBE })).toBeDisabled()
+    expect(hashtags).toBeDisabled()
+    expect(screen.getByRole('switch', { name: ALLOW_EMPTY })).toBeEnabled()
+    expect(screen.getByRole('switch', { name: AUTO_DESCRIBE })).toBeEnabled()
 
     resolveSave({ ...baseSettings, subjectHashtags: true })
 
-    await waitFor(() =>
-      expect(screen.getByRole('switch', { name: ALLOW_EMPTY })).toBeEnabled()
-    )
+    await waitFor(() => expect(hashtags).toBeEnabled())
     expect(hashtags).toBeChecked()
+  })
+
+  it('keeps two saves for different switches independent', async () => {
+    const resolvers: Array<(value: GallerySettingsEntity) => void> = []
+    mockUpdateGallerySettings.mockImplementation(
+      () =>
+        new Promise<GallerySettingsEntity>((resolve) => {
+          resolvers.push(resolve)
+        })
+    )
+
+    render(<MediaDetailsSettings />)
+
+    const hashtags = await screen.findByRole('switch', {
+      name: SUBJECT_HASHTAGS
+    })
+    const allowEmpty = screen.getByRole('switch', { name: ALLOW_EMPTY })
+    fireEvent.click(hashtags)
+    fireEvent.click(allowEmpty)
+
+    expect(hashtags).toBeDisabled()
+    expect(allowEmpty).toBeDisabled()
+    expect(mockUpdateGallerySettings).toHaveBeenCalledTimes(2)
+
+    resolvers[0]({ ...baseSettings, subjectHashtags: true })
+
+    await waitFor(() => expect(hashtags).toBeEnabled())
+    expect(allowEmpty).toBeDisabled()
+
+    resolvers[1]({ ...baseSettings, allowEmptyDescription: false })
+
+    await waitFor(() => expect(allowEmpty).toBeEnabled())
   })
 })

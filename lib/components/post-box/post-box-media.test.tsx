@@ -440,6 +440,49 @@ describe('PostBox media details', () => {
     expect(getMediaMock).not.toHaveBeenCalled()
   })
 
+  it('deletes the server media when an uploaded item is removed', async () => {
+    renderPostBox()
+    attach('a.png')
+    await screen.findByText('Review')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove media a.png' }))
+
+    expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
+      mediaId: 'media-a.png'
+    })
+  })
+
+  it('deletes uploaded media when the composer unmounts without posting', async () => {
+    const { unmount } = renderPostBox()
+    attach('a.png')
+    await screen.findByText('Review')
+
+    unmount()
+
+    expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
+      mediaId: 'media-a.png'
+    })
+  })
+
+  it('deletes a late upload result after unmount and sets no state', async () => {
+    const upload = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockReturnValueOnce(upload.promise)
+    const { unmount } = renderPostBox()
+    attach('heron.png')
+    await screen.findByText('Reading details…')
+
+    unmount()
+    expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    upload.resolve(uploaded('media-heron', 'heron.png'))
+
+    await waitFor(() =>
+      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
+        mediaId: 'media-heron'
+      })
+    )
+    expect(getMediaMock).not.toHaveBeenCalled()
+  })
+
   it('disables Post while the gallery settings are loading and fails open if they fail', async () => {
     const pending = createDeferred<ReturnType<typeof settings>>()
     getGallerySettingsMock.mockReturnValueOnce(pending.promise)
@@ -552,5 +595,125 @@ describe('PostBox media details', () => {
         })
       )
     )
+  })
+
+  describe('editing a status with existing media', () => {
+    const makeEditStatus = () =>
+      ({
+        id: 'status-1',
+        actorId: profile.id,
+        actor: profile,
+        to: [],
+        cc: [],
+        edits: [],
+        isLocalActor: true,
+        createdAt: 1,
+        updatedAt: 1,
+        type: 'Note',
+        url: 'https://activities.local/@llun/status-1',
+        text: 'hello',
+        summary: null,
+        reply: '',
+        replies: [],
+        actorAnnounceStatusId: null,
+        isActorLiked: false,
+        isActorBookmarked: false,
+        totalLikes: 0,
+        totalShares: 0,
+        attachments: [
+          {
+            id: 'att-1',
+            actorId: profile.id,
+            statusId: 'status-1',
+            type: 'Document',
+            mediaType: 'image/png',
+            url: 'https://activities.local/api/v1/files/a.png',
+            width: 10,
+            height: 10,
+            name: '',
+            createdAt: 1,
+            updatedAt: 1,
+            mediaId: 'media-1'
+          }
+        ],
+        tags: []
+      }) as never
+
+    const renderEdit = () =>
+      render(
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          editStatus={makeEditStatus()}
+          isMediaUploadEnabled
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      )
+
+    it('does not require a description for legacy undescribed media', async () => {
+      getGallerySettingsMock.mockResolvedValue(
+        settings({ allowEmptyDescription: false })
+      )
+      renderEdit()
+      await waitFor(() => expect(getGallerySettingsMock).toHaveBeenCalled())
+      fireEvent.change(screen.getByRole('textbox'), {
+        target: { value: 'hello there' }
+      })
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
+      )
+      expect(
+        screen.queryByText(
+          'Add a description to every item, or mark it decorative'
+        )
+      ).not.toBeInTheDocument()
+    })
+
+    it('still requires a description for media added during the edit', async () => {
+      getGallerySettingsMock.mockResolvedValue(
+        settings({ allowEmptyDescription: false })
+      )
+      renderEdit()
+      attach('new.png')
+
+      expect(
+        await screen.findByText(
+          'Add a description to every item, or mark it decorative'
+        )
+      ).toBeInTheDocument()
+    })
+
+    it('never deletes the original media when removed or unmounted', async () => {
+      const { unmount } = renderEdit()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /Remove media/ })
+      )
+      unmount()
+
+      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    })
+
+    it('deletes media uploaded during the edit when it is removed', async () => {
+      renderEdit()
+      attach('new.png')
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'Remove media new.png' })
+        ).toBeInTheDocument()
+      )
+      await waitFor(() => expect(getMediaMock).toHaveBeenCalled())
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove media new.png' })
+      )
+
+      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledTimes(1)
+      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
+        mediaId: 'media-new.png'
+      })
+    })
   })
 })

@@ -2,7 +2,11 @@ import crypto from 'crypto'
 import { Knex } from 'knex'
 
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import { chunkArray, getWhereInBatchSize } from '@/lib/database/sql/utils/knex'
+import {
+  chunkArray,
+  getWhereInBatchSize,
+  isPostgresClient
+} from '@/lib/database/sql/utils/knex'
 import {
   DEFAULT_GALLERY_SETTINGS,
   GALLERY_DEFAULTS,
@@ -26,6 +30,25 @@ export interface CreateGalleryGearParams {
   // Create-only: the identity every later upload resolves against.
   deviceKey?: string | null
 }
+
+export interface CreateGalleryGearWithinLimitParams extends CreateGalleryGearParams {
+  // The most non-deleted gear rows the actor may hold; at or past it nothing
+  // is inserted.
+  limit: number
+  // Hand back a non-deleted row of the same kind and normalised name instead
+  // of adding a twin (the manual `POST /api/v1/gallery/gears` path, whose rows
+  // carry no `deviceKey` to be unique on).
+  dedupeByName?: boolean
+}
+
+export type CreateGalleryGearWithinLimitResult =
+  | { status: 'created'; gear: GalleryGear }
+  | { status: 'existing'; gear: GalleryGear }
+  | { status: 'limit-reached' }
+
+/** Trims, collapses whitespace runs and lowercases a gear name. */
+export const normalizeGalleryGearName = (name: string): string =>
+  name.trim().replace(/\s+/g, ' ').toLowerCase()
 
 export interface GetGalleryGearParams {
   id: string
@@ -61,6 +84,12 @@ export interface UpdateGallerySettingsParams {
 
 export interface GalleryDatabase {
   createGalleryGear(params: CreateGalleryGearParams): Promise<GalleryGear>
+  // `createGalleryGear` behind the per-actor cap and an existing-row check,
+  // decided and written in one transaction serialised on the actor row, so
+  // concurrent creates can neither overshoot the cap nor insert twins.
+  createGalleryGearWithinLimit(
+    params: CreateGalleryGearWithinLimitParams
+  ): Promise<CreateGalleryGearWithinLimitResult>
   // RULE FOR ANY FUTURE DELETE PATH: `gallery_gears` is soft-deleted but its
   // `(actorId, deviceKey)` unique index covers deleted rows, while
   // `findGalleryGearByDeviceKey` skips them. A delete must therefore set
@@ -142,23 +171,63 @@ export const GallerySQLDatabaseMixin = (database: Knex): GalleryDatabase => {
     return row ? parseSQLGallerySettings(row) : { ...DEFAULT_GALLERY_SETTINGS }
   }
 
+  const buildGearRow = (params: CreateGalleryGearParams): SQLGalleryGear => {
+    const currentTime = new Date()
+    return {
+      id: crypto.randomUUID(),
+      actorId: params.actorId,
+      kind: params.kind,
+      name: params.name,
+      brand: params.brand ?? null,
+      model: params.model ?? null,
+      productUrl: params.productUrl ?? null,
+      deviceKey: params.deviceKey ?? null,
+      retiredAt: null,
+      createdAt: currentTime,
+      updatedAt: currentTime,
+      deletedAt: null
+    }
+  }
+
   return {
+    async createGalleryGearWithinLimit({ limit, dedupeByName, ...params }) {
+      return database.transaction(
+        async (trx): Promise<CreateGalleryGearWithinLimitResult> => {
+          // Serialise one actor's gear creates on their actor row, as
+          // `createCollection` does. SQLite's single writer connection already
+          // serialises transactions, so the lock is PostgreSQL-only.
+          const lock = trx('actors').where({ id: params.actorId }).select('id')
+          if (isPostgresClient(database)) lock.forUpdate()
+          await lock
+
+          const rows = await trx<SQLGalleryGear>('gallery_gears')
+            .where('actorId', params.actorId)
+            .whereNull('deletedAt')
+            .orderBy('createdAt', 'asc')
+            .orderBy('id', 'asc')
+
+          const requestedName = normalizeGalleryGearName(params.name)
+          const existing = rows.find(
+            (row) =>
+              (params.deviceKey && row.deviceKey === params.deviceKey) ||
+              (dedupeByName &&
+                row.kind === params.kind &&
+                normalizeGalleryGearName(row.name) === requestedName)
+          )
+          if (existing) {
+            return { status: 'existing', gear: parseSQLGalleryGear(existing) }
+          }
+          if (rows.length >= limit) return { status: 'limit-reached' }
+
+          const data = buildGearRow(params)
+          await trx('gallery_gears').insert(data)
+          return { status: 'created', gear: parseSQLGalleryGear(data) }
+        }
+      )
+    },
+
     async createGalleryGear(params) {
-      const currentTime = new Date()
-      const data: SQLGalleryGear = {
-        id: crypto.randomUUID(),
-        actorId: params.actorId,
-        kind: params.kind,
-        name: params.name,
-        brand: params.brand ?? null,
-        model: params.model ?? null,
-        productUrl: params.productUrl ?? null,
-        deviceKey: params.deviceKey ?? null,
-        retiredAt: null,
-        createdAt: currentTime,
-        updatedAt: currentTime,
-        deletedAt: null
-      }
+      const data = buildGearRow(params)
 
       await database('gallery_gears').insert(data)
 
