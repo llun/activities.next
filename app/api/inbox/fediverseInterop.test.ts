@@ -271,7 +271,8 @@ describe('fediverse interop: shared inbox', () => {
   // boost, so nothing is stored for it.
   it('lemmy community Announce(Like) stores nothing', async () => {
     const activity = FEDIVERSE_ACTIVITIES.lemmyAnnounceLike
-    await deliverAndRun(database, activity)
+    // Dropped at the inbox, never handed to the boost path to fetch the vote.
+    expect(await deliverAndRun(database, activity)).toBeUndefined()
 
     expect(await database.getStatus({ statusId: activity.id })).toBeNull()
     expect(
