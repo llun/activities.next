@@ -567,6 +567,90 @@ describe('createNoteJob', () => {
     expect(status.text).toEqual('<p>An interesting article</p>')
   })
 
+  it('prepends the page name as a bold title', async () => {
+    const page = {
+      type: 'Page',
+      id: 'https://lemmy.test/post/title-page1',
+      attributedTo: 'https://lemmy.test/u/picard',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      name: 'Page title',
+      content: '<p>A nice page</p>',
+      url: 'https://lemmy.test/post/title-page1',
+      published: new Date().toISOString(),
+      tag: []
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: page
+    })
+
+    const status = (await database.getStatus({
+      statusId: page.id
+    })) as StatusNote
+    expect(status.text).toEqual(
+      '<p><strong>Page title</strong></p>\n<p>A nice page</p>'
+    )
+  })
+
+  it('prepends the article name as a bold title', async () => {
+    const article = {
+      type: 'Article',
+      id: 'https://writefreely.org/posts/title-article1',
+      attributedTo: 'https://writefreely.org/users/writer',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      name: 'Article title',
+      content: '<p>An interesting article</p>',
+      url: 'https://writefreely.org/posts/title-article1',
+      published: new Date().toISOString(),
+      tag: []
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: article
+    })
+
+    const status = (await database.getStatus({
+      statusId: article.id
+    })) as StatusNote
+    expect(status.text).toEqual(
+      '<p><strong>Article title</strong></p>\n<p>An interesting article</p>'
+    )
+  })
+
+  it('stores an article summary as the content warning text', async () => {
+    const article = {
+      type: 'Article',
+      id: 'https://writefreely.org/posts/summary-article1',
+      attributedTo: 'https://writefreely.org/users/writer',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      name: 'Article title',
+      summary: 'Abstract',
+      content: '<p>Body</p>',
+      url: 'https://writefreely.org/posts/summary-article1',
+      published: new Date().toISOString(),
+      tag: []
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: article
+    })
+
+    const status = (await database.getStatus({
+      statusId: article.id
+    })) as StatusNote
+    expect(status.summary).toEqual('Abstract')
+    expect(status.sensitive).toBe(false)
+  })
+
   it('adds video activity as note into database', async () => {
     const video = {
       type: 'Video',
