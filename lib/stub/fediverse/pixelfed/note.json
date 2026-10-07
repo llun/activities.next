@@ -3,24 +3,28 @@
     "https://w3id.org/security/v1",
     "https://www.w3.org/ns/activitystreams",
     {
-      "sc": "http://schema.org#",
       "Hashtag": "as:Hashtag",
       "sensitive": "as:sensitive",
-      "commentsEnabled": "sc:Boolean",
+      "schema": "http://schema.org/",
+      "pixelfed": "http://pixelfed.org/ns#",
+      "commentsEnabled": {
+        "@id": "pixelfed:commentsEnabled",
+        "@type": "schema:Boolean"
+      },
       "capabilities": {
-        "@id": "pf:capabilities",
+        "@id": "pixelfed:capabilities",
         "@container": "@set"
       },
       "announce": {
-        "@id": "pf:canAnnounce",
+        "@id": "pixelfed:canAnnounce",
         "@type": "@id"
       },
       "like": {
-        "@id": "pf:canLike",
+        "@id": "pixelfed:canLike",
         "@type": "@id"
       },
       "reply": {
-        "@id": "pf:canReply",
+        "@id": "pixelfed:canReply",
         "@type": "@id"
       },
       "toot": "http://joinmastodon.org/ns#",

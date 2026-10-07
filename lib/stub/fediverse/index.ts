@@ -11,6 +11,7 @@ import gotosocialPerson from './gotosocial/person.json'
 import gotosocialRepliesPage from './gotosocial/replies-page.json'
 import gotosocialReply from './gotosocial/reply.json'
 import lemmyAnnounceCreatePage from './lemmy/announce-create-page.json'
+import lemmyAnnounceLike from './lemmy/announce-like.json'
 import lemmyComment from './lemmy/comment.json'
 import lemmyCreatePage from './lemmy/create-page.json'
 import lemmyGroupOutbox from './lemmy/group-outbox.json'
@@ -57,7 +58,7 @@ import pleromaUndoEmojiReact from './pleroma/undo-emoji-react.json'
 // Payloads in the shapes Misskey, Lemmy, PeerTube, Pixelfed, Pleroma/Akkoma and
 // GoToSocial put on the wire, kept here so the inbox and remote-fetch paths
 // are exercised against every dialect rather than only Mastodon's. Hosts are
-// rewritten to `<software>.test`; interaction targets point at the seeded
+// rewritten to `<software>.test` (`gts.test` for GoToSocial); interaction targets point at the seeded
 // local status `https://llun.test/users/test1/statuses/post-1`.
 
 export type FediverseSoftware =
@@ -109,6 +110,7 @@ export const FEDIVERSE_ACTIVITIES = {
   misskeyReactionCustomEmoji,
   lemmyCreatePage,
   lemmyAnnounceCreatePage,
+  lemmyAnnounceLike,
   lemmyLike,
   peertubeCreateVideo,
   peertubeAnnounceVideo,

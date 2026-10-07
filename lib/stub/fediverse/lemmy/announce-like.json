@@ -1,0 +1,18 @@
+{
+  "@context": [
+    "https://join-lemmy.org/context.json",
+    "https://www.w3.org/ns/activitystreams"
+  ],
+  "actor": "https://lemmy.test/c/tenforward",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "object": {
+    "actor": "https://lemmy.test/u/picard",
+    "object": "https://lemmy.test/post/55143",
+    "type": "Like",
+    "id": "https://lemmy.test/activities/like/0d1c5f2a-1f1f-4e8a-9a5e-4e1f7c3b2a10",
+    "audience": "https://lemmy.test/c/tenforward"
+  },
+  "cc": ["https://lemmy.test/c/tenforward/followers"],
+  "type": "Announce",
+  "id": "https://lemmy.test/activities/announce/like/4f8b1c2e-6d3a-4f0b-9c7e-2a5d8e1f3b64"
+}

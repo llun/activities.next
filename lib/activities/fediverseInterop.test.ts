@@ -5,6 +5,7 @@ import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getRemoteStatus } from '@/lib/activities/getRemoteStatus'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { Database } from '@/lib/database/types'
 import { fetchRemoteStatusJob } from '@/lib/jobs/fetchRemoteStatusJob'
 import { FETCH_REMOTE_STATUS_JOB_NAME } from '@/lib/jobs/names'
 import { seedDatabase } from '@/lib/stub/database'
@@ -18,20 +19,18 @@ import { StatusType } from '@/lib/types/domain/status'
 enableFetchMocks()
 
 describe('fediverse interop: remote fetch', () => {
-  const database = getTestSQLDatabase()
+  let database: Database
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    database = getTestSQLDatabase()
     await database.migrate()
     await seedDatabase(database)
-  })
-
-  afterAll(async () => {
-    await database.destroy()
-  })
-
-  beforeEach(() => {
     fetchMock.resetMocks()
     mockFediverseRequests(fetchMock)
+  })
+
+  afterEach(async () => {
+    await database.destroy()
   })
 
   describe('actors', () => {

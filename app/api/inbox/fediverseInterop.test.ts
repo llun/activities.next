@@ -80,6 +80,9 @@ const deliver = async (activity: object) => {
   return messages[0] as JobMessage | undefined
 }
 
+const asArray = (value: unknown) =>
+  value === undefined ? [] : Array.isArray(value) ? value : [value]
+
 const deliverAndRun = async (database: Database, activity: object) => {
   const message = await deliver(activity)
   if (message) await JOBS[message.name](database, message)
@@ -161,7 +164,9 @@ describe('fediverse interop: shared inbox', () => {
       if (status?.type !== StatusType.enum.Note) return
       expect(status.text).toContain(text)
       expect(status.attachments).toHaveLength(attachments)
-      expect(status.to.length + status.cc.length).toBeGreaterThan(0)
+      const { to, cc } = activity.object as { to?: unknown; cc?: unknown }
+      expect(status.to).toEqual(asArray(to))
+      expect(status.cc).toEqual(asArray(cc))
     })
   })
 
@@ -260,6 +265,18 @@ describe('fediverse interop: shared inbox', () => {
         })
       )
     })
+  })
+
+  // Lemmy communities relay every vote as Announce(Like). There is no post to
+  // boost, so nothing is stored for it.
+  it('lemmy community Announce(Like) stores nothing', async () => {
+    const activity = FEDIVERSE_ACTIVITIES.lemmyAnnounceLike
+    await deliverAndRun(database, activity)
+
+    expect(await database.getStatus({ statusId: activity.id })).toBeNull()
+    expect(
+      await database.getStatus({ statusId: activity.object.object })
+    ).toBeNull()
   })
 
   describe('activities the shared inbox acknowledges without a job', () => {

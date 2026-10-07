@@ -170,11 +170,19 @@ describe('getJobMessage', () => {
     ]
 
     it.each([
-      ['Create', CREATE_NOTE_JOB_NAME],
-      ['Update', UPDATE_NOTE_JOB_NAME]
+      {
+        description: 'Create',
+        type: 'Create',
+        jobName: CREATE_NOTE_JOB_NAME
+      },
+      {
+        description: 'Update',
+        type: 'Update',
+        jobName: UPDATE_NOTE_JOB_NAME
+      }
     ])(
-      'accepts a %s Video signed by the account and stores the account as the author',
-      (type, jobName) => {
+      'accepts a $description Video signed by the account and stores the account as the author',
+      ({ type, jobName }) => {
         const result = getJobMessage(
           {
             id: `https://peertube.test/videos/watch/9c9de5e8/${type.toLowerCase()}`,

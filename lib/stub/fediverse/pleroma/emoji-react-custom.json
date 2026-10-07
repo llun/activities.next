@@ -20,7 +20,7 @@
         "url": "https://pleroma.test/emoji/blobfox.png"
       },
       "id": "https://pleroma.test/emoji/blobfox.png",
-      "name": "blobfox",
+      "name": ":blobfox:",
       "type": "Emoji",
       "updated": "1970-01-01T00:00:00Z"
     }
