@@ -52,12 +52,14 @@ export type FitnessStatGridVariant = keyof typeof VARIANT_CLASS_NAMES
  * the overview's hairline strip too, with two or three values. Four columns
  * there would leave an empty, border-coloured cell at the end of the row, so
  * the strip spans exactly as many columns as it has cells. Three values go
- * 3-up from 30rem (a 480px column still gives each "35,670.2 km" ~160px); two
- * follow the four-cell strip's own 16rem step. Same `rem` reasoning as above.
+ * 3-up from 30rem (a 480px column still gives each "35,670.2 km" ~160px) and,
+ * on a phone, two over one with the third cell spanning the row, the 2×2
+ * strip's shape rather than a tall single column; two follow the four-cell
+ * strip's own 16rem step. Same `rem` reasoning as above.
  */
 const SUMMARY_COLUMN_CLASS_NAMES = {
   2: 'gap-px grid-cols-1 @min-[16rem]:grid-cols-2',
-  3: 'gap-px grid-cols-1 @min-[30rem]:grid-cols-3',
+  3: 'gap-px grid-cols-1 @min-[16rem]:grid-cols-2 @min-[16rem]:[&>*:nth-child(3)]:col-span-2 @min-[30rem]:grid-cols-3 @min-[30rem]:[&>*:nth-child(3)]:col-span-1',
   4: VARIANT_CLASS_NAMES.summary
 } as const
 
