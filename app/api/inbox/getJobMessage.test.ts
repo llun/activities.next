@@ -4,7 +4,8 @@ import {
   CREATE_NOTE_JOB_NAME,
   EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
-  PROCESS_FORWARDED_ACTIVITY_JOB_NAME
+  PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
+  UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
@@ -51,26 +52,177 @@ describe('getJobMessage', () => {
     expect(result).toBeNull()
   })
 
-  it('rejects Create Note activities when any nested attribution differs from the verified sender', () => {
+  it('rejects Create Note activities when the verified sender is not one of the attributed authors', () => {
     const result = getJobMessage(
       {
-        id: 'https://remote.test/activities/create-mixed-attribution',
+        id: 'https://remote.test/activities/create-not-an-author',
         type: 'Create',
         actor: verifiedSenderActorId,
         object: {
-          id: 'https://remote.test/users/alice/statuses/1',
+          id: 'https://remote.test/users/mallory/statuses/1',
           type: 'Note',
           attributedTo: [
-            { id: `${verifiedSenderActorId}#main-key` },
-            [{ id: 'https://remote.test/users/mallory' }]
+            { id: 'https://remote.test/users/mallory' },
+            [{ id: 'https://remote.test/users/bob' }]
           ],
-          content: 'Mixed attribution'
+          content: 'Not an author'
         }
       } as never,
       verifiedSenderActorId
     )
 
     expect(result).toBeNull()
+  })
+
+  it('rejects Create Note activities that list a co-author on another origin', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-cross-origin-coauthor',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: [
+            verifiedSenderActorId,
+            'https://victim.test/users/bob'
+          ],
+          content: 'Borrowed co-author'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('rejects Create Note activities whose object actor differs from the verified sender even when the sender is an author', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-object-actor-mismatch',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: verifiedSenderActorId,
+          actor: 'https://remote.test/users/mallory',
+          content: 'Object actor mismatch'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toBeNull()
+  })
+
+  it('pins attributedTo to the verified sender when a same-origin co-author is listed first', () => {
+    const result = getJobMessage(
+      {
+        id: 'https://remote.test/activities/create-coauthor-first',
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: {
+          id: 'https://remote.test/users/alice/statuses/1',
+          type: 'Note',
+          attributedTo: [
+            { id: 'https://remote.test/users/bob' },
+            [{ id: `${verifiedSenderActorId}#main-key` }]
+          ],
+          content: 'Co-authored'
+        }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toMatchObject({
+      name: CREATE_NOTE_JOB_NAME,
+      data: { attributedTo: `${verifiedSenderActorId}#main-key` },
+      verifiedSenderActorId
+    })
+  })
+
+  describe('PeerTube videos attributed to an account and its channel', () => {
+    const peertubeAccountId = 'https://peertube.test/accounts/alice'
+    const peertubeChannelId =
+      'https://peertube.test/video-channels/alice_channel'
+    const peertubeVideo = (attributedTo: unknown) => ({
+      id: 'https://peertube.test/videos/watch/9c9de5e8-0a1e-484a-b099-e80766180a6d',
+      type: 'Video',
+      name: 'What is PeerTube?',
+      content: 'A **Markdown** description',
+      mediaType: 'text/markdown',
+      published: '2026-10-06T00:00:00.000Z',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: ['https://peertube.test/accounts/alice/followers'],
+      attributedTo,
+      url: [
+        {
+          type: 'Link',
+          mediaType: 'text/html',
+          href: 'https://peertube.test/w/kkGMgK9ZtnKfYAgnEtQxbv'
+        }
+      ]
+    })
+    const accountAndChannel = [
+      { type: 'Person', id: peertubeAccountId },
+      { type: 'Group', id: peertubeChannelId }
+    ]
+
+    it.each([
+      ['Create', CREATE_NOTE_JOB_NAME],
+      ['Update', UPDATE_NOTE_JOB_NAME]
+    ])(
+      'accepts a %s Video signed by the account and stores the account as the author',
+      (type, jobName) => {
+        const result = getJobMessage(
+          {
+            id: `https://peertube.test/videos/watch/9c9de5e8/${type.toLowerCase()}`,
+            type,
+            actor: peertubeAccountId,
+            object: peertubeVideo(accountAndChannel)
+          } as never,
+          peertubeAccountId
+        )
+
+        expect(result).toMatchObject({
+          name: jobName,
+          data: { type: 'Video', attributedTo: peertubeAccountId },
+          verifiedSenderActorId: peertubeAccountId
+        })
+      }
+    )
+
+    it('stores the signing account as the author when the channel is listed first', () => {
+      const result = getJobMessage(
+        {
+          id: 'https://peertube.test/videos/watch/9c9de5e8/create-channel-first',
+          type: 'Create',
+          actor: peertubeAccountId,
+          object: peertubeVideo([...accountAndChannel].reverse())
+        } as never,
+        peertubeAccountId
+      )
+
+      expect(result).toMatchObject({
+        name: CREATE_NOTE_JOB_NAME,
+        data: { attributedTo: peertubeAccountId }
+      })
+    })
+
+    it('rejects a Video whose authors do not include the signer', () => {
+      const result = getJobMessage(
+        {
+          id: 'https://remote.test/activities/create-spoofed-video',
+          type: 'Create',
+          actor: verifiedSenderActorId,
+          object: peertubeVideo(accountAndChannel)
+        } as never,
+        verifiedSenderActorId
+      )
+
+      expect(result).toBeNull()
+    })
   })
 
   it('accepts Create Note activities only when every object actor id matches the verified sender', () => {
