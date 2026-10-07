@@ -128,6 +128,45 @@ describe('fetchRemoteStatusJob', () => {
     expect(status?.type).toBe(StatusType.enum.Note)
   })
 
+  it.each([true, false])(
+    'stores the sensitive flag %s from the fetched note',
+    async (sensitive) => {
+      const STATUS_ID = `${REMOTE_STATUS_ID}/sensitive-${sensitive}`
+      mockRemoteServers(async (req) => {
+        if (req.url === REMOTE_ACTOR_ID) return activityJson(MOCK_ACTOR)
+        if (req.url === STATUS_ID) {
+          return activityJson({
+            // Mastodon declares the term; compaction drops undeclared ones.
+            '@context': [
+              'https://www.w3.org/ns/activitystreams',
+              { sensitive: 'as:sensitive' }
+            ],
+            id: STATUS_ID,
+            type: 'Note',
+            attributedTo: REMOTE_ACTOR_ID,
+            content: 'Hello World',
+            sensitive,
+            to: [PUBLIC_STREAM],
+            cc: [],
+            published: new Date().toISOString()
+          })
+        }
+        return activityJson({})
+      })
+
+      await fetchRemoteStatusJob(database, {
+        id: `job-sensitive-${sensitive}`,
+        name: FETCH_REMOTE_STATUS_JOB_NAME,
+        data: { statusId: STATUS_ID }
+      })
+
+      const status = (await database.getStatus({
+        statusId: STATUS_ID
+      })) as StatusNote
+      expect(status.sensitive).toBe(sensitive)
+    }
+  )
+
   it('ignores non-public status', async () => {
     const STATUS_ID = `${REMOTE_STATUS_ID}/2`
     mockRemoteServers(async (req) => {

@@ -2,7 +2,10 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { deleteActor } from '@/lib/activities'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { deleteActorJob } from '@/lib/jobs/deleteActorJob'
+import {
+  ACTOR_DELETION_FEDERATION_BUDGET_MS,
+  deleteActorJob
+} from '@/lib/jobs/deleteActorJob'
 import { DELETE_ACTOR_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
 import { mockRequests } from '@/lib/stub/activities'
@@ -259,6 +262,33 @@ describe('deleteActorJob', () => {
       })
 
       expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
+    })
+
+    it('skips the sends once the federation budget is spent', async () => {
+      const suffix = `${Date.now()}-budget`
+      const actorId = await createFollowedActor(suffix)
+      // Move the clock past the budget once the inboxes are being gathered,
+      // after the deadline has been fixed.
+      let clockOffset = 0
+      const realNow = Date.now
+      vi.spyOn(Date, 'now').mockImplementation(() => realNow() + clockOffset)
+      const getLocalFollowers =
+        database.getLocalFollowersForActorId.bind(database)
+      vi.spyOn(database, 'getLocalFollowersForActorId').mockImplementation(
+        async (params) => {
+          clockOffset = ACTOR_DELETION_FEDERATION_BUDGET_MS + 1
+          return getLocalFollowers(params)
+        }
+      )
+
+      await deleteActorJob(database, {
+        id: `delete-job-federate-${suffix}`,
+        name: DELETE_ACTOR_JOB_NAME,
+        data: { actorId }
+      })
+
+      expect(deleteActor).not.toHaveBeenCalled()
+      expect(await database.getActorFromId({ id: actorId })).toBeNull()
     })
 
     it('still deletes the actor when the Delete cannot be sent', async () => {
