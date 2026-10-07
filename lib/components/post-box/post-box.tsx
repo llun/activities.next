@@ -149,6 +149,11 @@ export const PostBox: FC<Props> = ({
   const formRef = useRef<HTMLFormElement>(null)
   const textRef = useRef(text)
   const submitInFlightRef = useRef(false)
+  // Ids of media that a create/update has already accepted. A parent may
+  // unmount the composer from inside `onPostCreated`/`onPostUpdated` (after
+  // which `submitInFlightRef` is already false again), so every discard path
+  // skips these: media that was posted must never be deleted.
+  const postedMediaIdsRef = useRef(new Set<string>())
   const fitnessCleanupInFlightRef = useRef<{
     uploadedId: string
     promise: Promise<boolean>
@@ -333,8 +338,15 @@ export const PostBox: FC<Props> = ({
     attachments.forEach((attachment) => {
       if (attachment.file || attachment.isLoading) return
       if (originalMediaIdsRef.current.has(attachment.id)) return
+      if (postedMediaIdsRef.current.has(attachment.id)) return
       deleteAccountMedia({ mediaId: attachment.id }).catch(() => undefined)
     })
+  }
+
+  const markAttachmentsPosted = (attachments: PostBoxAttachment[]) => {
+    attachments.forEach((attachment) =>
+      postedMediaIdsRef.current.add(attachment.id)
+    )
   }
 
   const revokeAttachmentUrls = (
@@ -653,6 +665,7 @@ export const PostBox: FC<Props> = ({
           Date.now()
         )
         const responseStatusId = responseStatus.id || editStatus.id
+        markAttachmentsPosted(attachments)
         onPostUpdated({
           ...editStatus,
           id: responseStatusId,
@@ -717,6 +730,7 @@ export const PostBox: FC<Props> = ({
       })
 
       const { status, attachments: storedAttachments } = response
+      markAttachmentsPosted(attachments)
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
       resetMediaState()

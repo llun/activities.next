@@ -365,6 +365,7 @@ export const createNoteFromUserInput = async ({
     text = await appendSubjectHashtags({
       database,
       accountId: currentActor.account?.id,
+      actorId: currentActor.id,
       text,
       mediaIds: attachments
         .map((attachment) => attachment.id)

@@ -50,19 +50,23 @@ export const toSubjectHashtag = (subjectName: string): string | null => {
 export const appendSubjectHashtags = async ({
   database,
   accountId,
+  actorId,
   text,
   mediaIds
 }: {
   database: Database
   accountId: string | undefined
+  /** The post's author: whose `subjectHashtags` setting applies. */
+  actorId: string
   text: string
   mediaIds: string[]
 }): Promise<string> => {
   if (!accountId || mediaIds.length === 0) return text
 
   try {
-    // The actor id is the settings key, but settings are per author and the
-    // medias are looked up by account; resolve through the media owner below.
+    // Medias are looked up by account, but the `subjectHashtags` setting is
+    // the post author's (`actorId`), not that of whichever actor owns the
+    // media rows.
     const medias = await database.getMediaByIdsForAccount({
       mediaIds,
       accountId
@@ -72,10 +76,7 @@ export const appendSubjectHashtags = async ({
     )
     if (subjectMedias.length === 0) return text
 
-    const settings = await getGallerySettingsOrDefaults(
-      database,
-      subjectMedias[0].actorId
-    )
+    const settings = await getGallerySettingsOrDefaults(database, actorId)
     if (!settings.subjectHashtags) return text
 
     const present = new Set(

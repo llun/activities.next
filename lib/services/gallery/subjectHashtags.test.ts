@@ -82,7 +82,13 @@ describe('appendSubjectHashtags', () => {
     }
 
     const append = (text: string, mediaIds: string[]) =>
-      appendSubjectHashtags({ database, accountId, text, mediaIds })
+      appendSubjectHashtags({
+        database,
+        accountId,
+        actorId: actors.primary.id,
+        text,
+        mediaIds
+      })
 
     it('appends a PascalCase hashtag for an attached subject', async () => {
       const id = await createMedia('Common Kingfisher')
@@ -127,6 +133,44 @@ describe('appendSubjectHashtags', () => {
       expect(await append('Look', [id])).toBe('Look')
     })
 
+    it("reads the post author's setting, not the media owner's", async () => {
+      await database.updateGallerySettings({
+        actorId: actors.replyAuthor.id,
+        subjectHashtags: false
+      })
+      const id = await createMedia('Common Kingfisher')
+
+      // The media row belongs to the primary actor (setting on), but the post
+      // is authored by the reply author (setting off).
+      expect(
+        await appendSubjectHashtags({
+          database,
+          accountId,
+          actorId: actors.replyAuthor.id,
+          text: 'Look',
+          mediaIds: [id]
+        })
+      ).toBe('Look')
+
+      await database.updateGallerySettings({
+        actorId: actors.replyAuthor.id,
+        subjectHashtags: true
+      })
+      await database.updateGallerySettings({
+        actorId: actors.primary.id,
+        subjectHashtags: false
+      })
+      expect(
+        await appendSubjectHashtags({
+          database,
+          accountId,
+          actorId: actors.replyAuthor.id,
+          text: 'Look',
+          mediaIds: [id]
+        })
+      ).toBe('Look\n\n#CommonKingfisher')
+    })
+
     it.each([
       ['no attachments', () => []],
       ['an attachment with no subject', async () => [await createMedia(null)]],
@@ -146,6 +190,7 @@ describe('appendSubjectHashtags', () => {
         await appendSubjectHashtags({
           database,
           accountId: 'someone-else',
+          actorId: actors.primary.id,
           text: 'Hello',
           mediaIds: [id]
         })
@@ -154,6 +199,7 @@ describe('appendSubjectHashtags', () => {
         await appendSubjectHashtags({
           database,
           accountId: undefined,
+          actorId: actors.primary.id,
           text: 'Hello',
           mediaIds: [id]
         })
@@ -170,6 +216,7 @@ describe('appendSubjectHashtags', () => {
       await appendSubjectHashtags({
         database: database as never,
         accountId: 'account',
+        actorId: 'actor',
         text: 'Hello',
         mediaIds: ['1']
       })

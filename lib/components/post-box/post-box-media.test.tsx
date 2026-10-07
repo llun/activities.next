@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 
 import {
   createNote,
@@ -513,6 +514,34 @@ describe('PostBox media details', () => {
     )
   })
 
+  it('does not delete the media of a post when the parent unmounts the composer in onPostCreated', async () => {
+    const Host = () => {
+      const [open, setOpen] = useState(true)
+      return open ? (
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          isMediaUploadEnabled
+          onDiscardReply={vi.fn()}
+          onPostCreated={() => setOpen(false)}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      ) : (
+        <div>closed</div>
+      )
+    }
+    render(<Host />)
+    attach('a.png')
+    await screen.findByText('Review')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await screen.findByText('closed')
+    expect(createNoteMock).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+  })
+
   it('sends edited descriptions as media_attributes when updating a status', async () => {
     vi.mocked(updateNote).mockResolvedValue({
       content: '',
@@ -694,6 +723,45 @@ describe('PostBox media details', () => {
       )
       unmount()
 
+      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    })
+
+    it('does not delete media added during an edit when the parent unmounts the composer in onPostUpdated', async () => {
+      vi.mocked(updateNote).mockResolvedValue({
+        content: '',
+        spoilerText: '',
+        mediaAttachments: [],
+        status: { id: 'status-1', text: 'hello', createdAt: 1, reply: '' }
+      } as never)
+      const Host = () => {
+        const [open, setOpen] = useState(true)
+        return open ? (
+          <PostBox
+            host="activities.local"
+            profile={profile}
+            editStatus={makeEditStatus()}
+            isMediaUploadEnabled
+            onDiscardReply={vi.fn()}
+            onPostCreated={vi.fn()}
+            onPostUpdated={() => setOpen(false)}
+            onDiscardEdit={vi.fn()}
+          />
+        ) : (
+          <div>closed</div>
+        )
+      }
+      render(<Host />)
+      attach('new.png')
+      await screen.findByRole('button', { name: 'Remove media new.png' })
+      await waitFor(() => expect(getMediaMock).toHaveBeenCalled())
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+      await screen.findByText('closed')
+      expect(vi.mocked(updateNote)).toHaveBeenCalledTimes(1)
       expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
     })
 

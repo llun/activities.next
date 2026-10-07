@@ -72,6 +72,29 @@ describe('MediasModal media details', () => {
     vi.restoreAllMocks()
   })
 
+  it('shrinks the image cap and makes the caption and details region scroll when details are shown', async () => {
+    mockGetMediaPublicDetails.mockResolvedValue(kingfisherDetails)
+
+    renderModal([buildAttachment({ mediaId: 'media-1', name: 'A bird' })])
+
+    const subject = await screen.findByText('Common Kingfisher')
+    const image = document.querySelectorAll('img')[1]
+    expect(image).toHaveClass('max-h-[45vh]')
+    expect(image).not.toHaveClass('max-h-[72vh]')
+    const region = subject.closest('.overflow-y-auto.max-h-\\[25vh\\]')
+    expect(region).not.toBeNull()
+    expect(region).toHaveTextContent('A bird')
+  })
+
+  it('keeps the full image cap for media without details', async () => {
+    mockGetMediaPublicDetails.mockResolvedValue(null as never)
+
+    renderModal([buildAttachment({ mediaId: 'media-1' })])
+
+    await waitFor(() => expect(mockGetMediaPublicDetails).toHaveBeenCalled())
+    expect(document.querySelector('img')).toHaveClass('max-h-[80vh]')
+  })
+
   it('renders the public details of the shown photo', async () => {
     mockGetMediaPublicDetails.mockResolvedValue(kingfisherDetails)
 

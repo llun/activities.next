@@ -350,6 +350,11 @@ export const MediasModal: FC<Props> = ({
             >
               {visibleIndices.map((index, panelIndex) => {
                 const isGif = medias[index].mediaType === 'image/gif'
+                // The details panel is shown under the active photo only. It
+                // needs room beneath the image, so the image cap shrinks and
+                // the caption-plus-panel region scrolls instead of being
+                // clipped by the swipe track's overflow-hidden.
+                const showsDetails = panelIndex === 1 && Boolean(currentDetails)
 
                 return (
                   <div
@@ -379,9 +384,11 @@ export const MediasModal: FC<Props> = ({
                           }
                           className={cn(
                             'max-w-full object-contain',
-                            medias[index].name?.trim()
-                              ? 'max-h-[72vh]'
-                              : 'max-h-[80vh]'
+                            showsDetails
+                              ? 'max-h-[45vh]'
+                              : medias[index].name?.trim()
+                                ? 'max-h-[72vh]'
+                                : 'max-h-[80vh]'
                           )}
                           attachment={medias[index]}
                         />
@@ -412,20 +419,30 @@ export const MediasModal: FC<Props> = ({
                           </button>
                         )}
                       </div>
-                      {medias[index].name?.trim() ? (
-                        <p
-                          onTouchStart={(e) => e.stopPropagation()}
-                          className="mt-2 max-h-24 max-w-2xl overflow-y-auto px-4 text-center text-sm leading-relaxed text-white/85 select-text"
-                        >
-                          <CustomEmojiText
-                            text={medias[index].name.trim()}
-                            tags={tags}
-                          />
-                        </p>
-                      ) : null}
-                      {panelIndex === 1 && currentDetails ? (
-                        <MediaDetailsPanel details={currentDetails} />
-                      ) : null}
+                      <div
+                        onTouchStart={
+                          showsDetails ? (e) => e.stopPropagation() : undefined
+                        }
+                        className={cn(
+                          'flex min-h-0 w-full flex-col items-center',
+                          showsDetails && 'max-h-[25vh] overflow-y-auto'
+                        )}
+                      >
+                        {medias[index].name?.trim() ? (
+                          <p
+                            onTouchStart={(e) => e.stopPropagation()}
+                            className="mt-2 max-h-24 max-w-2xl overflow-y-auto px-4 text-center text-sm leading-relaxed text-white/85 select-text"
+                          >
+                            <CustomEmojiText
+                              text={medias[index].name.trim()}
+                              tags={tags}
+                            />
+                          </p>
+                        ) : null}
+                        {panelIndex === 1 && currentDetails ? (
+                          <MediaDetailsPanel details={currentDetails} />
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 )
