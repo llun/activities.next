@@ -4,6 +4,7 @@ import { Database } from '@/lib/database/types'
 import { buildCredentialAccount } from '@/lib/services/accounts/credentialAccount'
 import { localizeAccount } from '@/lib/services/accounts/localizeAccount'
 import { buildProfile } from '@/lib/services/accounts/profile'
+import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
@@ -418,6 +419,7 @@ export const updateCredentialsHandler = (
           ? { showFeatured: showFeaturedFlag }
           : null)
       })
+      await publishActorUpdate({ actorId: currentActor.id })
 
       const [account, followRequestsCount] = await Promise.all([
         database.getMastodonActorFromId({ id: currentActor.id }),

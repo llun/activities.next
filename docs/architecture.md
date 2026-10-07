@@ -557,6 +557,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Transactional & Notification Emails](#agents-transactional-notification-emails)
 - [Link Preview Cards](#agents-link-preview-cards)
 - [Status Delete & Unboost Federation](#agents-status-delete-unboost-federation)
+- [Actor Profile & Deletion Federation](#agents-actor-profile-deletion-federation)
 - [Better-auth Plugin Guidelines](#agents-better-auth-plugin-guidelines)
 - [Better-auth Database Joins](#agents-better-auth-database-joins)
 - [Better-auth Session Refresh](#agents-better-auth-session-refresh)
@@ -1329,6 +1330,45 @@ legacy shape left to copy.
   only seam that can.
 - Known gap, unchanged by the move to a job: a cascaded reply subtree is deleted
   locally but only the top status's `Delete` federates.
+
+<a id="agents-actor-profile-deletion-federation"></a>
+
+### Actor Profile & Deletion Federation
+
+- **A local profile edit federates as `Update(Person)` from `SendUpdateActorJob`,
+  queued by `publishActorUpdate` (`lib/services/actors/actorUpdate.ts`) after
+  every route that writes a published profile field:
+  `PATCH /api/v1/accounts/update_credentials`, `PATCH /api/v1/profile`, the web
+  settings form `POST /api/v1/accounts/profile`, and
+  `DELETE /api/v1/profile/{avatar,header}`.** A new route that writes `name`,
+  `summary`, `iconUrl`, `headerImageUrl` or `manuallyApprovesFollowers` must
+  call it too, or remote servers keep the old profile until their own periodic
+  re-fetch. Queueing is best effort and never fails the request: the profile is
+  already saved. The object is `getPersonFromActor`, the same document the actor
+  URL serves, and the audience is follower inboxes plus accepted relays, as in
+  Mastodon. The activity id is `<actor>#updates/<updatedAt>`, with `updatedAt`
+  carried in the job so a retried job resends the same Update.
+- **Account deletion sends `Delete(actor)` from `deleteActorJob` itself, inline,
+  after `startActorDeletion` and before `deleteActorData`.** The Delete must be
+  signed with the actor's key, and `deleteActorData` removes the row that holds
+  it, so a queued `DeliverActivityJob` would find no actor on retry and discard
+  itself. Do not move the sends after the data delete or onto the queue. Inboxes
+  of LOCAL followers (`getLocalFollowersForActorId`) are left out: delivering
+  there would run the inbound actor delete (`deleteObjectJob` →
+  `database.deleteActor`) on the row the job is still emptying. Sending is best
+  effort and never stops the local deletion.
+- **An inbound `Update` whose object is an actor (an actor type, or a bare id
+  equal to the activity's actor) goes to `UpdateActorJob`, which re-fetches the
+  profile from its origin through `recordActorIfNeeded({ forceRefresh: true })`
+  and never reads the activity body.** `getJobMessage` accepts it only when the
+  signer, the activity's `actor` and the object id are the same actor. The job
+  refreshes only a stored remote row: an actor never stored has nothing to
+  refresh, and a local row is never rewritten from the network.
+- **`sensitive` federates both ways.** Outbound notes carry `sensitive: true`
+  when the status is marked (both `getNoteFromStatus` and `toActivityPubObject`).
+  The key is omitted otherwise, which receivers read as false. Inbound
+  `createNoteJob` stores the flag, and `updateNoteJob` applies it only when the
+  edit carries a boolean, so an edit that omits the key keeps the stored value.
 
 <a id="agents-better-auth-plugin-guidelines"></a>
 

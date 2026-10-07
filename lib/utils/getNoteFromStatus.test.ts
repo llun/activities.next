@@ -137,3 +137,20 @@ describe('getNoteFromStatus quote emission', () => {
     }
   )
 })
+
+describe('getNoteFromStatus sensitive flag', () => {
+  it.each([
+    { sensitive: true, expected: true },
+    { sensitive: false, expected: undefined },
+    { sensitive: undefined, expected: undefined }
+  ])(
+    'emits sensitive $expected for a status marked $sensitive',
+    ({ sensitive, expected }) => {
+      const note = getNoteFromStatus(baseStatus({ sensitive })) as Record<
+        string,
+        unknown
+      >
+      expect(note.sensitive).toBe(expected)
+    }
+  )
+})

@@ -1,10 +1,15 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 
 import { DELETE } from './route'
+
+vi.mock('@/lib/services/actors/actorUpdate', () => ({
+  publishActorUpdate: vi.fn().mockResolvedValue(undefined)
+}))
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -85,6 +90,7 @@ describe('DELETE /api/v1/profile/avatar', () => {
 
     const actorAfter = await database.getActorFromId({ id: ACTOR1_ID })
     expect(actorAfter?.iconUrl).toBeUndefined()
+    expect(publishActorUpdate).toHaveBeenCalledWith({ actorId: ACTOR1_ID })
 
     const body = await response.json()
     expect(body.source).toBeDefined()

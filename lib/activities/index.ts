@@ -8,6 +8,7 @@ import { AnnounceStatus } from '@/lib/activities/announceStatus'
 import { BlockRequest } from '@/lib/activities/blockAction'
 import { CreateStatus } from '@/lib/activities/createStatus'
 import { DeleteStatus } from '@/lib/activities/deleteStatus'
+import { DeleteUser } from '@/lib/activities/deleteUser'
 import { FlagRequest } from '@/lib/activities/flagAction'
 import { FollowRequest } from '@/lib/activities/followAction'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
@@ -502,6 +503,44 @@ export const deleteStatus = async ({
         logPrefix: 'deleteStatus',
         silenceTimeout: true
       })
+    }
+  )
+
+interface DeleteActorParams {
+  currentActor: Actor
+  inbox: string
+}
+// Account deletion (a Delete whose object is the actor's own id). Sent while
+// the actor row, and so its signing key, still exists: the job that calls this
+// deletes the row straight afterwards, so there is no later retry to queue.
+// Returns whether the inbox accepted it.
+export const deleteActor = async ({ currentActor, inbox }: DeleteActorParams) =>
+  withSpan(
+    'activity',
+    'deleteActor',
+    {
+      actorId: currentActor.id,
+      inbox
+    },
+    async (span) => {
+      const activity: DeleteUser = {
+        '@context': ACTIVITY_STREAM_URL,
+        id: `${currentActor.id}#delete`,
+        type: DeleteAction,
+        actor: currentActor.id,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        object: currentActor.id
+      }
+      const statusCode = await postActivityToInbox({
+        span,
+        inbox,
+        currentActor,
+        activity,
+        logPrefix: 'deleteActor',
+        silenceTimeout: true,
+        recordOnlyErrorOnSpan: true
+      })
+      return isAcceptedStatusCode(statusCode)
     }
   )
 

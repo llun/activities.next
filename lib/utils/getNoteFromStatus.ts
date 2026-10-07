@@ -61,6 +61,9 @@ export const getNoteFromStatus = (
     tag: actualStatus.tags
       .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))
       .filter((tag) => tag !== null),
+    // Without it a receiver shows media the author marked sensitive unblurred
+    // whenever the post has no content warning.
+    ...(actualStatus.sensitive ? { sensitive: true } : null),
     replies: {
       id: `${actualStatus.id}/replies`,
       type: 'Collection',

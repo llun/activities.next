@@ -5,6 +5,7 @@ import {
   EMOJI_REACTION_JOB_NAME,
   HANDLE_QUOTE_REQUEST_JOB_NAME,
   PROCESS_FORWARDED_ACTIVITY_JOB_NAME,
+  UPDATE_ACTOR_JOB_NAME,
   UPDATE_NOTE_JOB_NAME
 } from '@/lib/jobs/names'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
@@ -383,6 +384,88 @@ describe('getJobMessage', () => {
     )
 
     expect(result).toBeNull()
+  })
+
+  describe('actor profile updates', () => {
+    const updateId = 'https://remote.test/users/alice#updates/1'
+
+    it.each([
+      [
+        'an embedded Person',
+        { id: verifiedSenderActorId, type: 'Person', name: 'Alice' }
+      ],
+      [
+        'an embedded Service',
+        { id: verifiedSenderActorId, type: 'Service', name: 'Bot' }
+      ],
+      ['a bare actor id', verifiedSenderActorId]
+    ])('routes an Update carrying %s to the actor refresh job', (_, object) => {
+      const result = getJobMessage(
+        {
+          id: updateId,
+          type: 'Update',
+          actor: verifiedSenderActorId,
+          object
+        } as never,
+        verifiedSenderActorId
+      )
+
+      expect(result).toEqual({
+        id: getInboxJobId(updateId),
+        name: UPDATE_ACTOR_JOB_NAME,
+        data: { actorId: verifiedSenderActorId },
+        verifiedSenderActorId
+      })
+    })
+
+    it('rejects an Update of another actor profile', () => {
+      const result = getJobMessage(
+        {
+          id: updateId,
+          type: 'Update',
+          actor: verifiedSenderActorId,
+          object: {
+            id: 'https://remote.test/users/mallory',
+            type: 'Person',
+            name: 'Not Mallory'
+          }
+        } as never,
+        verifiedSenderActorId
+      )
+
+      expect(result).toBeNull()
+    })
+
+    it('rejects a profile Update whose actor is not the signer', () => {
+      const result = getJobMessage(
+        {
+          id: updateId,
+          type: 'Update',
+          actor: 'https://remote.test/users/mallory',
+          object: {
+            id: 'https://remote.test/users/mallory',
+            type: 'Person'
+          }
+        } as never,
+        verifiedSenderActorId
+      )
+
+      expect(result).toBeNull()
+    })
+
+    it('leaves an Update of a note by bare id to the note path', () => {
+      const result = getJobMessage(
+        {
+          id: updateId,
+          type: 'Update',
+          actor: verifiedSenderActorId,
+          object: 'https://remote.test/users/alice/statuses/1'
+        } as never,
+        verifiedSenderActorId
+      )
+
+      expect(result).toBeNull()
+    })
   })
 
   it('rejects Announce activities when the activity actor differs from the verified sender', () => {

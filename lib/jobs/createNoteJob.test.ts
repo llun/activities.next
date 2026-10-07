@@ -299,6 +299,30 @@ describe('createNoteJob', () => {
     await expect(database.getStatus({ statusId: note.id })).resolves.toBeNull()
   })
 
+  it.each([
+    { sensitive: true, expected: true },
+    { sensitive: false, expected: false }
+  ])(
+    'stores the sensitive flag $sensitive from the note',
+    async ({ sensitive, expected }) => {
+      const note = MockMastodonActivityPubNote({
+        id: `https://${actor1!.domain}/notes/sensitive-${sensitive}-${Date.now()}`,
+        content: '<p>Media</p>',
+        sensitive
+      })
+      await createNoteJob(database, {
+        id: `id-sensitive-${sensitive}`,
+        name: CREATE_NOTE_JOB_NAME,
+        data: note
+      })
+
+      const status = (await database.getStatus({
+        statusId: note.id
+      })) as StatusNote
+      expect(status.sensitive).toBe(expected)
+    }
+  )
+
   it('stores the language derived from the note contentMap key', async () => {
     const note = MockMastodonActivityPubNote({
       id: `https://${actor1!.domain}/notes/thai-language-${Date.now()}`,

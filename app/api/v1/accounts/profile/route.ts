@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { getConfig } from '@/lib/config'
 import { parseProfileImageUrl } from '@/lib/services/accounts/profileImageUrl'
+import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import {
@@ -104,6 +105,7 @@ export const POST = traceApiRoute(
         : null),
       ...(postLineLimit !== undefined ? { postLineLimit } : null)
     })
+    await publishActorUpdate({ actorId: currentActor.id })
 
     const host = headerHost(req.headers)
     const url = new URL('/settings', `https://${host}`)

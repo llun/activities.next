@@ -132,6 +132,7 @@ export const createNoteJob = createJobHandle(
 
         text,
         summary,
+        sensitive: note.sensitive === true,
         language,
 
         to: toRecipientArray(note.to),

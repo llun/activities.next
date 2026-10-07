@@ -1,6 +1,12 @@
 import { NextRequest } from 'next/server'
 
+import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
+
 import { POST } from './route'
+
+vi.mock('@/lib/services/actors/actorUpdate', () => ({
+  publishActorUpdate: vi.fn().mockResolvedValue(undefined)
+}))
 
 const MEDIA_URL = 'https://llun.test/api/v1/files/a1b2c3d4e5f60718.jpg'
 const HEADER_MEDIA_URL = 'https://llun.test/api/v1/files/0718a1b2c3d4e5f6.jpg'
@@ -237,6 +243,9 @@ describe('POST /api/v1/accounts/profile', () => {
       expect(mockDatabase.updateActor).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'New name', summary: 'New summary' })
       )
+      expect(publishActorUpdate).toHaveBeenCalledWith({
+        actorId: mockCurrentActor.id
+      })
     })
 
     it.each<{

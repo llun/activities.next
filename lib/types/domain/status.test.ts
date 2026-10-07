@@ -344,6 +344,24 @@ describe('Status', () => {
         })
       })
 
+      it('marks a sensitive status as sensitive in its Note object', async () => {
+        const statusId = `${actor1?.id}/statuses/sensitive-activitypub-object`
+        const status = (await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: actor1?.id ?? ACTOR1_ID,
+          text: 'Sensitive media',
+          sensitive: true,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })) as StatusNote
+
+        expect(toActivityPubObject(status)).toMatchObject({
+          id: statusId,
+          sensitive: true
+        })
+      })
+
       it('includes database-backed share totals in Note objects', async () => {
         const statusId = `${actor1?.id}/statuses/post-1`
         const status = (await database.getStatus({
