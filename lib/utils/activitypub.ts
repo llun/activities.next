@@ -172,6 +172,37 @@ export const normalizeActivityPubAnnounce = (data: unknown) => {
   }
 }
 
+const toIdList = (value: unknown): string[] => {
+  const normalized = normalizeActivityPubRecipients(value)
+  if (Array.isArray(normalized)) return normalized
+  return normalized ? [normalized] : []
+}
+
+// Lemmy, Mbin and Kbin name the community (a `Group`) a post belongs to in
+// `audience` (FEP-1b12). Some of them leave it out of `to`/`cc`, so fold it
+// into `cc` to keep the community on the stored recipients. Only plain actor
+// ids are folded: the public collection or a followers collection named as
+// `audience` would widen the post's visibility, so those are ignored. `cc` is
+// returned untouched when there is no audience to add.
+const mergeAudienceIntoCc = (
+  to: unknown,
+  cc: unknown,
+  audience: unknown
+): unknown => {
+  const audienceIds = toIdList(audience).filter(
+    (id) =>
+      id !== ACTIVITY_STREAM_PUBLIC &&
+      id !== ACTIVITY_STREAM_PUBLIC_COMPACT &&
+      id !== 'Public' &&
+      !id.endsWith('/followers')
+  )
+  if (audienceIds.length === 0) return cc
+  const existing = new Set([...toIdList(to), ...toIdList(cc)])
+  const missing = audienceIds.filter((id) => !existing.has(id))
+  if (missing.length === 0) return cc
+  return [...toIdList(cc), ...new Set(missing)]
+}
+
 export const normalizeActivityPubContent = (data: unknown) => {
   if (!isRecord(data)) return data
   const isVideoOrComplexUrl =
@@ -206,6 +237,10 @@ export const normalizeActivityPubContent = (data: unknown) => {
       ? data.url
       : (extractActivityPubId(data.url) ?? data.url),
     to: normalizeActivityPubRecipients(data.to) ?? data.to,
-    cc: normalizeActivityPubRecipients(data.cc) ?? data.cc
+    cc: mergeAudienceIntoCc(
+      data.to,
+      normalizeActivityPubRecipients(data.cc) ?? data.cc,
+      data.audience
+    )
   }
 }

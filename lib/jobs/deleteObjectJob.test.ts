@@ -487,6 +487,48 @@ describe('deleteObjectJob', () => {
     expect(status).not.toBeNull()
   })
 
+  // Pleroma/Akkoma, GoToSocial and Lemmy send `object` as the bare post id:
+  // { type: 'Delete', actor, object: 'https://host/objects/<id>' }.
+  it('deletes a status when data is the bare id of a status the sender owns', async () => {
+    const stamp = Date.now()
+    const author = `https://pleroma.test/users/bare-delete-${stamp}`
+    const statusId = `https://pleroma.test/objects/bare-delete-${stamp}`
+    await seedQuotedStatus(author, statusId)
+
+    await deleteObjectJob(database, {
+      id: `bare-delete-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: statusId,
+      verifiedSenderActorId: author
+    })
+
+    await expect(
+      database.getStatus({ statusId, withReplies: false })
+    ).resolves.toBeNull()
+    await expect(
+      database.getActorFromId({ id: author })
+    ).resolves.not.toBeNull()
+    expect(recordedAttributes()).toMatchObject({ statusId })
+  })
+
+  it('does not delete a status named by bare id when the sender does not own it', async () => {
+    const stamp = Date.now()
+    const author = `https://pleroma.test/users/bare-owner-${stamp}`
+    const statusId = `https://pleroma.test/objects/bare-not-owned-${stamp}`
+    await seedQuotedStatus(author, statusId)
+
+    await deleteObjectJob(database, {
+      id: `bare-not-owned-job-${stamp}`,
+      name: DELETE_OBJECT_JOB_NAME,
+      data: statusId,
+      verifiedSenderActorId: `https://pleroma.test/users/bare-mallory-${stamp}`
+    })
+
+    await expect(
+      database.getStatus({ statusId, withReplies: false })
+    ).resolves.not.toBeNull()
+  })
+
   it('processes Announce data for deletion', async () => {
     if (!actor1) fail('Actor1 is required')
 

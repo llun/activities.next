@@ -24,8 +24,14 @@ import {
   UndoAction,
   UpdateAction
 } from '@/lib/types/activitypub/activities'
-import { extractActivityPubId, normalizeActorId } from '@/lib/utils/activitypub'
+import {
+  extractActivityPubId,
+  isSameActivityPubOrigin,
+  normalizeActorId
+} from '@/lib/utils/activitypub'
 import { isRecord } from '@/lib/utils/typeGuards'
+
+import { getForwardedJobMessage } from './getForwardedJobMessage'
 
 const ENTITY_TYPE_IMAGE = 'Image'
 const ENTITY_TYPE_PAGE = 'Page'
@@ -124,6 +130,18 @@ const createObjectActorMismatch = (
   return !objectActorIds.every(
     (actorId) => normalizeActorId(actorId) === normalizedVerifiedSenderActorId
   )
+}
+
+// An Announce whose `object` is itself an activity: an embedded record with
+// an `actor` and an `object`. A boosted Note/Page has neither an `actor` nor
+// an `object`, so a plain boost never matches.
+const getWrappedActivity = (object: unknown): StatusActivity | null => {
+  if (!isRecord(object)) return null
+  if (typeof object.type !== 'string') return null
+  const actor = extractActivityPubId(object.actor)
+  if (!actor) return null
+  if (!('object' in object) || object.object === undefined) return null
+  return { ...object, actor } as unknown as StatusActivity
 }
 
 export const getJobMessage = (
@@ -226,6 +244,30 @@ export const getJobMessage = (
   if (isMatch(activity, { type: AnnounceAction })) {
     if (activityActorMismatch(activity, verifiedSenderActorId)) {
       return null
+    }
+
+    // A Lemmy/Mbin/Kbin community (a `Group`) relays its members' activity by
+    // wrapping the whole activity in an Announce — `Announce(Update(Page))`,
+    // `Announce(Delete(id))`, `Announce(Like)` — rather than boosting an
+    // object. The group signed the Announce, not the inner activity, so the
+    // inner payload is unverified exactly like an inbox-forwarded one: route
+    // it through the same origin re-fetch job, which trusts only the object id
+    // and only when it lives on the inner actor's own origin. Inner activities
+    // that job cannot verify (Like, Dislike, Undo, ...) are dropped rather than
+    // being mistaken for a boost of the activity's own id. `Announce(Create)`
+    // stays on the boost path below.
+    const wrappedActivity = getWrappedActivity(activity.object)
+    if (wrappedActivity && wrappedActivity.type !== CreateAction) {
+      // The re-fetch job dedups on the inner id, so it must live on the inner
+      // actor's origin: otherwise a signer could spend the dedup key of
+      // another server's activity with a mangled copy that fails verification.
+      if (
+        typeof wrappedActivity.id !== 'string' ||
+        !isSameActivityPubOrigin(wrappedActivity.id, wrappedActivity.actor)
+      ) {
+        return null
+      }
+      return getForwardedJobMessage(wrappedActivity)
     }
 
     return createJobMessage({
