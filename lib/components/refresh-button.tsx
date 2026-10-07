@@ -8,7 +8,11 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   onRefresh: () => void
-  /** Spins the icon and disables the button while a reload is in flight. */
+  /**
+   * Spins the icon and ignores clicks while a reload is in flight. The button
+   * stays focusable (`aria-disabled`, not `disabled`): disabling the control
+   * the viewer just pressed would drop keyboard focus to the page.
+   */
   refreshing?: boolean
   /** Names what is reloaded: "Refresh timeline", "Refresh fitness overview". */
   accessibleName: string
@@ -35,11 +39,13 @@ export const RefreshButton: FC<Props> = ({
     variant="outline"
     size="icon"
     className={cn(
-      'dark:border-border dark:bg-card dark:hover:bg-accent',
+      'dark:border-border dark:bg-card dark:hover:bg-accent aria-disabled:cursor-default aria-disabled:opacity-50',
       className
     )}
-    onClick={onRefresh}
-    disabled={refreshing}
+    onClick={() => {
+      if (!refreshing) onRefresh()
+    }}
+    aria-disabled={refreshing || undefined}
     aria-label={accessibleName}
   >
     <RefreshCw

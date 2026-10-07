@@ -18,7 +18,7 @@ describe('RefreshButton', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1)
   })
 
-  it('spins and is disabled while refreshing', () => {
+  it('spins and ignores clicks while refreshing, keeping focus', () => {
     const onRefresh = vi.fn()
     render(
       <RefreshButton
@@ -31,10 +31,14 @@ describe('RefreshButton', () => {
     const button = screen.getByRole('button', {
       name: 'Refresh fitness overview'
     })
-    expect(button).toBeDisabled()
+    // aria-disabled, not disabled: the pressed control keeps keyboard focus.
+    expect(button).toBeEnabled()
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    button.focus()
     expect(button.querySelector('svg')).toHaveClass('animate-spin')
     fireEvent.click(button)
     expect(onRefresh).not.toHaveBeenCalled()
+    expect(button).toHaveFocus()
   })
 
   it('merges a size class for rows with taller controls', () => {

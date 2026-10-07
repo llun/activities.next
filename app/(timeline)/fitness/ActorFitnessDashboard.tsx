@@ -544,12 +544,18 @@ function FitnessOverview({
 
   // The range picker with the timeline's Refresh at its end: it re-reads the
   // applied range in place, and spins while any read of it is in flight, so
-  // the shimmering bars below always have the control that reloads them.
+  // the shimmering bars below always have the control that reloads them. An
+  // open day's activity list is re-read with it, or its rows would disagree
+  // with the day's refreshed totals.
+  const refresh = () => {
+    data.retry()
+    dayActivities.reload()
+  }
   const headerControls = (
     <div className="flex items-center gap-2">
       {rangePicker}
       <RefreshButton
-        onRefresh={data.retry}
+        onRefresh={refresh}
         refreshing={loading}
         accessibleName="Refresh fitness overview"
         className="size-11"

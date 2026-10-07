@@ -59,7 +59,7 @@ export interface AnnualCalendarProps {
   metric: HeatMetric
   /** The pinned day, or `null`. */
   selectedDate: DateKey | null
-  /** Keep the layout, dim to 0.6 and show a static skeleton. */
+  /** Keep the layout, dim to 0.6 and show the skeleton sweep. */
   loading?: boolean
   /** Rendered beside the last year's caption (the legend). */
   legend?: ReactNode

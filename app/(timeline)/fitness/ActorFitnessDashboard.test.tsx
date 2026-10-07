@@ -758,6 +758,44 @@ describe('ActorFitnessDashboard', () => {
     expect(shownDates()).toBe('1 Jan – 4 Oct 2026')
   })
 
+  it('re-reads the range and the open day from Refresh, spinning while it loads', async () => {
+    renderDashboard()
+    await waitForLoaded()
+    fireEvent.click(cell('2026-10-01'))
+    const details = await screen.findByTestId('day-details')
+    expect(await within(details).findByText('Morning run')).toBeInTheDocument()
+    const summaryCalls = mockedSummary.mock.calls.length
+    const calendarCalls = mockedCalendar.mock.calls.length
+    const dayCalls = mockedDay.mock.calls.length
+
+    let release: () => void = () => {}
+    mockedSummary.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve(summary)
+        })
+    )
+    const refresh = screen.getByRole('button', {
+      name: 'Refresh fitness overview'
+    })
+    fireEvent.click(refresh)
+
+    expect(mockedSummary).toHaveBeenCalledTimes(summaryCalls + 1)
+    expect(mockedCalendar).toHaveBeenCalledTimes(calendarCalls + 1)
+    expect(mockedDay).toHaveBeenCalledTimes(dayCalls + 1)
+    expect(mockedDay).toHaveBeenLastCalledWith(
+      expect.objectContaining({ date: '2026-10-01' })
+    )
+    // Busy, but still focusable: a second press does nothing.
+    expect(refresh).toHaveAttribute('aria-disabled', 'true')
+    expect(refresh.querySelector('svg')).toHaveClass('animate-spin')
+    fireEvent.click(refresh)
+    expect(mockedSummary).toHaveBeenCalledTimes(summaryCalls + 1)
+
+    await act(async () => release())
+    await waitFor(() => expect(refresh).not.toHaveAttribute('aria-disabled'))
+  })
+
   it('closes the day details on Escape and puts focus back on the day', async () => {
     renderDashboard()
     await waitForLoaded()

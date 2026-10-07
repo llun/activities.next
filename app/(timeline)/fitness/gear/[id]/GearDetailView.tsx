@@ -235,7 +235,7 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
         <p role="status" className="sr-only">
           Loading gear
         </p>
-        {/* The title, meta line and stat strip in static `--skeleton` bars,
+        {/* The title, meta line and stat strip in shimmering `.skeleton` bars,
             as the overview loads. */}
         <div aria-hidden="true" className="space-y-6">
           <div className="space-y-2">

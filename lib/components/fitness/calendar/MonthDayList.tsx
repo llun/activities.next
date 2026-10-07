@@ -121,7 +121,7 @@ export const MonthDayList = ({
             >
               <span
                 aria-hidden="true"
-                className={styles.swatch}
+                className={cn(styles.swatch, loading && 'skeleton')}
                 data-level={loading ? undefined : levelOfDay(metric, entry)}
                 style={
                   loading ? { backgroundColor: 'var(--skeleton)' } : undefined
