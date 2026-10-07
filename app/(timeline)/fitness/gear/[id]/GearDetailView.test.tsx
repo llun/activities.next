@@ -588,6 +588,22 @@ describe('GearDetailView', () => {
     render(<GearDetailView gearId="gear-1" feed={feed} />)
 
     expect(await screen.findByText('Gear service down')).toBeInTheDocument()
+    // A failed read is not a deleted gear.
+    expect(screen.getByText('We couldn’t load this gear')).toBeInTheDocument()
+    expect(screen.queryByText(/may have been deleted/)).not.toBeInTheDocument()
+  })
+
+  it('retries a failed load', async () => {
+    mockGetFitnessGearList
+      .mockRejectedValueOnce(new Error('Gear service down'))
+      .mockResolvedValue([createGear()])
+    render(<GearDetailView gearId="gear-1" feed={feed} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+
+    expect(
+      await screen.findByRole('heading', { name: /Rocket/ })
+    ).toBeInTheDocument()
   })
 
   it('renders a recording device through the device page, not the bike one', async () => {

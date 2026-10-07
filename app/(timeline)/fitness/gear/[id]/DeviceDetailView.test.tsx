@@ -126,10 +126,13 @@ describe('DeviceDetailView', () => {
     expect(strip).toContainElement(screen.getByText('First used'))
   })
 
-  it('renders an em dash for a device with no dated activity yet', () => {
+  it('renders a dash, read as unavailable, for a device with no dated activity yet', () => {
     renderView({ gear: createDevice({ firstUsedAt: null }) })
 
-    expect(screen.getByText('—')).toBeInTheDocument()
+    const value = screen
+      .getByText('First used', { selector: 'dt' })
+      .parentElement?.querySelector('dd')
+    expect(value).toHaveTextContent('–Unavailable')
     expect(screen.queryByText(/recording since/)).not.toBeInTheDocument()
   })
 

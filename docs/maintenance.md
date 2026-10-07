@@ -760,7 +760,7 @@ names were transcribed correctly.
 #### Recovering an import that stored the file but never created the post
 
 When an import failed after saving the file to storage but before creating the
-status (an orphaned file — visible under "Your Fitness Files" with no matching
+status (an orphaned file — visible in the Files list on Fitness → Files with no matching
 post), first run the read-only preflight. It reports **which database** you are
 actually connected to and whether the actor, Strava settings/token, stored file,
 and same-ride overlap are present:

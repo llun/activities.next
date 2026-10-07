@@ -6,6 +6,11 @@ import { cn } from '@/lib/utils'
 interface Props {
   icon: LucideIcon
   title: ReactNode
+  /**
+   * The title's element. `p` inside a section that already has a heading; a
+   * heading level when the empty state stands in for a whole section.
+   */
+  titleAs?: 'p' | 'h2' | 'h3'
   /** Muted copy under the title, such as a link to fill the gap. */
   children?: ReactNode
   /** A follow-up control under the copy, in its own colour. */
@@ -21,6 +26,7 @@ interface Props {
 export const FitnessEmptyState: FC<Props> = ({
   icon: Icon,
   title,
+  titleAs: Title = 'p',
   children,
   action,
   className
@@ -38,7 +44,7 @@ export const FitnessEmptyState: FC<Props> = ({
       <Icon className="text-muted-foreground size-5" />
     </span>
     <div className="min-w-0 text-sm">
-      <p className="font-semibold break-words">{title}</p>
+      <Title className="text-sm font-semibold break-words">{title}</Title>
       {children ? (
         <div className="text-muted-foreground break-words">{children}</div>
       ) : null}

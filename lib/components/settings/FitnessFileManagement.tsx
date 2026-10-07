@@ -95,8 +95,10 @@ interface Props {
  * client render switches; `toLocaleString()` in render used to give the
  * server's zone and the browser's a different string, a hydration mismatch.
  */
-const FileUploadedAt: FC<{ createdAt: number }> = ({ createdAt }) => {
-  const timeZone = useViewerTimeZone() ?? 'UTC'
+const FileUploadedAt: FC<{ createdAt: number; timeZone: string }> = ({
+  createdAt,
+  timeZone
+}) => {
   return (
     <time dateTime={new Date(createdAt).toISOString()}>
       {new Intl.DateTimeFormat('en-US', {
@@ -121,6 +123,11 @@ export function FitnessFileManagement({
   const router = useRouter()
   const [fitnessFiles, setFitnessFiles] = useState(initialFitnessFiles)
   const [currentUsed, setCurrentUsed] = useState(used)
+  // Counted down on a delete like `currentUsed`, so the strip and the heading
+  // do not keep counting a file that is gone.
+  const [currentTotal, setCurrentTotal] = useState(totalItems)
+  // Read once here rather than per row; see `FileUploadedAt`.
+  const timeZone = useViewerTimeZone() ?? 'UTC'
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [fileToDelete, setFileToDelete] = useState<FitnessFileItem | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -133,6 +140,7 @@ export function FitnessFileManagement({
   useEffect(() => {
     setFitnessFiles(initialFitnessFiles)
     setCurrentUsed(used)
+    setCurrentTotal(totalItems)
     // Drop the "retry queued" flag for any batch that is still failing in the
     // refreshed data, so its Retry button reappears instead of being stuck on
     // "Retry queued" forever when a retry did not clear the failure.
@@ -150,7 +158,7 @@ export function FitnessFileManagement({
       )
       return next.size === prev.size ? prev : next
     })
-  }, [initialFitnessFiles, used])
+  }, [initialFitnessFiles, used, totalItems])
 
   const handleDeleteClick = (fitnessFile: FitnessFileItem) => {
     setFileToDelete(fitnessFile)
@@ -170,6 +178,7 @@ export function FitnessFileManagement({
         prev.filter((file) => file.id !== fileToDelete.id)
       )
       setCurrentUsed((prev) => Math.max(0, prev - fileToDelete.bytes))
+      setCurrentTotal((prev) => Math.max(0, prev - 1))
       setDeleteDialogOpen(false)
       setFileToDelete(null)
     } catch (error) {
@@ -268,7 +277,7 @@ export function FitnessFileManagement({
             <FitnessStatCell
               label="Fitness files"
               icon={Files}
-              value={formatInteger(totalItems)}
+              value={formatInteger(currentTotal)}
             />
           </FitnessStatGrid>
           <Progress
@@ -285,7 +294,7 @@ export function FitnessFileManagement({
 
       <FitnessSection
         title="Files"
-        meta={`${formatInteger(totalItems)} ${totalItems === 1 ? 'file' : 'files'}`}
+        meta={`${formatInteger(currentTotal)} ${currentTotal === 1 ? 'file' : 'files'}`}
         actions={
           <>
             {hasRetriableImport ? (
@@ -368,7 +377,10 @@ export function FitnessFileManagement({
                       <div className="text-muted-foreground flex flex-wrap gap-x-2 text-xs tabular-nums">
                         <span>{formatFileSize(fitnessFile.bytes)}</span>
                         <span aria-hidden="true">·</span>
-                        <FileUploadedAt createdAt={fitnessFile.createdAt} />
+                        <FileUploadedAt
+                          createdAt={fitnessFile.createdAt}
+                          timeZone={timeZone}
+                        />
                         <span aria-hidden="true">·</span>
                         <span className="font-mono break-all">
                           ID: {fitnessFile.id}

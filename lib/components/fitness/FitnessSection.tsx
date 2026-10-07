@@ -65,6 +65,3 @@ export const FitnessSection: FC<Props> = ({
  */
 export const FITNESS_TABLE_HEAD_ROW_CLASS =
   'bg-muted/40 text-muted-foreground border-b text-left text-xs'
-
-/** The bordered surface a section's table or list sits in. */
-export const FITNESS_SURFACE_CLASS = 'rounded-lg border'

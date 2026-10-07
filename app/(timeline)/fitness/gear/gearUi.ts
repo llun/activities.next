@@ -268,7 +268,10 @@ export const STICKY_HEAD_CELL =
  * their unscrolled x, and widen the document: a 390px phone grew to ~1,770px
  * wide on a gear's page and ~560px on the gear list.
  */
-export const GEAR_TABLE_SCROLLER = 'relative overflow-x-auto rounded-lg border'
+// `bg-background`: the page behind it carries fixed radial tints, so without
+// its own fill the cells would show them while the pinned lane stays solid.
+export const GEAR_TABLE_SCROLLER =
+  'relative overflow-x-auto rounded-lg border bg-background'
 
 /**
  * Pinned last cell of a row (such as the Actions column on the components

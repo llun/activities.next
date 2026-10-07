@@ -7,6 +7,7 @@ import {
   History,
   MapPin,
   Pencil,
+  RefreshCw,
   Trash2,
   Wrench
 } from 'lucide-react'
@@ -85,6 +86,8 @@ interface Props {
    */
   feed: GearActivityFeedContext
 }
+
+const GEAR_NOT_FOUND = 'Gear not found.'
 
 const getBrandModel = (gear: GearEntity): string =>
   [gear.brand, gear.model].filter(Boolean).join(' ')
@@ -167,7 +170,7 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
         const found = list.find((item) => item.id === gearId) ?? null
         if (cancelled) return
         setGear(found)
-        setError(found ? null : 'Gear not found.')
+        setError(found ? null : GEAR_NOT_FOUND)
         if (!found || found.kind !== 'bike') {
           setComponents([])
           return
@@ -227,7 +230,7 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
 
   if (isInitialLoading) {
     return (
-      <div className="space-y-6" aria-busy="true">
+      <div className="space-y-6">
         {backLink}
         <p role="status" className="sr-only">
           Loading gear
@@ -254,9 +257,29 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
     return (
       <div className="space-y-6">
         {backLink}
-        <FitnessAlert title={error ?? 'Gear not found.'}>
-          It may have been deleted. Go back to your gear to pick another.
-        </FitnessAlert>
+        {error && error !== GEAR_NOT_FOUND ? (
+          // A failed read, not a missing row: say so and offer to try again.
+          <FitnessAlert
+            title="We couldn’t load this gear"
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11"
+                onClick={reload}
+              >
+                <RefreshCw className="size-4" aria-hidden="true" />
+                Retry
+              </Button>
+            }
+          >
+            {error}
+          </FitnessAlert>
+        ) : (
+          <FitnessAlert title={GEAR_NOT_FOUND}>
+            It may have been deleted. Go back to your gear to pick another.
+          </FitnessAlert>
+        )}
       </div>
     )
   }

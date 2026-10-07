@@ -398,7 +398,7 @@ const DeviceSection: FC<{
  * jump from a centred "Loading..." line to two tables.
  */
 const GearListSkeleton: FC = () => (
-  <div className="space-y-6" aria-busy="true">
+  <div className="space-y-6">
     <p role="status" className="sr-only">
       Loading gear
     </p>

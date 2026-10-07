@@ -99,7 +99,7 @@ export const DeviceDetailView: FC<Props> = ({
           label="First used"
           icon={CalendarDays}
           value={
-            gear.firstUsedAt === null ? '—' : formatGearDate(gear.firstUsedAt)
+            gear.firstUsedAt === null ? null : formatGearDate(gear.firstUsedAt)
           }
         />
       </FitnessStatGrid>

@@ -711,7 +711,7 @@ export const GearComponentsCard: FC<Props> = ({
       )}
 
       {retired.length > 0 && (
-        <div className="px-4">
+        <div>
           <button
             type="button"
             className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary-text hover:underline"

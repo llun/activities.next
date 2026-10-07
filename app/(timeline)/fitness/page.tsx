@@ -64,6 +64,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
         <FitnessEmptyState
           icon={Activity}
           title="No activity yet"
+          titleAs="h2"
           action={
             <div className="flex flex-wrap gap-2">
               <Button asChild>

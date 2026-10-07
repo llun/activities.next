@@ -529,6 +529,52 @@ describe('FitnessFileManagement', () => {
     })
   })
 
+  describe('delete', () => {
+    it('counts the deleted file out of the strip and the heading', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({})
+      } as Response)
+
+      render(
+        <FitnessFileManagement
+          used={2048}
+          limit={10485760}
+          fitnessFiles={[
+            {
+              id: 'fitness-5',
+              actorId: 'https://example.com/users/alice',
+              fileName: 'swim.fit',
+              fileType: 'fit' as const,
+              mimeType: 'application/vnd.ant.fit',
+              bytes: 1024,
+              createdAt: Date.now(),
+              url: '/api/v1/fitness-files/fitness-5'
+            }
+          ]}
+          currentPage={1}
+          itemsPerPage={25}
+          totalItems={2}
+        />
+      )
+
+      expect(screen.getByText('2 files')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+      const deleteButtons = await screen.findAllByRole('button', {
+        name: /^Delete$/
+      })
+      fireEvent.click(deleteButtons[deleteButtons.length - 1])
+
+      await waitFor(() => {
+        expect(screen.getByText('1 file')).toBeInTheDocument()
+      })
+      const filesValue = screen
+        .getByText('Fitness files', { selector: 'dt' })
+        .parentElement?.querySelector('dd')
+      expect(filesValue).toHaveTextContent('1')
+    })
+  })
+
   describe('delete error handling', () => {
     it('shows an error message when deletion fails', async () => {
       vi.spyOn(global, 'fetch').mockResolvedValue({
