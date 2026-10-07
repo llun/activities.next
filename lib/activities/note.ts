@@ -367,6 +367,11 @@ export const getTags = (object: BaseNote): KnownTag[] => {
   return tags.filter(isKnownTag)
 }
 
+// Types whose `name` is a title shown above the body, as Mastodon does for
+// Video, Page (Lemmy) and Article (WriteFreely, Plume, WordPress).
+const TITLED_TYPES = new Set<string>(['Video', 'Article', 'Page'])
+const LINKED_WHEN_EMPTY_TYPES = new Set<string>(['Article', 'Page'])
+
 export const getContent = (object: BaseNote) => {
   let content = ''
   if (object.content) {
@@ -389,7 +394,7 @@ export const getContent = (object: BaseNote) => {
   }
 
   if (
-    object.type === 'Video' &&
+    TITLED_TYPES.has(object.type) &&
     'name' in object &&
     typeof object.name === 'string' &&
     object.name.trim()
@@ -397,6 +402,16 @@ export const getContent = (object: BaseNote) => {
     const title = escapeHtml(object.name.trim())
     const titleHeader = `<p><strong>${title}</strong></p>`
     if (!content.startsWith(titleHeader)) {
+      // A Lemmy post or a blog article may carry only its title and a url to
+      // the full page. Link that url so the status still points somewhere.
+      if (!content && LINKED_WHEN_EMPTY_TYPES.has(object.type)) {
+        const href = getUrl(object.url)
+        if (href) {
+          const escapedHref = escapeHtml(href)
+          const link = `<p><a href="${escapedHref}" rel="nofollow noopener noreferrer" target="_blank">${escapedHref}</a></p>`
+          return `${titleHeader}\n${link}`
+        }
+      }
       return content ? `${titleHeader}\n${content}` : titleHeader
     }
   }

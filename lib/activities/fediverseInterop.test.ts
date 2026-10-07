@@ -68,7 +68,8 @@ describe('fediverse interop: remote fetch', () => {
       {
         description: 'lemmy Page',
         object: FEDIVERSE_OBJECTS.lemmyPage,
-        text: 'This is a post in the /c/tenforward community'
+        text: 'This is a post in the /c/tenforward community',
+        title: 'Post title'
       },
       {
         description: 'lemmy comment Note',
@@ -95,13 +96,19 @@ describe('fediverse interop: remote fetch', () => {
         object: FEDIVERSE_OBJECTS.gotosocialNote,
         text: 'hello everyone!'
       }
-    ])('$description is fetched as a status', async ({ object, text }) => {
-      const status = await getRemoteStatus({ statusId: object.id })
-      expect(status).not.toBeNull()
-      expect(status?.id).toBe(object.id)
-      expect(status?.text).toContain(text)
-      expect(status?.actor).not.toBeNull()
-    })
+    ])(
+      '$description is fetched as a status',
+      async ({ object, text, title }) => {
+        const status = await getRemoteStatus({ statusId: object.id })
+        expect(status).not.toBeNull()
+        expect(status?.id).toBe(object.id)
+        expect(status?.text).toContain(text)
+        if (title) {
+          expect(status?.text).toContain(`<strong>${title}</strong>`)
+        }
+        expect(status?.actor).not.toBeNull()
+      }
+    )
   })
 
   describe('outboxes', () => {

@@ -938,6 +938,121 @@ describe('note entity utilities', () => {
         '<p><strong>My Cool Video</strong></p>\n<p>Description</p>'
       )
     })
+
+    it('prepends Article name to content when object is an Article', () => {
+      const article = {
+        type: 'Article',
+        name: 'My Post',
+        content: '<p>Body</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(article)).toEqual(
+        '<p><strong>My Post</strong></p>\n<p>Body</p>'
+      )
+    })
+
+    it('prepends Page name to content when object is a Page', () => {
+      const page = {
+        type: 'Page',
+        name: 'My Post',
+        content: '<p>Body</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(page)).toEqual(
+        '<p><strong>My Post</strong></p>\n<p>Body</p>'
+      )
+    })
+
+    it('escapes HTML in Article name', () => {
+      const article = {
+        type: 'Article',
+        name: 'A & <b>',
+        content: '<p>Body</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(article)).toEqual(
+        '<p><strong>A &amp; &lt;b&gt;</strong></p>\n<p>Body</p>'
+      )
+    })
+
+    it('does not duplicate title if Article content already starts with formatted title', () => {
+      const article = {
+        type: 'Article',
+        name: 'My Post',
+        content: '<p><strong>My Post</strong></p>\n<p>Body</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(article)).toEqual(
+        '<p><strong>My Post</strong></p>\n<p>Body</p>'
+      )
+    })
+
+    it('links the url under the title when Article has no content', () => {
+      const article = {
+        type: 'Article',
+        name: 'My Post',
+        url: 'https://blog.test/p/1'
+      } as unknown as BaseNote
+
+      expect(getContent(article)).toEqual(
+        '<p><strong>My Post</strong></p>\n' +
+          '<p><a href="https://blog.test/p/1" rel="nofollow noopener noreferrer" target="_blank">https://blog.test/p/1</a></p>'
+      )
+    })
+
+    it('links the url under the title when Page has no content', () => {
+      const page = {
+        type: 'Page',
+        name: 'My Post',
+        url: 'https://lemmy.test/post/1'
+      } as unknown as BaseNote
+
+      expect(getContent(page)).toEqual(
+        '<p><strong>My Post</strong></p>\n' +
+          '<p><a href="https://lemmy.test/post/1" rel="nofollow noopener noreferrer" target="_blank">https://lemmy.test/post/1</a></p>'
+      )
+    })
+
+    it('escapes a quote in the Article url href', () => {
+      const article = {
+        type: 'Article',
+        name: 'My Post',
+        url: 'https://blog.test/p/1?a="x"'
+      } as unknown as BaseNote
+
+      expect(getContent(article)).toContain(
+        'href="https://blog.test/p/1?a=&quot;x&quot;"'
+      )
+    })
+
+    it('keeps Article content unchanged when it has no name', () => {
+      const article = {
+        type: 'Article',
+        content: '<p>Body</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(article)).toEqual('<p>Body</p>')
+    })
+
+    it('renders only the title when the Article url is not http(s)', () => {
+      const article = {
+        type: 'Article',
+        name: 'My Post',
+        url: 'javascript:alert(1)'
+      } as unknown as BaseNote
+
+      expect(getContent(article)).toEqual('<p><strong>My Post</strong></p>')
+    })
+
+    it('does not prepend name to content when object is a Note', () => {
+      const note = {
+        type: 'Note',
+        name: 'Not a title',
+        content: '<p>Body</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(note)).toEqual('<p>Body</p>')
+    })
   })
 
   describe('getSummary', () => {
