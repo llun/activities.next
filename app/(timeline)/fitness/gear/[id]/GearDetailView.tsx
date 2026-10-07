@@ -235,18 +235,18 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
         <p role="status" className="sr-only">
           Loading gear
         </p>
-        {/* The title, meta line and stat strip in static `--skeleton` bars,
+        {/* The title, meta line and stat strip in shimmering `.skeleton` bars,
             as the overview loads. */}
         <div aria-hidden="true" className="space-y-6">
           <div className="space-y-2">
-            <span className="block h-7 w-48 rounded-md bg-(--skeleton)" />
-            <span className="block h-4 w-72 max-w-full rounded bg-(--skeleton)" />
+            <span className="block h-7 w-48 rounded-md skeleton" />
+            <span className="block h-4 w-72 max-w-full rounded skeleton" />
           </div>
           {/* The kind is not known yet, so neither are the labels: bars
               only, in the stat strip's frame. */}
           <div className="h-[70px] rounded-lg border p-4">
-            <span className="block h-5 w-24 rounded bg-(--skeleton)" />
-            <span className="mt-2 block h-3.5 w-16 rounded bg-(--skeleton)" />
+            <span className="block h-5 w-24 rounded skeleton" />
+            <span className="mt-2 block h-3.5 w-16 rounded skeleton" />
           </div>
         </div>
       </div>

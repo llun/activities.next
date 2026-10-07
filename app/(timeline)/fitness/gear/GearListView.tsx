@@ -398,8 +398,8 @@ const DeviceSection: FC<{
 }
 
 /**
- * The first load's placeholder: the bikes and shoes sections' shape in static
- * `--skeleton` bars (no shimmer), as the overview loads, so the page does not
+ * The first load's placeholder: the bikes and shoes sections' shape in the
+ * shared shimmering `.skeleton` bars, as the overview loads, so the page does not
  * jump from a centred "Loading..." line to two tables.
  */
 const GearListSkeleton: FC = () => (
@@ -410,8 +410,8 @@ const GearListSkeleton: FC = () => (
     {[0, 1].map((section) => (
       <div key={section} aria-hidden="true" className="space-y-3">
         <div className="flex items-center gap-3">
-          <span className="block h-5 w-16 rounded bg-(--skeleton)" />
-          <span className="ml-auto block h-8 w-24 rounded-md bg-(--skeleton)" />
+          <span className="block h-5 w-16 rounded skeleton" />
+          <span className="ml-auto block h-8 w-24 rounded-md skeleton" />
         </div>
         <div className="rounded-lg border">
           <div className="bg-muted/40 h-9 border-b" />
@@ -420,8 +420,8 @@ const GearListSkeleton: FC = () => (
               key={row}
               className="flex items-center gap-6 border-b px-4 py-4 last:border-b-0"
             >
-              <span className="block h-3.5 w-1/3 max-w-40 rounded bg-(--skeleton)" />
-              <span className="ml-auto block h-3.5 w-16 rounded bg-(--skeleton)" />
+              <span className="block h-3.5 w-1/3 max-w-40 rounded skeleton" />
+              <span className="ml-auto block h-3.5 w-16 rounded skeleton" />
             </div>
           ))}
         </div>

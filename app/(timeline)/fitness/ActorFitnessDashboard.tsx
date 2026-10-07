@@ -43,6 +43,7 @@ import {
   scrollBehavior
 } from '@/lib/components/fitness/calendar/calendarShared'
 import { useElementWidth } from '@/lib/components/fitness/calendar/useElementWidth'
+import { RefreshButton } from '@/lib/components/refresh-button'
 import { Button } from '@/lib/components/ui/button'
 import {
   formatMonthShort,
@@ -148,10 +149,13 @@ function OverviewSkeleton() {
           so the strip below stays put when the overview replaces this. */}
       <div aria-hidden="true" className="space-y-3 @min-[600px]:hidden">
         <div className="h-12 space-y-1.5 pt-1">
-          <span className="block h-5 w-44 rounded bg-(--skeleton)" />
-          <span className="block h-4 w-32 rounded bg-(--skeleton)" />
+          <span className="block h-5 w-44 rounded skeleton" />
+          <span className="block h-4 w-32 rounded skeleton" />
         </div>
-        <span className="ml-auto block h-11 w-56 rounded-md bg-(--skeleton)" />
+        <div className="flex justify-end gap-2">
+          <span className="block h-11 w-56 rounded-md skeleton" />
+          <span className="block size-11 rounded-md skeleton" />
+        </div>
       </div>
       <FitnessSummaryStrip
         totals={null}
@@ -159,9 +163,9 @@ function OverviewSkeleton() {
         className="bg-border overflow-hidden rounded-lg border"
       />
       <div aria-hidden="true" className="space-y-4">
-        <span className="block h-5 w-36 rounded bg-(--skeleton)" />
-        <span className="block h-11 w-full max-w-80 rounded-lg bg-(--skeleton)" />
-        <span className="block h-40 w-full rounded-lg bg-(--skeleton)" />
+        <span className="block h-5 w-36 rounded skeleton" />
+        <span className="block h-11 w-full max-w-80 rounded-lg skeleton" />
+        <span className="block h-40 w-full rounded-lg skeleton" />
       </div>
     </div>
   )
@@ -538,6 +542,27 @@ function FitnessOverview({
     />
   )
 
+  // The range picker with the timeline's Refresh at its end: it re-reads the
+  // applied range in place, and spins while any read of it is in flight, so
+  // the shimmering bars below always have the control that reloads them. An
+  // open day's activity list is re-read with it, or its rows would disagree
+  // with the day's refreshed totals.
+  const refresh = () => {
+    data.retry()
+    dayActivities.reload()
+  }
+  const headerControls = (
+    <div className="flex items-center gap-2">
+      {rangePicker}
+      <RefreshButton
+        onRefresh={refresh}
+        refreshing={loading}
+        accessibleName="Refresh fitness overview"
+        className="size-11"
+      />
+    </div>
+  )
+
   // Month view / Back to year: on a phone a text action beside the calendar
   // heading; on wider containers Month view sits in the toolbar and Back to
   // year in the month's own heading row.
@@ -566,7 +591,7 @@ function FitnessOverview({
           canStep={canStep}
           loading={loading}
           onStep={step}
-          rangePicker={rangePicker}
+          rangePicker={headerControls}
         />
       ) : (
         // The page's own "Overview" header carries the dates and the range
@@ -577,7 +602,7 @@ function FitnessOverview({
             <OverviewDates range={displayRange} loading={loading} />
           </InOverviewHeaderSlot>
           <InOverviewHeaderSlot slot="range">
-            {rangePicker}
+            {headerControls}
           </InOverviewHeaderSlot>
         </div>
       )}

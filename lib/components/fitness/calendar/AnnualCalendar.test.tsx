@@ -872,7 +872,7 @@ describe('AnnualCalendar', () => {
   })
 
   describe('loading', () => {
-    it('keeps the layout: every cell stays, dimmed and busy, with no shimmer', () => {
+    it('keeps the layout: every cell stays, dimmed and busy, with no per-cell animation', () => {
       const { cells, container } = renderCalendar({ loading: true })
 
       expect(cells()).toHaveLength(277)
@@ -880,6 +880,9 @@ describe('AnnualCalendar', () => {
       const dimmed = container.querySelector('[aria-busy="true"]')
       expect(dimmed).not.toBeNull()
       expect(dimmed?.getAttribute('data-loading')).toBe('true')
+      // The sweep is the CSS module's one viewport-attached band
+      // (calendar.module.css.test.ts), never a `.skeleton` or `animate-*`
+      // class on each of 277 cells.
       expect(container.innerHTML).not.toMatch(/animate-|skeleton|shimmer/)
     })
 

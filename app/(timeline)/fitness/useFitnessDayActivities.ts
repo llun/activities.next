@@ -22,6 +22,8 @@ export interface DayActivities {
   loadMore: () => void
   /** Re-issues whichever request failed: the first page or the next one. */
   retry: () => void
+  /** Re-reads the selected day from its first page, failed or not. */
+  reload: () => void
 }
 
 interface DayPage {
@@ -186,6 +188,8 @@ export const useFitnessDayActivities = ({
     setAttempt((value) => value + 1)
   }, [currentMore, loadMore])
 
+  const reload = useCallback(() => setAttempt((value) => value + 1), [])
+
   return {
     activities: current?.activities ?? [],
     loading: key !== null && current === null,
@@ -193,6 +197,7 @@ export const useFitnessDayActivities = ({
     error: (current?.error ?? false) || (currentMore?.error ?? false),
     hasMore: current?.hasMore ?? false,
     loadMore,
-    retry
+    retry,
+    reload
   }
 }

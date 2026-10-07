@@ -61,7 +61,7 @@ export interface MonthCalendarProps {
   days: readonly FitnessCalendarDay[]
   metric: HeatMetric
   selectedDate: DateKey | null
-  /** Keep the layout, dim to 0.6 and show a static skeleton. */
+  /** Keep the layout, dim to 0.6 and show the skeleton sweep. */
   loading?: boolean
   /**
    * Crossfade (75ms out, 75ms in, opacity only) when `year` or `month` change.

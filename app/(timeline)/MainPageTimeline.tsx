@@ -1,6 +1,5 @@
 'use client'
 
-import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -19,6 +18,7 @@ import {
 import { TimelineFeed } from '@/lib/components/posts/timeline-feed'
 import { getStatusReplyTargetId } from '@/lib/components/posts/timelineModel'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
+import { RefreshButton } from '@/lib/components/refresh-button'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
 import { Button } from '@/lib/components/ui/button'
 import { Timeline } from '@/lib/services/timelines/types'
@@ -32,7 +32,6 @@ import {
 } from '@/lib/types/domain/status'
 import { TimelineContext } from '@/lib/types/domain/timeline'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
-import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
 interface MainPageTimelineProps {
@@ -403,20 +402,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         banner={<AnnouncementBanner currentTime={currentTime} />}
         title="Timeline"
         actions={
-          <Button
-            variant="outline"
-            size="icon"
-            // Chrome control: the design draws it on the card surface with the
-            // hairline border in dark, not the translucent outline fill.
-            className="dark:border-border dark:bg-card dark:hover:bg-accent"
-            onClick={refreshTimeline}
-            disabled={isRefreshing}
-            aria-label="Refresh timeline"
-          >
-            <RefreshCw
-              className={cn('size-4', isRefreshing && 'animate-spin')}
-            />
-          </Button>
+          <RefreshButton
+            onRefresh={refreshTimeline}
+            refreshing={isRefreshing}
+            accessibleName="Refresh timeline"
+          />
         }
         bottomSlot={
           newerPostsCount > 0 ? (

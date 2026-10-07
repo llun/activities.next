@@ -67,14 +67,11 @@ describe('FitnessSummaryStrip', () => {
     }
   })
 
-  it('draws a static skeleton: no shimmer class', () => {
+  it('draws the shared shimmering skeleton in every cell', () => {
     const { container } = render(<FitnessSummaryStrip totals={null} loading />)
 
-    // The shared `.skeleton` sweeps a shimmer band; loading here is a dim and
-    // still bars (decisions.md: no shimmer).
-    expect(container.querySelector('.skeleton')).toBeNull()
     expect(
-      container.querySelectorAll('[aria-hidden="true"].block')
+      container.querySelectorAll('[aria-hidden="true"].block.skeleton')
     ).toHaveLength(4)
   })
 
