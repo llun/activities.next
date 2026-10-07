@@ -93,13 +93,22 @@ describe('calendar stylesheet', () => {
     expect(sheet).toContain("[data-fade-end='true']")
   })
 
-  it('never animates movement: no transform transitions, no keyframes', () => {
-    expect(sheet).not.toMatch(/@keyframes/)
+  it('never animates movement: no transforms, and only the loading sweep animates', () => {
     expect(sheet).not.toMatch(/transition:[^;]*transform/)
-    expect(sheet).not.toMatch(/animation:/)
+    expect(
+      [...sheet.matchAll(/@keyframes\s+([\w-]+)/g)].map((m) => m[1])
+    ).toEqual(['cell-loading-sweep'])
+    expect(
+      [...sheet.matchAll(/animation:\s*([^;]+);/g)].map((m) => m[1])
+    ).toEqual(['cell-loading-sweep 1.6s ease-in-out infinite', 'none'])
   })
 
-  it('does not add a shimmer to the loading skeleton', () => {
-    expect(sheet).not.toMatch(/shimmer/)
+  it('shimmers the loading skeleton with one viewport-attached band', () => {
+    expect(sheet).toMatch(
+      /\[data-loading='true'\]\[data-state='active'\]\s*\{[^}]*background-color:\s*var\(--skeleton\)[^}]*var\(--skeleton-highlight\)[^}]*background-attachment:\s*fixed[^}]*animation:\s*cell-loading-sweep/
+    )
+    expect(sheet).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.cell\[data-loading='true'\]\[data-state='active'\]\s*\{\s*animation:\s*none;\s*background-image:\s*none;/
+    )
   })
 })

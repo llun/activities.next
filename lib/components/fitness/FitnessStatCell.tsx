@@ -22,8 +22,9 @@ interface Props {
  * that the grid's 1px gaps cut into hairline dividers, so the strip's own
  * wrapper carries `bg-border`, the border and the radius.
  *
- * The skeleton is a STATIC block (`--skeleton`), never the shared shimmering
- * `.skeleton`: loading on fitness surfaces is a dim and still bars, no motion.
+ * The skeleton is the app's shared shimmering `.skeleton` bar, as on every
+ * other loading surface; under `prefers-reduced-motion` it is the still
+ * `--skeleton` block.
  */
 export const FitnessStatCell: FC<Props> = ({
   label,
@@ -49,7 +50,7 @@ export const FitnessStatCell: FC<Props> = ({
             <span className="sr-only">Loading</span>
             <span
               aria-hidden="true"
-              className="my-1 block h-5 w-20 rounded bg-(--skeleton)"
+              className="my-1 block h-5 w-20 rounded skeleton"
             />
           </>
         ) : value === null ? (

@@ -12,7 +12,8 @@
  * Colours come from the scoped `--heat-*` tokens in app/globals.css (set by the
  * `fitness-heat` class on each calendar root) and the theme tokens. Durations
  * come from the `--fitness-t-*` motion tokens. Under prefers-reduced-motion
- * the brief colour and opacity fades stay; nothing here moves.
+ * the brief colour and opacity fades stay and the loading shimmer stops;
+ * nothing here moves.
  */
 
 /* ---------------------------------------------------------------- cells --- */
@@ -105,10 +106,43 @@
   cursor: default;
 }
 
-/* Loading keeps the layout: a static skeleton fill (no shimmer). */
+/* Loading keeps the layout: the skeleton fill with the app's shimmer band
+   sweeping over it. A cell cannot carry the shared `.skeleton` (its ::before
+   and ::after are the focus brackets and the selection ring) and 277 cells
+   each sweeping their own band would flicker, so the band is ONE gradient
+   attached to the viewport: every cell paints its own slice of the same band,
+   which reads as a single sweep across the whole grid. It is a background
+   position, so no cell moves. Where `fixed` is unsupported (iOS Safari) each
+   cell sweeps in step instead. */
 .cell[data-loading='true'][data-state='active'] {
   background-color: var(--skeleton);
+  background-image: linear-gradient(
+    90deg,
+    transparent 40%,
+    var(--skeleton-highlight) 50%,
+    transparent 60%
+  );
+  background-size: 200% 100%;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--muted-foreground);
+  animation: cell-loading-sweep 1.6s ease-in-out infinite;
+}
+
+@keyframes cell-loading-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell[data-loading='true'][data-state='active'] {
+    animation: none;
+    background-image: none;
+  }
 }
 
 /* Selection: an orange ring OUTSIDE the cell, so it reads against the page and

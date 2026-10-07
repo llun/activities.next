@@ -109,7 +109,7 @@ export const ActivityTypeBreakdown: FC<Props> = ({
             </tr>
           </thead>
           <tbody>
-            {/* Static skeleton bars (`--skeleton`, no shimmer). Their widths
+            {/* Shimmering skeleton bars (the shared `.skeleton`). Their widths
                 are PERCENTAGES capped at the old pixel widths: a percentage
                 width adds nothing to a table cell's minimum width, so the
                 skeleton table is never wider than its header and the card (a
@@ -123,16 +123,16 @@ export const ActivityTypeBreakdown: FC<Props> = ({
                     className="border-b last:border-b-0"
                   >
                     <td className="px-4 py-3.5">
-                      <span className="block h-3.5 w-3/4 max-w-28 rounded bg-(--skeleton)" />
+                      <span className="block h-3.5 w-3/4 max-w-28 rounded skeleton" />
                     </td>
                     <td className="px-3 py-3.5">
-                      <span className="ml-auto block h-3.5 w-full max-w-6 rounded bg-(--skeleton)" />
+                      <span className="ml-auto block h-3.5 w-full max-w-6 rounded skeleton" />
                     </td>
                     <td className="px-3 py-3.5">
-                      <span className="ml-auto block h-3.5 w-full max-w-14 rounded bg-(--skeleton)" />
+                      <span className="ml-auto block h-3.5 w-full max-w-14 rounded skeleton" />
                     </td>
                     <td className="px-4 py-3.5">
-                      <span className="ml-auto block h-3.5 w-full max-w-16 rounded bg-(--skeleton)" />
+                      <span className="ml-auto block h-3.5 w-full max-w-16 rounded skeleton" />
                     </td>
                   </tr>
                 ))

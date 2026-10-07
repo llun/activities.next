@@ -545,7 +545,7 @@ describe('MonthCalendar', () => {
     })
   })
 
-  it('keeps the layout while loading: dimmed, busy and a static skeleton', () => {
+  it('keeps the layout while loading: dimmed, busy and the module skeleton sweep', () => {
     const { cells, container } = renderMonth({ loading: true })
 
     expect(cells()).toHaveLength(31)
