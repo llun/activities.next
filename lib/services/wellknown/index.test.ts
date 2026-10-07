@@ -4,6 +4,7 @@ import { AUTH_BASE_PATH } from '@/lib/services/auth/constants'
 import {
   getHostMetaXML,
   getNodeInfo20,
+  getNodeInfo21,
   getNodeInfoLinks,
   getOAuthAuthorizationServerMetadata,
   getOpenIDConfiguration,
@@ -233,15 +234,61 @@ describe('wellknown services', () => {
 
       expect(nodeInfoLinks).toHaveProperty('links')
       expect(nodeInfoLinks.links).toBeArray()
-      expect(nodeInfoLinks.links).toHaveLength(1)
+      expect(nodeInfoLinks.links).toHaveLength(2)
     })
 
-    it('includes nodeinfo 2.0 schema link', () => {
+    it('includes nodeinfo 2.0 schema link first', () => {
       const nodeInfoLinks = getNodeInfoLinks()
 
       expect(nodeInfoLinks.links[0]).toMatchObject({
         rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
         href: 'https://test.example.com/nodeinfo/2.0'
+      })
+    })
+
+    it('includes nodeinfo 2.1 schema link', () => {
+      const nodeInfoLinks = getNodeInfoLinks()
+
+      expect(nodeInfoLinks.links[1]).toMatchObject({
+        rel: 'http://nodeinfo.diaspora.software/ns/schema/2.1',
+        href: 'https://test.example.com/nodeinfo/2.1'
+      })
+    })
+  })
+
+  describe('getNodeInfo21', () => {
+    const stats = {
+      totalUsers: 5,
+      activeMonth: 3,
+      activeHalfyear: 4,
+      localPosts: 42
+    }
+
+    it('returns a NodeInfo 2.1 document with the 2.0 payload', () => {
+      expect(getNodeInfo21(stats)).toMatchObject({
+        version: '2.1',
+        protocols: ['activitypub'],
+        services: { inbound: [], outbound: [] },
+        openRegistrations: false,
+        usage: {
+          users: { total: 5, activeMonth: 3, activeHalfyear: 4 },
+          localPosts: 42,
+          localComments: 0
+        },
+        metadata: {
+          nodeName: 'test.example.com',
+          nodeDescription: ''
+        }
+      })
+    })
+
+    it('adds repository and homepage to software', () => {
+      const nodeInfo = getNodeInfo21(stats)
+
+      expect(nodeInfo.software.name).toMatch(/^[a-z0-9-]+$/)
+      expect(nodeInfo.software).toMatchObject({
+        repository: 'https://github.com/llun/activities.next',
+        homepage: 'https://github.com/llun/activities.next'
       })
     })
   })
