@@ -449,6 +449,64 @@ describe('recordActorIfNeeded refuses a handle its host does not vouch for', () 
     await expectNoForgedActor()
   })
 
+  // FEP-2c59 and Mastodon's `subject` redirect let another domain confirm an
+  // actor its host does not answer for, but only under that domain's name:
+  // the stored handle is the one that was confirmed, so a document claiming
+  // `admin` on the actor host can never become `admin@victim.test` this way.
+  it('records an actor confirmed only by its handle domain under that domain', async () => {
+    serve(
+      {
+        [uploadId]: actorDocument(uploadId, 'attacker-key', {
+          preferredUsername: 'admin',
+          webfinger: 'admin@evil.test'
+        })
+      },
+      { webfinger: { 'admin@evil.test': uploadId } }
+    )
+
+    await expect(
+      recordActorIfNeeded({ actorId: uploadId, database })
+    ).resolves.toMatchObject({
+      id: uploadId,
+      username: 'admin',
+      domain: 'evil.test'
+    })
+    await expect(
+      database.getActorFromUsername({
+        username: 'admin',
+        domain: 'victim.test'
+      })
+    ).resolves.toBeNull()
+  })
+
+  it('follows the subject the actor host answers with to the handle domain', async () => {
+    const actorId = 'https://ap.remote.test/users/1234'
+    serve(
+      {
+        [actorId]: actorDocument(actorId, 'alice-key', {
+          preferredUsername: 'alice'
+        })
+      },
+      {
+        webfinger: {
+          'alice@ap.remote.test': {
+            self: [],
+            subject: 'acct:alice@remote.test'
+          },
+          'alice@remote.test': actorId
+        }
+      }
+    )
+
+    await expect(
+      recordActorIfNeeded({ actorId, database })
+    ).resolves.toMatchObject({
+      id: actorId,
+      username: 'alice',
+      domain: 'remote.test'
+    })
+  })
+
   it('records an actor whose host WebFinger names exactly its id', async () => {
     serve(
       { [adminId]: actorDocument(adminId, 'admin-key') },

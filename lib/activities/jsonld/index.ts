@@ -35,6 +35,13 @@ const GOTOSOCIAL_NAMESPACE = 'https://gotosocial.org/ns#'
 const FEDIBIRD_NAMESPACE = 'http://fedibird.com/ns#'
 const MISSKEY_NAMESPACE = 'https://misskey-hub.net/ns#'
 const LITEPUB_NAMESPACE = 'http://litepub.social/ns#'
+// FEP-2c59's actor handle, as its context document defines it. Mastodon and
+// WordPress declare it by that document's URL, which the offline loader does
+// not serve, so the term reaches compaction through the fallback below.
+const WEBFINGER_TERM = {
+  '@id': 'https://purl.archive.org/socialweb/webfinger#webfinger',
+  '@type': 'http://www.w3.org/2001/XMLSchema#string'
+}
 
 const BUNDLED_CONTEXTS: Record<string, unknown> = {
   [ACTIVITY_STREAMS_CONTEXT_URL]: activityStreamsContext,
@@ -87,7 +94,8 @@ const getProcessor = (): Promise<JsonLdProcessor> => {
  */
 export const EXTENSION_TERM_FALLBACK_CONTEXT = {
   EmojiReact: `${LITEPUB_NAMESPACE}EmojiReact`,
-  _misskey_reaction: `${MISSKEY_NAMESPACE}_misskey_reaction`
+  _misskey_reaction: `${MISSKEY_NAMESPACE}_misskey_reaction`,
+  webfinger: WEBFINGER_TERM
 }
 
 /**
@@ -181,6 +189,8 @@ const CANONICAL_CONTEXT = {
       // so without this alias the property compacts to `misskey:_misskey_reaction`
       // and the reaction reads as a plain favourite.
       _misskey_reaction: 'misskey:_misskey_reaction',
+      // FEP-2c59 actor handle (`user@domain`), read by `confirmActorHandle`.
+      webfinger: WEBFINGER_TERM,
       quoteAuthorization: {
         '@id': 'fep044f:quoteAuthorization',
         '@type': '@id'

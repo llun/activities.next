@@ -351,6 +351,96 @@ describe('getSenderPublicKey', () => {
       )
       expect(fetchMock).not.toHaveBeenCalled()
     })
+
+    // FEP-2c59: an owner whose actor host does not know its handle names the
+    // handle's domain, which is asked next.
+    it('accepts a key whose handle domain WebFinger names its owner', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          ...createActorDocument({
+            id: uploadId,
+            publicKeyPem: 'handle-domain-key'
+          }),
+          preferredUsername: 'admin',
+          webfinger: 'admin@handle.test'
+        }),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+      fetchMock.mockResponseOnce('Not Found', { status: 404 })
+      fetchMock.mockResponseOnce(
+        ...webfingerResponse('admin@handle.test', uploadId)
+      )
+      vi.mocked(request).mockClear()
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${uploadId}#main-key`)
+      ).resolves.toEqual({ owner: uploadId, publicKey: 'handle-domain-key' })
+      expect(vi.mocked(request)).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          url: webfingerUrl('admin@handle.test'),
+          numberOfRetry: 0,
+          responseTimeout: 3000,
+          allowCrossHostRedirects: false
+        })
+      )
+    })
+
+    // A relay's actor never gets a row, so without this every relayed post
+    // would pay a WebFinger lookup, and a slow one would refuse it.
+    it('trusts an accepted relay without asking WebFinger', async () => {
+      const relayActorId = 'https://relay.test/actor'
+      const relay = await database.createRelay({
+        inboxUrl: 'https://relay.test/inbox'
+      })
+      await database.updateRelay({
+        id: relay.id,
+        state: 'accepted',
+        actorId: relayActorId
+      })
+      fetchMock.resetMocks()
+      fetchMock.mockResponseOnce(
+        JSON.stringify(
+          createActorDocument({
+            id: relayActorId,
+            publicKeyPem: 'relay-public-key'
+          })
+        ),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${relayActorId}#main-key`)
+      ).resolves.toEqual({ owner: relayActorId, publicKey: 'relay-public-key' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    // The Accept that makes a relay known is itself verified, so a pending
+    // relay is confirmed like any other unknown sender.
+    it('asks WebFinger about a relay that is not accepted yet', async () => {
+      const relayActorId = 'https://pending-relay.test/actor'
+      const relay = await database.createRelay({
+        inboxUrl: 'https://pending-relay.test/inbox'
+      })
+      await database.updateRelay({ id: relay.id, actorId: relayActorId })
+      fetchMock.resetMocks()
+      fetchMock.mockResponseOnce(
+        JSON.stringify(
+          createActorDocument({
+            id: relayActorId,
+            publicKeyPem: 'relay-public-key'
+          })
+        ),
+        { status: 200, headers: ACTIVITY_JSON_HEADERS }
+      )
+      fetchMock.mockResponseOnce('Not Found', { status: 404 })
+
+      await expect(
+        getSenderPublicKeyDetails(database, `${relayActorId}#main-key`)
+      ).resolves.toEqual({ owner: null, publicKey: '' })
+      expect(fetchMock.mock.calls.map(([input]) => String(input))).toContain(
+        webfingerUrl('actor@pending-relay.test')
+      )
+    })
   })
 
   it('accepts actor key identifiers that only differ by URI casing', async () => {

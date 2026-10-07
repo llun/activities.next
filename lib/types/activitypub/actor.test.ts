@@ -46,4 +46,19 @@ describe('Actor', () => {
       expect(result.data.alsoKnownAs).toBeUndefined()
     }
   })
+
+  // FEP-2c59 `webfinger` is only a hint; a malformed one must not cost the
+  // whole actor.
+  it.each([
+    { input: 'alice@handle.example', expected: 'alice@handle.example' },
+    { input: 42, expected: undefined },
+    { input: { '@value': 'alice@handle.example' }, expected: undefined }
+  ])('reads webfinger $input as $expected', ({ input, expected }) => {
+    const result = Actor.safeParse({ ...base, webfinger: input })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.webfinger).toBe(expected)
+    }
+  })
 })
