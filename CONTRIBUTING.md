@@ -20,6 +20,7 @@ The root files are indexes into the durable guides:
 - [AGENTS.md](AGENTS.md) contains the Definition of Done, cross-cutting conventions, and the required subsystem reading map.
 - [REVIEW.md](REVIEW.md) is the actionable review checklist.
 - [Architecture rules](docs/architecture.md), [Mastodon compatibility rules](docs/mastodon-api-compatibility.md), [fitness and storage rules](docs/fitness-file-storage.md), [maintenance rules](docs/maintenance.md), and the [setup guide](docs/setup.md) own subsystem detail.
+- [Design library sync](#agents-design-library-sync) explains how design changes reach the Sketch library in `llun/sketch`.
 - [Documentation maintenance](#agents-documentation-maintenance) explains how durable docs stay navigable and current.
 
 These references complement AGENTS.md; they do not relax its mandatory core. Keep linked rules consistent when behavior changes.
@@ -1078,6 +1079,23 @@ each ends with the Definition of Done gate.
 6. Add component tests (`/** @vitest-environment jsdom */` docblock) and verify the page in a real browser (see **Local Manual / Browser Testing**); screenshots in the PR are not required.
 7. Run the Definition of Done gate.
 
+<a id="agents-design-library-sync"></a>
+
+## Design Library Sync
+
+The Sketch design library is the visual source of truth for Activities.next. It lives in a separate repository, [`llun/sketch`](https://github.com/llun/sketch), checked out on the maintainer's Mac at `/Users/llun/Documents/llun/sketch`:
+
+- `Activities.next/Activities.next.sketch` is the library: Brand, Colors, Type, Spacing, Emails, Symbols, the Components pages, Templates, and the Mobile and Fitness redesign System pages. It is registered in Sketch as the "Activities.next" library.
+- `Activities.next/Screens/` holds the redesign screens: `Activities.next Screens.sketch` is the editable source, `images/<page-slug>/<frameId>.png` are its exported frames, and `index.html` with `manifest.js` is a static viewer that lists every screen with its page, frame name and layer id in the Sketch file.
+
+When a change alters what users see, update the design in the same task:
+
+1. **Decide whether it is a design change.** It is when the change adds or changes a design token (color, type, spacing, radius, motion), a shared component or its states, a page layout, or a screen state such as loading, empty or error. Pure logic, data or copy-only fixes that keep the existing design do not need a Sketch update.
+2. **Always update `Activities.next.sketch`.** Edit the affected swatches, text styles, symbols, component pages or System notes so the library matches the shipped UI, then save the document (Sketch keeps unsaved edits in memory, so an unsaved file commits nothing).
+3. **Regenerate screens when needed.** If the change adds a screen or changes how an existing one looks, update its Light and Dark frames in `Activities.next/Screens/Activities.next Screens.sketch`, export the frames to `Activities.next/Screens/images/<page-slug>/<frameId>.png` (`@2x` for frames 800px wide or narrower), and add or update their entries in `manifest.js` so the viewer shows them.
+4. **Commit and push the sketch repository.** Commit on `main` in `/Users/llun/Documents/llun/sketch` with a message that names the design change and links the Activities.next PR, then `git push origin main`. Design changes do not need a pull request in `llun/sketch`. The Activities.next code change itself still follows the normal PR flow.
+5. **Never skip it silently.** If the Mac or Sketch is unreachable, or the push fails, finish the code change and say exactly what is left (which file, which pages or screens) in the PR description and to the person you are working with.
+
 <a id="agents-documentation-maintenance"></a>
 
 ## Documentation Maintenance
@@ -1092,6 +1110,7 @@ each ends with the Definition of Done gate.
   - `scripts/` utilities added or changed → `docs/maintenance.md` (and the feature guide that lists them)
   - Deployment, Docker, or runtime-config changes → `README.md`, `docs/setup.md`, and the database setup guides
   - New or changed coding conventions and patterns → the matching `AGENTS.md` section and the `REVIEW.md` checklist
+  - Visual design changes (tokens, components, layouts, screen states) → `Activities.next.sketch` and, when screens change, `Activities.next/Screens/` in the `llun/sketch` repository (see Design Library Sync)
   - Changes to AGENTS.md rules themselves → `AGENTS.md` (which `CLAUDE.md` symlinks to) and the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`
 - Keep `docs/` durable and general-purpose (see Project Structure): update the reference docs in place; do not add change-specific writeups.
 

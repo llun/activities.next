@@ -12,6 +12,7 @@ Every change, however small, is done only when ALL of these hold:
 4. If a migration was added/edited/removed, BOTH schema dumps are regenerated (see **Database Backends & Local Setup**; CI fails on SQLite-dump drift).
 5. The commit subject and PR title carry the correct conventional prefix, and `package.json` `version` is untouched (see **Commit & Pull Request Guidelines**).
 6. UI changes are verified in a real browser (see [Local Manual / Browser Testing](CONTRIBUTING.md#local-manual-browser-testing)) (screenshots in the PR are not required).
+7. Changes that alter the design keep the Sketch design library in step: `Activities.next.sketch` is updated (and redesign screens regenerated when affected), committed and pushed in the separate `llun/sketch` repository (see [Design Library Sync](CONTRIBUTING.md#agents-design-library-sync)).
 
 For the most common task shapes, follow the step-by-step **Task Recipes** section below instead of improvising.
 
@@ -126,6 +127,7 @@ Read the destination guide before changing the subsystem. The links point to the
 | Request boundaries, server/client modules, UI chrome, auth, email, previews, federation deletion | [Architecture rules](docs/architecture.md#agents-server-client-module-boundary)                                                                                              |
 | Fitness uploads, dates, maps, route heatmaps, and gear                                           | [Fitness storage and processing rules](docs/fitness-file-storage.md#agents-fitness-stat-strips)                                                                              |
 | Stored media, security, indexes, and database compatibility                                      | [Maintenance and storage rules](docs/maintenance.md#agents-security-configuration-tips)                                                                                      |
+| Visual design changes (tokens, components, layouts, screen states)                               | [Design library sync rules](CONTRIBUTING.md#agents-design-library-sync)                                                                                                      |
 | Tests, task recipes, documentation, commits, and review loop                                     | [Contributor workflow rules](CONTRIBUTING.md#agents-testing-guidelines) and the [review checklist](REVIEW.md)                                                                |
 
 When a task crosses areas, read the applicable rule sections in every relevant guide before editing. The topic links below identify the exact sections. Keep the root guide limited to cross-cutting rules and this routing map; durable subsystem detail belongs in the linked existing guide.
@@ -277,6 +279,10 @@ The durable rule source moved to [docs/architecture.md](docs/architecture.md#age
 ## An Unconfirmed Account May Not Act
 
 The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-an-unconfirmed-account-may-not-act); read it before changing this subsystem.
+
+## Design Library Sync
+
+The durable rule source lives in [CONTRIBUTING.md](CONTRIBUTING.md#agents-design-library-sync); read it before changing anything users see.
 
 ## Testing Guidelines
 

@@ -19,5 +19,6 @@ providing screenshots or for changes with no visual surface. -->
 - [ ] `yarn run prettier --write .`, `yarn lint`, `yarn typecheck`, `yarn build`, and `yarn test` all pass locally, run in that order
 - [ ] Docs updated: I grepped `*.md` and `docs/` for every command, env var, route, script, or convention this PR renames, removes, or reshapes (AGENTS.md → Documentation Maintenance)
 - [ ] If migrations changed: BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` are regenerated in this PR
+- [ ] If the design changed: `Activities.next.sketch` (and any affected redesign screens) is updated, committed and pushed in `llun/sketch` (CONTRIBUTING.md → Design Library Sync)
 - [ ] `version` in `package.json` is untouched (CI bumps it from commit prefixes)
 - [ ] No production or operational SQL in this description (schema changes live in `migrations/` only)
