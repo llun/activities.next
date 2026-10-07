@@ -13,7 +13,7 @@ import {
 import { ProfileLoading } from '@/app/(timeline)/[actor]/loading'
 import { cn } from '@/lib/utils'
 
-import { getProfileNavigationTarget } from './pendingProfileNavigation'
+import { getProfileNavigationTarget } from './profileNavigationTarget'
 
 // If the router never commits (a navigation that was cancelled or failed
 // without changing the URL), stop covering the page that is still there.

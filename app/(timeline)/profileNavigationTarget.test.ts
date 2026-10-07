@@ -4,7 +4,7 @@
 import {
   getProfileNavigationTarget,
   isProfilePathname
-} from './pendingProfileNavigation'
+} from './profileNavigationTarget'
 
 const location = { origin: window.location.origin, pathname: '/' }
 
@@ -60,7 +60,10 @@ describe('getProfileNavigationTarget', () => {
     ['a ctrl-click', { ctrlKey: true }],
     ['a shift-click', { shiftKey: true }],
     ['an alt-click', { altKey: true }],
-    ['an already prevented click', { defaultPrevented: true }]
+    [
+      'a click cancelled before it reached the listener',
+      { defaultPrevented: true }
+    ]
   ])('ignores %s', (_name, overrides) => {
     expect(
       getProfileNavigationTarget(

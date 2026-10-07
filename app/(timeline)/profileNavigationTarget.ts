@@ -39,6 +39,12 @@ interface LocationLike {
  * modified or non-primary click (new tab/window, download), a link that opens
  * elsewhere, another origin, a non-profile route, or the profile already on
  * screen.
+ *
+ * Called from a capture-phase listener, so it runs before the link's own
+ * handlers: `defaultPrevented` only catches a click something cancelled even
+ * earlier. A profile link whose handler cancels the click without navigating
+ * would leave the skeleton up until the provider's timeout, so do not build
+ * one.
  */
 export const getProfileNavigationTarget = (
   event: ClickLike,
