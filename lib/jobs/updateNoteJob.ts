@@ -20,7 +20,9 @@ import { getQueue } from '@/lib/services/queue'
 import { syncQuoteEdgeFromUpdate } from '@/lib/services/quotes/persistInboundQuoteEdge'
 import {
   ArticleContent,
+  AudioContent,
   ENTITY_TYPE_QUESTION,
+  EventContent,
   ImageContent,
   Note,
   PageContent,
@@ -55,7 +57,9 @@ export const updateNoteJob = createJobHandle(
       ImageContent,
       PageContent,
       ArticleContent,
-      VideoContent
+      VideoContent,
+      AudioContent,
+      EventContent
     ])
     const parseResult = BaseNoteSchema.safeParse(
       normalizeActivityPubContent(message.data)
@@ -103,7 +107,9 @@ export const updateNoteJob = createJobHandle(
       note.type !== 'Image' &&
       note.type !== 'Page' &&
       note.type !== 'Article' &&
-      note.type !== 'Video'
+      note.type !== 'Video' &&
+      note.type !== 'Audio' &&
+      note.type !== 'Event'
     ) {
       return
     }

@@ -1,0 +1,24 @@
+{
+  "@context": ["https://www.w3.org/ns/activitystreams"],
+  "id": "https://mobilizon.test/events/42/activity",
+  "type": "Create",
+  "actor": "https://mobilizon.test/@organizer",
+  "to": ["https://www.w3.org/ns/activitystreams#Public"],
+  "cc": [],
+  "object": {
+    "id": "https://mobilizon.test/events/42",
+    "type": "Event",
+    "attributedTo": "https://mobilizon.test/@organizer",
+    "name": "Fedi Meetup",
+    "content": "<p>Come say hi</p>",
+    "startTime": "2026-11-01T18:00:00Z",
+    "location": {
+      "type": "Place",
+      "name": "Community Hall"
+    },
+    "published": "2026-01-02T03:04:05Z",
+    "to": ["https://www.w3.org/ns/activitystreams#Public"],
+    "cc": [],
+    "url": "https://mobilizon.test/events/42"
+  }
+}

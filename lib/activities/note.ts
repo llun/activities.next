@@ -5,7 +5,9 @@ import { normalizeLanguageCode } from '@/lib/services/translation/types'
 import {
   ArticleContent,
   type Attachment,
+  AudioContent,
   Document,
+  EventContent,
   ImageContent,
   KnownTag,
   Note,
@@ -18,7 +20,14 @@ import { isHttpUrl } from '@/lib/utils/isHttpUrl'
 import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
 export type BaseNote =
-  Note | ImageContent | PageContent | ArticleContent | VideoContent | Question
+  | Note
+  | ImageContent
+  | PageContent
+  | ArticleContent
+  | VideoContent
+  | AudioContent
+  | EventContent
+  | Question
 
 export const BaseNoteSchema = z.union([
   Note,
@@ -26,6 +35,8 @@ export const BaseNoteSchema = z.union([
   PageContent,
   ArticleContent,
   VideoContent,
+  AudioContent,
+  EventContent,
   Question
 ])
 
@@ -60,6 +71,32 @@ const getRawUrl = (url: UrlValue): string | undefined => {
 export const getUrl = (url: UrlValue): string | undefined => {
   const value = getRawUrl(url)
   return isHttpUrl(value) ? value : undefined
+}
+
+// The link a status points at. A Funkwhale Audio lists its playable file next
+// to an HTML page in `url`, and the page, not the first (audio) link, is where
+// the status should lead. Without such a page there is no status url (callers
+// fall back to the object id) rather than the raw audio file.
+export const getStatusUrl = (object: BaseNote): string | undefined => {
+  if (object.type === 'Audio' && Array.isArray(object.url)) {
+    for (const link of object.url) {
+      if (!link || typeof link !== 'object') continue
+      const { mediaType, mimeType } = link as {
+        mediaType?: unknown
+        mimeType?: unknown
+      }
+      const type = mediaType ?? mimeType
+      if (
+        typeof type === 'string' &&
+        type.split(';')[0].trim().toLowerCase() === 'text/html'
+      ) {
+        const href = getUrl([link as { href?: unknown }])
+        if (href) return href
+      }
+    }
+    return undefined
+  }
+  return getUrl(object.url)
 }
 
 type ReplyValue = string | { id?: string } | null | undefined
@@ -124,11 +161,17 @@ type AttachmentLink = { href: string; mediaType?: string }
 const toAttachmentLink = (value: unknown): AttachmentLink | null => {
   if (typeof value === 'string') return { href: value }
   if (!value || typeof value !== 'object') return null
-  const { href, mediaType } = value as { href?: unknown; mediaType?: unknown }
+  // Funkwhale writes a Link's type as `mimeType`.
+  const { href, mediaType, mimeType } = value as {
+    href?: unknown
+    mediaType?: unknown
+    mimeType?: unknown
+  }
   if (typeof href !== 'string') return null
+  const linkMediaType = typeof mediaType === 'string' ? mediaType : mimeType
   return {
     href,
-    ...(typeof mediaType === 'string' ? { mediaType } : {})
+    ...(typeof linkMediaType === 'string' ? { mediaType: linkMediaType } : {})
   }
 }
 
@@ -343,6 +386,14 @@ export const getAttachments = (object: BaseNote): Document[] => {
       })
     }
   }
+  // A Funkwhale track is itself the audio: its `url` lists the playable
+  // rendition next to an HTML page, so it is read as one Audio attachment.
+  if (object.type === 'Audio') {
+    const audio = toMediaDocument(object as unknown as Attachment)
+    if (audio && !attachments.some((a) => a.url === audio.url)) {
+      attachments.push(audio)
+    }
+  }
   // Attachment urls are rendered as link and media targets (the DM bubble's
   // download link, Mastodon `media_attachments[].url`), so a remote Document
   // whose url is not http(s) is dropped rather than persisted. A remote Note's
@@ -369,8 +420,41 @@ export const getTags = (object: BaseNote): KnownTag[] => {
 
 // Types whose `name` is a title shown above the body, as Mastodon does for
 // Video, Page (Lemmy) and Article (WriteFreely, Plume, WordPress).
-const TITLED_TYPES = new Set<string>(['Video', 'Article', 'Page'])
-const LINKED_WHEN_EMPTY_TYPES = new Set<string>(['Article', 'Page'])
+const TITLED_TYPES = new Set<string>([
+  'Video',
+  'Article',
+  'Page',
+  'Audio',
+  'Event'
+])
+const LINKED_WHEN_EMPTY_TYPES = new Set<string>([
+  'Article',
+  'Page',
+  'Audio',
+  'Event'
+])
+
+const getLocationName = (location: unknown): string | undefined => {
+  if (typeof location === 'string') return location.trim() || undefined
+  if (Array.isArray(location)) return getLocationName(location[0])
+  if (location && typeof location === 'object') {
+    const { name } = location as { name?: unknown }
+    if (typeof name === 'string') return name.trim() || undefined
+  }
+  return undefined
+}
+
+// An Event's start time and place, shown between its title and description.
+const getEventDetails = (object: BaseNote): string[] => {
+  if (object.type !== 'Event') return []
+  const details: string[] = []
+  const startTime =
+    typeof object.startTime === 'string' ? object.startTime.trim() : ''
+  if (startTime) details.push(`<p>${escapeHtml(startTime)}</p>`)
+  const location = getLocationName(object.location)
+  if (location) details.push(`<p>${escapeHtml(location)}</p>`)
+  return details
+}
 
 export const getContent = (object: BaseNote) => {
   let content = ''
@@ -402,17 +486,20 @@ export const getContent = (object: BaseNote) => {
     const title = escapeHtml(object.name.trim())
     const titleHeader = `<p><strong>${title}</strong></p>`
     if (!content.startsWith(titleHeader)) {
+      const lines = [titleHeader, ...getEventDetails(object)]
       // A Lemmy post or a blog article may carry only its title and a url to
       // the full page. Link that url so the status still points somewhere.
       if (!content.trim() && LINKED_WHEN_EMPTY_TYPES.has(object.type)) {
-        const href = getUrl(object.url)
+        const href = getStatusUrl(object)
         if (href) {
           const escapedHref = escapeHtml(href)
-          const link = `<p><a href="${escapedHref}" rel="nofollow noopener noreferrer" target="_blank">${escapedHref}</a></p>`
-          return `${titleHeader}\n${link}`
+          lines.push(
+            `<p><a href="${escapedHref}" rel="nofollow noopener noreferrer" target="_blank">${escapedHref}</a></p>`
+          )
         }
+        return lines.join('\n')
       }
-      return content ? `${titleHeader}\n${content}` : titleHeader
+      return [...lines, content].filter(Boolean).join('\n')
     }
   }
 

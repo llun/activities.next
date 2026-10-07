@@ -234,6 +234,48 @@ describe('getJobMessage', () => {
     })
   })
 
+  it.each([
+    {
+      description: 'Audio',
+      object: {
+        id: 'https://remote.test/federation/music/uploads/1',
+        type: 'Audio',
+        name: 'Night Drive',
+        url: [
+          {
+            type: 'Link',
+            mimeType: 'audio/ogg',
+            href: 'https://remote.test/listen/1.ogg'
+          }
+        ]
+      }
+    },
+    {
+      description: 'Event',
+      object: {
+        id: 'https://remote.test/events/1',
+        type: 'Event',
+        name: 'Meetup',
+        startTime: '2026-11-01T18:00:00Z'
+      }
+    }
+  ])('routes Create($description) to the note job', ({ object }) => {
+    const result = getJobMessage(
+      {
+        id: `${object.id}/activity`,
+        type: 'Create',
+        actor: verifiedSenderActorId,
+        object: { ...object, attributedTo: verifiedSenderActorId }
+      } as never,
+      verifiedSenderActorId
+    )
+
+    expect(result).toMatchObject({
+      name: CREATE_NOTE_JOB_NAME,
+      data: { type: object.type }
+    })
+  })
+
   it('accepts Create Note activities only when every object actor id matches the verified sender', () => {
     const result = getJobMessage(
       {

@@ -1,5 +1,8 @@
 import { FetchMock } from 'jest-fetch-mock'
 
+import funkwhaleAudio from './funkwhale/audio.json'
+import funkwhaleCreateAudio from './funkwhale/create-audio.json'
+import funkwhalePerson from './funkwhale/person.json'
 import gotosocialCreateNote from './gotosocial/create-note.json'
 import gotosocialFollow from './gotosocial/follow.json'
 import gotosocialLike from './gotosocial/like.json'
@@ -28,6 +31,9 @@ import misskeyPerson from './misskey/person.json'
 import misskeyReactionCustomEmoji from './misskey/reaction-custom-emoji.json'
 import misskeyReaction from './misskey/reaction.json'
 import misskeyRenote from './misskey/renote.json'
+import mobilizonCreateEvent from './mobilizon/create-event.json'
+import mobilizonEvent from './mobilizon/event.json'
+import mobilizonPerson from './mobilizon/person.json'
 import peertubeAnnounceVideo from './peertube/announce-video.json'
 import peertubeChannelOutboxPage from './peertube/channel-outbox-page.json'
 import peertubeChannelOutbox from './peertube/channel-outbox.json'
@@ -55,14 +61,22 @@ import pleromaPerson from './pleroma/person.json'
 import pleromaReply from './pleroma/reply.json'
 import pleromaUndoEmojiReact from './pleroma/undo-emoji-react.json'
 
-// Payloads in the shapes Misskey, Lemmy, PeerTube, Pixelfed, Pleroma/Akkoma and
-// GoToSocial put on the wire, kept here so the inbox and remote-fetch paths
-// are exercised against every dialect rather than only Mastodon's. Hosts are
-// rewritten to `<software>.test` (`gts.test` for GoToSocial); interaction targets point at the seeded
-// local status `https://llun.test/users/test1/statuses/post-1`.
+// Payloads in the shapes Misskey, Lemmy, PeerTube, Pixelfed, Pleroma/Akkoma,
+// GoToSocial, Funkwhale and Mobilizon put on the wire, kept here so the inbox
+// and remote-fetch paths are exercised against every dialect rather than only
+// Mastodon's. Hosts are rewritten to `<software>.test` (`gts.test` for
+// GoToSocial); interaction targets point at the seeded local status
+// `https://llun.test/users/test1/statuses/post-1`.
 
 export type FediverseSoftware =
-  'misskey' | 'lemmy' | 'peertube' | 'pixelfed' | 'pleroma' | 'gotosocial'
+  | 'misskey'
+  | 'lemmy'
+  | 'peertube'
+  | 'pixelfed'
+  | 'pleroma'
+  | 'gotosocial'
+  | 'funkwhale'
+  | 'mobilizon'
 
 type Document = { id: string } & Record<string, unknown>
 
@@ -75,7 +89,9 @@ export const FEDIVERSE_ACTORS = {
   pixelfed: pixelfedPerson,
   pleroma: pleromaPerson,
   gotosocial: gotosocialPerson,
-  gotosocialTurtle: gotosocialPersonTurtle
+  gotosocialTurtle: gotosocialPersonTurtle,
+  funkwhale: funkwhalePerson,
+  mobilizon: mobilizonPerson
 }
 
 export const FEDIVERSE_OBJECTS = {
@@ -87,7 +103,9 @@ export const FEDIVERSE_OBJECTS = {
   pleromaNote,
   pleromaReply,
   gotosocialNote,
-  gotosocialReply
+  gotosocialReply,
+  funkwhaleAudio,
+  mobilizonEvent
 }
 
 export const FEDIVERSE_COLLECTIONS = {
@@ -125,7 +143,9 @@ export const FEDIVERSE_ACTIVITIES = {
   pleromaUndoEmojiReact,
   pleromaCreateChatMessage,
   gotosocialCreateNote,
-  gotosocialLike
+  gotosocialLike,
+  funkwhaleCreateAudio,
+  mobilizonCreateEvent
 }
 
 // Follows of the seeded local actor `https://llun.test/users/test1`.

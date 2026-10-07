@@ -7,6 +7,7 @@ import {
   getLanguage,
   getQuoteTargetId,
   getReply,
+  getStatusUrl,
   getSummary,
   getTags,
   getUrl
@@ -154,6 +155,60 @@ describe('note entity utilities', () => {
   })
 
   describe('getAttachments', () => {
+    it('stores an Audio object as an audio attachment, reading mimeType links', () => {
+      const audio = {
+        type: 'Audio',
+        id: 'https://funkwhale.test/federation/music/uploads/1',
+        name: 'Night Drive',
+        url: [
+          {
+            type: 'Link',
+            mimeType: 'audio/ogg',
+            href: 'https://funkwhale.test/api/v1/listen/1.ogg'
+          },
+          {
+            type: 'Link',
+            mediaType: 'text/html',
+            href: 'https://funkwhale.test/library/tracks/1'
+          }
+        ]
+      } as unknown as BaseNote
+
+      expect(getAttachments(audio)).toEqual([
+        expect.objectContaining({
+          type: 'Document',
+          mediaType: 'audio/ogg',
+          url: 'https://funkwhale.test/api/v1/listen/1.ogg'
+        })
+      ])
+    })
+
+    it('stores no attachment for an Audio whose only link is a web page', () => {
+      const audio = {
+        type: 'Audio',
+        id: 'https://funkwhale.test/federation/music/uploads/2',
+        url: [
+          {
+            type: 'Link',
+            mediaType: 'text/html',
+            href: 'https://funkwhale.test/library/tracks/2'
+          }
+        ]
+      } as unknown as BaseNote
+
+      expect(getAttachments(audio)).toEqual([])
+    })
+
+    it('stores no attachment for an Event', () => {
+      const event = {
+        type: 'Event',
+        id: 'https://mobilizon.test/events/42',
+        url: 'https://mobilizon.test/events/42'
+      } as unknown as BaseNote
+
+      expect(getAttachments(event)).toEqual([])
+    })
+
     // Regression (F047): ingest kept every Document a remote Note carried, so
     // one signed Note could write hundreds of attachment rows and put as many
     // video elements into every viewer's timeline.
@@ -1061,6 +1116,113 @@ describe('note entity utilities', () => {
       expect(getContent(article)).toEqual('<p><strong>My Post</strong></p>')
     })
 
+    it('prepends the Audio name as a bold title', () => {
+      const audio = {
+        type: 'Audio',
+        name: 'Night Drive',
+        content: '<p>Synthwave</p>'
+      } as unknown as BaseNote
+
+      expect(getContent(audio)).toEqual(
+        '<p><strong>Night Drive</strong></p>\n<p>Synthwave</p>'
+      )
+    })
+
+    it('links the web page under the title of an Audio without content', () => {
+      const audio = {
+        type: 'Audio',
+        name: 'Night Drive',
+        url: [
+          {
+            type: 'Link',
+            mimeType: 'audio/ogg',
+            href: 'https://funkwhale.test/api/v1/listen/1.ogg'
+          },
+          {
+            type: 'Link',
+            mediaType: 'text/html',
+            href: 'https://funkwhale.test/library/tracks/1'
+          }
+        ]
+      } as unknown as BaseNote
+
+      expect(getContent(audio)).toContain(
+        'href="https://funkwhale.test/library/tracks/1"'
+      )
+      expect(getContent(audio)).not.toContain('listen/1.ogg')
+    })
+
+    it('renders an Event title, start time, location and content', () => {
+      const event = {
+        type: 'Event',
+        name: 'Fedi Meetup',
+        content: '<p>Come say hi</p>',
+        startTime: '2026-11-01T18:00:00Z',
+        location: { type: 'Place', name: 'Community Hall' }
+      } as unknown as BaseNote
+
+      expect(getContent(event)).toEqual(
+        '<p><strong>Fedi Meetup</strong></p>\n<p>2026-11-01T18:00:00Z</p>\n<p>Community Hall</p>\n<p>Come say hi</p>'
+      )
+    })
+
+    it.each([
+      ['a string', 'Town Square'],
+      ['an array of places', [{ type: 'Place', name: 'Town Square' }]]
+    ])('reads an Event location given as %s', (_, location) => {
+      const event = {
+        type: 'Event',
+        name: 'Fedi Meetup',
+        location
+      } as unknown as BaseNote
+
+      expect(getContent(event)).toEqual(
+        '<p><strong>Fedi Meetup</strong></p>\n<p>Town Square</p>'
+      )
+    })
+
+    it('escapes the Event location and skips an unnamed one', () => {
+      const escaped = {
+        type: 'Event',
+        name: 'Fedi Meetup',
+        location: { name: '<b>Hall</b>' }
+      } as unknown as BaseNote
+      const unnamed = {
+        type: 'Event',
+        name: 'Fedi Meetup',
+        location: { type: 'Place' }
+      } as unknown as BaseNote
+
+      expect(getContent(escaped)).toContain('&lt;b&gt;Hall&lt;/b&gt;')
+      expect(getContent(unnamed)).toEqual('<p><strong>Fedi Meetup</strong></p>')
+    })
+
+    it('links the url under the title of an Event without content', () => {
+      const event = {
+        type: 'Event',
+        name: 'Fedi Meetup',
+        url: 'https://mobilizon.test/events/42'
+      } as unknown as BaseNote
+
+      expect(getContent(event)).toEqual(
+        '<p><strong>Fedi Meetup</strong></p>\n<p><a href="https://mobilizon.test/events/42" rel="nofollow noopener noreferrer" target="_blank">https://mobilizon.test/events/42</a></p>'
+      )
+    })
+
+    it('keeps the Event time and place when it has a url but no content', () => {
+      const event = {
+        type: 'Event',
+        name: 'Fedi Meetup',
+        startTime: '2026-11-01T18:00:00Z',
+        location: { type: 'Place', name: 'Community Hall' },
+        url: 'https://mobilizon.test/events/42'
+      } as unknown as BaseNote
+
+      expect(getContent(event)).toEqual(
+        '<p><strong>Fedi Meetup</strong></p>\n<p>2026-11-01T18:00:00Z</p>\n<p>Community Hall</p>\n<p><a href="https://mobilizon.test/events/42" rel="nofollow noopener noreferrer" target="_blank">https://mobilizon.test/events/42</a></p>'
+      )
+    })
+
     it('does not prepend name to content when object is a Note', () => {
       const note = {
         type: 'Note',
@@ -1069,6 +1231,44 @@ describe('note entity utilities', () => {
       } as unknown as BaseNote
 
       expect(getContent(note)).toEqual('<p>Body</p>')
+    })
+  })
+
+  describe('getStatusUrl', () => {
+    it('uses the text/html Link of an Audio, ignoring media type parameters', () => {
+      const audio = {
+        type: 'Audio',
+        url: [
+          { type: 'Link', mimeType: 'audio/ogg', href: 'https://f.test/1.ogg' },
+          {
+            type: 'Link',
+            mediaType: 'text/html; charset=utf-8',
+            href: 'https://f.test/tracks/1'
+          }
+        ]
+      } as unknown as BaseNote
+
+      expect(getStatusUrl(audio)).toEqual('https://f.test/tracks/1')
+    })
+
+    it('has no url for an Audio without a text/html Link', () => {
+      const audio = {
+        type: 'Audio',
+        url: [
+          { type: 'Link', mimeType: 'audio/ogg', href: 'https://f.test/1.ogg' }
+        ]
+      } as unknown as BaseNote
+
+      expect(getStatusUrl(audio)).toBeUndefined()
+    })
+
+    it('reads the url of other types as before', () => {
+      const note = {
+        type: 'Note',
+        url: 'https://example.com/n/1'
+      } as unknown as BaseNote
+
+      expect(getStatusUrl(note)).toEqual('https://example.com/n/1')
     })
   })
 

@@ -11,9 +11,9 @@ import {
   getLanguage,
   getQuoteTargetId,
   getReply,
+  getStatusUrl,
   getSummary,
-  getTags,
-  getUrl
+  getTags
 } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
 import {
@@ -38,7 +38,9 @@ import { isPublicOrUnlisted } from '@/lib/services/statusAccess'
 import { addStatusToTimelines } from '@/lib/services/timelines'
 import {
   ArticleContent,
+  AudioContent,
   ENTITY_TYPE_QUESTION,
+  EventContent,
   ImageContent,
   Note,
   PageContent,
@@ -72,7 +74,9 @@ export const createNoteJob = createJobHandle(
       ImageContent,
       PageContent,
       ArticleContent,
-      VideoContent
+      VideoContent,
+      AudioContent,
+      EventContent
     ])
     const parseResult = BaseNoteSchema.safeParse(
       normalizeActivityPubContent(message.data)
@@ -105,7 +109,9 @@ export const createNoteJob = createJobHandle(
       note.type !== 'Image' &&
       note.type !== 'Page' &&
       note.type !== 'Article' &&
-      note.type !== 'Video'
+      note.type !== 'Video' &&
+      note.type !== 'Audio' &&
+      note.type !== 'Event'
     ) {
       return
     }
@@ -126,7 +132,7 @@ export const createNoteJob = createJobHandle(
       recordActorIfNeeded({ actorId, database }),
       database.createNoteWithResult({
         id: note.id,
-        url: getUrl(note.url) || note.id,
+        url: getStatusUrl(note) || note.id,
 
         actorId,
 
@@ -286,7 +292,7 @@ export const createNoteJob = createJobHandle(
     ) {
       try {
         animationMetadata = await resolveAnimationMetadata({
-          statusUrl: getUrl(note.url) || note.id,
+          statusUrl: getStatusUrl(note) || note.id,
           statusId: note.id,
           authorId: actorId,
           attachments: attachments

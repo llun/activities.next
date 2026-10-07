@@ -40,6 +40,41 @@ describe('Status', () => {
   })
 
   describe('fromNote', () => {
+    it('uses the html page, not the audio file, as the url of an Audio', () => {
+      const audio = {
+        ...MockMastodonActivityPubNote({ content: 'Hello' }),
+        type: 'Audio',
+        name: 'Night Drive',
+        url: [
+          {
+            type: 'Link',
+            mimeType: 'audio/ogg',
+            href: 'https://funkwhale.test/listen/1.ogg'
+          },
+          {
+            type: 'Link',
+            mediaType: 'text/html',
+            href: 'https://funkwhale.test/library/tracks/1'
+          }
+        ]
+      } as unknown as BaseNote
+      expect(fromNote(audio).url).toEqual(
+        'https://funkwhale.test/library/tracks/1'
+      )
+      expect(
+        fromNote({
+          ...audio,
+          url: [
+            {
+              type: 'Link',
+              mimeType: 'audio/ogg',
+              href: 'https://f.test/1.ogg'
+            }
+          ]
+        } as unknown as BaseNote).url
+      ).toEqual(audio.id)
+    })
+
     it.each([
       'javascript:alert(document.domain)',
       ['javascript:alert(1)'],

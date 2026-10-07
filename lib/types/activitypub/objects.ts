@@ -286,6 +286,35 @@ export const VideoContent = BaseContent.extend({
 })
 export type VideoContent = z.infer<typeof VideoContent>
 
+/**
+ * Audio content type used by Funkwhale and similar services.
+ */
+export const AudioContent = BaseContent.extend({
+  type: z.literal('Audio'),
+  name: z.string().nullish(),
+  mediaType: z.string().nullish(),
+  duration: z.string().nullish()
+})
+export type AudioContent = z.infer<typeof AudioContent>
+
+/**
+ * Event content type used by Mobilizon, Gancio and similar services.
+ */
+export const EventContent = BaseContent.extend({
+  type: z.literal('Event'),
+  name: z.string().nullish(),
+  startTime: z.string().nullish(),
+  endTime: z.string().nullish(),
+  location: z
+    .union([
+      z.string(),
+      z.looseObject({}),
+      z.array(z.union([z.string(), z.looseObject({})]))
+    ])
+    .nullish()
+})
+export type EventContent = z.infer<typeof EventContent>
+
 // ============================================================================
 // Tombstone (Deleted Object)
 // ============================================================================

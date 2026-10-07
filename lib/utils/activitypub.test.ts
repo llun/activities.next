@@ -162,6 +162,29 @@ describe('normalizeActivityPubAnnounce', () => {
     })
   })
 
+  it('keeps the url array of an Audio object', () => {
+    const url = [
+      {
+        type: 'Link',
+        mimeType: 'audio/ogg',
+        href: 'https://funkwhale.test/listen/1.ogg'
+      },
+      {
+        type: 'Link',
+        mediaType: 'text/html',
+        href: 'https://funkwhale.test/library/tracks/1'
+      }
+    ]
+
+    expect(normalizeActivityPubContent({ type: 'Audio', url })).toEqual({
+      type: 'Audio',
+      url
+    })
+    expect(
+      normalizeActivityPubContent({ type: 'Note', url: [url[0]] })
+    ).toMatchObject({ url: [url[0]] })
+  })
+
   it('normalizes to and cc recipients', () => {
     const result = normalizeActivityPubAnnounce({
       type: 'Announce',

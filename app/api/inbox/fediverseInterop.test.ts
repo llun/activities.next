@@ -150,6 +150,18 @@ describe('fediverse interop: shared inbox', () => {
         activity: FEDIVERSE_ACTIVITIES.gotosocialCreateNote,
         text: 'hello everyone!',
         attachments: 0
+      },
+      {
+        description: 'funkwhale Create(Audio)',
+        activity: FEDIVERSE_ACTIVITIES.funkwhaleCreateAudio,
+        text: 'Night Drive',
+        attachments: 1
+      },
+      {
+        description: 'mobilizon Create(Event)',
+        activity: FEDIVERSE_ACTIVITIES.mobilizonCreateEvent,
+        text: 'Fedi Meetup',
+        attachments: 0
       }
     ])('$description is stored', async ({ activity, text, attachments }) => {
       const message = await deliverAndRun(database, activity)
@@ -167,6 +179,30 @@ describe('fediverse interop: shared inbox', () => {
       const { to, cc } = activity.object as { to?: unknown; cc?: unknown }
       expect(status.to).toEqual(asArray(to))
       expect(status.cc).toEqual(asArray(cc))
+    })
+  })
+
+  describe('Audio and Event objects', () => {
+    it('mobilizon Create(Event) keeps the start time and place', async () => {
+      const activity = FEDIVERSE_ACTIVITIES.mobilizonCreateEvent
+      await deliverAndRun(database, activity)
+
+      const status = await database.getStatus({ statusId: activity.object.id })
+      if (status?.type !== StatusType.enum.Note) throw new Error('not a note')
+      expect(status.text).toContain('2026-11-01T18:00:00Z')
+      expect(status.text).toContain('Community Hall')
+    })
+
+    it('funkwhale Create(Audio) stores the playable file', async () => {
+      const activity = FEDIVERSE_ACTIVITIES.funkwhaleCreateAudio
+      await deliverAndRun(database, activity)
+
+      const status = await database.getStatus({ statusId: activity.object.id })
+      if (status?.type !== StatusType.enum.Note) throw new Error('not a note')
+      expect(status.attachments[0]).toMatchObject({
+        mediaType: 'audio/ogg',
+        url: 'https://funkwhale.test/api/v1/listen/1.ogg'
+      })
     })
   })
 

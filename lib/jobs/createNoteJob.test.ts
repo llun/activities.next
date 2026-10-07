@@ -651,6 +651,106 @@ describe('createNoteJob', () => {
     expect(status.sensitive).toBe(false)
   })
 
+  it('adds an Audio object as a note with an audio attachment', async () => {
+    const audio = {
+      type: 'Audio',
+      id: 'https://funkwhale.social/federation/music/uploads/1',
+      attributedTo: 'https://funkwhale.social/federation/actors/dj',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      name: 'Night Drive',
+      published: new Date().toISOString(),
+      url: [
+        {
+          type: 'Link',
+          mimeType: 'audio/ogg',
+          href: 'https://funkwhale.social/listen/1.ogg'
+        },
+        {
+          type: 'Link',
+          mediaType: 'text/html',
+          href: 'https://funkwhale.social/library/tracks/1'
+        }
+      ]
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: audio
+    })
+
+    const status = (await database.getStatus({
+      statusId: audio.id
+    })) as StatusNote
+    expect(status.type).toEqual(StatusType.enum.Note)
+    expect(status.text).toContain('<strong>Night Drive</strong>')
+    expect(status.url).toEqual('https://funkwhale.social/library/tracks/1')
+    expect(status.attachments).toHaveLength(1)
+    expect(status.attachments[0]).toMatchObject({
+      mediaType: 'audio/ogg',
+      url: 'https://funkwhale.social/listen/1.ogg'
+    })
+  })
+
+  it('adds an Event object as a note with its time and place', async () => {
+    const event = {
+      type: 'Event',
+      id: 'https://mobilizon.social/events/42',
+      attributedTo: 'https://mobilizon.social/@organizer',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      name: 'Fedi Meetup',
+      content: '<p>Come say hi</p>',
+      startTime: '2026-11-01T18:00:00Z',
+      location: { type: 'Place', name: 'Community Hall' },
+      published: new Date().toISOString(),
+      url: 'https://mobilizon.social/events/42'
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: event
+    })
+
+    const status = (await database.getStatus({
+      statusId: event.id
+    })) as StatusNote
+    expect(status.text).toEqual(
+      '<p><strong>Fedi Meetup</strong></p>\n<p>2026-11-01T18:00:00Z</p>\n<p>Community Hall</p>\n<p>Come say hi</p>'
+    )
+    expect(status.attachments).toHaveLength(0)
+  })
+
+  it('adds an Event object whose location has no name', async () => {
+    const event = {
+      type: 'Event',
+      id: 'https://mobilizon.social/events/43',
+      attributedTo: 'https://mobilizon.social/@organizer',
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      cc: [],
+      name: 'Online Meetup',
+      content: '<p>Join us</p>',
+      startTime: '2026-11-02T18:00:00Z',
+      location: { type: 'VirtualLocation' },
+      published: new Date().toISOString()
+    }
+
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: event
+    })
+
+    const status = (await database.getStatus({
+      statusId: event.id
+    })) as StatusNote
+    expect(status.text).toEqual(
+      '<p><strong>Online Meetup</strong></p>\n<p>2026-11-02T18:00:00Z</p>\n<p>Join us</p>'
+    )
+  })
+
   it('adds video activity as note into database', async () => {
     const video = {
       type: 'Video',
