@@ -2,6 +2,7 @@ import { FC, ReactNode } from 'react'
 
 import { Modal } from '@/app/Modal'
 
+import { PendingProfileOverlay } from './PendingProfileNavigation'
 import { PublicFooter } from './PublicFooter'
 import { PublicTopBar } from './PublicTopBar'
 
@@ -32,6 +33,7 @@ export const PublicShell: FC<PublicShellProps> = ({ children }) => (
       <div className="mx-auto flex w-full max-w-[680px] flex-1 flex-col px-4 py-6 max-md:max-w-none">
         {children}
       </div>
+      <PendingProfileOverlay variant="public" />
     </main>
     {/* Footer is a sibling of <main> (not nested in it) so its <footer> maps to
         the contentinfo landmark; main keeps flex-1 to pin it to the bottom on
