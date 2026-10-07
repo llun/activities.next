@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     // TypeScript 7 ships no JavaScript compiler API, so Next type-checks by
-    // running the project-local `tsc` CLI. This is Next 16.3's own default;
+    // running the project-local `tsc` CLI. This has been Next's default since 16.3;
     // it is pinned here to keep the coupling with `tsconfigPath` above
     // explicit. Next resolves the CLI from the package named `typescript` and
     // needs its `bin.tsc`: never alias that package (e.g. to
