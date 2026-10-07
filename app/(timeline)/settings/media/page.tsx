@@ -11,7 +11,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Media Storage'
+  title: 'Activities.next: Media'
 }
 
 const Page = async ({
@@ -54,31 +54,29 @@ const Page = async ({
   })
 
   return (
-    <div className="space-y-6">
-      <MediaDetailsSettings />
-      <MediaManagement
-        used={used}
-        limit={limit}
-        medias={result.items.map((media) => {
-          // Use full path for the URL to support Object Storage keys
-          const url = `/api/v1/files/${media.original.path}`
-          return {
-            id: media.id,
-            actorId: media.actorId,
-            bytes: media.original.bytes + (media.thumbnail?.bytes ?? 0),
-            mimeType: media.original.mimeType,
-            width: media.original.metaData.width,
-            height: media.original.metaData.height,
-            description: media.description,
-            url,
-            statusId: media.statusId
-          }
-        })}
-        currentPage={page}
-        itemsPerPage={itemsPerPage}
-        totalItems={result.total}
-      />
-    </div>
+    <MediaManagement
+      settings={<MediaDetailsSettings />}
+      used={used}
+      limit={limit}
+      medias={result.items.map((media) => {
+        // Use full path for the URL to support Object Storage keys
+        const url = `/api/v1/files/${media.original.path}`
+        return {
+          id: media.id,
+          actorId: media.actorId,
+          bytes: media.original.bytes + (media.thumbnail?.bytes ?? 0),
+          mimeType: media.original.mimeType,
+          width: media.original.metaData.width,
+          height: media.original.metaData.height,
+          description: media.description,
+          url,
+          statusId: media.statusId
+        }
+      })}
+      currentPage={page}
+      itemsPerPage={itemsPerPage}
+      totalItems={result.total}
+    />
   )
 }
 

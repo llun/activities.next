@@ -43,11 +43,16 @@ describe('GalleryDatabase', () => {
       })
 
       it('lists only the actor’s own non-deleted gear, oldest first', async () => {
+        // Two rows written in the same millisecond tie on createdAt and fall
+        // back to the random id, so the clock is moved between them.
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
         const first = await database.createGalleryGear({
           actorId: actors.empty.id,
           kind: 'camera',
           name: 'First body'
         })
+        vi.setSystemTime(new Date('2026-01-01T00:00:01.000Z'))
         const second = await database.createGalleryGear({
           actorId: actors.empty.id,
           kind: 'lens',
@@ -63,6 +68,7 @@ describe('GalleryDatabase', () => {
           actorId: actors.empty.id
         })
 
+        vi.useRealTimers()
         expect(gears.map((gear) => gear.id)).toEqual([first.id, second.id])
       })
 
