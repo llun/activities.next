@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 
 import { setupRecordingTracer } from '@/lib/testing/recordingTracer'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { logger } from '@/lib/utils/logger'
 
 import { ActivityPubVerifySenderGuard } from './ActivityPubVerifyGuard'
 
@@ -1404,7 +1405,8 @@ describe('ActivityPubVerifySenderGuard', () => {
     it('retries with the refreshed key and persists it once it verifies', async () => {
       const refreshed = {
         owner: 'https://remote.test/users/alice',
-        publicKey: 'new-key'
+        publicKey: 'new-key',
+        isDefaultKey: true
       }
       mockVerify.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
       mockRefreshSenderPublicKeyDetails.mockResolvedValue(refreshed)
@@ -1431,11 +1433,56 @@ describe('ActivityPubVerifySenderGuard', () => {
       expect(handler).toHaveBeenCalled()
     })
 
+    it('accepts but does not persist a non-default key of a multi-key actor', async () => {
+      mockVerify.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+      mockRefreshSenderPublicKeyDetails.mockResolvedValue({
+        owner: 'https://remote.test/users/alice',
+        publicKey: 'second-key',
+        isDefaultKey: false
+      })
+      const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await guard(followRequest(), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockPersistRefreshedSenderPublicKey).not.toHaveBeenCalled()
+    })
+
+    it('still accepts a verified request when persisting the key fails', async () => {
+      const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {})
+      mockVerify.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+      mockRefreshSenderPublicKeyDetails.mockResolvedValue({
+        owner: 'https://remote.test/users/alice',
+        publicKey: 'new-key',
+        isDefaultKey: true
+      })
+      mockPersistRefreshedSenderPublicKey.mockRejectedValue(
+        new Error('db down')
+      )
+      const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }))
+      const guard = ActivityPubVerifySenderGuard(handler)
+
+      const response = await guard(followRequest(), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(handler).toHaveBeenCalled()
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error) })
+      )
+      errorSpy.mockRestore()
+    })
+
     it('rejects and does not persist when the refreshed key also fails', async () => {
       mockVerify.mockResolvedValue(false)
       mockRefreshSenderPublicKeyDetails.mockResolvedValue({
         owner: 'https://remote.test/users/alice',
-        publicKey: 'new-key'
+        publicKey: 'new-key',
+        isDefaultKey: true
       })
       const handler = vi.fn()
       const guard = ActivityPubVerifySenderGuard(handler)

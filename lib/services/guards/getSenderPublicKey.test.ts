@@ -3,11 +3,13 @@ import crypto from 'node:crypto'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import {
+  KEY_REFRESH_ATTEMPTS_MAX,
   SENDER_KEY_REFRESH_MIN_INTERVAL_MS,
   getSenderPublicKey,
   getSenderPublicKeyDetails,
   persistRefreshedSenderPublicKey,
   refreshSenderPublicKeyDetails,
+  reserveKeyRefreshAttempt,
   resetSenderKeyRefreshAttempts
 } from '@/lib/services/guards/getSenderPublicKey'
 import {
@@ -1223,7 +1225,7 @@ describe('getSenderPublicKey', () => {
   describe('refreshSenderPublicKeyDetails', () => {
     const owner = 'https://rotate.test/users/rot'
     const keyId = `${owner}#main-key`
-    const stale = { owner, publicKey: 'old-pem' }
+    const stale = { owner, publicKey: 'old-pem', fromStoredActor: true }
     const rotatedDocument = (publicKeyPem = 'new-pem') =>
       JSON.stringify(
         createActorDocument({ id: owner, publicKeyId: keyId, publicKeyPem })
@@ -1272,7 +1274,11 @@ describe('getSenderPublicKey', () => {
         stale
       )
 
-      expect(refreshed).toEqual({ owner, publicKey: 'new-pem' })
+      expect(refreshed).toMatchObject({
+        owner,
+        publicKey: 'new-pem',
+        isDefaultKey: true
+      })
       expect((await database.getActorFromId({ id: owner }))?.publicKey).toBe(
         'old-pem'
       )
@@ -1344,10 +1350,62 @@ describe('getSenderPublicKey', () => {
       await expect(
         refreshSenderPublicKeyDetails(database, `${local.id}#main-key`, {
           owner: local.id,
-          publicKey: local.publicKey
+          publicKey: local.publicKey,
+          fromStoredActor: true
         })
       ).resolves.toBeNull()
       expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('does not refresh a key that was just fetched rather than stored', async () => {
+      await expect(
+        refreshSenderPublicKeyDetails(database, keyId, {
+          owner,
+          publicKey: 'old-pem'
+        })
+      ).resolves.toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('flags a non-default key of a multi-key actor', async () => {
+      const second = `${owner}#key2`
+      respondWith(
+        JSON.stringify({
+          ...createActorDocument({ id: owner }),
+          publicKey: [
+            { id: `${owner}#main-key`, owner, publicKeyPem: 'main-pem' },
+            { id: second, owner, publicKeyPem: 'second-pem' }
+          ]
+        })
+      )
+
+      await expect(
+        refreshSenderPublicKeyDetails(database, second, stale)
+      ).resolves.toMatchObject({ publicKey: 'second-pem', isDefaultKey: false })
+    })
+
+    it('keeps throttling when the attempt map is full', () => {
+      const now = Date.now()
+      expect(reserveKeyRefreshAttempt('https://a.test/users/early', now)).toBe(
+        true
+      )
+      for (let i = 1; i < KEY_REFRESH_ATTEMPTS_MAX; i++) {
+        reserveKeyRefreshAttempt(`https://a.test/users/${i}`, now + 1)
+      }
+
+      // Full of live entries: refuse rather than clear.
+      expect(
+        reserveKeyRefreshAttempt('https://b.test/users/new', now + 2)
+      ).toBe(false)
+      expect(reserveKeyRefreshAttempt('https://a.test/users/1', now + 2)).toBe(
+        false
+      )
+
+      // Once entries age out they are evicted and new owners fit again.
+      const later = now + 1 + SENDER_KEY_REFRESH_MIN_INTERVAL_MS
+      expect(reserveKeyRefreshAttempt('https://b.test/users/new', later)).toBe(
+        true
+      )
     })
 
     it('returns null for an owner with no stored row', async () => {
@@ -1355,7 +1413,11 @@ describe('getSenderPublicKey', () => {
         refreshSenderPublicKeyDetails(
           database,
           'https://unstored.test/users/x#main-key',
-          { owner: 'https://unstored.test/users/x', publicKey: 'old-pem' }
+          {
+            owner: 'https://unstored.test/users/x',
+            publicKey: 'old-pem',
+            fromStoredActor: true
+          }
         )
       ).resolves.toBeNull()
       expect(fetchMock).not.toHaveBeenCalled()

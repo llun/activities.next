@@ -14,6 +14,7 @@ import {
   codeMap
 } from '@/lib/utils/response'
 import { parse, verify } from '@/lib/utils/signature'
+import { toLoggableError } from '@/lib/utils/toLoggableError'
 import { isRecord } from '@/lib/utils/typeGuards'
 
 import {
@@ -495,7 +496,22 @@ export const ActivityPubVerifySenderGuard =
       ) {
         isSignatureVerified = true
         senderPublicKey = refreshed
-        await persistRefreshedSenderPublicKey(database, refreshed)
+        // Only the actor's default key replaces the stored one: a request
+        // signed with another key of a multi-key actor is accepted, but
+        // persisting it would leave the row without the default key.
+        if (refreshed.isDefaultKey) {
+          try {
+            await persistRefreshedSenderPublicKey(database, refreshed)
+          } catch (error) {
+            // The request already verified; a failed write only means the
+            // next one refreshes again.
+            logger.error({
+              err: toLoggableError(error),
+              keyId: signatureParts.keyId,
+              message: 'Unable to persist refreshed sender public key'
+            })
+          }
+        }
       }
     }
     if (!isSignatureVerified) {

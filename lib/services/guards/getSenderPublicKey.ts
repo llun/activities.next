@@ -7,6 +7,7 @@ import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActor } from '@/lib/services/federation/getFederationSigningActor'
 import { Actor } from '@/lib/types/activitypub'
+import { selectDefaultActorPublicKey } from '@/lib/types/activitypub/actor'
 import {
   normalizeActivityPubUri,
   normalizeActorId
@@ -28,6 +29,15 @@ const PublicKeyDocument = z
 export type SenderPublicKeyDetails = {
   owner: string | null
   publicKey: string
+  // Set when the key was read from the actor's stored row rather than just
+  // fetched from the network; only such a key can be stale.
+  fromStoredActor?: boolean
+}
+
+export type RefreshedSenderPublicKeyDetails = SenderPublicKeyDetails & {
+  // Whether this is the key the actor's own document would be read as (the
+  // single key, or the array's default). Only that key may replace the row.
+  isDefaultKey: boolean
 }
 
 type ParsedSenderPublicKey =
@@ -38,6 +48,7 @@ type ParsedSenderPublicKey =
       webfinger?: string
       keyId: string
       requiresOwnerValidation: boolean
+      isDefaultKey: boolean
       details: SenderPublicKeyDetails
     }
   | {
@@ -59,7 +70,8 @@ const getLocalSenderPublicKeyDetails = async (
   if (localActor) {
     return {
       owner: localActor.id,
-      publicKey: localActor.publicKey
+      publicKey: localActor.publicKey,
+      fromStoredActor: true
     }
   }
 
@@ -75,7 +87,8 @@ const getLocalSenderPublicKeyDetails = async (
 
   return {
     owner: fragmentLocalActor.id,
-    publicKey: fragmentLocalActor.publicKey
+    publicKey: fragmentLocalActor.publicKey,
+    fromStoredActor: true
   }
 }
 
@@ -108,6 +121,11 @@ const narrowPublicKeyToKeyId = (json: unknown, selectKeyId: string) => {
       normalizeActivityPubUri(entry.id) === normalizedSelectKeyId
   )
   return matching ? { ...json, publicKey: matching } : json
+}
+
+const isDefaultPublicKey = (json: unknown, selectedKeyId: string) => {
+  if (!isRecord(json) || !Array.isArray(json.publicKey)) return true
+  return selectDefaultActorPublicKey(json.publicKey)?.id === selectedKeyId
 }
 
 const parseSenderPublicKey = ({
@@ -159,6 +177,7 @@ const parseSenderPublicKey = ({
       webfinger: actor.data.webfinger,
       keyId: actor.data.publicKey.id,
       requiresOwnerValidation: normalizedActorId !== normalizedKeyOwner,
+      isDefaultKey: isDefaultPublicKey(json, actor.data.publicKey.id),
       details: {
         owner: actor.data.id,
         publicKey: actor.data.publicKey.publicKeyPem
@@ -270,7 +289,8 @@ const validateOwnerActorKey = async (
     owner: ownerDocument.actorId,
     username: ownerDocument.username,
     webfinger: ownerDocument.webfinger,
-    publicKey
+    publicKey,
+    isDefaultKey: ownerDocument.isDefaultKey
   }
 }
 
@@ -286,7 +306,8 @@ const resolveFetchedPublicKey = async (
         owner: document.actorId,
         username: document.username,
         webfinger: document.webfinger,
-        publicKey: document.details.publicKey
+        publicKey: document.details.publicKey,
+        isDefaultKey: document.isDefaultKey
       }
     }
     return validateOwnerActorKey(
@@ -366,6 +387,7 @@ const fetchSenderPublicKeyDetails = async (
     details: isConfirmed
       ? { owner: resolved.owner, publicKey: resolved.publicKey }
       : null,
+    isDefaultKey: resolved?.isDefaultKey ?? false,
     statusCode: response.statusCode
   }
 }
@@ -378,12 +400,12 @@ const fetchSenderPublicKeyDetails = async (
 // request either. In-memory and per process: a few extra fetches across
 // instances are acceptable, a shared counter is not worth a table.
 export const SENDER_KEY_REFRESH_MIN_INTERVAL_MS = 5 * 60_000
-const KEY_REFRESH_ATTEMPTS_MAX = 1000
+export const KEY_REFRESH_ATTEMPTS_MAX = 1000
 const keyRefreshAttempts = new Map<string, number>()
 
 export const resetSenderKeyRefreshAttempts = () => keyRefreshAttempts.clear()
 
-const reserveKeyRefreshAttempt = (owner: string, now: number) => {
+export const reserveKeyRefreshAttempt = (owner: string, now: number) => {
   const lastAttempt = keyRefreshAttempts.get(owner)
   if (
     lastAttempt !== undefined &&
@@ -392,7 +414,15 @@ const reserveKeyRefreshAttempt = (owner: string, now: number) => {
     return false
   }
   if (keyRefreshAttempts.size >= KEY_REFRESH_ATTEMPTS_MAX) {
-    keyRefreshAttempts.clear()
+    // Forget only attempts already outside the window. Clearing everything
+    // would let a flood of distinct owners wipe the throttle; when nothing has
+    // aged out, refuse instead.
+    for (const [key, attempt] of keyRefreshAttempts) {
+      if (now - attempt >= SENDER_KEY_REFRESH_MIN_INTERVAL_MS) {
+        keyRefreshAttempts.delete(key)
+      }
+    }
+    if (keyRefreshAttempts.size >= KEY_REFRESH_ATTEMPTS_MAX) return false
   }
   keyRefreshAttempts.set(owner, now)
   return true
@@ -405,9 +435,10 @@ export const refreshSenderPublicKeyDetails = async (
   database: Database,
   keyId: string,
   stale: SenderPublicKeyDetails
-): Promise<SenderPublicKeyDetails | null> => {
+): Promise<RefreshedSenderPublicKeyDetails | null> => {
   const owner = normalizeActorId(stale.owner)
-  if (!owner || !stale.publicKey) return null
+  // A key just fetched from the network is as fresh as a refresh would be.
+  if (!owner || !stale.publicKey || !stale.fromStoredActor) return null
 
   try {
     const stored = await database.getActorFromId({ id: owner })
@@ -418,7 +449,7 @@ export const refreshSenderPublicKeyDetails = async (
     if (now - stored.updatedAt < SENDER_KEY_REFRESH_MIN_INTERVAL_MS) return null
     if (!reserveKeyRefreshAttempt(owner, now)) return null
 
-    const { details } = await fetchSenderPublicKeyDetails(
+    const { details, isDefaultKey } = await fetchSenderPublicKeyDetails(
       keyId,
       await getFederationSigningActor(database),
       database
@@ -426,7 +457,7 @@ export const refreshSenderPublicKeyDetails = async (
     if (!details) return null
     if (normalizeActorId(details.owner) !== owner) return null
     if (details.publicKey === stale.publicKey) return null
-    return details
+    return { ...details, isDefaultKey }
   } catch (error) {
     logger.warn({
       err: toLoggableError(error),
