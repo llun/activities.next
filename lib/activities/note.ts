@@ -404,7 +404,7 @@ export const getContent = (object: BaseNote) => {
     if (!content.startsWith(titleHeader)) {
       // A Lemmy post or a blog article may carry only its title and a url to
       // the full page. Link that url so the status still points somewhere.
-      if (!content && LINKED_WHEN_EMPTY_TYPES.has(object.type)) {
+      if (!content.trim() && LINKED_WHEN_EMPTY_TYPES.has(object.type)) {
         const href = getUrl(object.url)
         if (href) {
           const escapedHref = escapeHtml(href)

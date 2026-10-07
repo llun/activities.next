@@ -1013,6 +1013,23 @@ describe('note entity utilities', () => {
       )
     })
 
+    it.each([
+      ['a Link object', { type: 'Link', href: 'https://blog.test/p/2' }],
+      ['a whitespace-only body and string', 'https://blog.test/p/2']
+    ])('links the url when the Article has %s', (_, url) => {
+      const article = {
+        type: 'Article',
+        name: 'My Post',
+        content: ' ',
+        url
+      } as unknown as BaseNote
+
+      expect(getContent(article)).toEqual(
+        '<p><strong>My Post</strong></p>\n' +
+          '<p><a href="https://blog.test/p/2" rel="nofollow noopener noreferrer" target="_blank">https://blog.test/p/2</a></p>'
+      )
+    })
+
     it('escapes a quote in the Article url href', () => {
       const article = {
         type: 'Article',
