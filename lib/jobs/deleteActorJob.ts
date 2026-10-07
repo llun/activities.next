@@ -37,8 +37,17 @@ const DeleteActorJobData = z.object({
 // which `deleteActorData` removes with the row, so the sends happen in this job
 // rather than as queued deliveries that would find no key on retry.
 // Best effort: a failure is logged and never stops the local deletion.
+//
+// The sends share a wall-clock budget: a hosted queue (QStash allows 30s)
+// cuts the job off at its deadline and retries it from the top, so a fan-out
+// that never fits would keep the account from ever being deleted. Inboxes not
+// reached before the budget runs out are skipped; each send still in flight
+// ends within its own request timeout.
+export const ACTOR_DELETION_FEDERATION_BUDGET_MS = 15_000
+
 const federateActorDeletion = async (database: Database, actor: Actor) => {
   if (!actor.privateKey) return
+  const deadline = Date.now() + ACTOR_DELETION_FEDERATION_BUDGET_MS
   try {
     const [inboxes, localFollows] = await Promise.all([
       getFederatedStatusDeliveryInboxes({
@@ -59,16 +68,23 @@ const federateActorDeletion = async (database: Database, actor: Actor) => {
     const results = await runWithConcurrencyLimit(
       remoteInboxes,
       MAX_CONCURRENT_DELIVERY_PUBLICATIONS,
-      (inbox) => deleteActor({ currentActor: actor, inbox })
+      async (inbox) => {
+        if (Date.now() >= deadline) return 'skipped' as const
+        return deleteActor({ currentActor: actor, inbox })
+      }
     )
     const delivered = results.filter(
-      (result) => result.status === 'fulfilled' && result.value
+      (result) => result.status === 'fulfilled' && result.value === true
+    ).length
+    const skipped = results.filter(
+      (result) => result.status === 'fulfilled' && result.value === 'skipped'
     ).length
     logger.info({
       message: 'Federated actor deletion',
       actorId: actor.id,
       inboxCount: remoteInboxes.length,
-      deliveredCount: delivered
+      deliveredCount: delivered,
+      skippedCount: skipped
     })
   } catch (err) {
     logger.error({

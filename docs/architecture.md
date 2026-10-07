@@ -1358,7 +1358,15 @@ legacy shape left to copy.
   retry of a row already marked `deleting` stops at the status check, which
   would leave the account in `deleting` with its data never removed. The job
   re-reads the status after the sends so a cancel that landed meanwhile still
-  keeps the account. Inboxes
+  keeps the account locally; the Deletes already sent cannot be recalled, so
+  remote servers that processed one have dropped the account's copy and its
+  follows there. The sends share a wall-clock budget
+  (`ACTOR_DELETION_FEDERATION_BUDGET_MS`, under QStash's 30s job limit) and
+  each uses a short timeout (the request layer never retries a POST): a
+  hosted queue cuts the job off at its deadline and retries from the top, so a
+  fan-out that never fits would
+  keep the account from ever being deleted. Inboxes not reached in time are
+  skipped. Inboxes
   of LOCAL followers (`getLocalFollowersForActorId`) are left out: delivering
   there would run the inbound actor delete (`deleteObjectJob` →
   `database.deleteActor`) on the row the job is still emptying. Sending is best
@@ -1374,7 +1382,9 @@ legacy shape left to copy.
   boolean (both `getNoteFromStatus` and `toActivityPubObject`), as Mastodon does.
   Omitting `false` would leave an un-marked post sensitive on any receiver that
   keeps the stored flag when an edit omits the key, which is what this server's
-  own `updateNoteJob` does. Inbound `createNoteJob` stores the flag, and
+  own `updateNoteJob` does. Inbound `createNoteJob` and the on-demand fetches in
+  `fetchRemoteStatusJob` store the flag (the collection-member outbox backfill
+  does not carry it yet), and
   `updateNoteJob` applies it only when the edit carries a boolean. A
   non-boolean value parses as absent (`.catch(undefined)` on the schema) rather
   than rejecting the note.

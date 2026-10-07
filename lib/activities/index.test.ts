@@ -3,6 +3,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import {
   acceptFollow,
+  deleteActor,
   deleteStatus,
   follow,
   followRelay,
@@ -274,6 +275,27 @@ describe('activities', () => {
       expect(body.type).toEqual('Delete')
       expect(body.object.id).toEqual(statusId)
       expect(body.object.type).toEqual('Tombstone')
+    })
+  })
+
+  describe('deleteActor', () => {
+    it('sends a Delete of the actor to the inbox', async () => {
+      const actor = MockActor({})
+
+      await expect(
+        deleteActor({ currentActor: actor, inbox: TEST_SHARED_INBOX })
+      ).resolves.toBe(true)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const [url, options] = fetchMock.mock.lastCall as any
+      expect(url).toEqual(TEST_SHARED_INBOX)
+      expect(JSON.parse(options.body)).toMatchObject({
+        id: `${actor.id}#delete`,
+        type: 'Delete',
+        actor: actor.id,
+        object: actor.id,
+        to: [ACTIVITY_STREAM_PUBLIC]
+      })
     })
   })
 

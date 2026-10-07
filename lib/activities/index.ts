@@ -57,7 +57,7 @@ import {
 import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
 import { logger } from '@/lib/utils/logger'
-import { request } from '@/lib/utils/request'
+import { RequestOptions, request } from '@/lib/utils/request'
 import { withSpan } from '@/lib/utils/trace'
 
 interface PostActivityToInboxParams {
@@ -68,6 +68,7 @@ interface PostActivityToInboxParams {
   logPrefix: string
   silenceTimeout?: boolean
   recordOnlyErrorOnSpan?: boolean
+  requestOptions?: Pick<RequestOptions, 'responseTimeout' | 'numberOfRetry'>
 }
 
 /**
@@ -84,11 +85,13 @@ const postActivityToInbox = async ({
   activity,
   logPrefix,
   silenceTimeout = false,
-  recordOnlyErrorOnSpan = false
+  recordOnlyErrorOnSpan = false,
+  requestOptions
 }: PostActivityToInboxParams): Promise<number | undefined> => {
   const method = 'POST'
   try {
     const { statusCode } = await request({
+      ...requestOptions,
       url: inbox,
       method,
       headers: activityPubRequestHeaders({
@@ -514,6 +517,8 @@ interface DeleteActorParams {
 // the actor row, and so its signing key, still exists: the job that calls this
 // deletes the row straight afterwards, so there is no later retry to queue.
 // Returns whether the inbox accepted it.
+const DELETE_ACTOR_REQUEST_TIMEOUT_MS = 5_000
+
 export const deleteActor = async ({ currentActor, inbox }: DeleteActorParams) =>
   withSpan(
     'activity',
@@ -538,7 +543,14 @@ export const deleteActor = async ({ currentActor, inbox }: DeleteActorParams) =>
         activity,
         logPrefix: 'deleteActor',
         silenceTimeout: true,
-        recordOnlyErrorOnSpan: true
+        recordOnlyErrorOnSpan: true,
+        // Sent from inside the delete job, which a hosted queue cuts off at
+        // its deadline, so a slow inbox gets a short timeout. The request
+        // layer never retries a POST; `numberOfRetry: 0` only keeps it so.
+        requestOptions: {
+          responseTimeout: DELETE_ACTOR_REQUEST_TIMEOUT_MS,
+          numberOfRetry: 0
+        }
       })
       return isAcceptedStatusCode(statusCode)
     }

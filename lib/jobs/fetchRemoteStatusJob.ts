@@ -133,6 +133,7 @@ const fetchRemoteStatus = async (
         ? sanitizedNote.content.join('')
         : sanitizedNote.content || '',
       summary: sanitizedNote.summary || '',
+      sensitive: sanitizedNote.sensitive === true,
       to,
       cc,
       reply: sanitizedNote.inReplyTo || '',
@@ -322,6 +323,7 @@ export const fetchRemoteStatusJob = createJobHandle(
               ? sanitizedReply.content.join('')
               : sanitizedReply.content || '',
             summary: sanitizedReply.summary || '',
+            sensitive: sanitizedReply.sensitive === true,
             to: toRecipientArray(sanitizedReply.to),
             cc: toRecipientArray(sanitizedReply.cc),
             reply: sanitizedReply.inReplyTo || '',

@@ -42,9 +42,8 @@ export const NOTE_CONTEXT_TERMS = {
 
   // `votersCount` is emitted: `toActivityPubObject` puts it on a poll Question,
   // which the status route and the replies collection both serve. `sensitive`
-  // is declared ahead of use — a content warning federates as `summary` today —
-  // the way Mastodon's own outbound context carries its full vocabulary, so
-  // whoever adds it does not have to rediscover this file.
+  // is emitted on every Note and Question by `getNoteFromStatus` and
+  // `toActivityPubObject`.
   votersCount: 'toot:votersCount',
   sensitive: 'as:sensitive'
 } as const
