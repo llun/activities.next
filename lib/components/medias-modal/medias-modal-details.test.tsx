@@ -138,4 +138,63 @@ describe('MediasModal media details', () => {
     )
     expect(media1Calls).toHaveLength(1)
   })
+  describe('viewing sessions', () => {
+    const greyHeronDetails: MediaPublicDetails = {
+      ...kingfisherDetails,
+      subject: {
+        name: 'Grey Heron',
+        scientificName: 'Ardea cinerea',
+        category: 'bird'
+      }
+    }
+
+    const modalFor = (medias: Attachment[] | null) => (
+      <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+        <MediasModal medias={medias} initialSelection={0} onClosed={vi.fn()} />
+      </PlaybackPreferencesProvider>
+    )
+
+    it('fetches details again when the modal is reopened', async () => {
+      mockGetMediaPublicDetails
+        .mockResolvedValueOnce(kingfisherDetails)
+        .mockResolvedValueOnce(greyHeronDetails)
+      const medias = [buildAttachment({ mediaId: 'media-1' })]
+
+      const { rerender } = render(modalFor(medias))
+      expect(await screen.findByText('Common Kingfisher')).toBeInTheDocument()
+
+      rerender(modalFor(null))
+      rerender(modalFor([buildAttachment({ mediaId: 'media-1' })]))
+
+      expect(await screen.findByText('Grey Heron')).toBeInTheDocument()
+      expect(screen.queryByText('Common Kingfisher')).not.toBeInTheDocument()
+      expect(mockGetMediaPublicDetails).toHaveBeenCalledTimes(2)
+    })
+
+    it('drops a response that arrives after the modal was reopened', async () => {
+      let resolveFirst: (value: MediaPublicDetails | null) => void = () => {}
+      mockGetMediaPublicDetails
+        .mockReturnValueOnce(
+          new Promise<MediaPublicDetails | null>((resolve) => {
+            resolveFirst = resolve
+          })
+        )
+        .mockResolvedValueOnce(greyHeronDetails)
+      const medias = [buildAttachment({ mediaId: 'media-1' })]
+
+      const { rerender } = render(modalFor(medias))
+      rerender(modalFor(null))
+      rerender(modalFor([buildAttachment({ mediaId: 'media-1' })]))
+      expect(await screen.findByText('Grey Heron')).toBeInTheDocument()
+
+      resolveFirst(kingfisherDetails)
+      await waitFor(() =>
+        expect(mockGetMediaPublicDetails).toHaveBeenCalledTimes(2)
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(screen.getByText('Grey Heron')).toBeInTheDocument()
+      expect(screen.queryByText('Common Kingfisher')).not.toBeInTheDocument()
+    })
+  })
 })

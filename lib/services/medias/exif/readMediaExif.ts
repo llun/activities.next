@@ -90,19 +90,32 @@ export const formatExposureTime = (seconds: unknown): string | null => {
 
 const OFFSET_PATTERN = /^([+-])(\d{2}):(\d{2})$/
 
-const toTakenAt = (value: unknown, offset: unknown): Date | null => {
+// exifr revives `DateTimeOriginal` with `new Date(y, m, d, h, mi, s)`, i.e. in
+// the PROCESS's local timezone, whatever zone the camera was in. The wall-clock
+// fields it read are exactly the local fields of the Date it hands back, so
+// they are read back out and rebuilt as UTC: the result no longer depends on
+// the server's TZ.
+export const toTakenAt = (value: unknown, offset: unknown): Date | null => {
   if (!(value instanceof Date)) return null
-  const time = value.getTime()
-  if (!Number.isFinite(time)) return null
+  if (!Number.isFinite(value.getTime())) return null
 
-  // exifr reads the camera's wall-clock time as if it were UTC. When the file
-  // also records the UTC offset that wall-clock was in, subtracting it yields
-  // the real instant; without one the wall-clock reading is the best we have.
+  const wallClock = Date.UTC(
+    value.getFullYear(),
+    value.getMonth(),
+    value.getDate(),
+    value.getHours(),
+    value.getMinutes(),
+    value.getSeconds()
+  )
+
+  // When the file also records the UTC offset that wall-clock was in,
+  // subtracting it yields the real instant; without one the wall-clock reading
+  // (as UTC) is the best we have.
   const match = typeof offset === 'string' ? OFFSET_PATTERN.exec(offset) : null
-  if (!match) return value
+  if (!match) return new Date(wallClock)
   const offsetMinutes =
     (match[1] === '-' ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3]))
-  return new Date(time - offsetMinutes * 60_000)
+  return new Date(wallClock - offsetMinutes * 60_000)
 }
 
 // `0,0` is what a camera writes when it has no fix, and no bird was ever

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { MAX_GALLERY_GEAR_PER_ACTOR } from '@/lib/services/gallery/galleryRequests'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
@@ -110,6 +111,62 @@ describe('/api/v1/gallery/gears', () => {
         model: null,
         productUrl: null
       })
+    })
+
+    it('returns the existing row for the same kind and a case-insensitive trimmed name', async () => {
+      const first = await POST(
+        postRequest({ kind: 'camera', name: 'Sony A7 IV' }),
+        { params: Promise.resolve({}) }
+      )
+      const { gear } = await first.json()
+
+      const again = await POST(
+        postRequest({ kind: 'camera', name: '  sony   a7 iv ' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(again.status).toBe(200)
+      expect((await again.json()).gear.id).toBe(gear.id)
+
+      // A lens of the same name is a different piece of gear.
+      const lens = await POST(
+        postRequest({ kind: 'lens', name: 'Sony A7 IV' }),
+        { params: Promise.resolve({}) }
+      )
+      expect((await lens.json()).gear.id).not.toBe(gear.id)
+    })
+
+    it('answers 422 once the actor holds the maximum number of gear items', async () => {
+      const spy = vi
+        .spyOn(database, 'getGalleryGearsByActor')
+        .mockResolvedValueOnce(
+          Array.from({ length: MAX_GALLERY_GEAR_PER_ACTOR }, (_, index) => ({
+            id: `gear-${index}`,
+            actorId: ACTOR1_ID,
+            kind: 'camera' as const,
+            name: `Camera ${index}`,
+            brand: null,
+            model: null,
+            productUrl: null,
+            deviceKey: null,
+            retiredAt: null,
+            createdAt: 1,
+            updatedAt: 1
+          })) as never
+        )
+      const createSpy = vi.spyOn(database, 'createGalleryGear')
+      createSpy.mockClear()
+
+      const response = await POST(
+        postRequest({ kind: 'camera', name: 'One camera too many' }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ error: 'Too many gear items' })
+      expect(createSpy).not.toHaveBeenCalled()
+      spy.mockRestore()
+      createSpy.mockRestore()
     })
 
     it.each([

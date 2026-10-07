@@ -1385,6 +1385,32 @@ describe('MediaDatabase', () => {
         })
       })
 
+      // Completion rewrites the object without its metadata, so the stored
+      // size and the account's usage move together.
+      it('records the rewritten size and moves the usage counter by the difference', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-rewritten.jpg')
+        const before = await database.getStorageUsageForAccount({ accountId })
+
+        const verified = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          originalBytes: 700
+        })
+
+        expect(verified?.original.bytes).toBe(700)
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original.bytes).toBe(700)
+        expect(await database.getStorageUsageForAccount({ accountId })).toBe(
+          before - 300
+        )
+      })
+
       it('returns null when the media belongs to another account', async () => {
         const otherActor = await database.getActorFromId({
           id: actors.replyAuthor.id

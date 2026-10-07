@@ -444,7 +444,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     mediaId,
     accountId,
     verifiedAt,
-    dimensions
+    dimensions,
+    originalBytes
   }: MarkMediaUploadVerifiedParams): Promise<Media | null> {
     const id = toMediaRowId(mediaId)
     if (id === null) return null
@@ -471,14 +472,36 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       }
     }
 
-    await database('medias')
-      .where('id', media.id)
-      .update({ originalMetaData: JSON.stringify(metaData) })
+    const bytesDelta =
+      originalBytes === undefined ? 0 : originalBytes - media.original.bytes
+    await database.transaction(async (trx) => {
+      await trx('medias')
+        .where('id', media.id)
+        .update({
+          originalMetaData: JSON.stringify(metaData),
+          ...(originalBytes === undefined ? null : { originalBytes })
+        })
+      // Keep the per-account usage counter in step with the rewritten object.
+      if (bytesDelta > 0) {
+        await increaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(accountId),
+          bytesDelta
+        )
+      } else if (bytesDelta < 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(accountId),
+          -bytesDelta
+        )
+      }
+    })
 
     return {
       ...media,
       original: {
         ...media.original,
+        ...(originalBytes === undefined ? null : { bytes: originalBytes }),
         metaData
       }
     }

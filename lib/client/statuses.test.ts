@@ -53,6 +53,22 @@ describe('client statuses module', () => {
       )
     })
 
+    it('sends media_attributes for description-only edits', async () => {
+      await updateNote({
+        statusId: '123',
+        mediaAttributes: [{ id: 'media-1', description: 'A heron' }]
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/123',
+        expect.objectContaining({
+          body: JSON.stringify({
+            media_attributes: [{ id: 'media-1', description: 'A heron' }]
+          })
+        })
+      )
+    })
+
     it('omits empty status text for content-warning-only edits', async () => {
       await updateNote({
         statusId: '123',

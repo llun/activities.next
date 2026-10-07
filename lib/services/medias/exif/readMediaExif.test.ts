@@ -3,8 +3,10 @@ import sharp, { type Sharp } from 'sharp'
 import {
   EMPTY_MEDIA_EXIF,
   formatExposureTime,
-  readMediaExif
+  readMediaExif,
+  toTakenAt
 } from '@/lib/services/medias/exif/readMediaExif'
+import { withTimeZone } from '@/lib/testing/withTimeZone'
 
 type ExifInput = NonNullable<Parameters<Sharp['withExif']>[0]>
 
@@ -64,6 +66,41 @@ describe('readMediaExif', () => {
     )
 
     expect(exif.takenAt).toEqual(new Date('2024-05-06T07:00:00.000Z'))
+  })
+
+  // exifr builds the date in the process's local timezone; the stored instant
+  // must not depend on it. vitest pins TZ to UTC, so the zone is switched here.
+  describe.each([
+    'UTC',
+    'Asia/Bangkok',
+    'America/Los_Angeles',
+    'Pacific/Auckland'
+  ])('in the %s timezone', (zone) => {
+    it('reads the wall-clock date as UTC', () =>
+      withTimeZone(zone, async () => {
+        const exif = await readMediaExif(await createJpeg(fullExif))
+        expect(exif.takenAt).toEqual(new Date('2024-05-06T07:08:09.000Z'))
+      }))
+
+    it('applies the recorded offset to the wall-clock date', () =>
+      withTimeZone(zone, async () => {
+        const exif = await readMediaExif(
+          await createJpeg({
+            IFD2: {
+              DateTimeOriginal: '2024:05:06 09:00:00',
+              OffsetTimeOriginal: '+02:00'
+            }
+          })
+        )
+        expect(exif.takenAt).toEqual(new Date('2024-05-06T07:00:00.000Z'))
+      }))
+
+    it('converts a Date built from local fields', () =>
+      withTimeZone(zone, () => {
+        expect(toTakenAt(new Date(2024, 4, 6, 7, 8, 9), undefined)).toEqual(
+          new Date('2024-05-06T07:08:09.000Z')
+        )
+      }))
   })
 
   it('returns nulls for an image with no EXIF', async () => {

@@ -109,4 +109,85 @@ describe('MediaDetailsSettings', () => {
     })
     await waitFor(() => expect(emptyDescription).toBeChecked())
   })
+  it('shows a retry when loading fails and recovers on retry', async () => {
+    mockGetGallerySettings
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValue(baseSettings)
+
+    render(<MediaDetailsSettings />)
+
+    expect(
+      await screen.findByText('Failed to load media settings.')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: AUTO_DESCRIBE })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(
+      await screen.findByRole('switch', { name: AUTO_DESCRIBE })
+    ).toBeEnabled()
+    expect(
+      screen.queryByText('Failed to load media settings.')
+    ).not.toBeInTheDocument()
+    expect(mockGetGallerySettings).toHaveBeenCalledTimes(2)
+  })
+
+  it('announces a successful save in a polite status region', async () => {
+    render(<MediaDetailsSettings />)
+
+    const hashtags = await screen.findByRole('switch', {
+      name: SUBJECT_HASHTAGS
+    })
+    expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+
+    fireEvent.click(hashtags)
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Saved')
+  })
+
+  it('does not announce Saved when the save fails', async () => {
+    mockUpdateGallerySettings.mockRejectedValue(new Error('network down'))
+
+    render(<MediaDetailsSettings />)
+
+    fireEvent.click(
+      await screen.findByRole('switch', { name: SUBJECT_HASHTAGS })
+    )
+
+    expect(
+      await screen.findByText(
+        'Failed to save media settings. Please try again.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+  })
+
+  it('keeps every switch disabled until the in-flight save settles', async () => {
+    let resolveSave: (value: GallerySettingsEntity) => void = () => {}
+    mockUpdateGallerySettings.mockReturnValue(
+      new Promise<GallerySettingsEntity>((resolve) => {
+        resolveSave = resolve
+      })
+    )
+
+    render(<MediaDetailsSettings />)
+
+    const hashtags = await screen.findByRole('switch', {
+      name: SUBJECT_HASHTAGS
+    })
+    fireEvent.click(hashtags)
+
+    expect(hashtags).toBeChecked()
+    expect(screen.getByRole('switch', { name: ALLOW_EMPTY })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: AUTO_DESCRIBE })).toBeDisabled()
+
+    resolveSave({ ...baseSettings, subjectHashtags: true })
+
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: ALLOW_EMPTY })).toBeEnabled()
+    )
+    expect(hashtags).toBeChecked()
+  })
 })

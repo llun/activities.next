@@ -1298,10 +1298,121 @@ describe('Attachments', () => {
 
       Object.defineProperty(strip, 'scrollLeft', {
         configurable: true,
-        value: 500
+        value: 250
       })
       fireEvent.scroll(strip)
       expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    })
+
+    // Lays out `count` cards of `cardWidth` end to end inside a strip whose
+    // viewport is 500px and whose content is `count * cardWidth` wide.
+    const renderLaidOutStrip = ({
+      count,
+      cardWidth,
+      scrollLeft
+    }: {
+      count: number
+      cardWidth: number
+      scrollLeft: number
+    }) => {
+      render(
+        <Attachments
+          status={buildNoteStatus(
+            Array.from({ length: count }, () =>
+              buildAttachment({ width: 800, height: 600 })
+            )
+          )}
+          onMediaSelected={vi.fn()}
+        />
+      )
+      const strip = screen.getByRole('group')
+      Object.defineProperty(strip, 'scrollWidth', {
+        configurable: true,
+        value: count * cardWidth
+      })
+      Object.defineProperty(strip, 'clientWidth', {
+        configurable: true,
+        value: 500
+      })
+      Array.from(strip.children).forEach((child, index) => {
+        Object.defineProperty(child, 'offsetLeft', {
+          configurable: true,
+          value: index * cardWidth
+        })
+        Object.defineProperty(child, 'offsetWidth', {
+          configurable: true,
+          value: cardWidth
+        })
+      })
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: scrollLeft
+      })
+      fireEvent.scroll(strip)
+      return strip
+    }
+
+    it('reads the last position once the strip is scrolled to its end', () => {
+      renderLaidOutStrip({ count: 3, cardWidth: 500, scrollLeft: 1000 })
+
+      expect(screen.getByText('3 / 3')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Next media' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('reads the last position at the end even when the last card is narrow', () => {
+      // Five 200px cards: the Next arrow is gone at scrollLeft 500, yet the
+      // first card whose midpoint is past the edge would be card 3.
+      renderLaidOutStrip({ count: 5, cardWidth: 200, scrollLeft: 500 })
+
+      expect(screen.getByText('5 / 5')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Next media' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('counts a card as reached once its left edge is within sub-pixel slack of the viewport', () => {
+      renderLaidOutStrip({ count: 3, cardWidth: 500, scrollLeft: 502 })
+
+      expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    })
+
+    it('does not count a card still partly scrolled off to the left', () => {
+      renderLaidOutStrip({ count: 3, cardWidth: 500, scrollLeft: 100 })
+
+      expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    })
+
+    it('re-reads the position when the viewport resizes without a scroll event', () => {
+      const strip = renderLaidOutStrip({
+        count: 3,
+        cardWidth: 500,
+        scrollLeft: 0
+      })
+      expect(screen.getByText('1 / 3')).toBeInTheDocument()
+
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 1000
+      })
+      act(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+
+      expect(screen.getByText('3 / 3')).toBeInTheDocument()
+    })
+
+    it('gives each arrow a 44px hit area around a 40px visual disc', () => {
+      renderScrolledStrip({ scrollLeft: 250 })
+
+      for (const name of ['Previous media', 'Next media']) {
+        const arrow = screen.getByRole('button', { name })
+        expect(arrow).toHaveClass('size-11')
+        const disc = arrow.firstElementChild as HTMLElement
+        expect(disc).toHaveClass('size-10', 'rounded-full')
+        expect(disc).toHaveAttribute('aria-hidden', 'true')
+      }
     })
 
     it('hides the counter and arrows when the strip does not overflow', () => {
@@ -1748,9 +1859,9 @@ describe('Attachments', () => {
 
       expect(screen.getByRole('button', { name: 'Next media' })).toHaveClass(
         'absolute',
-        'right-2',
+        'right-1.5',
         'top-1/2',
-        'size-10'
+        'size-11'
       )
     })
   })

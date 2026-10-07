@@ -3491,6 +3491,10 @@ export type MarkMediaUploadVerifiedParams = {
   // The dimensions probed from the uploaded bytes, replacing the ones the
   // client declared when it asked for the presigned URL.
   dimensions?: { width: number; height: number }
+  // The size of the original after completion rewrote it (metadata stripped),
+  // replacing the declared size. The account's media usage counter moves by the
+  // difference.
+  originalBytes?: number
 }
 
 export type GetMediaWithAttachedStatusIdsParams = {

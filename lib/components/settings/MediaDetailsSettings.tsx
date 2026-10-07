@@ -1,8 +1,9 @@
 'use client'
 
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getGallerySettings, updateGallerySettings } from '@/lib/client'
+import { Button } from '@/lib/components/ui/button'
 import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
 import type { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
@@ -15,6 +16,8 @@ type ToggleKey = keyof Pick<
 
 const SAVE_ERROR = 'Failed to save media settings. Please try again.'
 const LOAD_ERROR = 'Failed to load media settings.'
+const SAVED_STATUS = 'Saved'
+const SAVED_STATUS_MS = 2000
 
 interface ToggleRowProps {
   id: string
@@ -61,34 +64,71 @@ export const MediaDetailsSettings: FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savingKey, setSavingKey] = useState<ToggleKey | null>(null)
+  const [savedStatus, setSavedStatus] = useState<string | null>(null)
+  // Each load gets a number; only the newest one may apply its result, so a
+  // retry cannot be overwritten by an older request that finishes later.
+  const loadRequest = useRef(0)
+  // Per-key save numbering: only the newest response for a key may apply or
+  // revert that key. Keys with a save in flight are refused synchronously, so
+  // two saves for one key never overlap and `previous` is always the last
+  // confirmed value.
+  const saveSequence = useRef<Partial<Record<ToggleKey, number>>>({})
+  const pendingKeys = useRef<Set<ToggleKey>>(new Set())
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearSavedTimer = useCallback(() => {
+    if (savedTimer.current) clearTimeout(savedTimer.current)
+    savedTimer.current = null
+  }, [])
+
+  const loadSettings = useCallback(() => {
+    const request = ++loadRequest.current
+    setLoadError(null)
+    getGallerySettings().then(
+      (loaded) => {
+        if (request === loadRequest.current) setSettings(loaded)
+      },
+      () => {
+        if (request === loadRequest.current) setLoadError(LOAD_ERROR)
+      }
+    )
+  }, [])
 
   useEffect(() => {
-    let active = true
-    getGallerySettings()
-      .then((loaded) => {
-        if (active) setSettings(loaded)
-      })
-      .catch(() => {
-        if (active) setLoadError(LOAD_ERROR)
-      })
+    loadSettings()
     return () => {
-      active = false
+      loadRequest.current += 1
+      clearSavedTimer()
     }
-  }, [])
+  }, [loadSettings, clearSavedTimer])
 
   // Optimistic: the switch flips at once, reverts only its own key on failure,
   // and takes the server's value when the save succeeds.
   const handleToggle = async (key: ToggleKey, value: boolean) => {
+    if (pendingKeys.current.has(key)) return
+    pendingKeys.current.add(key)
+    const sequence = (saveSequence.current[key] ?? 0) + 1
+    saveSequence.current[key] = sequence
+    const isLatest = () => saveSequence.current[key] === sequence
     const previous = settings?.[key]
+    clearSavedTimer()
+    setSavedStatus(null)
     setSettings((current) => (current ? { ...current, [key]: value } : current))
     setSaveError(null)
     setSavingKey(key)
     try {
       const saved = await updateGallerySettings({ [key]: value })
+      if (!isLatest()) return
       setSettings((current) =>
         current ? { ...current, [key]: saved[key] } : current
       )
+      setSavedStatus(SAVED_STATUS)
+      savedTimer.current = setTimeout(() => {
+        savedTimer.current = null
+        setSavedStatus(null)
+      }, SAVED_STATUS_MS)
     } catch {
+      if (!isLatest()) return
       setSettings((current) =>
         current && previous !== undefined
           ? { ...current, [key]: previous }
@@ -96,6 +136,7 @@ export const MediaDetailsSettings: FC = () => {
       )
       setSaveError(SAVE_ERROR)
     } finally {
+      pendingKeys.current.delete(key)
       setSavingKey(null)
     }
   }
@@ -105,6 +146,33 @@ export const MediaDetailsSettings: FC = () => {
 
   return (
     <div className="space-y-6">
+      <div className="min-h-5 space-y-2 text-sm">
+        {loadError && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center gap-3 text-destructive"
+          >
+            <p>{loadError}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={loadSettings}
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+        {saveError && (
+          <p role="alert" className="text-destructive">
+            {saveError}
+          </p>
+        )}
+        <p role="status" aria-live="polite" className="text-muted-foreground">
+          {savedStatus}
+        </p>
+      </div>
+
       <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
         <div>
           <h2 className="text-lg font-semibold">Descriptions (alt text)</h2>
@@ -158,17 +226,6 @@ export const MediaDetailsSettings: FC = () => {
           }
         />
       </section>
-
-      {loadError && (
-        <p role="alert" className="text-sm text-destructive">
-          {loadError}
-        </p>
-      )}
-      {saveError && (
-        <p role="alert" className="text-sm text-destructive">
-          {saveError}
-        </p>
-      )}
     </div>
   )
 }

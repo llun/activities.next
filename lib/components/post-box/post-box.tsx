@@ -13,6 +13,7 @@ import {
 import {
   createNote,
   createPoll,
+  deleteAccountMedia,
   deleteFitnessFile,
   getCustomEmojis,
   getDefaultQuotePolicy,
@@ -66,6 +67,7 @@ import {
 } from './composer-attachment-tiles'
 import {
   areAttachmentIdsEqualInOrder,
+  getChangedAttachmentDescriptions,
   getEditableStatusAttachments,
   getStatusAttachmentsFromUpdateResponse,
   getTimestamp
@@ -169,6 +171,8 @@ export const PostBox: FC<Props> = ({
   const [decorativeIds, setDecorativeIds] = useState<Record<string, true>>({})
   const [fileNames, setFileNames] = useState<Record<string, string>>({})
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({})
+  // True once the lazy settings request has failed (and until a retry works).
+  const [settingsFailed, setSettingsFailed] = useState(false)
   const [detailsPending, setDetailsPending] = useState<Record<string, true>>({})
   const [activeDetailsId, setActiveDetailsId] = useState<string | null>(null)
   const uploadErrorsRef = useRef<Record<string, string>>({})
@@ -348,11 +352,16 @@ export const PostBox: FC<Props> = ({
     if (!settingsPromiseRef.current) {
       settingsPromiseRef.current = getGallerySettings()
         .then((settings) => {
+          setSettingsFailed(false)
           setGallerySettings(settings)
         })
         .catch(() => {
-          // Without settings the composer keeps its permissive defaults (no
-          // description requirement, no Regenerate); allow a later retry.
+          // Without settings the composer fails open (no description
+          // requirement, no Regenerate): the server does not enforce the
+          // requirement, so a settings outage must not block posting. While
+          // the request is still in flight Post is disabled instead (see
+          // `settingsLoading`). Allow a later retry.
+          setSettingsFailed(true)
           settingsPromiseRef.current = null
         })
     }
@@ -408,8 +417,12 @@ export const PostBox: FC<Props> = ({
         if (!uploaded) throw new Error('The server rejected the upload')
         revokeAttachmentUrls(attachment)
         const current = findAttachment(tempId)
-        // Removed while uploading: nothing left to update.
-        if (!current) return
+        // Removed while uploading: the server copy is an orphan, so delete it
+        // (best effort) and leave no state behind.
+        if (!current) {
+          deleteAccountMedia({ mediaId: uploaded.id }).catch(() => undefined)
+          return
+        }
         replaceAttachment(tempId, {
           ...current,
           ...uploaded,
@@ -421,10 +434,15 @@ export const PostBox: FC<Props> = ({
         await loadDetails(uploaded.id)
       } catch (error) {
         const current = findAttachment(tempId)
-        if (current) replaceAttachment(tempId, { ...current, isLoading: false })
+        // Removed while uploading: nothing to mark as failed.
+        if (!current) return
+        replaceAttachment(tempId, { ...current, isLoading: false })
+        // Never store '': the tile treats a falsy error as "no error".
         setUploadError(
           tempId,
-          error instanceof Error && error.message ? error.message : ''
+          error instanceof Error && error.message
+            ? error.message
+            : 'Upload failed'
         )
       }
     }
@@ -484,6 +502,9 @@ export const PostBox: FC<Props> = ({
         replaceAttachment(item.id, { ...current, name: item.description })
       }
     })
+    // In edit mode a description-only change makes the draft dirty (the
+    // description is sent as media_attributes on Update).
+    if (editStatus) setAllowPost(isEditSubmittable())
   }
 
   const resetMediaState = () => {
@@ -498,16 +519,19 @@ export const PostBox: FC<Props> = ({
   }
 
   const descriptionRequired = gallerySettings?.allowEmptyDescription === false
-  const missingDescription =
-    descriptionRequired &&
-    postExtension.attachments.some(
-      (item) => !(item.name ?? '').trim() && !decorativeIds[item.id]
-    )
+  // Post waits for the settings so the description requirement cannot be
+  // skipped by posting before they arrive; a failed load fails open.
+  const hasUndescribedAttachment = postExtension.attachments.some(
+    (item) => !(item.name ?? '').trim() && !decorativeIds[item.id]
+  )
+  const settingsLoading =
+    hasUndescribedAttachment && !gallerySettings && !settingsFailed
+  const missingDescription = descriptionRequired && hasUndescribedAttachment
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
     if (!allowPost) return
-    if (missingDescription) return
+    if (missingDescription || settingsLoading) return
     if (!isWithinLengthLimit(textRef.current, maxStatusCharacters)) return
     if (submitInFlightRef.current) return
     submitInFlightRef.current = true
@@ -569,11 +593,16 @@ export const PostBox: FC<Props> = ({
             ? currentContentWarning
             : undefined
         const updateAttachments = attachmentsChanged ? attachments : undefined
+        const updateMediaAttributes = getChangedAttachmentDescriptions(
+          attachments,
+          getEditableStatusAttachments(editStatus)
+        )
 
         if (
           updateMessage === undefined &&
           updateContentWarning === undefined &&
-          updateAttachments === undefined
+          updateAttachments === undefined &&
+          updateMediaAttributes.length === 0
         ) {
           setIsPosting(false)
           return
@@ -583,7 +612,9 @@ export const PostBox: FC<Props> = ({
           statusId: editStatus.id,
           message: updateMessage,
           contentWarning: updateContentWarning,
-          attachments: updateAttachments
+          attachments: updateAttachments,
+          mediaAttributes:
+            updateMediaAttributes.length > 0 ? updateMediaAttributes : undefined
         })
         const responseStatus = updateResponse.status
         const responseCreatedAt = getTimestamp(
@@ -697,6 +728,14 @@ export const PostBox: FC<Props> = ({
     const attachment = postExtension.attachments[attachmentIndex]
     revokeAttachmentUrls(attachment)
     setUploadError(attachment.id, null)
+    const prune = <T,>(record: Record<string, T>) => {
+      const { [attachment.id]: _removed, ...rest } = record
+      return rest
+    }
+    setFileNames(prune)
+    setDetailsById(prune)
+    setDecorativeIds(prune)
+    setDetailsPending(prune)
     const nextAttachments = [
       ...postExtension.attachments.slice(0, attachmentIndex),
       ...postExtension.attachments.slice(attachmentIndex + 1)
@@ -1284,7 +1323,9 @@ export const PostBox: FC<Props> = ({
               </Button>
             ) : null}
             <Button
-              disabled={!allowPost || isPosting || missingDescription}
+              disabled={
+                !allowPost || isPosting || missingDescription || settingsLoading
+              }
               type="submit"
               size="sm"
             >

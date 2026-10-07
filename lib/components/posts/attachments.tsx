@@ -25,7 +25,10 @@ import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
 import { Media } from './media'
-import { useMediaStripScroll } from './useMediaStripScroll'
+import {
+  SCROLL_EDGE_TOLERANCE,
+  useMediaStripScroll
+} from './useMediaStripScroll'
 
 export type OnMediaSelectedHandle = (
   allMedias: Attachment[],
@@ -62,16 +65,31 @@ const getMediaGeometry = ({ width, height }: Attachment) => {
   }
 }
 
-// The 1-based position counter names the first item whose midpoint has reached
-// the left edge of the viewport: a card half-scrolled away still reads as
-// "behind" until most of it has gone.
-const getFirstVisibleIndex = (strip: HTMLElement) => {
+// Sub-pixel slack for the counter's "card has reached the left edge" test.
+const COUNTER_EDGE_TOLERANCE = 4
+
+// The 0-based card the 1-based position counter names. At the end of the strip
+// it is the last card, so the counter reads N / N exactly when the Next arrow
+// is gone. Otherwise it is the first card whose left edge has reached the
+// viewport's left edge: a card still partly scrolled off to the left counts as
+// passed.
+const getActivePosition = (strip: HTMLElement) => {
   const children = Array.from(strip.children) as HTMLElement[]
+  const last = Math.max(0, children.length - 1)
+  const maxScrollLeft = strip.scrollWidth - strip.clientWidth
+  if (strip.scrollLeft >= maxScrollLeft - SCROLL_EDGE_TOLERANCE) return last
   const index = children.findIndex(
-    (child) => child.offsetLeft + child.offsetWidth / 2 >= strip.scrollLeft
+    (child) => child.offsetLeft >= strip.scrollLeft - COUNTER_EDGE_TOLERANCE
   )
-  return index === -1 ? Math.max(0, children.length - 1) : index
+  return index === -1 ? last : index
 }
+
+// The arrow is a 44px hit area around a 40px visual disc, so the target meets
+// the touch-size minimum while the disc stays the size it always was.
+const STRIP_ARROW_CLASS =
+  'group absolute left-1.5 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const STRIP_ARROW_FACE_CLASS =
+  'flex size-10 items-center justify-center rounded-full bg-background/95 shadow-md transition-colors group-hover:bg-background'
 
 const MEDIA_BOX_CLASS =
   'relative block cursor-zoom-in overflow-hidden border border-border/60 bg-muted/20'
@@ -319,9 +337,31 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
       })),
     [pictures]
   )
-  const strip = useMediaStripScroll(items.map((item) => item.width).join(','))
+  const stripContentKey = items.map((item) => item.width).join(',')
+  const strip = useMediaStripScroll(stripContentKey)
   const { canScrollLeft, canScrollRight } = strip
   const [activeIndex, setActiveIndex] = useState(0)
+  const stripElement = useRef<HTMLDivElement | null>(null)
+  const setStripElement = useCallback(
+    (element: HTMLDivElement | null) => {
+      stripElement.current = element
+      strip.ref(element)
+    },
+    [strip.ref]
+  )
+  const syncActiveIndex = useCallback(() => {
+    const element = stripElement.current
+    if (element) setActiveIndex(getActivePosition(element))
+  }, [])
+  // Scrolling updates the counter itself; these cover the layout changing under
+  // a still strip (edited widths, a resized column) that a scroll event misses.
+  useEffect(() => {
+    syncActiveIndex()
+  }, [syncActiveIndex, stripContentKey, canScrollLeft, canScrollRight])
+  useEffect(() => {
+    window.addEventListener('resize', syncActiveIndex)
+    return () => window.removeEventListener('resize', syncActiveIndex)
+  }, [syncActiveIndex])
 
   if (status.type !== StatusType.enum.Note) return null
   if (!pictures.length && !players.length) return null
@@ -416,7 +456,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
   const showChrome = items.length >= 2 && overflowing
   const handleStripScroll = (event: UIEvent<HTMLDivElement>) => {
     strip.measure()
-    setActiveIndex(getFirstVisibleIndex(event.currentTarget))
+    setActiveIndex(getActivePosition(event.currentTarget))
   }
   const stripStyle: CSSProperties = {
     minHeight: STRIP_ROW_HEIGHT,
@@ -429,7 +469,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
         <div className={cn('mt-3', MEDIA_BLEED_CLASS)}>
           <div className="relative">
             <div
-              ref={strip.ref}
+              ref={setStripElement}
               onScroll={handleStripScroll}
               role="group"
               aria-label={`${items.length} media attachments${overflowing ? ', scroll for more' : ''}`}
@@ -519,7 +559,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
                 aria-hidden="true"
                 className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-xs font-medium text-white tabular-nums"
               >
-                {`${Math.min(activeIndex, items.length - 1) + 1} / ${items.length}`}
+                {`${activeIndex + 1} / ${items.length}`}
               </span>
             ) : null}
             {showChrome && canScrollLeft ? (
@@ -535,9 +575,11 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
                     event.stopPropagation()
                     strip.scrollByPage(-1)
                   }}
-                  className="absolute left-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-background/95 text-foreground shadow-md transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={STRIP_ARROW_CLASS}
                 >
-                  <ChevronLeft className="size-5" aria-hidden="true" />
+                  <span aria-hidden="true" className={STRIP_ARROW_FACE_CLASS}>
+                    <ChevronLeft className="size-5" />
+                  </span>
                 </button>
               </>
             ) : null}
@@ -554,9 +596,11 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
                     event.stopPropagation()
                     strip.scrollByPage(1)
                   }}
-                  className="absolute right-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-background/95 text-foreground shadow-md transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={cn(STRIP_ARROW_CLASS, 'right-1.5 left-auto')}
                 >
-                  <ChevronRight className="size-5" aria-hidden="true" />
+                  <span aria-hidden="true" className={STRIP_ARROW_FACE_CLASS}>
+                    <ChevronRight className="size-5" />
+                  </span>
                 </button>
               </>
             ) : null}

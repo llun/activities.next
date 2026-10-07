@@ -77,3 +77,7 @@ export const UpdateGallerySettingsRequest = z.object({
 export type UpdateGallerySettingsRequest = z.infer<
   typeof UpdateGallerySettingsRequest
 >
+
+// The most non-deleted gear rows one actor may hold. GET returns every row
+// unpaginated and each one is shown in the gear pickers.
+export const MAX_GALLERY_GEAR_PER_ACTOR = 500

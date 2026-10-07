@@ -398,4 +398,84 @@ describe('MediaDetailsDialog', () => {
     expect(screen.queryByText(/for all 1 items/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Show all 1 items/)).not.toBeInTheDocument()
   })
+
+  it('handles items growing and shrinking while open', async () => {
+    const onClose = vi.fn()
+    const onSaved = vi.fn()
+    const view = (items: MediaDetailsDialogItem[]) => (
+      <MediaDetailsDialog
+        items={items}
+        initialId="a"
+        settings={settings()}
+        onClose={onClose}
+        onSaved={onSaved}
+      />
+    )
+    const { rerender } = render(view([makeItem('a')]))
+
+    rerender(view([makeItem('a'), makeItem('b')]))
+    expect(screen.getByText('1 of 2')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Next item' }))
+    expect(screen.getByText('2 of 2')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'Heron' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(updateMediaDetailsMock).toHaveBeenCalledWith('b', {
+      subject_name: 'Heron'
+    })
+
+    // The selected item disappears: the index is clamped, nothing throws.
+    rerender(view([makeItem('a')]))
+    expect(screen.getByText('1 of 1')).toBeInTheDocument()
+  })
+
+  it('keeps unsaved drafts of the failed and later items after a partial save', async () => {
+    updateMediaDetailsMock.mockImplementation(async (id, fields) => {
+      if (id === 'b') throw new Error('boom')
+      return {
+        id,
+        description: (fields.description as string | null | undefined) ?? null
+      } as unknown as Awaited<ReturnType<typeof updateMediaDetails>>
+    })
+    const { onClose, onSaved } = renderDialog([
+      makeItem('a'),
+      makeItem('b'),
+      makeItem('c')
+    ])
+    for (const [position, name] of ['One', 'Two', 'Three'].entries()) {
+      if (position > 0) {
+        fireEvent.click(screen.getByRole('button', { name: 'Next item' }))
+      }
+      fireEvent.change(screen.getByLabelText('Name'), {
+        target: { value: name }
+      })
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('boom')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onSaved).toHaveBeenCalledWith([expect.objectContaining({ id: 'a' })])
+    // On item 3 (last viewed) and item 2 the typed values are still there.
+    expect(screen.getByLabelText('Name')).toHaveValue('Three')
+    fireEvent.click(screen.getByRole('button', { name: 'Previous item' }))
+    expect(screen.getByLabelText('Name')).toHaveValue('Two')
+  })
+
+  it('moves focus with the selection in the precision radiogroup', () => {
+    renderDialog([makeItem('a')])
+    const group = screen.getByRole('radiogroup', { name: 'Place precision' })
+
+    fireEvent.keyDown(group, { key: 'ArrowRight' })
+    const exact = screen.getByRole('radio', { name: 'Exact' })
+    expect(exact).toBeChecked()
+    expect(exact).toHaveFocus()
+    expect(exact).toHaveAttribute('tabindex', '0')
+
+    fireEvent.keyDown(group, { key: 'Home' })
+    expect(screen.getByRole('radio', { name: 'Hidden' })).toHaveFocus()
+    fireEvent.keyDown(group, { key: 'End' })
+    expect(screen.getByRole('radio', { name: 'Exact' })).toHaveFocus()
+  })
 })

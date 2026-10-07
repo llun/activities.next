@@ -3,6 +3,7 @@ import { EditableStatus } from '@/lib/types/domain/status'
 
 import {
   areAttachmentIdsEqualInOrder,
+  getChangedAttachmentDescriptions,
   getEditableStatusAttachments,
   getPreservedStatusAttachments
 } from './composerAttachments'
@@ -44,7 +45,7 @@ export interface EditDirtyOptions {
   value: string
   contentWarning?: string
   contentWarningVisible?: boolean
-  attachments: Pick<PostBoxAttachment, 'id'>[]
+  attachments: Pick<PostBoxAttachment, 'id' | 'name'>[]
 }
 
 export const isEditDirty = ({
@@ -63,7 +64,11 @@ export const isEditDirty = ({
     !areAttachmentIdsEqualInOrder(
       attachments,
       getEditableStatusAttachments(editStatus)
-    )
+    ) ||
+    getChangedAttachmentDescriptions(
+      attachments,
+      getEditableStatusAttachments(editStatus)
+    ).length > 0
   )
 }
 

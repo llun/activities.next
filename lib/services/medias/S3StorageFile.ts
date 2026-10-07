@@ -71,6 +71,7 @@ import {
 import { extractVideoPreviewFrame } from '@/lib/services/medias/videoPreview'
 import { getAcceptedVideoDimensions } from '@/lib/services/medias/videoProbe'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
+import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 import { Media } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
@@ -458,11 +459,35 @@ export class S3FileStorage implements MediaStorage {
           expectedContentType
         )
 
+        // Read the details from the client's bytes BEFORE the metadata is
+        // stripped from them, and before any size or analysis gate: the
+        // owner's gallery default applies to every upload, however large.
+        const prepared = await this._preparePresignedDetails(
+          media,
+          tempFilePath,
+          expectedSize
+        )
+
+        // The object is public and the client's bytes still carry their EXIF
+        // (GPS position, device serials), which the owner's place precision
+        // exists to withhold. Rewrite it without, and only then call the
+        // upload verified, so a failure leaves it pending rather than usable.
+        const strippedBytes = media.original.mimeType.startsWith('image')
+          ? await this._stripPresignedImageMetadata(
+              media.original.path,
+              tempFilePath,
+              expectedContentType
+            )
+          : undefined
+
         const verifiedMedia = await this._database.markMediaUploadVerified({
           mediaId,
           accountId,
           verifiedAt: Date.now(),
-          dimensions
+          dimensions,
+          ...(strippedBytes === undefined
+            ? null
+            : { originalBytes: strippedBytes })
         })
         if (!verifiedMedia) {
           return null
@@ -472,7 +497,8 @@ export class S3FileStorage implements MediaStorage {
           media,
           accountId,
           tempFilePath,
-          expectedSize
+          expectedSize,
+          prepared
         )
         return output ?? (await this._getSaveFileOutput(verifiedMedia))
       } finally {
@@ -527,22 +553,102 @@ export class S3FileStorage implements MediaStorage {
     }
   }
 
+  // The upload's details (EXIF, gear, place, gallery membership), built from
+  // the client's original bytes. Runs before the size and analysis gates and
+  // outside their error handling, so a large video or a failed analysis still
+  // gets the owner's `galleryDefault`. A video, an image over the analysis cap
+  // or one that cannot be read has no EXIF here and gets `original: null`.
+  // Never throws.
+  private async _preparePresignedDetails(
+    media: Media,
+    tempFilePath: string,
+    size: number
+  ): Promise<{
+    buffer: Buffer | null
+    details: Partial<MediaDetailsRecord>
+  }> {
+    const isImage = media.original.mimeType.startsWith('image')
+    const isVideo = media.original.mimeType.startsWith('video')
+    if (!isImage && !isVideo) return { buffer: null, details: {} }
+
+    let buffer: Buffer | null = null
+    if (size <= PRESIGNED_ANALYSIS_MAX_BYTES) {
+      buffer = await fs.readFile(tempFilePath).catch((error) => {
+        logger.warn({
+          message: 'Failed to read presigned media upload for analysis',
+          err: toLoggableError(error)
+        })
+        return null
+      })
+    }
+    const details = await buildUploadMediaDetails({
+      database: this._database,
+      actorId: media.actorId,
+      original: isImage ? buffer : null
+    })
+    return { buffer, details }
+  }
+
+  // Rewrites the stored original without its metadata and returns the new
+  // size. The re-encode keeps the declared format (so the key, content type and
+  // extension stay valid) and applies the EXIF orientation, which is the one
+  // piece of metadata that changes how the pixels display — the probed
+  // dimensions already account for it. Failing to produce a clean copy fails
+  // closed: the upload is refused and removed rather than left public with its
+  // metadata. A transient storage error propagates, leaving the upload pending
+  // for a retry.
+  private async _stripPresignedImageMetadata(
+    key: string,
+    tempFilePath: string,
+    contentType: string
+  ): Promise<number> {
+    let stripped: Buffer
+    try {
+      const image = sharp(tempFilePath).rotate()
+      stripped = await (
+        contentType === 'image/png' ? image.png() : image.jpeg({ quality: 95 })
+      ).toBuffer()
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to strip metadata from a presigned image upload',
+        err: toLoggableError(error)
+      })
+      throw new PresignedUploadValidationError(
+        'Uploaded image could not be processed'
+      )
+    }
+    await this._client.send(
+      new PutObjectCommand({
+        Bucket: this._config.bucket,
+        Key: key,
+        ContentType: contentType,
+        Body: stripped
+      })
+    )
+    return stripped.length
+  }
+
   // Blurhash, focus, alt text and a video's poster. Decoration only: the media
   // is already verified, so a failure here is logged and the upload stands.
-  // Returns the updated attachment, or null when nothing was updated.
+  // Whatever happens to the analysis, the details built from the original
+  // still reach the row. Returns the updated attachment, or null when nothing
+  // was updated.
   private async _decoratePresignedMedia(
     media: Media,
     accountId: string,
     tempFilePath: string,
-    size: number
+    size: number,
+    prepared: { buffer: Buffer | null; details: Partial<MediaDetailsRecord> }
   ): Promise<MediaStorageSaveFileOutput | null> {
     const mediaId = media.id
+    const { details, buffer } = prepared
     const isVideo = media.original.mimeType.startsWith('video')
     if (!media.original.mimeType.startsWith('image') && !isVideo) return null
-    if (size > PRESIGNED_ANALYSIS_MAX_BYTES) return null
+    if (size > PRESIGNED_ANALYSIS_MAX_BYTES || !buffer) {
+      return this._persistPresignedDetails(mediaId, accountId, details)
+    }
 
     try {
-      const buffer = await fs.readFile(tempFilePath)
       // A video is analysed and described from its representative preview
       // frame; the stored video itself is not an image sharp or the vision
       // model can read.
@@ -557,14 +663,6 @@ export class S3FileStorage implements MediaStorage {
         : buffer
       const analysis = await analyzeImageBuffer(previewBuffer, {
         manualFocus: media.focus
-      })
-      // Read from the uploaded original, before anything re-encodes it. A video
-      // has no readable EXIF here but still gets `inGallery` from the owner's
-      // gallery default.
-      const details = await buildUploadMediaDetails({
-        database: this._database,
-        actorId: media.actorId,
-        original: isVideo ? null : buffer
       })
       let generatedDescription: string | null = null
       if (media.description == null) {
@@ -658,8 +756,34 @@ export class S3FileStorage implements MediaStorage {
         message: 'Failed to analyze presigned media upload',
         err: toLoggableError(error)
       })
+      return this._persistPresignedDetails(mediaId, accountId, details)
     }
     return null
+  }
+
+  // The fallback when the analysis cannot run: only the details are written.
+  private async _persistPresignedDetails(
+    mediaId: string,
+    accountId: string,
+    details: Partial<MediaDetailsRecord>
+  ): Promise<MediaStorageSaveFileOutput | null> {
+    if (Object.keys(details).length === 0) return null
+    try {
+      const updated = await this._database.updateMedia({
+        mediaId,
+        accountId,
+        details
+      })
+      return updated?.media
+        ? await this._getSaveFileOutput(updated.media)
+        : null
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to store the details of a presigned media upload',
+        err: toLoggableError(error)
+      })
+      return null
+    }
   }
 
   async saveFile(actor: Actor, media: MediaSchema) {

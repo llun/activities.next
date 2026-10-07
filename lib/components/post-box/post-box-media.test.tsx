@@ -6,10 +6,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   createNote,
+  deleteAccountMedia,
   getGalleryGears,
   getGallerySettings,
   getMedia,
   updateMediaDetails,
+  updateNote,
   uploadAttachment
 } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -20,6 +22,7 @@ import { PostBox } from './post-box'
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
+  deleteAccountMedia: vi.fn().mockResolvedValue(true),
   createPoll: vi.fn(),
   deleteFitnessFile: vi.fn(),
   describeMedia: vi.fn(),
@@ -387,5 +390,167 @@ describe('PostBox media details', () => {
         'Add a description to every item, or mark it decorative'
       )
     ).not.toBeInTheDocument()
+  })
+
+  it('shows a generic message when the upload error has no message', async () => {
+    uploadAttachmentMock.mockRejectedValueOnce(new Error(''))
+    renderPostBox()
+    attach('heron.png')
+
+    expect(await screen.findByText('Upload failed')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Retry upload of heron.png' })
+    ).toBeInTheDocument()
+  })
+
+  it('leaves no error behind when an item is removed while its upload fails', async () => {
+    const upload = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockReturnValueOnce(upload.promise)
+    renderPostBox()
+    attach('heron.png')
+    await screen.findByText('Reading details…')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove media heron.png' })
+    )
+    upload.reject(new Error('late failure'))
+
+    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByText('Upload failed')).not.toBeInTheDocument()
+  })
+
+  it('deletes the orphaned media when an item is removed before its upload finishes', async () => {
+    const upload = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockReturnValueOnce(upload.promise)
+    renderPostBox()
+    attach('heron.png')
+    await screen.findByText('Reading details…')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove media heron.png' })
+    )
+    upload.resolve(uploaded('media-heron', 'heron.png'))
+
+    await waitFor(() =>
+      expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
+        mediaId: 'media-heron'
+      })
+    )
+    expect(getMediaMock).not.toHaveBeenCalled()
+  })
+
+  it('disables Post while the gallery settings are loading and fails open if they fail', async () => {
+    const pending = createDeferred<ReturnType<typeof settings>>()
+    getGallerySettingsMock.mockReturnValueOnce(pending.promise)
+    renderPostBox()
+    attach('a.png')
+    await screen.findByText('Review')
+
+    expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+
+    pending.reject(new Error('settings down'))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+    )
+  })
+
+  it('announces upload status in a live region', async () => {
+    const upload = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockReturnValueOnce(upload.promise)
+    renderPostBox()
+    attach('heron.png')
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Uploading heron.png'
+    )
+    upload.resolve(uploaded('media-heron', 'heron.png'))
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    )
+  })
+
+  it('sends edited descriptions as media_attributes when updating a status', async () => {
+    vi.mocked(updateNote).mockResolvedValue({
+      content: '',
+      spoilerText: '',
+      mediaAttachments: [],
+      status: { id: 'status-1', text: 'hello', createdAt: 1, reply: '' }
+    } as never)
+    getMediaMock.mockImplementation(async (id) => mediaEntity(id, 'old alt'))
+    const editStatus = {
+      id: 'status-1',
+      actorId: profile.id,
+      actor: profile,
+      to: [],
+      cc: [],
+      edits: [],
+      isLocalActor: true,
+      createdAt: 1,
+      updatedAt: 1,
+      type: 'Note',
+      url: 'https://activities.local/@llun/status-1',
+      text: 'hello',
+      summary: null,
+      reply: '',
+      replies: [],
+      actorAnnounceStatusId: null,
+      isActorLiked: false,
+      isActorBookmarked: false,
+      totalLikes: 0,
+      totalShares: 0,
+      attachments: [
+        {
+          id: 'att-1',
+          actorId: profile.id,
+          statusId: 'status-1',
+          type: 'Document',
+          mediaType: 'image/png',
+          url: 'https://activities.local/api/v1/files/a.png',
+          width: 10,
+          height: 10,
+          name: 'old alt',
+          createdAt: 1,
+          updatedAt: 1,
+          mediaId: 'media-1'
+        }
+      ],
+      tags: []
+    } as never
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        isMediaUploadEnabled
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Update' })).toBeDisabled()
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Review details of/ })
+    )
+    await screen.findByRole('dialog')
+    fireEvent.change(screen.getByLabelText('Description (alt text)'), {
+      target: { value: 'new alt' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Update' })).toBeEnabled()
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+    await waitFor(() =>
+      expect(vi.mocked(updateNote)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mediaAttributes: [{ id: 'media-1', description: 'new alt' }]
+        })
+      )
+    )
   })
 })

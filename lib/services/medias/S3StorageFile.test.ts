@@ -411,6 +411,8 @@ describe('S3FileStorage presigned upload completion', () => {
       if (command instanceof GetObjectCommand) {
         return { Body: Readable.from([ONE_PIXEL_PNG]) }
       }
+      // Completion rewrites an image without its metadata.
+      if (command instanceof PutObjectCommand) return {}
       throw new Error('Unexpected command')
     })
 
@@ -446,6 +448,8 @@ describe('S3FileStorage presigned upload completion', () => {
       if (command instanceof GetObjectCommand) {
         return { Body: Readable.from([ONE_PIXEL_PNG]) }
       }
+      // Completion rewrites an image without its metadata.
+      if (command instanceof PutObjectCommand) return {}
       throw new Error('Unexpected command')
     })
 
@@ -562,6 +566,8 @@ describe('S3FileStorage presigned upload completion', () => {
           }
         }
       }
+      // Completion rewrites an image without its metadata.
+      if (command instanceof PutObjectCommand) return {}
       throw new Error('Unexpected command')
     })
 
@@ -754,6 +760,8 @@ describe('S3FileStorage presigned upload completion', () => {
           }
         }
       }
+      // Completion rewrites an image without its metadata.
+      if (command instanceof PutObjectCommand) return {}
       throw new Error('Unexpected command')
     })
 
@@ -889,6 +897,8 @@ describe('S3FileStorage presigned upload completion', () => {
           }
         }
       }
+      // Completion rewrites an image without its metadata.
+      if (command instanceof PutObjectCommand) return {}
       throw new Error('Unexpected command')
     })
 
@@ -1018,6 +1028,8 @@ describe('S3FileStorage presigned upload completion', () => {
           }
         }
       }
+      // Completion rewrites an image without its metadata.
+      if (command instanceof PutObjectCommand) return {}
       throw new Error('Unexpected command')
     })
 
@@ -1610,8 +1622,279 @@ describe('S3FileStorage presigned upload completion', () => {
 
     expect(extractVideoImage).toHaveBeenCalledTimes(1)
     expect(mockGenerateAltText).not.toHaveBeenCalled()
-    expect(database.updateMedia).not.toHaveBeenCalled()
+    // The analysis failed, but the details still reach the row (and no
+    // description or blurhash is written).
+    expect(database.updateMedia).toHaveBeenCalledWith({
+      mediaId: 'media-video-1',
+      accountId: 'account-1',
+      details: { inGallery: false }
+    })
     expect(result).toMatchObject({ id: 'media-video-1', type: 'video' })
+  })
+
+  describe('upload details and metadata', () => {
+    const createStorage = () =>
+      new S3FileStorage(
+        {
+          type: MediaStorageType.ObjectStorage,
+          bucket: 'bucket',
+          region: 'us-east-1',
+          endpoint: 'https://s3.example.com'
+        },
+        'llun.test',
+        database
+      )
+
+    const gallery = database as unknown as {
+      getGallerySettings: ReturnType<typeof vi.fn>
+      findGalleryGearByDeviceKey: ReturnType<typeof vi.fn>
+      createGalleryGear: ReturnType<typeof vi.fn>
+      getGalleryGearNamesByIds: ReturnType<typeof vi.fn>
+    }
+
+    const settings = (overrides: Record<string, unknown> = {}) => ({
+      autoDescribe: true,
+      galleryDefault: 'never',
+      defaultPlacePrecision: 'exact',
+      ...overrides
+    })
+
+    // Wires one presigned upload of `body` through completion and returns the
+    // PutObject bodies the driver sent.
+    const completeUpload = async (
+      body: Buffer,
+      mimeType: string,
+      fileName: string
+    ) => {
+      const path = `medias/2026-01-01/${fileName}`
+      const row = (state: 'pending' | 'verified') => ({
+        id: 'media-1',
+        actorId: 'actor-1',
+        original: {
+          path,
+          bytes: body.length,
+          mimeType,
+          metaData: {
+            width: 8,
+            height: 8,
+            upload: {
+              state,
+              checksumSha1: checksumHex,
+              checksumSha1Base64: checksumBase64,
+              contentType: mimeType,
+              size: body.length
+            }
+          },
+          fileName
+        }
+      })
+      database.getMediaByIdForAccount.mockResolvedValue(row('pending') as never)
+      database.markMediaUploadVerified.mockResolvedValue(
+        row('verified') as never
+      )
+      database.updateMedia.mockImplementation((async (params: {
+        details?: Record<string, unknown>
+      }) => ({
+        media: {
+          ...row('verified'),
+          details: params.details
+        }
+      })) as never)
+      gallery.findGalleryGearByDeviceKey.mockResolvedValue(null)
+      gallery.createGalleryGear.mockResolvedValue({ id: 'gear-1' })
+      gallery.getGalleryGearNamesByIds.mockResolvedValue({})
+
+      const puts: Buffer[] = []
+      send.mockImplementation(async (command) => {
+        if (command instanceof HeadObjectCommand) {
+          return {
+            ContentLength: body.length,
+            ContentType: mimeType,
+            Metadata: { checksumsha1: checksumHex }
+          }
+        }
+        if (command instanceof GetObjectCommand) {
+          return { Body: Readable.from([body]) }
+        }
+        if (command instanceof PutObjectCommand) {
+          puts.push(readUploadBody(command.input.Body))
+          return {}
+        }
+        throw new Error('Unexpected command')
+      })
+
+      await createStorage().completePresignedUpload(actor, 'media-1')
+      return puts
+    }
+
+    const jpegWithExif = () =>
+      sharp({
+        create: { width: 8, height: 8, channels: 3, background: '#808080' }
+      })
+        .jpeg()
+        .withExif({
+          IFD0: { Make: 'Canon', Model: 'Canon EOS R5' },
+          IFD2: { DateTimeOriginal: '2024:05:06 07:08:09' },
+          IFD3: {
+            GPSLatitudeRef: 'N',
+            GPSLatitude: '51/1 30/1 0/1',
+            GPSLongitudeRef: 'W',
+            GPSLongitude: '0/1 7/1 30/1'
+          }
+        })
+        .toBuffer()
+
+    beforeEach(() => {
+      gallery.getGallerySettings = vi.fn().mockResolvedValue(settings())
+      gallery.findGalleryGearByDeviceKey = vi.fn()
+      gallery.createGalleryGear = vi.fn()
+      gallery.getGalleryGearNamesByIds = vi.fn()
+    })
+
+    it('persists the EXIF details read from the original bytes', async () => {
+      gallery.getGallerySettings.mockResolvedValue(
+        settings({ defaultPlacePrecision: 'area' })
+      )
+      await completeUpload(await jpegWithExif(), 'image/jpeg', 'photo.jpg')
+
+      expect(database.updateMedia).toHaveBeenCalledWith(
+        expect.objectContaining({
+          details: expect.objectContaining({
+            inGallery: false,
+            takenAt: Date.UTC(2024, 4, 6, 7, 8, 9),
+            cameraGearId: 'gear-1',
+            placeLatitude: 51.5,
+            placeLongitude: -0.125,
+            placePrecision: 'area'
+          })
+        })
+      )
+    })
+
+    it('stores the original again without its EXIF and accounts for the new size', async () => {
+      const original = await jpegWithExif()
+      expect((await sharp(original).metadata()).exif).toBeDefined()
+
+      const puts = await completeUpload(original, 'image/jpeg', 'photo.jpg')
+
+      expect(puts).toHaveLength(1)
+      const stored = await sharp(puts[0]).metadata()
+      expect(stored.format).toBe('jpeg')
+      expect(stored.exif).toBeUndefined()
+      expect(PutObjectCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          Bucket: 'bucket',
+          Key: 'medias/2026-01-01/photo.jpg',
+          ContentType: 'image/jpeg'
+        })
+      )
+      expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
+        expect.objectContaining({ originalBytes: puts[0].length })
+      )
+    })
+
+    it('refuses and removes an image that cannot be re-encoded', async () => {
+      // A JPEG header followed by junk passes sharp's metadata probe but not a
+      // decode.
+      const truncated = (await jpegWithExif()).subarray(0, 300)
+      const probe = vi
+        .spyOn(sharp.prototype, 'toBuffer')
+        .mockRejectedValueOnce(new Error('decode failed'))
+
+      await expect(
+        completeUpload(truncated, 'image/jpeg', 'photo.jpg')
+      ).rejects.toThrow(PresignedUploadValidationError)
+      probe.mockRestore()
+
+      expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+      expect(database.deleteMedia).toHaveBeenCalledWith({ mediaId: 'media-1' })
+    })
+
+    it('does not rewrite a video', async () => {
+      const puts = await completeUpload(
+        Buffer.from('video-bytes'),
+        'video/mp4',
+        'clip.mp4'
+      )
+
+      expect(puts).toHaveLength(1) // only the preview thumbnail
+      expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
+        expect.not.objectContaining({ originalBytes: expect.anything() })
+      )
+    })
+
+    it.each([
+      ['always', true],
+      ['never', false]
+    ])(
+      'applies galleryDefault %s to an image and a video',
+      async (galleryDefault, inGallery) => {
+        gallery.getGallerySettings.mockResolvedValue(
+          settings({ galleryDefault })
+        )
+
+        await completeUpload(await jpegWithExif(), 'image/jpeg', 'photo.jpg')
+        expect(database.updateMedia).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            details: expect.objectContaining({ inGallery })
+          })
+        )
+
+        await completeUpload(Buffer.from('video-bytes'), 'video/mp4', 'a.mp4')
+        expect(database.updateMedia).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            details: expect.objectContaining({ inGallery })
+          })
+        )
+      }
+    )
+
+    it('keeps the details when the analysis throws', async () => {
+      gallery.getGallerySettings.mockResolvedValue(
+        settings({ galleryDefault: 'always' })
+      )
+      vi.mocked(extractVideoImage).mockRejectedValue(new Error('ffmpeg'))
+
+      await completeUpload(Buffer.from('video-bytes'), 'video/mp4', 'a.mp4')
+
+      expect(database.updateMedia).toHaveBeenCalledWith({
+        mediaId: 'media-1',
+        accountId: 'account-1',
+        details: { inGallery: true }
+      })
+    })
+
+    it('does not generate alt text when autoDescribe is off', async () => {
+      mockGetConfig.mockReturnValue({
+        altText: {
+          endpoint: 'https://api.openai.com/v1/chat/completions',
+          apiKey: 'test-key',
+          model: 'gpt-4o-mini'
+        }
+      })
+      gallery.getGallerySettings.mockResolvedValue(
+        settings({ autoDescribe: false })
+      )
+
+      await completeUpload(await jpegWithExif(), 'image/jpeg', 'photo.jpg')
+
+      expect(mockGenerateAltText).not.toHaveBeenCalled()
+    })
+
+    it('generates alt text when autoDescribe is on', async () => {
+      mockGetConfig.mockReturnValue({
+        altText: {
+          endpoint: 'https://api.openai.com/v1/chat/completions',
+          apiKey: 'test-key',
+          model: 'gpt-4o-mini'
+        }
+      })
+      mockGenerateAltText.mockResolvedValue('A grey square')
+
+      await completeUpload(await jpegWithExif(), 'image/jpeg', 'photo.jpg')
+
+      expect(mockGenerateAltText).toHaveBeenCalledTimes(1)
+    })
   })
 
   // Regression (F101, F102): completion only compared the object with the

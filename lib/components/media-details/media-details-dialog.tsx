@@ -16,6 +16,8 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
+  useRef,
   useState
 } from 'react'
 
@@ -174,23 +176,35 @@ export const MediaDetailsDialog: FC<Props> = ({
   onSaved
 }) => {
   const uid = useId()
-  const [originals, setOriginals] = useState<Record<string, MediaDetailsDraft>>(
+  const precisionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  // `items` is recomputed by the parent while the dialog is open (uploads
+  // finish, attachments are removed), so items we have not edited yet fall back
+  // to a seed derived from the current `items` instead of a one-time snapshot.
+  const seeds = useMemo<Record<string, MediaDetailsDraft>>(
     () =>
       Object.fromEntries(
-        items.map((item) => [
-          item.id,
-          draftFromDetails(item.description, item.decorative, item.details)
+        items.map((entry) => [
+          entry.id,
+          draftFromDetails(entry.description, entry.decorative, entry.details)
         ])
-      )
+      ),
+    [items]
   )
-  const [drafts, setDrafts] =
-    useState<Record<string, MediaDetailsDraft>>(originals)
-  const [index, setIndex] = useState(() =>
-    Math.max(
-      0,
-      items.findIndex((item) => item.id === initialId)
-    )
+  const [savedOriginals, setOriginals] = useState<
+    Record<string, MediaDetailsDraft>
+  >({})
+  const [editedDrafts, setDrafts] = useState<Record<string, MediaDetailsDraft>>(
+    {}
   )
+  const originals = useMemo(
+    () => ({ ...seeds, ...savedOriginals }),
+    [seeds, savedOriginals]
+  )
+  const drafts = useMemo(
+    () => ({ ...originals, ...editedDrafts }),
+    [originals, editedDrafts]
+  )
+  const [selectedId, setSelectedId] = useState(initialId)
   const [shared, setShared] = useState<SharedSections>({
     gallery: false,
     gear: false,
@@ -206,10 +220,11 @@ export const MediaDetailsDialog: FC<Props> = ({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const item = items[index]
-  const draft = drafts[item.id]
+  // The selected item can disappear (removed or failed upload); clamp.
+  const foundIndex = items.findIndex((entry) => entry.id === selectedId)
+  const index = Math.max(0, foundIndex)
+  const item: MediaDetailsDialogItem | undefined = items[index]
   const total = items.length
-  const video = isVideo(item)
 
   useEffect(() => {
     let active = true
@@ -227,19 +242,27 @@ export const MediaDetailsDialog: FC<Props> = ({
 
   const patchDraft = useCallback(
     (patch: Partial<MediaDetailsDraft>) => {
+      if (!item) return
+      const id = item.id
       setDrafts((current) => ({
         ...current,
-        [item.id]: { ...current[item.id], ...patch }
+        [id]: { ...(current[id] ?? drafts[id]), ...patch }
       }))
     },
-    [item.id]
+    [item, drafts]
   )
 
   const goTo = (next: number) => {
+    const target = items[next]
+    if (!target) return
     setDescribeError(null)
     setAddingGear(null)
-    setIndex(next)
+    setSelectedId(target.id)
   }
+
+  if (!item) return null
+  const draft = drafts[item.id]
+  const video = isVideo(item)
 
   const onRegenerate = async () => {
     const targetId = item.id
@@ -250,7 +273,7 @@ export const MediaDetailsDialog: FC<Props> = ({
       setDrafts((current) => ({
         ...current,
         [targetId]: {
-          ...current[targetId],
+          ...(current[targetId] ?? drafts[targetId]),
           description: text.slice(0, MAX_MEDIA_DESCRIPTION_LENGTH),
           decorative: false
         }
@@ -288,7 +311,7 @@ export const MediaDetailsDialog: FC<Props> = ({
     setSaving(true)
     setSaveError(null)
     const saved: MediaDetailsSavedItem[] = []
-    const nextOriginals = { ...originals }
+    const savedNow: Record<string, MediaDetailsDraft> = {}
     let failure: string | null = null
     for (const target of items) {
       const effective = applySharedSections(drafts[target.id], draft, shared)
@@ -312,7 +335,7 @@ export const MediaDetailsDialog: FC<Props> = ({
             decorative: effective.decorative
           })
         }
-        nextOriginals[target.id] = effective
+        savedNow[target.id] = effective
       } catch (error) {
         failure = `Could not save ${target.id === item.id ? 'this item' : `item ${items.indexOf(target) + 1}`}: ${errorMessage(error, 'Failed to save media details.')}`
         break
@@ -321,8 +344,14 @@ export const MediaDetailsDialog: FC<Props> = ({
     if (saved.length > 0) onSaved(saved)
     setSaving(false)
     if (failure) {
-      setOriginals(nextOriginals)
-      setDrafts((current) => ({ ...current, ...nextOriginals }))
+      // Only the saved items get a new baseline; the failed item and the ones
+      // after it keep the user's unsaved drafts so Save can simply be retried.
+      setOriginals((current) => ({ ...current, ...savedNow }))
+      setDrafts((current) => {
+        const next = { ...current }
+        for (const id of Object.keys(savedNow)) next[id] = savedNow[id]
+        return next
+      })
       setSaveError(failure)
       return
     }
@@ -360,21 +389,24 @@ export const MediaDetailsDialog: FC<Props> = ({
     draft.placePrecision || settings?.defaultPlacePrecision || 'area'
 
   const onPrecisionKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const step =
-      event.key === 'ArrowRight' || event.key === 'ArrowDown'
-        ? 1
-        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
-          ? -1
-          : 0
-    if (!step) return
-    event.preventDefault()
+    const count = MEDIA_PLACE_PRECISIONS.length
     const current = MEDIA_PLACE_PRECISIONS.indexOf(precision)
-    const next =
-      MEDIA_PLACE_PRECISIONS[
-        (current + step + MEDIA_PLACE_PRECISIONS.length) %
-          MEDIA_PLACE_PRECISIONS.length
-      ]
-    patchDraft({ placePrecision: next })
+    let nextIndex: number
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      nextIndex = (current + 1) % count
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = (current - 1 + count) % count
+    } else if (event.key === 'Home') {
+      nextIndex = 0
+    } else if (event.key === 'End') {
+      nextIndex = count - 1
+    } else {
+      return
+    }
+    event.preventDefault()
+    patchDraft({ placePrecision: MEDIA_PLACE_PRECISIONS[nextIndex] })
+    // Roving tabindex: focus follows the selection.
+    precisionRefs.current[nextIndex]?.focus()
   }
 
   const idFor = (name: string) => `${uid}-${name}`
@@ -792,9 +824,12 @@ export const MediaDetailsDialog: FC<Props> = ({
                 className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1"
                 onKeyDown={onPrecisionKeyDown}
               >
-                {MEDIA_PLACE_PRECISIONS.map((option) => (
+                {MEDIA_PLACE_PRECISIONS.map((option, optionIndex) => (
                   <button
                     key={option}
+                    ref={(node) => {
+                      precisionRefs.current[optionIndex] = node
+                    }}
                     type="button"
                     role="radio"
                     aria-checked={precision === option}

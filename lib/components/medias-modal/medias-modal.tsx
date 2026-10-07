@@ -49,31 +49,49 @@ export const MediasModal: FC<Props> = ({
   const touchEndX = useRef<number | null>(null)
   const isSwipeGesture = useRef(false)
   const swipeTrackRef = useRef<HTMLDivElement>(null)
-  // Public details, keyed by media id so going back to a photo reuses the
-  // answer. Requested ids are remembered so a photo is fetched at most once
-  // (a failed request is forgotten, so a later visit retries it).
+  // Public details, keyed by media id, so going back to a photo reuses the
+  // answer. The cache belongs to one viewing session: it is dropped whenever
+  // the attachment list changes (which includes closing the modal, since the
+  // parent passes null), so a later open never shows details fetched before
+  // the owner changed them. Requested ids are remembered so a photo is fetched
+  // at most once per session (a failed request is forgotten, so a later visit
+  // retries it). Responses carry the session they were requested in and are
+  // dropped when they arrive after the session has ended.
   const [detailsByMediaId, setDetailsByMediaId] = useState<
     Record<string, MediaPublicDetails | null>
   >({})
   const requestedMediaIds = useRef<Set<string>>(new Set())
+  const detailsSession = useRef(0)
   const currentMediaId = medias?.[currentIndex]?.mediaId ?? null
+
+  useEffect(() => {
+    detailsSession.current += 1
+    requestedMediaIds.current = new Set()
+    setDetailsByMediaId((current) =>
+      Object.keys(current).length ? {} : current
+    )
+  }, [medias])
 
   useEffect(() => {
     if (!currentMediaId || requestedMediaIds.current.has(currentMediaId)) {
       return
     }
     requestedMediaIds.current.add(currentMediaId)
+    const session = detailsSession.current
     getMediaPublicDetails(currentMediaId).then(
-      (details) =>
+      (details) => {
+        if (session !== detailsSession.current) return
         setDetailsByMediaId((current) => ({
           ...current,
           [currentMediaId]: details
-        })),
+        }))
+      },
       () => {
+        if (session !== detailsSession.current) return
         requestedMediaIds.current.delete(currentMediaId)
       }
     )
-  }, [currentMediaId])
+  }, [currentMediaId, medias])
 
   useEffect(() => {
     setMounted(true)

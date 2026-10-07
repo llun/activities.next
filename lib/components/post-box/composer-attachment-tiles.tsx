@@ -1,5 +1,5 @@
 import { Camera, Loader2, MapPin, RotateCw, X } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useId } from 'react'
 
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
@@ -37,13 +37,8 @@ const TileStatus: FC<{
   reading: boolean
   needsReview: boolean
 }> = ({ attachment, details, decorative, error, reading, needsReview }) => {
-  if (error) {
-    return (
-      <span className="text-xs text-destructive" title={error}>
-        Upload failed
-      </span>
-    )
-  }
+  // The failure text lives outside the (disabled) tile button; see below.
+  if (error) return null
   if (attachment.isLoading || reading) {
     return (
       <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -82,10 +77,22 @@ export const ComposerAttachmentTiles: FC<Props> = ({
   onRemove,
   onRetry
 }) => {
+  const errorId = useId()
   if (attachments.length === 0) return null
+
+  const announcements = attachments.flatMap((item, index) => {
+    const label = getAttachmentLabel(item, fileNames, index)
+    if (uploadErrors[item.id]) return [`Upload of ${label} failed`]
+    if (item.isLoading) return [`Uploading ${label}`]
+    if (detailsPending[item.id]) return [`Reading details of ${label}`]
+    return []
+  })
 
   return (
     <div>
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcements.join('. ')}
+      </p>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
         {attachments.map((item, index) => {
           const label = getAttachmentLabel(item, fileNames, index)
@@ -134,15 +141,26 @@ export const ComposerAttachmentTiles: FC<Props> = ({
                 />
               </button>
               {error ? (
-                <button
-                  type="button"
-                  aria-label={`Retry upload of ${label}`}
-                  onClick={() => onRetry(item.id)}
-                  className="absolute right-1.5 bottom-1.5 flex items-center gap-1 rounded-md bg-background px-1.5 py-0.5 text-xs font-medium shadow-xs"
-                >
-                  <RotateCw className="size-3" />
-                  Retry
-                </button>
+                <div className="flex items-center justify-between gap-2 px-1.5 pt-1.5">
+                  <span
+                    id={`${errorId}-${item.id}`}
+                    className="text-xs text-destructive"
+                    title={error}
+                  >
+                    Upload failed
+                    <span className="sr-only">: {error}</span>
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Retry upload of ${label}`}
+                    aria-describedby={`${errorId}-${item.id}`}
+                    onClick={() => onRetry(item.id)}
+                    className="flex items-center gap-1 rounded-md border bg-background px-1.5 py-0.5 text-xs font-medium shadow-xs"
+                  >
+                    <RotateCw className="size-3" />
+                    Retry
+                  </button>
+                </div>
               ) : null}
               <button
                 type="button"
