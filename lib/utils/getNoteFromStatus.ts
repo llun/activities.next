@@ -61,9 +61,10 @@ export const getNoteFromStatus = (
     tag: actualStatus.tags
       .map((tag) => getMentionFromTag(tag) ?? getEmojiFromTag(tag))
       .filter((tag) => tag !== null),
-    // Without it a receiver shows media the author marked sensitive unblurred
-    // whenever the post has no content warning.
-    ...(actualStatus.sensitive ? { sensitive: true } : null),
+    // Always a boolean, as Mastodon sends it: a receiver shows media marked
+    // sensitive unblurred without it, and an edit that drops the key would
+    // never un-mark a post on a receiver that keeps the stored flag.
+    sensitive: Boolean(actualStatus.sensitive),
     replies: {
       id: `${actualStatus.id}/replies`,
       type: 'Collection',

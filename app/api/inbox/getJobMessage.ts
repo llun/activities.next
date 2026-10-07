@@ -178,7 +178,7 @@ const isActorType = (type: unknown) =>
 // `null` when it is one but may not be applied. Only an actor may update
 // itself: the signer, the activity's actor and the object must be the same id.
 // The job re-fetches the profile from origin rather than trusting this body.
-const getActorUpdateJobMessage = (
+export const getActorUpdateJobMessage = (
   activity: StatusActivity,
   verifiedSenderActorId: string,
   deduplicationId: string
@@ -189,7 +189,8 @@ const getActorUpdateJobMessage = (
     ? isActorType(object.type)
     : // A bare id can only be read as a profile update when it names the actor.
       typeof objectId === 'string' &&
-      normalizeActorId(objectId) === normalizeActorId(activity.actor)
+      normalizeActorId(objectId) ===
+        normalizeActorId(extractActivityPubId(activity.actor))
   if (!isActorObject) return undefined
 
   const normalizedSenderId = normalizeActorId(verifiedSenderActorId)

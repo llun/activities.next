@@ -72,6 +72,9 @@ describe('deleteActorJob', () => {
     fetchMock.resetMocks()
     mockRequests(fetchMock)
     vi.clearAllMocks()
+    // A factory mock keeps its implementation through clearAllMocks, so a
+    // test that rejects or inspects the send would leak into the next one.
+    vi.mocked(deleteActor).mockReset().mockResolvedValue(true)
     vi.mocked(getQueue).mockReturnValue({
       runsInline: true,
       publish,
@@ -214,14 +217,14 @@ describe('deleteActorJob', () => {
       return actorId
     }
 
-    it('sends the Delete to remote follower inboxes only, before removing the actor', async () => {
+    it('sends the Delete to remote follower inboxes only, while the deletion is still scheduled', async () => {
       const suffix = `${Date.now()}-remote`
       const actorId = await createFollowedActor(suffix)
-      let actorStillStored = false
+      let statusDuringSend: string | null | undefined
       vi.mocked(deleteActor).mockImplementation(async () => {
-        actorStillStored = Boolean(
-          await database.getActorFromId({ id: actorId })
-        )
+        statusDuringSend = (
+          await database.getActorDeletionStatus({ id: actorId })
+        )?.status
         return true
       })
 
@@ -237,8 +240,25 @@ describe('deleteActorJob', () => {
       expect(vi.mocked(deleteActor).mock.calls[0][0].currentActor.id).toBe(
         actorId
       )
-      expect(actorStillStored).toBe(true)
+      expect(statusDuringSend).toBe('scheduled')
       expect(await database.getActorFromId({ id: actorId })).toBeNull()
+    })
+
+    it('keeps the actor when the deletion is cancelled while federating', async () => {
+      const suffix = `${Date.now()}-cancel`
+      const actorId = await createFollowedActor(suffix)
+      vi.mocked(deleteActor).mockImplementation(async () => {
+        await database.cancelActorDeletion({ actorId })
+        return true
+      })
+
+      await deleteActorJob(database, {
+        id: `delete-job-federate-${suffix}`,
+        name: DELETE_ACTOR_JOB_NAME,
+        data: { actorId }
+      })
+
+      expect(await database.getActorFromId({ id: actorId })).not.toBeNull()
     })
 
     it('still deletes the actor when the Delete cannot be sent', async () => {

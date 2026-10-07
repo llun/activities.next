@@ -34,8 +34,8 @@ const DeleteActorJobData = z.object({
 // and follow relationships instead of keeping a copy that only expires when
 // a fetch finally answers 410. Reaches followers and accepted relays, the
 // audience Mastodon uses. The Delete must be signed with the actor's key,
-// which `deleteActorData` removes with the row, so the sends happen here and
-// now rather than as queued deliveries that would find no key on retry.
+// which `deleteActorData` removes with the row, so the sends happen in this job
+// rather than as queued deliveries that would find no key on retry.
 // Best effort: a failure is logged and never stops the local deletion.
 const federateActorDeletion = async (database: Database, actor: Actor) => {
   if (!actor.privateKey) return
@@ -208,6 +208,30 @@ export const deleteActorJob = createJobHandle(
         return
       }
 
+      // Federate while the row is still `scheduled`: a worker that dies during
+      // the sends is retried from here, whereas one marked `deleting` would be
+      // skipped by the status check above and never finish. A repeated Delete
+      // is a no-op for the receiver.
+      await federateActorDeletion(database, actor)
+
+      // The sends take a while, and a cancel landing meanwhile must still win
+      // over the local delete.
+      const statusAfterFederation = await database.getActorDeletionStatus({
+        id: actorId
+      })
+      if (statusAfterFederation?.status !== 'scheduled') {
+        logger.info({
+          message: 'Actor deletion was cancelled while federating',
+          actorId,
+          currentStatus: statusAfterFederation?.status ?? null
+        })
+        span.setStatus({
+          code: SpanStatusCode.OK,
+          message: 'Deletion cancelled or processed'
+        })
+        return
+      }
+
       // Store email for notification before deletion
       const accountEmail = actor.account?.email
       logger.debug({
@@ -238,8 +262,6 @@ export const deleteActorJob = createJobHandle(
         )
         throw err
       }
-
-      await federateActorDeletion(database, actor)
 
       // Delete all actor data
       try {

@@ -1349,10 +1349,16 @@ legacy shape left to copy.
   Mastodon. The activity id is `<actor>#updates/<updatedAt>`, with `updatedAt`
   carried in the job so a retried job resends the same Update.
 - **Account deletion sends `Delete(actor)` from `deleteActorJob` itself, inline,
-  after `startActorDeletion` and before `deleteActorData`.** The Delete must be
-  signed with the actor's key, and `deleteActorData` removes the row that holds
-  it, so a queued `DeliverActivityJob` would find no actor on retry and discard
-  itself. Do not move the sends after the data delete or onto the queue. Inboxes
+  while the row is still `scheduled`: after the due-time checks and BEFORE
+  `startActorDeletion`.** The Delete must be signed with the actor's key, and
+  `deleteActorData` removes the row that holds it, so a queued
+  `DeliverActivityJob` would find no actor on retry and discard itself. Do not
+  move the sends after the data delete or onto the queue. Do not move them after
+  `startActorDeletion` either: a worker that dies mid-fan-out is retried, and a
+  retry of a row already marked `deleting` stops at the status check, which
+  would leave the account in `deleting` with its data never removed. The job
+  re-reads the status after the sends so a cancel that landed meanwhile still
+  keeps the account. Inboxes
   of LOCAL followers (`getLocalFollowersForActorId`) are left out: delivering
   there would run the inbound actor delete (`deleteObjectJob` →
   `database.deleteActor`) on the row the job is still emptying. Sending is best
@@ -1364,11 +1370,14 @@ legacy shape left to copy.
   signer, the activity's `actor` and the object id are the same actor. The job
   refreshes only a stored remote row: an actor never stored has nothing to
   refresh, and a local row is never rewritten from the network.
-- **`sensitive` federates both ways.** Outbound notes carry `sensitive: true`
-  when the status is marked (both `getNoteFromStatus` and `toActivityPubObject`).
-  The key is omitted otherwise, which receivers read as false. Inbound
-  `createNoteJob` stores the flag, and `updateNoteJob` applies it only when the
-  edit carries a boolean, so an edit that omits the key keeps the stored value.
+- **`sensitive` federates both ways.** Outbound notes always carry it as a
+  boolean (both `getNoteFromStatus` and `toActivityPubObject`), as Mastodon does.
+  Omitting `false` would leave an un-marked post sensitive on any receiver that
+  keeps the stored flag when an edit omits the key, which is what this server's
+  own `updateNoteJob` does. Inbound `createNoteJob` stores the flag, and
+  `updateNoteJob` applies it only when the edit carries a boolean. A
+  non-boolean value parses as absent (`.catch(undefined)` on the schema) rather
+  than rejecting the note.
 
 <a id="agents-better-auth-plugin-guidelines"></a>
 

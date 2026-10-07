@@ -11,7 +11,7 @@ import {
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { getInboxJobId } from './getInboxJobId'
-import { getJobMessage } from './getJobMessage'
+import { getActorUpdateJobMessage, getJobMessage } from './getJobMessage'
 
 const verifiedSenderActorId = 'https://remote.test/users/alice'
 
@@ -453,18 +453,40 @@ describe('getJobMessage', () => {
       expect(result).toBeNull()
     })
 
-    it('leaves an Update of a note by bare id to the note path', () => {
-      const result = getJobMessage(
-        {
-          id: updateId,
-          type: 'Update',
-          actor: verifiedSenderActorId,
-          object: 'https://remote.test/users/alice/statuses/1'
-        } as never,
-        verifiedSenderActorId
-      )
+    it.each([
+      ['a bare note id', 'https://remote.test/users/alice/statuses/1'],
+      [
+        'an embedded Note',
+        { id: 'https://remote.test/users/alice/statuses/1', type: 'Note' }
+      ]
+    ])('leaves an Update carrying %s to the note path', (_, object) => {
+      expect(
+        getActorUpdateJobMessage(
+          {
+            id: updateId,
+            type: 'Update',
+            actor: verifiedSenderActorId,
+            object
+          } as never,
+          verifiedSenderActorId,
+          'dedup'
+        )
+      ).toBeUndefined()
+    })
 
-      expect(result).toBeNull()
+    it('rejects a bare actor-id Update signed by someone else', () => {
+      expect(
+        getActorUpdateJobMessage(
+          {
+            id: updateId,
+            type: 'Update',
+            actor: 'https://remote.test/users/mallory',
+            object: 'https://remote.test/users/mallory'
+          } as never,
+          verifiedSenderActorId,
+          'dedup'
+        )
+      ).toBeNull()
     })
   })
 

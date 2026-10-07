@@ -564,9 +564,8 @@ export const toActivityPubObject = (status: Status): Note | Question => {
       .filter((tag) => tag !== null),
     // Mirrors getNoteFromStatus so a fetched note hides the same media as a
     // delivered one.
-    ...('sensitive' in originalStatus && originalStatus.sensitive
-      ? { sensitive: true }
-      : null),
+    sensitive:
+      'sensitive' in originalStatus && Boolean(originalStatus.sensitive),
     replies: {
       id: `${originalStatus.id}/replies`,
       type: 'Collection',

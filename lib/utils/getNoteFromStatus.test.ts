@@ -141,8 +141,8 @@ describe('getNoteFromStatus quote emission', () => {
 describe('getNoteFromStatus sensitive flag', () => {
   it.each([
     { sensitive: true, expected: true },
-    { sensitive: false, expected: undefined },
-    { sensitive: undefined, expected: undefined }
+    { sensitive: false, expected: false },
+    { sensitive: undefined, expected: false }
   ])(
     'emits sensitive $expected for a status marked $sensitive',
     ({ sensitive, expected }) => {
