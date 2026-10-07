@@ -341,6 +341,7 @@ export const GearComponentsCard: FC<Props> = ({
       {/* The overview's section heading row (see `FitnessSection`), built by
           hand because the scroll steppers sit between the count and Add. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Wrench aria-hidden className="-mr-1 size-4 shrink-0 text-primary" />
         <h2 id={headingId} className="text-base font-semibold">
           Components
         </h2>

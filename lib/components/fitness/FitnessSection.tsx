@@ -1,9 +1,12 @@
+import type { LucideIcon } from 'lucide-react'
 import { FC, ReactNode, useId } from 'react'
 
 import { cn } from '@/lib/utils'
 
 interface Props {
   title: ReactNode
+  /** The subject's icon, drawn before the heading. */
+  icon?: LucideIcon
   /** A short muted note beside the heading, such as "3 installed". */
   meta?: ReactNode
   /** Controls for the section, at the end of the heading row. */
@@ -23,6 +26,7 @@ interface Props {
  */
 export const FitnessSection: FC<Props> = ({
   title,
+  icon: Icon,
   meta,
   actions,
   description,
@@ -38,6 +42,9 @@ export const FitnessSection: FC<Props> = ({
     >
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {Icon ? (
+            <Icon aria-hidden className="text-primary -mr-1 size-4 shrink-0" />
+          ) : null}
           <h2 id={headingId} className="text-base font-semibold">
             {title}
           </h2>

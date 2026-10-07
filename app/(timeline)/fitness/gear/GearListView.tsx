@@ -139,6 +139,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
   return (
     <FitnessSection
       title={copy.sectionTitle}
+      icon={KindIcon}
       meta={`${active.length} active`}
       actions={
         <Button variant="outline" size="sm" onClick={() => onAdd(kind)}>
@@ -308,7 +309,11 @@ const DeviceSection: FC<{
   if (gears.length === 0) return null
 
   return (
-    <FitnessSection title="Devices" meta={`${gears.length} recording`}>
+    <FitnessSection
+      title="Devices"
+      icon={Watch}
+      meta={`${gears.length} recording`}
+    >
       <div className={GEAR_TABLE_SCROLLER}>
         <table className="w-full min-w-[560px] table-fixed text-sm">
           {/* 33.5/22.5/34/10: the first two columns and the Actions column are
