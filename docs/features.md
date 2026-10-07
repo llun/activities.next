@@ -98,7 +98,7 @@ This document tracks the implemented and planned features for Activity.next.
 - ✅ **Mutes** — Mute and unmute accounts
 - ✅ **WebFinger** — Actor discovery via `/.well-known/webfinger`, including the `http://ostatus.org/schema/1.0/subscribe` remote-follow template
 - ✅ **Remote follow** — Both directions of the fediverse remote-follow handshake: `/authorize_interaction?uri=…` lets a signed-in local user follow an account another server sent them to, and a logged-out visitor viewing a local profile can enter their own handle to be redirected to their home server's follow page (resolved server-side via `GET /api/v1/remote-follow`)
-- ✅ **NodeInfo** — Instance metadata at `/.well-known/nodeinfo`
+- ✅ **NodeInfo** — Instance metadata at `/.well-known/nodeinfo` (NodeInfo 2.0 and 2.1)
 - ✅ **OAuth Authorization Server metadata** — At `/.well-known/oauth-authorization-server`
 - ✅ **Instance legal documents** — Admin-configured plain-text pages via `GET /api/v1/instance/privacy_policy` and `GET /api/v1/instance/terms_of_service` (plus `GET /api/v1/instance/terms_of_service/:date`), backed by the optional `ACTIVITIES_PRIVACY_POLICY` / `ACTIVITIES_TERMS_OF_SERVICE` config keys; each returns 404 when its document is unset
 - ✅ **Health check** — Unauthenticated `GET /health` liveness probe returning `{"status":"UP"}`

@@ -4,8 +4,11 @@ import { logger } from '@/lib/utils/logger'
 
 import {
   NODE_INFO_20_CONTENT_TYPE,
+  NODE_INFO_21_CONTENT_TYPE,
   buildNodeInfo20,
-  getNodeInfo20
+  buildNodeInfo21,
+  getNodeInfo20,
+  getNodeInfo21
 } from './nodeinfo'
 
 const DEFAULT_CONFIG = {
@@ -49,6 +52,24 @@ describe('NODE_INFO_20_CONTENT_TYPE', () => {
     expect(NODE_INFO_20_CONTENT_TYPE).toBe(
       'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.0#"'
     )
+  })
+})
+
+describe('NODE_INFO_21_CONTENT_TYPE', () => {
+  it('carries the NodeInfo 2.1 schema profile', () => {
+    expect(NODE_INFO_21_CONTENT_TYPE).toBe(
+      'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"'
+    )
+  })
+})
+
+describe('getNodeInfo21', () => {
+  it('sets version 2.1 and keeps the 2.0 metadata', () => {
+    const nodeInfo = getNodeInfo21(STATS)
+
+    expect(nodeInfo.version).toBe('2.1')
+    expect(nodeInfo.metadata.nodeName).toBe('Test Service')
+    expect(nodeInfo.usage.localPosts).toBe(99)
   })
 })
 
@@ -106,5 +127,51 @@ describe('buildNodeInfo20', () => {
     } as unknown as ReturnType<typeof getDatabase>)
 
     expect(await buildNodeInfo20()).toBeNull()
+  })
+})
+
+describe('buildNodeInfo21', () => {
+  it('returns null and logs when the database is unavailable', async () => {
+    mockedGetDatabase.mockReturnValue(null)
+
+    expect(await buildNodeInfo21()).toBeNull()
+    expect(logger.error).toHaveBeenCalledWith(
+      'NodeInfo 2.1 requested but the database is unavailable'
+    )
+  })
+
+  it('builds the document from database stats', async () => {
+    const getNodeInfoStats = vi.fn().mockResolvedValue(STATS)
+    mockedGetDatabase.mockReturnValue({
+      getNodeInfoStats
+    } as unknown as ReturnType<typeof getDatabase>)
+
+    const nodeInfo = await buildNodeInfo21()
+
+    expect(getNodeInfoStats).toHaveBeenCalledTimes(1)
+    expect(nodeInfo).toMatchObject({
+      version: '2.1',
+      usage: {
+        users: { total: 7, activeMonth: 2, activeHalfyear: 5 },
+        localPosts: 99,
+        localComments: 0
+      },
+      metadata: {
+        nodeName: 'Test Service',
+        nodeDescription: 'Test description'
+      }
+    })
+  })
+
+  it('returns null when the stats query throws', async () => {
+    mockedGetDatabase.mockReturnValue({
+      getNodeInfoStats: vi.fn().mockRejectedValue(new Error('db down'))
+    } as unknown as ReturnType<typeof getDatabase>)
+
+    expect(await buildNodeInfo21()).toBeNull()
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      'Failed to build NodeInfo 2.1 document'
+    )
   })
 })

@@ -188,7 +188,7 @@ The server implements the [ActivityPub](https://www.w3.org/TR/activitypub/) prot
 - **Outbox** (`/api/users/:username/outbox`) — Lists activities by a local actor
 - **WebFinger** (`/.well-known/webfinger`) — Actor discovery, including the `http://ostatus.org/schema/1.0/subscribe` template that points remote-follow visitors at `/authorize_interaction`
 - **Remote follow** (`/authorize_interaction?uri=…`) — Mastodon-compatible landing page where a signed-in local user confirms following an account another server sent them to; the outbound half (a logged-out visitor following a local account from their own server) resolves through `GET /api/v1/remote-follow`
-- **NodeInfo** (`/.well-known/nodeinfo`) — Instance metadata
+- **NodeInfo** (`/.well-known/nodeinfo`) — Instance metadata, served as NodeInfo 2.0 and 2.1
 - **HTTP Signatures** — All outgoing requests are signed; incoming requests are verified
 
 #### Inbound Forwarding & Verification
