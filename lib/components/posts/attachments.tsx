@@ -5,6 +5,7 @@ import {
   CSSProperties,
   FC,
   MouseEvent,
+  UIEvent,
   useCallback,
   useEffect,
   useId,
@@ -59,6 +60,17 @@ const getMediaGeometry = ({ width, height }: Attachment) => {
       ratio === width / height ? `${width} / ${height}` : String(ratio),
     naturalWidth: width
   }
+}
+
+// The 1-based position counter names the first item whose midpoint has reached
+// the left edge of the viewport: a card half-scrolled away still reads as
+// "behind" until most of it has gone.
+const getFirstVisibleIndex = (strip: HTMLElement) => {
+  const children = Array.from(strip.children) as HTMLElement[]
+  const index = children.findIndex(
+    (child) => child.offsetLeft + child.offsetWidth / 2 >= strip.scrollLeft
+  )
+  return index === -1 ? Math.max(0, children.length - 1) : index
 }
 
 const MEDIA_BOX_CLASS =
@@ -309,6 +321,7 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
   )
   const strip = useMediaStripScroll(items.map((item) => item.width).join(','))
   const { canScrollLeft, canScrollRight } = strip
+  const [activeIndex, setActiveIndex] = useState(0)
 
   if (status.type !== StatusType.enum.Note) return null
   if (!pictures.length && !players.length) return null
@@ -400,6 +413,11 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
   }
 
   const overflowing = canScrollLeft || canScrollRight
+  const showChrome = items.length >= 2 && overflowing
+  const handleStripScroll = (event: UIEvent<HTMLDivElement>) => {
+    strip.measure()
+    setActiveIndex(getFirstVisibleIndex(event.currentTarget))
+  }
   const stripStyle: CSSProperties = {
     minHeight: STRIP_ROW_HEIGHT,
     scrollSnapType: STRIP_SNAP_TYPE
@@ -409,116 +427,140 @@ export const Attachments: FC<Props> = ({ status, onMediaSelected }) => {
     <>
       {items.length ? (
         <div className={cn('mt-3', MEDIA_BLEED_CLASS)}>
-          <div
-            ref={strip.ref}
-            onScroll={strip.measure}
-            role="group"
-            aria-label={`${items.length} media attachments${overflowing ? ', scroll for more' : ''}`}
-            className={cn(
-              'no-scrollbar relative flex gap-3 overflow-x-auto',
-              MEDIA_ITEM_INSET_CLASS,
-              MEDIA_STRIP_SNAP_INSET_CLASS
-            )}
-            style={stripStyle}
-          >
-            {items.map(({ attachment, width }, index) => {
-              const caption = attachment.name?.trim()
-              const cornerClass = getStripItemCornerClass(index, items.length)
-              const isAnimation = isAnimationAttachment(attachment)
-              return (
-                <div
-                  key={attachment.id}
-                  className="flex flex-none flex-col"
-                  style={{ width, maxWidth: STRIP_ITEM_MAX_WIDTH }}
-                >
-                  {isAnimation ? (
-                    <AnimationCard
-                      attachment={attachment}
-                      onOpen={openMedia(index)}
-                      label={mediaLabel(attachment, index)}
-                      className={cn('h-[240px] w-full flex-none', cornerClass)}
-                      style={{ scrollSnapAlign: 'start' }}
-                      mediaClassName={cn(
-                        'h-full w-full object-cover',
-                        cornerClass
-                      )}
-                      loading="lazy"
-                    />
-                  ) : isVideoAttachment(attachment) ? (
-                    <VideoCard
-                      attachment={attachment}
-                      className={cn('h-[240px] w-full flex-none', cornerClass)}
-                      style={{ scrollSnapAlign: 'start' }}
-                      mediaClassName={cn(
-                        'h-full w-full object-contain',
-                        cornerClass
-                      )}
-                      loading="lazy"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={openMedia(index)}
-                      aria-label={mediaLabel(attachment, index)}
-                      className={cn(
-                        MEDIA_BOX_CLASS,
-                        MEDIA_FOCUS_CLASS,
-                        'h-[240px] w-full flex-none',
-                        cornerClass
-                      )}
-                      style={{ scrollSnapAlign: 'start' }}
-                    >
-                      <Media
+          <div className="relative">
+            <div
+              ref={strip.ref}
+              onScroll={handleStripScroll}
+              role="group"
+              aria-label={`${items.length} media attachments${overflowing ? ', scroll for more' : ''}`}
+              className={cn(
+                'no-scrollbar relative flex gap-3 overflow-x-auto',
+                MEDIA_ITEM_INSET_CLASS,
+                MEDIA_STRIP_SNAP_INSET_CLASS
+              )}
+              style={stripStyle}
+            >
+              {items.map(({ attachment, width }, index) => {
+                const caption = attachment.name?.trim()
+                const cornerClass = getStripItemCornerClass(index, items.length)
+                const isAnimation = isAnimationAttachment(attachment)
+                return (
+                  <div
+                    key={attachment.id}
+                    className="flex flex-none flex-col"
+                    style={{ width, maxWidth: STRIP_ITEM_MAX_WIDTH }}
+                  >
+                    {isAnimation ? (
+                      <AnimationCard
+                        attachment={attachment}
+                        onOpen={openMedia(index)}
+                        label={mediaLabel(attachment, index)}
                         className={cn(
+                          'h-[240px] w-full flex-none',
+                          cornerClass
+                        )}
+                        style={{ scrollSnapAlign: 'start' }}
+                        mediaClassName={cn(
                           'h-full w-full object-cover',
                           cornerClass
                         )}
-                        attachment={attachment}
                         loading="lazy"
                       />
-                    </button>
-                  )}
-                  {caption ? (
-                    <Caption
-                      identity={attachment.id}
-                      text={caption}
-                      tags={status.tags}
-                    />
-                  ) : null}
-                </div>
-              )
-            })}
-          </div>
-          {overflowing ? (
-            <div className="mt-3 flex justify-end gap-2 pr-[var(--post-media-bleed-right,1rem)]">
-              <button
-                type="button"
-                aria-label="Previous media"
-                aria-disabled={!canScrollLeft}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  if (!canScrollLeft) return
-                  strip.scrollByPage(-1)
-                }}
-                className="flex size-11 items-center justify-center rounded-full border bg-background text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 aria-disabled:cursor-default aria-disabled:opacity-50"
-              >
-                <ChevronLeft className="size-5" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                aria-label="Next media"
-                aria-disabled={!canScrollRight}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  if (!canScrollRight) return
-                  strip.scrollByPage(1)
-                }}
-                className="flex size-11 items-center justify-center rounded-full border bg-background text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 aria-disabled:cursor-default aria-disabled:opacity-50"
-              >
-                <ChevronRight className="size-5" aria-hidden="true" />
-              </button>
+                    ) : isVideoAttachment(attachment) ? (
+                      <VideoCard
+                        attachment={attachment}
+                        className={cn(
+                          'h-[240px] w-full flex-none',
+                          cornerClass
+                        )}
+                        style={{ scrollSnapAlign: 'start' }}
+                        mediaClassName={cn(
+                          'h-full w-full object-contain',
+                          cornerClass
+                        )}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={openMedia(index)}
+                        aria-label={mediaLabel(attachment, index)}
+                        className={cn(
+                          MEDIA_BOX_CLASS,
+                          MEDIA_FOCUS_CLASS,
+                          'h-[240px] w-full flex-none',
+                          cornerClass
+                        )}
+                        style={{ scrollSnapAlign: 'start' }}
+                      >
+                        <Media
+                          className={cn(
+                            'h-full w-full object-cover',
+                            cornerClass
+                          )}
+                          attachment={attachment}
+                          loading="lazy"
+                        />
+                      </button>
+                    )}
+                    {caption ? (
+                      <Caption
+                        identity={attachment.id}
+                        text={caption}
+                        tags={status.tags}
+                      />
+                    ) : null}
+                  </div>
+                )
+              })}
             </div>
-          ) : null}
+            {showChrome ? (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-xs font-medium text-white tabular-nums"
+              >
+                {`${Math.min(activeIndex, items.length - 1) + 1} / ${items.length}`}
+              </span>
+            ) : null}
+            {showChrome && canScrollLeft ? (
+              <>
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-linear-to-r from-background/70 to-transparent"
+                />
+                <button
+                  type="button"
+                  aria-label="Previous media"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    strip.scrollByPage(-1)
+                  }}
+                  className="absolute left-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-background/95 text-foreground shadow-md transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <ChevronLeft className="size-5" aria-hidden="true" />
+                </button>
+              </>
+            ) : null}
+            {showChrome && canScrollRight ? (
+              <>
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-linear-to-l from-background/70 to-transparent"
+                />
+                <button
+                  type="button"
+                  aria-label="Next media"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    strip.scrollByPage(1)
+                  }}
+                  className="absolute right-2 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-background/95 text-foreground shadow-md transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <ChevronRight className="size-5" aria-hidden="true" />
+                </button>
+              </>
+            ) : null}
+          </div>
         </div>
       ) : null}
       {audioPlayers}
