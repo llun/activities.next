@@ -1,6 +1,14 @@
 'use client'
 
-import { Bird, Camera, Images, ListChecks, Lock, MapPin } from 'lucide-react'
+import {
+  Bird,
+  Camera,
+  FolderOpen,
+  Images,
+  ListChecks,
+  Lock,
+  MapPin
+} from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
 import {
@@ -19,6 +27,7 @@ interface Props {
 const tabs: SectionNavTab[] = [
   { name: 'Subjects', url: '/gallery', icon: Bird },
   { name: 'Recent', url: '/gallery/recent', icon: Images },
+  { name: 'Albums', url: '/gallery/albums', icon: FolderOpen },
   { name: 'Map', url: '/gallery/map', icon: MapPin },
   { name: 'Life list', url: '/gallery/life-list', icon: ListChecks },
   { name: 'Gear', url: '/gallery/gear', icon: Camera },
