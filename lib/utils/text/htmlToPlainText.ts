@@ -51,9 +51,9 @@ const appendText = (parts: string[], text: string) => {
 export interface HtmlToPlainTextOptions {
   // Read the markup the way the status body renders it: Mastodon's `invisible`
   // link parts are dropped, `ellipsis` gets its "…", and the `quote-inline`
-  // fallback is dropped when `hideQuoteInline` is set. Off by default.
-  matchStatusBody?: boolean
-  hideQuoteInline?: boolean
+  // fallback is dropped when `hideQuoteInline` is set. Off by default; passing
+  // `statusBody` turns it on.
+  statusBody?: { hideQuoteInline: boolean }
 }
 
 const collectText = (
@@ -69,15 +69,16 @@ const collectText = (
 
     if (!isElementNode(node)) return
 
-    if (options.matchStatusBody) {
+    if (options.statusBody) {
       const className = node.attribs?.class
+      const isSpan = node.name === 'span'
       if (
-        isInvisibleClass(className) ||
-        (options.hideQuoteInline && isQuoteInlineClass(className))
+        (isSpan && isInvisibleClass(className)) ||
+        (options.statusBody.hideQuoteInline && isQuoteInlineClass(className))
       ) {
         return
       }
-      if (isEllipsisClass(className)) {
+      if (isSpan && isEllipsisClass(className)) {
         collectText(node.children, parts, options)
         appendText(parts, '…')
         return
@@ -111,10 +112,10 @@ export const htmlToPlainText = (
   options: HtmlToPlainTextOptions = {}
 ) => {
   const sanitizedHtml = sanitizeHtml(html ?? '', {
-    allowedTags: options.matchStatusBody
+    allowedTags: options.statusBody
       ? [...ALLOWED_STRUCTURE_TAGS, 'a', 'span']
       : ALLOWED_STRUCTURE_TAGS,
-    allowedAttributes: options.matchStatusBody
+    allowedAttributes: options.statusBody
       ? { a: ['class'], p: ['class'], span: ['class'] }
       : {},
     nestingLimit: MAX_NESTING_DEPTH

@@ -66,7 +66,7 @@ describe('htmlToPlainText', () => {
   })
 })
 
-describe('htmlToPlainText matchStatusBody', () => {
+describe('htmlToPlainText statusBody', () => {
   const quoteHtml =
     '<p>take</p><p class="quote-inline">RE: <a href="https://r.social/1">link</a></p>'
 
@@ -80,20 +80,26 @@ describe('htmlToPlainText matchStatusBody', () => {
     {
       description: 'drops invisible parts and marks the ellipsis',
       html: '<a href="x"><span class="invisible">https://</span><span class="ellipsis">a.com/b</span><span class="invisible">c</span></a>',
-      options: { matchStatusBody: true },
+      options: { statusBody: { hideQuoteInline: false } },
       expected: 'a.com/b…'
     },
     {
       description: 'keeps quote-inline unless hideQuoteInline is set',
       html: quoteHtml,
-      options: { matchStatusBody: true },
+      options: { statusBody: { hideQuoteInline: false } },
       expected: 'take RE: link'
     },
     {
       description: 'drops quote-inline when hideQuoteInline is set',
       html: quoteHtml,
-      options: { matchStatusBody: true, hideQuoteInline: true },
+      options: { statusBody: { hideQuoteInline: true } },
       expected: 'take'
+    },
+    {
+      description: 'honours ellipsis only on span',
+      html: '<a class="ellipsis" href="https://example.com">cut</a> after',
+      options: { statusBody: { hideQuoteInline: false } },
+      expected: 'cut after'
     }
   ])('$description', ({ html, options, expected }) => {
     expect(htmlToPlainText(html, options)).toBe(expected)

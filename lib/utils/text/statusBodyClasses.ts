@@ -1,6 +1,6 @@
-// Class rules shared by the status body renderer (`cleanClassName`) and the
-// plain-text flattening that must read the same (`htmlToPlainText`), so the two
-// cannot drift apart.
+// Class predicates shared by the status body renderer (`cleanClassName`) and
+// the plain-text flattening that reads the same markup (`htmlToPlainText`).
+// Which tags each class applies to is decided by each caller.
 
 export const hasToken = (value: string | undefined, token: string): boolean =>
   value?.split(/\s+/).includes(token) ?? false

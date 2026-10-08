@@ -332,7 +332,7 @@ export const prepareReplyDraft = ({
       // Read it as `post.tsx` renders the body: long links collapse to their
       // visible part, and the "RE: <link>" fallback hides once a quote card
       // renders.
-      { matchStatusBody: true, hideQuoteInline: Boolean(actualStatus.quote) }
+      { statusBody: { hideQuoteInline: Boolean(actualStatus.quote) } }
     ),
     spoilerText: spoilerText || undefined,
     visibility,
