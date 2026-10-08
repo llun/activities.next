@@ -3499,6 +3499,12 @@ export type MarkMediaUploadVerifiedParams = {
   // stripped copy to a NEW key and swaps it in here, so the client's upload is
   // never overwritten while the row is still pending.
   originalPath?: string
+  // The details built from the client's bytes before they were stripped (EXIF
+  // date, gear, place, the gallery default). Written in the same conditional
+  // pending → verified update as `originalPath`, so they commit with the swap
+  // or not at all: once the client's object is deleted they cannot be
+  // rebuilt. Same presence semantics as `UpdateMediaParams.details`.
+  details?: UpdateMediaDetailsParams
 }
 // `transitioned` is true only for the one call whose conditional
 // pending → verified update changed the row; a concurrent or repeated

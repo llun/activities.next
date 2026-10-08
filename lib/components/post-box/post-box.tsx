@@ -420,6 +420,10 @@ export const PostBox: FC<Props> = ({
   const applyMedia = (id: string, media: MediaStorageSaveFileOutput) => {
     const { details } = media
     if (details) setDetailsById((current) => ({ ...current, [id]: details }))
+    // An attachment of the status being edited keeps its own name: the media
+    // row's description may be empty while the attachment carries alt text, and
+    // only an explicit save in the dialog may change it.
+    if (originalMediaIdsRef.current.has(id)) return
     const current = findAttachment(id)
     if (current) {
       replaceAttachment(id, { ...current, name: media.description ?? '' })

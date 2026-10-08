@@ -13,6 +13,7 @@ import {
   FC,
   KeyboardEvent,
   ReactNode,
+  RefObject,
   useCallback,
   useEffect,
   useId,
@@ -261,9 +262,26 @@ export const MediaDetailsDialog: FC<Props> = ({
     [item]
   )
 
+  const previousButtonRef = useRef<HTMLButtonElement>(null)
+  const nextButtonRef = useRef<HTMLButtonElement>(null)
+  const focusAfterNavRef = useRef<RefObject<HTMLButtonElement | null> | null>(
+    null
+  )
+  useEffect(() => {
+    focusAfterNavRef.current?.current?.focus()
+    focusAfterNavRef.current = null
+  }, [selectedId])
+
   const goTo = (next: number) => {
     const target = items[next]
     if (!target) return
+    // The button that was just used is about to be disabled at the end of the
+    // list; hand focus to its sibling so it does not fall back to the body.
+    // Applied after the render, once the sibling is enabled.
+    if (next === 0) focusAfterNavRef.current = nextButtonRef
+    else if (next === items.length - 1) {
+      focusAfterNavRef.current = previousButtonRef
+    }
     setDescribeError(null)
     setAddingGear(null)
     setSelectedId(target.id)
@@ -519,6 +537,7 @@ export const MediaDetailsDialog: FC<Props> = ({
               type="button"
               variant="ghost"
               size="icon-sm"
+              ref={previousButtonRef}
               aria-label="Previous item"
               disabled={index === 0}
               onClick={() => goTo(index - 1)}
@@ -529,6 +548,7 @@ export const MediaDetailsDialog: FC<Props> = ({
               type="button"
               variant="ghost"
               size="icon-sm"
+              ref={nextButtonRef}
               aria-label="Next item"
               disabled={index === total - 1}
               onClick={() => goTo(index + 1)}

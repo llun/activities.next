@@ -1,5 +1,5 @@
 import { Camera, Loader2, MapPin, RotateCw, X } from 'lucide-react'
-import { FC, useId } from 'react'
+import { FC, useEffect, useId, useRef } from 'react'
 
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
@@ -88,7 +88,57 @@ export const ComposerAttachmentTiles: FC<Props> = ({
   onRetry
 }) => {
   const errorId = useId()
+  const rootRef = useRef<HTMLDivElement>(null)
+  // Where focus goes once a removed tile has left the DOM.
+  const focusAfterRemoveRef = useRef<string | 'add' | null>(null)
+
+  useEffect(() => {
+    const target = focusAfterRemoveRef.current
+    if (!target) return
+    focusAfterRemoveRef.current = null
+    if (target === 'add') {
+      document
+        .querySelector<HTMLElement>('button[aria-label^="Add media"]')
+        ?.focus()
+      return
+    }
+    const root = rootRef.current
+    if (!root) return
+    const tile = Array.from(
+      root.querySelectorAll<HTMLButtonElement>('button[data-attachment-tile]')
+    ).find((node) => node.dataset.attachmentTile === target)
+    if (tile && !tile.disabled) {
+      tile.focus()
+      return
+    }
+    // A busy or failed tile has a disabled main button; use its Remove button.
+    Array.from(
+      root.querySelectorAll<HTMLButtonElement>('button[data-attachment-remove]')
+    )
+      .find((node) => node.dataset.attachmentRemove === target)
+      ?.focus()
+  }, [attachments])
+
   if (attachments.length === 0) return null
+
+  const handleRemove = (id: string, index: number) => {
+    const neighbour = attachments[index + 1] ?? attachments[index - 1]
+    focusAfterRemoveRef.current = neighbour ? neighbour.id : 'add'
+    onRemove(id)
+  }
+
+  const handleRetry = (id: string) => {
+    // The Retry button disappears and the tile button is disabled while the
+    // upload runs, so park focus on the tile's Remove button.
+    Array.from(
+      rootRef.current?.querySelectorAll<HTMLButtonElement>(
+        'button[data-attachment-remove]'
+      ) ?? []
+    )
+      .find((node) => node.dataset.attachmentRemove === id)
+      ?.focus()
+    onRetry(id)
+  }
 
   const announcements = attachments.flatMap((item, index) => {
     const label = getAttachmentLabel(item, fileNames, index)
@@ -99,7 +149,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
   })
 
   return (
-    <div>
+    <div ref={rootRef}>
       <p role="status" aria-live="polite" className="sr-only">
         {announcements.join('. ')}
       </p>
@@ -171,7 +221,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
                     aria-label={`Retry upload of ${label}`}
                     aria-describedby={`${errorId}-${item.id}`}
                     disabled={disabled}
-                    onClick={() => onRetry(item.id)}
+                    onClick={() => handleRetry(item.id)}
                     className="flex items-center gap-1 rounded-md border bg-background px-1.5 py-0.5 text-xs font-medium shadow-xs"
                   >
                     <RotateCw className="size-3" />
@@ -182,8 +232,9 @@ export const ComposerAttachmentTiles: FC<Props> = ({
               <button
                 type="button"
                 aria-label={`Remove media ${label}`}
+                data-attachment-remove={item.id}
                 disabled={disabled}
-                onClick={() => onRemove(item.id)}
+                onClick={() => handleRemove(item.id, index)}
                 className="absolute top-0 right-0 flex size-6 translate-x-1/3 -translate-y-1/3 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs hover:text-foreground"
               >
                 <X className="size-3.5" />

@@ -447,7 +447,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     verifiedAt,
     dimensions,
     originalBytes,
-    originalPath
+    originalPath,
+    details
   }: MarkMediaUploadVerifiedParams): Promise<MarkMediaUploadVerifiedResult | null> {
     const id = toMediaRowId(mediaId)
     if (id === null) return null
@@ -502,7 +503,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .update({
           originalMetaData: JSON.stringify(metaData),
           ...(originalBytes === undefined ? null : { originalBytes }),
-          ...(originalPath === undefined ? null : { original: originalPath })
+          ...(originalPath === undefined ? null : { original: originalPath }),
+          ...getDetailsColumns(details)
         })
       if (changed === 0) {
         const current = await trx('medias')
@@ -528,9 +530,22 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         )
       }
 
+      // Details go through column coercion (dates, JSON), so read them back
+      // rather than echoing the input.
+      const writtenDetails =
+        details && Object.keys(getDetailsColumns(details)).length > 0
+          ? parseMediaDetails(
+              await trx('medias')
+                .where('id', id)
+                .select(MEDIA_COLUMNS)
+                .first<MediaRow>()
+            )
+          : media.details
+
       return {
         media: {
           ...media,
+          details: writtenDetails,
           original: {
             ...media.original,
             ...(originalBytes === undefined ? null : { bytes: originalBytes }),

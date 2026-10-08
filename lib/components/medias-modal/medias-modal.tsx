@@ -431,9 +431,17 @@ export const MediasModal: FC<Props> = ({
                         onTouchStart={
                           showsDetails ? (e) => e.stopPropagation() : undefined
                         }
+                        {...(showsDetails
+                          ? {
+                              tabIndex: 0,
+                              role: 'region',
+                              'aria-label': 'Photo details'
+                            }
+                          : {})}
                         className={cn(
                           'flex min-h-0 w-full flex-col items-center',
-                          showsDetails && 'max-h-[25vh] overflow-y-auto'
+                          showsDetails &&
+                            'max-h-[25vh] overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-white/60'
                         )}
                       >
                         {medias[index].name?.trim() ? (

@@ -86,6 +86,28 @@ describe('MediasModal media details', () => {
     expect(region).toHaveTextContent('A bird')
   })
 
+  it('makes the scrollable details region keyboard reachable', async () => {
+    mockGetMediaPublicDetails.mockResolvedValue(kingfisherDetails)
+
+    renderModal([buildAttachment({ mediaId: 'media-1', name: 'A bird' })])
+
+    const region = await screen.findByRole('region', { name: 'Photo details' })
+    expect(region).toHaveAttribute('tabindex', '0')
+    expect(region).toHaveClass('focus-visible:ring-[3px]')
+    expect(region).toHaveTextContent('Common Kingfisher')
+  })
+
+  it('does not add a focusable region without details', async () => {
+    mockGetMediaPublicDetails.mockResolvedValue(null as never)
+
+    renderModal([buildAttachment({ mediaId: 'media-1', name: 'A bird' })])
+
+    await screen.findAllByText('A bird')
+    expect(
+      screen.queryByRole('region', { name: 'Photo details' })
+    ).not.toBeInTheDocument()
+  })
+
   it('keeps the full image cap for media without details', async () => {
     mockGetMediaPublicDetails.mockResolvedValue(null as never)
 

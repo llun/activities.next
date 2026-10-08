@@ -1665,13 +1665,12 @@ describe('S3FileStorage presigned upload completion', () => {
 
     expect(extractVideoImage).toHaveBeenCalledTimes(1)
     expect(mockGenerateAltText).not.toHaveBeenCalled()
-    // The analysis failed, but the details still reach the row (and no
-    // description or blurhash is written).
-    expect(database.updateMedia).toHaveBeenCalledWith({
-      mediaId: 'media-video-1',
-      accountId: 'account-1',
-      details: { inGallery: false }
-    })
+    // The analysis failed, but the details were committed with the
+    // verification (and no description or blurhash is written).
+    expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
+      expect.objectContaining({ details: { inGallery: false } })
+    )
+    expect(database.updateMedia).not.toHaveBeenCalled()
     expect(result).toMatchObject({ id: 'media-video-1', type: 'video' })
   })
 
@@ -1707,7 +1706,8 @@ describe('S3FileStorage presigned upload completion', () => {
     const completeUpload = async (
       body: Buffer,
       mimeType: string,
-      fileName: string
+      fileName: string,
+      options: { keepVerifyMock?: boolean; updateMediaRejects?: boolean } = {}
     ) => {
       const path = `medias/2026-01-01/${fileName}`
       const row = (state: 'pending' | 'verified') => ({
@@ -1732,18 +1732,19 @@ describe('S3FileStorage presigned upload completion', () => {
         }
       })
       database.getMediaByIdForAccount.mockResolvedValue(row('pending') as never)
-      database.markMediaUploadVerified.mockResolvedValue({
-        transitioned: true,
-        media: row('verified')
-      } as never)
-      database.updateMedia.mockImplementation((async (params: {
-        details?: Record<string, unknown>
-      }) => ({
-        media: {
-          ...row('verified'),
-          details: params.details
-        }
-      })) as never)
+      if (!options.keepVerifyMock) {
+        database.markMediaUploadVerified.mockResolvedValue({
+          transitioned: true,
+          media: row('verified')
+        } as never)
+      }
+      if (options.updateMediaRejects) {
+        database.updateMedia.mockRejectedValue(new Error('db down'))
+      } else {
+        database.updateMedia.mockImplementation((async () => ({
+          media: row('verified')
+        })) as never)
+      }
       gallery.findGalleryGearByDeviceKey.mockResolvedValue(null)
       gallery.createGalleryGearWithinLimit.mockResolvedValue({
         status: 'created',
@@ -1818,7 +1819,7 @@ describe('S3FileStorage presigned upload completion', () => {
       )
       await completeUpload(await jpegWithExif(), 'image/jpeg', 'photo.jpg')
 
-      expect(database.updateMedia).toHaveBeenCalledWith(
+      expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
         expect.objectContaining({
           details: expect.objectContaining({
             inGallery: false,
@@ -2074,14 +2075,14 @@ describe('S3FileStorage presigned upload completion', () => {
         )
 
         await completeUpload(await jpegWithExif(), 'image/jpeg', 'photo.jpg')
-        expect(database.updateMedia).toHaveBeenLastCalledWith(
+        expect(database.markMediaUploadVerified).toHaveBeenLastCalledWith(
           expect.objectContaining({
             details: expect.objectContaining({ inGallery })
           })
         )
 
         await completeUpload(Buffer.from('video-bytes'), 'video/mp4', 'a.mp4')
-        expect(database.updateMedia).toHaveBeenLastCalledWith(
+        expect(database.markMediaUploadVerified).toHaveBeenLastCalledWith(
           expect.objectContaining({
             details: expect.objectContaining({ inGallery })
           })
@@ -2097,10 +2098,47 @@ describe('S3FileStorage presigned upload completion', () => {
 
       await completeUpload(Buffer.from('video-bytes'), 'video/mp4', 'a.mp4')
 
-      expect(database.updateMedia).toHaveBeenCalledWith({
-        mediaId: 'media-1',
-        accountId: 'account-1',
-        details: { inGallery: true }
+      expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
+        expect.objectContaining({ details: { inGallery: true } })
+      )
+      expect(database.updateMedia).not.toHaveBeenCalled()
+    })
+
+    // The details travel with the verification, so a failing decoration write
+    // (after the client's original is gone) cannot lose them.
+    it('still has the details when the post-verify updateMedia rejects', async () => {
+      gallery.getGallerySettings.mockResolvedValue(
+        settings({ galleryDefault: 'always' })
+      )
+      let row: Record<string, unknown> | undefined
+      database.markMediaUploadVerified.mockImplementation((async (params: {
+        details?: Record<string, unknown>
+      }) => {
+        row = { details: params.details }
+        return {
+          transitioned: true,
+          media: {
+            id: 'media-1',
+            actorId: 'actor-1',
+            original: {
+              path: 'medias/2026-01-01/photo.jpg',
+              bytes: 1,
+              mimeType: 'image/jpeg',
+              metaData: { width: 8, height: 8 }
+            },
+            details: params.details
+          }
+        }
+      }) as never)
+
+      await completeUpload(await jpegWithExif(), 'image/jpeg', 'photo.jpg', {
+        keepVerifyMock: true,
+        updateMediaRejects: true
+      })
+
+      expect(database.updateMedia).toHaveBeenCalled()
+      expect(row).toEqual({
+        details: expect.objectContaining({ inGallery: true })
       })
     })
 

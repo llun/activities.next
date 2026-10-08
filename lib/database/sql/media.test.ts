@@ -1483,6 +1483,65 @@ describe('MediaDatabase', () => {
         )
       })
 
+      // The details are built from bytes whose original is deleted right after
+      // the swap, so they must commit with it — and only with it.
+      it('writes the details with the verification and not on a repeat', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-details.jpg')
+        const takenAt = Date.UTC(2024, 4, 6, 7, 8, 9)
+
+        const verified = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          originalBytes: 600,
+          originalPath: '/test/verify-details-stripped.jpg',
+          details: {
+            inGallery: true,
+            takenAt,
+            placeName: 'Somewhere',
+            placeLatitude: 51.5,
+            placeLongitude: -0.125
+          }
+        })
+
+        expect(verified?.transitioned).toBe(true)
+        expect(verified?.media.details).toMatchObject({
+          inGallery: true,
+          takenAt,
+          placeName: 'Somewhere'
+        })
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original.path).toBe('/test/verify-details-stripped.jpg')
+        expect(reread?.details).toMatchObject({
+          inGallery: true,
+          takenAt,
+          placeName: 'Somewhere',
+          placeLatitude: 51.5,
+          placeLongitude: -0.125
+        })
+
+        const repeated = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          details: { inGallery: false, placeName: 'Elsewhere' }
+        })
+        expect(repeated?.transitioned).toBe(false)
+        const after = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(after?.details).toMatchObject({
+          inGallery: true,
+          placeName: 'Somewhere'
+        })
+      })
+
       it('returns null when the media belongs to another account', async () => {
         const otherActor = await database.getActorFromId({
           id: actors.replyAuthor.id

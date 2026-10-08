@@ -157,6 +157,21 @@ describe('MediaDetailsDialog', () => {
     expect(screen.getByRole('button', { name: 'Next item' })).toBeDisabled()
   })
 
+  it('hands focus to the other nav button when one becomes disabled', () => {
+    renderDialog([makeItem('a'), makeItem('b')])
+    const previous = screen.getByRole('button', { name: 'Previous item' })
+    const next = screen.getByRole('button', { name: 'Next item' })
+
+    next.focus()
+    fireEvent.click(next)
+    expect(next).toBeDisabled()
+    expect(previous).toHaveFocus()
+
+    fireEvent.click(previous)
+    expect(previous).toBeDisabled()
+    expect(next).toHaveFocus()
+  })
+
   it('switches items from the thumbnail strip and marks videos', () => {
     renderDialog([
       makeItem('a'),

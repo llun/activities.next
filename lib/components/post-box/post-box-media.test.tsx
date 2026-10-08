@@ -668,6 +668,52 @@ describe('PostBox media details', () => {
     )
   })
 
+  it('moves focus to the next tile after Remove, then the previous, then Add media', async () => {
+    renderPostBox()
+    attach('a.png', 'b.png', 'c.png')
+    await screen.findAllByText('Review')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove media b.png' }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Review details of c.png' })
+      ).toHaveFocus()
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove media c.png' }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Review details of a.png' })
+      ).toHaveFocus()
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove media a.png' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^Add media/ })).toHaveFocus()
+    )
+  })
+
+  it('keeps focus on the tile when Retry restarts the upload', async () => {
+    uploadAttachmentMock.mockRejectedValueOnce(new Error('disk full'))
+    const retry = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockReturnValueOnce(retry.promise)
+    renderPostBox()
+    attach('heron.png')
+    const retryButton = await screen.findByRole('button', {
+      name: 'Retry upload of heron.png'
+    })
+    retryButton.focus()
+
+    fireEvent.click(retryButton)
+
+    await screen.findByText('Uploading…')
+    expect(
+      screen.getByRole('button', { name: 'Remove media heron.png' })
+    ).toHaveFocus()
+    retry.resolve(uploaded('media-heron.png', 'heron.png'))
+    await screen.findByText('Review')
+  })
+
   it('keeps focus on Remove when an upload swaps the temporary id', async () => {
     const upload = createDeferred<UploadedAttachment>()
     uploadAttachmentMock.mockReturnValueOnce(upload.promise)
@@ -1097,6 +1143,51 @@ describe('PostBox media details', () => {
           onDiscardEdit={vi.fn()}
         />
       )
+
+    it('keeps the attachment name when the dialog closes without saving', async () => {
+      const edit = makeEditStatus() as unknown as {
+        attachments: { name: string }[]
+      }
+      edit.attachments[0].name = 'Foo'
+      getMediaMock.mockResolvedValue(mediaEntity('media-1', null))
+      vi.mocked(updateNote).mockResolvedValue({
+        content: '',
+        spoilerText: '',
+        mediaAttachments: [],
+        status: { id: 'status-1', text: 'hello', createdAt: 1, reply: '' }
+      } as never)
+      render(
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          editStatus={edit as never}
+          isMediaUploadEnabled
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      )
+      fireEvent.change(await screen.findByRole('textbox'), {
+        target: { value: 'hello there' }
+      })
+
+      fireEvent.click(await screen.findByRole('button', { name: /details of/ }))
+      await screen.findByRole('dialog')
+      await waitFor(() => expect(getMediaMock).toHaveBeenCalled())
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+
+      await waitFor(() => expect(vi.mocked(updateNote)).toHaveBeenCalled())
+      const sent = vi.mocked(updateNote).mock.calls[0][0] as {
+        mediaAttributes?: unknown[]
+      }
+      expect(sent.mediaAttributes ?? []).toEqual([])
+      expect(edit.attachments[0].name).toBe('Foo')
+    })
 
     it('keeps Update disabled when details finish saving mid-submit', async () => {
       const save = createDeferred<ReturnType<typeof mediaEntity>>()

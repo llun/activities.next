@@ -495,6 +495,12 @@ export class S3FileStorage implements MediaStorage {
             accountId,
             verifiedAt: Date.now(),
             dimensions,
+            // Committed with the swap: the client's original (and its EXIF)
+            // is deleted right after, so a separate write that failed would
+            // lose the details for good.
+            ...(Object.keys(prepared.details).length === 0
+              ? null
+              : { details: prepared.details }),
             ...(stripped === undefined
               ? null
               : { originalBytes: stripped.bytes, originalPath: stripped.key })
@@ -730,23 +736,21 @@ export class S3FileStorage implements MediaStorage {
 
   // Blurhash, focus, alt text and a video's poster. Decoration only: the media
   // is already verified, so a failure here is logged and the upload stands.
-  // Whatever happens to the analysis, the details built from the original
-  // still reach the row. Returns the updated attachment, or null when nothing
-  // was updated.
+  // The details built from the original were committed with the verification
+  // itself (`markMediaUploadVerified`), so nothing here can lose them. Returns
+  // the updated attachment, or null when nothing was updated.
   private async _decoratePresignedMedia(
     media: Media,
     accountId: string,
     tempFilePath: string,
     size: number,
-    prepared: { buffer: Buffer | null; details: Partial<MediaDetailsRecord> }
+    prepared: { buffer: Buffer | null }
   ): Promise<MediaStorageSaveFileOutput | null> {
     const mediaId = media.id
-    const { details, buffer } = prepared
+    const { buffer } = prepared
     const isVideo = media.original.mimeType.startsWith('video')
     if (!media.original.mimeType.startsWith('image') && !isVideo) return null
-    if (size > PRESIGNED_ANALYSIS_MAX_BYTES || !buffer) {
-      return this._persistPresignedDetails(mediaId, accountId, details)
-    }
+    if (size > PRESIGNED_ANALYSIS_MAX_BYTES || !buffer) return null
 
     try {
       // A video is analysed and described from its representative preview
@@ -806,8 +810,7 @@ export class S3FileStorage implements MediaStorage {
         !analysis.blurhash &&
         !analysis.focus &&
         !generatedDescription &&
-        !storedThumbnail &&
-        Object.keys(details).length === 0
+        !storedThumbnail
       ) {
         return null
       }
@@ -819,7 +822,6 @@ export class S3FileStorage implements MediaStorage {
           blurhash: analysis.blurhash,
           focus: analysis.focus ?? undefined,
           description: generatedDescription ?? undefined,
-          details,
           ...(storedThumbnail
             ? {
                 thumbnail: {
@@ -856,34 +858,8 @@ export class S3FileStorage implements MediaStorage {
         message: 'Failed to analyze presigned media upload',
         err: toLoggableError(error)
       })
-      return this._persistPresignedDetails(mediaId, accountId, details)
     }
     return null
-  }
-
-  // The fallback when the analysis cannot run: only the details are written.
-  private async _persistPresignedDetails(
-    mediaId: string,
-    accountId: string,
-    details: Partial<MediaDetailsRecord>
-  ): Promise<MediaStorageSaveFileOutput | null> {
-    if (Object.keys(details).length === 0) return null
-    try {
-      const updated = await this._database.updateMedia({
-        mediaId,
-        accountId,
-        details
-      })
-      return updated?.media
-        ? await this._getSaveFileOutput(updated.media)
-        : null
-    } catch (error) {
-      logger.warn({
-        message: 'Failed to store the details of a presigned media upload',
-        err: toLoggableError(error)
-      })
-      return null
-    }
   }
 
   async saveFile(actor: Actor, media: MediaSchema, options?: SaveFileOptions) {
