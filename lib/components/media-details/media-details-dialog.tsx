@@ -518,6 +518,11 @@ const withClientStaleness = (
   return next
 }
 
+function withoutKey<T>(record: Record<string, T>, key: string) {
+  const { [key]: _removed, ...rest } = record
+  return rest
+}
+
 export const MediaDetailsDialog: FC<Props> = ({
   items,
   initialId,
@@ -588,7 +593,9 @@ export const MediaDetailsDialog: FC<Props> = ({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [suggesting, setSuggesting] = useState<Record<string, true>>({})
-  const [suggestError, setSuggestError] = useState<string | null>(null)
+  // Keyed by item id: a request that settles after the owner moved on must
+  // not show its error on the photo now open.
+  const [suggestErrors, setSuggestErrors] = useState<Record<string, string>>({})
   const [pickerOpen, setPickerOpen] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
   // Per item, which Retry is running: one item's retry is not another's.
@@ -596,10 +603,9 @@ export const MediaDetailsDialog: FC<Props> = ({
     {}
   )
   // Shown beside the Retry that failed, not the other one.
-  const [retryError, setRetryError] = useState<{
-    kind: 'subject' | 'place'
-    message: string
-  } | null>(null)
+  const [retryErrors, setRetryErrors] = useState<
+    Record<string, { kind: 'subject' | 'place'; message: string }>
+  >({})
   // The items as of the latest render, for requests that finish later than
   // the render that started them.
   const itemsRef = useRef(items)
@@ -612,6 +618,8 @@ export const MediaDetailsDialog: FC<Props> = ({
   const index = Math.max(0, foundIndex)
   const item: MediaDetailsDialogItem | undefined = items[index]
   const total = items.length
+  const suggestError = item ? (suggestErrors[item.id] ?? null) : null
+  const retryError = item ? (retryErrors[item.id] ?? null) : null
 
   useEffect(() => {
     let active = true
@@ -660,8 +668,6 @@ export const MediaDetailsDialog: FC<Props> = ({
       focusAfterNavRef.current = previousButtonRef
     }
     setDescribeError(null)
-    setSuggestError(null)
-    setRetryError(null)
     setAddingGear(null)
     setSelectedId(target.id)
   }
@@ -781,7 +787,7 @@ export const MediaDetailsDialog: FC<Props> = ({
   const onSuggest = async () => {
     const target = item
     setSuggesting((current) => ({ ...current, [target.id]: true }))
-    setSuggestError(null)
+    setSuggestErrors((current) => withoutKey(current, target.id))
     try {
       const suggestions = await suggestMediaSubjects(target.id)
       // The model can take seconds; a Retry may have refreshed the item
@@ -803,7 +809,10 @@ export const MediaDetailsDialog: FC<Props> = ({
         mergeDetails(latest.details, patch)
       )
     } catch (error) {
-      setSuggestError(errorMessage(error, 'Subjects could not be suggested.'))
+      setSuggestErrors((current) => ({
+        ...current,
+        [target.id]: errorMessage(error, 'Subjects could not be suggested.')
+      }))
     } finally {
       setSuggesting((current) => {
         const { [target.id]: _done, ...rest } = current
@@ -815,7 +824,7 @@ export const MediaDetailsDialog: FC<Props> = ({
   const onRetryLookups = async (kind: 'subject' | 'place') => {
     const target = item
     setRetrying((current) => ({ ...current, [target.id]: kind }))
-    setRetryError(null)
+    setRetryErrors((current) => withoutKey(current, target.id))
     // A Retry starts the reads afresh, whatever the last pending state used.
     for (const key of Object.keys(refreshAttempts.current)) {
       if (key.startsWith(`${target.id}#`)) delete refreshAttempts.current[key]
@@ -832,10 +841,13 @@ export const MediaDetailsDialog: FC<Props> = ({
       onDetailsRefreshed?.(target.id, value, value)
       setRefreshTick((tick) => tick + 1)
     } catch (error) {
-      setRetryError({
-        kind,
-        message: errorMessage(error, 'Failed to retry the check.')
-      })
+      setRetryErrors((current) => ({
+        ...current,
+        [target.id]: {
+          kind,
+          message: errorMessage(error, 'Failed to retry the check.')
+        }
+      }))
     } finally {
       setRetrying((current) => {
         const { [target.id]: _done, ...rest } = current

@@ -880,6 +880,30 @@ describe('MediaDetailsDialog smart subjects', () => {
     )
   })
 
+  it('keeps a late suggestion error on the photo that asked', async () => {
+    let fail: (error: Error) => void = () => {}
+    suggestMediaSubjectsMock.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        fail = reject
+      })
+    )
+    renderDialog([withSuggestions(null), makeItem('m2')])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest subjects' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next item' }))
+    await act(async () => {
+      fail(new Error('Subject suggestions are not configured'))
+    })
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous item' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Subject suggestions are not configured'
+    )
+  })
+
   it('says it is reading while the composer is still asking', () => {
     renderDialog([withSuggestions(null)], {
       suggestionsPending: { m1: true }
@@ -1464,6 +1488,33 @@ describe('MediaDetailsDialog smart subjects', () => {
       ])
 
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Too many requests'
+      )
+    })
+
+    it('keeps a late retry error on the photo that asked', async () => {
+      let fail: (error: Error) => void = () => {}
+      retryMediaLookupsMock.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          fail = reject
+        })
+      )
+      renderDialog([
+        makeItem('m1', { details: subject({ lookupStatus: 'failed' }) }),
+        makeItem('m2')
+      ])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Next item' }))
+      await act(async () => {
+        fail(new Error('Too many requests'))
+      })
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Previous item' }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Too many requests'
