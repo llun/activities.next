@@ -31,6 +31,21 @@ describe('htmlToPlainText', () => {
       description: 'drops script and style contents',
       html: '<p>Hello</p><script>alert("x")</script><style>.hidden{display:none}</style>',
       expected: 'Hello'
+    },
+    {
+      description: 'decodes entities exactly once',
+      html: '<p>&amp;lt;b&amp;gt;</p>',
+      expected: '&lt;b&gt;'
+    },
+    {
+      description: 'decodes decimal and hex numeric entities',
+      html: '<p>&#39;fast&#39; &#x41;&#66;</p>',
+      expected: "'fast' AB"
+    },
+    {
+      description: 'does not separate adjacent inline elements',
+      html: '<a href="#">@<span>null</span></a>',
+      expected: '@null'
     }
   ])('$description', ({ html, expected }) => {
     expect(htmlToPlainText(html)).toBe(expected)

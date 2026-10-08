@@ -10,6 +10,7 @@ import {
 } from '@/lib/types/domain/status'
 import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
+import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 export type ReplyMentionMode = 'all' | 'author-first' | 'author-only'
 
@@ -54,6 +55,7 @@ export interface ViewerIdentity {
   domain: string
 }
 
+/** Builds a plain-text snippet from status HTML (not raw markdown). */
 export const createTextSnippet = (text: string, maxLength = 140): string => {
   const clean = htmlToPlainText(text)
   if (clean.length <= maxLength) return clean
@@ -309,7 +311,17 @@ export const prepareReplyDraft = ({
     authorName,
     authorHandle,
     authorIconUrl: actualStatus.actor?.iconUrl,
-    textSnippet: createTextSnippet(actualStatus.text),
+    // Local statuses store markdown; render them to the same sanitized HTML the
+    // status body shows before flattening to text, so a literal `<` survives.
+    textSnippet: createTextSnippet(
+      processStatusTextContent(
+        currentViewer.domain ?? '',
+        actualStatus.text,
+        actualStatus.tags,
+        actualStatus.isLocalActor,
+        { convertEmojis: false }
+      )
+    ),
     spoilerText: spoilerText || undefined,
     visibility,
     language: actualStatus.language ?? null,
