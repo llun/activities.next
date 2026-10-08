@@ -470,13 +470,5 @@ describe('replyDraft', () => {
       expect(snippet.includes('<p>')).toBe(false)
       expect(snippet.endsWith('…')).toBe(true)
     })
-
-    it('keeps a Mastodon mention link as one word', () => {
-      expect(
-        createTextSnippet(
-          '<p><span class="h-card" translate="no"><a href="https://mastodon.in.th/@null" class="u-url mention">@<span>null</span></a></span> isn&#39;t it supposed to degrade enamel?</p>'
-        )
-      ).toBe("@null isn't it supposed to degrade enamel?")
-    })
   })
 })

@@ -315,7 +315,7 @@ export const prepareReplyDraft = ({
     // status body shows before flattening to text, so a literal `<` survives.
     textSnippet: createTextSnippet(
       processStatusTextContent(
-        currentViewer.domain ?? '',
+        currentViewer.domain,
         actualStatus.text,
         actualStatus.tags,
         actualStatus.isLocalActor,
