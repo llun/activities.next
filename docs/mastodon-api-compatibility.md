@@ -416,10 +416,12 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   write (or the web session). `GET /api/v1/gallery/albums` lists the
   owner's albums with `photoCount`; `POST` creates one (`title`, `description`,
   `visibility` `public` or `private`, `sort_order` `taken_desc`, `taken_asc` or
-  `added_desc`, and up to 100 `media_ids`). `GET`, `PATCH` (`cover_media_id` must
+  `added_desc`, and up to 100 `media_ids`, created together with the album in one transaction). `GET`, `PATCH` (`cover_media_id` must
   be an item, `null` clears it) and `DELETE /api/v1/gallery/albums/:id` read,
-  change and remove an album, the `GET` carrying the facts, species chips and
-  the first page of photos (`?limit&sort`). `GET`, `POST` and `DELETE
+  change and remove an album, the `GET` carrying the facts (the public-safe
+  numbers, for a private album too), species chips, `mediaIds` (every photo
+  the owner can see in it) and the first page of photos (`?limit&sort`). Each
+  album card carries the owner-only `hiddenPlaceCount`. `GET`, `POST` and `DELETE
 /api/v1/gallery/albums/:id/items` page the photos (`?max_id&limit&sort&subject`)
   and add or remove `media_ids` (1 to 100; the `POST` answers `added`,
   `existing` and `skipped`, and is all or nothing). An album holds at most 2,000
