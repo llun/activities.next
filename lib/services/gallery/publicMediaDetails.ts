@@ -120,6 +120,9 @@ export const toCountryCode = (
  *   publishing that centre would put a pin in the very place the owner hid. It
  *   applies whatever the precision, so a `country` name is withheld too.
  *
+ * A place with no precision never carries a country code: the owner's name
+ * ("Home") is all they chose to show.
+ *
  * A `country` place is named by its country code when one is known, so a
  * geocoded "Pak Chong, Thailand" leaks no more than "Thailand". With no
  * usable code a geocoded name is not shown at all (it names the town, and
@@ -152,7 +155,10 @@ export const getPublicPlace = (
           (details.placeNameSource === 'geocoder' ? null : placeName))
         : placeName,
     precision: placePrecision,
-    countryCode
+    // With no precision the owner chose to show only their own name: the
+    // code is the geocoder's reading of a point they never published, and
+    // would add the country to the public country counts too.
+    countryCode: placePrecision === null ? null : countryCode
   }
   // A `country` place left with neither a name nor a code discloses nothing
   // worth a place block.

@@ -53,6 +53,10 @@ import type {
   GallerySettingsEntity
 } from '@/lib/services/gallery/galleryEntities'
 import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
+import {
+  STALE_PLACE_LOOKUP_MS,
+  STALE_SUBJECT_LOOKUP_MS
+} from '@/lib/services/medias/lookupStaleness'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
 import {
   IucnCategory,
@@ -423,13 +427,61 @@ const PlaceLookupStatus: FC<{
 
 // While a lookup is under way the dialog reads the media again, a few times
 // and a few seconds apart: the composer's copy is the one the upload or save
-// answered with, from before the job ran.
+// answered with, from before the job ran. Each pending state (a new upload, a
+// Retry: each stamps a new lookup time) gets its own budget of reads.
 const LOOKUP_REFRESH_ATTEMPTS = 4
 const LOOKUP_REFRESH_DELAY_MS = 3_000
 
 const isLookupUnderWay = (details: MediaDetailsEntity | null) =>
   (details?.place?.lookupStatus === 'pending' && !details.place.lookupStale) ||
   (details?.subject?.lookupStatus === 'pending' && !details.subject.lookupStale)
+
+type LookupKind = 'subject' | 'place'
+const STALE_LOOKUP_MS: Record<LookupKind, number> = {
+  subject: STALE_SUBJECT_LOOKUP_MS,
+  place: STALE_PLACE_LOOKUP_MS
+}
+
+// When a pending, not yet stale lookup of `kind` turns stale (epoch ms), or
+// null. No lookup time means the server already decided.
+const staleTimeOf = (
+  details: MediaDetailsEntity | null,
+  kind: LookupKind
+): number | null => {
+  const lookup = details?.[kind]
+  if (lookup?.lookupStatus !== 'pending' || lookup.lookupStale) return null
+  const at = lookup.lookupAt ? Date.parse(lookup.lookupAt) : NaN
+  return Number.isNaN(at) ? null : at + STALE_LOOKUP_MS[kind]
+}
+
+// The pending state the budget of reads belongs to.
+const pendingStateKey = (details: MediaDetailsEntity | null) =>
+  (['subject', 'place'] as const)
+    .map((kind) =>
+      details?.[kind]?.lookupStatus === 'pending'
+        ? `${kind}@${details[kind]?.lookupAt ?? ''}`
+        : ''
+    )
+    .join('|')
+
+/**
+ * The lookups that have been pending for longer than they should, marked
+ * stale as the server would mark them on its next read, so Retry shows in a
+ * dialog that has stopped reading. Unchanged when none are.
+ */
+const withClientStaleness = (
+  details: MediaDetailsEntity,
+  now: number
+): MediaDetailsEntity => {
+  let next = details
+  for (const kind of ['subject', 'place'] as const) {
+    const staleAt = staleTimeOf(next, kind)
+    const lookup = next[kind]
+    if (staleAt === null || staleAt > now || !lookup) continue
+    next = { ...next, [kind]: { ...lookup, lookupStale: true } }
+  }
+  return next
+}
 
 export const MediaDetailsDialog: FC<Props> = ({
   items,
@@ -580,8 +632,11 @@ export const MediaDetailsDialog: FC<Props> = ({
   }
 
   // Reads the selected media again while one of its lookups is under way, so
-  // a name or IUCN status the job wrote since shows up without a Retry.
+  // a name or IUCN status the job wrote since shows up without a Retry. The
+  // budget is per item and pending state; a failed read still counts and the
+  // next one follows.
   const refreshAttempts = useRef<Record<string, number>>({})
+  const [refreshTick, setRefreshTick] = useState(0)
   // A ref, so a parent that passes a new callback each render does not
   // restart the wait.
   const onDetailsRefreshedRef = useRef(onDetailsRefreshed)
@@ -589,26 +644,27 @@ export const MediaDetailsDialog: FC<Props> = ({
     onDetailsRefreshedRef.current = onDetailsRefreshed
   }, [onDetailsRefreshed])
   const itemId = item?.id
-  const underWay = item
-    ? isLookupUnderWay(resolveDetails(item, fetched))
-    : false
+  const shownDetails = item ? resolveDetails(item, fetched) : null
+  const underWay = isLookupUnderWay(shownDetails)
+  const budgetKey =
+    itemId && underWay ? `${itemId}#${pendingStateKey(shownDetails)}` : null
   useEffect(() => {
-    if (!itemId || !underWay) return
+    if (!itemId || !budgetKey) return
     const id = itemId
-    const attempts = refreshAttempts.current[id] ?? 0
+    const attempts = refreshAttempts.current[budgetKey] ?? 0
     if (attempts >= LOOKUP_REFRESH_ATTEMPTS) return
     let active = true
     const timer = setTimeout(
       async () => {
-        refreshAttempts.current[id] = attempts + 1
+        refreshAttempts.current[budgetKey] = attempts + 1
         try {
           const media = await getMedia(id)
-          const value = media.details
-          if (!active || !value) return
+          if (!active || !media.details) return
+          const value = withClientStaleness(media.details, Date.now())
           const latest = itemsRef.current.find((entry) => entry.id === id)
           if (!latest) return
-          setFetched((current) => ({
-            ...current,
+          setFetched((existing) => ({
+            ...existing,
             [id]: { base: latest.details, value }
           }))
           // Only the lookups' results: suggestions fetched meanwhile stay.
@@ -618,7 +674,9 @@ export const MediaDetailsDialog: FC<Props> = ({
             value
           )
         } catch {
-          // Best effort: the dialog keeps what it has, and Retry still works.
+          // Best effort: the next read (or Retry) may do better.
+        } finally {
+          if (active) setRefreshTick((tick) => tick + 1)
         }
       },
       attempts === 0 ? 0 : LOOKUP_REFRESH_DELAY_MS
@@ -627,7 +685,38 @@ export const MediaDetailsDialog: FC<Props> = ({
       active = false
       clearTimeout(timer)
     }
-  }, [itemId, underWay, fetched])
+  }, [itemId, budgetKey, refreshTick])
+
+  // Once a pending lookup is older than the stale limit, it is marked stale
+  // here, so Retry shows without reopening the dialog even after the reads
+  // above have run out.
+  const subjectStaleAt = staleTimeOf(shownDetails, 'subject')
+  const placeStaleAt = staleTimeOf(shownDetails, 'place')
+  const staleAt =
+    subjectStaleAt === null
+      ? placeStaleAt
+      : placeStaleAt === null
+        ? subjectStaleAt
+        : Math.min(subjectStaleAt, placeStaleAt)
+  useEffect(() => {
+    if (!itemId || staleAt === null) return
+    const id = itemId
+    const timer = setTimeout(
+      () => {
+        const latest = itemsRef.current.find((entry) => entry.id === id)
+        if (!latest) return
+        setFetched((existing) => {
+          const details = resolveDetails(latest, existing)
+          if (!details) return existing
+          const value = withClientStaleness(details, Date.now())
+          if (value === details) return existing
+          return { ...existing, [id]: { base: latest.details, value } }
+        })
+      },
+      Math.max(0, staleAt - Date.now())
+    )
+    return () => clearTimeout(timer)
+  }, [itemId, staleAt])
 
   if (!item) return null
   const draft = drafts[item.id]
@@ -692,6 +781,10 @@ export const MediaDetailsDialog: FC<Props> = ({
     const target = item
     setRetrying((current) => ({ ...current, [target.id]: kind }))
     setRetryError(null)
+    // A Retry starts the reads afresh, whatever the last pending state used.
+    for (const key of Object.keys(refreshAttempts.current)) {
+      if (key.startsWith(`${target.id}#`)) delete refreshAttempts.current[key]
+    }
     try {
       // The server's answer is the whole, current entity.
       const value = await retryMediaLookups(target.id)
@@ -702,6 +795,7 @@ export const MediaDetailsDialog: FC<Props> = ({
         [target.id]: { base: latest.details, value }
       }))
       onDetailsRefreshed?.(target.id, value, value)
+      setRefreshTick((tick) => tick + 1)
     } catch (error) {
       setRetryError({
         kind,

@@ -110,6 +110,26 @@ describe('readThroughLookupCache', () => {
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
+  it('asks again past a remembered miss only when told to', async () => {
+    const { database } = createFakeDatabase()
+    const fetcher = vi
+      .fn<() => Promise<string | null>>()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('found')
+    const params = { database, kind: 'gbif-taxon', key: 'k', fetcher } as const
+
+    await readThroughLookupCache(params)
+    await expect(
+      readThroughLookupCache({ ...params, skipCachedError: true })
+    ).resolves.toEqual({ status: 'miss' })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    await expect(
+      readThroughLookupCache({ ...params, skipCachedMiss: true })
+    ).resolves.toEqual({ status: 'ok', value: 'found' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
   // Decided in this process: the provider was never asked, so the failure
   // says nothing about the key. Cached, it would outlive the circuit and
   // answer another process (the backfill) whose provider is fine.

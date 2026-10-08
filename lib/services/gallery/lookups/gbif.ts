@@ -13,13 +13,10 @@ import {
 } from './lookupRequest'
 import {
   IucnCategory,
-  NormalizedMatch,
   NormalizedTaxon,
   UncertainMatch,
-  getUncertainMatch,
-  isReadableMatch,
+  classifyMatch,
   normalizeIucnCategory,
-  normalizeMatch,
   normalizeTaxonRecord
 } from './normalizeTaxon'
 import { createCircuitBreaker, createLimiter } from './rateLimit'
@@ -65,21 +62,94 @@ export interface GbifMatchOptions {
 }
 
 /**
- * What `species/match` made of a name:
+ * What `species/match` made of a name (see `classifyMatch`):
  * - `match`: a confident match (see `matchTaxon`).
+ * - `none`: GBIF's own NONE. The only answer that means "GBIF does not know
+ *   this name".
  * - `uncertain`: GBIF placed the name in a species or genus, but only as a
  *   HIGHERRANK answer or below the confidence bar. "Pongo abelii xyz" is a
  *   HIGHERRANK answer naming the Sumatran orangutan (CR), so this is NOT a
  *   miss: a caller deciding whether a place may be shown must check it.
- * - null: no species or genus at all (`NONE`, or a family or higher).
+ * - `unplaced`: anything else (a family or kingdom, an unknown match type).
+ *   Not a miss either.
  */
 export type GbifMatchOutcome =
   | { kind: 'match'; taxon: NormalizedTaxon }
+  | { kind: 'none' }
   | { kind: 'uncertain'; uncertain: UncertainMatch }
-  | null
+  | { kind: 'unplaced' }
 
-// The `gbif-match` cache value: a confident match, or an uncertain one.
-type CachedMatch = NormalizedTaxon | { uncertain: UncertainMatch }
+// The `gbif-match` cache value. Never a cache miss: before the outcomes were
+// told apart a miss meant NONE or "placed above a genus", so those rows are
+// left behind under the old, unversioned keys.
+type CachedMatch =
+  | { match: NormalizedTaxon }
+  | { none: true }
+  | { uncertain: UncertainMatch }
+  | { unplaced: true }
+
+const MATCH_CACHE_VERSION = 'm2'
+const SEARCH_CACHE_VERSION = 's2'
+
+/** A `species/search` answer, and whether every result in it was readable. */
+export interface GbifSearchOutcome {
+  results: GbifTaxonSearchResult[]
+  // False when GBIF answered results this code could not read: the one it
+  // skipped may have been the name asked for, so "no exact hit" proves nothing.
+  complete: boolean
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+// A key in a cache row: null, a usage key, or undefined for anything else.
+const toCachedKey = (value: unknown): string | null | undefined => {
+  if (value === null || value === undefined) return null
+  return typeof value === 'string' && /^\d{1,12}$/.test(value)
+    ? value
+    : undefined
+}
+
+// A cache row is data from an older or other process: read it as strictly as
+// a live answer, and fail on anything else.
+const toMatchOutcome = (cached: unknown): GbifMatchOutcome => {
+  if (isRecord(cached)) {
+    if (isRecord(cached.match) && typeof cached.match.taxonKey === 'string') {
+      return {
+        kind: 'match',
+        taxon: cached.match as unknown as NormalizedTaxon
+      }
+    }
+    if (cached.none === true) return { kind: 'none' }
+    if (isRecord(cached.uncertain)) {
+      const speciesKey = toCachedKey(cached.uncertain.speciesKey)
+      const genusKey = toCachedKey(cached.uncertain.genusKey)
+      if (
+        speciesKey !== undefined &&
+        genusKey !== undefined &&
+        (speciesKey || genusKey)
+      ) {
+        return { kind: 'uncertain', uncertain: { speciesKey, genusKey } }
+      }
+    }
+    if (cached.unplaced === true) return { kind: 'unplaced' }
+  }
+  throw new LookupError('parse', 'Unreadable cached GBIF match')
+}
+
+const toSearchOutcome = (cached: unknown): GbifSearchOutcome => {
+  if (
+    isRecord(cached) &&
+    Array.isArray(cached.results) &&
+    typeof cached.complete === 'boolean'
+  ) {
+    return {
+      results: cached.results as GbifTaxonSearchResult[],
+      complete: cached.complete
+    }
+  }
+  throw new LookupError('parse', 'Unreadable cached GBIF search')
+}
 
 export interface GbifClient {
   /**
@@ -92,11 +162,14 @@ export interface GbifClient {
     name: string,
     options?: GbifMatchOptions
   ): Promise<NormalizedTaxon | null>
-  /** `matchTaxon` with the uncertain answers kept. Same cache row. */
+  /**
+   * `matchTaxon` with every outcome told apart. Same cache row. Null only for
+   * an empty name, which asks nothing.
+   */
   lookupMatch(
     name: string,
     options?: GbifMatchOptions
-  ): Promise<GbifMatchOutcome>
+  ): Promise<GbifMatchOutcome | null>
   /** One taxon by usage key, with its IUCN category. Cached as `gbif-taxon`. */
   getTaxon(key: string): Promise<GbifTaxon | null>
   /** The IUCN Red List category for a usage key, or null. Not cached alone. */
@@ -106,6 +179,11 @@ export interface GbifClient {
    * (2 to 100 characters), for the species picker. Cached as `gbif-search`.
    */
   searchTaxa(q: string): Promise<GbifTaxonSearchResult[]>
+  /**
+   * `searchTaxa` with whether every result was readable. Same cache row.
+   * Null for a query too short to ask.
+   */
+  lookupSearch(q: string): Promise<GbifSearchOutcome | null>
 }
 
 // Cache keys are normalized so "Common  Kingfisher" and "common kingfisher"
@@ -220,6 +298,7 @@ export const createGbifClient = ({
       const kingdom = options.kingdom?.trim() || undefined
       const key = cacheKey(
         [
+          MATCH_CACHE_VERSION,
           normalizeKeyPart(trimmed),
           kingdom ? normalizeKeyPart(kingdom) : '',
           options.allowHigherRank ? 'group' : ''
@@ -234,7 +313,7 @@ export const createGbifClient = ({
           skipCachedError: skipCachedErrors,
           kind: 'gbif-match',
           key,
-          fetcher: async (): Promise<CachedMatch | null> => {
+          fetcher: async (): Promise<CachedMatch> => {
             const response = await get('species/match', {
               name: trimmed,
               ...(kingdom ? { kingdom } : {}),
@@ -243,25 +322,24 @@ export const createGbifClient = ({
             if (response.status !== 'ok') {
               throw new LookupError('http', 'GBIF match gave no answer')
             }
-            // A miss is only a readable answer that names no confident match;
-            // an answer in a shape this code does not know is a failure.
-            if (!isReadableMatch(response.json)) {
+            const outcome = classifyMatch(response.json, {
+              allowHigherRank: options.allowHigherRank
+            })
+            // An answer in a shape this code does not know is a failure.
+            if (outcome.kind === 'unreadable') {
               throw new LookupError(
                 'parse',
                 'GBIF returned an unreadable match'
               )
             }
-            const match: NormalizedMatch | null = normalizeMatch(
-              response.json,
-              { allowHigherRank: options.allowHigherRank }
-            )
-            if (!match) {
-              const uncertain = getUncertainMatch(response.json)
-              return uncertain ? { uncertain } : null
+            if (outcome.kind === 'none') return { none: true }
+            if (outcome.kind === 'unplaced') return { unplaced: true }
+            if (outcome.kind === 'uncertain') {
+              return { uncertain: outcome.uncertain }
             }
 
-            const { synonym, ...taxon } = match
-            if (!synonym) return taxon
+            const { synonym, ...taxon } = outcome.match
+            if (!synonym) return { match: taxon }
 
             // The answer describes the synonym; read the accepted taxon for
             // its own name and rank. Without it, keep the accepted key and
@@ -269,23 +347,24 @@ export const createGbifClient = ({
             const accepted = await client
               .getTaxon(taxon.taxonKey)
               .catch(() => null)
-            return accepted
-              ? {
-                  taxonKey: accepted.taxonKey,
-                  scientificName: accepted.scientificName,
-                  rank: accepted.rank,
-                  taxonPath: accepted.taxonPath,
-                  category: accepted.category
-                }
-              : taxon
+            return {
+              match: accepted
+                ? {
+                    taxonKey: accepted.taxonKey,
+                    scientificName: accepted.scientificName,
+                    rank: accepted.rank,
+                    taxonPath: accepted.taxonPath,
+                    category: accepted.category
+                  }
+                : taxon
+            }
           }
         })
       )
-      if (cached === null) return null
-      if ('uncertain' in cached) {
-        return { kind: 'uncertain', uncertain: cached.uncertain }
+      if (cached === null) {
+        throw new LookupError('parse', 'GBIF match was cached as a miss')
       }
-      return { kind: 'match', taxon: cached }
+      return toMatchOutcome(cached)
     },
 
     async getTaxon(key) {
@@ -295,6 +374,9 @@ export const createGbifClient = ({
         await readThroughLookupCache<GbifTaxon>({
           database,
           skipCachedError: skipCachedErrors,
+          // A key GBIF did not know records the subject `failed`; the owner's
+          // Retry asks again rather than waiting out the week-long miss.
+          skipCachedMiss: skipCachedErrors,
           kind: 'gbif-taxon',
           key: cacheKey(key),
           fetcher: async () => {
@@ -355,14 +437,18 @@ export const createGbifClient = ({
     },
 
     async searchTaxa(q) {
-      const query = q.trim().slice(0, 100)
-      if (query.length < 2) return []
+      return (await client.lookupSearch(q))?.results ?? []
+    },
 
-      const result = await readThroughLookupCache<GbifTaxonSearchResult[]>({
+    async lookupSearch(q) {
+      const query = q.trim().slice(0, 100)
+      if (query.length < 2) return null
+
+      const result = await readThroughLookupCache<GbifSearchOutcome>({
         database,
         skipCachedError: skipCachedErrors,
         kind: 'gbif-search',
-        key: cacheKey(normalizeKeyPart(query)),
+        key: cacheKey(`${SEARCH_CACHE_VERSION}|${normalizeKeyPart(query)}`),
         fetcher: async () => {
           const response = await get('species/search', {
             q: query,
@@ -381,9 +467,13 @@ export const createGbifClient = ({
           }
 
           const found: GbifTaxonSearchResult[] = []
+          let unreadable = 0
           for (const raw of results) {
             const taxon = normalizeTaxonRecord(raw)
-            if (!taxon) continue
+            if (!taxon) {
+              unreadable += 1
+              continue
+            }
             const names = toVernacularNames(raw)
             found.push({
               ...taxon,
@@ -397,10 +487,11 @@ export const createGbifClient = ({
           if (results.length > 0 && found.length === 0) {
             throw new LookupError('parse', 'GBIF returned unreadable results')
           }
-          return found
+          return { results: found, complete: unreadable === 0 }
         }
       })
-      return unwrap(result) ?? []
+      const cached = unwrap(result)
+      return cached === null ? null : toSearchOutcome(cached)
     }
   }
 

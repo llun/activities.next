@@ -19,6 +19,7 @@ const details: MediaDetailsEntity = {
     iucnCategory: null,
     threatStatus: 'unchecked',
     lookupStatus: null,
+    lookupAt: null,
     lookupStale: false
   },
   takenAt: null,
@@ -33,6 +34,7 @@ const details: MediaDetailsEntity = {
     countryCode: null,
     nameSource: null,
     lookupStatus: null,
+    lookupAt: null,
     lookupStale: false
   },
   inGallery: true,

@@ -1,18 +1,16 @@
 import { z } from 'zod'
 
-import { Database } from '@/lib/database/types'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { RESOLVE_MEDIA_SUBJECT_JOB_NAME } from '@/lib/jobs/names'
 import {
   GbifClient,
-  GbifTaxon,
   createGbifClient
 } from '@/lib/services/gallery/lookups/gbif'
-import { LookupError } from '@/lib/services/gallery/lookups/lookupRequest'
 import {
-  IucnCategory,
-  UncertainMatch
-} from '@/lib/services/gallery/lookups/normalizeTaxon'
+  SubjectAnswer,
+  SubjectEvidence,
+  decideSubjectLookup
+} from '@/lib/services/gallery/lookups/subjectDecision'
 import { isSpeciesLike } from '@/lib/services/gallery/publicMediaDetails'
 import { JobHandle } from '@/lib/services/queue/type'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -37,80 +35,116 @@ const KINGDOM_HINTS: Record<string, string> = {
   insect: 'Animalia'
 }
 
-// The categories under which an uncertain match may clear the place: GBIF's
-// best guess is a species the Red List does not count as threatened (or that
-// it has not assessed, which a confident match also clears).
-const CLEARING_CATEGORIES: ReadonlySet<IucnCategory> = new Set([
-  'LC',
-  'NT',
-  'DD',
-  'NE'
-])
-const THREATENED_CATEGORIES: ReadonlySet<IucnCategory> = new Set([
-  'CR',
-  'EN',
-  'VU'
-])
-
-type SubjectLookupPatch = Parameters<
-  Database['setMediaSubjectLookup']
->[0]['patch']
-
-/**
- * The result for a name GBIF placed in a species or genus without a confident
- * match (HIGHERRANK, or below the confidence bar). It is never `no-match` by
- * itself: GBIF did classify the name, and "Pongo abelii xyz" is placed in the
- * Sumatran orangutan, which is CR.
- *
- * - Placed in a species: that species' IUCN category decides. LC, NT, DD or
- *   NE (or no assessment) is `no-match`, which clears the place as a name GBIF
- *   cannot classify would, and leaves the owner's subject unconfirmed. CR, EN
- *   or VU is `resolved` with that category but no taxon key (the owner's name
- *   was not confirmed), so the place stays hidden and the owner is told why.
- *   EX or EW is `failed`: a confident match would show that place, but GBIF's
- *   guess is not a confident match, so it stays hidden.
- * - Placed only in a genus: which species it is cannot be told, and a genus
- *   has no Red List category of its own, so it is `failed` (hidden, with
- *   Retry) until the owner corrects or confirms the name.
- * A lookup failure while checking the species throws, which records `failed`.
- */
-const resolveUncertainMatch = async (
-  gbif: GbifClient,
-  uncertain: UncertainMatch,
-  mediaId: string
-): Promise<SubjectLookupPatch> => {
-  if (!uncertain.speciesKey) {
-    logger.info({
-      message: 'Subject only placed in a genus; its place stays hidden',
-      mediaId
-    })
-    return { subjectLookupStatus: 'failed' }
-  }
-  const species = await gbif.getTaxon(uncertain.speciesKey)
-  if (!species) {
-    throw new LookupError('parse', 'GBIF does not know the species it named')
-  }
-  const category = species.iucnCategory ?? 'NE'
-  if (CLEARING_CATEGORIES.has(category)) {
-    return {
-      subjectIucnCategory: null,
-      subjectTaxonPath: null,
-      subjectLookupStatus: 'no-match'
-    }
-  }
-  if (THREATENED_CATEGORIES.has(category)) {
-    return {
-      subjectIucnCategory: category,
-      subjectTaxonPath: null,
-      subjectLookupStatus: 'resolved'
-    }
-  }
-  return { subjectLookupStatus: 'failed' }
-}
-
 const sameName = (a: string, b: string) =>
   a.trim().replace(/\s+/g, ' ').toLowerCase() ===
   b.trim().replace(/\s+/g, ' ').toLowerCase()
+
+type SubjectFields = Pick<
+  MediaDetailsRecord,
+  | 'subjectName'
+  | 'subjectScientificName'
+  | 'subjectCategory'
+  | 'subjectTaxonKey'
+>
+
+/**
+ * Asks GBIF about a subject and returns the last answer that decides it, for
+ * `decideSubjectLookup`. It only gathers: it never chooses a status, so no
+ * branch here can clear a place by itself. A lookup failure throws.
+ *
+ * - A stored key first. A key GBIF does not know falls through to the names
+ *   (a backbone move can retire one), and the evidence says so; with no name
+ *   left the unknown key is the evidence.
+ * - A scientific name through `species/match`, with the category's kingdom
+ *   hint. Any hinted answer but a confident match is asked again without the
+ *   hint: a wrong category ("Panthera tigris" filed as a plant) makes GBIF
+ *   answer a kingdom, or NONE, for a name it matches exactly.
+ * - Only a common name: a search result that names it exactly. A near miss is
+ *   not a match; the owner can pick from the search.
+ */
+export const gatherSubjectEvidence = async (
+  gbif: GbifClient,
+  subject: SubjectFields
+): Promise<SubjectEvidence> => {
+  const taxonKey = subject.subjectTaxonKey?.trim() || null
+  const scientificName = subject.subjectScientificName?.trim() || null
+  const commonName = subject.subjectName?.trim() || null
+
+  let storedKeyUnknown = false
+  if (taxonKey) {
+    const taxon = await gbif.getTaxon(taxonKey)
+    if (taxon || (!scientificName && !commonName)) {
+      return { kind: 'taxon', via: 'stored-key', taxon, storedKeyUnknown }
+    }
+    storedKeyUnknown = true
+  }
+  const answer = await askByName(gbif, subject, scientificName, commonName)
+  return { ...answer, storedKeyUnknown }
+}
+
+const askByName = async (
+  gbif: GbifClient,
+  subject: SubjectFields,
+  scientificName: string | null,
+  commonName: string | null
+): Promise<SubjectAnswer> => {
+  if (scientificName) {
+    const kingdom = subject.subjectCategory
+      ? KINGDOM_HINTS[subject.subjectCategory]
+      : undefined
+    // A typed genus or family ("Pongo") is a group, as a "Just genus" pick is.
+    let outcome = await gbif.lookupMatch(scientificName, {
+      kingdom,
+      allowHigherRank: true
+    })
+    let hinted = Boolean(kingdom)
+    if (hinted && outcome?.kind !== 'match') {
+      outcome = await gbif.lookupMatch(scientificName, {
+        allowHigherRank: true
+      })
+      hinted = false
+    }
+    switch (outcome?.kind) {
+      case 'match':
+        return {
+          kind: 'taxon',
+          via: 'match',
+          taxon: await gbif.getTaxon(outcome.taxon.taxonKey)
+        }
+      case 'none':
+        return { kind: 'match-none', hinted }
+      case 'uncertain': {
+        const { speciesKey } = outcome.uncertain
+        return {
+          kind: 'match-uncertain',
+          hinted,
+          speciesKey,
+          species: speciesKey ? await gbif.getTaxon(speciesKey) : null
+        }
+      }
+      default:
+        return { kind: 'match-unplaced', hinted }
+    }
+  }
+
+  if (commonName) {
+    const search = await gbif.lookupSearch(commonName)
+    if (!search) return { kind: 'nothing-to-ask' }
+    const exact = search.results.find(
+      (result) =>
+        sameName(result.scientificName, commonName) ||
+        result.vernacularNames.some((name) => sameName(name, commonName))
+    )
+    if (!exact) return { kind: 'search-no-exact', complete: search.complete }
+    return {
+      kind: 'taxon',
+      via: 'search',
+      taxon: await gbif.getTaxon(exact.taxonKey)
+    }
+  }
+
+  return { kind: 'nothing-to-ask' }
+}
 
 /**
  * Resolve a species-like subject against GBIF (taxon, path) and the IUCN Red
@@ -118,12 +152,14 @@ const sameName = (a: string, b: string) =>
  *
  * Everything is read again here, not taken from the message: the owner may
  * have edited the subject since this was queued. The write is a compare-and-set
- * on the subject fields that were read, so an edit made meanwhile wins and the
- * edit's own job resolves the new subject.
+ * on the subject fields that were read, the category included, so an edit
+ * made meanwhile wins and the edit's own job resolves the new subject.
  *
- * Provider errors are caught: the job records `failed` (persisted, so the
- * owner sees it and can retry) and returns normally, so a rate-limited free
- * service is not retried into the ground.
+ * What is stored is decided only by `decideSubjectLookup`, which lets a
+ * place be shown for an allow-list of verified answers and records `failed`
+ * for everything else. Provider errors are caught the same way: the job
+ * records `failed` (persisted, so the owner sees it and can retry) and returns
+ * normally, so a rate-limited free service is not retried into the ground.
  */
 export const resolveMediaSubjectJob: JobHandle = createJobHandle(
   RESOLVE_MEDIA_SUBJECT_JOB_NAME,
@@ -136,10 +172,13 @@ export const resolveMediaSubjectJob: JobHandle = createJobHandle(
     const details: MediaDetailsRecord | undefined = found?.media.details
     if (!details) return
 
+    // The category is compared too: it is the kingdom hint, so a result
+    // worked out under the old category is not the new one's.
     const expect = {
       subjectName: details.subjectName ?? null,
       subjectScientificName: details.subjectScientificName ?? null,
-      subjectTaxonKey: details.subjectTaxonKey ?? null
+      subjectTaxonKey: details.subjectTaxonKey ?? null,
+      subjectCategory: details.subjectCategory ?? null
     }
     const write = async (
       patch: Parameters<typeof database.setMediaSubjectLookup>[0]['patch']
@@ -181,63 +220,16 @@ export const resolveMediaSubjectJob: JobHandle = createJobHandle(
 
     try {
       const gbif = createGbifClient({ database, skipCachedErrors: retry })
-
-      // A stored key first. GBIF answers a key it does not know (a backbone
-      // move can retire one) with its own 404, and then the names are tried,
-      // so a retired key never reads as "no such species" on its own.
-      let taxon: GbifTaxon | null = expect.subjectTaxonKey
-        ? await gbif.getTaxon(expect.subjectTaxonKey)
-        : null
-      let uncertain: UncertainMatch | null = null
-      if (!taxon && expect.subjectScientificName) {
-        const outcome = await gbif.lookupMatch(expect.subjectScientificName, {
-          kingdom: details.subjectCategory
-            ? KINGDOM_HINTS[details.subjectCategory]
-            : undefined
+      const evidence = await gatherSubjectEvidence(gbif, details)
+      const decision = decideSubjectLookup(evidence)
+      if (decision.subjectLookupStatus === 'failed') {
+        logger.info({
+          message: 'Subject lookup not verified; its place stays hidden',
+          mediaId,
+          evidence: evidence.kind
         })
-        if (outcome?.kind === 'match') {
-          taxon = await gbif.getTaxon(outcome.taxon.taxonKey)
-        } else if (outcome?.kind === 'uncertain') {
-          uncertain = outcome.uncertain
-        }
-      } else if (!taxon && expect.subjectName) {
-        // Only a common name: take a search result that names it exactly.
-        // A near miss is not a match; the owner can pick from the search.
-        const subjectName = expect.subjectName
-        const results = await gbif.searchTaxa(subjectName)
-        const exact = results.find(
-          (result) =>
-            sameName(result.scientificName, subjectName) ||
-            result.vernacularNames.some((name) => sameName(name, subjectName))
-        )
-        taxon = exact ? await gbif.getTaxon(exact.taxonKey) : null
       }
-
-      if (!taxon && uncertain) {
-        await write(await resolveUncertainMatch(gbif, uncertain, mediaId))
-        return
-      }
-
-      if (!taxon) {
-        await write({
-          subjectIucnCategory: null,
-          subjectTaxonPath: null,
-          subjectLookupStatus: 'no-match'
-        })
-        return
-      }
-
-      await write({
-        subjectTaxonKey: taxon.taxonKey,
-        subjectTaxonPath: taxon.taxonPath,
-        // Null here only means GBIF answered that it has no assessment (204),
-        // which is NE (not evaluated) and clears the place. An answer the
-        // client could not read threw instead and is recorded as `failed`
-        // below, so the place stays hidden. A resolved row with no category
-        // at all is treated as unchecked by the privacy rule.
-        subjectIucnCategory: taxon.iucnCategory ?? 'NE',
-        subjectLookupStatus: 'resolved'
-      })
+      await write(decision)
     } catch (error) {
       logger.warn({
         message: 'Failed to resolve the subject of a media',

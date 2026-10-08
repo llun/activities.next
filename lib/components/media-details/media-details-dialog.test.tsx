@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   createGalleryGear,
@@ -15,6 +15,10 @@ import {
   updateMediaDetails
 } from '@/lib/client'
 import type { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
+import {
+  STALE_PLACE_LOOKUP_MS,
+  STALE_SUBJECT_LOOKUP_MS
+} from '@/lib/services/medias/lookupStaleness'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
 import { DEFAULT_GALLERY_SETTINGS } from '@/lib/types/database/gallery'
 
@@ -477,6 +481,7 @@ describe('MediaDetailsDialog', () => {
             countryCode: null,
             nameSource: null,
             lookupStatus: null,
+            lookupAt: null,
             lookupStale: false
           }
         }
@@ -562,6 +567,7 @@ describe('MediaDetailsDialog', () => {
               countryCode: null,
               nameSource: null,
               lookupStatus: null,
+              lookupAt: null,
               lookupStale: false
             }
           }
@@ -955,6 +961,7 @@ describe('MediaDetailsDialog smart subjects', () => {
           iucnCategory: 'LC',
           threatStatus: 'not-threatened',
           lookupStatus: 'resolved',
+          lookupAt: null,
           lookupStale: false
         }
       })
@@ -1007,6 +1014,7 @@ describe('MediaDetailsDialog smart subjects', () => {
       iucnCategory: null,
       threatStatus: 'unchecked' as const,
       lookupStatus: 'failed' as const,
+      lookupAt: null,
       lookupStale: false
     }
     retryMediaLookupsMock.mockResolvedValue({
@@ -1058,6 +1066,7 @@ describe('MediaDetailsDialog smart subjects', () => {
         iucnCategory: null,
         threatStatus: 'unchecked',
         lookupStatus: null,
+        lookupAt: null,
         lookupStale: false,
         ...overrides
       }
@@ -1115,6 +1124,157 @@ describe('MediaDetailsDialog smart subjects', () => {
       ).toBeInTheDocument()
       expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1')
       expect(onDetailsRefreshed).toHaveBeenCalled()
+    })
+
+    describe('reading again while a lookup is pending (fake timers)', () => {
+      const NOW = Date.parse('2026-10-08T12:00:00.000Z')
+      const at = (ms: number) => new Date(ms).toISOString()
+      const pending = (lookupAt: number) =>
+        subject({ lookupStatus: 'pending', lookupAt: at(lookupAt) })
+      const answer = (details: MediaDetailsEntity) =>
+        ({ id: 'm1', details }) as unknown as Awaited<
+          ReturnType<typeof getMedia>
+        >
+      // In steps, so each render's effects (the next read) are scheduled
+      // before the clock moves on.
+      const advance = async (ms: number) => {
+        for (let left = ms; ; left -= 500) {
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(Math.min(500, Math.max(left, 0)))
+          })
+          if (left <= 500) break
+        }
+      }
+
+      beforeEach(() => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+        vi.setSystemTime(NOW)
+      })
+      afterEach(() => {
+        vi.useRealTimers()
+      })
+
+      it('stops after four reads of the same pending state', async () => {
+        getMediaMock.mockResolvedValue(answer(pending(NOW)))
+        renderDialog([makeItem('m1', { details: pending(NOW) })])
+
+        await advance(30_000)
+
+        expect(getMediaMock).toHaveBeenCalledTimes(4)
+      })
+
+      it('keeps reading after a failed read', async () => {
+        getMediaMock
+          .mockRejectedValueOnce(new Error('offline'))
+          .mockResolvedValue(
+            answer(
+              subject({
+                iucnCategory: 'EN',
+                threatStatus: 'threatened',
+                lookupStatus: 'resolved',
+                lookupAt: at(NOW)
+              })
+            )
+          )
+        renderDialog([makeItem('m1', { details: pending(NOW) })])
+
+        await advance(0)
+        expect(getMediaMock).toHaveBeenCalledTimes(1)
+        await advance(3_000)
+
+        expect(getMediaMock).toHaveBeenCalledTimes(2)
+        expect(screen.getByText(/Endangered \(EN\)/)).toBeInTheDocument()
+      })
+
+      it('gives a new pending state a fresh budget', async () => {
+        // The second read finds the job re-queued, stamped later.
+        getMediaMock
+          .mockResolvedValueOnce(answer(pending(NOW)))
+          .mockResolvedValue(answer(pending(NOW + 5_000)))
+        renderDialog([makeItem('m1', { details: pending(NOW) })])
+
+        await advance(60_000)
+
+        // Two reads of the first state (the second finds the new one), then
+        // four of the second.
+        expect(getMediaMock).toHaveBeenCalledTimes(6)
+      })
+
+      it('marks the lookup stale once it is two minutes old, so Retry shows', async () => {
+        getMediaMock.mockResolvedValue(answer(pending(NOW)))
+        renderDialog([makeItem('m1', { details: pending(NOW) })])
+
+        await advance(STALE_SUBJECT_LOOKUP_MS - 1_000)
+        expect(screen.getByText('Checking IUCN status…')).toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', { name: 'Retry' })
+        ).not.toBeInTheDocument()
+
+        await advance(1_000)
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+        expect(getMediaMock).toHaveBeenCalledTimes(4)
+      })
+
+      it('marks it stale even when every read failed', async () => {
+        getMediaMock.mockRejectedValue(new Error('offline'))
+        renderDialog([makeItem('m1', { details: pending(NOW - 60_000) })])
+
+        await advance(STALE_SUBJECT_LOOKUP_MS - 60_000)
+
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+      })
+
+      it('reads again after a Retry, though the earlier budget ran out', async () => {
+        getMediaMock.mockResolvedValue(answer(pending(NOW)))
+        renderDialog([makeItem('m1', { details: pending(NOW) })])
+        await advance(STALE_SUBJECT_LOOKUP_MS)
+        expect(getMediaMock).toHaveBeenCalledTimes(4)
+
+        const retried = NOW + STALE_SUBJECT_LOOKUP_MS
+        retryMediaLookupsMock.mockResolvedValue(pending(retried))
+        getMediaMock.mockResolvedValue(
+          answer(
+            subject({
+              iucnCategory: 'LC',
+              threatStatus: 'not-threatened',
+              lookupStatus: 'resolved',
+              lookupAt: at(retried)
+            })
+          )
+        )
+        fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+        await advance(1_000)
+
+        expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1')
+        expect(getMediaMock).toHaveBeenCalledTimes(5)
+        expect(screen.getByText(/Least Concern \(LC\)/)).toBeInTheDocument()
+      })
+
+      it('marks a pending place stale too', async () => {
+        const pendingPlace: MediaDetailsEntity = {
+          ...emptyDetails,
+          place: {
+            name: null,
+            latitude: 14.4,
+            longitude: 101.4,
+            precision: 'area',
+            countryCode: null,
+            nameSource: null,
+            lookupStatus: 'pending',
+            lookupAt: at(NOW),
+            lookupStale: false
+          }
+        }
+        getMediaMock.mockResolvedValue(answer(pendingPlace))
+        renderDialog([makeItem('m1', { details: pendingPlace })])
+
+        await advance(STALE_PLACE_LOOKUP_MS)
+
+        expect(screen.getByRole('status')).toHaveTextContent(
+          'Looking up the place name…'
+        )
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+      })
     })
 
     it('says the place stays hidden while the check failed', () => {
@@ -1235,6 +1395,7 @@ describe('MediaDetailsDialog smart subjects', () => {
         countryCode: 'TH',
         nameSource: 'geocoder',
         lookupStatus: 'resolved',
+        lookupAt: null,
         lookupStale: false,
         ...overrides
       }
@@ -1367,6 +1528,7 @@ describe('MediaDetailsDialog smart subjects', () => {
             name: null,
             nameSource: null,
             lookupStatus: 'pending',
+            lookupAt: null,
             lookupStale: true
           })
         })

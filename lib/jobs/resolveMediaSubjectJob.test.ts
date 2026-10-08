@@ -9,7 +9,8 @@ const gbif = {
   lookupMatch: vi.fn(),
   getTaxon: vi.fn(),
   getIucnCategory: vi.fn(),
-  searchTaxa: vi.fn()
+  searchTaxa: vi.fn(),
+  lookupSearch: vi.fn()
 }
 vi.mock('@/lib/services/gallery/lookups/gbif', () => ({
   createGbifClient: vi.fn(() => gbif)
@@ -60,6 +61,7 @@ describe('resolveMediaSubjectJob', () => {
     })
     gbif.getTaxon.mockResolvedValue(KINGFISHER)
     gbif.searchTaxa.mockResolvedValue([])
+    gbif.lookupSearch.mockResolvedValue({ results: [], complete: true })
   })
 
   it('ignores a malformed message', async () => {
@@ -85,8 +87,10 @@ describe('resolveMediaSubjectJob', () => {
 
     await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
 
+    expect(gbif.lookupMatch).toHaveBeenCalledTimes(1)
     expect(gbif.lookupMatch).toHaveBeenCalledWith('Alcedo atthis', {
-      kingdom: 'Animalia'
+      kingdom: 'Animalia',
+      allowHigherRank: true
     })
     expect(gbif.getTaxon).toHaveBeenCalledWith('2475532')
     expect(setMediaSubjectLookup).toHaveBeenCalledWith({
@@ -94,7 +98,8 @@ describe('resolveMediaSubjectJob', () => {
       expect: {
         subjectName: 'Common Kingfisher',
         subjectScientificName: 'Alcedo atthis',
-        subjectTaxonKey: null
+        subjectTaxonKey: null,
+        subjectCategory: 'bird'
       },
       patch: {
         subjectTaxonKey: '2475532',
@@ -173,19 +178,22 @@ describe('resolveMediaSubjectJob', () => {
   })
 
   it('finds a common name through the search when there is no scientific name', async () => {
-    gbif.searchTaxa.mockResolvedValue([
-      { taxonKey: '1', scientificName: 'Other', vernacularNames: ['Other'] },
-      {
-        taxonKey: '2475532',
-        scientificName: 'Alcedo atthis',
-        vernacularNames: ['European Kingfisher', 'common  KINGFISHER']
-      }
-    ])
+    gbif.lookupSearch.mockResolvedValue({
+      complete: true,
+      results: [
+        { taxonKey: '1', scientificName: 'Other', vernacularNames: ['Other'] },
+        {
+          taxonKey: '2475532',
+          scientificName: 'Alcedo atthis',
+          vernacularNames: ['European Kingfisher', 'common  KINGFISHER']
+        }
+      ]
+    })
     mediaWith({ subjectName: 'Common Kingfisher', subjectCategory: 'bird' })
 
     await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
 
-    expect(gbif.searchTaxa).toHaveBeenCalledWith('Common Kingfisher')
+    expect(gbif.lookupSearch).toHaveBeenCalledWith('Common Kingfisher')
     expect(gbif.getTaxon).toHaveBeenCalledWith('2475532')
     expect(setMediaSubjectLookup).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -195,13 +203,16 @@ describe('resolveMediaSubjectJob', () => {
   })
 
   it('does not accept a near miss from the search', async () => {
-    gbif.searchTaxa.mockResolvedValue([
-      {
-        taxonKey: '5',
-        scientificName: 'Halcyon smyrnensis',
-        vernacularNames: ['White-throated Kingfisher']
-      }
-    ])
+    gbif.lookupSearch.mockResolvedValue({
+      complete: true,
+      results: [
+        {
+          taxonKey: '5',
+          scientificName: 'Halcyon smyrnensis',
+          vernacularNames: ['White-throated Kingfisher']
+        }
+      ]
+    })
     mediaWith({ subjectName: 'Kingfisher', subjectCategory: 'bird' })
 
     await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
@@ -218,12 +229,24 @@ describe('resolveMediaSubjectJob', () => {
     )
   })
 
-  it('records no-match when GBIF cannot place the name', async () => {
-    gbif.lookupMatch.mockResolvedValue(null)
+  it('records failed when some search results could not be read', async () => {
+    gbif.lookupSearch.mockResolvedValue({ complete: false, results: [] })
+    mediaWith({ subjectName: 'Kingfisher', subjectCategory: 'bird' })
+
+    await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
+
+    expect(setMediaSubjectLookup).toHaveBeenCalledWith(
+      expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
+    )
+  })
+
+  it('records no-match when GBIF answers NONE without a hint', async () => {
+    gbif.lookupMatch.mockResolvedValue({ kind: 'none' })
     mediaWith({ subjectScientificName: 'Alcdo athis typo' })
 
     await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
 
+    expect(gbif.lookupMatch).toHaveBeenCalledTimes(1)
     expect(setMediaSubjectLookup).toHaveBeenCalledWith(
       expect.objectContaining({
         patch: expect.objectContaining({ subjectLookupStatus: 'no-match' })
@@ -231,15 +254,151 @@ describe('resolveMediaSubjectJob', () => {
     )
   })
 
-  it('records no-match when a known key no longer exists', async () => {
-    gbif.getTaxon.mockResolvedValue(null)
-    mediaWith({ subjectTaxonKey: '99999999', subjectName: 'x' })
+  describe('a kingdom hint', () => {
+    it.each([
+      ['NONE', { kind: 'none' }],
+      ['a kingdom (unplaced)', { kind: 'unplaced' }],
+      [
+        'an uncertain answer',
+        { kind: 'uncertain', uncertain: { speciesKey: '1', genusKey: null } }
+      ]
+    ])(
+      'is dropped and the name asked again when the hinted answer is %s',
+      async (_, hinted) => {
+        gbif.lookupMatch.mockResolvedValueOnce(hinted).mockResolvedValueOnce({
+          kind: 'match',
+          taxon: { taxonKey: '5219416' }
+        })
+        gbif.getTaxon.mockResolvedValue({
+          ...KINGFISHER,
+          taxonKey: '5219416',
+          iucnCategory: 'EN'
+        })
+        mediaWith({
+          subjectScientificName: 'Panthera tigris',
+          subjectCategory: 'plant'
+        })
+
+        await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
+
+        expect(gbif.lookupMatch).toHaveBeenNthCalledWith(1, 'Panthera tigris', {
+          kingdom: 'Plantae',
+          allowHigherRank: true
+        })
+        expect(gbif.lookupMatch).toHaveBeenNthCalledWith(2, 'Panthera tigris', {
+          allowHigherRank: true
+        })
+        expect(setMediaSubjectLookup).toHaveBeenCalledWith(
+          expect.objectContaining({
+            patch: expect.objectContaining({
+              subjectIucnCategory: 'EN',
+              subjectLookupStatus: 'resolved'
+            })
+          })
+        )
+      }
+    )
+
+    it('records failed when the unhinted answer places the name in a kingdom', async () => {
+      gbif.lookupMatch.mockResolvedValue({ kind: 'unplaced' })
+      mediaWith({
+        subjectScientificName: 'Panthera tigris',
+        subjectCategory: 'plant'
+      })
+
+      await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
+
+      expect(gbif.lookupMatch).toHaveBeenCalledTimes(2)
+      expect(setMediaSubjectLookup).toHaveBeenCalledWith(
+        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
+      )
+    })
+
+    it('records no-match only for the unhinted NONE', async () => {
+      gbif.lookupMatch
+        .mockResolvedValueOnce({ kind: 'none' })
+        .mockResolvedValueOnce({ kind: 'none' })
+      mediaWith({
+        subjectScientificName: 'Zzzqx blorp',
+        subjectCategory: 'bird'
+      })
+
+      await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
+
+      expect(gbif.lookupMatch).toHaveBeenCalledTimes(2)
+      expect(setMediaSubjectLookup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          patch: expect.objectContaining({ subjectLookupStatus: 'no-match' })
+        })
+      )
+    })
+  })
+
+  describe('a key GBIF does not know', () => {
+    it('records failed for a stored key with no name to try', async () => {
+      gbif.getTaxon.mockResolvedValue(null)
+      mediaWith({ subjectTaxonKey: '99999999' })
+
+      await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
+
+      expect(setMediaSubjectLookup).toHaveBeenCalledWith(
+        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
+      )
+    })
+
+    it('records failed when the names of a retired key only give NONE', async () => {
+      gbif.getTaxon.mockResolvedValue(null)
+      gbif.lookupMatch.mockResolvedValue({ kind: 'none' })
+      mediaWith({ subjectTaxonKey: '99999999', subjectScientificName: 'X y' })
+
+      await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
+
+      expect(setMediaSubjectLookup).toHaveBeenCalledWith(
+        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
+      )
+    })
+
+    it.each([
+      ['a confident match', { scientific: true }],
+      ['an exact search hit', { scientific: false }]
+    ])('records failed for the key of %s', async (_, { scientific }) => {
+      gbif.getTaxon.mockResolvedValue(null)
+      gbif.lookupSearch.mockResolvedValue({
+        complete: true,
+        results: [
+          {
+            taxonKey: '2475532',
+            scientificName: 'Alcedo atthis',
+            vernacularNames: ['Common Kingfisher']
+          }
+        ]
+      })
+      mediaWith(
+        scientific
+          ? { subjectScientificName: 'Alcedo atthis' }
+          : { subjectName: 'Common Kingfisher', subjectCategory: 'bird' }
+      )
+
+      await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
+
+      expect(gbif.getTaxon).toHaveBeenCalledWith('2475532')
+      expect(setMediaSubjectLookup).toHaveBeenCalledWith(
+        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
+      )
+    })
+  })
+
+  it('compares the category, so a result for an older category is dropped', async () => {
+    mediaWith({
+      subjectScientificName: 'Panthera tigris',
+      subjectCategory: 'plant'
+    })
 
     await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
 
     expect(setMediaSubjectLookup).toHaveBeenCalledWith(
       expect.objectContaining({
-        patch: expect.objectContaining({ subjectLookupStatus: 'no-match' })
+        expect: expect.objectContaining({ subjectCategory: 'plant' })
       })
     )
   })

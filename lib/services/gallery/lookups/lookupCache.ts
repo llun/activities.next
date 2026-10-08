@@ -50,20 +50,23 @@ const inFlight = new Map<string, Promise<CachedLookup<unknown>>>()
  *
  * `skipCachedError` is for the owner's Retry: a remembered failure is asked
  * again instead of being answered from the cache (an open circuit still fails
- * fast, in `lookupGet`). Hits and misses are still served from the cache.
+ * fast, in `lookupGet`). Hits and misses are still served from the cache,
+ * unless `skipCachedMiss` asks again past a remembered miss too.
  */
 export const readThroughLookupCache = async <T>({
   database,
   kind,
   key,
   fetcher,
-  skipCachedError = false
+  skipCachedError = false,
+  skipCachedMiss = false
 }: {
   database: Database
   kind: LookupCacheKind
   key: string
   fetcher: () => Promise<T | null>
   skipCachedError?: boolean
+  skipCachedMiss?: boolean
 }): Promise<CachedLookup<T>> => {
   const flightKey = `${kind}:${key}`
   const existing = inFlight.get(flightKey)
@@ -73,7 +76,9 @@ export const readThroughLookupCache = async <T>({
     try {
       const cached = await database.getGalleryLookup({ kind, key })
       if (cached && cached.expiresAt > Date.now()) {
-        if (cached.outcome === 'miss') return { status: 'miss' }
+        if (cached.outcome === 'miss' && !skipCachedMiss) {
+          return { status: 'miss' }
+        }
         if (cached.outcome === 'error' && !skipCachedError) {
           return { status: 'error' }
         }

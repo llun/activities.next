@@ -143,6 +143,20 @@ describe('GallerySubjectDetailView', () => {
       ).toHaveAttribute('href', '/tags/RamphastosSulfuratus')
     })
 
+    it('writes a scientific name as it is, never pluralized', () => {
+      render_({
+        subject: { ...identified, name: null },
+        commonTag: null
+      })
+
+      const heading = screen.getByRole('heading', {
+        name: 'More Ramphastos sulfuratus on the fediverse'
+      })
+      expect(heading.querySelector('.italic')).toHaveTextContent(
+        'Ramphastos sulfuratus'
+      )
+    })
+
     it('falls back to the common-name tag when there is no scientific name', () => {
       render_({
         subject: {

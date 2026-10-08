@@ -624,6 +624,21 @@ describe('gallery queries', () => {
           },
           { subject: 'LC', countryCode: 'DE' }
         )
+        // A name with no precision: the geocoded code is the owner's alone.
+        await createOtherMedia(
+          'home-robin',
+          {
+            subjectName: 'European Robin',
+            subjectScientificName: 'Erithacus rubecula',
+            subjectCategory: 'bird',
+            takenAt: Date.UTC(2024, 9, 1),
+            placeName: 'Home',
+            placeLatitude: 40.4168,
+            placeLongitude: -3.7038,
+            placePrecision: null
+          },
+          { subject: 'LC', countryCode: 'ES' }
+        )
       })
 
       it('counts only the countries of places the public is shown', async () => {
@@ -640,10 +655,11 @@ describe('gallery queries', () => {
           })
         ])
 
-        // TH (threatened), IN (unchecked) and DE (hidden precision) are
-        // withheld, and each was the only photo in its country.
+        // TH (threatened), IN (unchecked), DE (hidden precision) and ES (no
+        // precision, so no code) are withheld, and each was the only photo in
+        // its country.
         expect(publicSubjects.countryCount).toBe(3)
-        expect(ownerSubjects.countryCount).toBe(6)
+        expect(ownerSubjects.countryCount).toBe(7)
 
         const entries = (result: typeof publicSubjects) =>
           Object.fromEntries(
@@ -659,6 +675,7 @@ describe('gallery queries', () => {
         })
         expect(entries(ownerSubjects)['sci:erithacus rubecula']).toEqual([
           'DE',
+          'ES',
           'FR',
           'GB'
         ])
@@ -763,9 +780,10 @@ describe('gallery queries', () => {
           [otherIds['robin-gb']]: 'shown-area',
           [otherIds['robin-fr']]: 'not-shown',
           [otherIds.tiger]: 'threatened-species',
-          [otherIds.hornbill]: 'threatened-species'
+          [otherIds.hornbill]: 'threatened-species',
+          [otherIds['home-robin']]: 'not-shown'
         })
-        expect(ownerMap.countryCount).toBe(6)
+        expect(ownerMap.countryCount).toBe(7)
       })
 
       it('withholds a threatened item place in the grid, and the owner keeps it', async () => {

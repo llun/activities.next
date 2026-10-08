@@ -391,9 +391,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   lookups found: `subject.taxonKey`, `subject.taxonPath`,
   `subject.iucnCategory`, `subject.threatStatus` (`threatened`,
   `not-threatened` or `unchecked`), `subject.lookupStatus`,
+  `subject.lookupAt` (when the status was last written, ISO 8601),
   `subject.lookupStale` (pending for over two minutes, so Retry is offered),
   `place.countryCode`, `place.nameSource`, `place.lookupStatus`,
-  `place.lookupStale` (the same rule for the place lookup), and the
+  `place.lookupAt`, `place.lookupStale` (the same rules for the place
+  lookup), and the
   model's `subjectSuggestions`. None of the IUCN fields or the suggestions is
   ever returned to anyone else, and a threatened or not-yet-checked species'
   `place` is `null` for every non-owner. `POST /api/v1/media/:id/subject-suggestions`

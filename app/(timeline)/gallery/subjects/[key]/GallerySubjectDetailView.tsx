@@ -154,7 +154,18 @@ export const GallerySubjectDetailView: FC<Props> = ({
           className="space-y-2 rounded-xl border p-4"
         >
           <h2 id="subject-fediverse-heading" className="font-semibold">
-            More {name}s on the fediverse
+            {/* Only a common name takes a plural; a scientific name is
+                written as it is ("More Alcedo atthis", not "atthiss"). */}
+            {subject.name ? (
+              <>More {subject.name}s on the fediverse</>
+            ) : subject.scientificName ? (
+              <>
+                More <span className="italic">{subject.scientificName}</span> on
+                the fediverse
+              </>
+            ) : (
+              <>More posts on the fediverse</>
+            )}
           </h2>
           <p className="text-muted-foreground text-sm">
             Posts tagged {tagLabel.join(' or ')}.

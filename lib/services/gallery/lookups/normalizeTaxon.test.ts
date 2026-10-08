@@ -10,6 +10,7 @@ import matchSynonym from './__fixtures__/gbif-match-synonym.json'
 import searchKingfisher from './__fixtures__/gbif-search-kingfisher.json'
 import taxonKingfisher from './__fixtures__/gbif-taxon-kingfisher.json'
 import {
+  classifyMatch,
   getTaxonCategory,
   getUncertainMatch,
   isReadableMatch,
@@ -266,5 +267,92 @@ describe('getUncertainMatch', () => {
     ]
   ])('answers null for %s', (_, raw) => {
     expect(getUncertainMatch(raw)).toBeNull()
+  })
+})
+
+describe('classifyMatch', () => {
+  it.each([
+    ['a confident species', matchExact, {}, 'match'],
+    ['a fuzzy species at the bar', matchFuzzy, {}, 'match'],
+    [
+      'a confident genus for a group',
+      matchGenus,
+      { allowHigherRank: true },
+      'match'
+    ],
+    ['a confident genus without a group', matchGenus, {}, 'unplaced'],
+    ['GBIF’s NONE', matchNone, {}, 'none'],
+    ['a HIGHERRANK species', matchPongoHigherRank, {}, 'uncertain'],
+    ['a HIGHERRANK genus', matchGenusOnly, {}, 'uncertain'],
+    [
+      'a HIGHERRANK kingdom (live: a tiger hinted as a plant)',
+      {
+        usageKey: 6,
+        scientificName: 'Plantae',
+        canonicalName: 'Plantae',
+        rank: 'KINGDOM',
+        status: 'ACCEPTED',
+        confidence: 100,
+        matchType: 'HIGHERRANK',
+        kingdom: 'Plantae',
+        kingdomKey: 6,
+        synonym: false
+      },
+      {},
+      'unplaced'
+    ],
+    [
+      'a HIGHERRANK family',
+      {
+        usageKey: 5483,
+        rank: 'FAMILY',
+        matchType: 'HIGHERRANK',
+        confidence: 90
+      },
+      {},
+      'unplaced'
+    ],
+    [
+      'a confident kingdom',
+      {
+        usageKey: 1,
+        canonicalName: 'Animalia',
+        rank: 'KINGDOM',
+        matchType: 'EXACT',
+        confidence: 100
+      },
+      { allowHigherRank: true },
+      'unplaced'
+    ],
+    ['an unknown match type', { matchType: 'NEW_KIND' }, {}, 'unplaced'],
+    [
+      'a NONE with a key',
+      { matchType: 'NONE', speciesKey: 5219416 },
+      {},
+      'unplaced'
+    ],
+    [
+      'a NONE with a kingdom key',
+      { matchType: 'NONE', kingdomKey: 1 },
+      {},
+      'unplaced'
+    ],
+    ['no match type', { usageKey: 1 }, {}, 'unreadable'],
+    [
+      'an EXACT with no key',
+      {
+        matchType: 'EXACT',
+        confidence: 99,
+        rank: 'SPECIES',
+        canonicalName: 'X y'
+      },
+      {},
+      'unreadable'
+    ],
+    ['null', null, {}, 'unreadable'],
+    ['a list', [matchExact], {}, 'unreadable'],
+    ['a string', 'NONE', {}, 'unreadable']
+  ])('reads %s as %s', (_, raw, options, kind) => {
+    expect(classifyMatch(raw, options).kind).toBe(kind)
   })
 })

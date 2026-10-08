@@ -210,9 +210,10 @@ export const GalleryPrivacySettings: FC<Props> = ({ mapProvider }) => {
           busy={savingKeys.has('hideThreatenedPlaces')}
           // Until the settings load the availability flags are unknown, so no
           // notice flashes. The rule fails closed, so both states say what a
-          // species photo's place does until its status is known.
+          // species photo's place does until its status is known; with the
+          // switch off neither holds, so there is no notice.
           notice={
-            !settings
+            !settings || !settings.hideThreatenedPlaces
               ? undefined
               : settings.speciesLookupsAvailable
                 ? 'A species’ place stays hidden until its status has been checked.'

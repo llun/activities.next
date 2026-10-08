@@ -381,6 +381,20 @@ describe('MediaDetailsSettings', () => {
       expect(screen.getByLabelText(THRESHOLD)).toBeDisabled()
     })
 
+    it('says the model option sends species names to GBIF', async () => {
+      render(<MediaDetailsSettings />)
+
+      await screen.findByRole('radio', { name: MODEL })
+      expect(
+        screen.getByText(
+          'Same model as descriptions. Good at any subject; species names are checked against GBIF.'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText('Your server has no image model set up.')
+      ).not.toBeInTheDocument()
+    })
+
     it('never offers the reserved classifier', async () => {
       render(<MediaDetailsSettings />)
 

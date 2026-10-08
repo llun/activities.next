@@ -6,6 +6,7 @@ import iucnEndangered from '@/lib/services/gallery/lookups/__fixtures__/gbif-iuc
 import iucnLeastConcern from '@/lib/services/gallery/lookups/__fixtures__/gbif-iucn-lc.json'
 import matchGenusOnly from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-higherrank-genus.json'
 import matchPongoHigherRank from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-higherrank-pongo.json'
+import matchNone from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-none.json'
 import matchTiger from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-tiger.json'
 import searchKingfisher from '@/lib/services/gallery/lookups/__fixtures__/gbif-search-kingfisher.json'
 import taxonKingfisher from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-kingfisher.json'
@@ -26,10 +27,13 @@ const HTML_404 = {
   body: '<!DOCTYPE html><html><head><title>404 Not Found</title></head></html>'
 }
 
-const answers = new Map<string, { statusCode: number; body: unknown }>()
+type Answer = { statusCode: number; body: unknown }
+// An answer per path, or one that depends on the request (the kingdom hint).
+const answers = new Map<string, Answer | ((url: URL) => Answer)>()
 const mockFetch = vi.fn(async ({ url }: { url: string }) => {
-  const { pathname } = new URL(url)
-  const answer = answers.get(pathname) ?? HTML_404
+  const parsed = new URL(url)
+  const entry = answers.get(parsed.pathname) ?? HTML_404
+  const answer = typeof entry === 'function' ? entry(parsed) : entry
   return {
     body:
       typeof answer.body === 'string'
@@ -248,6 +252,55 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
       expect(withheld).toBe(true)
     })
 
+    it('records failed when GBIF does not know the key its match named', async () => {
+      answers.set('/v1/species/5219416', {
+        statusCode: 404,
+        body: taxonNotFound
+      })
+
+      const { patch, withheld } = await run()
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('records failed when GBIF does not know the key its search named', async () => {
+      answers.set('/v1/species/search', {
+        statusCode: 200,
+        body: searchKingfisher
+      })
+      answers.set('/v1/species/2475532', {
+        statusCode: 404,
+        body: taxonNotFound
+      })
+
+      const { patch, withheld } = await run({
+        subjectName: 'Common Kingfisher',
+        subjectScientificName: null,
+        subjectCategory: 'bird',
+        subjectTaxonKey: null,
+        subjectLookupStatus: 'pending'
+      })
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('records failed for a retired stored key with no name to try', async () => {
+      answers.set('/v1/species/111', { statusCode: 404, body: taxonNotFound })
+
+      const { patch, withheld } = await run({
+        subjectName: null,
+        subjectScientificName: null,
+        subjectCategory: null,
+        subjectTaxonKey: '111',
+        subjectLookupStatus: 'pending'
+      })
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
     it('tries the names when GBIF no longer knows a stored key', async () => {
       answers.set('/v1/species/111', { statusCode: 404, body: taxonNotFound })
 
@@ -262,6 +315,90 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
         subjectLookupStatus: 'resolved'
       })
       expect(withheld).toBe(true)
+    })
+  })
+
+  describe('a wrong kingdom hint is not a no-match', () => {
+    // Live: species/match?name=Panthera tigris&kingdom=Plantae&strict=false
+    const KINGDOM_ANSWER = {
+      usageKey: 6,
+      scientificName: 'Plantae',
+      canonicalName: 'Plantae',
+      rank: 'KINGDOM',
+      status: 'ACCEPTED',
+      confidence: 100,
+      matchType: 'HIGHERRANK',
+      kingdom: 'Plantae',
+      kingdomKey: 6,
+      synonym: false
+    }
+    const TIGER_AS_PLANT = { ...TIGER, subjectCategory: 'plant' as const }
+
+    it('asks again without the hint and finds the tiger', async () => {
+      answers.set('/v1/species/match', (url) =>
+        url.searchParams.get('kingdom') === 'Plantae'
+          ? { statusCode: 200, body: KINGDOM_ANSWER }
+          : { statusCode: 200, body: matchTiger }
+      )
+
+      const { patch, withheld } = await run(TIGER_AS_PLANT)
+
+      expect(patch).toMatchObject({
+        subjectTaxonKey: '5219416',
+        subjectIucnCategory: 'EN',
+        subjectLookupStatus: 'resolved'
+      })
+      expect(withheld).toBe(true)
+    })
+
+    it('asks again when the hinted answer is NONE', async () => {
+      answers.set('/v1/species/match', (url) =>
+        url.searchParams.get('kingdom')
+          ? { statusCode: 200, body: matchNone }
+          : { statusCode: 200, body: matchTiger }
+      )
+
+      const { patch, withheld } = await run(TIGER_AS_PLANT)
+
+      expect(patch).toMatchObject({ subjectIucnCategory: 'EN' })
+      expect(withheld).toBe(true)
+    })
+
+    it('records failed when even the unhinted answer is a kingdom', async () => {
+      answers.set('/v1/species/match', {
+        statusCode: 200,
+        body: KINGDOM_ANSWER
+      })
+
+      const { patch, withheld } = await run(TIGER_AS_PLANT)
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('records failed when the retry without the hint fails', async () => {
+      answers.set('/v1/species/match', (url) =>
+        url.searchParams.get('kingdom')
+          ? { statusCode: 200, body: KINGDOM_ANSWER }
+          : HTML_404
+      )
+
+      const { patch, withheld } = await run(TIGER_AS_PLANT)
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('records no-match only when the unhinted answer is NONE too', async () => {
+      answers.set('/v1/species/match', { statusCode: 200, body: matchNone })
+
+      const { patch, withheld } = await run({
+        ...TIGER_AS_PLANT,
+        subjectScientificName: 'Zzzqx blorp'
+      })
+
+      expect(patch).toMatchObject({ subjectLookupStatus: 'no-match' })
+      expect(withheld).toBe(false)
     })
   })
 

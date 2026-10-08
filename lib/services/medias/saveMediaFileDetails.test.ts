@@ -107,6 +107,7 @@ describe('uploading a photo with EXIF', () => {
         nameSource: null,
         // Queued for its place lookup by the upload; not stale yet.
         lookupStatus: 'pending',
+        lookupAt: expect.any(String),
         lookupStale: false
       },
       inGallery: false,

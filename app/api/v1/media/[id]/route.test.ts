@@ -798,6 +798,7 @@ describe('/api/v1/media/[id]', () => {
         countryCode: null,
         nameSource: null,
         lookupStatus: null,
+        lookupAt: null,
         lookupStale: false
       })
     })
@@ -823,6 +824,7 @@ describe('/api/v1/media/[id]', () => {
         // Not checked yet: its place is withheld from everyone else.
         threatStatus: 'unchecked',
         lookupStatus: 'pending',
+        lookupAt: expect.any(String),
         // It only just became pending: no Retry yet.
         lookupStale: false
       })

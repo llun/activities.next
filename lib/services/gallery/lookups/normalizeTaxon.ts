@@ -36,7 +36,7 @@ export interface NormalizedMatch extends NormalizedTaxon {
 export const MIN_MATCH_CONFIDENCE = 90
 
 // GBIF ranks at or below species.
-const SPECIES_OR_LOWER_RANKS = new Set([
+export const SPECIES_OR_LOWER_RANKS: ReadonlySet<string> = new Set([
   'SPECIES',
   'SUBSPECIES',
   'VARIETY',
@@ -48,7 +48,8 @@ const SPECIES_OR_LOWER_RANKS = new Set([
   'STRAIN',
   'FORMA_SPECIALIS'
 ])
-const GROUP_RANKS = new Set(['GENUS', 'FAMILY'])
+// The ranks a group pick ("Just genus") may name.
+export const GROUP_RANKS: ReadonlySet<string> = new Set(['GENUS', 'FAMILY'])
 
 const CLASS_CATEGORY: Record<string, MediaSubjectCategory> = {
   aves: 'bird',
@@ -163,17 +164,16 @@ export interface UncertainMatch {
 
 /**
  * The species or genus a `species/match` answer that `normalizeMatch`
- * rejected still names, or null when it names neither (`NONE`, or an answer
- * placed no lower than a family). Only call it for a readable answer that
- * `normalizeMatch` turned down.
+ * rejected still names, or null when it names neither (`NONE`, a confident
+ * answer turned down for its rank, or an answer placed no lower than a
+ * family). Null is NOT a miss: `classifyMatch` reads only `NONE` as one.
  */
 export const getUncertainMatch = (raw: unknown): UncertainMatch | null => {
   if (!raw || typeof raw !== 'object') return null
   const match = raw as Record<string, unknown>
   if (match.matchType === 'NONE') return null
-  // A confident EXACT or FUZZY answer that was turned down for its rank names
-  // a genus or family itself ("Pongo"): the owner named a group, which the
-  // place rule clears as it clears a "Just genus" pick.
+  // A confident EXACT or FUZZY answer turned down for its rank names a group
+  // ("Pongo", or a kingdom): it names no species GBIF was unsure of.
   const confident =
     (match.matchType === 'EXACT' || match.matchType === 'FUZZY') &&
     typeof match.confidence === 'number' &&
@@ -265,6 +265,55 @@ export const isReadableMatch = (raw: unknown): boolean => {
     )
   }
   return true
+}
+
+/**
+ * What one `species/match` answer says, sorted for the subject decision:
+ * - `match`: a confident match (`normalizeMatch`).
+ * - `none`: GBIF's own "no match": `matchType` NONE and no key of any kind.
+ *   This is the only answer that reads as a miss.
+ * - `uncertain`: placed in a species or genus without a confident match.
+ * - `unplaced`: anything else GBIF answered readably: HIGHERRANK at a family,
+ *   order or kingdom (which a wrong kingdom hint produces), a confident answer
+ *   above the ranks asked for, or a match type this code does not know.
+ * - `unreadable`: not a match answer in any shape this code knows.
+ */
+export type MatchClassification =
+  | { kind: 'match'; match: NormalizedMatch }
+  | { kind: 'none' }
+  | { kind: 'uncertain'; uncertain: UncertainMatch }
+  | { kind: 'unplaced' }
+  | { kind: 'unreadable' }
+
+const MATCH_KEY_FIELDS = [
+  'usageKey',
+  'acceptedUsageKey',
+  'speciesKey',
+  'genusKey',
+  'familyKey',
+  'orderKey',
+  'classKey',
+  'phylumKey',
+  'kingdomKey'
+]
+
+export const classifyMatch = (
+  raw: unknown,
+  { allowHigherRank = false }: { allowHigherRank?: boolean } = {}
+): MatchClassification => {
+  if (!isReadableMatch(raw)) return { kind: 'unreadable' }
+  const match = normalizeMatch(raw, { allowHigherRank })
+  if (match) return { kind: 'match', match }
+  const answer = raw as Record<string, unknown>
+  if (answer.matchType === 'NONE') {
+    // A NONE that still carries a key is not GBIF's plain "no match".
+    const keyed = MATCH_KEY_FIELDS.some(
+      (field) => answer[field] !== undefined && answer[field] !== null
+    )
+    return keyed ? { kind: 'unplaced' } : { kind: 'none' }
+  }
+  const uncertain = getUncertainMatch(raw)
+  return uncertain ? { kind: 'uncertain', uncertain } : { kind: 'unplaced' }
 }
 
 export const isSubjectCategory = (

@@ -662,6 +662,23 @@ describe('getPublicPlace country names', () => {
     ).toEqual({ name: 'Our garden', precision: null, countryCode: null })
   })
 
+  it('sends no geocoded country code with no precision', () => {
+    expect(
+      getPublicPlace(
+        {
+          ...EMPTY_MEDIA_DETAILS,
+          placeName: 'Home',
+          placeNameSource: 'owner',
+          placePrecision: null,
+          placeLatitude: 14.4,
+          placeLongitude: 101.4,
+          placeCountryCode: 'TH'
+        },
+        NO_ZONES
+      )
+    ).toEqual({ name: 'Home', precision: null, countryCode: null })
+  })
+
   it('keeps the owner’s own name for country without a code', () => {
     expect(
       getPublicPlace(

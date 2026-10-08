@@ -105,6 +105,9 @@ export const MediaDetailsEntity = z.object({
       // for want of a lookup that cleared it.
       threatStatus: z.enum(['threatened', 'not-threatened', 'unchecked']),
       lookupStatus: z.enum(MEDIA_LOOKUP_STATUSES).nullable(),
+      // When the status was last written (ISO 8601), so an open dialog can
+      // tell a `pending` lookup has gone stale without reading it again.
+      lookupAt: z.string().nullable(),
       // `pending` for longer than a lookup should take: the owner may Retry.
       lookupStale: z.boolean()
     })
@@ -129,6 +132,9 @@ export const MediaDetailsEntity = z.object({
       countryCode: z.string().nullable(),
       nameSource: z.enum(MEDIA_PLACE_NAME_SOURCES).nullable(),
       lookupStatus: z.enum(MEDIA_LOOKUP_STATUSES).nullable(),
+      // When the status was last written (ISO 8601), so an open dialog can
+      // tell a `pending` lookup has gone stale without reading it again.
+      lookupAt: z.string().nullable(),
       // `pending` for longer than a lookup should take: the owner may Retry.
       lookupStale: z.boolean()
     })

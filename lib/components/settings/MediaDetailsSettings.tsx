@@ -135,7 +135,12 @@ export const MediaDetailsSettings: FC = () => {
                 <span className="block text-[0.8rem] text-muted-foreground">
                   Your server has no image model set up.
                 </span>
-              ) : null}
+              ) : (
+                <span className="block text-[0.8rem] text-muted-foreground">
+                  Same model as descriptions. Good at any subject; species names
+                  are checked against GBIF.
+                </span>
+              )}
             </span>
           </label>
           <label className="flex items-start gap-3 text-sm">

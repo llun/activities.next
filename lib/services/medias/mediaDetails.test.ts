@@ -1,5 +1,8 @@
 import {
-  STALE_SUBJECT_LOOKUP_MS,
+  STALE_PLACE_LOOKUP_MS,
+  STALE_SUBJECT_LOOKUP_MS
+} from '@/lib/services/medias/lookupStaleness'
+import {
   buildOwnerMediaDetails,
   getOwnerMediaAttachment
 } from '@/lib/services/medias/mediaDetails'
@@ -71,6 +74,7 @@ describe('buildOwnerMediaDetails', () => {
         iucnCategory: null,
         threatStatus: 'unchecked',
         lookupStatus: null,
+        lookupAt: null,
         lookupStale: false
       },
       takenAt: '2024-05-06T07:08:09.000Z',
@@ -90,6 +94,7 @@ describe('buildOwnerMediaDetails', () => {
         countryCode: null,
         nameSource: null,
         lookupStatus: null,
+        lookupAt: null,
         lookupStale: false
       },
       inGallery: true,
@@ -130,6 +135,7 @@ describe('buildOwnerMediaDetails', () => {
       countryCode: null,
       nameSource: null,
       lookupStatus: null,
+      lookupAt: null,
       lookupStale: false
     })
   })
@@ -182,6 +188,7 @@ describe('buildOwnerMediaDetails', () => {
       iucnCategory: 'VU',
       threatStatus: 'threatened',
       lookupStatus: 'resolved',
+      lookupAt: null,
       lookupStale: false
     })
     expect(result.place).toMatchObject({
@@ -251,13 +258,13 @@ describe('buildOwnerMediaDetails lookupStale', () => {
     expect(
       await placeStaleOf({
         placeLookupStatus: 'pending',
-        placeLookupAt: Date.now() - (STALE_SUBJECT_LOOKUP_MS - 1)
+        placeLookupAt: Date.now() - (STALE_PLACE_LOOKUP_MS - 1)
       })
     ).toBe(false)
     expect(
       await placeStaleOf({
         placeLookupStatus: 'pending',
-        placeLookupAt: Date.now() - STALE_SUBJECT_LOOKUP_MS
+        placeLookupAt: Date.now() - STALE_PLACE_LOOKUP_MS
       })
     ).toBe(true)
     expect(

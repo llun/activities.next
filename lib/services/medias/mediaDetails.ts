@@ -2,27 +2,19 @@ import { Database } from '@/lib/database/types'
 import { getSubjectThreatStatus } from '@/lib/services/gallery/threatenedSpecies'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
 import {
+  STALE_PLACE_LOOKUP_MS,
+  STALE_SUBJECT_LOOKUP_MS,
+  isStalePending
+} from '@/lib/services/medias/lookupStaleness'
+import {
   MediaDetailsEntity,
   MediaStorageSaveFileOutput
 } from '@/lib/services/medias/types'
 import { EMPTY_MEDIA_DETAILS } from '@/lib/types/database/gallery'
 import { Media } from '@/lib/types/database/operations'
 
-/**
- * How long a subject or place lookup may stay `pending` before the owner is
- * offered a Retry: a job lost to a queue outage, or one the queue dropped,
- * would otherwise leave "Checking IUCN status…" (or "Looking up the place
- * name…") up for good.
- */
-export const STALE_SUBJECT_LOOKUP_MS = 2 * 60 * 1000
-
-const isStalePending = (
-  status: string | null,
-  lookupAt: number | null,
-  now: number
-) =>
-  status === 'pending' &&
-  (lookupAt === null || now - lookupAt >= STALE_SUBJECT_LOOKUP_MS)
+const toIsoTime = (value: number | null) =>
+  value === null ? null : new Date(value).toISOString()
 
 /**
  * The `details` extension for the media's OWNER, with exact stored
@@ -69,10 +61,12 @@ export const buildOwnerMediaDetails = async (
             iucnCategory: details.subjectIucnCategory,
             threatStatus: getSubjectThreatStatus(details),
             lookupStatus: details.subjectLookupStatus,
+            lookupAt: toIsoTime(details.subjectLookupAt),
             lookupStale: isStalePending(
               details.subjectLookupStatus,
               details.subjectLookupAt,
-              Date.now()
+              Date.now(),
+              STALE_SUBJECT_LOOKUP_MS
             )
           }
         : null,
@@ -97,10 +91,12 @@ export const buildOwnerMediaDetails = async (
           countryCode: details.placeCountryCode,
           nameSource: details.placeNameSource,
           lookupStatus: details.placeLookupStatus,
+          lookupAt: toIsoTime(details.placeLookupAt),
           lookupStale: isStalePending(
             details.placeLookupStatus,
             details.placeLookupAt,
-            Date.now()
+            Date.now(),
+            STALE_PLACE_LOOKUP_MS
           )
         }
       : null,

@@ -178,7 +178,7 @@ describe('gbif client', () => {
       await client.matchTaxon('  alcedo   ATTHIS ')
 
       expect(requests).toHaveLength(1)
-      expect([...rows.keys()]).toEqual([`gbif-match:${TAG}alcedo atthis`])
+      expect([...rows.keys()]).toEqual([`gbif-match:${TAG}m2|alcedo atthis`])
     })
 
     it('caches a no-match so a typo is not asked again', async () => {
@@ -211,7 +211,9 @@ describe('gbif client', () => {
       // matchTaxon still answers only confident matches.
       await expect(client.matchTaxon('Pongo abelii xyz')).resolves.toBeNull()
       // Cached as an answer, not as a miss.
-      expect(rows.get(`gbif-match:${TAG}pongo abelii xyz`)?.outcome).toBe('ok')
+      expect(rows.get(`gbif-match:${TAG}m2|pongo abelii xyz`)?.outcome).toBe(
+        'ok'
+      )
     })
 
     it('reports a name placed only in a genus as uncertain', async () => {
@@ -222,9 +224,84 @@ describe('gbif client', () => {
       })
     })
 
-    it('answers null for a NONE answer', async () => {
-      const { client } = setup()
-      await expect(client.lookupMatch('Zzzqx blorp')).resolves.toBeNull()
+    it('reports GBIF’s NONE as none, cached as an answer', async () => {
+      const { client, rows } = setup()
+      await expect(client.lookupMatch('Zzzqx blorp')).resolves.toEqual({
+        kind: 'none'
+      })
+      expect(rows.get(`gbif-match:${TAG}m2|zzzqx blorp`)?.outcome).toBe('ok')
+    })
+
+    it('answers null for a blank name without a request', async () => {
+      const { client, requests } = setup()
+      await expect(client.lookupMatch('  ')).resolves.toBeNull()
+      expect(requests).toHaveLength(0)
+    })
+
+    it.each([
+      [
+        'a kingdom (a wrong kingdom hint)',
+        {
+          usageKey: 6,
+          scientificName: 'Plantae',
+          canonicalName: 'Plantae',
+          rank: 'KINGDOM',
+          confidence: 100,
+          matchType: 'HIGHERRANK',
+          kingdomKey: 6
+        }
+      ],
+      [
+        'a family',
+        {
+          usageKey: 5483,
+          canonicalName: 'Hominidae',
+          rank: 'FAMILY',
+          confidence: 94,
+          matchType: 'HIGHERRANK',
+          familyKey: 5483
+        }
+      ],
+      [
+        'a confident kingdom',
+        {
+          usageKey: 1,
+          canonicalName: 'Animalia',
+          rank: 'KINGDOM',
+          confidence: 100,
+          matchType: 'EXACT'
+        }
+      ],
+      ['an unknown match type', { matchType: 'SOMETHING_NEW' }],
+      ['a NONE that carries a key', { matchType: 'NONE', usageKey: 5219416 }]
+    ])('reports %s as unplaced, not none', async (_, body) => {
+      const { client } = setup((url) =>
+        url.pathname.endsWith('/match') ? { body } : gbifApi(url)
+      )
+      await expect(client.lookupMatch('Panthera tigris')).resolves.toEqual({
+        kind: 'unplaced'
+      })
+    })
+
+    it.each([
+      ['a legacy miss', { outcome: 'miss', value: null }],
+      ['an unknown value', { outcome: 'ok', value: { surprise: true } }],
+      [
+        'an uncertain value with a bad key',
+        { outcome: 'ok', value: { uncertain: { speciesKey: 'x' } } }
+      ]
+    ])('throws for a cached row holding %s', async (_, row) => {
+      const { client, rows } = setup()
+      rows.set(`gbif-match:${TAG}m2|panthera tigris`, {
+        kind: 'gbif-match',
+        key: `${TAG}m2|panthera tigris`,
+        fetchedAt: Date.now(),
+        expiresAt: Date.now() + 60_000,
+        ...(row as { outcome: 'ok' | 'miss'; value: unknown })
+      })
+      await expect(client.lookupMatch('Panthera tigris')).rejects.toMatchObject(
+        { code: 'parse' }
+      )
     })
   })
 
@@ -281,7 +358,7 @@ describe('gbif client', () => {
         url.pathname.endsWith('/match') ? HTML_404 : gbifApi(url)
       )
       await expect(client.matchTaxon('Panthera tigris')).rejects.toThrow()
-      expect(rows.get(`gbif-match:${TAG}panthera tigris`)?.outcome).toBe(
+      expect(rows.get(`gbif-match:${TAG}m2|panthera tigris`)?.outcome).toBe(
         'error'
       )
     })
@@ -316,7 +393,7 @@ describe('gbif client', () => {
 
       await client.matchTaxon('Alcedo atthis')
 
-      expect([...db.rows.keys()]).toEqual(['gbif-match:alcedo atthis'])
+      expect([...db.rows.keys()]).toEqual(['gbif-match:m2|alcedo atthis'])
     })
 
     it('does not serve one endpoint’s answers for another', async () => {
@@ -431,6 +508,26 @@ describe('gbif client', () => {
       await expect(client.getTaxon('../etc')).resolves.toBeNull()
       expect(requests).toHaveLength(0)
     })
+
+    it('asks again about an unknown key on a retry', async () => {
+      const db = createFakeLookupDatabase()
+      const stub = createStubFetch((request) => gbifApi(request.url))
+      const clientWith = (skipCachedErrors: boolean) =>
+        createGbifClient({
+          database: db.database,
+          fetch: stub.fetch,
+          provider: createTestProvider({ name: 'GBIF' }),
+          endpoint: ENDPOINT,
+          skipCachedErrors
+        })
+
+      await clientWith(false).getTaxon('99999999')
+      await clientWith(false).getTaxon('99999999')
+      expect(stub.requests).toHaveLength(1)
+
+      await clientWith(true).getTaxon('99999999')
+      expect(stub.requests).toHaveLength(2)
+    })
   })
 
   describe('getIucnCategory', () => {
@@ -496,6 +593,18 @@ describe('gbif client', () => {
       const results = await client.searchTaxa('species')
       expect(results).toHaveLength(10)
       expect(results[0].scientificName).toBe('Species 0')
+      // The skipped one may have been the name asked for.
+      await expect(client.lookupSearch('species')).resolves.toMatchObject({
+        complete: false
+      })
+    })
+
+    it('reports a fully readable answer as complete, an empty one too', async () => {
+      const { client } = setup(() => ({ body: { results: [] } }))
+      await expect(client.lookupSearch('nothing here')).resolves.toEqual({
+        results: [],
+        complete: true
+      })
     })
   })
 

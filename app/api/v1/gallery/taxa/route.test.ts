@@ -95,6 +95,7 @@ describe('GET /api/v1/gallery/taxa', () => {
       lookupMatch: vi.fn(),
       getTaxon: vi.fn(),
       getIucnCategory: vi.fn(),
+      lookupSearch: vi.fn(),
       searchTaxa
     })
   })

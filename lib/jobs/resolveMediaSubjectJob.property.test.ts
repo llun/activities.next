@@ -1,0 +1,431 @@
+import { Database } from '@/lib/database/types'
+import { RESOLVE_MEDIA_SUBJECT_JOB_NAME } from '@/lib/jobs/names'
+import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
+import matchGenus from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-genus.json'
+import matchGenusOnly from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-higherrank-genus.json'
+import matchPongoHigherRank from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-higherrank-pongo.json'
+import matchNone from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-none.json'
+import matchTiger from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-tiger.json'
+import searchKingfisher from '@/lib/services/gallery/lookups/__fixtures__/gbif-search-kingfisher.json'
+import taxonNotFound from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-not-found.json'
+import taxonTiger from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-tiger.json'
+import { createFakeLookupDatabase } from '@/lib/services/gallery/lookups/lookupTestUtils'
+import { isPlaceWithheldForThreat } from '@/lib/services/gallery/threatenedSpecies'
+import { MediaDetailsRecord } from '@/lib/types/database/gallery'
+
+// Property-style, end to end: the real job and GBIF client, with only the
+// network stubbed. Each run draws a subject and an answer for every request
+// from catalogues of odd GBIF answers. Whenever the stored result lets the
+// place be shown, the answers GBIF actually served must be one of the
+// allow-listed combinations, restated here from the answers' labels alone.
+
+// Every client gets a provider with no request spacing and its own breaker,
+// so hundreds of runs stay fast and one run's 500s do not open the next one's
+// circuit.
+vi.mock('@/lib/services/gallery/lookups/gbif', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/lib/services/gallery/lookups/gbif')>()
+  const { createTestProvider } =
+    await import('@/lib/services/gallery/lookups/lookupTestUtils')
+  return {
+    ...original,
+    createGbifClient: (deps: Parameters<typeof original.createGbifClient>[0]) =>
+      original.createGbifClient({
+        ...deps,
+        provider: createTestProvider({ name: 'GBIF' })
+      })
+  }
+})
+
+type Served = { path: string; hinted: boolean; label: string }
+const served: Served[] = []
+let respond: (url: URL) => { label: string; statusCode: number; body: unknown }
+
+const mockFetch = vi.fn(async ({ url }: { url: string }) => {
+  const parsed = new URL(url)
+  const answer = respond(parsed)
+  served.push({
+    path: parsed.pathname.replace('/v1/', ''),
+    hinted: parsed.searchParams.has('kingdom'),
+    label: answer.label
+  })
+  return {
+    body:
+      typeof answer.body === 'string'
+        ? answer.body
+        : JSON.stringify(answer.body),
+    bodyTruncated: false,
+    headers: {},
+    statusCode: answer.statusCode,
+    url
+  }
+})
+vi.mock('@/lib/utils/safeRemoteFetch', () => ({
+  safeRemoteFetch: (params: { url: string }) => mockFetch(params)
+}))
+
+vi.mock('@/lib/config', () => ({
+  getConfig: () => ({
+    host: 'llun.test',
+    languages: ['en'],
+    gallery: { gbif: { endpoint: 'https://gbif.test/v1' } }
+  })
+}))
+
+vi.mock('@/lib/services/serverSettings', () => ({
+  getResolvedServerSettings: async () => ({
+    network: { speciesLookups: true }
+  })
+}))
+
+// mulberry32: deterministic, so a failing run reproduces.
+let seed = 0x5eed2026
+const random = () => {
+  seed = (seed + 0x6d2b79f5) | 0
+  let t = seed
+  t = Math.imul(t ^ (t >>> 15), t | 1)
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+}
+const pick = <T>(values: readonly T[]): T =>
+  values[Math.floor(random() * values.length)]
+
+const HTML_404 = '<!DOCTYPE html><html><body>404 Not Found</body></html>'
+type Catalogue = Record<string, { statusCode: number; body: unknown }>
+
+const MATCH_ANSWERS: Catalogue = {
+  none: { statusCode: 200, body: matchNone },
+  'none-keyed': {
+    statusCode: 200,
+    body: { matchType: 'NONE', usageKey: 5219416 }
+  },
+  confident: { statusCode: 200, body: matchTiger },
+  'confident-genus': { statusCode: 200, body: matchGenus },
+  'confident-kingdom': {
+    statusCode: 200,
+    body: {
+      usageKey: 6,
+      canonicalName: 'Plantae',
+      rank: 'KINGDOM',
+      matchType: 'EXACT',
+      confidence: 100
+    }
+  },
+  'higherrank-species': { statusCode: 200, body: matchPongoHigherRank },
+  'lowconf-species': {
+    statusCode: 200,
+    body: { ...matchPongoHigherRank, matchType: 'FUZZY', confidence: 70 }
+  },
+  'higherrank-genus': { statusCode: 200, body: matchGenusOnly },
+  'higherrank-family': {
+    statusCode: 200,
+    body: {
+      usageKey: 5483,
+      canonicalName: 'Hominidae',
+      rank: 'FAMILY',
+      matchType: 'HIGHERRANK',
+      confidence: 90,
+      familyKey: 5483
+    }
+  },
+  'higherrank-kingdom': {
+    statusCode: 200,
+    body: {
+      usageKey: 6,
+      canonicalName: 'Plantae',
+      rank: 'KINGDOM',
+      matchType: 'HIGHERRANK',
+      confidence: 100,
+      kingdomKey: 6
+    }
+  },
+  'unknown-type': { statusCode: 200, body: { matchType: 'SOMETHING_NEW' } },
+  'changed-shape': {
+    statusCode: 200,
+    body: { usage: { key: 5219416 }, diagnostics: { matchType: 'EXACT' } }
+  },
+  'exact-no-key': {
+    statusCode: 200,
+    body: { matchType: 'EXACT', confidence: 99, rank: 'SPECIES' }
+  },
+  'json-null': { statusCode: 200, body: 'null' },
+  'json-string': { statusCode: 200, body: '"NONE"' },
+  'not-json': { statusCode: 200, body: 'NONE' },
+  'json-404': { statusCode: 404, body: taxonNotFound },
+  'html-404': { statusCode: 404, body: HTML_404 },
+  'server-error': { statusCode: 500, body: '' },
+  'no-content': { statusCode: 204, body: '' }
+}
+
+const RANKS = ['SPECIES', 'SUBSPECIES', 'GENUS', 'FAMILY', 'ORDER', 'KINGDOM']
+const taxonAnswers = (key: string): Catalogue => ({
+  ...Object.fromEntries(
+    RANKS.map((rank) => [
+      `readable-${rank}`,
+      {
+        statusCode: 200,
+        body: {
+          ...taxonTiger,
+          key: Number(key),
+          nubKey: Number(key),
+          speciesKey: undefined,
+          rank
+        }
+      }
+    ])
+  ),
+  'synonym-of-unknown': {
+    statusCode: 200,
+    body: {
+      ...taxonTiger,
+      key: Number(key),
+      nubKey: Number(key),
+      acceptedKey: 999
+    }
+  },
+  'no-rank': {
+    statusCode: 200,
+    body: { ...taxonTiger, key: Number(key), nubKey: Number(key), rank: null }
+  },
+  'changed-shape': { statusCode: 200, body: { usage: { key: Number(key) } } },
+  'json-null': { statusCode: 200, body: 'null' },
+  'json-404': { statusCode: 404, body: taxonNotFound },
+  'other-json-404': { statusCode: 404, body: { error: 'no route' } },
+  'html-404': { statusCode: 404, body: HTML_404 },
+  'server-error': { statusCode: 500, body: '' }
+})
+
+const IUCN_CODES = ['LC', 'NT', 'DD', 'NE', 'CR', 'EN', 'VU', 'EX', 'EW']
+const IUCN_ANSWERS: Catalogue = {
+  ...Object.fromEntries(
+    IUCN_CODES.map((code) => [
+      `code-${code}`,
+      { statusCode: 200, body: { code, category: 'WHATEVER' } }
+    ])
+  ),
+  'name-LC': { statusCode: 200, body: { category: 'LEAST_CONCERN' } },
+  'name-EN': { statusCode: 200, body: { category: 'ENDANGERED' } },
+  'not-assessed': { statusCode: 204, body: '' },
+  'unknown-code': { statusCode: 200, body: { code: 'ZZ' } },
+  'lower-case': { statusCode: 200, body: { code: 'lc' } },
+  empty: { statusCode: 200, body: {} },
+  list: { statusCode: 200, body: [] },
+  'html-404': { statusCode: 404, body: HTML_404 },
+  'json-404': { statusCode: 404, body: taxonNotFound },
+  'server-error': { statusCode: 500, body: '' }
+}
+
+const SEARCH_ANSWERS: Catalogue = {
+  // Names "Common Kingfisher" exactly (key 2475532).
+  'exact-hit': { statusCode: 200, body: searchKingfisher },
+  empty: { statusCode: 200, body: { results: [] } },
+  'readable-no-hit': {
+    statusCode: 200,
+    body: {
+      results: [
+        { key: 5, canonicalName: 'Halcyon smyrnensis', rank: 'SPECIES' }
+      ]
+    }
+  },
+  partial: {
+    statusCode: 200,
+    body: {
+      results: [
+        { junk: true },
+        { key: 5, canonicalName: 'Halcyon smyrnensis', rank: 'SPECIES' }
+      ]
+    }
+  },
+  unreadable: { statusCode: 200, body: { results: [{ junk: true }] } },
+  'not-a-list': { statusCode: 200, body: { results: {} } },
+  'html-404': { statusCode: 404, body: HTML_404 },
+  'server-error': { statusCode: 500, body: '' }
+}
+
+const SUBJECTS: Partial<MediaDetailsRecord>[] = [
+  ...(['mammal', 'plant', 'bird', null, 'landscape'] as const).map(
+    (subjectCategory) => ({
+      subjectName: 'Tiger',
+      subjectScientificName: 'Panthera tigris',
+      subjectCategory,
+      subjectTaxonKey: null
+    })
+  ),
+  {
+    subjectName: 'Common Kingfisher',
+    subjectScientificName: null,
+    subjectCategory: 'bird',
+    subjectTaxonKey: null
+  },
+  {
+    subjectName: null,
+    subjectScientificName: null,
+    subjectCategory: null,
+    subjectTaxonKey: '5219416'
+  },
+  {
+    subjectName: 'Tiger',
+    subjectScientificName: 'Panthera tigris',
+    subjectCategory: 'plant',
+    subjectTaxonKey: '111'
+  },
+  {
+    subjectName: 'Common Kingfisher',
+    subjectScientificName: null,
+    subjectCategory: 'bird',
+    subjectTaxonKey: '111'
+  }
+]
+
+const draw = (catalogue: Catalogue) => {
+  const label = pick(Object.keys(catalogue))
+  return { label, ...catalogue[label] }
+}
+
+// One draw per distinct request, so asking twice gets the same answer.
+const createWorld = () => {
+  const drawn = new Map<string, ReturnType<typeof draw>>()
+  return (url: URL) => {
+    const path = url.pathname.replace('/v1/', '')
+    const id = `${path}?${url.searchParams.get('kingdom') ?? ''}`
+    const existing = drawn.get(id)
+    if (existing) return existing
+    let answer: ReturnType<typeof draw>
+    if (path === 'species/match') answer = draw(MATCH_ANSWERS)
+    else if (path === 'species/search') answer = draw(SEARCH_ANSWERS)
+    else if (/^species\/\d+\/iucnRedListCategory$/.test(path)) {
+      answer = draw(IUCN_ANSWERS)
+    } else if (path === 'species/999') {
+      answer = { label: 'json-404', statusCode: 404, body: taxonNotFound }
+    } else if (/^species\/\d+$/.test(path)) {
+      answer = draw(taxonAnswers(path.split('/')[1]))
+    } else {
+      answer = { label: 'html-404', statusCode: 404, body: HTML_404 }
+    }
+    drawn.set(id, answer)
+    return answer
+  }
+}
+
+const CLEARING_IUCN = new Set([
+  ...['LC', 'NT', 'DD', 'NE', 'EX', 'EW'].map((code) => `code-${code}`),
+  'name-LC',
+  // `{ code: 'lc' }`: the code is read case-insensitively, so this is LC.
+  'lower-case',
+  'not-assessed'
+])
+const UNCERTAIN_CLEARING_IUCN = new Set([
+  ...['LC', 'NT', 'DD', 'NE'].map((code) => `code-${code}`),
+  'name-LC',
+  // `{ code: 'lc' }`: the code is read case-insensitively, so this is LC.
+  'lower-case',
+  'not-assessed'
+])
+const TAXON_RANKS = new Set(
+  ['SPECIES', 'SUBSPECIES', 'GENUS', 'FAMILY'].map((rank) => `readable-${rank}`)
+)
+const SPECIES_RANKS = new Set(['readable-SPECIES', 'readable-SUBSPECIES'])
+
+const labelOf = (path: string) =>
+  served.filter((answer) => answer.path === path).at(-1)?.label
+
+/** The allow-list, from what GBIF served. */
+const allowedToShow = (
+  subject: Partial<MediaDetailsRecord>,
+  patch: Record<string, unknown>
+): string | null => {
+  if (patch.subjectLookupStatus === 'resolved') {
+    const key = patch.subjectTaxonKey as string | undefined
+    if (!key) return null
+    return TAXON_RANKS.has(labelOf(`species/${key}`) ?? '') &&
+      CLEARING_IUCN.has(labelOf(`species/${key}/iucnRedListCategory`) ?? '')
+      ? 'resolved-taxon'
+      : null
+  }
+  if (patch.subjectLookupStatus !== 'no-match') return null
+  // A subject confirmed by a key once is never cleared as a no-match.
+  if (subject.subjectTaxonKey) return null
+
+  const lastMatch = served
+    .filter((answer) => answer.path === 'species/match')
+    .at(-1)
+  if (subject.subjectScientificName) {
+    if (!lastMatch || lastMatch.hinted) return null
+    if (lastMatch.label === 'none') return 'match-none-unhinted'
+    if (
+      (lastMatch.label === 'higherrank-species' ||
+        lastMatch.label === 'lowconf-species') &&
+      SPECIES_RANKS.has(labelOf('species/5707420') ?? '') &&
+      UNCERTAIN_CLEARING_IUCN.has(
+        labelOf('species/5707420/iucnRedListCategory') ?? ''
+      )
+    ) {
+      return 'uncertain-species-not-threatened'
+    }
+    return null
+  }
+  const search = labelOf('species/search')
+  return search === 'empty' || search === 'readable-no-hit'
+    ? 'search-complete-no-exact'
+    : null
+}
+
+const RUNS = 2000
+
+describe('resolveMediaSubjectJob never shows a place off the allow-list', () => {
+  it(`holds for ${RUNS} random combinations of GBIF answers`, async () => {
+    const reached = new Map<string, number>()
+    for (let index = 0; index < RUNS; index += 1) {
+      served.length = 0
+      respond = createWorld()
+      const subject = {
+        ...pick(SUBJECTS),
+        subjectLookupStatus: 'pending' as const
+      }
+
+      const lookups = createFakeLookupDatabase()
+      const setMediaSubjectLookup = vi.fn().mockResolvedValue(true)
+      const database = {
+        ...lookups.spies,
+        getMediaWithAttachedStatusIds: vi.fn().mockResolvedValue({
+          media: { id: '7', details: subject },
+          statusIds: []
+        }),
+        setMediaSubjectLookup
+      } as unknown as Database
+
+      await resolveMediaSubjectJob(database, {
+        id: `job-${index}`,
+        name: RESOLVE_MEDIA_SUBJECT_JOB_NAME,
+        data: { mediaId: '7' }
+      })
+
+      expect(setMediaSubjectLookup).toHaveBeenCalledTimes(1)
+      const { patch } = setMediaSubjectLookup.mock.calls[0][0]
+      const stored = {
+        ...subject,
+        subjectIucnCategory: null,
+        ...patch
+      } as MediaDetailsRecord
+      const shown = !isPlaceWithheldForThreat(stored, {
+        hideThreatenedPlaces: true
+      })
+      if (!shown) continue
+
+      const allowed = allowedToShow(subject, patch)
+      // On failure, the subject and every answer served say why.
+      expect(
+        allowed,
+        JSON.stringify({ subject, served, patch }, null, 2)
+      ).not.toBeNull()
+      reached.set(allowed as string, (reached.get(allowed as string) ?? 0) + 1)
+    }
+    // Every allow-listed answer was drawn, so the check is not vacuous.
+    expect([...reached.keys()].sort()).toEqual([
+      'match-none-unhinted',
+      'resolved-taxon',
+      'search-complete-no-exact',
+      'uncertain-species-not-threatened'
+    ])
+  })
+})

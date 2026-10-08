@@ -142,6 +142,31 @@ describe('GalleryPrivacySettings', () => {
     ).toBeInTheDocument()
   })
 
+  it.each([
+    ['lookups work', true],
+    ['the server cannot check', false]
+  ])(
+    'shows no hidden-place notice with the switch off when %s',
+    async (_, speciesLookupsAvailable) => {
+      mockGetGallerySettings.mockResolvedValue({
+        ...baseSettings,
+        hideThreatenedPlaces: false,
+        speciesLookupsAvailable
+      })
+      renderSettings()
+
+      expect(
+        await screen.findByRole('switch', { name: THREATENED })
+      ).not.toBeChecked()
+      expect(screen.queryByText(NO_LOOKUPS_NOTICE)).not.toBeInTheDocument()
+      expect(
+        screen.queryByText(
+          'A species’ place stays hidden until its status has been checked.'
+        )
+      ).not.toBeInTheDocument()
+    }
+  )
+
   it('explains what place lookups send, or that there are none', async () => {
     const { unmount } = renderSettings()
     expect(
