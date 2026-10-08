@@ -18,7 +18,8 @@ const details: MediaDetailsEntity = {
     taxonPath: null,
     iucnCategory: null,
     threatStatus: 'unchecked',
-    lookupStatus: null
+    lookupStatus: null,
+    lookupStale: false
   },
   takenAt: null,
   camera: { id: 'cam-1', name: 'Z9' },

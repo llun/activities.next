@@ -1455,6 +1455,34 @@ describe('PostBox media details', () => {
       expect(screen.queryByText('Suggested:')).not.toBeInTheDocument()
     })
 
+    it.each([
+      ['the server has no model', { subjectSuggestionsAvailable: false }],
+      ['the author turned suggestions off', { subjectSuggestionMode: 'off' }]
+    ])(
+      'ignores suggestions already stored on the media when %s',
+      async (_, overrides) => {
+        getGallerySettingsMock.mockResolvedValue(
+          settings({
+            subjectSuggestionsAvailable: true,
+            subjectSuggestionMode: 'model',
+            ...overrides
+          })
+        )
+        // A reused media whose details already hold the model's guesses.
+        getMediaMock.mockImplementation(async (id) =>
+          mediaEntity(id, 'A bird', { subjectSuggestions: SUGGESTIONS })
+        )
+        renderPostBox()
+
+        attach('bird.png')
+
+        expect(await screen.findByText('Edit')).toBeInTheDocument()
+        expect(screen.queryByText('Suggested:')).not.toBeInTheDocument()
+        expect(screen.queryByText('Warbling White-eye')).not.toBeInTheDocument()
+        expect(screen.queryByText('Review')).not.toBeInTheDocument()
+      }
+    )
+
     it('leaves the tile as it was when the request fails', async () => {
       suggestMock.mockRejectedValue(
         new Error('Subjects could not be suggested')

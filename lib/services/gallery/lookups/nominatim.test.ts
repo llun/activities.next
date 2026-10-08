@@ -131,6 +131,19 @@ describe('nominatim client', () => {
     expect(requests).toHaveLength(1)
   })
 
+  it.each([
+    ['no address and no error', { place_id: 1, display_name: 'Somewhere' }],
+    ['a list', []],
+    ['a string', 'nope']
+  ])('throws a parse error for an answer with %s', async (_, body) => {
+    const { client, rows } = setup({ handler: () => ({ body }) })
+
+    await expect(client.reverseGeocode(RAW)).rejects.toMatchObject({
+      code: 'parse'
+    })
+    expect([...rows.values()][0]?.outcome).toBe('error')
+  })
+
   it('opens the circuit on a 429 and then fails fast without a request', async () => {
     const { client, requests, provider } = setup({
       handler: () => ({ statusCode: 429, headers: { 'retry-after': '60' } })
@@ -226,6 +239,44 @@ describe('nominatim client', () => {
       expect(await overResult).toMatchObject({ code: 'rate-limited' })
       const gaps = starts.slice(1).map((start, index) => start - starts[index])
       expect(gaps.every((gap) => gap >= 1100)).toBe(true)
+    })
+
+    // The race: calls already waiting for their turn when the first one
+    // opened the circuit used to go out anyway.
+    it('does not send calls that queued before the circuit opened', async () => {
+      const stub = createStubFetch(() =>
+        Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' })
+      )
+      const provider = {
+        ...nominatimProvider,
+        limiter: createLimiter({
+          maxConcurrent: 1,
+          minIntervalMs: 1100,
+          maxWaitMs: 10_000
+        }),
+        breaker: createCircuitBreaker()
+      }
+      const client = createNominatimClient({
+        database: createFakeLookupDatabase().database,
+        fetch: stub.fetch,
+        provider,
+        endpoint: ENDPOINT,
+        email: null
+      })
+
+      const results = [10, 11, 12].map((latitude) =>
+        client
+          .reverseGeocode({ latitude, longitude: 100 })
+          .catch((error) => error)
+      )
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(await Promise.all(results)).toMatchObject([
+        { code: 'network' },
+        { code: 'circuit-open' },
+        { code: 'circuit-open' }
+      ])
+      expect(stub.requests).toHaveLength(1)
     })
   })
 })

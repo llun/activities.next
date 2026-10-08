@@ -12,6 +12,7 @@ import {
   IucnCategory,
   NormalizedMatch,
   NormalizedTaxon,
+  isReadableMatch,
   normalizeIucnCategory,
   normalizeMatch,
   normalizeTaxonRecord
@@ -91,13 +92,16 @@ export interface GbifClientDeps {
   fetch?: LookupFetch
   provider?: LookupProvider
   endpoint?: string
+  // The owner's Retry: ask again rather than answer a remembered failure.
+  skipCachedErrors?: boolean
 }
 
 export const createGbifClient = ({
   database,
   fetch,
   provider = gbifProvider,
-  endpoint
+  endpoint,
+  skipCachedErrors = false
 }: GbifClientDeps): GbifClient => {
   const baseUrl = () =>
     (endpoint ?? getConfig().gallery.gbif.endpoint).replace(/\/+$/, '')
@@ -121,13 +125,22 @@ export const createGbifClient = ({
     throw new LookupError('unavailable', 'GBIF lookup failed recently')
   }
 
+  // Null only when GBIF answers that it has no assessment (204 or 404). A 200
+  // whose category cannot be read throws, so the job records `failed` and the
+  // place stays hidden: "unreadable" must never pass for "not threatened".
   const fetchIucn = async (key: string): Promise<IucnCategory | null> => {
     const response = await get(
       `species/${encodeURIComponent(key)}/iucnRedListCategory`
     )
-    return response.status === 'ok'
-      ? normalizeIucnCategory(response.json)
-      : null
+    if (response.status !== 'ok') return null
+    const category = normalizeIucnCategory(response.json)
+    if (category === null) {
+      throw new LookupError(
+        'parse',
+        'GBIF returned an unreadable IUCN category'
+      )
+    }
+    return category
   }
 
   const client: GbifClient = {
@@ -147,6 +160,7 @@ export const createGbifClient = ({
       return unwrap(
         await readThroughLookupCache<NormalizedTaxon>({
           database,
+          skipCachedError: skipCachedErrors,
           kind: 'gbif-match',
           key,
           fetcher: async () => {
@@ -156,6 +170,14 @@ export const createGbifClient = ({
               strict: 'false'
             })
             if (response.status !== 'ok') return null
+            // A miss is only a readable answer that names no confident match;
+            // an answer in a shape this code does not know is a failure.
+            if (!isReadableMatch(response.json)) {
+              throw new LookupError(
+                'parse',
+                'GBIF returned an unreadable match'
+              )
+            }
             const match: NormalizedMatch | null = normalizeMatch(
               response.json,
               { allowHigherRank: options.allowHigherRank }
@@ -191,13 +213,19 @@ export const createGbifClient = ({
       return unwrap(
         await readThroughLookupCache<GbifTaxon>({
           database,
+          skipCachedError: skipCachedErrors,
           kind: 'gbif-taxon',
           key,
           fetcher: async () => {
             const response = await get(`species/${key}`)
             if (response.status !== 'ok') return null
             const taxon = normalizeTaxonRecord(response.json)
-            if (!taxon) return null
+            if (!taxon) {
+              throw new LookupError(
+                'parse',
+                'GBIF returned an unreadable taxon'
+              )
+            }
 
             // A synonym key answers with the accepted key; follow it once.
             const acceptedKey = (response.json as { acceptedKey?: unknown })
@@ -247,6 +275,7 @@ export const createGbifClient = ({
 
       const result = await readThroughLookupCache<GbifTaxonSearchResult[]>({
         database,
+        skipCachedError: skipCachedErrors,
         kind: 'gbif-search',
         key: normalizeKeyPart(query),
         fetcher: async () => {
@@ -258,8 +287,11 @@ export const createGbifClient = ({
             limit: String(MAX_SEARCH_RESULTS)
           })
           if (response.status !== 'ok') return []
-          const results = (response.json as { results?: unknown }).results
-          if (!Array.isArray(results)) return []
+          const results = (response.json as { results?: unknown } | null)
+            ?.results
+          if (!Array.isArray(results)) {
+            throw new LookupError('parse', 'GBIF returned an unreadable search')
+          }
 
           const found: GbifTaxonSearchResult[] = []
           for (const raw of results) {
@@ -272,6 +304,11 @@ export const createGbifClient = ({
               vernacularNames: names.all
             })
             if (found.length >= MAX_SEARCH_RESULTS) break
+          }
+          // Results that all fail to read are a changed shape, not "nothing
+          // found": a common-name subject would otherwise be cleared.
+          if (results.length > 0 && found.length === 0) {
+            throw new LookupError('parse', 'GBIF returned unreadable results')
           }
           return found
         }

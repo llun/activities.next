@@ -94,6 +94,39 @@ describe('readThroughLookupCache', () => {
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
+  it('asks again on a retry instead of answering a remembered error', async () => {
+    const { database } = createFakeDatabase()
+    const fetcher = vi
+      .fn<() => Promise<string | null>>()
+      .mockRejectedValueOnce(new Error('down'))
+      .mockResolvedValueOnce('back')
+    const params = { database, kind: 'geocode', key: 'k', fetcher } as const
+
+    await readThroughLookupCache(params)
+    await expect(
+      readThroughLookupCache({ ...params, skipCachedError: true })
+    ).resolves.toEqual({ status: 'ok', value: 'back' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('still serves hits and misses from the cache on a retry', async () => {
+    const { database } = createFakeDatabase()
+    const fetcher = vi.fn(async () => null)
+    const params = {
+      database,
+      kind: 'gbif-match',
+      key: 'k',
+      fetcher,
+      skipCachedError: true
+    } as const
+
+    await readThroughLookupCache(params)
+    await expect(readThroughLookupCache(params)).resolves.toEqual({
+      status: 'miss'
+    })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
   it('refetches an expired row', async () => {
     const { database } = createFakeDatabase()
     const fetcher = vi

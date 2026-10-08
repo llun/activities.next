@@ -597,6 +597,44 @@ describe('getPublicPlace country names', () => {
     ).toEqual({ name: 'Thailand', precision: 'country', countryCode: null })
   })
 
+  it.each([
+    ['no code', null],
+    ['a code Intl cannot name', 'ZZ'],
+    ['a malformed code', 'th']
+  ])(
+    'never shows a geocoded name for country with %s',
+    (_, placeCountryCode) => {
+      const place = getPublicPlace(
+        {
+          ...EMPTY_MEDIA_DETAILS,
+          placeName: 'Pak Chong',
+          placeNameSource: 'geocoder',
+          placePrecision: 'country',
+          placeLatitude: 14.4,
+          placeLongitude: 101.4,
+          placeCountryCode
+        },
+        NO_ZONES
+      )
+      expect(place?.name ?? null).toBeNull()
+      expect(JSON.stringify(place)).not.toContain('Pak Chong')
+    }
+  )
+
+  it('keeps the owner’s own name for country without a code', () => {
+    expect(
+      getPublicPlace(
+        {
+          ...EMPTY_MEDIA_DETAILS,
+          placeName: 'Thailand',
+          placeNameSource: 'owner',
+          placePrecision: 'country'
+        },
+        NO_ZONES
+      )
+    ).toEqual({ name: 'Thailand', precision: 'country', countryCode: null })
+  })
+
   it('keeps the locality for area and exact, with the code alongside', () => {
     expect(
       getPublicPlace(
@@ -781,6 +819,7 @@ describe('PUBLIC_PLACE_INPUT_KEYS', () => {
         'placeLatitude',
         'placeLongitude',
         'placeCountryCode',
+        'placeNameSource',
         'subjectName',
         'subjectScientificName',
         'subjectCategory',

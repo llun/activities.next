@@ -39,17 +39,23 @@ const inFlight = new Map<string, Promise<CachedLookup<unknown>>>()
  * throw; the failure is remembered briefly and returned as `status: 'error'`.
  * A cache that cannot be read or written never fails the lookup; it only
  * means the provider is asked again.
+ *
+ * `skipCachedError` is for the owner's Retry: a remembered failure is asked
+ * again instead of being answered from the cache (an open circuit still fails
+ * fast, in `lookupGet`). Hits and misses are still served from the cache.
  */
 export const readThroughLookupCache = async <T>({
   database,
   kind,
   key,
-  fetcher
+  fetcher,
+  skipCachedError = false
 }: {
   database: Database
   kind: LookupCacheKind
   key: string
   fetcher: () => Promise<T | null>
+  skipCachedError?: boolean
 }): Promise<CachedLookup<T>> => {
   const flightKey = `${kind}:${key}`
   const existing = inFlight.get(flightKey)
@@ -60,8 +66,14 @@ export const readThroughLookupCache = async <T>({
       const cached = await database.getGalleryLookup({ kind, key })
       if (cached && cached.expiresAt > Date.now()) {
         if (cached.outcome === 'miss') return { status: 'miss' }
-        if (cached.outcome === 'error') return { status: 'error' }
-        if (cached.value !== null && cached.value !== undefined) {
+        if (cached.outcome === 'error' && !skipCachedError) {
+          return { status: 'error' }
+        }
+        if (
+          cached.outcome === 'ok' &&
+          cached.value !== null &&
+          cached.value !== undefined
+        ) {
           return { status: 'ok', value: cached.value as T }
         }
         // An ok row with no value is corrupt; it is refetched below.

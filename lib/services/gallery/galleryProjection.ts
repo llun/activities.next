@@ -155,6 +155,7 @@ export const toPublicPlaceInput = (row: GalleryMapRow): PublicPlaceInput => ({
   placeLatitude: row.latitude,
   placeLongitude: row.longitude,
   placeCountryCode: row.placeCountryCode,
+  placeNameSource: row.placeNameSource,
   subjectName: row.subjectName,
   subjectScientificName: row.subjectScientificName,
   subjectCategory: row.subjectCategory,

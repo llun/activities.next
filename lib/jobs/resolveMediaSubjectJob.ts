@@ -11,7 +11,9 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 const ResolveMediaSubjectJobData = z.object({
-  mediaId: z.string().min(1)
+  mediaId: z.string().min(1),
+  // The owner's Retry: remembered provider failures are asked again.
+  retry: z.boolean().optional()
 })
 
 const KINGDOM_HINTS: Record<string, string> = {
@@ -48,7 +50,7 @@ export const resolveMediaSubjectJob: JobHandle = createJobHandle(
     const parsed = ResolveMediaSubjectJobData.safeParse(message.data)
     if (!parsed.success) return
 
-    const { mediaId } = parsed.data
+    const { mediaId, retry = false } = parsed.data
     const found = await database.getMediaWithAttachedStatusIds({ mediaId })
     const details: MediaDetailsRecord | undefined = found?.media.details
     if (!details) return
@@ -97,7 +99,7 @@ export const resolveMediaSubjectJob: JobHandle = createJobHandle(
     }
 
     try {
-      const gbif = createGbifClient({ database })
+      const gbif = createGbifClient({ database, skipCachedErrors: retry })
 
       let taxonKey = expect.subjectTaxonKey
       if (!taxonKey && expect.subjectScientificName) {
@@ -134,8 +136,11 @@ export const resolveMediaSubjectJob: JobHandle = createJobHandle(
       await write({
         subjectTaxonKey: taxon.taxonKey,
         subjectTaxonPath: taxon.taxonPath,
-        // No assessment is written as NE (not evaluated): a resolved subject with
-        // no category keeps its place hidden, because the privacy rule fails closed.
+        // Null here only means GBIF answered that it has no assessment (204),
+        // which is NE (not evaluated) and clears the place. An answer the
+        // client could not read threw instead and is recorded as `failed`
+        // below, so the place stays hidden. A resolved row with no category
+        // at all is treated as unchecked by the privacy rule.
         subjectIucnCategory: taxon.iucnCategory ?? 'NE',
         subjectLookupStatus: 'resolved'
       })

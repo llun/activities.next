@@ -2,12 +2,15 @@ import {
   publishPlaceLookup,
   publishSubjectLookup
 } from '@/lib/services/gallery/lookups/publishLookups'
+import { createWindowCounter } from '@/lib/services/gallery/lookups/rateLimit'
+import { getSubjectThreatStatus } from '@/lib/services/gallery/threatenedSpecies'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
 import { getOwnerMediaAttachment } from '@/lib/services/medias/mediaDetails'
+import { EMPTY_MEDIA_DETAILS } from '@/lib/types/database/gallery'
 import { Scope } from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import {
@@ -28,11 +31,30 @@ interface Params {
   id: string
 }
 
+// 20 retries per actor per hour. Each one asks Nominatim and GBIF again (it
+// skips the failures the lookup cache remembers), so it is bounded like the
+// other routes that reach a provider.
+const RETRIES_PER_HOUR = 20
+const ONE_HOUR_MS = 60 * 60 * 1000
+const retries = createWindowCounter({
+  limit: RETRIES_PER_HOUR,
+  windowMs: ONE_HOUR_MS
+})
+
+// A finished place lookup: nothing to retry.
+const FINAL_PLACE_STATUSES = new Set(['resolved', 'no-match'])
+
 // POST /api/v1/media/:id/lookups — publishes the place and subject lookups of
-// a media the caller owns again, for the dialog's "Couldn't check · Retry". The
-// jobs re-read the media and re-check the admin switches themselves, so this
-// only queues them (under NoQueue they run before this answers) and returns
-// the owner's details as they are now. Same scopes and 404 rule as `describe`.
+// a media the caller owns again, for the dialog's "Couldn't check · Retry".
+// Only a lookup that has not finished is queued: a place with coordinates that
+// is not `resolved` or `no-match` (a null status included, the state an edit
+// leaves when its job was lost), and a species-like subject whose threat
+// status is still unchecked. Each job gets a fresh id and is told it is a
+// retry, so it asks the provider again rather than answering a remembered
+// failure (an open circuit still fails fast). The jobs re-read the media and
+// re-check the admin switches themselves, so this only queues them (under
+// NoQueue they run before this answers) and returns the owner's details as
+// they are now. Same scopes and 404 rule as `describe`.
 export const POST = traceApiRoute(
   'retryMediaLookups',
   OAuthGuardAnyScope<Params>(
@@ -65,25 +87,42 @@ export const POST = traceApiRoute(
         })
       }
 
-      const details = media.details
-      const latitude = details?.placeLatitude
-      const longitude = details?.placeLongitude
-      if (typeof latitude === 'number' && typeof longitude === 'number') {
+      if (!retries.tryHit(currentActor.id)) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Too many requests' },
+          responseStatusCode: 429
+        })
+      }
+
+      const details = { ...EMPTY_MEDIA_DETAILS, ...media.details }
+      const latitude = details.placeLatitude
+      const longitude = details.placeLongitude
+      if (
+        typeof latitude === 'number' &&
+        typeof longitude === 'number' &&
+        !FINAL_PLACE_STATUSES.has(details.placeLookupStatus ?? '')
+      ) {
         await publishPlaceLookup({
           mediaId: media.id,
           latitude,
           longitude,
-          force: true
+          fresh: true,
+          retry: true
         })
       }
-      if (details?.subjectName || details?.subjectScientificName) {
+      // `unchecked` is every species-like subject not yet cleared or found
+      // threatened, a subject known only by its taxon key included.
+      if (getSubjectThreatStatus(details) === 'unchecked') {
         await publishSubjectLookup({
           mediaId: media.id,
           subjectName: details.subjectName,
           subjectScientificName: details.subjectScientificName,
           subjectCategory: details.subjectCategory,
-          subjectTaxonKey: details.subjectTaxonKey ?? null,
-          force: true
+          subjectTaxonKey: details.subjectTaxonKey,
+          fresh: true,
+          retry: true
         })
       }
 

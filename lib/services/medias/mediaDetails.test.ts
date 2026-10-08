@@ -1,4 +1,5 @@
 import {
+  STALE_SUBJECT_LOOKUP_MS,
   buildOwnerMediaDetails,
   getOwnerMediaAttachment
 } from '@/lib/services/medias/mediaDetails'
@@ -69,7 +70,8 @@ describe('buildOwnerMediaDetails', () => {
         taxonPath: null,
         iucnCategory: null,
         threatStatus: 'unchecked',
-        lookupStatus: null
+        lookupStatus: null,
+        lookupStale: false
       },
       takenAt: '2024-05-06T07:08:09.000Z',
       camera: { id: 'cam', name: 'Canon EOS R5' },
@@ -177,7 +179,8 @@ describe('buildOwnerMediaDetails', () => {
       taxonPath: ['Animalia', 'Chordata', 'Aves'],
       iucnCategory: 'VU',
       threatStatus: 'threatened',
-      lookupStatus: 'resolved'
+      lookupStatus: 'resolved',
+      lookupStale: false
     })
     expect(result.place).toMatchObject({
       countryCode: 'TH',
@@ -185,6 +188,52 @@ describe('buildOwnerMediaDetails', () => {
       lookupStatus: 'failed'
     })
     expect(result.subjectSuggestions).toEqual(suggestions)
+  })
+})
+
+describe('buildOwnerMediaDetails lookupStale', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-08T12:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const staleOf = async (details: Partial<typeof EMPTY_MEDIA_DETAILS>) =>
+    (
+      await buildOwnerMediaDetails(
+        database(),
+        media({ subjectScientificName: 'Alcedo atthis', ...details })
+      )
+    ).subject?.lookupStale
+
+  it('is false for a lookup that only just became pending', async () => {
+    expect(
+      await staleOf({
+        subjectLookupStatus: 'pending',
+        subjectLookupAt: Date.now() - (STALE_SUBJECT_LOOKUP_MS - 1)
+      })
+    ).toBe(false)
+  })
+
+  it('is true once pending for too long, or with no start time', async () => {
+    expect(
+      await staleOf({
+        subjectLookupStatus: 'pending',
+        subjectLookupAt: Date.now() - STALE_SUBJECT_LOOKUP_MS
+      })
+    ).toBe(true)
+    expect(
+      await staleOf({ subjectLookupStatus: 'pending', subjectLookupAt: null })
+    ).toBe(true)
+  })
+
+  it('is false for any status but pending', async () => {
+    expect(
+      await staleOf({ subjectLookupStatus: 'failed', subjectLookupAt: 0 })
+    ).toBe(false)
   })
 })
 

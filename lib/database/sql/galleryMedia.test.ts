@@ -590,6 +590,8 @@ describe('GalleryMediaDatabase', () => {
           placeLatitude: 51.5543,
           placeLongitude: -0.0231,
           placeCountryCode: 'GB',
+          // Typed with the details, so the owner's.
+          placeNameSource: 'owner',
           takenAt: Date.UTC(2024, 0, 1),
           createdAt: expect.any(Number)
         })

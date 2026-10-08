@@ -1681,6 +1681,10 @@ export const PostBox: FC<Props> = ({
           detailsPending={detailsPending}
           suggestionsPending={suggestionsPending}
           confidenceThreshold={gallerySettings?.subjectConfidenceThreshold}
+          suggestionsEnabled={
+            Boolean(gallerySettings?.subjectSuggestionsAvailable) &&
+            gallerySettings?.subjectSuggestionMode === 'model'
+          }
           disabled={isPosting}
           onOpen={(id) => void openDetails(id)}
           onRemove={onRemoveAttachment}
@@ -1697,8 +1701,13 @@ export const PostBox: FC<Props> = ({
           settings={gallerySettings}
           onClose={closeDetails}
           onSaved={onDetailsSaved}
-          onDetailsRefreshed={(id, details) =>
-            setDetailsById((current) => ({ ...current, [id]: details }))
+          onDetailsRefreshed={(id, patch, details) =>
+            // Merged into the latest details, not replaced by the dialog's
+            // copy, so two refreshes that finish out of order both land.
+            setDetailsById((current) => ({
+              ...current,
+              [id]: current[id] ? { ...current[id], ...patch } : details
+            }))
           }
           suggestionsPending={suggestionsPending}
         />

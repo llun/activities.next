@@ -241,7 +241,10 @@ External queue clients (`@upstash/qstash` and `@google-cloud/tasks`), the Postgr
 
 #### Gallery lookup jobs
 
-`ResolveMediaSubjectJob` (GBIF taxon plus IUCN category) and `ResolveMediaPlaceJob` (reverse geocoding) are published after an upload commits and after a `PUT /api/v1/media/:id` that changed the subject or the coordinates (`POST /api/v1/media/:id/lookups` re-publishes both for the owner's Retry). Under the synchronous queue they run inline, bounded by the lookup timeouts. The bulk backfill is a script, not a queue fan-out, because Nominatim forbids bursts.
+`ResolveMediaPlaceJob` (reverse geocoding) is published after an upload with coordinates commits (the sync upload path and the presigned path's verify step; uploads carry no subject) and after a `PUT /api/v1/media/:id` that changed the coordinates. `ResolveMediaSubjectJob` (GBIF taxon plus IUCN category) is published after a `PUT /api/v1/media/:id` that sent a subject field. `POST /api/v1/media/:id/lookups`, the owner's Retry, re-publishes whichever of the two has not finished. Under the synchronous queue they run inline, bounded by the lookup timeouts. The bulk backfill is a script, not a queue fan-out, because Nominatim forbids bursts.
+
+- **A publish after a reset gets a fresh job id.** The upload publishes derive their id from the media and its inputs only, so a doubled verify collapses. Every `PUT` and Retry publish adds a random part: the database queue keeps finished jobs for days and ignores a new job under a taken id, and QStash deduplicates by id, so an edit back to an earlier subject or point would otherwise be dropped and stay `pending` for good. A Retry also sets `retry` in the job data, which makes the job skip a remembered `error` cache row.
+- **The Nominatim limiter spaces real starts.** A call books its start only once it holds the slot, sleeps until `lastStart + 1100 ms`, then re-checks the provider's circuit before sending; the 10 s wait cap covers the time queued for the slot as well. So a slow call cannot release a burst of queued calls back to back, and calls queued behind one that opened the circuit are not sent.
 
 - **They write through compare-and-set methods** (`setMediaSubjectLookup`, `setMediaPlaceLookup`): the write names the subject or coordinates the job read, so an edit made in between wins and the stale result is dropped.
 - **They never fail the job on a provider error.** The error is stored as `failed` (so the owner sees "Couldn't check" and can retry), cached as an `error` row, logged as a `warn`, and the handler returns normally, so a rate-limited free service is not retried against by the queue. A malformed message is ignored.
@@ -506,7 +509,7 @@ the matcher with Next's own config parser and runtime matcher. Do not fold the
          └──────────┘ └────────┘ └────────────┘ └───────┘ └──────────┘
 
 Other tables: sessions, notifications, medias, gallery_gears,
-              gallery_settings, fitness_files,
+              gallery_settings, gallery_lookup_cache, fitness_files,
               fitness_settings, strava_archive_imports,
               wahoo_imports, wahoo_history_imports,
               fitness_route_heatmaps, fitness_route_heatmap_region_names,

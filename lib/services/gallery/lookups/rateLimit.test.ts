@@ -66,12 +66,89 @@ describe('createLimiter', () => {
     })
     const accepted = [limit(async () => 1), limit(async () => 2)]
     // The third would start 2.2 s from now.
-    await expect(limit(async () => 3)).rejects.toBeInstanceOf(
+    const third = limit(async () => 3)
+    const rejected = expect(third).rejects.toBeInstanceOf(
       LookupRateLimitedError
     )
 
     await vi.advanceTimersByTimeAsync(2000)
+    await rejected
     await expect(Promise.all(accepted)).resolves.toEqual([1, 2])
+  })
+
+  // The race the limiter used to lose: slots were booked on arrival, so calls
+  // that slept past their slot behind a slow call all started back to back
+  // once it finished. As configured for Nominatim.
+  it('keeps the interval between real starts behind a slow call', async () => {
+    const limit = createLimiter({
+      maxConcurrent: 1,
+      minIntervalMs: 1100,
+      maxWaitMs: 10_000
+    })
+    const t0 = Date.now()
+    const starts: number[] = []
+    const run = (durationMs: number) =>
+      limit(async () => {
+        starts.push(Date.now() - t0)
+        if (durationMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, durationMs))
+        }
+      })
+
+    const calls = [run(4000), run(0), run(0), run(0)]
+    await vi.advanceTimersByTimeAsync(10_000)
+    await Promise.all(calls)
+
+    expect(starts).toEqual([0, 4000, 5100, 6200])
+    for (let i = 1; i < starts.length; i++) {
+      expect(starts[i] - starts[i - 1]).toBeGreaterThanOrEqual(1100)
+    }
+  })
+
+  it('counts the time queued for a slot inside maxWaitMs', async () => {
+    const limit = createLimiter({
+      maxConcurrent: 1,
+      minIntervalMs: 1100,
+      maxWaitMs: 10_000
+    })
+    const slow = limit(
+      () => new Promise((resolve) => setTimeout(() => resolve('slow'), 12_000))
+    )
+    const ran = vi.fn()
+    const queued = limit(async () => ran())
+    const rejected = expect(queued).rejects.toBeInstanceOf(
+      LookupRateLimitedError
+    )
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    await rejected
+    await vi.advanceTimersByTimeAsync(2000)
+    await expect(slow).resolves.toBe('slow')
+    expect(ran).not.toHaveBeenCalled()
+  })
+
+  it('lets beforeStart stop a call that waited for its turn', async () => {
+    const limit = createLimiter({ maxConcurrent: 1, minIntervalMs: 1100 })
+    let open = false
+    const beforeStart = () => {
+      if (open) throw new Error('circuit open')
+    }
+    const fetched = vi.fn()
+    const first = limit(
+      async () => {
+        fetched('first')
+        // The first call fails and opens the circuit.
+        open = true
+      },
+      { beforeStart }
+    )
+    const second = limit(async () => fetched('second'), { beforeStart })
+    const secondRejected = expect(second).rejects.toThrow('circuit open')
+
+    await vi.advanceTimersByTimeAsync(2000)
+    await first
+    await secondRejected
+    expect(fetched.mock.calls).toEqual([['first']])
   })
 
   it('frees the slot when a call throws', async () => {
@@ -155,6 +232,14 @@ describe('createCircuitBreaker', () => {
     breaker.open(24 * 60 * 60 * 1000)
     vi.advanceTimersByTime(10 * 60 * 1000 + 1)
     expect(breaker.isOpen()).toBe(false)
+  })
+
+  it('reports how long it stays open', () => {
+    const breaker = createCircuitBreaker()
+    expect(breaker.remainingMs()).toBe(0)
+    breaker.open(30_000)
+    vi.advanceTimersByTime(10_000)
+    expect(breaker.remainingMs()).toBe(20_000)
   })
 
   it('closes on request', () => {

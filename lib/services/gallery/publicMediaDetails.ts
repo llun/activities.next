@@ -45,6 +45,7 @@ export const PUBLIC_PLACE_INPUT_KEYS = [
   'placeLatitude',
   'placeLongitude',
   'placeCountryCode',
+  'placeNameSource',
   'subjectName',
   'subjectScientificName',
   'subjectCategory',
@@ -119,8 +120,11 @@ export const toCountryCode = (
  *   applies whatever the precision, so a `country` name is withheld too.
  *
  * A `country` place is named by its country code when one is known, so a
- * geocoded "Pak Chong, Thailand" leaks no more than "Thailand". Both settings
- * are required so no caller can forget either rule.
+ * geocoded "Pak Chong, Thailand" leaks no more than "Thailand". With no
+ * usable code a geocoded name is not shown at all (it names the town, and
+ * without a code there is no telling which part is the country); an owner's
+ * own name is theirs to show. Both settings are required so no caller can
+ * forget either rule.
  */
 export const getPublicPlace = (
   details: PublicPlaceInput,
@@ -137,10 +141,16 @@ export const getPublicPlace = (
   const place: PublicPlace = {
     name:
       placePrecision === 'country'
-        ? (countryDisplayName(countryCode) ?? placeName)
+        ? (countryDisplayName(countryCode) ??
+          (details.placeNameSource === 'geocoder' ? null : placeName))
         : placeName,
     precision: placePrecision,
     countryCode
+  }
+  // A `country` place left with neither a name nor a code discloses nothing
+  // worth a place block.
+  if (placePrecision === 'country' && place.name === null && !countryCode) {
+    return null
   }
   const hasCoordinates = placeLatitude !== null && placeLongitude !== null
   if (hasCoordinates && placePrecision === 'exact') {

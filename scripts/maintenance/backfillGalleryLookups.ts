@@ -12,13 +12,21 @@
  * species photos out from behind that default.
  *
  * It selects:
- *   - media with coordinates and no place lookup status yet;
- *   - species-like subjects whose subject lookup is not final (never
- *     attempted, pending, failed or disabled).
+ *   - media with coordinates whose place lookup is not final (never
+ *     attempted, pending, failed or disabled);
+ *   - species-like subjects whose subject lookup is not final (the same).
  * A `resolved` or `no-match` result is final and is never redone here.
  *
- * Safe to repeat. Each job re-checks the Admin > Network switches itself, so
- * with a switch off it records `disabled` and sends nothing.
+ * A provider outage does not fail the rest of the run. When a provider's
+ * circuit is open (after a timeout, a 5xx or a 429) the script waits for it to
+ * close before the next lookup, and a lookup that failed because the circuit
+ * opened under it is asked again once it closes. Without that, one blip would
+ * mark every remaining photo `failed` within seconds.
+ *
+ * Safe to repeat: a run picks up whatever an earlier run left failed, and
+ * whatever was marked `disabled` while a switch was off. Each job re-checks the
+ * Admin > Network switches itself, so with a switch off it records `disabled`
+ * and sends nothing.
  *
  * Usage:
  *   NODE_ENV=production scripts/maintenance/backfillGalleryLookups.ts \
@@ -40,6 +48,9 @@ import { getDatabase, getKnex } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { resolveMediaPlaceJob } from '@/lib/jobs/resolveMediaPlaceJob'
 import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
+import { gbifProvider } from '@/lib/services/gallery/lookups/gbif'
+import { nominatimProvider } from '@/lib/services/gallery/lookups/nominatim'
+import { CircuitBreaker } from '@/lib/services/gallery/lookups/rateLimit'
 import { isSpeciesLike } from '@/lib/services/gallery/publicMediaDetails'
 
 const projectDir = process.cwd()
@@ -47,8 +58,8 @@ loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
 const BATCH_SIZE = 100
 const PRUNE_BATCH_SIZE = 500
-// A subject lookup in one of these states is not final.
-const NON_FINAL_SUBJECT_STATUSES = ['pending', 'failed', 'disabled']
+// A lookup in one of these states (or with no status) is not final.
+const NON_FINAL_STATUSES = ['pending', 'failed', 'disabled']
 
 export interface BackfillOptions {
   apply: boolean
@@ -117,14 +128,16 @@ const CANDIDATE_COLUMNS = [
   'subjectLookupStatus'
 ]
 
+const isNonFinal = (status: string | null) =>
+  status === null || NON_FINAL_STATUSES.includes(status)
+
 export const needsPlaceLookup = (row: CandidateRow): boolean =>
   row.placeLatitude !== null &&
   row.placeLongitude !== null &&
-  row.placeLookupStatus === null
+  isNonFinal(row.placeLookupStatus)
 
 export const needsSubjectLookup = (row: CandidateRow): boolean =>
-  (row.subjectLookupStatus === null ||
-    NON_FINAL_SUBJECT_STATUSES.includes(row.subjectLookupStatus)) &&
+  isNonFinal(row.subjectLookupStatus) &&
   isSpeciesLike({
     subjectName: row.subjectName,
     subjectScientificName: row.subjectScientificName,
@@ -158,7 +171,11 @@ export const selectCandidates = async ({
         places
           .whereNotNull('placeLatitude')
           .whereNotNull('placeLongitude')
-          .whereNull('placeLookupStatus')
+          .where((status) =>
+            status
+              .whereNull('placeLookupStatus')
+              .orWhereIn('placeLookupStatus', NON_FINAL_STATUSES)
+          )
       )
     }
     if (options.only !== 'places') {
@@ -173,7 +190,7 @@ export const selectCandidates = async ({
           .where((status) =>
             status
               .whereNull('subjectLookupStatus')
-              .orWhereIn('subjectLookupStatus', NON_FINAL_SUBJECT_STATUSES)
+              .orWhereIn('subjectLookupStatus', NON_FINAL_STATUSES)
           )
       )
     }
@@ -189,17 +206,64 @@ export interface BackfillSummary {
   prunedCacheRows: number
 }
 
+export interface BackfillProviders {
+  places: CircuitBreaker
+  subjects: CircuitBreaker
+}
+
+const defaultSleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+// Waits out an open circuit, so a lookup is not failed on the spot.
+const waitForProvider = async (
+  breaker: CircuitBreaker,
+  name: string,
+  sleep: (ms: number) => Promise<void>,
+  log: (message: string) => void
+) => {
+  while (breaker.isOpen()) {
+    const waitMs = Math.max(1000, breaker.remainingMs())
+    log(
+      `${name} is unavailable; waiting ${Math.ceil(waitMs / 1000)} s before going on`
+    )
+    await sleep(waitMs)
+  }
+}
+
 export const runBackfill = async ({
   database,
   knex,
   options,
-  log = console.log
+  log = console.log,
+  providers = {
+    places: nominatimProvider.breaker,
+    subjects: gbifProvider.breaker
+  },
+  sleep = defaultSleep
 }: {
   database: Database
   knex: Knex
   options: BackfillOptions
   log?: (message: string) => void
+  providers?: BackfillProviders
+  sleep?: (ms: number) => Promise<void>
 }): Promise<BackfillSummary> => {
+  // One lookup, paced by its provider's circuit. When the circuit opened
+  // during this lookup it failed because of it: wait, and ask once more, as a
+  // retry so the failure the lookup cache just remembered is not the answer.
+  const runLookup = async (
+    breaker: CircuitBreaker,
+    name: string,
+    run: (retry: boolean) => Promise<void>
+  ) => {
+    await waitForProvider(breaker, name, sleep, log)
+    await run(false)
+    if (breaker.isOpen()) {
+      await waitForProvider(breaker, name, sleep, log)
+      await run(true)
+    }
+  }
+
   const summary: BackfillSummary = {
     mediaSeen: 0,
     placeLookups: 0,
@@ -237,22 +301,26 @@ export const runBackfill = async ({
         summary.subjectLookups++
         log(`[${mediaId}] subject lookup`)
         if (options.apply) {
-          await resolveMediaSubjectJob(database, {
-            id: `backfill-subject-${mediaId}`,
-            name: 'ResolveMediaSubjectJob',
-            data: { mediaId }
-          })
+          await runLookup(providers.subjects, 'GBIF', (retry) =>
+            resolveMediaSubjectJob(database, {
+              id: `backfill-subject-${mediaId}`,
+              name: 'ResolveMediaSubjectJob',
+              data: { mediaId, ...(retry ? { retry } : {}) }
+            })
+          )
         }
       }
       if (wantsPlace) {
         summary.placeLookups++
         log(`[${mediaId}] place lookup`)
         if (options.apply) {
-          await resolveMediaPlaceJob(database, {
-            id: `backfill-place-${mediaId}`,
-            name: 'ResolveMediaPlaceJob',
-            data: { mediaId }
-          })
+          await runLookup(providers.places, 'Nominatim', (retry) =>
+            resolveMediaPlaceJob(database, {
+              id: `backfill-place-${mediaId}`,
+              name: 'ResolveMediaPlaceJob',
+              data: { mediaId, ...(retry ? { retry } : {}) }
+            })
+          )
         }
       }
     }

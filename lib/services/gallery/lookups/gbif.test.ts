@@ -333,6 +333,101 @@ describe('gbif client', () => {
     })
   })
 
+  // Fail closed: an answer this code cannot read is a failure (so the job
+  // records `failed` and the place stays hidden), never "not assessed" or
+  // "no match" (which would show a threatened species' place).
+  describe('unreadable answers', () => {
+    const withIucn = (body: unknown) => (url: URL) =>
+      url.pathname === '/v1/species/5219416/iucnRedListCategory'
+        ? { body }
+        : gbifApi(url)
+
+    it.each([
+      ['no code and no category', { usageKey: 5219416 }],
+      ['an unknown code', { code: 'XX', category: 'SOMETHING_NEW' }],
+      ['a list', []],
+      ['a string', 'EN']
+    ])('throws a parse error for an IUCN answer with %s', async (_, body) => {
+      const { client } = setup(withIucn(body))
+
+      await expect(client.getTaxon('5219416')).rejects.toMatchObject({
+        code: 'parse'
+      })
+      await expect(client.getIucnCategory('5219416')).rejects.toBeInstanceOf(
+        LookupError
+      )
+    })
+
+    it('reads the long category name when the code moved', async () => {
+      const { client } = setup(withIucn({ category: 'ENDANGERED' }))
+
+      await expect(client.getTaxon('5219416')).resolves.toMatchObject({
+        iucnCategory: 'EN'
+      })
+    })
+
+    it('does not cache an unreadable taxon as a hit', async () => {
+      const { client, rows } = setup(withIucn({ usageKey: 5219416 }))
+
+      await expect(client.getTaxon('5219416')).rejects.toBeInstanceOf(
+        LookupError
+      )
+      expect(rows.get('gbif-taxon:5219416')?.outcome).toBe('error')
+    })
+
+    it('throws a parse error for a species record it cannot read', async () => {
+      const { client } = setup((url) =>
+        url.pathname === '/v1/species/5219416'
+          ? { body: { id: 5219416, name: 'Panthera tigris' } }
+          : gbifApi(url)
+      )
+
+      await expect(client.getTaxon('5219416')).rejects.toMatchObject({
+        code: 'parse'
+      })
+    })
+
+    it('throws a parse error for a match answer it cannot read', async () => {
+      const { client } = setup((url) =>
+        url.pathname === '/v1/species/match'
+          ? { body: { result: { usageKey: 5219416, type: 'EXACT' } } }
+          : gbifApi(url)
+      )
+
+      await expect(client.matchTaxon('Panthera tigris')).rejects.toMatchObject({
+        code: 'parse'
+      })
+    })
+
+    it('throws a parse error for an accepted match missing its key', async () => {
+      const { client } = setup((url) =>
+        url.pathname === '/v1/species/match'
+          ? { body: { ...matchTiger, usageKey: undefined } }
+          : gbifApi(url)
+      )
+
+      await expect(client.matchTaxon('Panthera tigris')).rejects.toMatchObject({
+        code: 'parse'
+      })
+    })
+
+    it.each([
+      ['no results list', { hits: [] }],
+      ['only unreadable results', { results: [{ junk: true }] }]
+    ])('throws a parse error for a search with %s', async (_, body) => {
+      const { client } = setup(() => ({ body }))
+
+      await expect(client.searchTaxa('kingfisher')).rejects.toMatchObject({
+        code: 'parse'
+      })
+    })
+
+    it('still answers an empty list for a search with no results', async () => {
+      const { client } = setup(() => ({ body: { results: [] } }))
+      await expect(client.searchTaxa('kingfisher')).resolves.toEqual([])
+    })
+  })
+
   describe('failures', () => {
     it('opens the circuit on a 429 for Retry-After and then fails fast', async () => {
       vi.useFakeTimers()

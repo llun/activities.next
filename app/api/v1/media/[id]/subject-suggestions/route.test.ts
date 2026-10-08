@@ -56,8 +56,14 @@ vi.mock('@/lib/services/gallery/subjects/suggestSubjects', async () => {
 })
 
 const takeMock = vi.hoisted(() => vi.fn())
+// What the route built its counter with, recorded at import (a plain array, so
+// clearing the mocks between tests keeps it).
+const counterOptions = vi.hoisted(() => [] as unknown[])
 vi.mock('@/lib/services/gallery/lookups/rateLimit', () => ({
-  createWindowCounter: () => ({ tryHit: takeMock, reset: vi.fn() })
+  createWindowCounter: (options: unknown) => {
+    counterOptions.push(options)
+    return { tryHit: takeMock, reset: vi.fn() }
+  }
 }))
 
 const speciesLookupsAvailable = vi.hoisted(() => ({ value: true }))
@@ -295,6 +301,48 @@ describe('POST /api/v1/media/[id]/subject-suggestions', () => {
       error: 'Subject suggestions are not configured'
     })
     expect(readStoredImage).not.toHaveBeenCalled()
+  })
+
+  it('limits each actor to 30 suggestion runs an hour', () => {
+    // The limit docs/mastodon-api-compatibility.md states.
+    expect(counterOptions).toEqual([{ limit: 30, windowMs: 60 * 60 * 1000 }])
+  })
+
+  it.each([
+    ['a string refresh', { refresh: 'true' }],
+    ['a number refresh', { refresh: 1 }],
+    ['a list', [true]]
+  ])('answers 422 for a JSON body with %s', async (_, body) => {
+    const id = await createMediaFor(ACTOR1_ID)
+    await request(id)
+    vi.mocked(suggestSubjects).mockClear()
+
+    const response = await request(id, body)
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toEqual({ error: 'Invalid input' })
+    expect(suggestSubjects).not.toHaveBeenCalled()
+  })
+
+  it('reads a body that is not JSON as an empty one', async () => {
+    const id = await createMediaFor(ACTOR1_ID)
+    await request(id)
+    vi.mocked(suggestSubjects).mockClear()
+
+    const response = await POST(
+      new NextRequest(
+        `https://llun.test/api/v1/media/${id}/subject-suggestions`,
+        {
+          method: 'POST',
+          headers: { origin: 'https://llun.test' },
+          body: 'not json'
+        }
+      ),
+      { params: Promise.resolve({ id }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ suggestions: SUGGESTIONS })
   })
 
   it('answers 429 past the per-actor window, without running the model', async () => {

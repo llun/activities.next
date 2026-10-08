@@ -387,17 +387,21 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Media details and gallery** — `GET`/`PUT`/`PATCH /api/v1/media/:id` carry a
   non-Mastodon `details` object (snake_case on the way in), and
   `/api/v1/gallery/*` and `/api/v1/accounts/:id/gallery/*` serve the gallery.
-  The owner's `details` also reports what the lookups found: `subject.taxon_key`,
-  `subject.taxon_path`, `subject.iucn_category`, `subject.threat_status`
-  (`threatened`, `not-threatened` or `unchecked`), `subject.lookup_status`,
-  `place.country_code`, `place.name_source`, `place.lookup_status`, and the
-  model's `subject_suggestions`. None of the IUCN fields or the suggestions is
+  The owner's `details` (camelCase on the way out) also reports what the
+  lookups found: `subject.taxonKey`, `subject.taxonPath`,
+  `subject.iucnCategory`, `subject.threatStatus` (`threatened`,
+  `not-threatened` or `unchecked`), `subject.lookupStatus`,
+  `subject.lookupStale` (pending for over two minutes, so Retry is offered),
+  `place.countryCode`, `place.nameSource`, `place.lookupStatus`, and the
+  model's `subjectSuggestions`. None of the IUCN fields or the suggestions is
   ever returned to anyone else, and a threatened or not-yet-checked species'
   `place` is `null` for every non-owner. `POST /api/v1/media/:id/subject-suggestions`
   and `POST /api/v1/media/:id/lookups` are owner-only; Mastodon clients get no
-  suggestions. Fresh suggestion runs are limited to 30 per actor per hour and
-  `GET /api/v1/gallery/taxa` (species search for the picker) to 60 per actor per
-  minute, both answering 429 past the limit; the counters are in process
+  suggestions. A suggestions body that is JSON but not `{ refresh?: boolean }`
+  is a 422. Fresh suggestion runs are limited to 30 per actor per hour, lookup
+  retries to 20 per actor per hour, and `GET /api/v1/gallery/taxa` (species
+  search for the picker) to 60 per actor per minute, all answering 429 past the
+  limit; the counters are in process
   (`createWindowCounter`, `lib/services/gallery/lookups/rateLimit.ts`). See "Media Details, EXIF and Gallery Settings" in
   [maintenance.md](maintenance.md#media-details-exif-and-gallery-settings).
 - **`?format=activities_next`** — timeline endpoints and

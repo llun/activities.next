@@ -842,6 +842,7 @@ describe('gallery queries at the index cap', () => {
       placeLatitude: null,
       placeLongitude: null,
       placeCountryCode: null,
+      placeNameSource: null,
       takenAt: null,
       createdAt: 1_700_000_000_000
     }))
@@ -900,6 +901,7 @@ describe('gallery queries at the index cap', () => {
       placePrecision: 'exact',
       placeName: null,
       placeCountryCode: null,
+      placeNameSource: null,
       subjectName: null,
       subjectScientificName: null,
       subjectCategory: null,

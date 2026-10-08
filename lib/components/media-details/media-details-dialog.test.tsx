@@ -9,6 +9,7 @@ import {
   describeMedia,
   getGalleryGears,
   retryMediaLookups,
+  searchGalleryTaxa,
   suggestMediaSubjects,
   updateMediaDetails
 } from '@/lib/client'
@@ -844,6 +845,7 @@ describe('MediaDetailsDialog smart subjects', () => {
     expect(suggestMediaSubjectsMock).toHaveBeenCalledWith('m1')
     expect(onDetailsRefreshed).toHaveBeenCalledWith(
       'm1',
+      { subjectSuggestions: SUGGESTIONS },
       expect.objectContaining({ subjectSuggestions: SUGGESTIONS })
     )
   })
@@ -913,6 +915,124 @@ describe('MediaDetailsDialog smart subjects', () => {
     )
   })
 
+  it('shows a subject picked from the search as a selected chip', async () => {
+    vi.mocked(searchGalleryTaxa).mockResolvedValue([])
+    renderDialog([withSuggestions()])
+    fireEvent.click(screen.getByRole('button', { name: /Search subjects/ }))
+
+    fireEvent.change(screen.getByLabelText('Search species'), {
+      target: { value: 'sunset' }
+    })
+    fireEvent.click(await screen.findByRole('radio', { name: /Use “sunset”/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Use sunset' }))
+
+    // Visible text, not only the collapsed Name field's value.
+    const chosen = screen.getByRole('group', { name: 'Chosen subject' })
+    expect(chosen).toHaveTextContent('sunset')
+    expect(chosen).toBeVisible()
+  })
+
+  it('shows a saved subject when there are no suggestions, and clears it', () => {
+    renderDialog([
+      withSuggestions(null, {
+        subject: {
+          name: 'Common Kingfisher',
+          scientificName: 'Alcedo atthis',
+          category: 'bird',
+          taxonKey: '2475532',
+          taxonPath: [],
+          iucnCategory: 'LC',
+          threatStatus: 'not-threatened',
+          lookupStatus: 'resolved',
+          lookupStale: false
+        }
+      })
+    ])
+
+    const chosen = screen.getByRole('group', { name: 'Chosen subject' })
+    expect(chosen).toHaveTextContent('Common Kingfisher')
+    expect(chosen).toHaveTextContent('Alcedo atthis')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Clear subject Common Kingfisher' })
+    )
+
+    expect(
+      screen.queryByRole('group', { name: 'Chosen subject' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toHaveValue('')
+  })
+
+  it('does not repeat a subject a suggestion chip already shows', () => {
+    renderDialog([withSuggestions()])
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Warbling White-eye 81%' })
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Warbling White-eye 81%' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      screen.queryByRole('group', { name: 'Chosen subject' })
+    ).not.toBeInTheDocument()
+  })
+
+  // The race: a slow suggestion used to publish the details captured when
+  // Suggest was clicked, putting back the status a Retry had just replaced.
+  it('merges a slow suggestion into the details a retry refreshed meanwhile', async () => {
+    let finishSuggestion: (value: typeof SUGGESTIONS) => void = () => {}
+    suggestMediaSubjectsMock.mockReturnValue(
+      new Promise((resolve) => {
+        finishSuggestion = resolve
+      })
+    )
+    const failedSubject = {
+      name: 'Bengal Tiger',
+      scientificName: 'Panthera tigris',
+      category: 'mammal' as const,
+      taxonKey: null,
+      taxonPath: null,
+      iucnCategory: null,
+      threatStatus: 'unchecked' as const,
+      lookupStatus: 'failed' as const,
+      lookupStale: false
+    }
+    retryMediaLookupsMock.mockResolvedValue({
+      ...emptyDetails,
+      subject: {
+        ...failedSubject,
+        iucnCategory: 'EN',
+        threatStatus: 'threatened',
+        lookupStatus: 'resolved'
+      }
+    })
+    const { onDetailsRefreshed } = renderDialog([
+      withSuggestions(null, { subject: failedSubject })
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest subjects' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText(/Endangered \(EN\)/)).toBeInTheDocument()
+
+    finishSuggestion(SUGGESTIONS)
+
+    expect(
+      await screen.findByRole('button', { name: 'Warbling White-eye 81%' })
+    ).toBeInTheDocument()
+    // The retry's status stays.
+    expect(screen.getByText(/Endangered \(EN\)/)).toBeInTheDocument()
+    expect(
+      screen.queryByText(/Couldn’t check IUCN status/)
+    ).not.toBeInTheDocument()
+    // The composer is handed only the suggestions to merge.
+    expect(onDetailsRefreshed).toHaveBeenLastCalledWith(
+      'm1',
+      { subjectSuggestions: SUGGESTIONS },
+      expect.any(Object)
+    )
+  })
+
   describe('lookup status', () => {
     const subject = (
       overrides: Partial<NonNullable<MediaDetailsEntity['subject']>>
@@ -927,6 +1047,7 @@ describe('MediaDetailsDialog smart subjects', () => {
         iucnCategory: null,
         threatStatus: 'unchecked',
         lookupStatus: null,
+        lookupStale: false,
         ...overrides
       }
     })
@@ -983,6 +1104,80 @@ describe('MediaDetailsDialog smart subjects', () => {
       ).toBeInTheDocument()
       expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1')
       expect(onDetailsRefreshed).toHaveBeenCalled()
+    })
+
+    it('says the place stays hidden while the check failed', () => {
+      renderDialog([
+        makeItem('m1', { details: subject({ lookupStatus: 'failed' }) })
+      ])
+
+      expect(
+        screen.getByText(/place stays hidden from other people/)
+      ).toBeInTheDocument()
+    })
+
+    it.each([
+      ['disabled', 'disabled' as const],
+      ['never checked', null]
+    ])(
+      'tells the owner a %s species is unchecked, with Retry',
+      (_, lookupStatus) => {
+        renderDialog([makeItem('m1', { details: subject({ lookupStatus }) })])
+
+        expect(
+          screen.getByText(/Couldn’t check IUCN status/)
+        ).toBeInTheDocument()
+        expect(
+          screen.getByText(/place stays hidden from other people/)
+        ).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+      }
+    )
+
+    it('offers no Retry while species lookups are off on the server', () => {
+      renderDialog(
+        [makeItem('m1', { details: subject({ lookupStatus: 'disabled' }) })],
+        { settings: settings({ speciesLookupsAvailable: false }) }
+      )
+
+      expect(screen.getByText(/Couldn’t check IUCN status/)).toBeInTheDocument()
+      expect(
+        screen.getByText(/place stays hidden from other people/)
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Retry' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not mention hiding when the author shows threatened places', () => {
+      renderDialog(
+        [makeItem('m1', { details: subject({ lookupStatus: 'disabled' }) })],
+        { settings: settings({ hideThreatenedPlaces: false }) }
+      )
+
+      expect(screen.queryByText(/stays hidden/)).not.toBeInTheDocument()
+    })
+
+    it('offers Retry only once a pending check has gone stale', () => {
+      renderDialog([
+        makeItem('m1', {
+          details: subject({ lookupStatus: 'pending', lookupStale: false })
+        })
+      ])
+      expect(screen.getByText('Checking IUCN status…')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Retry' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers Retry for a stale pending check', () => {
+      renderDialog([
+        makeItem('m1', {
+          details: subject({ lookupStatus: 'pending', lookupStale: true })
+        })
+      ])
+      expect(screen.getByText('Checking IUCN status…')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
     })
 
     it('hides the status once the draft no longer holds the saved subject', () => {
@@ -1078,6 +1273,56 @@ describe('MediaDetailsDialog smart subjects', () => {
       expect(
         await screen.findByDisplayValue('Khao Yai National Park, Thailand')
       ).toBeInTheDocument()
+    })
+
+    it('offers Retry for coordinates whose lookup never ran', async () => {
+      retryMediaLookupsMock.mockResolvedValue(place({}))
+      renderDialog([
+        makeItem('m1', {
+          details: place({ name: null, nameSource: null, lookupStatus: null })
+        })
+      ])
+
+      expect(
+        screen.getByText(/The place name hasn’t been looked up/)
+      ).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      expect(
+        await screen.findByDisplayValue('Khao Yai National Park, Thailand')
+      ).toBeInTheDocument()
+    })
+
+    it('offers no place Retry while place lookups are off on the server', () => {
+      renderDialog(
+        [
+          makeItem('m1', {
+            details: place({ name: null, nameSource: null, lookupStatus: null })
+          })
+        ],
+        { settings: settings({ placeLookupsAvailable: false }) }
+      )
+
+      expect(
+        screen.queryByRole('button', { name: 'Retry' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('keeps one item’s Retry from busying another’s', async () => {
+      retryMediaLookupsMock.mockReturnValue(new Promise(() => {}))
+      const failed = place({ lookupStatus: 'failed' })
+      renderDialog([
+        makeItem('m1', { details: failed }),
+        makeItem('m2', { details: failed })
+      ])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled()
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Next item' }))
+
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
     })
 
     it('says the name is being looked up', () => {

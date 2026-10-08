@@ -69,29 +69,38 @@ export const lookupGet = async ({
   url: string
   fetch?: LookupFetch
 }): Promise<LookupResponse> => {
-  if (provider.breaker.isOpen()) {
-    throw new LookupError(
+  const circuitOpen = () =>
+    new LookupError(
       'circuit-open',
       `${provider.name} is temporarily unavailable`
     )
-  }
+  if (provider.breaker.isOpen()) throw circuitOpen()
 
   let response
   try {
-    response = await provider.limiter(() =>
-      fetch({
-        url,
-        method: 'GET',
-        headers: getLookupHeaders(),
-        allowCrossHostRedirects: false,
-        timeoutInMilliseconds: provider.timeoutMs,
-        connectTimeoutInMilliseconds: provider.connectTimeoutMs,
-        readTimeoutInMilliseconds:
-          provider.timeoutMs - provider.connectTimeoutMs,
-        maxBodyBytes: provider.maxBodyBytes
-      })
+    response = await provider.limiter(
+      () =>
+        fetch({
+          url,
+          method: 'GET',
+          headers: getLookupHeaders(),
+          allowCrossHostRedirects: false,
+          timeoutInMilliseconds: provider.timeoutMs,
+          connectTimeoutInMilliseconds: provider.connectTimeoutMs,
+          readTimeoutInMilliseconds:
+            provider.timeoutMs - provider.connectTimeoutMs,
+          maxBodyBytes: provider.maxBodyBytes
+        }),
+      {
+        // Checked again once this call's turn comes: a call that opened the
+        // circuit while this one queued must stop it going out too.
+        beforeStart: () => {
+          if (provider.breaker.isOpen()) throw circuitOpen()
+        }
+      }
     )
   } catch (error) {
+    if (error instanceof LookupError) throw error
     if (error instanceof LookupRateLimitedError) {
       throw new LookupError('rate-limited', `${provider.name} rate limited`)
     }

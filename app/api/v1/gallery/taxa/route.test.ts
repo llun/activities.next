@@ -33,8 +33,12 @@ vi.mock('@/lib/config', () => ({
 }))
 
 const takeMock = vi.hoisted(() => vi.fn())
+const counterOptions = vi.hoisted(() => [] as unknown[])
 vi.mock('@/lib/services/gallery/lookups/rateLimit', () => ({
-  createWindowCounter: () => ({ tryHit: takeMock, reset: vi.fn() })
+  createWindowCounter: (options: unknown) => {
+    counterOptions.push(options)
+    return { tryHit: takeMock, reset: vi.fn() }
+  }
 }))
 
 const speciesLookupsAvailable = vi.hoisted(() => ({ value: true }))
@@ -143,6 +147,11 @@ describe('GET /api/v1/gallery/taxa', () => {
     searchTaxa.mockRejectedValue(new Error('GBIF down'))
 
     expect((await request('kingfisher')).status).toBe(503)
+  })
+
+  it('limits each actor to 60 searches a minute', () => {
+    // The limit docs/mastodon-api-compatibility.md states.
+    expect(counterOptions).toEqual([{ limit: 60, windowMs: 60 * 1000 }])
   })
 
   it('answers 429 past 60 searches a minute', async () => {

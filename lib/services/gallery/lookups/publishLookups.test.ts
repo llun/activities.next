@@ -56,19 +56,34 @@ describe('publishLookups', () => {
       expect(await publish('8', 14.5)).not.toBe(same)
     })
 
-    it('uses a new id for each forced retry', async () => {
+    it('uses a new id for each fresh publish, even in the same millisecond', async () => {
       vi.useFakeTimers({ toFake: ['Date'] })
       try {
         const params = { mediaId: '7', latitude: 1, longitude: 2 }
-        await publishPlaceLookup({ ...params, force: true })
+        await publishPlaceLookup({ ...params, fresh: true })
         const first = idOf()
-        vi.advanceTimersByTime(1)
-        await publishPlaceLookup({ ...params, force: true })
+        await publishPlaceLookup({ ...params, fresh: true })
 
+        expect(idOf()).not.toBe(first)
+        await publishPlaceLookup(params)
         expect(idOf()).not.toBe(first)
       } finally {
         vi.useRealTimers()
       }
+    })
+
+    it('tells the job about a retry', async () => {
+      await publishPlaceLookup({
+        mediaId: '7',
+        latitude: 1,
+        longitude: 2,
+        fresh: true,
+        retry: true
+      })
+      expect(mockPublish.mock.calls[0][0].data).toEqual({
+        mediaId: '7',
+        retry: true
+      })
     })
 
     it('swallows a queue failure and says so', async () => {
@@ -107,6 +122,19 @@ describe('publishLookups', () => {
         await publishSubjectLookup({ ...subject, ...change })
         expect(idOf()).not.toBe(base)
       }
+    })
+
+    it('uses a new id for each fresh publish of the same subject', async () => {
+      await publishSubjectLookup({ ...subject, fresh: true })
+      const first = idOf()
+      await publishSubjectLookup({ ...subject, fresh: true })
+      expect(idOf()).not.toBe(first)
+
+      await publishSubjectLookup({ ...subject, fresh: true, retry: true })
+      expect(mockPublish.mock.calls.at(-1)?.[0].data).toEqual({
+        mediaId: '7',
+        retry: true
+      })
     })
 
     it('does not confuse fields that join to the same text', async () => {

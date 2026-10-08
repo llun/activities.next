@@ -25,6 +25,12 @@ interface Props {
   suggestionsPending?: Record<string, true>
   /** The author's confidence floor, in percent, for which name is suggested. */
   confidenceThreshold?: number
+  /**
+   * Whether suggestions may be shown at all: the server has a model and the
+   * author's setting asks for one. Off, stored suggestions are ignored, as the
+   * dialog ignores them.
+   */
+  suggestionsEnabled?: boolean
   /** True while a submit is in flight: every tile control renders disabled. */
   disabled?: boolean
   onOpen: (id: string) => void
@@ -49,10 +55,12 @@ export const getAttachmentLabel = (
  */
 const getSubjectLine = (
   details: MediaDetailsEntity | undefined,
-  threshold: number
+  threshold: number,
+  suggestionsEnabled: boolean
 ): { confirmed: boolean; text: string } | null => {
   const name = details?.subject?.name?.trim()
   if (name) return { confirmed: true, text: name }
+  if (!suggestionsEnabled) return null
   const choices = getSubjectChoices(
     details?.subjectSuggestions ?? null,
     threshold
@@ -130,6 +138,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
   detailsPending,
   suggestionsPending = {},
   confidenceThreshold = 70,
+  suggestionsEnabled = false,
   disabled = false,
   onOpen,
   onRemove,
@@ -214,7 +223,11 @@ export const ComposerAttachmentTiles: FC<Props> = ({
           const suggesting = Boolean(suggestionsPending[item.id])
           const busy = Boolean(item.isLoading) || readingDetails
           const details = detailsById[item.id]
-          const subjectLine = getSubjectLine(details, confidenceThreshold)
+          const subjectLine = getSubjectLine(
+            details,
+            confidenceThreshold,
+            suggestionsEnabled
+          )
           const needsReview =
             !error &&
             !busy &&

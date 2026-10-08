@@ -18,16 +18,28 @@ const sleep = (ms: number) =>
 export interface LimiterOptions {
   // How many calls may run at once.
   maxConcurrent: number
-  // The least time between the START of two calls.
+  // The least time between the START of two calls, measured from when each
+  // call actually started (not from when it arrived).
   minIntervalMs: number
-  // A call that would have to wait longer than this to start is rejected with
-  // LookupRateLimitedError instead of waiting. Undefined waits for ever.
+  // A call that would have to wait longer than this in all, for a free slot
+  // and then for its interval, is rejected with LookupRateLimitedError.
+  // Undefined waits for ever.
   maxWaitMs?: number
   // Rejects when this many calls are already waiting for a free slot.
   maxQueue?: number
 }
 
-export type Limiter = <T>(fn: () => Promise<T>) => Promise<T>
+export interface LimiterRunOptions {
+  // Runs once the call holds its slot and its interval has passed, right
+  // before `fn`. Throwing aborts the call without starting it: a provider
+  // whose circuit opened while this call waited is not asked anyway.
+  beforeStart?: () => void
+}
+
+export type Limiter = <T>(
+  fn: () => Promise<T>,
+  options?: LimiterRunOptions
+) => Promise<T>
 
 export const createLimiter = ({
   maxConcurrent,
@@ -36,41 +48,64 @@ export const createLimiter = ({
   maxQueue = 100
 }: LimiterOptions): Limiter => {
   let active = 0
+  // The earliest time the next call may start. Booked by a call once it holds
+  // a slot (so concurrent holders never start together), then moved on again
+  // from the moment it really started.
   let nextStart = 0
-  const queue: (() => void)[] = []
+  const waiters: (() => void)[] = []
 
-  const acquire = (): Promise<void> => {
+  const acquire = (deadline: number): Promise<void> => {
     if (active < maxConcurrent) {
       active += 1
       return Promise.resolve()
     }
-    return new Promise<void>((resolve) => {
-      queue.push(() => {
+    if (waiters.length >= maxQueue) {
+      return Promise.reject(new LookupRateLimitedError())
+    }
+    return new Promise<void>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const grant = () => {
+        if (timer !== undefined) clearTimeout(timer)
         active += 1
         resolve()
-      })
+      }
+      if (Number.isFinite(deadline)) {
+        timer = setTimeout(
+          () => {
+            const index = waiters.indexOf(grant)
+            if (index >= 0) waiters.splice(index, 1)
+            reject(new LookupRateLimitedError())
+          },
+          Math.max(0, deadline - Date.now())
+        )
+      }
+      waiters.push(grant)
     })
   }
 
   const release = () => {
     active -= 1
-    queue.shift()?.()
+    waiters.shift()?.()
   }
 
-  return async (fn) => {
-    const now = Date.now()
-    const startAt = Math.max(now, nextStart)
-    if (
-      (maxWaitMs !== undefined && startAt - now > maxWaitMs) ||
-      queue.length >= maxQueue
-    ) {
-      throw new LookupRateLimitedError()
-    }
-    nextStart = startAt + minIntervalMs
-    if (startAt > now) await sleep(startAt - now)
-
-    await acquire()
+  return async (fn, { beforeStart } = {}) => {
+    // The cap covers the whole wait: the time queued for a slot counts.
+    const deadline =
+      maxWaitMs === undefined
+        ? Number.POSITIVE_INFINITY
+        : Date.now() + maxWaitMs
+    await acquire(deadline)
     try {
+      const now = Date.now()
+      const startAt = Math.max(now, nextStart)
+      if (startAt > deadline) throw new LookupRateLimitedError()
+      nextStart = startAt + minIntervalMs
+      if (startAt > now) await sleep(startAt - now)
+
+      beforeStart?.()
+      // Measured from the real start: a timer that fired late must not let
+      // the next call in early.
+      nextStart = Math.max(nextStart, Date.now() + minIntervalMs)
       return await fn()
     } finally {
       release()
@@ -133,6 +168,8 @@ export interface CircuitBreakerOptions {
 
 export interface CircuitBreaker {
   isOpen(): boolean
+  // How long the provider still counts as down, in milliseconds (0 = closed).
+  remainingMs(): number
   // Marks the provider as down for `retryAfterMs`, or the default.
   open(retryAfterMs?: number): void
   close(): void
@@ -150,6 +187,7 @@ export const createCircuitBreaker = ({
 
   return {
     isOpen: () => Date.now() < openUntil,
+    remainingMs: () => Math.max(0, openUntil - Date.now()),
     open(retryAfterMs) {
       const duration =
         retryAfterMs !== undefined && retryAfterMs > 0

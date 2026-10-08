@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 
+import { formatCountryNames } from '@/lib/components/gallery/galleryTaxonomy'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { OWNER_GALLERY_AUDIENCE } from '@/lib/services/gallery/galleryAudience'
@@ -89,6 +90,7 @@ const Page = async ({ params }: PageProps) => {
         subject={subject}
         initialPage={page}
         commonTag={subject.name ? toSubjectHashtag(subject.name) : null}
+        where={formatCountryNames(subject.countryCodes)}
       />
     )
   }

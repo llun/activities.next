@@ -6,6 +6,7 @@ import {
   RESOLVE_MEDIA_SUBJECT_JOB_NAME
 } from '@/lib/jobs/names'
 import { MediaValidationError } from '@/lib/services/medias/errors'
+import { DatabaseQueue } from '@/lib/services/queue/database'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -820,7 +821,9 @@ describe('/api/v1/media/[id]', () => {
         iucnCategory: null,
         // Not checked yet: its place is withheld from everyone else.
         threatStatus: 'unchecked',
-        lookupStatus: 'pending'
+        lookupStatus: 'pending',
+        // It only just became pending: no Retry yet.
+        lookupStale: false
       })
     })
 
@@ -960,7 +963,7 @@ describe('/api/v1/media/[id]', () => {
         expect(mockPublish).toHaveBeenCalledTimes(2)
       })
 
-      it('gives different jobs different ids and the same inputs the same id', async () => {
+      it('gives different media different job ids', async () => {
         const first = await createMediaFor(ACTOR1_ID, 'lookup-id-1')
         const second = await createMediaFor(ACTOR1_ID, 'lookup-id-2')
 
@@ -969,6 +972,47 @@ describe('/api/v1/media/[id]', () => {
 
         const ids = mockPublish.mock.calls.map(([message]) => message.id)
         expect(new Set(ids).size).toBe(2)
+      })
+
+      // The race: job ids were a hash of the media and its inputs only, and
+      // the database queue keeps finished jobs for days and ignores a new
+      // job under a taken id. An edit back to an earlier subject or point
+      // (A, then B, then A) reset the lookup to pending, then had its job
+      // dropped as a duplicate, so it stayed pending for good.
+      it('queues a new job for an edit back to an earlier subject or point', async () => {
+        const queue = new DatabaseQueue(undefined, database)
+        mockPublish.mockImplementation((message) => queue.publish(message))
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-a-b-a')
+        const tiger = {
+          subject_name: 'Tiger',
+          subject_scientific_name: 'Panthera tigris',
+          subject_category: 'mammal',
+          place_latitude: 14.5,
+          place_longitude: 101.4
+        }
+        const leopard = {
+          subject_name: 'Leopard',
+          subject_scientific_name: 'Panthera pardus',
+          subject_category: 'mammal',
+          place_latitude: 15.5,
+          place_longitude: 101.4
+        }
+
+        await put(id, tiger)
+        await put(id, leopard)
+        await put(id, tiger)
+
+        const ids = mockPublish.mock.calls.map(([message]) => message.id)
+        expect(ids).toHaveLength(6)
+        expect(new Set(ids).size).toBe(6)
+        // Every publish has its own row, so the last edit's jobs will run.
+        for (const jobId of ids.slice(-2)) {
+          expect(await database.getQueueJobById(jobId)).toMatchObject({
+            id: jobId,
+            status: 'pending'
+          })
+        }
+        expect((await detailsOf(id)).subject.lookupStatus).toBe('pending')
       })
 
       it('does not queue the place lookup when only the name changed', async () => {

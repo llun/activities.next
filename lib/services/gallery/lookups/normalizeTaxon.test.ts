@@ -9,6 +9,7 @@ import searchKingfisher from './__fixtures__/gbif-search-kingfisher.json'
 import taxonKingfisher from './__fixtures__/gbif-taxon-kingfisher.json'
 import {
   getTaxonCategory,
+  isReadableMatch,
   normalizeIucnCategory,
   normalizeMatch,
   normalizeTaxonRecord
@@ -171,10 +172,44 @@ describe('normalizeIucnCategory', () => {
   it.each([
     [{ code: 'LR/lc' }],
     [{ code: '' }],
-    [{ category: 'LEAST_CONCERN' }],
+    [{ category: 'SOMETHING_NEW' }],
     [null],
     ['LC']
   ])('rejects %j', (raw) => {
     expect(normalizeIucnCategory(raw)).toBeNull()
+  })
+
+  it.each([
+    ['LEAST_CONCERN', 'LC'],
+    ['ENDANGERED', 'EN'],
+    ['CRITICALLY_ENDANGERED', 'CR'],
+    ['Vulnerable', 'VU'],
+    ['NOT_EVALUATED', 'NE']
+  ])('falls back to the category name %s', (category, code) => {
+    expect(normalizeIucnCategory({ category })).toBe(code)
+  })
+
+  it('prefers the code to the category name', () => {
+    expect(normalizeIucnCategory({ code: 'VU', category: 'ENDANGERED' })).toBe(
+      'VU'
+    )
+  })
+})
+
+describe('isReadableMatch', () => {
+  it('reads recorded answers, including no match', () => {
+    expect(isReadableMatch(matchExact)).toBe(true)
+    expect(isReadableMatch(matchNone)).toBe(true)
+    expect(isReadableMatch(matchGenus)).toBe(true)
+  })
+
+  it.each([
+    [null],
+    ['EXACT'],
+    [{ result: { matchType: 'EXACT' } }],
+    [{ matchType: 'EXACT', confidence: 99, rank: 'SPECIES' }],
+    [{ matchType: 'EXACT', usageKey: 1, canonicalName: 'A b', rank: 'SPECIES' }]
+  ])('does not read %j', (raw) => {
+    expect(isReadableMatch(raw)).toBe(false)
   })
 })

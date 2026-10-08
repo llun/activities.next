@@ -88,6 +88,7 @@ describe('GallerySubjectDetailView', () => {
           subject={identified}
           initialPage={{ items: [buildGalleryItem('1')], nextMaxId: null }}
           commonTag="KeelBilledToucan"
+          where="Costa Rica"
           {...overrides}
         />
       )
@@ -112,19 +113,15 @@ describe('GallerySubjectDetailView', () => {
       ).toHaveAttribute('href', '/tags/RamphastosSulfuratus')
     })
 
-    it('shows where the subject was seen, up to three countries then a count', () => {
+    it('shows where the subject was seen, as the server named it', () => {
       const { unmount } = render_()
       expect(
         screen.getByText('Where', { selector: 'dt' }).closest('dl')
       ).toHaveTextContent('Costa Rica')
       unmount()
 
-      render_({
-        subject: {
-          ...identified,
-          countryCodes: ['CR', 'PA', 'MX', 'BZ', 'GT']
-        }
-      })
+      // Named on the server, not here: the view never runs Intl itself.
+      render_({ where: 'Costa Rica, Panama, Mexico +2' })
       expect(screen.getByText('Costa Rica, Panama, Mexico +2')).toBeVisible()
     })
 
@@ -154,7 +151,8 @@ describe('GallerySubjectDetailView', () => {
           taxonKey: null,
           taxonPath: null,
           countryCodes: []
-        }
+        },
+        where: null
       })
 
       expect(

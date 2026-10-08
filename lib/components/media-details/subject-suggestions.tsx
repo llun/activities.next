@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, Loader2, Search, Sparkles } from 'lucide-react'
+import { Check, Loader2, Search, Sparkles, X } from 'lucide-react'
 import { FC } from 'react'
 
 import type { SubjectSuggestionsEntity } from '@/lib/client'
@@ -31,7 +31,15 @@ interface Props {
   error: string | null
   /** Whether GBIF search is on; the "Search subjects" control needs it. */
   canSearch: boolean
+  /**
+   * Show the draft's subject as a selected chip when no suggestion chip is
+   * it. On while the manual fields are collapsed: without it a subject picked
+   * from the search, typed earlier or saved before has no visible trace.
+   */
+  showChosen?: boolean
   onPick: (picked: PickedSubject) => void
+  /** Clears the draft's subject (the chosen chip's ×). */
+  onClear?: () => void
   onSuggest: () => void
   onSearch: () => void
 }
@@ -69,7 +77,9 @@ export const SubjectSuggestions: FC<Props> = ({
   suggesting,
   error,
   canSearch,
+  showChosen = false,
   onPick,
+  onClear,
   onSuggest,
   onSearch
 }) => {
@@ -78,9 +88,51 @@ export const SubjectSuggestions: FC<Props> = ({
   const groupPick = choices.group
     ? groupToPicked(choices.group.label, choices.group.category)
     : null
+  const chosenName = draft.subjectName.trim()
+  const chosenScientific = draft.subjectScientificName.trim()
+  const chipIsChosen =
+    choices.species.some((candidate) =>
+      isSubjectPicked(draft, candidateToPicked(candidate))
+    ) ||
+    (groupPick !== null && isSubjectPicked(draft, groupPick))
+  const showChosenChip =
+    showChosen && Boolean(chosenName || chosenScientific) && !chipIsChosen
 
   return (
     <div className="space-y-3">
+      {showChosenChip ? (
+        <div
+          role="group"
+          aria-label="Chosen subject"
+          className="flex flex-wrap gap-2"
+        >
+          <span className={cn(chipClass(true), 'pr-1')}>
+            <Check aria-hidden="true" className="size-3.5 text-primary-text" />
+            <span>
+              {chosenName || <i>{chosenScientific}</i>}
+              {chosenName && chosenScientific ? (
+                <>
+                  {' '}
+                  <i className="font-normal text-muted-foreground">
+                    {chosenScientific}
+                  </i>
+                </>
+              ) : null}
+            </span>
+            {onClear ? (
+              <button
+                type="button"
+                aria-label={`Clear subject ${chosenName || chosenScientific}`}
+                onClick={onClear}
+                className="inline-flex size-7 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <X aria-hidden="true" className="size-3.5" />
+              </button>
+            ) : null}
+          </span>
+        </div>
+      ) : null}
+
       {suggestions ? (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Sparkles

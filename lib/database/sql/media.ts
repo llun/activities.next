@@ -441,8 +441,9 @@ export const parseMediaRow = (data: MediaRow): Media => ({
 // update as the edit so no reader ever sees a new subject with the old
 // subject's IUCN verdict:
 // - a subject that CHANGES (name, scientific name, category or taxon key)
-//   clears the IUCN category, taxon path and last attempt, and sets the lookup
-//   status to `pending` when the new subject is species-like (null otherwise).
+//   clears the IUCN category and taxon path, and sets the lookup status to
+//   `pending` when the new subject is species-like (null otherwise), with
+//   `subjectLookupAt` as the time it became pending (null otherwise).
 //   A name or scientific-name change without a taxon key also clears the old
 //   key: it named the previous species, and resolving it would clear the new
 //   subject against the wrong taxon.
@@ -522,8 +523,11 @@ const getDetailsColumns = (
     }
     columns.subjectTaxonPath = null
     columns.subjectIucnCategory = null
-    columns.subjectLookupAt = null
-    columns.subjectLookupStatus = isSpeciesLike(next) ? 'pending' : null
+    const speciesLike = isSpeciesLike(next)
+    columns.subjectLookupStatus = speciesLike ? 'pending' : null
+    // For `pending`, when it started: the owner is offered a Retry once a
+    // lookup has been pending too long (a lost job, a queue outage).
+    columns.subjectLookupAt = speciesLike ? new Date() : null
   }
 
   const coordinatesChanged = (

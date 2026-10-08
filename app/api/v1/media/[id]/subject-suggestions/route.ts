@@ -80,15 +80,26 @@ export const POST = traceApiRoute(
         })
       }
 
-      // An empty body is fine; a malformed one is the same as an empty one.
+      // An empty body, or one that is not JSON at all, reads as `{}`. A JSON
+      // body of the wrong shape (`{"refresh":"true"}`) is refused, so a client
+      // learns its refresh was not understood rather than silently getting
+      // the stored suggestions back.
       let body: unknown = {}
       try {
         body = await req.json()
       } catch {
         // No body.
       }
-      const parsed = SuggestionsRequest.safeParse(body)
-      const refresh = parsed.success ? parsed.data.refresh === true : false
+      const parsed = SuggestionsRequest.safeParse(body ?? {})
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Invalid input' },
+          responseStatusCode: 422
+        })
+      }
+      const refresh = parsed.data.refresh === true
 
       const stored = media.details?.subjectSuggestions ?? null
       if (stored && !refresh) {

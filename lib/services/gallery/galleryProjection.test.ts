@@ -71,6 +71,7 @@ const mapRow = (overrides: Partial<GalleryMapRow> = {}): GalleryMapRow => ({
   placePrecision: 'area',
   placeName: 'Lea Valley',
   placeCountryCode: null,
+  placeNameSource: null,
   // A name with no category is not species-like, so the threatened rule does
   // not apply to the default row.
   subjectName: 'Common Kingfisher',
@@ -399,6 +400,7 @@ describe('threatened species in the projection', () => {
         placePrecision: 'exact',
         placeName: 'sentinel-place-name',
         placeCountryCode: 'TH',
+        placeNameSource: 'geocoder',
         subjectName: 'sentinel-subject-name',
         subjectScientificName: 'sentinel-scientific-name',
         subjectCategory: 'bird',
@@ -422,6 +424,7 @@ describe('threatened species in the projection', () => {
         placeLatitude: 1.25,
         placeLongitude: 2.5,
         placeCountryCode: 'TH',
+        placeNameSource: 'geocoder',
         subjectName: 'sentinel-subject-name',
         subjectScientificName: 'sentinel-scientific-name',
         subjectCategory: 'bird',

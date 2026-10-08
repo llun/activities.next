@@ -55,8 +55,7 @@ interface Params {
 }
 
 // Request fields that change a media's subject; any of them being sent queues a
-// lookup of the stored subject. `subject_taxon_key` is accepted by the request
-// schema once the data layer lands.
+// lookup of the stored subject.
 const SUBJECT_REQUEST_KEYS: readonly string[] = [
   'subject_name',
   'subject_scientific_name',
@@ -534,7 +533,14 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
       (latitude !== previousCoordinates?.latitude ||
         longitude !== previousCoordinates?.longitude)
     ) {
-      await publishPlaceLookup({ mediaId: id, latitude, longitude })
+      // `fresh`: the update reset the lookup, and an edit back to an earlier
+      // point must not reuse that earlier job's id (see publishLookups).
+      await publishPlaceLookup({
+        mediaId: id,
+        latitude,
+        longitude,
+        fresh: true
+      })
     }
     if (
       providedDetailsKeys.some((key) =>
@@ -546,7 +552,8 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
         subjectName: updated?.subjectName ?? null,
         subjectScientificName: updated?.subjectScientificName ?? null,
         subjectCategory: updated?.subjectCategory ?? null,
-        subjectTaxonKey: updated?.subjectTaxonKey ?? null
+        subjectTaxonKey: updated?.subjectTaxonKey ?? null,
+        fresh: true
       })
     }
   }

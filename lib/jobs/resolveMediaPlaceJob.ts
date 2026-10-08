@@ -10,7 +10,9 @@ import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 const ResolveMediaPlaceJobData = z.object({
-  mediaId: z.string().min(1)
+  mediaId: z.string().min(1),
+  // The owner's Retry: remembered provider failures are asked again.
+  retry: z.boolean().optional()
 })
 
 /**
@@ -34,7 +36,7 @@ export const resolveMediaPlaceJob: JobHandle = createJobHandle(
     const parsed = ResolveMediaPlaceJobData.safeParse(message.data)
     if (!parsed.success) return
 
-    const { mediaId } = parsed.data
+    const { mediaId, retry = false } = parsed.data
     const found = await database.getMediaWithAttachedStatusIds({ mediaId })
     const details: Partial<MediaDetailsRecord> | undefined =
       found?.media.details
@@ -70,12 +72,21 @@ export const resolveMediaPlaceJob: JobHandle = createJobHandle(
     // Re-checked at run time, see resolveMediaSubjectJob.
     const { network } = await getResolvedServerSettings(database)
     if (!network.placeLookups) {
-      await write({ placeLookupStatus: 'disabled' })
+      // A result already stored for these coordinates (a move resets the
+      // status) stays valid, with its country code; only an unchecked place
+      // is marked, as the subject job does.
+      const status = details.placeLookupStatus ?? null
+      if (status !== 'resolved' && status !== 'no-match') {
+        await write({ placeLookupStatus: 'disabled' })
+      }
       return
     }
 
     try {
-      const place = await createNominatimClient({ database }).reverseGeocode({
+      const place = await createNominatimClient({
+        database,
+        skipCachedErrors: retry
+      }).reverseGeocode({
         latitude,
         longitude
       })

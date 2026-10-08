@@ -40,6 +40,15 @@ vi.mock('@/lib/config', () => ({
   })
 }))
 
+const takeMock = vi.hoisted(() => vi.fn())
+const counterOptions = vi.hoisted(() => [] as unknown[])
+vi.mock('@/lib/services/gallery/lookups/rateLimit', () => ({
+  createWindowCounter: (options: unknown) => {
+    counterOptions.push(options)
+    return { tryHit: takeMock, reset: vi.fn() }
+  }
+}))
+
 // The jobs are only published here; none runs.
 const mockPublish = vi.fn()
 vi.mock('@/lib/services/queue', () => ({
@@ -70,6 +79,7 @@ describe('POST /api/v1/media/[id]/lookups', () => {
       user: { email: seedActor1.email }
     })
     mockPublish.mockResolvedValue(undefined)
+    takeMock.mockReturnValue(true)
   })
 
   let counter = 0
@@ -124,8 +134,9 @@ describe('POST /api/v1/media/[id]/lookups', () => {
     expect(publishedNames().sort()).toEqual(
       [RESOLVE_MEDIA_PLACE_JOB_NAME, RESOLVE_MEDIA_SUBJECT_JOB_NAME].sort()
     )
+    // Told it is a retry, so the job skips a remembered provider failure.
     for (const [message] of mockPublish.mock.calls) {
-      expect(message.data).toEqual({ mediaId: id })
+      expect(message.data).toEqual({ mediaId: id, retry: true })
     }
   })
 
@@ -137,8 +148,8 @@ describe('POST /api/v1/media/[id]/lookups', () => {
         placeLongitude: 2
       })
 
+      // Same millisecond: the id must still differ.
       await request(id)
-      vi.advanceTimersByTime(5)
       await request(id)
 
       const ids = mockPublish.mock.calls.map(([message]) => message.id)
@@ -146,6 +157,121 @@ describe('POST /api/v1/media/[id]/lookups', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  const setLookups = async (
+    id: string,
+    {
+      subject,
+      place
+    }: {
+      subject?: Parameters<typeof database.setMediaSubjectLookup>[0]['patch']
+      place?: Parameters<typeof database.setMediaPlaceLookup>[0]['patch']
+    }
+  ) => {
+    const account = (await database.getActorFromId({ id: ACTOR1_ID }))!.account!
+    const media = await database.getMediaByIdForAccount({
+      mediaId: id,
+      accountId: account.id
+    })
+    const details = media!.details!
+    if (subject) {
+      await database.setMediaSubjectLookup({
+        mediaId: id,
+        expect: {
+          subjectName: details.subjectName,
+          subjectScientificName: details.subjectScientificName,
+          subjectTaxonKey: details.subjectTaxonKey
+        },
+        patch: subject
+      })
+    }
+    if (place) {
+      await database.setMediaPlaceLookup({
+        mediaId: id,
+        expect: {
+          placeLatitude: details.placeLatitude,
+          placeLongitude: details.placeLongitude
+        },
+        patch: place
+      })
+    }
+  }
+
+  it('queues only the lookups that have not finished', async () => {
+    const SPECIES = {
+      subjectName: 'Common Kingfisher',
+      subjectScientificName: 'Alcedo atthis',
+      subjectCategory: 'bird',
+      placeLatitude: 14.5,
+      placeLongitude: 101.4
+    }
+
+    // Subject failed, place resolved: only the subject.
+    const subjectFailed = await createMediaFor(ACTOR1_ID, SPECIES)
+    await setLookups(subjectFailed, {
+      subject: { subjectLookupStatus: 'failed' },
+      place: { placeLookupStatus: 'resolved', placeCountryCode: 'TH' }
+    })
+    await request(subjectFailed)
+    expect(publishedNames()).toEqual([RESOLVE_MEDIA_SUBJECT_JOB_NAME])
+
+    // Subject cleared, place never looked up (null): only the place.
+    mockPublish.mockClear()
+    const placeNull = await createMediaFor(ACTOR1_ID, SPECIES)
+    await setLookups(placeNull, {
+      subject: { subjectLookupStatus: 'resolved', subjectIucnCategory: 'LC' }
+    })
+    await request(placeNull)
+    expect(publishedNames()).toEqual([RESOLVE_MEDIA_PLACE_JOB_NAME])
+
+    // Both finished: nothing, and still the details.
+    mockPublish.mockClear()
+    const finished = await createMediaFor(ACTOR1_ID, SPECIES)
+    await setLookups(finished, {
+      subject: { subjectLookupStatus: 'no-match' },
+      place: { placeLookupStatus: 'no-match' }
+    })
+    const response = await request(finished)
+    expect(response.status).toBe(200)
+    expect(mockPublish).not.toHaveBeenCalled()
+
+    // Disabled and pending are retried.
+    mockPublish.mockClear()
+    const disabled = await createMediaFor(ACTOR1_ID, SPECIES)
+    await setLookups(disabled, {
+      subject: { subjectLookupStatus: 'disabled' },
+      place: { placeLookupStatus: 'disabled' }
+    })
+    await request(disabled)
+    expect(publishedNames().sort()).toEqual(
+      [RESOLVE_MEDIA_PLACE_JOB_NAME, RESOLVE_MEDIA_SUBJECT_JOB_NAME].sort()
+    )
+  })
+
+  it('queues the subject lookup for a subject known only by its taxon key', async () => {
+    const id = await createMediaFor(ACTOR1_ID, { subjectTaxonKey: '2475532' })
+
+    await request(id)
+
+    expect(publishedNames()).toEqual([RESOLVE_MEDIA_SUBJECT_JOB_NAME])
+  })
+
+  it('limits each actor to 20 retries an hour', async () => {
+    expect(counterOptions).toEqual([{ limit: 20, windowMs: 60 * 60 * 1000 }])
+
+    takeMock.mockReturnValue(false)
+    const id = await createMediaFor(ACTOR1_ID, {
+      placeLatitude: 1,
+      placeLongitude: 2
+    })
+
+    const response = await request(id)
+
+    expect(response.status).toBe(429)
+    expect(await response.json()).toEqual({ error: 'Too many requests' })
+    expect(mockPublish).not.toHaveBeenCalled()
+    expect(takeMock).toHaveBeenCalledWith(ACTOR1_ID)
   })
 
   it('queues only what the media has', async () => {
@@ -158,12 +284,21 @@ describe('POST /api/v1/media/[id]/lookups', () => {
 
     mockPublish.mockClear()
     const subjectOnly = await createMediaFor(ACTOR1_ID, {
-      subjectName: 'Otter'
+      subjectName: 'Otter',
+      subjectCategory: 'mammal'
     })
     await request(subjectOnly)
     expect(publishedNames()).toEqual([RESOLVE_MEDIA_SUBJECT_JOB_NAME])
 
+    // A landscape is not species-like: nothing to check.
     mockPublish.mockClear()
+    const landscape = await createMediaFor(ACTOR1_ID, {
+      subjectName: 'Doi Suthep',
+      subjectCategory: 'landscape'
+    })
+    await request(landscape)
+    expect(mockPublish).not.toHaveBeenCalled()
+
     const neither = await createMediaFor(ACTOR1_ID)
     const response = await request(neither)
     expect(response.status).toBe(200)

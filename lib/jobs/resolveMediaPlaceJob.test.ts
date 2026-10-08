@@ -2,6 +2,7 @@ import { Database } from '@/lib/database/types'
 import { RESOLVE_MEDIA_PLACE_JOB_NAME } from '@/lib/jobs/names'
 import { resolveMediaPlaceJob } from '@/lib/jobs/resolveMediaPlaceJob'
 import { LookupError } from '@/lib/services/gallery/lookups/lookupRequest'
+import { createNominatimClient } from '@/lib/services/gallery/lookups/nominatim'
 import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 
 const nominatim = { reverseGeocode: vi.fn() }
@@ -164,6 +165,47 @@ describe('resolveMediaPlaceJob', () => {
       expect: POINT,
       patch: { placeLookupStatus: 'disabled' }
     })
+  })
+
+  it.each(['resolved', 'no-match'] as const)(
+    'keeps a finished %s result when switched off',
+    async (placeLookupStatus) => {
+      resolvedSettings.network.placeLookups = false
+      mediaWith({ ...POINT, placeLookupStatus, placeCountryCode: 'TH' })
+
+      await resolveMediaPlaceJob(database, message({ mediaId: '7' }))
+
+      expect(nominatim.reverseGeocode).not.toHaveBeenCalled()
+      expect(setMediaPlaceLookup).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([null, 'pending', 'failed'] as const)(
+    'marks a %s place disabled when switched off',
+    async (placeLookupStatus) => {
+      resolvedSettings.network.placeLookups = false
+      mediaWith({ ...POINT, placeLookupStatus })
+
+      await resolveMediaPlaceJob(database, message({ mediaId: '7' }))
+
+      expect(setMediaPlaceLookup).toHaveBeenCalledWith(
+        expect.objectContaining({ patch: { placeLookupStatus: 'disabled' } })
+      )
+    }
+  )
+
+  it('asks Nominatim again past a remembered failure only on a retry', async () => {
+    mediaWith({ ...POINT })
+
+    await resolveMediaPlaceJob(database, message({ mediaId: '7' }))
+    expect(createNominatimClient).toHaveBeenLastCalledWith(
+      expect.objectContaining({ skipCachedErrors: false })
+    )
+
+    await resolveMediaPlaceJob(database, message({ mediaId: '7', retry: true }))
+    expect(createNominatimClient).toHaveBeenLastCalledWith(
+      expect.objectContaining({ skipCachedErrors: true })
+    )
   })
 
   it('drops the result when the coordinates changed meanwhile (compare-and-set loses)', async () => {

@@ -105,15 +105,31 @@ interface Props {
   onClose: () => void
   onSaved: (items: MediaDetailsSavedItem[]) => void
   /**
-   * Fresh owner details the dialog fetched without saving (subject suggestions,
-   * a lookup retry), so the composer's tile and a reopened dialog agree.
+   * Owner details the dialog fetched without saving (subject suggestions, a
+   * lookup retry), so the composer's tile and a reopened dialog agree. `patch`
+   * holds only what this fetch is authoritative for, to be merged into the
+   * composer's LATEST details (a slow suggestion must not put back the
+   * statuses a retry replaced meanwhile); `details` is the whole entity, for
+   * a composer that holds none for the item yet.
    */
-  onDetailsRefreshed?: (id: string, details: MediaDetailsEntity) => void
+  onDetailsRefreshed?: (
+    id: string,
+    patch: Partial<MediaDetailsEntity>,
+    details: MediaDetailsEntity
+  ) => void
   /** Ids whose suggestions the composer is still fetching. */
   suggestionsPending?: Record<string, true>
 }
 
 const ADD_NEW_GEAR = '__add_new_gear__'
+
+const NO_SUBJECT: PickedSubject = {
+  name: '',
+  scientificName: '',
+  category: '',
+  taxonKey: '',
+  taxonPath: []
+}
 
 const PRECISION_LABELS: Record<MediaPlacePrecision, string> = {
   hidden: 'Hidden',
@@ -232,15 +248,16 @@ const CheckRow: FC<{
   </div>
 )
 
-const RetryLink: FC<{ busy: boolean; onRetry: () => void }> = ({
-  busy,
-  onRetry
-}) => (
+const RetryLink: FC<{
+  busy: boolean
+  disabled?: boolean
+  onRetry: () => void
+}> = ({ busy, disabled = false, onRetry }) => (
   <Button
     type="button"
     variant="link"
     size="sm"
-    disabled={busy}
+    disabled={busy || disabled}
     onClick={onRetry}
     className="h-auto p-0 text-xs"
   >
@@ -251,18 +268,53 @@ const RetryLink: FC<{ busy: boolean; onRetry: () => void }> = ({
 
 /**
  * Owner-only state of the subject's IUCN check. The category itself is never
- * public; it only drives whether other people see the photo's place.
+ * public; it only drives whether other people see the photo's place, so every
+ * state that keeps the place hidden says so.
  */
 const SubjectLookupStatus: FC<{
   subject: NonNullable<MediaDetailsEntity['subject']>
   hidePlaces: boolean
+  /** Whether a retry can succeed: species lookups are on for this server. */
+  canRetry: boolean
   retrying: boolean
+  disabled: boolean
   error: string | null
   onRetry: () => void
-}> = ({ subject, hidePlaces, retrying, error, onRetry }) => {
+}> = ({
+  subject,
+  hidePlaces,
+  canRetry,
+  retrying,
+  disabled,
+  error,
+  onRetry
+}) => {
+  const retry = canRetry ? (
+    <>
+      {' · '}
+      <RetryLink busy={retrying} disabled={disabled} onRetry={onRetry} />
+    </>
+  ) : null
+  // Pending, failed, disabled or never checked: the fail-closed rule keeps
+  // the place from everyone else meanwhile.
+  const hiddenNote =
+    hidePlaces && subject.threatStatus === 'unchecked' ? (
+      <span className="block">
+        The place stays hidden from other people until it’s checked.
+      </span>
+    ) : null
+
   let content: ReactNode = null
   if (subject.lookupStatus === 'pending') {
-    content = <span role="status">Checking IUCN status…</span>
+    content = (
+      <>
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          <span role="status">Checking IUCN status…</span>
+          {subject.lookupStale ? retry : null}
+        </span>
+        {hiddenNote}
+      </>
+    )
   } else if (
     subject.lookupStatus === 'resolved' &&
     subject.iucnCategory !== null
@@ -282,15 +334,17 @@ const SubjectLookupStatus: FC<{
     )
   } else if (subject.lookupStatus === 'no-match') {
     content = <span>Not found in the GBIF taxonomy, so no IUCN status.</span>
-  } else if (
-    subject.lookupStatus === 'failed' ||
-    subject.lookupStatus === 'resolved'
-  ) {
+  } else if (subject.threatStatus === 'unchecked') {
+    // `failed`, `disabled`, a resolved row with no category, or a species-like
+    // subject that was never checked (null).
     content = (
-      <span className="inline-flex flex-wrap items-center gap-1.5">
-        Couldn’t check IUCN status ·{' '}
-        <RetryLink busy={retrying} onRetry={onRetry} />
-      </span>
+      <>
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          Couldn’t check IUCN status
+          {retry}
+        </span>
+        {hiddenNote}
+      </>
     )
   }
   if (!content && !error) return null
@@ -308,9 +362,12 @@ const SubjectLookupStatus: FC<{
 
 const PlaceLookupStatus: FC<{
   place: NonNullable<MediaDetailsEntity['place']> | null
+  /** Whether a retry can succeed: place lookups are on for this server. */
+  canRetry: boolean
   retrying: boolean
+  disabled: boolean
   onRetry: () => void
-}> = ({ place, retrying, onRetry }) => {
+}> = ({ place, canRetry, retrying, disabled, onRetry }) => {
   if (!place) return null
   if (place.lookupStatus === 'pending') {
     return (
@@ -319,11 +376,27 @@ const PlaceLookupStatus: FC<{
       </p>
     )
   }
-  if (place.lookupStatus === 'failed') {
+  if (!canRetry) return null
+  const hasCoordinates = place.latitude !== null && place.longitude !== null
+  const retry = (
+    <RetryLink busy={retrying} disabled={disabled} onRetry={onRetry} />
+  )
+  if (
+    place.lookupStatus === 'failed' ||
+    (hasCoordinates && place.lookupStatus === 'disabled')
+  ) {
     return (
       <p className="inline-flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-        Couldn’t look up the place name ·{' '}
-        <RetryLink busy={retrying} onRetry={onRetry} />
+        Couldn’t look up the place name · {retry}
+      </p>
+    )
+  }
+  // Coordinates whose lookup never ran: a lost job, or a queue that was down
+  // when the photo was uploaded or moved.
+  if (hasCoordinates && place.lookupStatus === null) {
+    return (
+      <p className="inline-flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        The place name hasn’t been looked up · {retry}
       </p>
     )
   }
@@ -403,8 +476,17 @@ export const MediaDetailsDialog: FC<Props> = ({
   const [suggestError, setSuggestError] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [manualOpen, setManualOpen] = useState(false)
-  const [retrying, setRetrying] = useState(false)
+  // Per item, which Retry is running: one item's retry is not another's.
+  const [retrying, setRetrying] = useState<Record<string, 'subject' | 'place'>>(
+    {}
+  )
   const [retryError, setRetryError] = useState<string | null>(null)
+  // The items as of the latest render, for requests that finish later than
+  // the render that started them.
+  const itemsRef = useRef(items)
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
 
   // The selected item can disappear (removed or failed upload); clamp.
   const foundIndex = items.findIndex((entry) => entry.id === selectedId)
@@ -496,12 +578,24 @@ export const MediaDetailsDialog: FC<Props> = ({
     setSuggestError(null)
     try {
       const suggestions = await suggestMediaSubjects(target.id)
-      const base = target.details
-      const value = mergeDetails(resolveDetails(target, fetched), {
-        subjectSuggestions: suggestions
-      })
-      setFetched((current) => ({ ...current, [target.id]: { base, value } }))
-      onDetailsRefreshed?.(target.id, value)
+      // The model can take seconds; a Retry may have refreshed the item
+      // meanwhile. Merge only the suggestions into the details as they are
+      // NOW, never into the ones captured when Suggest was clicked.
+      const patch = { subjectSuggestions: suggestions }
+      const latest =
+        itemsRef.current.find((entry) => entry.id === target.id) ?? target
+      setFetched((current) => ({
+        ...current,
+        [target.id]: {
+          base: latest.details,
+          value: mergeDetails(resolveDetails(latest, current), patch)
+        }
+      }))
+      onDetailsRefreshed?.(
+        target.id,
+        patch,
+        mergeDetails(latest.details, patch)
+      )
     } catch (error) {
       setSuggestError(errorMessage(error, 'Subjects could not be suggested.'))
     } finally {
@@ -512,21 +606,27 @@ export const MediaDetailsDialog: FC<Props> = ({
     }
   }
 
-  const onRetryLookups = async () => {
+  const onRetryLookups = async (kind: 'subject' | 'place') => {
     const target = item
-    setRetrying(true)
+    setRetrying((current) => ({ ...current, [target.id]: kind }))
     setRetryError(null)
     try {
+      // The server's answer is the whole, current entity.
       const value = await retryMediaLookups(target.id)
+      const latest =
+        itemsRef.current.find((entry) => entry.id === target.id) ?? target
       setFetched((current) => ({
         ...current,
-        [target.id]: { base: target.details, value }
+        [target.id]: { base: latest.details, value }
       }))
-      onDetailsRefreshed?.(target.id, value)
+      onDetailsRefreshed?.(target.id, value, value)
     } catch (error) {
       setRetryError(errorMessage(error, 'Failed to retry the check.'))
     } finally {
-      setRetrying(false)
+      setRetrying((current) => {
+        const { [target.id]: _done, ...rest } = current
+        return rest
+      })
     }
   }
 
@@ -971,7 +1071,9 @@ export const MediaDetailsDialog: FC<Props> = ({
                 suggesting={isSuggesting}
                 error={suggestError}
                 canSearch={canSearch}
+                showChosen={!showManual}
                 onPick={(picked) => applySubjectTo(picked, false)}
+                onClear={() => applySubjectTo(NO_SUBJECT, false)}
                 onSuggest={() => void onSuggest()}
                 onSearch={() => setPickerOpen(true)}
               />
@@ -985,9 +1087,11 @@ export const MediaDetailsDialog: FC<Props> = ({
                 <SubjectLookupStatus
                   subject={subjectStatus}
                   hidePlaces={settings?.hideThreatenedPlaces ?? true}
-                  retrying={retrying}
+                  canRetry={canSearch}
+                  retrying={retrying[item.id] === 'subject'}
+                  disabled={Boolean(retrying[item.id])}
                   error={retryError}
-                  onRetry={() => void onRetryLookups()}
+                  onRetry={() => void onRetryLookups('subject')}
                 />
               ) : null}
               {hasAssist ? (
@@ -1191,8 +1295,10 @@ export const MediaDetailsDialog: FC<Props> = ({
               </Field>
               <PlaceLookupStatus
                 place={placeStatus}
-                retrying={retrying}
-                onRetry={() => void onRetryLookups()}
+                canRetry={settings?.placeLookupsAvailable !== false}
+                retrying={retrying[item.id] === 'place'}
+                disabled={Boolean(retrying[item.id])}
+                onRetry={() => void onRetryLookups('place')}
               />
               <div
                 role="radiogroup"

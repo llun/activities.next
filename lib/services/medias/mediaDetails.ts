@@ -9,6 +9,21 @@ import { EMPTY_MEDIA_DETAILS } from '@/lib/types/database/gallery'
 import { Media } from '@/lib/types/database/operations'
 
 /**
+ * How long a subject lookup may stay `pending` before the owner is offered a
+ * Retry: a job lost to a queue outage, or one the queue dropped, would
+ * otherwise leave "Checking IUCN status…" up for good.
+ */
+export const STALE_SUBJECT_LOOKUP_MS = 2 * 60 * 1000
+
+const isStalePending = (
+  status: string | null,
+  lookupAt: number | null,
+  now: number
+) =>
+  status === 'pending' &&
+  (lookupAt === null || now - lookupAt >= STALE_SUBJECT_LOOKUP_MS)
+
+/**
  * The `details` extension for the media's OWNER, with exact stored
  * coordinates, the IUCN category, both lookup statuses and the model's subject
  * suggestions — none of which anyone else is ever sent.
@@ -52,7 +67,12 @@ export const buildOwnerMediaDetails = async (
             taxonPath: details.subjectTaxonPath,
             iucnCategory: details.subjectIucnCategory,
             threatStatus: getSubjectThreatStatus(details),
-            lookupStatus: details.subjectLookupStatus
+            lookupStatus: details.subjectLookupStatus,
+            lookupStale: isStalePending(
+              details.subjectLookupStatus,
+              details.subjectLookupAt,
+              Date.now()
+            )
           }
         : null,
     takenAt:

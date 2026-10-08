@@ -49,6 +49,8 @@ export interface NominatimClientDeps {
   endpoint?: string
   email?: string | null
   language?: string
+  // The owner's Retry: ask again rather than answer a remembered failure.
+  skipCachedErrors?: boolean
 }
 
 export interface NominatimClient {
@@ -68,7 +70,8 @@ export const createNominatimClient = ({
   provider = nominatimProvider,
   endpoint,
   email,
-  language
+  language,
+  skipCachedErrors = false
 }: NominatimClientDeps): NominatimClient => ({
   async reverseGeocode(point) {
     const config = getConfig()
@@ -79,6 +82,7 @@ export const createNominatimClient = ({
 
     const result = await readThroughLookupCache<GeocodedPlace>({
       database,
+      skipCachedError: skipCachedErrors,
       kind: 'geocode',
       key: `${lang}:${latitude},${longitude}`,
       fetcher: async () => {
@@ -102,7 +106,27 @@ export const createNominatimClient = ({
           fetch
         })
         if (response.status !== 'ok') return null
-        return formatGeocodedPlace(response.json)
+        // Nominatim's "nothing here" is `{ "error": "Unable to geocode" }`.
+        // Anything else without an address is a shape this code does not
+        // know: a failure to retry, not a cell with no name.
+        const json = response.json as {
+          address?: unknown
+          error?: unknown
+        } | null
+        if (!json || typeof json !== 'object' || Array.isArray(json)) {
+          throw new LookupError(
+            'parse',
+            'Nominatim returned an unreadable answer'
+          )
+        }
+        if (json.address === undefined) {
+          if (typeof json.error === 'string') return null
+          throw new LookupError(
+            'parse',
+            'Nominatim returned an unreadable answer'
+          )
+        }
+        return formatGeocodedPlace(json)
       }
     })
 

@@ -104,7 +104,9 @@ export const MediaDetailsEntity = z.object({
       // Derived: `unchecked` while a species-like subject's place is withheld
       // for want of a lookup that cleared it.
       threatStatus: z.enum(['threatened', 'not-threatened', 'unchecked']),
-      lookupStatus: z.enum(MEDIA_LOOKUP_STATUSES).nullable()
+      lookupStatus: z.enum(MEDIA_LOOKUP_STATUSES).nullable(),
+      // `pending` for longer than a lookup should take: the owner may Retry.
+      lookupStale: z.boolean()
     })
     .nullable(),
   takenAt: z.string().nullable(),

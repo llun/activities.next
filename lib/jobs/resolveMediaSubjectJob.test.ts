@@ -1,6 +1,7 @@
 import { Database } from '@/lib/database/types'
 import { RESOLVE_MEDIA_SUBJECT_JOB_NAME } from '@/lib/jobs/names'
 import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
+import { createGbifClient } from '@/lib/services/gallery/lookups/gbif'
 import { LookupError } from '@/lib/services/gallery/lookups/lookupRequest'
 import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 
@@ -101,7 +102,7 @@ describe('resolveMediaSubjectJob', () => {
     })
   })
 
-  it('writes NE when GBIF has no assessment, so the place is not left hidden for a missing category', async () => {
+  it('writes NE when GBIF answers it has no assessment', async () => {
     gbif.getTaxon.mockResolvedValue({ ...KINGFISHER, iucnCategory: null })
     mediaWith({ subjectScientificName: 'Alcedo atthis' })
 
@@ -114,6 +115,23 @@ describe('resolveMediaSubjectJob', () => {
           subjectLookupStatus: 'resolved'
         })
       })
+    )
+  })
+
+  it('asks GBIF again past a remembered failure only on a retry', async () => {
+    mediaWith({ subjectScientificName: 'Alcedo atthis' })
+
+    await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
+    expect(createGbifClient).toHaveBeenLastCalledWith(
+      expect.objectContaining({ skipCachedErrors: false })
+    )
+
+    await resolveMediaSubjectJob(
+      database,
+      message({ mediaId: '7', retry: true })
+    )
+    expect(createGbifClient).toHaveBeenLastCalledWith(
+      expect.objectContaining({ skipCachedErrors: true })
     )
   })
 

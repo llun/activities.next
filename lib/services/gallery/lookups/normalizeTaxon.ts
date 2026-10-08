@@ -171,13 +171,58 @@ export const normalizeTaxonRecord = (raw: unknown): NormalizedTaxon | null => {
   }
 }
 
-// GBIF's `iucnRedListCategory` carries a two letter `code`.
+// The enum names GBIF spells the categories with in `category`.
+const IUCN_CATEGORY_NAMES: Record<string, IucnCategory> = {
+  EXTINCT: 'EX',
+  EXTINCT_IN_THE_WILD: 'EW',
+  CRITICALLY_ENDANGERED: 'CR',
+  ENDANGERED: 'EN',
+  VULNERABLE: 'VU',
+  NEAR_THREATENED: 'NT',
+  LEAST_CONCERN: 'LC',
+  DATA_DEFICIENT: 'DD',
+  NOT_EVALUATED: 'NE'
+}
+
+/**
+ * GBIF's `iucnRedListCategory` answer: the two letter `code`, or failing that
+ * the long `category` enum name (ENDANGERED is EN). Null when neither is one
+ * this code knows. A caller must treat null for a 200 answer as UNREADABLE,
+ * never as "not assessed": reading a changed shape as "not threatened" would
+ * publish a threatened species' place.
+ */
 export const normalizeIucnCategory = (raw: unknown): IucnCategory | null => {
   if (!raw || typeof raw !== 'object') return null
   const code = asString((raw as { code?: unknown }).code)?.toUpperCase()
-  return code && (IUCN_CATEGORIES as readonly string[]).includes(code)
-    ? (code as IucnCategory)
-    : null
+  if (code && (IUCN_CATEGORIES as readonly string[]).includes(code)) {
+    return code as IucnCategory
+  }
+  const name = asString((raw as { category?: unknown }).category)
+    ?.toUpperCase()
+    .replace(/[\s-]+/g, '_')
+  return (name && IUCN_CATEGORY_NAMES[name]) || null
+}
+
+/**
+ * Whether a `species/match` answer is one this code can read at all: an
+ * object with a `matchType`. `normalizeMatch` returning null for a readable
+ * answer means "no confident match"; for an unreadable one it means GBIF
+ * changed shape, which a caller records as a failure, not as a miss.
+ */
+export const isReadableMatch = (raw: unknown): boolean => {
+  if (!raw || typeof raw !== 'object') return false
+  const match = raw as Record<string, unknown>
+  if (typeof match.matchType !== 'string') return false
+  // An accepted match type must carry what normalizeMatch reads.
+  if (match.matchType === 'EXACT' || match.matchType === 'FUZZY') {
+    return (
+      typeof match.confidence === 'number' &&
+      asString(match.rank) !== null &&
+      (keyOf(match.acceptedUsageKey) ?? keyOf(match.usageKey)) !== null &&
+      (asString(match.canonicalName) ?? asString(match.scientificName)) !== null
+    )
+  }
+  return true
 }
 
 export const isSubjectCategory = (

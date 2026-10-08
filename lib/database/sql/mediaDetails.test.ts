@@ -104,7 +104,7 @@ describe('MediaDatabase details', () => {
         // A species-like subject is queued for its lookup, so its place is
         // withheld from the public until the lookup clears it.
         subjectLookupStatus: 'pending',
-        subjectLookupAt: null,
+        subjectLookupAt: expect.any(Number),
         subjectSuggestions: null,
         placeCountryCode: null,
         placeNameSource: 'owner',
@@ -358,8 +358,12 @@ describe('MediaDatabase details', () => {
           subjectTaxonPath: null,
           subjectIucnCategory: null,
           subjectLookupStatus: 'pending',
-          subjectLookupAt: null
+          // When it became pending, for the dialog's stale-lookup Retry.
+          subjectLookupAt: expect.any(Number)
         })
+        expect(
+          Math.abs(Date.now() - (result?.media.details?.subjectLookupAt ?? 0))
+        ).toBeLessThan(60_000)
       })
 
       it('keeps a newly picked taxon key while resetting the verdict', async () => {

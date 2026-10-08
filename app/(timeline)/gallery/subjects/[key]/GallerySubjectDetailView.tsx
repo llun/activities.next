@@ -15,7 +15,6 @@ import {
   formatGalleryDate
 } from '@/lib/components/gallery/galleryCategories'
 import {
-  formatCountryNames,
   formatTaxonPath,
   getGbifSpeciesHref,
   getHashtagHref,
@@ -40,20 +39,27 @@ interface Props {
    * worked out here.
    */
   commonTag?: string | null
+  /**
+   * "Where": the subject's country names ("Costa Rica, Panama +2"), worked
+   * out on the server. `Intl.DisplayNames` names some regions differently
+   * across ICU versions (Türkiye or Turkey), so naming them here would let the
+   * browser's text disagree with the server HTML it hydrates.
+   */
+  where?: string | null
 }
 
 export const GallerySubjectDetailView: FC<Props> = ({
   actorId,
   subject,
   initialPage,
-  commonTag = null
+  commonTag = null,
+  where = null
 }) => {
   const name = subject.name ?? subject.scientificName ?? 'Unnamed subject'
   const taxonPath = formatTaxonPath(subject.taxonPath)
   const gbifHref = getGbifSpeciesHref(subject.taxonKey)
   const scientificTag = toScientificHashtag(subject.scientificName)
   const browseTag = scientificTag ?? commonTag
-  const where = formatCountryNames(subject.countryCodes)
   const tagLabel = [scientificTag, commonTag]
     .filter(
       (tag, index, all): tag is string => !!tag && all.indexOf(tag) === index

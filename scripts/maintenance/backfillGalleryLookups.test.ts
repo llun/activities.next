@@ -1,6 +1,7 @@
-import knex, { Knex } from 'knex'
+import { Knex } from 'knex'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { resolveMediaPlaceJob } from '@/lib/jobs/resolveMediaPlaceJob'
 import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
@@ -81,20 +82,26 @@ const row = (overrides: Record<string, unknown> = {}) => ({
 })
 
 describe('needsPlaceLookup / needsSubjectLookup', () => {
-  it('wants a place with coordinates and no status', () => {
+  it('wants a place only with both coordinates', () => {
     expect(needsPlaceLookup(row({ placeLatitude: 1, placeLongitude: 2 }))).toBe(
       true
     )
     expect(needsPlaceLookup(row({ placeLatitude: 1 }))).toBe(false)
+  })
+
+  it.each([
+    [null, true],
+    ['pending', true],
+    ['failed', true],
+    ['disabled', true],
+    ['resolved', false],
+    ['no-match', false]
+  ])('place status %s -> %s', (placeLookupStatus, expected) => {
     expect(
       needsPlaceLookup(
-        row({
-          placeLatitude: 1,
-          placeLongitude: 2,
-          placeLookupStatus: 'failed'
-        })
+        row({ placeLatitude: 1, placeLongitude: 2, placeLookupStatus })
       )
-    ).toBe(false)
+    ).toBe(expected)
   })
 
   it.each([
@@ -123,29 +130,25 @@ describe('needsPlaceLookup / needsSubjectLookup', () => {
 
 describe('runBackfill', () => {
   let testDb: Knex
+  let realDatabase: Database
   const prune = vi.fn()
   const database = { pruneGalleryLookups: prune } as unknown as Database
   const log = vi.fn()
+  const closedBreaker = () => ({
+    isOpen: () => false,
+    remainingMs: () => 0,
+    open: vi.fn(),
+    close: vi.fn()
+  })
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    testDb = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
-    await testDb.schema.createTable('medias', (t) => {
-      t.increments('id')
-      t.string('actorId')
-      t.double('placeLatitude')
-      t.double('placeLongitude')
-      t.string('placeLookupStatus')
-      t.string('subjectName')
-      t.string('subjectScientificName')
-      t.string('subjectCategory')
-      t.string('subjectTaxonKey')
-      t.string('subjectLookupStatus')
-    })
+    // The real `medias` table, from the same schema dump the app migrates
+    // with, so a renamed column breaks this test too.
+    const { database: sqlDatabase, instance } = getTestSQLDatabaseWithInstance()
+    realDatabase = sqlDatabase
+    testDb = instance
+    await realDatabase.migrate()
     await testDb('medias').insert([
       // 1: GPS, never looked up
       { actorId: 'a', placeLatitude: 14.5, placeLongitude: 101.4 },
@@ -179,28 +182,48 @@ describe('runBackfill', () => {
         subjectCategory: 'mammal'
       },
       // 7: nothing at all
-      { actorId: 'a' }
+      { actorId: 'a' },
+      // 8: GPS, failed in an earlier run
+      {
+        actorId: 'c',
+        placeLatitude: 5,
+        placeLongitude: 6,
+        placeLookupStatus: 'failed'
+      },
+      // 9: GPS, looked up while place lookups were switched off
+      {
+        actorId: 'c',
+        placeLatitude: 7,
+        placeLongitude: 8,
+        placeLookupStatus: 'disabled'
+      }
     ])
   })
 
   afterEach(async () => {
-    await testDb.destroy()
+    await realDatabase.destroy()
   })
 
-  const run = (options: Partial<BackfillOptions> = {}) =>
+  const run = (
+    options: Partial<BackfillOptions> = {},
+    extra: Partial<Parameters<typeof runBackfill>[0]> = {}
+  ) =>
     runBackfill({
       database,
       knex: testDb,
       options: { ...defaults, ...options },
-      log
+      log,
+      providers: { places: closedBreaker(), subjects: closedBreaker() },
+      sleep: async () => {},
+      ...extra
     })
 
   it('reports what it would do in a dry run and calls no job', async () => {
     const summary = await run()
 
     expect(summary).toEqual({
-      mediaSeen: 3,
-      placeLookups: 2,
+      mediaSeen: 5,
+      placeLookups: 4,
       subjectLookups: 2,
       prunedCacheRows: 0
     })
@@ -224,7 +247,14 @@ describe('runBackfill', () => {
 
     await run({ apply: true })
 
-    expect(order).toEqual(['place:1', 'subject:3', 'subject:6', 'place:6'])
+    expect(order).toEqual([
+      'place:1',
+      'subject:3',
+      'subject:6',
+      'place:6',
+      'place:8',
+      'place:9'
+    ])
     expect(resolveMediaPlaceJob).toHaveBeenCalledWith(database, {
       id: 'backfill-place-1',
       name: 'ResolveMediaPlaceJob',
@@ -234,8 +264,8 @@ describe('runBackfill', () => {
 
   it('narrows to one kind with --only', async () => {
     expect(await run({ only: 'places' })).toMatchObject({
-      mediaSeen: 2,
-      placeLookups: 2,
+      mediaSeen: 4,
+      placeLookups: 4,
       subjectLookups: 0
     })
     expect(await run({ only: 'subjects' })).toMatchObject({
@@ -257,6 +287,73 @@ describe('runBackfill', () => {
     expect(await run({ limit: 2, apply: true })).toMatchObject({ mediaSeen: 2 })
     expect(resolveMediaPlaceJob).toHaveBeenCalledTimes(1)
     expect(resolveMediaSubjectJob).toHaveBeenCalledTimes(1)
+  })
+
+  it('picks up places an earlier run left failed or disabled', async () => {
+    expect(await run({ actorId: 'c' })).toMatchObject({
+      mediaSeen: 2,
+      placeLookups: 2
+    })
+  })
+
+  // The cascade: one Nominatim timeout opened the circuit for five minutes,
+  // and every later row failed on the spot as `circuit-open`.
+  it('waits for an open circuit to close instead of failing the rest', async () => {
+    let openUntil = 0
+    let now = 0
+    const breaker = {
+      isOpen: () => now < openUntil,
+      remainingMs: () => Math.max(0, openUntil - now),
+      open: vi.fn(),
+      close: vi.fn()
+    }
+    const sleep = vi.fn(async (ms: number) => {
+      now += ms
+    })
+    const calls: { mediaId: string; retry?: boolean; at: number }[] = []
+    vi.mocked(resolveMediaPlaceJob).mockImplementation(async (_db, message) => {
+      const data = message.data as { mediaId: string; retry?: boolean }
+      calls.push({ ...data, at: now })
+      // The first lookup times out and opens the circuit for five minutes.
+      if (calls.length === 1) openUntil = now + 5 * 60 * 1000
+    })
+
+    await run(
+      { apply: true, only: 'places' },
+      { providers: { places: breaker, subjects: closedBreaker() }, sleep }
+    )
+
+    // No lookup ran while the circuit was open; the one that failed under
+    // it was asked again as a retry once it closed, then the rest went on.
+    expect(calls).toEqual([
+      { mediaId: '1', at: 0 },
+      { mediaId: '1', retry: true, at: 300_000 },
+      { mediaId: '6', at: 300_000 },
+      { mediaId: '8', at: 300_000 },
+      { mediaId: '9', at: 300_000 }
+    ])
+    expect(sleep).toHaveBeenCalledWith(300_000)
+    expect(log).toHaveBeenCalledWith(
+      'Nominatim is unavailable; waiting 300 s before going on'
+    )
+  })
+
+  it('does not wait on the other provider’s circuit', async () => {
+    const open = {
+      isOpen: () => true,
+      remainingMs: () => 1000,
+      open: vi.fn(),
+      close: vi.fn()
+    }
+    const sleep = vi.fn(async () => {})
+
+    await run(
+      { apply: true, only: 'places' },
+      { providers: { places: closedBreaker(), subjects: open }, sleep }
+    )
+
+    expect(sleep).not.toHaveBeenCalled()
+    expect(resolveMediaPlaceJob).toHaveBeenCalledTimes(4)
   })
 
   it('prunes expired cache rows only with --apply', async () => {

@@ -7,6 +7,7 @@ import {
   parseIucnCategory,
   parseLookupStatus,
   parseMediaRow,
+  parsePlaceNameSource,
   parseTaxonPath,
   toMediaRowId
 } from '@/lib/database/sql/media'
@@ -23,6 +24,7 @@ import {
   MEDIA_PLACE_PRECISIONS,
   MEDIA_SUBJECT_CATEGORIES,
   MediaLookupStatus,
+  MediaPlaceNameSource,
   MediaPlacePrecision,
   MediaSubjectCategory
 } from '@/lib/types/database/gallery'
@@ -74,6 +76,8 @@ export interface GalleryIndexRow {
   placeLatitude: number | null
   placeLongitude: number | null
   placeCountryCode: string | null
+  // Who wrote the name: a geocoded name is never shown for `country`.
+  placeNameSource: MediaPlaceNameSource | null
   // Epoch milliseconds.
   takenAt: number | null
   createdAt: number
@@ -88,6 +92,7 @@ export interface GalleryMapRow {
   placePrecision: MediaPlacePrecision | null
   placeName: string | null
   placeCountryCode: string | null
+  placeNameSource: MediaPlaceNameSource | null
   subjectName: string | null
   subjectScientificName: string | null
   subjectCategory: MediaSubjectCategory | null
@@ -555,6 +560,7 @@ export const GalleryMediaSQLDatabaseMixin = (
         'medias.placeLatitude',
         'medias.placeLongitude',
         'medias.placeCountryCode',
+        'medias.placeNameSource',
         'medias.takenAt',
         'medias.createdAt'
       )
@@ -579,6 +585,7 @@ export const GalleryMediaSQLDatabaseMixin = (
         placeLatitude: parseCoordinate(row.placeLatitude),
         placeLongitude: parseCoordinate(row.placeLongitude),
         placeCountryCode: parseCountryCode(row.placeCountryCode),
+        placeNameSource: parsePlaceNameSource(row.placeNameSource),
         takenAt: parseNullableTime(row.takenAt),
         createdAt: parseNullableTime(row.createdAt) ?? 0
       }))
@@ -596,6 +603,7 @@ export const GalleryMediaSQLDatabaseMixin = (
           'medias.placePrecision',
           'medias.placeName',
           'medias.placeCountryCode',
+          'medias.placeNameSource',
           'medias.subjectName',
           'medias.subjectScientificName',
           'medias.subjectCategory',
@@ -638,6 +646,7 @@ export const GalleryMediaSQLDatabaseMixin = (
             placePrecision: parsePrecision(row.placePrecision),
             placeName: (row.placeName as string | null) ?? null,
             placeCountryCode: parseCountryCode(row.placeCountryCode),
+            placeNameSource: parsePlaceNameSource(row.placeNameSource),
             subjectName: (row.subjectName as string | null) ?? null,
             subjectScientificName:
               (row.subjectScientificName as string | null) ?? null,
