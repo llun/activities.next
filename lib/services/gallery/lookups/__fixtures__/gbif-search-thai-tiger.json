@@ -1,0 +1,781 @@
+{
+  "offset": 0,
+  "limit": 10,
+  "endOfRecords": true,
+  "count": 1,
+  "results": [
+    {
+      "key": 5219416,
+      "nubKey": 5219416,
+      "scientificName": "Panthera tigris (Linnaeus, 1758)",
+      "canonicalName": "Panthera tigris",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Carnivora",
+      "family": "Felidae",
+      "genus": "Panthera",
+      "species": "Panthera tigris",
+      "speciesKey": 5219416,
+      "vernacularNames": [
+        {
+          "vernacularName": "Tiger",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Lǎohǔ",
+          "language": "zho"
+        },
+        {
+          "vernacularName": "con hổ",
+          "language": "vie"
+        },
+        {
+          "vernacularName": "S̄eụ̄x krong",
+          "language": "tha"
+        },
+        {
+          "vernacularName": "Puli",
+          "language": "tam"
+        },
+        {
+          "vernacularName": "Maung",
+          "language": "sun"
+        },
+        {
+          "vernacularName": "Tigre",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Tigr",
+          "language": "rus"
+        },
+        {
+          "vernacularName": "Bāgha",
+          "language": "nep"
+        },
+        {
+          "vernacularName": "Kyarr gyi",
+          "language": "mya"
+        },
+        {
+          "vernacularName": "kaṭuva",
+          "language": "mal"
+        },
+        {
+          "vernacularName": "seu yai",
+          "language": "lao"
+        },
+        {
+          "vernacularName": "Huli",
+          "language": "kan"
+        },
+        {
+          "vernacularName": "Macan",
+          "language": "jav"
+        },
+        {
+          "vernacularName": "Harimau",
+          "language": "ind"
+        },
+        {
+          "vernacularName": "Baagh",
+          "language": "hin"
+        },
+        {
+          "vernacularName": "Vāgha",
+          "language": "guj"
+        },
+        {
+          "vernacularName": "Tigre",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Taag",
+          "language": "dzo"
+        },
+        {
+          "vernacularName": "Tiger",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Baagh",
+          "language": "ben"
+        },
+        {
+          "vernacularName": "Rimueng"
+        },
+        {
+          "vernacularName": "Tiger",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Harimau",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Sher",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Bagh",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Tigre",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Tiger",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Tiger",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Hu"
+        },
+        {
+          "vernacularName": "Lao hu"
+        },
+        {
+          "vernacularName": "Tiger",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Ithayiga",
+          "language": "zul"
+        },
+        {
+          "vernacularName": "Lǎohǔ",
+          "language": "zho"
+        },
+        {
+          "vernacularName": "Guk",
+          "language": "zha"
+        },
+        {
+          "vernacularName": "老虎"
+        },
+        {
+          "vernacularName": "Ẹkùn",
+          "language": "yor"
+        },
+        {
+          "vernacularName": "Àmọ̀tẹ́kùn",
+          "language": "yor"
+        },
+        {
+          "vernacularName": "טיגער",
+          "language": "yid"
+        },
+        {
+          "vernacularName": "ჸილო"
+        },
+        {
+          "vernacularName": "Ségg",
+          "language": "wol"
+        },
+        {
+          "vernacularName": "Segg",
+          "language": "wol"
+        },
+        {
+          "vernacularName": "Tigue",
+          "language": "wln"
+        },
+        {
+          "vernacularName": "Tiigri"
+        },
+        {
+          "vernacularName": "con hổ",
+          "language": "vie"
+        },
+        {
+          "vernacularName": "Hổ",
+          "language": "vie"
+        },
+        {
+          "vernacularName": "Cọp",
+          "language": "vie"
+        },
+        {
+          "vernacularName": "Yoʻlbars",
+          "language": "uzb"
+        },
+        {
+          "vernacularName": "شیر",
+          "language": "urd"
+        },
+        {
+          "vernacularName": "بارس",
+          "language": "uig"
+        },
+        {
+          "vernacularName": "Kaplan",
+          "language": "tur"
+        },
+        {
+          "vernacularName": "Gaplaň",
+          "language": "tuk"
+        },
+        {
+          "vernacularName": "S̄eụ̄x krong"
+        },
+        {
+          "vernacularName": "เสือโคร่ง",
+          "language": "tha"
+        },
+        {
+          "vernacularName": "Бабр",
+          "language": "tgk"
+        },
+        {
+          "vernacularName": "పులి",
+          "language": "tel"
+        },
+        {
+          "vernacularName": "ಪಿಲಿ"
+        },
+        {
+          "vernacularName": "юлбарыс",
+          "language": "tat"
+        },
+        {
+          "vernacularName": "புலி",
+          "language": "tam"
+        },
+        {
+          "vernacularName": "Puli",
+          "language": "tam"
+        },
+        {
+          "vernacularName": "lukedaw"
+        },
+        {
+          "vernacularName": "Chui milia",
+          "language": "swa"
+        },
+        {
+          "vernacularName": "Maung",
+          "language": "sun"
+        },
+        {
+          "vernacularName": "Lodaya",
+          "language": "sun"
+        },
+        {
+          "vernacularName": "Тигар - Tigar",
+          "language": "srp"
+        },
+        {
+          "vernacularName": "Tigri",
+          "language": "sqi"
+        },
+        {
+          "vernacularName": "Tigre",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Shabeel",
+          "language": "som"
+        },
+        {
+          "vernacularName": "tiger džungľový",
+          "language": "slk"
+        },
+        {
+          "vernacularName": "ව්යාඝ්රයා",
+          "language": "sin"
+        },
+        {
+          "vernacularName": "ව්යාග්රයා",
+          "language": "sin"
+        },
+        {
+          "vernacularName": "သိူဝ်"
+        },
+        {
+          "vernacularName": "Teeger"
+        },
+        {
+          "vernacularName": "ᱪᱮᱴᱨᱟ"
+        },
+        {
+          "vernacularName": "ᱛᱟᱹᱨᱩᱵ"
+        },
+        {
+          "vernacularName": "ᱛᱟ.ᱨᱩᱵ"
+        },
+        {
+          "vernacularName": "व्याघ्रः",
+          "language": "san"
+        },
+        {
+          "vernacularName": "व्याघ्र:",
+          "language": "san"
+        },
+        {
+          "vernacularName": "Баабыр"
+        },
+        {
+          "vernacularName": "Tigr",
+          "language": "rus"
+        },
+        {
+          "vernacularName": "Tigru"
+        },
+        {
+          "vernacularName": "پړانگ",
+          "language": "pus"
+        },
+        {
+          "vernacularName": "پړانګ",
+          "language": "pus"
+        },
+        {
+          "vernacularName": "tygrys azjatycki",
+          "language": "pol"
+        },
+        {
+          "vernacularName": "ਸ਼ੇਰ",
+          "language": "pan"
+        },
+        {
+          "vernacularName": "ਬਾਘ",
+          "language": "pan"
+        },
+        {
+          "vernacularName": "Тигр",
+          "language": "oss"
+        },
+        {
+          "vernacularName": "ବାଘ"
+        },
+        {
+          "vernacularName": "Qeerransa",
+          "language": "orm"
+        },
+        {
+          "vernacularName": "Tijger",
+          "language": "nld"
+        },
+        {
+          "vernacularName": "धुँ"
+        },
+        {
+          "vernacularName": "Bāgha",
+          "language": "nep"
+        },
+        {
+          "vernacularName": "Náshdóítsoh noodǫ́zígíí",
+          "language": "nav"
+        },
+        {
+          "vernacularName": "Hó͘"
+        },
+        {
+          "vernacularName": "دورگ"
+        },
+        {
+          "vernacularName": "ကျား",
+          "language": "mya"
+        },
+        {
+          "vernacularName": "Kyarr gyi",
+          "language": "mya"
+        },
+        {
+          "vernacularName": "Kaccv"
+        },
+        {
+          "vernacularName": "Taika",
+          "language": "mri"
+        },
+        {
+          "vernacularName": "Бар",
+          "language": "mon"
+        },
+        {
+          "vernacularName": "ꯄꯥꯝꯕ ꯀꯩ"
+        },
+        {
+          "vernacularName": "ꯀꯩ"
+        },
+        {
+          "vernacularName": "kaṭuva"
+        },
+        {
+          "vernacularName": "Тигар",
+          "language": "mkd"
+        },
+        {
+          "vernacularName": "Бабри"
+        },
+        {
+          "vernacularName": "वाघ",
+          "language": "mar"
+        },
+        {
+          "vernacularName": "കടുവ",
+          "language": "mal"
+        },
+        {
+          "vernacularName": "बाघ"
+        },
+        {
+          "vernacularName": "虎"
+        },
+        {
+          "vernacularName": "Tygrys"
+        },
+        {
+          "vernacularName": "Tigra"
+        },
+        {
+          "vernacularName": "Tigras",
+          "language": "lit"
+        },
+        {
+          "vernacularName": "Nkɔi etáné",
+          "language": "lin"
+        },
+        {
+          "vernacularName": "Tieger",
+          "language": "lim"
+        },
+        {
+          "vernacularName": "Перленг"
+        },
+        {
+          "vernacularName": "Пеленг"
+        },
+        {
+          "vernacularName": "Къаплан"
+        },
+        {
+          "vernacularName": "tīģeris",
+          "language": "lav"
+        },
+        {
+          "vernacularName": "seu yai",
+          "language": "lao"
+        },
+        {
+          "vernacularName": "Piling",
+          "language": "kur"
+        },
+        {
+          "vernacularName": "호랑이",
+          "language": "kor"
+        },
+        {
+          "vernacularName": "Жолборс",
+          "language": "kir"
+        },
+        {
+          "vernacularName": "Хьэщомыщ"
+        },
+        {
+          "vernacularName": "Жолбарыс",
+          "language": "kaz"
+        },
+        {
+          "vernacularName": "ვეფხვი",
+          "language": "kat"
+        },
+        {
+          "vernacularName": "ಹುಲಿ",
+          "language": "kan"
+        },
+        {
+          "vernacularName": "Huli",
+          "language": "kan"
+        },
+        {
+          "vernacularName": "Aksel"
+        },
+        {
+          "vernacularName": "Jolbarıs"
+        },
+        {
+          "vernacularName": "トラ",
+          "language": "jpn"
+        },
+        {
+          "vernacularName": "tirxu"
+        },
+        {
+          "vernacularName": "Macan Loreng",
+          "language": "jav"
+        },
+        {
+          "vernacularName": "Macan",
+          "language": "jav"
+        },
+        {
+          "vernacularName": "Tígrisdýr",
+          "language": "isl"
+        },
+        {
+          "vernacularName": "ЦӀокъ"
+        },
+        {
+          "vernacularName": "Harimau",
+          "language": "ind"
+        },
+        {
+          "vernacularName": "Tigro",
+          "language": "ido"
+        },
+        {
+          "vernacularName": "agụ",
+          "language": "ibo"
+        },
+        {
+          "vernacularName": "Վագր",
+          "language": "hye"
+        },
+        {
+          "vernacularName": "Tigar",
+          "language": "hrv"
+        },
+        {
+          "vernacularName": "शेर",
+          "language": "hin"
+        },
+        {
+          "vernacularName": "Baagh",
+          "language": "hin"
+        },
+        {
+          "vernacularName": "טיגריס",
+          "language": "heb"
+        },
+        {
+          "vernacularName": "Tig",
+          "language": "hat"
+        },
+        {
+          "vernacularName": "Lo-fú"
+        },
+        {
+          "vernacularName": "વાઘ",
+          "language": "guj"
+        },
+        {
+          "vernacularName": "Vāgha",
+          "language": "guj"
+        },
+        {
+          "vernacularName": "Jaguareterusu",
+          "language": "grn"
+        },
+        {
+          "vernacularName": "𐍄𐌹𐌲𐍂𐍃"
+        },
+        {
+          "vernacularName": "वाग"
+        },
+        {
+          "vernacularName": "Vag"
+        },
+        {
+          "vernacularName": "دۊرگ"
+        },
+        {
+          "vernacularName": "tíogar",
+          "language": "gle"
+        },
+        {
+          "vernacularName": "Tìgear",
+          "language": "gla"
+        },
+        {
+          "vernacularName": "Tigre",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Tiikeri",
+          "language": "fin"
+        },
+        {
+          "vernacularName": "Tikari",
+          "language": "fao"
+        },
+        {
+          "vernacularName": "Tiiger",
+          "language": "est"
+        },
+        {
+          "vernacularName": "Tiger",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Sher",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Bagh",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Τίγρης",
+          "language": "ell"
+        },
+        {
+          "vernacularName": "Τίγρη",
+          "language": "ell"
+        },
+        {
+          "vernacularName": "Taag",
+          "language": "dzo"
+        },
+        {
+          "vernacularName": "बाग"
+        },
+        {
+          "vernacularName": "Teigr",
+          "language": "cym"
+        },
+        {
+          "vernacularName": "tigris"
+        },
+        {
+          "vernacularName": "Azjacczi tigris"
+        },
+        {
+          "vernacularName": "بەور"
+        },
+        {
+          "vernacularName": "بەبر"
+        },
+        {
+          "vernacularName": "Тїгръ",
+          "language": "chu"
+        },
+        {
+          "vernacularName": "ᏢᏓᏥ ᏧᎶᎸᏗ"
+        },
+        {
+          "vernacularName": "ЦӀоькъалом",
+          "language": "che"
+        },
+        {
+          "vernacularName": "Tygr",
+          "language": "ces"
+        },
+        {
+          "vernacularName": "Lâu-hū"
+        },
+        {
+          "vernacularName": "Тигър",
+          "language": "bul"
+        },
+        {
+          "vernacularName": "སྟག",
+          "language": "bod"
+        },
+        {
+          "vernacularName": "বাঘ",
+          "language": "ben"
+        },
+        {
+          "vernacularName": "Тыгр",
+          "language": "bel"
+        },
+        {
+          "vernacularName": "Юлбарыҫ",
+          "language": "bak"
+        },
+        {
+          "vernacularName": "Pələng",
+          "language": "aze"
+        },
+        {
+          "vernacularName": "قاپلان"
+        },
+        {
+          "vernacularName": "نمر",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "بَبْر",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "ببر",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "ነብር",
+          "language": "amh"
+        },
+        {
+          "vernacularName": "ɔsebo",
+          "language": "aka"
+        },
+        {
+          "vernacularName": "Osebo",
+          "language": "aka"
+        },
+        {
+          "vernacularName": "Tier",
+          "language": "afr"
+        },
+        {
+          "vernacularName": "Къэплъан"
+        },
+        {
+          "vernacularName": "Rimuëng"
+        },
+        {
+          "vernacularName": "Rimueng"
+        },
+        {
+          "vernacularName": "Bagh",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Tiger",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Tigre",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Tigre",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Tiger",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "tiger",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "tiger",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Tigre",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Tigre",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Tiger",
+          "language": "eng"
+        }
+      ]
+    }
+  ]
+}

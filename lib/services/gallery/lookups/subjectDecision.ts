@@ -6,11 +6,12 @@ import { GROUP_RANKS, SPECIES_OR_LOWER_RANKS } from './normalizeTaxon'
 
 // The one place that decides what a subject lookup stores. It is fail-closed
 // by construction: `decideSubjectLookup` writes a status that lets a place be
-// shown (`no-match`, or `resolved` with a category outside CR, EN and VU) only
-// for the four answers in the allow-list below, each checked field by field.
-// Every other answer, including any shape or branch this file does not know,
-// ends in the default: `failed`, which keeps the place withheld and offers the
-// owner Retry.
+// shown (`resolved` with a category outside CR, EN and VU) only for the
+// answers in the allow-list below, each checked field by field. Every other
+// answer, including any shape or branch this file does not know, ends in the
+// default: `failed`, which keeps the place withheld and offers the owner
+// Retry and the species picker. It never writes `no-match`: a name GBIF
+// cannot place is not proof that the species is safe to show.
 
 /**
  * What the job learned from GBIF, the last answer that decides. The job
@@ -20,17 +21,41 @@ import { GROUP_RANKS, SPECIES_OR_LOWER_RANKS } from './normalizeTaxon'
 export type SubjectEvidence = SubjectAnswer & {
   // The subject has a stored key GBIF answered it does not know, so the
   // answer came from its names. Such a subject was confirmed once: only a
-  // taxon found by its names may replace the key, never a `no-match`.
+  // taxon found by its names may replace the key.
   storedKeyUnknown: boolean
 }
 
 export type SubjectAnswer =
-  // A `species/{key}` record: for the stored key, the key of a confident
-  // match, or the key of a search result that names the subject exactly.
-  // Null when GBIF answered that it does not know the key.
+  // A `species/{key}` record: for the stored key or the key of a confident
+  // match. Null when GBIF answered that it does not know the key.
   | {
       kind: 'taxon'
-      via: 'stored-key' | 'match' | 'search'
+      via: 'stored-key'
+      taxon: GbifTaxon | null
+    }
+  // `matchRank`: the rank the match named. A record counts as a species only
+  // when the match named one too: a genus match is a group, whatever the
+  // record says.
+  | {
+      kind: 'taxon'
+      via: 'match'
+      matchRank: string
+      taxon: GbifTaxon | null
+    }
+  // A common-name `species/search`. `complete`: every result was readable.
+  // `exhaustive`: GBIF said there are no more results. `exactHits`: how many
+  // distinct results name the subject exactly, by scientific name or any of
+  // their vernacular names. `kingdom`: the kingdom the subject's category
+  // names, null for a category that names none. `taxon`: the `species/{key}`
+  // record of the one exact hit, asked only when the search could confirm
+  // it (complete, exhaustive, one hit), null otherwise or when GBIF does
+  // not know the key.
+  | {
+      kind: 'search'
+      complete: boolean
+      exhaustive: boolean
+      exactHits: number
+      kingdom: string | null
       taxon: GbifTaxon | null
     }
   // `species/match` answered NONE. `hinted`: the request carried a kingdom
@@ -48,9 +73,6 @@ export type SubjectAnswer =
   // `species/match` answered something else readable: a family, order or
   // kingdom, or a match type this code does not know.
   | { kind: 'match-unplaced'; hinted: boolean }
-  // `species/search` named nothing exactly. `complete`: every result in the
-  // answer could be read.
-  | { kind: 'search-no-exact'; complete: boolean }
   // No name or key the job could ask about.
   | { kind: 'nothing-to-ask' }
 
@@ -59,35 +81,44 @@ export type SubjectLookupDecision =
       subjectLookupStatus: 'resolved'
       subjectTaxonKey?: string
       subjectTaxonPath: string[] | null
-      subjectIucnCategory: IucnCategory
-    }
-  | {
-      subjectLookupStatus: 'no-match'
-      subjectTaxonPath: null
-      subjectIucnCategory: null
+      // Null for a genus or family: a group is never assessed on its own,
+      // so it does not clear its place.
+      subjectIucnCategory: IucnCategory | null
     }
   | { subjectLookupStatus: 'failed' }
 
 /*
- * The allow-list: the only answers that may make a place public. Anything else
- * is `failed` (or `resolved` with CR, EN or VU, which keeps the place withheld).
+ * The allow-list: the only answers that may make a place public. A place is
+ * shown only when the subject resolves to exactly one taxon at species rank
+ * or lower, whose Red List category was read (GBIF's 204 "not assessed" is
+ * NE) and is outside CR, EN and VU. Anything else is `failed`, or `resolved`
+ * with CR, EN or VU, or `resolved` with no category for a group; each keeps
+ * the place withheld.
  *
- * 1. `resolved`, not threatened: a readable `species/{key}` record at species
- *    rank or lower (or a genus or family, a group the owner named), with a
- *    readable Red List category outside CR, EN and VU, or GBIF's 204 "not
- *    assessed" (stored as NE). Its key came from the stored key, a confident
- *    match or an exact search hit.
- * Answers 2 to 4 also need the subject to have no stored key GBIF has stopped
- * knowing: such a subject was confirmed once, and only a taxon replaces it.
+ * 1. A readable `species/{key}` record at species rank or lower for the
+ *    stored key, or for the key of a confident (EXACT or FUZZY, at least 90)
+ *    `species/match` on the scientific name that named a species too. Its
+ *    key, path and category are stored. A genus or family record (a "Just genus" pick, a typed "Pongo")
+ *    is stored with its key and path and NO category: GBIF never assesses a
+ *    genus, and its "NE" says nothing of its species (every Pongo is CR).
+ * 2. A common-name `species/search` that is complete and exhaustive, with
+ *    exactly one result naming the subject exactly across all its vernacular
+ *    names, whose readable record is at species rank or lower and in the
+ *    kingdom the subject's category names. Stored as in 1.
+ * 3. An unhinted `species/match` that placed the name in a species without a
+ *    confident match (HIGHERRANK, or below the confidence bar), whose readable
+ *    species record has a readable LC, NT, DD or NE category (or GBIF's 204).
+ *    Stored `resolved` with that category but no taxon key or path: the
+ *    owner's name was not confirmed. CR, EN or VU is stored the same way and
+ *    keeps the place hidden; EX, EW or a genus-only placement is `failed`.
+ *    This answer never clears a subject whose stored key GBIF has stopped
+ *    knowing: such a subject was confirmed once, and only a taxon found by
+ *    its names replaces it.
  *
- * 2. `no-match`: `species/match` answered NONE, with no key of any kind, to a
- *    request that carried no kingdom hint. The job asks again without the hint
- *    whenever a hinted request is not a confident match.
- * 3. `no-match`: an unhinted `species/match` placed the name in a species
- *    (HIGHERRANK, or below the confidence bar), and that species' readable
- *    record has a readable LC, NT, DD or NE category (or GBIF's 204).
- * 4. `no-match`: a common-name `species/search` answered a readable list, every
- *    result readable, and none names the subject exactly.
+ * Everything else is `failed`: GBIF's NONE, a search with no exact hit, more
+ * than one, a page that is not the last or a result that could not be read,
+ * a hit in another kingdom, an answer placed above a genus, and any shape
+ * this file does not know.
  */
 
 const FAILED: SubjectLookupDecision = { subjectLookupStatus: 'failed' }
@@ -130,7 +161,12 @@ const readTaxon = (
   taxon: unknown,
   ranks: (rank: string) => boolean
 ):
-  | { taxonKey: string; taxonPath: string[]; category: IucnCategory }
+  | {
+      taxonKey: string
+      rank: string
+      taxonPath: string[]
+      category: IucnCategory
+    }
   | undefined => {
   if (!taxon || typeof taxon !== 'object' || Array.isArray(taxon)) {
     return undefined
@@ -146,18 +182,38 @@ const readTaxon = (
   if (!('iucnCategory' in record)) return undefined
   const category = readCategory(record.iucnCategory)
   if (!category) return undefined
-  return { taxonKey: record.taxonKey, taxonPath, category }
+  return {
+    taxonKey: record.taxonKey,
+    rank: record.rank.toUpperCase(),
+    taxonPath,
+    category
+  }
 }
 
 const isTaxonRank = (rank: string) =>
   SPECIES_OR_LOWER_RANKS.has(rank) || GROUP_RANKS.has(rank)
 const isSpeciesRank = (rank: string) => SPECIES_OR_LOWER_RANKS.has(rank)
 
-const NO_MATCH: SubjectLookupDecision = {
-  subjectLookupStatus: 'no-match',
-  subjectTaxonPath: null,
-  subjectIucnCategory: null
-}
+/**
+ * A taxon as stored: a species keeps its category, a genus or family (or a
+ * record `asSpecies` says is not confirmed as a species) is stored with
+ * none, so its place stays hidden.
+ */
+const resolvedTaxon = (
+  taxon: {
+    taxonKey: string
+    taxonPath: string[]
+    category: IucnCategory
+    rank: string
+  },
+  asSpecies = true
+): SubjectLookupDecision => ({
+  subjectLookupStatus: 'resolved',
+  subjectTaxonKey: taxon.taxonKey,
+  subjectTaxonPath: taxon.taxonPath,
+  subjectIucnCategory:
+    asSpecies && isSpeciesRank(taxon.rank) ? taxon.category : null
+})
 
 /**
  * What to store for a subject, from what GBIF answered. Takes `unknown` on
@@ -169,17 +225,11 @@ export const decideSubjectLookup = (
 ): SubjectLookupDecision => {
   if (!evidence || typeof evidence !== 'object') return FAILED
   const answer = evidence as Record<string, unknown>
-  if (answer.kind !== 'taxon' && answer.storedKeyUnknown !== false) {
-    return FAILED
-  }
+  if (typeof answer.storedKeyUnknown !== 'boolean') return FAILED
 
   switch (answer.kind) {
     case 'taxon': {
-      if (
-        answer.via !== 'stored-key' &&
-        answer.via !== 'match' &&
-        answer.via !== 'search'
-      ) {
+      if (answer.via !== 'stored-key' && answer.via !== 'match') {
         return FAILED
       }
       // A key GBIF does not know, even one it just named, is not "no such
@@ -187,42 +237,55 @@ export const decideSubjectLookup = (
       // move), and a stored key may be retired. Hidden, with Retry.
       const taxon = readTaxon(answer.taxon, isTaxonRank)
       if (!taxon) return FAILED
-      return {
-        subjectLookupStatus: 'resolved',
-        subjectTaxonKey: taxon.taxonKey,
-        subjectTaxonPath: taxon.taxonPath,
-        subjectIucnCategory: taxon.category
+      if (answer.via === 'match') {
+        if (typeof answer.matchRank !== 'string') return FAILED
+        const matchRank = answer.matchRank.toUpperCase()
+        if (!isTaxonRank(matchRank)) return FAILED
+        if (!isSpeciesRank(matchRank)) return resolvedTaxon(taxon, false)
       }
+      return resolvedTaxon(taxon)
     }
 
-    case 'match-none':
-      // A kingdom hint can turn an exact name into NONE on its own (a tiger
-      // filed under plants), so only an unhinted NONE is GBIF not knowing it.
-      return answer.hinted === false ? NO_MATCH : FAILED
+    case 'search': {
+      // A ranked full-text page proves nothing unless it is the whole answer,
+      // every result in it was read, and exactly one names the subject.
+      if (answer.complete !== true || answer.exhaustive !== true) return FAILED
+      if (answer.exactHits !== 1) return FAILED
+      if (typeof answer.kingdom !== 'string' || !answer.kingdom) return FAILED
+      const taxon = readTaxon(answer.taxon, isSpeciesRank)
+      if (!taxon) return FAILED
+      // "Panda" filed as a mammal must not clear as the tree Panda oleosa.
+      if (taxon.taxonPath[0] !== answer.kingdom) return FAILED
+      return resolvedTaxon(taxon)
+    }
 
     case 'match-uncertain': {
+      // A subject confirmed by a key once is replaced only by a taxon found
+      // by its names, never by a guess.
+      if (answer.storedKeyUnknown !== false) return FAILED
       if (answer.hinted !== false) return FAILED
       if (!isUsageKey(answer.speciesKey)) return FAILED
       // Placed in a species: that species' Red List category decides. The
       // owner's name was not confirmed, so no taxon key or path is written.
       const species = readTaxon(answer.species, isSpeciesRank)
       if (!species) return FAILED
-      if (isThreatenedIucnCategory(species.category)) {
-        return {
-          subjectLookupStatus: 'resolved',
-          subjectTaxonPath: null,
-          subjectIucnCategory: species.category
-        }
+      if (
+        !isThreatenedIucnCategory(species.category) &&
+        !UNCERTAIN_CLEARING.has(species.category)
+      ) {
+        return FAILED
       }
-      return UNCERTAIN_CLEARING.has(species.category) ? NO_MATCH : FAILED
+      return {
+        subjectLookupStatus: 'resolved',
+        subjectTaxonPath: null,
+        subjectIucnCategory: species.category
+      }
     }
 
-    case 'search-no-exact':
-      // A result this code skipped may have been the name asked for.
-      return answer.complete === true ? NO_MATCH : FAILED
-
-    // `match-unplaced` (a family, an order or a kingdom: a wrong kingdom
-    // hint gives a kingdom), `nothing-to-ask`, and anything else.
+    // `match-none` (GBIF's NONE: a typo, or a species GBIF files under
+    // another name, cannot be told apart), `match-unplaced` (a family, an
+    // order or a kingdom: a wrong kingdom hint gives a kingdom),
+    // `nothing-to-ask`, and anything else.
     default:
       return FAILED
   }

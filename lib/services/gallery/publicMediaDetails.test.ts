@@ -444,10 +444,11 @@ describe('getPublicPlace and threatened species', () => {
       { subjectLookupStatus: 'resolved', subjectIucnCategory: null },
       false
     ],
+    // Not proof the species is safe to show: never clears a place.
     [
       'no-match',
       { subjectLookupStatus: 'no-match', subjectIucnCategory: null },
-      true
+      false
     ],
     [
       'failed',

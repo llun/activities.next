@@ -60,19 +60,19 @@ export const isThreatenedIucnCategory = (
   (THREATENED_IUCN as readonly IucnCategory[]).includes(category)
 
 /**
- * Whether a lookup positively cleared the subject: GBIF could not match the
- * name at all (`no-match`, shown: a typo cannot be classified), or it resolved
- * to a taxon with a known IUCN category outside CR, EN and VU.
+ * Whether a lookup positively cleared the subject: it resolved to one species
+ * whose IUCN category was read and is outside CR, EN and VU.
  *
- * `resolved` with no category is NOT cleared. The subject job always writes a
- * category for a resolved taxon (`NE` when GBIF has no assessment), so a
- * missing one means something went wrong, and the rule fails closed.
+ * `resolved` with no category is NOT cleared: that is a genus or family,
+ * which GBIF never assesses on its own, or something that went wrong. Nor is
+ * `no-match`: a name GBIF could not place, or placed among several species,
+ * may still be a threatened one ("Tiger" is not in the first page of its
+ * search), so it never shows a species-like subject's place.
  */
 const isClearedByLookup = (details: ThreatInput): boolean =>
-  details.subjectLookupStatus === 'no-match' ||
-  (details.subjectLookupStatus === 'resolved' &&
-    details.subjectIucnCategory !== null &&
-    !isThreatenedIucnCategory(details.subjectIucnCategory))
+  details.subjectLookupStatus === 'resolved' &&
+  details.subjectIucnCategory !== null &&
+  !isThreatenedIucnCategory(details.subjectIucnCategory)
 
 /**
  * The fail-closed rule: with `hideThreatenedPlaces` on, a species-like

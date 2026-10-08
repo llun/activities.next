@@ -23,11 +23,30 @@ const KINGFISHER: GbifTaxon = {
   iucnCategory: 'LC'
 }
 
-const taxon = (via: 'stored-key' | 'match' | 'search', value: unknown) => ({
+// A record for the stored key, or for a confident match that named a
+// `matchRank` (a species unless said otherwise).
+const taxon = (
+  via: 'stored-key' | 'match',
+  value: unknown,
+  matchRank: unknown = 'SPECIES'
+) => ({
   kind: 'taxon',
   via,
+  ...(via === 'match' ? { matchRank } : {}),
   taxon: value,
   storedKeyUnknown: false
+})
+
+// A common-name search that could confirm its one exact hit.
+const search = (value: unknown, overrides: Record<string, unknown> = {}) => ({
+  kind: 'search',
+  complete: true,
+  exhaustive: true,
+  exactHits: 1,
+  kingdom: 'Animalia',
+  taxon: value,
+  storedKeyUnknown: false,
+  ...overrides
 })
 
 // Whether a stored decision lets the place be shown, as the place rule reads it.
@@ -46,7 +65,7 @@ const isPublic = (decision: ReturnType<typeof decideSubjectLookup>) =>
 
 describe('decideSubjectLookup', () => {
   describe('a taxon record', () => {
-    it.each(['stored-key', 'match', 'search'] as const)(
+    it.each(['stored-key', 'match'] as const)(
       'resolves a readable record found by %s, with its key and path',
       (via) => {
         expect(decideSubjectLookup(taxon(via, KINGFISHER))).toEqual({
@@ -75,20 +94,80 @@ describe('decideSubjectLookup', () => {
       ).toMatchObject({ subjectIucnCategory: 'NE' })
     })
 
-    it.each(['SUBSPECIES', 'VARIETY', 'GENUS', 'FAMILY', 'species'])(
-      'resolves rank %s',
+    it.each(['SUBSPECIES', 'VARIETY', 'species'])(
+      'resolves rank %s with its category',
       (rank) => {
         expect(
           decideSubjectLookup(taxon('stored-key', { ...KINGFISHER, rank }))
-            .subjectLookupStatus
-        ).toBe('resolved')
+        ).toMatchObject({
+          subjectLookupStatus: 'resolved',
+          subjectIucnCategory: 'LC'
+        })
       }
     )
+
+    // GBIF never assesses a genus: Pongo reads NE while every one of its
+    // species is CR. Kept for the owner, but it never clears the place.
+    it.each([
+      ['stored-key', 'GENUS'],
+      ['match', 'GENUS'],
+      ['stored-key', 'FAMILY'],
+      ['match', 'FAMILY']
+    ] as const)(
+      'resolves a %s %s with its key and path but no category',
+      (via, rank) => {
+        const decision = decideSubjectLookup(
+          taxon(
+            via,
+            { ...TIGER, taxonKey: '5219531', rank, iucnCategory: 'NE' },
+            rank
+          )
+        )
+        expect(decision).toEqual({
+          subjectLookupStatus: 'resolved',
+          subjectTaxonKey: '5219531',
+          subjectTaxonPath: TIGER.taxonPath,
+          subjectIucnCategory: null
+        })
+        expect(isPublic(decision)).toBe(false)
+      }
+    )
+
+    it('stores no category when the match named a genus, whatever the record says', () => {
+      const decision = decideSubjectLookup(taxon('match', TIGER, 'GENUS'))
+      expect(decision).toMatchObject({
+        subjectLookupStatus: 'resolved',
+        subjectTaxonKey: TIGER.taxonKey,
+        subjectIucnCategory: null
+      })
+      expect(isPublic(decision)).toBe(false)
+    })
+
+    it('stores no category for a genus record the match called a species', () => {
+      expect(
+        decideSubjectLookup(taxon('match', { ...KINGFISHER, rank: 'GENUS' }))
+      ).toMatchObject({ subjectIucnCategory: null })
+    })
+
+    it('reads the match rank case-insensitively', () => {
+      expect(
+        decideSubjectLookup(taxon('match', KINGFISHER, 'subspecies'))
+      ).toMatchObject({ subjectIucnCategory: 'LC' })
+    })
+
+    it('resolves a taxon found after a stored key GBIF stopped knowing', () => {
+      expect(
+        decideSubjectLookup({
+          ...taxon('match', KINGFISHER),
+          storedKeyUnknown: true
+        })
+      ).toMatchObject({ subjectLookupStatus: 'resolved' })
+    })
 
     it.each([
       ['GBIF does not know the stored key', taxon('stored-key', null)],
       ['GBIF does not know the key its match named', taxon('match', null)],
-      ['GBIF does not know the key its search named', taxon('search', null)],
+      ['a search hit as a taxon', taxon('search' as never, KINGFISHER)],
       ['a kingdom', taxon('match', { ...KINGFISHER, rank: 'KINGDOM' })],
       ['an order', taxon('match', { ...KINGFISHER, rank: 'ORDER' })],
       ['a class', taxon('stored-key', { ...KINGFISHER, rank: 'CLASS' })],
@@ -116,7 +195,17 @@ describe('decideSubjectLookup', () => {
       ],
       ['an unknown source', taxon('guess' as never, KINGFISHER)],
       ['a list', taxon('match', [KINGFISHER])],
-      ['a string', taxon('match', 'Alcedo atthis')]
+      ['a string', taxon('match', 'Alcedo atthis')],
+      [
+        'no match rank',
+        (({ matchRank: _, ...rest }) => rest)(taxon('match', KINGFISHER))
+      ],
+      ['a match rank above a family', taxon('match', KINGFISHER, 'ORDER')],
+      ['a match rank that is not a string', taxon('match', KINGFISHER, 7)],
+      [
+        'no stored-key flag',
+        (({ storedKeyUnknown: _, ...rest }) => rest)(taxon('match', KINGFISHER))
+      ]
     ])('records failed for %s', (_, evidence) => {
       expect(decideSubjectLookup(evidence)).toEqual({
         subjectLookupStatus: 'failed'
@@ -124,34 +213,20 @@ describe('decideSubjectLookup', () => {
     })
   })
 
-  describe('a NONE answer', () => {
-    it('is no-match without a kingdom hint', () => {
-      const decision = decideSubjectLookup({
-        kind: 'match-none',
-        hinted: false,
-        storedKeyUnknown: false
-      })
-      expect(decision).toEqual({
-        subjectLookupStatus: 'no-match',
-        subjectTaxonPath: null,
-        subjectIucnCategory: null
-      })
-      expect(isPublic(decision)).toBe(true)
-    })
-
-    it.each([
-      ['with a kingdom hint', { hinted: true, storedKeyUnknown: false }],
-      ['with no hint flag', { storedKeyUnknown: false }],
-      [
-        'after a stored key GBIF no longer knows',
-        { hinted: false, storedKeyUnknown: true }
-      ],
-      ['with no stored-key flag', { hinted: false }]
-    ])('is failed %s', (_, fields) => {
-      expect(decideSubjectLookup({ kind: 'match-none', ...fields })).toEqual({
-        subjectLookupStatus: 'failed'
-      })
-    })
+  // GBIF's NONE: a typo and a species GBIF files under another name cannot
+  // be told apart, so it never clears a place.
+  it.each([
+    ['without a kingdom hint', { hinted: false, storedKeyUnknown: false }],
+    ['with a kingdom hint', { hinted: true, storedKeyUnknown: false }],
+    ['with no hint flag', { storedKeyUnknown: false }],
+    [
+      'after a stored key GBIF no longer knows',
+      { hinted: false, storedKeyUnknown: true }
+    ]
+  ])('records failed for a NONE answer %s', (_, fields) => {
+    const decision = decideSubjectLookup({ kind: 'match-none', ...fields })
+    expect(decision).toEqual({ subjectLookupStatus: 'failed' })
+    expect(isPublic(decision)).toBe(false)
   })
 
   describe('an uncertain match', () => {
@@ -164,13 +239,24 @@ describe('decideSubjectLookup', () => {
       ...overrides
     })
 
-    it.each(['LC', 'NT', 'DD', 'NE', null] as const)(
-      'is no-match for a species at %s',
-      (category) => {
+    it.each([
+      ['LC', 'LC'],
+      ['NT', 'NT'],
+      ['DD', 'DD'],
+      ['NE', 'NE'],
+      [null, 'NE']
+    ] as const)(
+      'is resolved with no key or path for a species at %s',
+      (category, stored) => {
         const decision = decideSubjectLookup(
           uncertain({ ...KINGFISHER, iucnCategory: category })
         )
-        expect(decision.subjectLookupStatus).toBe('no-match')
+        expect(decision).toEqual({
+          subjectLookupStatus: 'resolved',
+          subjectTaxonPath: null,
+          subjectIucnCategory: stored
+        })
+        expect(isPublic(decision)).toBe(true)
       }
     )
 
@@ -212,31 +298,77 @@ describe('decideSubjectLookup', () => {
     })
   })
 
-  describe('a search with no exact hit', () => {
-    it('is no-match when every result was readable', () => {
+  describe('a common-name search', () => {
+    it('resolves the one exact hit of a complete, exhaustive search', () => {
+      const decision = decideSubjectLookup(search(KINGFISHER))
+      expect(decision).toEqual({
+        subjectLookupStatus: 'resolved',
+        subjectTaxonKey: '2475532',
+        subjectTaxonPath: KINGFISHER.taxonPath,
+        subjectIucnCategory: 'LC'
+      })
+      expect(isPublic(decision)).toBe(true)
+    })
+
+    it('keeps a threatened hit’s place hidden', () => {
+      const decision = decideSubjectLookup(search(TIGER))
+      expect(decision).toMatchObject({ subjectIucnCategory: 'EN' })
+      expect(isPublic(decision)).toBe(false)
+    })
+
+    it('resolves after a stored key GBIF stopped knowing', () => {
       expect(
-        decideSubjectLookup({
-          kind: 'search-no-exact',
-          complete: true,
-          storedKeyUnknown: false
-        }).subjectLookupStatus
-      ).toBe('no-match')
+        decideSubjectLookup(search(KINGFISHER, { storedKeyUnknown: true }))
+      ).toMatchObject({ subjectLookupStatus: 'resolved' })
     })
 
     it.each([
+      // "Tiger": 1556 results, and Panthera tigris is not on the first page.
+      ['the page is not the last', search(null, { exhaustive: false })],
       [
-        'some results were unreadable',
-        { complete: false, storedKeyUnknown: false }
+        'the page is not the last, even with a hit',
+        search(KINGFISHER, { exhaustive: false })
       ],
-      ['completeness is unknown', { storedKeyUnknown: false }],
+      ['exhaustiveness is unknown', search(KINGFISHER, { exhaustive: 1 })],
+      ['some results were unreadable', search(KINGFISHER, { complete: false })],
+      ['completeness is unknown', search(KINGFISHER, { complete: undefined })],
+      ['nothing names it exactly', search(null, { exactHits: 0 })],
+      // "Pangolin" names seven Manis species, some CR.
+      ['several results name it exactly', search(KINGFISHER, { exactHits: 2 })],
+      ['the hit count is unreadable', search(KINGFISHER, { exactHits: '1' })],
+      // "Panda" filed as a mammal: the only hit is the tree Panda oleosa.
       [
-        'a stored key GBIF no longer knows',
-        { complete: true, storedKeyUnknown: true }
+        'the hit is in another kingdom',
+        search({
+          ...KINGFISHER,
+          taxonPath: ['Plantae', 'Tracheophyta', 'Magnoliopsida']
+        })
+      ],
+      [
+        'the hit has no kingdom',
+        search({ ...KINGFISHER, taxonPath: ['Chordata', 'Aves'] })
+      ],
+      ['the category names no kingdom', search(KINGFISHER, { kingdom: null })],
+      ['the kingdom is blank', search(KINGFISHER, { kingdom: '' })],
+      ['the hit is a genus', search({ ...KINGFISHER, rank: 'GENUS' })],
+      ['the hit is a family', search({ ...KINGFISHER, rank: 'FAMILY' })],
+      ['GBIF does not know the key its search named', search(null)],
+      [
+        'the hit’s category is unreadable',
+        search({ ...KINGFISHER, iucnCategory: 'ZZ' })
+      ],
+      [
+        'no stored-key flag',
+        (({ storedKeyUnknown: _, ...rest }) => rest)(search(KINGFISHER))
+      ],
+      [
+        'an older search-no-exact answer',
+        { kind: 'search-no-exact', complete: true, storedKeyUnknown: false }
       ]
-    ])('is failed when %s', (_, fields) => {
-      expect(
-        decideSubjectLookup({ kind: 'search-no-exact', ...fields })
-      ).toEqual({ subjectLookupStatus: 'failed' })
+    ])('records failed when %s', (_, evidence) => {
+      const decision = decideSubjectLookup(evidence)
+      expect(decision).toEqual({ subjectLookupStatus: 'failed' })
+      expect(isPublic(decision)).toBe(false)
     })
   })
 
@@ -301,34 +433,93 @@ describe('decideSubjectLookup', () => {
         : {
             taxonKey: pick(['5219416', '6', 'abc', 5219416, '', undefined]),
             rank: maybe(pick(RANKS)),
-            taxonPath: pick([['Animalia'], [], [1], 'Animalia', undefined]),
+            taxonPath: pick([
+              ['Animalia'],
+              ['Plantae'],
+              ['Chordata'],
+              [],
+              [1],
+              'Animalia',
+              undefined
+            ]),
             iucnCategory: pick(CATEGORIES),
             scientificName: 'Panthera tigris'
           }
+    // One field of an allow-listed answer, drawn from the odd values.
+    const FIELD_VALUES: Record<string, () => unknown> = {
+      kind: () => pick(['taxon', 'search', 'match-uncertain', 'match-none']),
+      via: () => pick(['stored-key', 'match', 'search', undefined]),
+      matchRank: () => pick(['SPECIES', 'GENUS', 'ORDER', undefined]),
+      taxon: randomTaxon,
+      species: randomTaxon,
+      speciesKey: () => pick(['5707420', null, 5707420]),
+      hinted: () => pick([false, true, undefined]),
+      complete: () => pick([true, false, undefined]),
+      exhaustive: () => pick([true, false, 1, undefined]),
+      exactHits: () => pick([1, 0, 2, '1']),
+      kingdom: () => pick(['Animalia', 'Plantae', null]),
+      storedKeyUnknown: () => pick([false, true, undefined])
+    }
+    const SPECIES_TAXON = {
+      taxonKey: '5219416',
+      rank: 'SPECIES',
+      taxonPath: ['Animalia'],
+      iucnCategory: 'LC',
+      scientificName: 'Panthera tigris'
+    }
+    const ALLOWED_BASES = [
+      taxon('stored-key', SPECIES_TAXON),
+      taxon('match', SPECIES_TAXON),
+      search(SPECIES_TAXON),
+      {
+        kind: 'match-uncertain',
+        hinted: false,
+        speciesKey: '5707420',
+        species: SPECIES_TAXON,
+        storedKeyUnknown: false
+      }
+    ]
+    // An allow-listed answer with one or two fields changed: the edges of
+    // the allow-list, where a wrong check would show.
+    const nearlyAllowed = (): unknown => {
+      const evidence: Record<string, unknown> = { ...pick(ALLOWED_BASES) }
+      const fields = Object.keys(FIELD_VALUES)
+      for (let count = random() < 0.5 ? 1 : 2; count > 0; count -= 1) {
+        const field = pick(fields)
+        evidence[field] = FIELD_VALUES[field]()
+      }
+      return evidence
+    }
+
     const randomEvidence = (): unknown => {
       if (random() < 0.05) return pick(ODD)
+      if (random() < 0.4) return nearlyAllowed()
       return {
         kind: pick([
           'taxon',
           'match-none',
           'match-uncertain',
           'match-unplaced',
+          'search',
           'search-no-exact',
           'nothing-to-ask',
           'other',
           undefined
         ]),
         via: maybe(pick(['stored-key', 'match', 'search', 'guess'])),
+        matchRank: maybe(pick(RANKS)),
         taxon: randomTaxon(),
         species: randomTaxon(),
         speciesKey: maybe(pick(['5707420', null, 5707420, 'x'])),
         hinted: maybe(pick([false, true, 0, 'false', null])),
         complete: maybe(pick([true, false, 1, 'true', null])),
+        exhaustive: maybe(pick([true, false, 1, 'true', null])),
+        exactHits: maybe(pick([1, 0, 2, 7, '1', null, 1.5])),
+        kingdom: maybe(pick(['Animalia', 'Plantae', null, '', 1])),
         storedKeyUnknown: maybe(pick([false, true, 0, null]))
       }
     }
 
-    const RANK_OK = new Set(['SPECIES', 'SUBSPECIES', 'GENUS', 'FAMILY'])
     const SPECIES_RANK_OK = new Set(['SPECIES', 'SUBSPECIES'])
     const KNOWN = new Set<unknown>(IUCN_CATEGORIES)
     const readable = (value: unknown, ranks: Set<string>) => {
@@ -351,20 +542,39 @@ describe('decideSubjectLookup', () => {
       ((value as { iucnCategory: IucnCategory | null }).iucnCategory ??
         'NE') as IucnCategory
 
-    // The allow-list, restated from the spec of decideSubjectLookup.
+    // The allow-list, restated from the spec of decideSubjectLookup: one
+    // species-rank taxon whose category was read and is not CR, EN or VU.
     const onAllowList = (evidence: unknown): boolean => {
       if (!evidence || typeof evidence !== 'object') return false
       const e = evidence as Record<string, unknown>
+      if (typeof e.storedKeyUnknown !== 'boolean') return false
+      const notThreatened = (value: unknown) =>
+        !['CR', 'EN', 'VU'].includes(categoryOf(value))
       if (e.kind === 'taxon') {
+        const matchNamedSpecies =
+          e.via === 'stored-key' ||
+          (e.via === 'match' &&
+            typeof e.matchRank === 'string' &&
+            SPECIES_RANK_OK.has(e.matchRank.toUpperCase()))
         return (
-          ['stored-key', 'match', 'search'].includes(e.via as string) &&
-          readable(e.taxon, RANK_OK) &&
-          !['CR', 'EN', 'VU'].includes(categoryOf(e.taxon))
+          matchNamedSpecies &&
+          readable(e.taxon, SPECIES_RANK_OK) &&
+          notThreatened(e.taxon)
+        )
+      }
+      if (e.kind === 'search') {
+        return (
+          e.complete === true &&
+          e.exhaustive === true &&
+          e.exactHits === 1 &&
+          typeof e.kingdom === 'string' &&
+          e.kingdom !== '' &&
+          readable(e.taxon, SPECIES_RANK_OK) &&
+          (e.taxon as { taxonPath: string[] }).taxonPath[0] === e.kingdom &&
+          notThreatened(e.taxon)
         )
       }
       if (e.storedKeyUnknown !== false) return false
-      if (e.kind === 'match-none') return e.hinted === false
-      if (e.kind === 'search-no-exact') return e.complete === true
       if (e.kind === 'match-uncertain') {
         return (
           e.hinted === false &&
@@ -389,10 +599,9 @@ describe('decideSubjectLookup', () => {
             allowed: true
           })
         }
-        // Never a status outside the three the decision may write.
-        expect(['resolved', 'no-match', 'failed']).toContain(
-          decision.subjectLookupStatus
-        )
+        // Never a status outside the two the decision may write: never
+        // `no-match`.
+        expect(['resolved', 'failed']).toContain(decision.subjectLookupStatus)
       }
       // The generator does reach the allow-list, so the check is not vacuous.
       expect(publicCount).toBeGreaterThan(20)

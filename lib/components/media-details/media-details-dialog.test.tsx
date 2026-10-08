@@ -1042,7 +1042,7 @@ describe('MediaDetailsDialog smart subjects', () => {
     // The retry's status stays.
     expect(screen.getByText(/Endangered \(EN\)/)).toBeInTheDocument()
     expect(
-      screen.queryByText(/Couldn’t check IUCN status/)
+      screen.queryByText(/couldn’t confirm the species/)
     ).not.toBeInTheDocument()
     // The composer is handed only the suggestions to merge.
     expect(onDetailsRefreshed).toHaveBeenLastCalledWith(
@@ -1115,7 +1115,9 @@ describe('MediaDetailsDialog smart subjects', () => {
       const { onDetailsRefreshed } = renderDialog([
         makeItem('m1', { details: subject({ lookupStatus: 'failed' }) })
       ])
-      expect(screen.getByText(/Couldn’t check IUCN status/)).toBeInTheDocument()
+      expect(
+        screen.getByText(/couldn’t confirm the species/)
+      ).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
@@ -1277,14 +1279,59 @@ describe('MediaDetailsDialog smart subjects', () => {
       })
     })
 
-    it('says the place stays hidden while the check failed', () => {
+    it.each([
+      ['failed', { lookupStatus: 'failed' as const }],
+      ['an earlier no-match', { lookupStatus: 'no-match' as const }],
+      [
+        'a genus resolved with no category',
+        { lookupStatus: 'resolved' as const, iucnCategory: null }
+      ]
+    ])(
+      'says it couldn’t confirm the species for %s, with the picker',
+      (_, overrides) => {
+        renderDialog([makeItem('m1', { details: subject(overrides) })])
+
+        expect(
+          screen.getByText(
+            /We couldn’t confirm the species, so the place stays hidden\./
+          )
+        ).toHaveTextContent(
+          'We couldn’t confirm the species, so the place stays hidden. Pick the species to show it.'
+        )
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Pick the species' })
+        )
+        expect(
+          screen.getByRole('dialog', { name: 'What’s in this photo?' })
+        ).toBeInTheDocument()
+      }
+    )
+
+    it('offers Retry only for a failed check it couldn’t confirm', () => {
       renderDialog([
-        makeItem('m1', { details: subject({ lookupStatus: 'failed' }) })
+        makeItem('m1', { details: subject({ lookupStatus: 'no-match' }) })
       ])
 
       expect(
-        screen.getByText(/place stays hidden from other people/)
+        screen.getByRole('button', { name: 'Pick the species' })
+      ).toBeEnabled()
+      expect(
+        screen.queryByRole('button', { name: 'Retry' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers no picker while species search is off', () => {
+      renderDialog(
+        [makeItem('m1', { details: subject({ lookupStatus: 'failed' }) })],
+        { settings: settings({ speciesLookupsAvailable: false }) }
+      )
+
+      expect(
+        screen.getByText(/couldn’t confirm the species/)
       ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Pick the species' })
+      ).not.toBeInTheDocument()
     })
 
     it.each([
@@ -1358,13 +1405,16 @@ describe('MediaDetailsDialog smart subjects', () => {
         })
       ])
 
+      expect(
+        screen.getByText(/couldn’t confirm the species/)
+      ).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Edit manually' }))
       fireEvent.change(screen.getByLabelText('Name'), {
         target: { value: 'Tiger' }
       })
 
       expect(
-        screen.queryByText(/Couldn’t check IUCN status/)
+        screen.queryByText(/couldn’t confirm the species/)
       ).not.toBeInTheDocument()
     })
 

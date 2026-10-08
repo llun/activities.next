@@ -1,0 +1,19 @@
+{
+  "usageKey": 5483,
+  "scientificName": "Hominidae",
+  "canonicalName": "Hominidae",
+  "rank": "FAMILY",
+  "status": "ACCEPTED",
+  "confidence": 94,
+  "matchType": "EXACT",
+  "kingdom": "Animalia",
+  "phylum": "Chordata",
+  "order": "Primates",
+  "family": "Hominidae",
+  "kingdomKey": 1,
+  "phylumKey": 44,
+  "classKey": 359,
+  "orderKey": 798,
+  "familyKey": 5483,
+  "class": "Mammalia"
+}

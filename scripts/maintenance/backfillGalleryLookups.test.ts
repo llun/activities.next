@@ -111,7 +111,8 @@ describe('needsPlaceLookup / needsSubjectLookup', () => {
     ['failed', true],
     ['disabled', true],
     ['resolved', false],
-    ['no-match', false]
+    // Written by an earlier release; it no longer clears a place.
+    ['no-match', true]
   ])('subject status %s -> %s', (subjectLookupStatus, expected) => {
     expect(
       needsSubjectLookup(

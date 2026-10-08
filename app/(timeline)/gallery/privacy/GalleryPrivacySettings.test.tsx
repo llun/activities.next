@@ -137,7 +137,7 @@ describe('GalleryPrivacySettings', () => {
     expect(screen.queryByText(NO_LOOKUPS_NOTICE)).not.toBeInTheDocument()
     expect(
       screen.getByText(
-        'A species’ place stays hidden until its status has been checked.'
+        'A species’ place stays hidden until GBIF confirms the species and it isn’t threatened.'
       )
     ).toBeInTheDocument()
   })
@@ -161,7 +161,7 @@ describe('GalleryPrivacySettings', () => {
       expect(screen.queryByText(NO_LOOKUPS_NOTICE)).not.toBeInTheDocument()
       expect(
         screen.queryByText(
-          'A species’ place stays hidden until its status has been checked.'
+          'A species’ place stays hidden until GBIF confirms the species and it isn’t threatened.'
         )
       ).not.toBeInTheDocument()
     }

@@ -58,6 +58,46 @@ describe('isPlaceWithheldForThreat', () => {
     ).toBeTrue()
   })
 
+  it('withholds a species-like subject recorded as no-match', () => {
+    expect(
+      isPlaceWithheldForThreat(
+        subject({
+          subjectName: 'Tiger',
+          subjectCategory: 'mammal',
+          subjectLookupStatus: 'no-match'
+        }),
+        { hideThreatenedPlaces: true }
+      )
+    ).toBeTrue()
+  })
+
+  it('withholds a genus or family resolved with no category', () => {
+    expect(
+      isPlaceWithheldForThreat(
+        subject({
+          subjectScientificName: 'Pongo',
+          subjectTaxonKey: '5219531',
+          subjectLookupStatus: 'resolved',
+          subjectIucnCategory: null
+        }),
+        { hideThreatenedPlaces: true }
+      )
+    ).toBeTrue()
+  })
+
+  it('shows a species resolved outside CR, EN and VU', () => {
+    expect(
+      isPlaceWithheldForThreat(
+        subject({
+          ...species,
+          subjectLookupStatus: 'resolved',
+          subjectIucnCategory: 'LC'
+        }),
+        { hideThreatenedPlaces: true }
+      )
+    ).toBeFalse()
+  })
+
   it('never withholds when the owner turns it off', () => {
     expect(
       isPlaceWithheldForThreat(species, { hideThreatenedPlaces: false })
@@ -83,11 +123,8 @@ describe('getSubjectThreatStatus', () => {
       },
       'not-threatened'
     ],
-    [
-      'no-match',
-      { subjectLookupStatus: 'no-match' as const },
-      'not-threatened'
-    ],
+    // A name GBIF could not place is not proof the species is safe to show.
+    ['no-match', { subjectLookupStatus: 'no-match' as const }, 'unchecked'],
     ['pending', { subjectLookupStatus: 'pending' as const }, 'unchecked'],
     ['failed', { subjectLookupStatus: 'failed' as const }, 'unchecked'],
     ['never looked up', {}, 'unchecked'],

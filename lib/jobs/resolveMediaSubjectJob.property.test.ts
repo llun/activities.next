@@ -216,12 +216,60 @@ const IUCN_ANSWERS: Catalogue = {
 }
 
 const SEARCH_ANSWERS: Catalogue = {
-  // Names "Common Kingfisher" exactly (key 2475532).
+  // Names "Common Kingfisher" exactly (key 2475532), once, on the last page.
   'exact-hit': { statusCode: 200, body: searchKingfisher },
-  empty: { statusCode: 200, body: { results: [] } },
+  'exact-hit-more-pages': {
+    statusCode: 200,
+    body: { ...searchKingfisher, endOfRecords: false }
+  },
+  'exact-hit-no-end-flag': {
+    statusCode: 200,
+    body: { ...searchKingfisher, endOfRecords: undefined }
+  },
+  'exact-hit-end-flag-string': {
+    statusCode: 200,
+    body: { ...searchKingfisher, endOfRecords: 'true' }
+  },
+  'two-exact-hits': {
+    statusCode: 200,
+    body: {
+      ...searchKingfisher,
+      results: [
+        ...searchKingfisher.results,
+        {
+          ...searchKingfisher.results[1],
+          vernacularNames: [
+            { vernacularName: 'common kingfisher', language: 'eng' }
+          ]
+        }
+      ]
+    }
+  },
+  // The name is the 25th vernacular name, past the 20 kept for display.
+  'exact-hit-late-name': {
+    statusCode: 200,
+    body: {
+      endOfRecords: true,
+      results: [
+        {
+          ...searchKingfisher.results[0],
+          vernacularNames: [
+            ...Array.from({ length: 24 }, (_, index) => ({
+              vernacularName: `Name ${index}`,
+              language: 'eng'
+            })),
+            { vernacularName: 'Common Kingfisher', language: 'fra' }
+          ]
+        }
+      ]
+    }
+  },
+  empty: { statusCode: 200, body: { results: [], endOfRecords: true } },
+  'empty-more-pages': { statusCode: 200, body: { results: [] } },
   'readable-no-hit': {
     statusCode: 200,
     body: {
+      endOfRecords: true,
       results: [
         { key: 5, canonicalName: 'Halcyon smyrnensis', rank: 'SPECIES' }
       ]
@@ -230,6 +278,7 @@ const SEARCH_ANSWERS: Catalogue = {
   partial: {
     statusCode: 200,
     body: {
+      endOfRecords: true,
       results: [
         { junk: true },
         { key: 5, canonicalName: 'Halcyon smyrnensis', rank: 'SPECIES' }
@@ -251,11 +300,18 @@ const SUBJECTS: Partial<MediaDetailsRecord>[] = [
       subjectTaxonKey: null
     })
   ),
+  ...(['bird', 'plant'] as const).map((subjectCategory) => ({
+    subjectName: 'Common Kingfisher',
+    subjectScientificName: null,
+    subjectCategory,
+    subjectTaxonKey: null
+  })),
+  // Species-like only by its retired key: the category names no kingdom.
   {
     subjectName: 'Common Kingfisher',
     subjectScientificName: null,
-    subjectCategory: 'bird',
-    subjectTaxonKey: null
+    subjectCategory: 'landscape',
+    subjectTaxonKey: '111'
   },
   {
     subjectName: null,
@@ -321,52 +377,60 @@ const UNCERTAIN_CLEARING_IUCN = new Set([
   'lower-case',
   'not-assessed'
 ])
-const TAXON_RANKS = new Set(
-  ['SPECIES', 'SUBSPECIES', 'GENUS', 'FAMILY'].map((rank) => `readable-${rank}`)
-)
+// A genus or family never clears its place: only these do.
 const SPECIES_RANKS = new Set(['readable-SPECIES', 'readable-SUBSPECIES'])
+// Searches that name the subject exactly once, on GBIF's last page, with
+// every result readable.
+const CONFIRMING_SEARCHES = new Set(['exact-hit', 'exact-hit-late-name'])
+// The categories whose kingdom is the taxon fixtures' (Animalia).
+const ANIMAL_CATEGORIES = new Set(['bird', 'mammal'])
 
 const labelOf = (path: string) =>
   served.filter((answer) => answer.path === path).at(-1)?.label
 
-/** The allow-list, from what GBIF served. */
+/**
+ * The allow-list, from what GBIF served: exactly one species-rank taxon
+ * whose category was read and is not CR, EN or VU.
+ */
 const allowedToShow = (
   subject: Partial<MediaDetailsRecord>,
   patch: Record<string, unknown>
 ): string | null => {
-  if (patch.subjectLookupStatus === 'resolved') {
-    const key = patch.subjectTaxonKey as string | undefined
-    if (!key) return null
-    return TAXON_RANKS.has(labelOf(`species/${key}`) ?? '') &&
-      CLEARING_IUCN.has(labelOf(`species/${key}/iucnRedListCategory`) ?? '')
-      ? 'resolved-taxon'
-      : null
-  }
-  if (patch.subjectLookupStatus !== 'no-match') return null
-  // A subject confirmed by a key once is never cleared as a no-match.
-  if (subject.subjectTaxonKey) return null
-
+  // `no-match` (and anything but `resolved`) never shows a place.
+  if (patch.subjectLookupStatus !== 'resolved') return null
+  const key = patch.subjectTaxonKey as string | undefined
   const lastMatch = served
     .filter((answer) => answer.path === 'species/match')
     .at(-1)
-  if (subject.subjectScientificName) {
+
+  if (!key) {
+    // The species an unhinted, unconfident match placed the name in. A
+    // subject confirmed by a key once is never cleared by such a guess.
+    if (subject.subjectTaxonKey || !subject.subjectScientificName) return null
     if (!lastMatch || lastMatch.hinted) return null
-    if (lastMatch.label === 'none') return 'match-none-unhinted'
-    if (
-      (lastMatch.label === 'higherrank-species' ||
-        lastMatch.label === 'lowconf-species') &&
+    return (lastMatch.label === 'higherrank-species' ||
+      lastMatch.label === 'lowconf-species') &&
       SPECIES_RANKS.has(labelOf('species/5707420') ?? '') &&
       UNCERTAIN_CLEARING_IUCN.has(
         labelOf('species/5707420/iucnRedListCategory') ?? ''
       )
-    ) {
-      return 'uncertain-species-not-threatened'
-    }
+      ? 'uncertain-species-not-threatened'
+      : null
+  }
+
+  if (
+    !SPECIES_RANKS.has(labelOf(`species/${key}`) ?? '') ||
+    !CLEARING_IUCN.has(labelOf(`species/${key}/iucnRedListCategory`) ?? '')
+  ) {
     return null
   }
-  const search = labelOf('species/search')
-  return search === 'empty' || search === 'readable-no-hit'
-    ? 'search-complete-no-exact'
+  if (key === subject.subjectTaxonKey) return 'stored-key-species'
+  if (subject.subjectScientificName) {
+    return lastMatch?.label === 'confident' ? 'match-species' : null
+  }
+  return CONFIRMING_SEARCHES.has(labelOf('species/search') ?? '') &&
+    ANIMAL_CATEGORIES.has(subject.subjectCategory ?? '')
+    ? 'search-single-exact-hit'
     : null
 }
 
@@ -407,6 +471,8 @@ describe('resolveMediaSubjectJob never shows a place off the allow-list', () => 
         subjectIucnCategory: null,
         ...patch
       } as MediaDetailsRecord
+      // Never written any more.
+      expect(patch.subjectLookupStatus).not.toBe('no-match')
       const shown = !isPlaceWithheldForThreat(stored, {
         hideThreatenedPlaces: true
       })
@@ -422,9 +488,9 @@ describe('resolveMediaSubjectJob never shows a place off the allow-list', () => 
     }
     // Every allow-listed answer was drawn, so the check is not vacuous.
     expect([...reached.keys()].sort()).toEqual([
-      'match-none-unhinted',
-      'resolved-taxon',
-      'search-complete-no-exact',
+      'match-species',
+      'search-single-exact-hit',
+      'stored-key-species',
       'uncertain-species-not-threatened'
     ])
   })

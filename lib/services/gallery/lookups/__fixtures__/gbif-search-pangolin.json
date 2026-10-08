@@ -1,0 +1,1218 @@
+{
+  "offset": 0,
+  "limit": 10,
+  "endOfRecords": false,
+  "count": 28,
+  "results": [
+    {
+      "key": 5219630,
+      "nubKey": 5219630,
+      "scientificName": "Manis temminckii Smuts, 1832",
+      "canonicalName": "Manis temminckii",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Pholidota",
+      "family": "Manidae",
+      "genus": "Manis",
+      "species": "Manis temminckii",
+      "speciesKey": 5219630,
+      "vernacularNames": [
+        {
+          "vernacularName": "Ground Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Ground Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Temminck's Ground Pangolin"
+        },
+        {
+          "vernacularName": "Cape Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Temminck’s Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolin"
+        },
+        {
+          "vernacularName": "Pangolin terrestre"
+        },
+        {
+          "vernacularName": "Steppenschuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Pangolin de Temminck",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Ground Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Ground Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Cape pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "ground pangolin",
+          "language": "eng"
+        }
+      ]
+    },
+    {
+      "key": 7620442,
+      "nubKey": 7620442,
+      "scientificName": "Chrysomallon squamiferum C.Chen, Linse, Copley & A.D.Rogers, 2015",
+      "canonicalName": "Chrysomallon squamiferum",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Mollusca",
+      "class": "Gastropoda",
+      "order": "Neomphalida",
+      "family": "Peltospiridae",
+      "genus": "Chrysomallon",
+      "species": "Chrysomallon squamiferum",
+      "speciesKey": 7620442,
+      "vernacularNames": [
+        {
+          "vernacularName": "Scaly-foot Snail",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Umi-Senzanko",
+          "language": "jpn"
+        },
+        {
+          "vernacularName": "Sea Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Seezapfentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "scaly-foot gastropod",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pullu Su Salyangozu (Deniz Pangolini)",
+          "language": "tur"
+        },
+        {
+          "vernacularName": "หอยตีนเกล็ด",
+          "language": "tha"
+        },
+        {
+          "vernacularName": "Pangolinsnegl",
+          "language": "nob"
+        },
+        {
+          "vernacularName": "IJzerslak",
+          "language": "nld"
+        },
+        {
+          "vernacularName": "ウロコフネタマガイ",
+          "language": "jpn"
+        },
+        {
+          "vernacularName": "Umi-Senzanko",
+          "language": "jpn"
+        },
+        {
+          "vernacularName": "scaly-foot gastropod",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Sea Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Scaly-foot Snail",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Seezapfentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Schuppenfuß-Schnecke",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "scaly-foot gastropod",
+          "language": "eng"
+        }
+      ]
+    },
+    {
+      "key": 5219635,
+      "nubKey": 5219635,
+      "scientificName": "Manis tricuspis Rafinesque, 1821",
+      "canonicalName": "Manis tricuspis",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Pholidota",
+      "family": "Manidae",
+      "genus": "Manis",
+      "species": "Manis tricuspis",
+      "speciesKey": 5219635,
+      "vernacularNames": [
+        {
+          "vernacularName": "Tree Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Tree Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Tree Pangolin"
+        },
+        {
+          "vernacularName": "Three-cusped Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "African Tree Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "African White-bellied Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolin"
+        },
+        {
+          "vernacularName": "Pangolin arboricola"
+        },
+        {
+          "vernacularName": "Weilbauchschuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Petit Pangolin",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Common African Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Tree Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Common African Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "tree pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "tree pangolin",
+          "language": "eng"
+        }
+      ]
+    },
+    {
+      "key": 5219631,
+      "nubKey": 5219631,
+      "scientificName": "Manis gigantea Illiger, 1815",
+      "canonicalName": "Manis gigantea",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Pholidota",
+      "family": "Manidae",
+      "genus": "Manis",
+      "species": "Manis gigantea",
+      "speciesKey": 5219631,
+      "vernacularNames": [
+        {
+          "vernacularName": "Giant Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Giant Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Giant Ground Pangolin"
+        },
+        {
+          "vernacularName": "Giant Ground Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolin"
+        },
+        {
+          "vernacularName": "Pangolin gigante"
+        },
+        {
+          "vernacularName": "Riesenschuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Pangolin géant",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Giant Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Giant Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "giant pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "giant pangolin",
+          "language": "eng"
+        }
+      ]
+    },
+    {
+      "key": 5219629,
+      "nubKey": 5219629,
+      "scientificName": "Manis culionensis (de Elera, 1915)",
+      "canonicalName": "Manis culionensis",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Pholidota",
+      "family": "Manidae",
+      "genus": "Manis",
+      "species": "Manis culionensis",
+      "speciesKey": 5219629,
+      "vernacularNames": [
+        {
+          "vernacularName": "Philippine Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Palawan Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Balintong"
+        },
+        {
+          "vernacularName": "Philippine Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Philippine Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolin de Palawan",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Philippine Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Palawan Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Palawan-Schuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Philippine Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolin"
+        },
+        {
+          "vernacularName": "Palawan-Schuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Pangolin de Palawan",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Palawan Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Philippine Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Palawan Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Philippine Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Palawan Pangolin",
+          "language": "eng"
+        }
+      ]
+    },
+    {
+      "key": 5219649,
+      "nubKey": 5219649,
+      "scientificName": "Manis tetradactyla Linnaeus, 1766",
+      "canonicalName": "Manis tetradactyla",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Pholidota",
+      "family": "Manidae",
+      "genus": "Manis",
+      "species": "Manis tetradactyla",
+      "speciesKey": 5219649,
+      "vernacularNames": [
+        {
+          "vernacularName": "Long-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Long-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Long-tailed Pangolin"
+        },
+        {
+          "vernacularName": "Black-bellied Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolin"
+        },
+        {
+          "vernacularName": "Pangolin colilargo"
+        },
+        {
+          "vernacularName": "Langschwanzschuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Pangolin a longue queue",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Long-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Long-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "long-tailed pangolin",
+          "language": "eng"
+        }
+      ]
+    },
+    {
+      "key": 5219633,
+      "nubKey": 5219633,
+      "scientificName": "Manis crassicaudata É.Geoffroy Saint-Hilaire, 1803",
+      "canonicalName": "Manis crassicaudata",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Pholidota",
+      "family": "Manidae",
+      "genus": "Manis",
+      "species": "Manis crassicaudata",
+      "speciesKey": 5219633,
+      "vernacularNames": [
+        {
+          "vernacularName": "Indian Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolín Indio",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Pangolin à grosse queue",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Grand pangolin de l'Inde",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Thick-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Indian Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Indian Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolin indien",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Thick-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Indian Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Indien-Schuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Indian Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolin"
+        },
+        {
+          "vernacularName": "Pangolin coligrueso"
+        },
+        {
+          "vernacularName": "Indien-Schuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Pangolin indien",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Thick-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Thick-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Indian Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Thick-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Indian Pangolin",
+          "language": "eng"
+        }
+      ]
+    },
+    {
+      "key": 5219638,
+      "nubKey": 5219638,
+      "scientificName": "Manis pentadactyla Linnaeus, 1758",
+      "canonicalName": "Manis pentadactyla",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Pholidota",
+      "family": "Manidae",
+      "genus": "Manis",
+      "species": "Manis pentadactyla",
+      "speciesKey": 5219638,
+      "vernacularNames": [
+        {
+          "vernacularName": "Chinese Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolín Chino",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Pangolin à queue courte",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Pangolin de Chine",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Chinese Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Chinese Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Chinese Pangolin"
+        },
+        {
+          "vernacularName": "穿山甲",
+          "language": "zho"
+        },
+        {
+          "vernacularName": "中華穿山甲",
+          "language": "zho"
+        },
+        {
+          "vernacularName": "Tê tê vàng",
+          "language": "vie"
+        },
+        {
+          "vernacularName": "Manis pentadactyla",
+          "language": "ukr"
+        },
+        {
+          "vernacularName": "ลิ่นจีน",
+          "language": "tha"
+        },
+        {
+          "vernacularName": "kortsvansad myrkott",
+          "language": "swe"
+        },
+        {
+          "vernacularName": "Pangolín Chino",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Pangol",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Šupinavec čínsky",
+          "language": "slk"
+        },
+        {
+          "vernacularName": "Китайский ящер",
+          "language": "rus"
+        },
+        {
+          "vernacularName": "Pangolim-chinês",
+          "language": "por"
+        },
+        {
+          "vernacularName": "łuskowiec chiński",
+          "language": "pol"
+        },
+        {
+          "vernacularName": "pangolin chiński",
+          "language": "pol"
+        },
+        {
+          "vernacularName": "Pangolin pięciopalczasty",
+          "language": "pol"
+        },
+        {
+          "vernacularName": "Kinesisk Pangolin",
+          "language": "nob"
+        },
+        {
+          "vernacularName": "Kinaskjelldyr",
+          "language": "nob"
+        },
+        {
+          "vernacularName": "Kinapangolin",
+          "language": "nob"
+        },
+        {
+          "vernacularName": "Chinees Schubdier",
+          "language": "nld"
+        },
+        {
+          "vernacularName": "ミミセンザンコウ",
+          "language": "jpn"
+        },
+        {
+          "vernacularName": "Pangolino cinese",
+          "language": "ita"
+        },
+        {
+          "vernacularName": "Kínai tobzoska",
+          "language": "hun"
+        },
+        {
+          "vernacularName": "Pangolin à queue courte",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Pangolin à courte queue",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Pangolin de Chine",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Pangolin a queue courte",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "kiinanmuurahaiskäpy",
+          "language": "fin"
+        },
+        {
+          "vernacularName": "Pangoliin",
+          "language": "est"
+        },
+        {
+          "vernacularName": "Short-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Chinese Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Κινέζικος Παγκολίνος",
+          "language": "ell"
+        },
+        {
+          "vernacularName": "Chinesisches Schuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "China-Schuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Kinesisk skældyr",
+          "language": "dan"
+        },
+        {
+          "vernacularName": "luskoun krátkoocasý",
+          "language": "ces"
+        },
+        {
+          "vernacularName": "Pangolí xinès",
+          "language": "cat"
+        },
+        {
+          "vernacularName": "Китай панголин",
+          "language": "bul"
+        },
+        {
+          "vernacularName": "Pangolin Sina",
+          "language": "bre"
+        },
+        {
+          "vernacularName": "চায়না বনরুই",
+          "language": "ben"
+        },
+        {
+          "vernacularName": "بنغول صيني",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "بنغول تايواني",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "Chinese Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolin"
+        },
+        {
+          "vernacularName": "Pangolin colicorto"
+        },
+        {
+          "vernacularName": "China-Schuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Pangolin a queue courte",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Short-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Short-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Chinese Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Short-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Chinese Pangolin",
+          "language": "eng"
+        }
+      ]
+    },
+    {
+      "key": 5219628,
+      "nubKey": 5219628,
+      "scientificName": "Manis javanica Desmarest, 1822",
+      "canonicalName": "Manis javanica",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Pholidota",
+      "family": "Manidae",
+      "genus": "Manis",
+      "species": "Manis javanica",
+      "speciesKey": 5219628,
+      "vernacularNames": [
+        {
+          "vernacularName": "Sunda Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolín Malayo",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Pangolin Malais",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Pangolin Javanais",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Malayan Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "ពង្រូល",
+          "language": "khm"
+        },
+        {
+          "vernacularName": "Sunda Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Sunda Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Malayan Pangolin"
+        },
+        {
+          "vernacularName": "馬來穿山甲",
+          "language": "zho"
+        },
+        {
+          "vernacularName": "ลิ่นชวา",
+          "language": "tha"
+        },
+        {
+          "vernacularName": "malajisk myrkott",
+          "language": "swe"
+        },
+        {
+          "vernacularName": "Pangolín Malayo",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Яванский ящер",
+          "language": "rus"
+        },
+        {
+          "vernacularName": "łuskowiec jawajski",
+          "language": "pol"
+        },
+        {
+          "vernacularName": "pangolin jawajski",
+          "language": "pol"
+        },
+        {
+          "vernacularName": "Sundaskjelldyr",
+          "language": "nob"
+        },
+        {
+          "vernacularName": "Malayskjelldyr",
+          "language": "nob"
+        },
+        {
+          "vernacularName": "Malaypangolin",
+          "language": "nob"
+        },
+        {
+          "vernacularName": "Malayisk Pangolin",
+          "language": "nob"
+        },
+        {
+          "vernacularName": "Palawanschubdier",
+          "language": "nld"
+        },
+        {
+          "vernacularName": "Javaanse Schubdier",
+          "language": "nld"
+        },
+        {
+          "vernacularName": "Javaans schubdier",
+          "language": "nld"
+        },
+        {
+          "vernacularName": "Tenggiling",
+          "language": "msa"
+        },
+        {
+          "vernacularName": "ពង្រួល",
+          "language": "khm"
+        },
+        {
+          "vernacularName": "マレーセンザンコウ",
+          "language": "jpn"
+        },
+        {
+          "vernacularName": "Pangolino del Borneo",
+          "language": "ita"
+        },
+        {
+          "vernacularName": "Trenggiling Sunda",
+          "language": "ind"
+        },
+        {
+          "vernacularName": "Trenggiling",
+          "language": "ind"
+        },
+        {
+          "vernacularName": "Jávai tobzoska",
+          "language": "hun"
+        },
+        {
+          "vernacularName": "Pangolin de Malaisie",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Pangolin Malais",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Pangolin Javanais",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "malesianmuurahaiskäpy",
+          "language": "fin"
+        },
+        {
+          "vernacularName": "Sunda Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Malayan Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Javan Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Παγκολίνος της Ιάβας",
+          "language": "ell"
+        },
+        {
+          "vernacularName": "Malaiisches Schuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Malaien-Schuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "luskoun ostrovní",
+          "language": "ces"
+        },
+        {
+          "vernacularName": "Ява панголин",
+          "language": "bul"
+        },
+        {
+          "vernacularName": "মালয়ী বনরুই বা মালয়ী পিপীলিকাভুক",
+          "language": "ben"
+        },
+        {
+          "vernacularName": "بنغولين سوندا",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "آكل النمل الحرشفي سوندا",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "آكل النمل الحرشفي المالايي",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "آكل النمل الحرشفي المالاوي",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "آكل النمل الحرشفي الجاوي",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "Malayan Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Pangolin de la Sonda"
+        },
+        {
+          "vernacularName": "Malaien-Schuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Pangolin de Malaisie",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Sunda Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Sunda Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Malayan Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Sunda pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Sunda Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Malayan Pangolin",
+          "language": "eng"
+        }
+      ]
+    },
+    {
+      "key": 9932528,
+      "nubKey": 9932528,
+      "scientificName": "Phataginus tetradactyla (Linnaeus, 1766)",
+      "canonicalName": "Phataginus tetradactyla",
+      "rank": "SPECIES",
+      "taxonomicStatus": "ACCEPTED",
+      "kingdom": "Animalia",
+      "phylum": "Chordata",
+      "class": "Mammalia",
+      "order": "Pholidota",
+      "family": "Manidae",
+      "genus": "Phataginus",
+      "species": "Phataginus tetradactyla",
+      "speciesKey": 9932528,
+      "vernacularNames": [
+        {
+          "vernacularName": "Black-bellied Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "pangolín de cola larga",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Pangolín de Cola Larga",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "pangolin à longue queue",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "pangolin tétradactyle",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Pangolin à longue queue",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Pangolin tétradactyle",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "long-tailed pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "black-bellied pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Long-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "黑腹穿山甲",
+          "language": "zho"
+        },
+        {
+          "vernacularName": "長尾穿山甲",
+          "language": "zho"
+        },
+        {
+          "vernacularName": "Ipi"
+        },
+        {
+          "vernacularName": "långsvansad myrkott",
+          "language": "swe"
+        },
+        {
+          "vernacularName": "Pangolín de Cola Larga",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Pangolín colilargo",
+          "language": "spa"
+        },
+        {
+          "vernacularName": "Длиннохвостый ящер",
+          "language": "rus"
+        },
+        {
+          "vernacularName": "Pangolim-de-cauda-longa",
+          "language": "por"
+        },
+        {
+          "vernacularName": "łuskowiec długoogonowy",
+          "language": "pol"
+        },
+        {
+          "vernacularName": "pangolin długoogonowy",
+          "language": "pol"
+        },
+        {
+          "vernacularName": "Langhaleskjelldyr",
+          "language": "nob"
+        },
+        {
+          "vernacularName": "Langhalepangolin",
+          "language": "nob"
+        },
+        {
+          "vernacularName": "Langstaartschubdier",
+          "language": "nld"
+        },
+        {
+          "vernacularName": "オナガセンザンコウ",
+          "language": "jpn"
+        },
+        {
+          "vernacularName": "Hosszúfarkú tobzoska",
+          "language": "hun"
+        },
+        {
+          "vernacularName": "Pangolin à longue queue",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "Pangolin tétradactyle",
+          "language": "fra"
+        },
+        {
+          "vernacularName": "kiipijämuurahaiskäpy",
+          "language": "fin"
+        },
+        {
+          "vernacularName": "Long-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Black-bellied Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "African Black-bellied Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Μακρόουρος Παγκολίνος",
+          "language": "ell"
+        },
+        {
+          "vernacularName": "Langschwanzschuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Langschwanzchuppentier",
+          "language": "deu"
+        },
+        {
+          "vernacularName": "Langhalet skældyr",
+          "language": "dan"
+        },
+        {
+          "vernacularName": "luskoun dlouhoocasý",
+          "language": "ces"
+        },
+        {
+          "vernacularName": "بنغول طويل الذيل",
+          "language": "ara"
+        },
+        {
+          "vernacularName": "Long-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Black-bellied Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Long-tailed Pangolin",
+          "language": "eng"
+        },
+        {
+          "vernacularName": "Black-bellied Pangolin",
+          "language": "eng"
+        }
+      ]
+    }
+  ]
+}

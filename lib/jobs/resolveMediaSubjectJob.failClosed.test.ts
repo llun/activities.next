@@ -4,22 +4,36 @@ import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
 import iucnCritical from '@/lib/services/gallery/lookups/__fixtures__/gbif-iucn-cr.json'
 import iucnEndangered from '@/lib/services/gallery/lookups/__fixtures__/gbif-iucn-en.json'
 import iucnLeastConcern from '@/lib/services/gallery/lookups/__fixtures__/gbif-iucn-lc.json'
+import iucnNotEvaluated from '@/lib/services/gallery/lookups/__fixtures__/gbif-iucn-ne.json'
 import matchGenusOnly from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-higherrank-genus.json'
 import matchPongoHigherRank from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-higherrank-pongo.json'
+import matchHominidae from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-hominidae.json'
 import matchNone from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-none.json'
+import matchPongoGenus from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-pongo-genus.json'
 import matchTiger from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-tiger.json'
 import searchKingfisher from '@/lib/services/gallery/lookups/__fixtures__/gbif-search-kingfisher.json'
+import searchPanda from '@/lib/services/gallery/lookups/__fixtures__/gbif-search-panda.json'
+import searchPangolin from '@/lib/services/gallery/lookups/__fixtures__/gbif-search-pangolin.json'
+import searchThaiTiger from '@/lib/services/gallery/lookups/__fixtures__/gbif-search-thai-tiger.json'
+import searchTigerPage from '@/lib/services/gallery/lookups/__fixtures__/gbif-search-tiger-page.json'
+import searchVaquita from '@/lib/services/gallery/lookups/__fixtures__/gbif-search-vaquita.json'
+import taxonCalligrapha from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-calligrapha.json'
+import taxonHominidae from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-hominidae.json'
 import taxonKingfisher from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-kingfisher.json'
 import taxonNotFound from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-not-found.json'
+import taxonPandaOleosa from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-panda-oleosa.json'
 import taxonPongoAbelii from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-pongo-abelii.json'
+import taxonPongo from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-pongo.json'
 import taxonTiger from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-tiger.json'
 import { createFakeLookupDatabase } from '@/lib/services/gallery/lookups/lookupTestUtils'
 import { isPlaceWithheldForThreat } from '@/lib/services/gallery/threatenedSpecies'
 import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 
 // The real GBIF client, end to end through the job, with only the network
-// stubbed: an answer the client cannot read must end as `failed` (place
-// withheld), never as `resolved`/`NE` or `no-match` (place shown).
+// stubbed: an answer the client cannot read, or one that does not confirm a
+// single species, must end as `failed` (place withheld), never as a
+// `resolved` category outside CR, EN and VU (place shown). Nothing writes
+// `no-match` any more.
 
 // What a wrong or retired endpoint answers (live: api.gbif.org without /v1).
 const HTML_404 = {
@@ -389,7 +403,7 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
       expect(withheld).toBe(true)
     })
 
-    it('records no-match only when the unhinted answer is NONE too', async () => {
+    it('records failed, not no-match, when the unhinted answer is NONE too', async () => {
       answers.set('/v1/species/match', { statusCode: 200, body: matchNone })
 
       const { patch, withheld } = await run({
@@ -397,8 +411,8 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
         subjectScientificName: 'Zzzqx blorp'
       })
 
-      expect(patch).toMatchObject({ subjectLookupStatus: 'no-match' })
-      expect(withheld).toBe(false)
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
     })
   })
 
@@ -447,7 +461,13 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       const { patch, withheld } = await run(MISTYPED_ORANGUTAN)
 
-      expect(patch).toMatchObject({ subjectLookupStatus: 'no-match' })
+      // The species GBIF placed the name in was read and is LC; the owner's
+      // name was not confirmed, so no key or path is written.
+      expect(patch).toEqual({
+        subjectIucnCategory: 'LC',
+        subjectTaxonPath: null,
+        subjectLookupStatus: 'resolved'
+      })
       expect(withheld).toBe(false)
     })
 
@@ -485,6 +505,227 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
 
       expect(patch).toMatchObject({
         subjectIucnCategory: 'CR',
+        subjectLookupStatus: 'resolved'
+      })
+      expect(withheld).toBe(true)
+    })
+  })
+
+  // Live answers recorded from api.gbif.org on 2026-10-08 (trimmed to the
+  // fields the client reads; every vernacular name kept).
+  describe('a common name, from live GBIF answers', () => {
+    const commonName = (
+      subjectName: string,
+      subjectCategory: MediaDetailsRecord['subjectCategory'] = 'mammal'
+    ): Partial<MediaDetailsRecord> => ({
+      subjectName,
+      subjectScientificName: null,
+      subjectCategory,
+      subjectTaxonKey: null,
+      subjectLookupStatus: 'pending'
+    })
+    // The same answer, as if it were GBIF's last page: isolates the rule
+    // after the one about pages.
+    const lastPage = <T extends object>(answer: T) => ({
+      ...answer,
+      endOfRecords: true
+    })
+    const taxonRequests = () =>
+      mockFetch.mock.calls.filter(([{ url }]) =>
+        /\/species\/\d+$/.test(new URL(url).pathname)
+      )
+
+    it('records failed for "Tiger", whose first page of 1556 misses the tiger', async () => {
+      expect(searchTigerPage.endOfRecords).toBe(false)
+      answers.set('/v1/species/search', {
+        statusCode: 200,
+        body: searchTigerPage
+      })
+
+      const { patch, withheld } = await run(commonName('Tiger'))
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+      expect(taxonRequests()).toHaveLength(0)
+    })
+
+    it('finds the tiger by its Thai name, the 42nd of its 202 names', async () => {
+      const names = searchThaiTiger.results[0].vernacularNames.map(
+        ({ vernacularName }) => vernacularName
+      )
+      expect(names).toContain('เสือโคร่ง')
+      answers.set('/v1/species/search', {
+        statusCode: 200,
+        body: searchThaiTiger
+      })
+
+      const { patch, withheld } = await run(commonName('เสือโคร่ง'))
+
+      expect(patch).toMatchObject({
+        subjectTaxonKey: '5219416',
+        subjectIucnCategory: 'EN',
+        subjectLookupStatus: 'resolved'
+      })
+      expect(withheld).toBe(true)
+    })
+
+    it('records failed for "Panda", whose page is not the last', async () => {
+      answers.set('/v1/species/search', { statusCode: 200, body: searchPanda })
+
+      const { patch, withheld } = await run(commonName('Panda'))
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('records failed for "Panda" as a mammal when the one hit is a tree', async () => {
+      answers.set('/v1/species/search', {
+        statusCode: 200,
+        body: lastPage(searchPanda)
+      })
+      answers.set('/v1/species/5380987', {
+        statusCode: 200,
+        body: taxonPandaOleosa
+      })
+      answers.set('/v1/species/5380987/iucnRedListCategory', {
+        statusCode: 200,
+        body: iucnLeastConcern
+      })
+
+      const { patch, withheld } = await run(commonName('Panda'))
+
+      // Panda oleosa (Plantae, LC) is the only exact hit; a mammal it is not.
+      expect(taxonRequests()).toHaveLength(1)
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('still resolves the tree when the category is a plant', async () => {
+      answers.set('/v1/species/search', {
+        statusCode: 200,
+        body: lastPage(searchPanda)
+      })
+      answers.set('/v1/species/5380987', {
+        statusCode: 200,
+        body: taxonPandaOleosa
+      })
+      answers.set('/v1/species/5380987/iucnRedListCategory', {
+        statusCode: 200,
+        body: iucnLeastConcern
+      })
+
+      const { patch, withheld } = await run(commonName('Panda', 'plant'))
+
+      expect(patch).toMatchObject({
+        subjectTaxonKey: '5380987',
+        subjectIucnCategory: 'LC',
+        subjectLookupStatus: 'resolved'
+      })
+      expect(withheld).toBe(false)
+    })
+
+    it.each([
+      ['its page is not the last', searchPangolin],
+      // Seven Manis species are called "Pangolin", some of them CR.
+      ['seven Manis species share the name', lastPage(searchPangolin)]
+    ])('records failed for "Pangolin": %s', async (_, body) => {
+      answers.set('/v1/species/search', { statusCode: 200, body })
+
+      const { patch, withheld } = await run(commonName('Pangolin'))
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+      expect(taxonRequests()).toHaveLength(0)
+    })
+
+    it.each([
+      ['its page is not the last', searchVaquita],
+      // A leaf beetle, an orchid and a ladybird; not the CR porpoise.
+      ['three other species share the name', lastPage(searchVaquita)]
+    ])('records failed for "Vaquita": %s', async (_, body) => {
+      answers.set('/v1/species/search', { statusCode: 200, body })
+      answers.set('/v1/species/11125184', {
+        statusCode: 200,
+        body: taxonCalligrapha
+      })
+
+      const { patch, withheld } = await run(commonName('Vaquita'))
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+      expect(taxonRequests()).toHaveLength(0)
+    })
+  })
+
+  // GBIF never assesses a genus or family: "NE" there says nothing about
+  // its species (every Pongo species is CR).
+  describe('a genus or family, from live GBIF answers', () => {
+    it.each([
+      [
+        'the genus Pongo',
+        { subjectName: 'Orangutan', subjectScientificName: 'Pongo' },
+        matchPongoGenus,
+        '5219531',
+        taxonPongo
+      ],
+      [
+        'the family Hominidae',
+        { subjectName: 'Great ape', subjectScientificName: 'Hominidae' },
+        matchHominidae,
+        '5483',
+        taxonHominidae
+      ]
+    ])(
+      'stores %s with no category, so its place stays hidden',
+      async (_, names, match, key, record) => {
+        answers.set('/v1/species/match', { statusCode: 200, body: match })
+        answers.set(`/v1/species/${key}`, { statusCode: 200, body: record })
+        answers.set(`/v1/species/${key}/iucnRedListCategory`, {
+          statusCode: 200,
+          body: iucnNotEvaluated
+        })
+
+        const { patch, withheld } = await run({
+          ...names,
+          subjectCategory: 'mammal',
+          subjectTaxonKey: null,
+          subjectLookupStatus: 'pending'
+        })
+
+        expect(patch).toEqual({
+          subjectTaxonKey: key,
+          subjectTaxonPath: [
+            'Animalia',
+            'Chordata',
+            'Mammalia',
+            'Primates',
+            'Hominidae'
+          ],
+          subjectIucnCategory: null,
+          subjectLookupStatus: 'resolved'
+        })
+        expect(withheld).toBe(true)
+      }
+    )
+
+    it('keeps a stored "Just genus" key’s place hidden too', async () => {
+      answers.set('/v1/species/5219531', { statusCode: 200, body: taxonPongo })
+      answers.set('/v1/species/5219531/iucnRedListCategory', {
+        statusCode: 200,
+        body: iucnNotEvaluated
+      })
+
+      const { patch, withheld } = await run({
+        subjectName: 'Orangutan',
+        subjectScientificName: 'Pongo',
+        subjectCategory: 'mammal',
+        subjectTaxonKey: '5219531',
+        subjectLookupStatus: 'pending'
+      })
+
+      expect(patch).toMatchObject({
+        subjectTaxonKey: '5219531',
+        subjectIucnCategory: null,
         subjectLookupStatus: 'resolved'
       })
       expect(withheld).toBe(true)

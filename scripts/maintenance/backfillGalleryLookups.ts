@@ -14,8 +14,10 @@
  * It selects:
  *   - media with coordinates whose place lookup is not final (never
  *     attempted, pending, failed or disabled);
- *   - species-like subjects whose subject lookup is not final (the same).
- * A `resolved` or `no-match` result is final and is never redone here.
+ *   - species-like subjects whose subject lookup is not final (the same, and
+ *     `no-match`, which no longer clears a place).
+ * A `resolved` result, and a place's `no-match`, is final and is never redone
+ * here.
  *
  * A provider outage does not fail the rest of the run. When a provider's
  * circuit is open (after a timeout, a 5xx or a 429) the script waits for it to
@@ -72,6 +74,9 @@ export const MAX_CONSECUTIVE_OUTAGES = 3
 const PRUNE_BATCH_SIZE = 500
 // A lookup in one of these states (or with no status) is not final.
 const NON_FINAL_STATUSES = ['pending', 'failed', 'disabled']
+// A subject `no-match` no longer clears a place (an earlier release wrote it
+// for names GBIF's first page of results missed), so it is asked again.
+const SUBJECT_NON_FINAL_STATUSES = [...NON_FINAL_STATUSES, 'no-match']
 
 export interface BackfillOptions {
   apply: boolean
@@ -140,8 +145,8 @@ const CANDIDATE_COLUMNS = [
   'subjectLookupStatus'
 ]
 
-const isNonFinal = (status: string | null) =>
-  status === null || NON_FINAL_STATUSES.includes(status)
+const isNonFinal = (status: string | null, nonFinal = NON_FINAL_STATUSES) =>
+  status === null || nonFinal.includes(status)
 
 export const needsPlaceLookup = (row: CandidateRow): boolean =>
   row.placeLatitude !== null &&
@@ -149,7 +154,7 @@ export const needsPlaceLookup = (row: CandidateRow): boolean =>
   isNonFinal(row.placeLookupStatus)
 
 export const needsSubjectLookup = (row: CandidateRow): boolean =>
-  isNonFinal(row.subjectLookupStatus) &&
+  isNonFinal(row.subjectLookupStatus, SUBJECT_NON_FINAL_STATUSES) &&
   isSpeciesLike({
     subjectName: row.subjectName,
     subjectScientificName: row.subjectScientificName,
@@ -202,7 +207,7 @@ export const selectCandidates = async ({
           .where((status) =>
             status
               .whereNull('subjectLookupStatus')
-              .orWhereIn('subjectLookupStatus', NON_FINAL_STATUSES)
+              .orWhereIn('subjectLookupStatus', SUBJECT_NON_FINAL_STATUSES)
           )
       )
     }

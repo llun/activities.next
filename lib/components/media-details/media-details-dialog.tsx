@@ -285,6 +285,8 @@ const SubjectLookupStatus: FC<{
   disabled: boolean
   error: string | null
   onRetry: () => void
+  /** Opens the species picker; null when GBIF search is off. */
+  onPick: (() => void) | null
 }> = ({
   subject,
   hidePlaces,
@@ -292,7 +294,8 @@ const SubjectLookupStatus: FC<{
   retrying,
   disabled,
   error,
-  onRetry
+  onRetry,
+  onPick
 }) => {
   const retry = canRetry ? (
     <>
@@ -337,11 +340,43 @@ const SubjectLookupStatus: FC<{
         ) : null}
       </>
     )
-  } else if (subject.lookupStatus === 'no-match') {
-    content = <span>Not found in the GBIF taxonomy, so no IUCN status.</span>
+  } else if (
+    subject.threatStatus === 'unchecked' &&
+    (subject.lookupStatus === 'failed' ||
+      subject.lookupStatus === 'no-match' ||
+      subject.lookupStatus === 'resolved')
+  ) {
+    // GBIF answered, but not with one species it could vouch for: a common
+    // name it cannot place, several species that share it, a genus or a
+    // family, or an answer it could not read. The owner fixes it by picking
+    // the species.
+    const pick = onPick ? (
+      <>
+        {' '}
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          disabled={disabled}
+          onClick={onPick}
+          className="h-auto p-0 text-xs"
+        >
+          Pick the species
+        </Button>{' '}
+        to show it.
+      </>
+    ) : null
+    content = (
+      <span>
+        {hidePlaces
+          ? 'We couldn’t confirm the species, so the place stays hidden.'
+          : 'We couldn’t confirm the species, so it has no IUCN status.'}
+        {hidePlaces ? pick : null}
+        {subject.lookupStatus === 'failed' ? retry : null}
+      </span>
+    )
   } else if (subject.threatStatus === 'unchecked') {
-    // `failed`, `disabled`, a resolved row with no category, or a species-like
-    // subject that was never checked (null).
+    // `disabled`, or a species-like subject that was never checked (null).
     content = (
       <>
         <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -1273,6 +1308,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                     retryError?.kind === 'subject' ? retryError.message : null
                   }
                   onRetry={() => void onRetryLookups('subject')}
+                  onPick={canSearch ? () => setPickerOpen(true) : null}
                 />
               ) : null}
               {hasAssist ? (

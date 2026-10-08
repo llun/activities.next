@@ -35,9 +35,11 @@ const KINGDOM_HINTS: Record<string, string> = {
   insect: 'Animalia'
 }
 
-const sameName = (a: string, b: string) =>
-  a.trim().replace(/\s+/g, ' ').toLowerCase() ===
-  b.trim().replace(/\s+/g, ' ').toLowerCase()
+// The kingdom a living category names, or null (`landscape`, `other`, none).
+const kingdomOf = (category: string | null | undefined): string | null =>
+  category && Object.hasOwn(KINGDOM_HINTS, category)
+    ? KINGDOM_HINTS[category]
+    : null
 
 type SubjectFields = Pick<
   MediaDetailsRecord,
@@ -59,8 +61,11 @@ type SubjectFields = Pick<
  *   hint. Any hinted answer but a confident match is asked again without the
  *   hint: a wrong category ("Panthera tigris" filed as a plant) makes GBIF
  *   answer a kingdom, or NONE, for a name it matches exactly.
- * - Only a common name: a search result that names it exactly. A near miss is
- *   not a match; the owner can pick from the search.
+ * - Only a common name: the search, with how many results name it exactly
+ *   and the kingdom its category names. The record of the one exact hit is
+ *   read only when the search could confirm it (every result readable, no
+ *   more pages, exactly one hit); the decision checks the rest. A near miss
+ *   is not a match; the owner can pick from the search.
  */
 export const gatherSubjectEvidence = async (
   gbif: GbifClient,
@@ -89,9 +94,7 @@ const askByName = async (
   commonName: string | null
 ): Promise<SubjectAnswer> => {
   if (scientificName) {
-    const kingdom = subject.subjectCategory
-      ? KINGDOM_HINTS[subject.subjectCategory]
-      : undefined
+    const kingdom = kingdomOf(subject.subjectCategory) ?? undefined
     // A typed genus or family ("Pongo") is a group, as a "Just genus" pick is.
     let outcome = await gbif.lookupMatch(scientificName, {
       kingdom,
@@ -109,6 +112,7 @@ const askByName = async (
         return {
           kind: 'taxon',
           via: 'match',
+          matchRank: outcome.taxon.rank,
           taxon: await gbif.getTaxon(outcome.taxon.taxonKey)
         }
       case 'none':
@@ -130,16 +134,15 @@ const askByName = async (
   if (commonName) {
     const search = await gbif.lookupSearch(commonName)
     if (!search) return { kind: 'nothing-to-ask' }
-    const exact = search.results.find(
-      (result) =>
-        sameName(result.scientificName, commonName) ||
-        result.vernacularNames.some((name) => sameName(name, commonName))
-    )
-    if (!exact) return { kind: 'search-no-exact', complete: search.complete }
+    const { complete, exhaustive, exactTaxonKeys } = search
+    const confirmable = complete && exhaustive && exactTaxonKeys.length === 1
     return {
-      kind: 'taxon',
-      via: 'search',
-      taxon: await gbif.getTaxon(exact.taxonKey)
+      kind: 'search',
+      complete,
+      exhaustive,
+      exactHits: exactTaxonKeys.length,
+      kingdom: kingdomOf(subject.subjectCategory),
+      taxon: confirmable ? await gbif.getTaxon(exactTaxonKeys[0]) : null
     }
   }
 
@@ -156,8 +159,9 @@ const askByName = async (
  * made meanwhile wins and the edit's own job resolves the new subject.
  *
  * What is stored is decided only by `decideSubjectLookup`, which lets a
- * place be shown for an allow-list of verified answers and records `failed`
- * for everything else. Provider errors are caught the same way: the job
+ * place be shown only for a subject confirmed as one species that is not
+ * threatened, and records `failed` (or `resolved` with no category, for a
+ * genus or family) for everything else. Provider errors are caught the same way: the job
  * records `failed` (persisted, so the owner sees it and can retry) and returns
  * normally, so a rate-limited free service is not retried into the ground.
  */

@@ -12,6 +12,9 @@ import matchNone from './__fixtures__/gbif-match-none.json'
 import matchSynonym from './__fixtures__/gbif-match-synonym.json'
 import matchTiger from './__fixtures__/gbif-match-tiger.json'
 import searchKingfisher from './__fixtures__/gbif-search-kingfisher.json'
+import searchPangolin from './__fixtures__/gbif-search-pangolin.json'
+import searchThaiTiger from './__fixtures__/gbif-search-thai-tiger.json'
+import searchTigerPage from './__fixtures__/gbif-search-tiger-page.json'
 import taxonKingfisher from './__fixtures__/gbif-taxon-kingfisher.json'
 import taxonNotFound from './__fixtures__/gbif-taxon-not-found.json'
 import taxonTiger from './__fixtures__/gbif-taxon-tiger.json'
@@ -600,11 +603,156 @@ describe('gbif client', () => {
     })
 
     it('reports a fully readable answer as complete, an empty one too', async () => {
-      const { client } = setup(() => ({ body: { results: [] } }))
+      const { client } = setup(() => ({
+        body: { results: [], endOfRecords: true }
+      }))
       await expect(client.lookupSearch('nothing here')).resolves.toEqual({
         results: [],
-        complete: true
+        complete: true,
+        exhaustive: true,
+        exactTaxonKeys: []
       })
+    })
+
+    it('names the results that name the query exactly', async () => {
+      const { client } = setup()
+      await expect(
+        client.lookupSearch('  common   KINGFISHER ')
+      ).resolves.toMatchObject({
+        complete: true,
+        exhaustive: true,
+        exactTaxonKeys: ['2475532']
+      })
+      // "Kingfisher" is a vernacular name of Alcedo atthis only.
+      await expect(client.lookupSearch('Kingfisher')).resolves.toMatchObject({
+        exactTaxonKeys: ['2475532']
+      })
+      await expect(
+        client.lookupSearch('Halcyon smyrnensis')
+      ).resolves.toMatchObject({ exactTaxonKeys: ['5228328'] })
+    })
+
+    // Live: q=tiger has 1556 results, and Panthera tigris is not on page 1.
+    it.each([
+      ['endOfRecords is false', { ...searchTigerPage }],
+      [
+        'endOfRecords is missing',
+        { ...searchTigerPage, endOfRecords: undefined }
+      ],
+      ['endOfRecords is not a boolean', { ...searchTigerPage, endOfRecords: 1 }]
+    ])('is not exhaustive when %s', async (_, body) => {
+      const { client } = setup(() => ({ body }))
+      await expect(client.lookupSearch('Tiger')).resolves.toMatchObject({
+        complete: true,
+        exhaustive: false,
+        exactTaxonKeys: []
+      })
+    })
+
+    // Live: q=เสือโคร่ง answers only Panthera tigris, with 202 names; the
+    // Thai one sorts 42nd, past the 20 kept for display.
+    it('matches every vernacular name, not just the ones it keeps', async () => {
+      const { client } = setup(() => ({ body: searchThaiTiger }))
+
+      const outcome = await client.lookupSearch('เสือโคร่ง')
+
+      expect(outcome).toMatchObject({
+        complete: true,
+        exhaustive: true,
+        exactTaxonKeys: ['5219416']
+      })
+      expect(outcome?.results[0].vernacularNames).toHaveLength(20)
+      expect(outcome?.results[0].vernacularNames).not.toContain('เสือโคร่ง')
+    })
+
+    it('matches a name in another Unicode normal form', async () => {
+      const { client } = setup(() => ({ body: searchThaiTiger }))
+      // A name with accents ("Lǎohǔ"), typed decomposed.
+      const name = searchThaiTiger.results[0].vernacularNames
+        .map(({ vernacularName }) => vernacularName)
+        .find((vernacular) => vernacular.normalize('NFD') !== vernacular)
+      expect(name).toBeDefined()
+      await expect(
+        client.lookupSearch((name as string).normalize('NFD'))
+      ).resolves.toMatchObject({ exactTaxonKeys: ['5219416'] })
+    })
+
+    // Live: seven Manis species are each called "Pangolin".
+    it('names every result that shares the name', async () => {
+      const { client } = setup(() => ({ body: searchPangolin }))
+      const outcome = await client.lookupSearch('Pangolin')
+      expect(outcome?.exactTaxonKeys).toHaveLength(7)
+      expect(outcome?.exhaustive).toBe(false)
+    })
+
+    it('names nothing exactly for a query cut to 100 characters', async () => {
+      const name = `Common Kingfisher${' x'.repeat(60)}`
+      const { client, requests } = setup(() => ({
+        body: {
+          endOfRecords: true,
+          results: [
+            {
+              ...searchKingfisher.results[0],
+              vernacularNames: [
+                { vernacularName: name.slice(0, 100), language: 'eng' }
+              ]
+            }
+          ]
+        }
+      }))
+      await expect(client.lookupSearch(name)).resolves.toMatchObject({
+        exactTaxonKeys: []
+      })
+      expect(requests[0].url.searchParams.get('q')).toHaveLength(100)
+      await expect(
+        client.lookupSearch(name.slice(0, 100))
+      ).resolves.toMatchObject({ exactTaxonKeys: ['2475532'] })
+    })
+
+    it.each([
+      [
+        'an s3 row with no exhaustive flag',
+        { results: [], complete: true, exactTaxonKeys: [] }
+      ],
+      [
+        'an s3 row with no exact keys',
+        { results: [], complete: true, exhaustive: true }
+      ],
+      [
+        'an s3 row with a bad exact key',
+        { results: [], complete: true, exhaustive: true, exactTaxonKeys: [5] }
+      ]
+    ])('throws for a cached row holding %s', async (_, value) => {
+      const { client, rows } = setup()
+      rows.set(`gbif-search:${TAG}s3|tiger`, {
+        kind: 'gbif-search',
+        key: `${TAG}s3|tiger`,
+        fetchedAt: Date.now(),
+        expiresAt: Date.now() + 60_000,
+        outcome: 'ok',
+        value
+      })
+      await expect(client.lookupSearch('Tiger')).rejects.toMatchObject({
+        code: 'parse'
+      })
+    })
+
+    it('never reads an s2 row, whose exact hits came from a cut list', async () => {
+      const { client, rows, requests } = setup(() => ({
+        body: searchTigerPage
+      }))
+      rows.set(`gbif-search:${TAG}s2|tiger`, {
+        kind: 'gbif-search',
+        key: `${TAG}s2|tiger`,
+        fetchedAt: Date.now(),
+        expiresAt: Date.now() + 60_000,
+        outcome: 'ok',
+        value: { results: [], complete: true }
+      })
+      await expect(client.lookupSearch('Tiger')).resolves.toMatchObject({
+        exhaustive: false
+      })
+      expect(requests).toHaveLength(1)
     })
   })
 

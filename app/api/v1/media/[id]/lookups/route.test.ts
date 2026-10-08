@@ -265,12 +265,23 @@ describe('POST /api/v1/media/[id]/lookups', () => {
     mockPublish.mockClear()
     const finished = await createMediaFor(ACTOR1_ID, SPECIES)
     await setLookups(finished, {
-      subject: { subjectLookupStatus: 'no-match' },
+      subject: { subjectLookupStatus: 'resolved', subjectIucnCategory: 'LC' },
       place: { placeLookupStatus: 'no-match' }
     })
     const response = await request(finished)
     expect(response.status).toBe(200)
     expect(mockPublish).not.toHaveBeenCalled()
+
+    // A subject no-match from an earlier build no longer clears the place,
+    // so it is asked again; a place no-match is final.
+    mockPublish.mockClear()
+    const subjectNoMatch = await createMediaFor(ACTOR1_ID, SPECIES)
+    await setLookups(subjectNoMatch, {
+      subject: { subjectLookupStatus: 'no-match' },
+      place: { placeLookupStatus: 'no-match' }
+    })
+    await request(subjectNoMatch)
+    expect(publishedNames()).toEqual([RESOLVE_MEDIA_SUBJECT_JOB_NAME])
 
     // Disabled and pending are retried.
     mockPublish.mockClear()

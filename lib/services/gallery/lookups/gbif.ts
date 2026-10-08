@@ -30,7 +30,11 @@ import { createCircuitBreaker, createLimiter } from './rateLimit'
 // species/{key} agree on.
 const GBIF_BACKBONE_DATASET_KEY = 'd7dddbf4-2cf0-4f39-9b2a-bb099caae36c'
 const MAX_SEARCH_RESULTS = 10
+// The vernacular names kept on a result for display. Matching a common name
+// reads every name GBIF answered, not just these.
 const MAX_VERNACULAR_NAMES = 20
+// The longest query `species/search` is asked; a longer one is cut.
+const MAX_SEARCH_QUERY_LENGTH = 100
 
 export const gbifProvider: LookupProvider = {
   name: 'GBIF',
@@ -89,14 +93,26 @@ type CachedMatch =
   | { unplaced: true }
 
 const MATCH_CACHE_VERSION = 'm2'
-const SEARCH_CACHE_VERSION = 's2'
+// s3: the outcome carries `exhaustive` and `exactTaxonKeys`. An s2 row has
+// neither, and its exact hits were read from a cut-down name list.
+const SEARCH_CACHE_VERSION = 's3'
 
-/** A `species/search` answer, and whether every result in it was readable. */
+/**
+ * A `species/search` answer, with what it proves about the name asked for.
+ */
 export interface GbifSearchOutcome {
   results: GbifTaxonSearchResult[]
-  // False when GBIF answered results this code could not read: the one it
-  // skipped may have been the name asked for, so "no exact hit" proves nothing.
+  // False when GBIF answered results this code could not read (or more than
+  // it asked for): the one it skipped may have been the name asked for.
   complete: boolean
+  // True only when GBIF said this page is all there is (`endOfRecords`). The
+  // search is ranked full text, so a page that is not the last one says
+  // nothing about the species the name belongs to ("tiger" has 1556 results,
+  // and Panthera tigris is not in the first 400).
+  exhaustive: boolean
+  // The keys of the results whose scientific name, or any one of all their
+  // vernacular names (not only the ones kept for display), is the query.
+  exactTaxonKeys: string[]
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -141,11 +157,18 @@ const toSearchOutcome = (cached: unknown): GbifSearchOutcome => {
   if (
     isRecord(cached) &&
     Array.isArray(cached.results) &&
-    typeof cached.complete === 'boolean'
+    typeof cached.complete === 'boolean' &&
+    typeof cached.exhaustive === 'boolean' &&
+    Array.isArray(cached.exactTaxonKeys) &&
+    cached.exactTaxonKeys.every(
+      (key) => typeof key === 'string' && /^\d{1,12}$/.test(key)
+    )
   ) {
     return {
       results: cached.results as GbifTaxonSearchResult[],
-      complete: cached.complete
+      complete: cached.complete,
+      exhaustive: cached.exhaustive,
+      exactTaxonKeys: cached.exactTaxonKeys as string[]
     }
   }
   throw new LookupError('parse', 'Unreadable cached GBIF search')
@@ -180,8 +203,9 @@ export interface GbifClient {
    */
   searchTaxa(q: string): Promise<GbifTaxonSearchResult[]>
   /**
-   * `searchTaxa` with whether every result was readable. Same cache row.
-   * Null for a query too short to ask.
+   * `searchTaxa` with whether every result was readable, whether GBIF has no
+   * more, and which results name `q` exactly. Same cache row. Null for a
+   * query too short to ask.
    */
   lookupSearch(q: string): Promise<GbifSearchOutcome | null>
 }
@@ -190,6 +214,11 @@ export interface GbifClient {
 // share a row, and bounded so they fit the 255 character key column.
 const normalizeKeyPart = (value: string) =>
   value.trim().replace(/\s+/g, ' ').toLowerCase()
+
+// Whether two names are the same name: case, spacing and Unicode composition
+// aside ("เสือโคร่ง" typed and served in different normal forms).
+const sameName = (a: string, b: string) =>
+  normalizeKeyPart(a.normalize('NFC')) === normalizeKeyPart(b.normalize('NFC'))
 
 // Answers cached under one endpoint are not answers from another: an admin who
 // fixes a wrong endpoint must not be served what the wrong one said. The
@@ -441,7 +470,7 @@ export const createGbifClient = ({
     },
 
     async lookupSearch(q) {
-      const query = q.trim().slice(0, 100)
+      const query = q.trim().slice(0, MAX_SEARCH_QUERY_LENGTH)
       if (query.length < 2) return null
 
       const result = await readThroughLookupCache<GbifSearchOutcome>({
@@ -460,15 +489,20 @@ export const createGbifClient = ({
           if (response.status !== 'ok') {
             throw new LookupError('http', 'GBIF search gave no answer')
           }
-          const results = (response.json as { results?: unknown } | null)
-            ?.results
+          const json = response.json as {
+            results?: unknown
+            endOfRecords?: unknown
+          } | null
+          const results = json?.results
           if (!Array.isArray(results)) {
             throw new LookupError('parse', 'GBIF returned an unreadable search')
           }
 
           const found: GbifTaxonSearchResult[] = []
+          const exact = new Set<string>()
           let unreadable = 0
           for (const raw of results) {
+            if (found.length >= MAX_SEARCH_RESULTS) break
             const taxon = normalizeTaxonRecord(raw)
             if (!taxon) {
               unreadable += 1
@@ -478,20 +512,35 @@ export const createGbifClient = ({
             found.push({
               ...taxon,
               vernacularName: names.preferred,
-              vernacularNames: names.all
+              vernacularNames: names.all.slice(0, MAX_VERNACULAR_NAMES)
             })
-            if (found.length >= MAX_SEARCH_RESULTS) break
+            if (
+              sameName(taxon.scientificName, query) ||
+              names.all.some((name) => sameName(name, query))
+            ) {
+              exact.add(taxon.taxonKey)
+            }
           }
           // Results that all fail to read are a changed shape, not "nothing
           // found": a common-name subject would otherwise be cleared.
           if (results.length > 0 && found.length === 0) {
             throw new LookupError('parse', 'GBIF returned unreadable results')
           }
-          return { results: found, complete: unreadable === 0 }
+          return {
+            results: found,
+            complete: unreadable === 0 && found.length === results.length,
+            exhaustive: json?.endOfRecords === true,
+            exactTaxonKeys: [...exact]
+          }
         }
       })
       const cached = unwrap(result)
-      return cached === null ? null : toSearchOutcome(cached)
+      if (cached === null) return null
+      const outcome = toSearchOutcome(cached)
+      // A cut query is not the name asked for: nothing names that exactly.
+      return q.trim().length > MAX_SEARCH_QUERY_LENGTH
+        ? { ...outcome, exactTaxonKeys: [] }
+        : outcome
     }
   }
 
@@ -524,8 +573,10 @@ const toVernacularNames = (
   })
   unique.sort((a, b) => Number(b.english) - Number(a.english))
 
+  // Every name, English first. The caller keeps the first few for display
+  // and matches against all of them.
   return {
     preferred: unique[0]?.name ?? null,
-    all: unique.slice(0, MAX_VERNACULAR_NAMES).map(({ name }) => name)
+    all: unique.map(({ name }) => name)
   }
 }

@@ -216,7 +216,7 @@ export const GalleryPrivacySettings: FC<Props> = ({ mapProvider }) => {
             !settings || !settings.hideThreatenedPlaces
               ? undefined
               : settings.speciesLookupsAvailable
-                ? 'A species’ place stays hidden until its status has been checked.'
+                ? 'A species’ place stays hidden until GBIF confirms the species and it isn’t threatened.'
                 : 'This server can’t check IUCN status, so places of photos with a species name stay hidden while this is on.'
           }
           onCheckedChange={(checked) => save('hideThreatenedPlaces', checked)}
