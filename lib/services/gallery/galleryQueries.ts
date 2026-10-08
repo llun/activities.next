@@ -81,8 +81,8 @@ export interface GetGalleryMediaPageParams extends GalleryQueryBase {
   gearId?: string
 }
 
-const projectRows = async (
-  database: GalleryQueryDatabase,
+export const projectRows = async (
+  database: Pick<GalleryQueryDatabase, 'getGalleryGearNamesByIds'>,
   rows: GalleryMediaRow[],
   audience: GalleryAudience,
   settings: GallerySettings

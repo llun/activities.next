@@ -196,6 +196,11 @@ export interface GetGalleryAlbumIndexParams {
   audience: GalleryAudience
 }
 
+export interface CountGalleryAlbumMediaParams {
+  actorId: string
+  audience: GalleryAudience
+}
+
 export interface GetAlbumsForMediaParams {
   mediaId: string
   actorId: string
@@ -242,6 +247,10 @@ export interface GalleryAlbumDatabase {
   getGalleryAlbumIndex(
     params: GetGalleryAlbumIndexParams
   ): Promise<GalleryAlbumIndexRow[]>
+  // How many distinct media the audience can see across the actor's albums
+  // (public albums only, for anyone but the owner). A photo in several albums
+  // counts once.
+  countGalleryAlbumMedia(params: CountGalleryAlbumMediaParams): Promise<number>
   // The albums the media is in. Owner only: any other audience gets none.
   getAlbumsForMedia(
     params: GetAlbumsForMediaParams
@@ -785,6 +794,22 @@ export const GalleryAlbumSQLDatabaseMixin = (
 
     getGalleryAlbumIndex({ albumId, actorId, audience }) {
       return readIndex(albumId, actorId, audience)
+    },
+
+    async countGalleryAlbumMedia({ actorId, audience }) {
+      const query = database(`${ITEMS} as album_items`)
+        .innerJoin(`${ALBUMS} as albums`, 'albums.id', 'album_items.albumId')
+        .innerJoin('medias', 'medias.id', 'album_items.mediaId')
+        .where('albums.actorId', actorId)
+        .where('album_items.actorId', actorId)
+      if (!isOwnerGalleryAudience(audience)) {
+        query.where('albums.visibility', 'public')
+      }
+      buildGalleryMediaScope(database, actorId, audience)(query)
+      const row = await query
+        .countDistinct<{ total: number | string }[]>({ total: 'medias.id' })
+        .first()
+      return Number(row?.total ?? 0)
     },
 
     async getAlbumsForMedia({ mediaId, actorId, audience }) {

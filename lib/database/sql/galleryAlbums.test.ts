@@ -888,6 +888,48 @@ describe('GalleryAlbumDatabase', () => {
       })
     })
 
+    describe('countGalleryAlbumMedia', () => {
+      it('counts distinct visible media across albums, public albums only for a visitor', async () => {
+        const actorId = actors.followRequester.id
+        const make = async (name: string, visibility: 'public' | 'private') => {
+          await createMedia(name, {}, actorId)
+          await post(name, name, [ACTIVITY_STREAM_PUBLIC], [], actorId)
+          const created = await database.createGalleryAlbumWithinLimit({
+            actorId,
+            title: name,
+            visibility,
+            limit: 200
+          })
+          if (created.status !== 'created') throw new Error('not created')
+          return created.album.id
+        }
+        const count = (audience: GalleryAudience) =>
+          database.countGalleryAlbumMedia({ actorId, audience })
+        expect(await count(OWNER_GALLERY_AUDIENCE)).toBe(0)
+
+        const open = await make('count-open', 'public')
+        const secret = await make('count-secret', 'private')
+        for (const albumId of [open, secret]) {
+          await database.addGalleryAlbumItems({
+            albumId,
+            actorId,
+            mediaIds: [ids['count-open'], ids['count-secret']],
+            limit: 2000
+          })
+        }
+
+        // Each photo is in two albums and counts once.
+        expect(await count(OWNER_GALLERY_AUDIENCE)).toBe(2)
+        // The visitor counts through the public album only, and both photos
+        // are in it.
+        expect(await count(PUBLIC_GALLERY_AUDIENCE)).toBe(2)
+
+        await database.deleteGalleryAlbum({ id: open, actorId })
+        expect(await count(OWNER_GALLERY_AUDIENCE)).toBe(2)
+        expect(await count(PUBLIC_GALLERY_AUDIENCE)).toBe(0)
+      })
+    })
+
     describe('getAlbumsForMedia', () => {
       it('lists the albums a media is in, for the owner only', async () => {
         await addPhoto('multi', [ACTIVITY_STREAM_PUBLIC])

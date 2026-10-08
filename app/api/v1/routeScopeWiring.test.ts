@@ -540,6 +540,19 @@ const EXPECTED: Array<{
     scopes: ['read', 'read:statuses'],
     guard: 'OptionalOAuthGuard:any'
   },
+  // gallery albums (owner only)
+  {
+    module: '@/app/api/v1/gallery/albums/route',
+    scopes: ['read', 'read:statuses', 'write', 'write:media']
+  },
+  {
+    module: '@/app/api/v1/gallery/albums/[id]/route',
+    scopes: ['read', 'read:statuses', 'write', 'write:media']
+  },
+  {
+    module: '@/app/api/v1/gallery/albums/[id]/items/route',
+    scopes: ['read', 'read:statuses', 'write', 'write:media']
+  },
   { module: '@/app/api/v2/media/route', scopes: ['write', 'write:media'] },
   // announcements and suggestions lists
   {
@@ -1028,6 +1041,29 @@ const MULTI_METHOD: Array<{
       GET: ['read', 'read:collections'],
       POST: ['write:collections'],
       DELETE: ['write:collections']
+    }
+  },
+  {
+    module: '@/app/api/v1/gallery/albums/route',
+    methods: {
+      GET: ['read', 'read:statuses'],
+      POST: ['write', 'write:media']
+    }
+  },
+  {
+    module: '@/app/api/v1/gallery/albums/[id]/route',
+    methods: {
+      GET: ['read', 'read:statuses'],
+      PATCH: ['write', 'write:media'],
+      DELETE: ['write', 'write:media']
+    }
+  },
+  {
+    module: '@/app/api/v1/gallery/albums/[id]/items/route',
+    methods: {
+      GET: ['read', 'read:statuses'],
+      POST: ['write', 'write:media'],
+      DELETE: ['write', 'write:media']
     }
   },
   {
