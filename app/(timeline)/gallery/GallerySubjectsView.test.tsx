@@ -28,6 +28,7 @@ describe('GallerySubjectsView', () => {
             }
           ],
           unidentifiedCount: 0,
+          countryCount: null,
           truncated: false
         }}
       />

@@ -38,7 +38,14 @@ const baseSettings: GallerySettingsEntity = {
   hiddenLocations: [
     { latitude: 13.7563, longitude: 100.5018, hideRadiusMeters: 1000 }
   ],
-  altTextAvailable: true
+  hideThreatenedPlaces: true,
+  subjectSuggestionMode: 'model',
+  subjectConfidenceThreshold: 70,
+  altTextAvailable: true,
+  subjectSuggestionsAvailable: true,
+  subjectModel: 'test-vision-model',
+  speciesLookupsAvailable: true,
+  placeLookupsAvailable: true
 }
 
 const SHOW_GEAR = 'Show gear and exposure on my media'

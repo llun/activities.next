@@ -141,6 +141,26 @@ describe('gallery queries', () => {
         takenAt: Date.UTC(2024, 0, 1)
       })
 
+      // What the subject job would write: every species above is Least
+      // Concern, so the threatened-species rule (on by default) lets their
+      // places through and the place tests below see only the other rules.
+      for (const name of ['kingfisher-1', 'kingfisher-2', 'fox', 'heron']) {
+        const media = await database.getMediaByIdForAccount({
+          mediaId: ids[name],
+          accountId: (await database.getActorFromId({ id: owner.id }))!.account!
+            .id
+        })
+        await database.setMediaSubjectLookup({
+          mediaId: ids[name],
+          expect: {
+            subjectName: media!.details!.subjectName,
+            subjectScientificName: media!.details!.subjectScientificName,
+            subjectTaxonKey: media!.details!.subjectTaxonKey
+          },
+          patch: { subjectLookupStatus: 'resolved', subjectIucnCategory: 'LC' }
+        })
+      }
+
       await database.updateGallerySettings({
         actorId: owner.id,
         showGear: false,
@@ -360,7 +380,8 @@ describe('gallery queries', () => {
           name: null,
           precision: 'exact',
           latitude: 40.7,
-          longitude: -74
+          longitude: -74,
+          countryCode: null
         })
       })
 
@@ -442,6 +463,366 @@ describe('gallery queries', () => {
         ])
       })
     })
+
+    describe('threatened species and countries', () => {
+      const other = { id: actors.followRequester.id }
+      const otherIds: Record<string, string> = {}
+
+      const createOtherMedia = async (
+        name: string,
+        details: Parameters<typeof database.createMedia>[0]['details'],
+        lookups: {
+          subject?: 'LC' | 'VU' | 'pending'
+          countryCode?: string
+        }
+      ) => {
+        const statusId = `${other.id}/statuses/threat-${name}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: other.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: name
+        })
+        const media = await database.createMedia({
+          actorId: other.id,
+          original: {
+            path: `/test/threat-${name}.jpg`,
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          },
+          details: { inGallery: true, ...details }
+        })
+        otherIds[name] = media!.id
+        await database.createAttachment({
+          actorId: other.id,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: `https://media.test/threat-${name}.jpg`,
+          width: 100,
+          height: 100,
+          mediaId: media!.id
+        })
+        if (lookups.subject && lookups.subject !== 'pending') {
+          expect(
+            await database.setMediaSubjectLookup({
+              mediaId: media!.id,
+              expect: {
+                subjectName: details?.subjectName ?? null,
+                subjectScientificName: details?.subjectScientificName ?? null,
+                subjectTaxonKey: null
+              },
+              patch: {
+                subjectLookupStatus: 'resolved',
+                subjectIucnCategory: lookups.subject
+              }
+            })
+          ).toBeTrue()
+        }
+        if (lookups.countryCode) {
+          expect(
+            await database.setMediaPlaceLookup({
+              mediaId: media!.id,
+              expect: {
+                placeLatitude: details?.placeLatitude ?? null,
+                placeLongitude: details?.placeLongitude ?? null
+              },
+              patch: {
+                placeLookupStatus: 'resolved',
+                placeCountryCode: lookups.countryCode
+              }
+            })
+          ).toBeTrue()
+        }
+      }
+
+      beforeAll(async () => {
+        // Oldest first.
+        await createOtherMedia(
+          'hornbill',
+          {
+            subjectName: 'Great Hornbill',
+            subjectScientificName: 'Buceros bicornis',
+            subjectCategory: 'bird',
+            takenAt: Date.UTC(2022, 0, 1),
+            placeName: 'Khao Yai',
+            placeLatitude: 14.4389,
+            placeLongitude: 101.3722,
+            placePrecision: 'exact'
+          },
+          { subject: 'VU', countryCode: 'TH' }
+        )
+        await createOtherMedia(
+          'tiger',
+          {
+            subjectName: 'Bengal Tiger',
+            subjectScientificName: 'Panthera tigris',
+            subjectCategory: 'mammal',
+            takenAt: Date.UTC(2022, 6, 1),
+            placeName: 'Ranthambore',
+            placeLatitude: 26.0173,
+            placeLongitude: 76.5026,
+            placePrecision: 'area'
+          },
+          // The lookup has not run: unchecked, so withheld.
+          { subject: 'pending', countryCode: 'IN' }
+        )
+        await createOtherMedia(
+          'robin-fr',
+          {
+            subjectName: 'European Robin',
+            subjectScientificName: 'Erithacus rubecula',
+            subjectCategory: 'bird',
+            takenAt: Date.UTC(2023, 0, 1),
+            placeName: 'Paris, France',
+            placeLatitude: 48.8566,
+            placeLongitude: 2.3522,
+            placePrecision: 'country'
+          },
+          { subject: 'LC', countryCode: 'FR' }
+        )
+        await createOtherMedia(
+          'robin-gb',
+          {
+            subjectName: 'European Robin',
+            subjectScientificName: 'Erithacus rubecula',
+            subjectCategory: 'bird',
+            takenAt: Date.UTC(2024, 0, 1),
+            placeName: 'Lea Valley',
+            placeLatitude: 51.5543,
+            placeLongitude: -0.0231,
+            placePrecision: 'area'
+          },
+          { subject: 'LC', countryCode: 'GB' }
+        )
+        await createOtherMedia(
+          'lake',
+          {
+            subjectName: 'Lake Geneva',
+            subjectCategory: 'landscape',
+            takenAt: Date.UTC(2024, 6, 1),
+            placeName: 'Geneva',
+            placeLatitude: 46.2044,
+            placeLongitude: 6.1432,
+            placePrecision: 'exact'
+          },
+          { countryCode: 'CH' }
+        )
+        await createOtherMedia(
+          'hidden-robin',
+          {
+            subjectName: 'European Robin',
+            subjectScientificName: 'Erithacus rubecula',
+            subjectCategory: 'bird',
+            takenAt: Date.UTC(2024, 8, 1),
+            placeName: 'Berlin',
+            placeLatitude: 52.52,
+            placeLongitude: 13.405,
+            placePrecision: 'hidden'
+          },
+          { subject: 'LC', countryCode: 'DE' }
+        )
+      })
+
+      it('counts only the countries of places the public is shown', async () => {
+        const [publicSubjects, ownerSubjects] = await Promise.all([
+          getGallerySubjects({
+            database,
+            owner: other,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          }),
+          getGallerySubjects({
+            database,
+            owner: other,
+            audience: OWNER_GALLERY_AUDIENCE
+          })
+        ])
+
+        // TH (threatened), IN (unchecked) and DE (hidden precision) are
+        // withheld, and each was the only photo in its country.
+        expect(publicSubjects.countryCount).toBe(3)
+        expect(ownerSubjects.countryCount).toBe(6)
+
+        const entries = (result: typeof publicSubjects) =>
+          Object.fromEntries(
+            result.groups
+              .flatMap((group) => group.subjects)
+              .map((subject) => [subject.key, subject.countryCodes])
+          )
+        expect(entries(publicSubjects)).toEqual({
+          'sci:buceros bicornis': [],
+          'sci:panthera tigris': [],
+          'sci:erithacus rubecula': ['FR', 'GB'],
+          'name:lake geneva': ['CH']
+        })
+        expect(entries(ownerSubjects)['sci:erithacus rubecula']).toEqual([
+          'DE',
+          'FR',
+          'GB'
+        ])
+        expect(entries(ownerSubjects)['sci:buceros bicornis']).toEqual(['TH'])
+      })
+
+      it('never sends the IUCN verdict or the hidden places in subjects', async () => {
+        const json = JSON.stringify(
+          await getGallerySubjects({
+            database,
+            owner: other,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          })
+        )
+
+        for (const leak of [
+          'Khao Yai',
+          'Ranthambore',
+          'Berlin',
+          '14.4389',
+          '26.0173',
+          '"TH"',
+          '"IN"',
+          '"DE"',
+          '"VU"',
+          'resolved',
+          'pending'
+        ]) {
+          expect(json).not.toContain(leak)
+        }
+      })
+
+      it('names the first place of a life-list entry from the projection', async () => {
+        const [publicList, ownerList] = await Promise.all([
+          getGalleryLifeList({
+            database,
+            owner: other,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          }),
+          getGalleryLifeList({
+            database,
+            owner: other,
+            audience: OWNER_GALLERY_AUDIENCE
+          })
+        ])
+        const where = (list: typeof publicList) =>
+          Object.fromEntries(
+            list.entries.map((entry) => [entry.key, entry.firstPlaceName])
+          )
+
+        // The earliest robin is the French one at country precision, named
+        // by its country code rather than the stored locality.
+        expect(where(publicList)).toEqual({
+          'sci:buceros bicornis': null,
+          'sci:panthera tigris': null,
+          'sci:erithacus rubecula': 'France'
+        })
+        expect(where(ownerList)).toEqual({
+          'sci:buceros bicornis': 'Khao Yai',
+          'sci:panthera tigris': 'Ranthambore',
+          'sci:erithacus rubecula': 'Paris, France'
+        })
+      })
+
+      it('keeps threatened and unchecked species off the public map', async () => {
+        const [loggedOut, preview, ownerMap] = await Promise.all([
+          getGalleryMapPoints({
+            database,
+            owner: other,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          }),
+          getGalleryMapPoints({
+            database,
+            owner: other,
+            audience: { ...PUBLIC_GALLERY_AUDIENCE }
+          }),
+          getGalleryMapPoints({
+            database,
+            owner: other,
+            audience: OWNER_GALLERY_AUDIENCE
+          })
+        ])
+
+        expect(preview).toEqual(loggedOut)
+        expect(loggedOut.points.map((point) => point.mediaId)).toEqual([
+          otherIds.lake,
+          otherIds['robin-gb']
+        ])
+        expect(loggedOut.points.map((point) => point.countryCode)).toEqual([
+          'CH',
+          'GB'
+        ])
+        expect(loggedOut.countryCount).toBe(2)
+
+        expect(
+          Object.fromEntries(
+            ownerMap.points.map((point) => [point.mediaId, point.publicState])
+          )
+        ).toEqual({
+          [otherIds['hidden-robin']]: 'not-shown',
+          [otherIds.lake]: 'shown-exact',
+          [otherIds['robin-gb']]: 'shown-area',
+          [otherIds['robin-fr']]: 'not-shown',
+          [otherIds.tiger]: 'threatened-species',
+          [otherIds.hornbill]: 'threatened-species'
+        })
+        expect(ownerMap.countryCount).toBe(6)
+      })
+
+      it('withholds a threatened item place in the grid, and the owner keeps it', async () => {
+        const [publicPage, ownerPage] = await Promise.all([
+          getGalleryMediaPage({
+            database,
+            owner: other,
+            audience: PUBLIC_GALLERY_AUDIENCE,
+            limit: 30
+          }),
+          getGalleryMediaPage({
+            database,
+            owner: other,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 30
+          })
+        ])
+        const placeOf = (page: typeof publicPage, name: string) =>
+          page.items.find((item) => item.mediaId === otherIds[name])?.place
+
+        expect(placeOf(publicPage, 'hornbill')).toBeNull()
+        expect(placeOf(publicPage, 'tiger')).toBeNull()
+        expect(placeOf(publicPage, 'robin-fr')).toEqual({
+          name: 'France',
+          precision: 'country',
+          countryCode: 'FR'
+        })
+        expect(placeOf(ownerPage, 'hornbill')).toEqual({
+          name: 'Khao Yai',
+          precision: 'exact',
+          latitude: 14.4389,
+          longitude: 101.3722,
+          countryCode: 'TH'
+        })
+      })
+
+      it('shows every place once the owner turns the rule off', async () => {
+        await database.updateGallerySettings({
+          actorId: other.id,
+          hideThreatenedPlaces: false
+        })
+        try {
+          const result = await getGallerySubjects({
+            database,
+            owner: other,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          })
+          // TH and IN come back; DE stays hidden by its precision.
+          expect(result.countryCount).toBe(5)
+        } finally {
+          await database.updateGallerySettings({
+            actorId: other.id,
+            hideThreatenedPlaces: true
+          })
+        }
+      })
+    })
   })
 })
 
@@ -452,6 +833,15 @@ describe('gallery queries at the index cap', () => {
       subjectName: index % 2 === 0 ? 'Robin' : null,
       subjectScientificName: null,
       subjectCategory: index % 2 === 0 ? 'bird' : null,
+      subjectTaxonKey: null,
+      subjectTaxonPath: null,
+      subjectIucnCategory: null,
+      subjectLookupStatus: null,
+      placeName: null,
+      placePrecision: null,
+      placeLatitude: null,
+      placeLongitude: null,
+      placeCountryCode: null,
       takenAt: null,
       createdAt: 1_700_000_000_000
     }))
@@ -509,7 +899,13 @@ describe('gallery queries at the index cap', () => {
       longitude: 100.5,
       placePrecision: 'exact',
       placeName: null,
+      placeCountryCode: null,
       subjectName: null,
+      subjectScientificName: null,
+      subjectCategory: null,
+      subjectTaxonKey: null,
+      subjectIucnCategory: null,
+      subjectLookupStatus: null,
       takenAt: null,
       thumbnailUrl: null,
       statusId: `status-${index}`,

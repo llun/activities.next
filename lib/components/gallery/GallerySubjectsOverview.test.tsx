@@ -39,6 +39,7 @@ const data: GallerySubjectsResponse = {
     }
   ],
   unidentifiedCount: 4,
+  countryCount: null,
   truncated: false
 }
 
@@ -124,6 +125,7 @@ describe('GallerySubjectsOverview', () => {
             }
           ],
           unidentifiedCount: 0,
+          countryCount: null,
           truncated: false
         }}
         onSeeAll={vi.fn()}
@@ -138,7 +140,12 @@ describe('GallerySubjectsOverview', () => {
   it('explains an empty gallery', () => {
     render(
       <GallerySubjectsOverview
-        data={{ groups: [], unidentifiedCount: 0, truncated: false }}
+        data={{
+          groups: [],
+          unidentifiedCount: 0,
+          countryCount: null,
+          truncated: false
+        }}
       />
     )
     expect(

@@ -38,7 +38,8 @@ const emptyDetails: MediaDetailsEntity = {
   lens: null,
   exposure: null,
   place: null,
-  inGallery: false
+  inGallery: false,
+  subjectSuggestions: null
 }
 
 const makeItem = (
@@ -61,6 +62,10 @@ const settings = (
 ): GallerySettingsEntity => ({
   ...DEFAULT_GALLERY_SETTINGS,
   altTextAvailable: true,
+  subjectSuggestionsAvailable: true,
+  subjectModel: 'test-vision-model',
+  speciesLookupsAvailable: true,
+  placeLookupsAvailable: true,
   ...overrides
 })
 
@@ -449,7 +454,10 @@ describe('MediaDetailsDialog', () => {
             name: null,
             latitude: 1,
             longitude: 2,
-            precision: null
+            precision: null,
+            countryCode: null,
+            nameSource: null,
+            lookupStatus: null
           }
         }
       })
@@ -530,7 +538,10 @@ describe('MediaDetailsDialog', () => {
               name: 'Marsh',
               latitude: null,
               longitude: null,
-              precision: 'area'
+              precision: 'area',
+              countryCode: null,
+              nameSource: null,
+              lookupStatus: null
             }
           }
         })

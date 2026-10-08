@@ -24,6 +24,9 @@ const subject: Omit<GallerySubjectEntry, 'cover'> = {
   name: 'Keel-billed Toucan',
   scientificName: 'Ramphastos sulfuratus',
   category: 'bird',
+  taxonKey: null,
+  taxonPath: null,
+  countryCodes: [],
   count: 2,
   firstSeenAt: '2025-03-14T09:30:00.000Z',
   lastSeenAt: '2025-03-16T09:30:00.000Z'

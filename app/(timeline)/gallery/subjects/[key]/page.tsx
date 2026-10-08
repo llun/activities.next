@@ -107,6 +107,9 @@ const Page = async ({ params }: PageProps) => {
           ? (first.subject?.scientificName ?? null)
           : fromKey.scientificName,
         category: first?.subject?.category ?? null,
+        taxonKey: first?.subject?.taxonKey ?? null,
+        taxonPath: first?.subject?.taxonPath ?? null,
+        countryCodes: [],
         count: null,
         firstSeenAt: null,
         lastSeenAt: null

@@ -13,8 +13,10 @@ import {
 import { EMPTY_MEDIA_EXIF } from '@/lib/services/medias/exif/readMediaExif'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
-import { DEFAULT_GALLERY_SETTINGS } from '@/lib/types/database/gallery'
-import type { Media } from '@/lib/types/database/operations'
+import {
+  DEFAULT_GALLERY_SETTINGS,
+  EMPTY_MEDIA_DETAILS
+} from '@/lib/types/database/gallery'
 
 const createPhoto = (withGps = true) =>
   sharp({
@@ -173,7 +175,10 @@ describe('buildUploadMediaDetails', () => {
       expect(details.placeLatitude).toBeCloseTo(51.5, 3)
       expect(details.placePrecision).toBe('hidden')
       expect(
-        getPublicPlace(details as Media['details'], { hiddenLocations: [] })
+        getPublicPlace(
+          { ...EMPTY_MEDIA_DETAILS, ...details },
+          { hiddenLocations: [], hideThreatenedPlaces: true }
+        )
       ).toBeNull()
     })
 

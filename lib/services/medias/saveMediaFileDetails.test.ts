@@ -102,9 +102,13 @@ describe('uploading a photo with EXIF', () => {
         name: null,
         latitude: 51.5,
         longitude: -0.125,
-        precision: 'area'
+        precision: 'area',
+        countryCode: null,
+        nameSource: null,
+        lookupStatus: null
       },
-      inGallery: false
+      inGallery: false,
+      subjectSuggestions: null
     })
 
     const stored = await database.getMediaByIdForAccount({
@@ -206,7 +210,8 @@ describe('uploading a photo with EXIF', () => {
       lens: null,
       exposure: null,
       place: null,
-      inGallery: false
+      inGallery: false,
+      subjectSuggestions: null
     })
   })
 

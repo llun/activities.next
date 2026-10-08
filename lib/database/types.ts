@@ -5,6 +5,7 @@ import { FitnessRouteHeatmapDatabase } from '@/lib/database/sql/fitnessRouteHeat
 import { FitnessRouteHeatmapTileDatabase } from '@/lib/database/sql/fitnessRouteHeatmapTile'
 import { FitnessSettingsDatabase } from '@/lib/database/sql/fitnessSettings'
 import { GalleryDatabase } from '@/lib/database/sql/gallery'
+import { GalleryLookupCacheDatabase } from '@/lib/database/sql/galleryLookupCache'
 import { GalleryMediaDatabase } from '@/lib/database/sql/galleryMedia'
 import { ImportLockDatabase } from '@/lib/database/sql/importLock'
 import { StravaArchiveImportDatabase } from '@/lib/database/sql/stravaArchiveImport'
@@ -76,6 +77,7 @@ export type Database = AccountDatabase &
   FitnessSettingsDatabase &
   GalleryDatabase &
   GalleryMediaDatabase &
+  GalleryLookupCacheDatabase &
   ImportLockDatabase &
   StravaArchiveImportDatabase &
   WahooImportDatabase &

@@ -37,6 +37,7 @@ const makePoint = (
   precision: 'exact',
   subjectName: `Subject ${index}`,
   placeName: 'Khao Yai, Thailand',
+  countryCode: null,
   thumbnailUrl: `https://cdn.example/thumb-${index}.jpg`,
   takenAt: `2026-10-0${index + 1}T08:00:00.000Z`,
   ...overrides

@@ -34,7 +34,8 @@ describe('buildOwnerMediaDetails', () => {
       lens: null,
       exposure: null,
       place: null,
-      inGallery: false
+      inGallery: false,
+      subjectSuggestions: null
     })
   })
 
@@ -63,7 +64,12 @@ describe('buildOwnerMediaDetails', () => {
       subject: {
         name: 'Common Kingfisher',
         scientificName: 'Alcedo atthis',
-        category: 'bird'
+        category: 'bird',
+        taxonKey: null,
+        taxonPath: null,
+        iucnCategory: null,
+        threatStatus: 'unchecked',
+        lookupStatus: null
       },
       takenAt: '2024-05-06T07:08:09.000Z',
       camera: { id: 'cam', name: 'Canon EOS R5' },
@@ -78,9 +84,13 @@ describe('buildOwnerMediaDetails', () => {
         name: 'Lea Valley',
         latitude: 51.5543,
         longitude: -0.0231,
-        precision: 'area'
+        precision: 'area',
+        countryCode: null,
+        nameSource: null,
+        lookupStatus: null
       },
-      inGallery: true
+      inGallery: true,
+      subjectSuggestions: null
     })
     expect(db.getGalleryGearNamesByIds).toHaveBeenCalledOnce()
   })
@@ -113,8 +123,68 @@ describe('buildOwnerMediaDetails', () => {
       name: 'Garden',
       latitude: null,
       longitude: null,
-      precision: null
+      precision: null,
+      countryCode: null,
+      nameSource: null,
+      lookupStatus: null
     })
+  })
+
+  it('gives the owner the IUCN verdict, both lookups and the suggestions', async () => {
+    const suggestions = {
+      model: 'vision-1',
+      generatedAt: '2026-10-08T08:00:00.000Z',
+      checkedAgainst: 'gbif' as const,
+      candidates: [
+        {
+          name: 'Great Hornbill',
+          scientificName: 'Buceros bicornis',
+          category: 'bird' as const,
+          confidence: 0.9,
+          taxonKey: '2481839',
+          rank: 'SPECIES',
+          taxonPath: ['Animalia', 'Chordata', 'Aves']
+        }
+      ],
+      group: 'bird' as const
+    }
+    const result = await buildOwnerMediaDetails(
+      database(),
+      media({
+        subjectName: 'Great Hornbill',
+        subjectScientificName: 'Buceros bicornis',
+        subjectCategory: 'bird',
+        subjectTaxonKey: '2481839',
+        subjectTaxonPath: ['Animalia', 'Chordata', 'Aves'],
+        subjectIucnCategory: 'VU',
+        subjectLookupStatus: 'resolved',
+        subjectSuggestions: suggestions,
+        placeName: 'Pak Chong, Thailand',
+        placeLatitude: 14.4,
+        placeLongitude: 101.4,
+        placePrecision: 'exact',
+        placeCountryCode: 'TH',
+        placeNameSource: 'geocoder',
+        placeLookupStatus: 'failed'
+      })
+    )
+
+    expect(result.subject).toEqual({
+      name: 'Great Hornbill',
+      scientificName: 'Buceros bicornis',
+      category: 'bird',
+      taxonKey: '2481839',
+      taxonPath: ['Animalia', 'Chordata', 'Aves'],
+      iucnCategory: 'VU',
+      threatStatus: 'threatened',
+      lookupStatus: 'resolved'
+    })
+    expect(result.place).toMatchObject({
+      countryCode: 'TH',
+      nameSource: 'geocoder',
+      lookupStatus: 'failed'
+    })
+    expect(result.subjectSuggestions).toEqual(suggestions)
   })
 })
 

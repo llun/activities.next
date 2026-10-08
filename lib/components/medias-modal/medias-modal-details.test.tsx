@@ -38,7 +38,9 @@ const kingfisherDetails: MediaPublicDetails = {
   subject: {
     name: 'Common Kingfisher',
     scientificName: 'Alcedo atthis',
-    category: 'bird'
+    category: 'bird',
+    taxonKey: null,
+    taxonPath: null
   },
   takenAt,
   camera: { name: 'Nikon Z8' },
@@ -49,7 +51,12 @@ const kingfisherDetails: MediaPublicDetails = {
     exposureTime: '1/1000',
     iso: 800
   },
-  place: { name: 'Lake Kinneret', precision: 'area', latitude: 32.8 }
+  place: {
+    name: 'Lake Kinneret',
+    precision: 'area',
+    latitude: 32.8,
+    countryCode: null
+  }
 }
 
 const renderModal = (medias: Attachment[], initialSelection = 0) =>
@@ -212,7 +219,9 @@ describe('MediasModal media details', () => {
       subject: {
         name: 'Grey Heron',
         scientificName: 'Ardea cinerea',
-        category: 'bird'
+        category: 'bird',
+        taxonKey: null,
+        taxonPath: null
       }
     }
 

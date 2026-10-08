@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
 import {
+  IUCN_CATEGORIES,
+  MEDIA_LOOKUP_STATUSES,
+  MEDIA_PLACE_NAME_SOURCES,
   MEDIA_PLACE_PRECISIONS,
   MEDIA_SUBJECT_CATEGORIES
 } from '@/lib/types/database/gallery'
@@ -93,7 +96,15 @@ export const MediaDetailsEntity = z.object({
     .object({
       name: z.string().nullable(),
       scientificName: z.string().nullable(),
-      category: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable()
+      category: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable(),
+      taxonKey: z.string().nullable(),
+      // Kingdom to family names, once the lookup resolved the taxon.
+      taxonPath: z.array(z.string()).nullable(),
+      iucnCategory: z.enum(IUCN_CATEGORIES).nullable(),
+      // Derived: `unchecked` while a species-like subject's place is withheld
+      // for want of a lookup that cleared it.
+      threatStatus: z.enum(['threatened', 'not-threatened', 'unchecked']),
+      lookupStatus: z.enum(MEDIA_LOOKUP_STATUSES).nullable()
     })
     .nullable(),
   takenAt: z.string().nullable(),
@@ -112,10 +123,33 @@ export const MediaDetailsEntity = z.object({
       name: z.string().nullable(),
       latitude: z.number().nullable(),
       longitude: z.number().nullable(),
-      precision: z.enum(MEDIA_PLACE_PRECISIONS).nullable()
+      precision: z.enum(MEDIA_PLACE_PRECISIONS).nullable(),
+      countryCode: z.string().nullable(),
+      nameSource: z.enum(MEDIA_PLACE_NAME_SOURCES).nullable(),
+      lookupStatus: z.enum(MEDIA_LOOKUP_STATUSES).nullable()
     })
     .nullable(),
-  inGallery: z.boolean()
+  inGallery: z.boolean(),
+  // The vision model's candidates; owner-only, never applied by themselves.
+  subjectSuggestions: z
+    .object({
+      model: z.string(),
+      generatedAt: z.string(),
+      checkedAgainst: z.literal('gbif').nullable(),
+      candidates: z.array(
+        z.object({
+          name: z.string(),
+          scientificName: z.string().nullable(),
+          category: z.enum(MEDIA_SUBJECT_CATEGORIES),
+          confidence: z.number(),
+          taxonKey: z.string().nullable(),
+          rank: z.string().nullable(),
+          taxonPath: z.array(z.string())
+        })
+      ),
+      group: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable()
+    })
+    .nullable()
 })
 export type MediaDetailsEntity = z.infer<typeof MediaDetailsEntity>
 

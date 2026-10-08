@@ -84,6 +84,7 @@ const subjects = {
     }
   ],
   unidentifiedCount: 0,
+  countryCount: null,
   truncated: false
 }
 
@@ -97,10 +98,12 @@ const mapResponse: GalleryMapResponse = {
       precision: 'exact',
       subjectName: 'Kingfisher',
       placeName: 'Khao Yai',
+      countryCode: null,
       thumbnailUrl: null,
       takenAt: null
     }
   ],
+  countryCount: null,
   truncated: false
 }
 

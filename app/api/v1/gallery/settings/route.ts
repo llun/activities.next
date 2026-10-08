@@ -1,7 +1,10 @@
 import { getConfig } from '@/lib/config'
+import { Database } from '@/lib/database/types'
 import { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
+import { getGalleryLookupAvailability } from '@/lib/services/gallery/galleryLookupAvailability'
 import { UpdateGallerySettingsRequest } from '@/lib/services/gallery/galleryRequests'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
+import { GallerySettings } from '@/lib/types/database/gallery'
 import {
   HTTP_STATUS,
   apiErrorResponse,
@@ -9,11 +12,13 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-const toEntity = (
-  settings: Omit<GallerySettingsEntity, 'altTextAvailable'>
-): GallerySettingsEntity => ({
+const toEntity = async (
+  database: Database,
+  settings: GallerySettings
+): Promise<GallerySettingsEntity> => ({
   ...settings,
-  altTextAvailable: Boolean(getConfig().altText)
+  altTextAvailable: Boolean(getConfig().altText),
+  ...(await getGalleryLookupAvailability(database))
 })
 
 export const GET = traceApiRoute(
@@ -28,7 +33,7 @@ export const GET = traceApiRoute(
     return apiResponse({
       req,
       allowedMethods: [],
-      data: toEntity(settings),
+      data: await toEntity(database, settings),
       responseStatusCode: 200
     })
   })
@@ -59,7 +64,7 @@ export const PUT = traceApiRoute(
     return apiResponse({
       req,
       allowedMethods: [],
-      data: toEntity(settings),
+      data: await toEntity(database, settings),
       responseStatusCode: 200
     })
   })

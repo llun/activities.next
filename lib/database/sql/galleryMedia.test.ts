@@ -217,6 +217,27 @@ describe('GalleryMediaDatabase', () => {
       await createMedia('foreign', { subjectName: 'Stolen' })
       await createMedia('persona', { subjectName: 'Persona' })
       await createMedia('deleted', { subjectName: 'Gone' })
+      // What the lookups write for the kingfisher: the subject and threat
+      // columns, and the country, that the rows below must carry.
+      await database.setMediaSubjectLookup({
+        mediaId: ids.public,
+        expect: {
+          subjectName: 'Common Kingfisher',
+          subjectScientificName: 'Alcedo atthis',
+          subjectTaxonKey: null
+        },
+        patch: {
+          subjectLookupStatus: 'resolved',
+          subjectIucnCategory: 'LC',
+          subjectTaxonKey: '2475532',
+          subjectTaxonPath: ['Animalia', 'Chordata', 'Aves']
+        }
+      })
+      await database.setMediaPlaceLookup({
+        mediaId: ids.public,
+        expect: { placeLatitude: 51.5543, placeLongitude: -0.0231 },
+        patch: { placeLookupStatus: 'resolved', placeCountryCode: 'GB' }
+      })
 
       await attach(publicStatus, ids.public)
       await attach(unlistedStatus, ids.unlisted)
@@ -560,6 +581,15 @@ describe('GalleryMediaDatabase', () => {
           subjectName: 'Common Kingfisher',
           subjectScientificName: 'Alcedo atthis',
           subjectCategory: 'bird',
+          subjectTaxonKey: '2475532',
+          subjectTaxonPath: ['Animalia', 'Chordata', 'Aves'],
+          subjectIucnCategory: 'LC',
+          subjectLookupStatus: 'resolved',
+          placeName: 'River',
+          placePrecision: 'exact',
+          placeLatitude: 51.5543,
+          placeLongitude: -0.0231,
+          placeCountryCode: 'GB',
           takenAt: Date.UTC(2024, 0, 1),
           createdAt: expect.any(Number)
         })
@@ -636,7 +666,13 @@ describe('GalleryMediaDatabase', () => {
             longitude: -0.0231,
             placePrecision: 'exact',
             placeName: 'River',
+            placeCountryCode: 'GB',
             subjectName: 'Common Kingfisher',
+            subjectScientificName: 'Alcedo atthis',
+            subjectCategory: 'bird',
+            subjectTaxonKey: '2475532',
+            subjectIucnCategory: 'LC',
+            subjectLookupStatus: 'resolved',
             takenAt: Date.UTC(2024, 0, 1),
             thumbnailUrl: expect.stringContaining(`/${ids.public}.jpg`),
             statusId: status('public')
@@ -672,6 +708,12 @@ describe('GalleryMediaDatabase', () => {
         )
         expect(notInGallery?.takenAt).toBe(Date.UTC(2020, 5, 1))
         expect(notInGallery?.createdAt).toBeGreaterThan(0)
+        const publicRow = rows.find((row) => row.mediaId === ids.public)
+        expect(publicRow).toMatchObject({
+          originalMimeType: 'image/jpeg',
+          placeCountryCode: 'GB'
+        })
+        expect(notInGallery?.placeCountryCode).toBeNull()
       })
 
       it('lists nothing for another actor or no gear', async () => {

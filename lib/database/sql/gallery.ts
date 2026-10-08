@@ -16,10 +16,15 @@ import {
   GalleryGearKind,
   GalleryHiddenLocation,
   GallerySettings,
+  MAX_SUBJECT_CONFIDENCE_THRESHOLD,
   MEDIA_PLACE_PRECISIONS,
+  MIN_SUBJECT_CONFIDENCE_THRESHOLD,
   MediaPlacePrecision,
   SQLGalleryGear,
-  SQLGallerySettings
+  SQLGallerySettings,
+  SUBJECT_CONFIDENCE_THRESHOLD_STEP,
+  SUBJECT_SUGGESTION_MODES,
+  SubjectSuggestionMode
 } from '@/lib/types/database/gallery'
 
 export interface CreateGalleryGearParams {
@@ -104,6 +109,11 @@ export interface UpdateGallerySettingsParams {
   mapPublic?: boolean
   lifeListPublic?: boolean
   hiddenLocations?: GalleryHiddenLocation[]
+  hideThreatenedPlaces?: boolean
+  subjectSuggestionMode?: SubjectSuggestionMode
+  // 50 to 95 in steps of 5; anything else is refused by the request schema
+  // and read back as the default.
+  subjectConfidenceThreshold?: number
 }
 
 export interface GalleryDatabase {
@@ -179,6 +189,16 @@ const parseHiddenLocations = (
   }
 }
 
+const parseSubjectConfidenceThreshold = (value: unknown): number => {
+  const threshold = Number(value)
+  return Number.isInteger(threshold) &&
+    threshold >= MIN_SUBJECT_CONFIDENCE_THRESHOLD &&
+    threshold <= MAX_SUBJECT_CONFIDENCE_THRESHOLD &&
+    threshold % SUBJECT_CONFIDENCE_THRESHOLD_STEP === 0
+    ? threshold
+    : DEFAULT_GALLERY_SETTINGS.subjectConfidenceThreshold
+}
+
 const parseSQLGallerySettings = (row: SQLGallerySettings): GallerySettings => ({
   autoDescribe: Boolean(row.autoDescribe),
   allowEmptyDescription: Boolean(row.allowEmptyDescription),
@@ -196,7 +216,21 @@ const parseSQLGallerySettings = (row: SQLGallerySettings): GallerySettings => ({
   showGear: Boolean(row.showGear),
   mapPublic: Boolean(row.mapPublic),
   lifeListPublic: Boolean(row.lifeListPublic),
-  hiddenLocations: parseHiddenLocations(row.hiddenLocations)
+  hiddenLocations: parseHiddenLocations(row.hiddenLocations),
+  // Fails closed: a missing value is the default, on. Only an explicit false
+  // (0 on SQLite) turns the threatened-species rule off.
+  hideThreatenedPlaces:
+    row.hideThreatenedPlaces === null || row.hideThreatenedPlaces === undefined
+      ? DEFAULT_GALLERY_SETTINGS.hideThreatenedPlaces
+      : Boolean(row.hideThreatenedPlaces),
+  subjectSuggestionMode: (
+    SUBJECT_SUGGESTION_MODES as readonly string[]
+  ).includes(row.subjectSuggestionMode ?? '')
+    ? (row.subjectSuggestionMode as SubjectSuggestionMode)
+    : DEFAULT_GALLERY_SETTINGS.subjectSuggestionMode,
+  subjectConfidenceThreshold: parseSubjectConfidenceThreshold(
+    row.subjectConfidenceThreshold
+  )
 })
 
 export const GallerySQLDatabaseMixin = (database: Knex): GalleryDatabase => {

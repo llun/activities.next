@@ -26,7 +26,14 @@ const baseSettings: GallerySettingsEntity = {
   mapPublic: true,
   lifeListPublic: false,
   hiddenLocations: [],
-  altTextAvailable: true
+  hideThreatenedPlaces: true,
+  subjectSuggestionMode: 'model',
+  subjectConfidenceThreshold: 70,
+  altTextAvailable: true,
+  subjectSuggestionsAvailable: true,
+  subjectModel: 'test-vision-model',
+  speciesLookupsAvailable: true,
+  placeLookupsAvailable: true
 }
 
 const AUTO_DESCRIBE = 'Describe new photos and videos automatically'

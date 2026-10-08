@@ -508,6 +508,49 @@ describe('GalleryDatabase', () => {
         })
 
         expect(saved).toEqual(DEFAULT_GALLERY_SETTINGS)
+        // The column defaults: the threatened-species rule starts on.
+        expect(saved).toMatchObject({
+          hideThreatenedPlaces: true,
+          subjectSuggestionMode: 'model',
+          subjectConfidenceThreshold: 70
+        })
+      })
+
+      it('round-trips the subject and threatened-species settings', async () => {
+        const saved = await database.updateGallerySettings({
+          actorId: actors.followRequester.id,
+          hideThreatenedPlaces: false,
+          subjectSuggestionMode: 'off',
+          subjectConfidenceThreshold: 85
+        })
+
+        expect(saved).toEqual({
+          ...DEFAULT_GALLERY_SETTINGS,
+          hideThreatenedPlaces: false,
+          subjectSuggestionMode: 'off',
+          subjectConfidenceThreshold: 85
+        })
+        expect(
+          await database.getGallerySettings({
+            actorId: actors.followRequester.id
+          })
+        ).toEqual(saved)
+
+        const back = await database.updateGallerySettings({
+          actorId: actors.followRequester.id,
+          hideThreatenedPlaces: true
+        })
+        expect(back.hideThreatenedPlaces).toBeTrue()
+        expect(back.subjectConfidenceThreshold).toBe(85)
+      })
+
+      it('reads an out-of-range threshold back as the default', async () => {
+        const saved = await database.updateGallerySettings({
+          actorId: actors.followRequester.id,
+          subjectConfidenceThreshold: 72
+        })
+
+        expect(saved.subjectConfidenceThreshold).toBe(70)
       })
     })
   })

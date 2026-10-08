@@ -14,6 +14,8 @@ const row = (
   gearId,
   mediaId,
   inGallery: true,
+  originalMimeType: 'image/jpeg',
+  placeCountryCode: null,
   takenAt: null,
   createdAt: 1_000,
   ...overrides

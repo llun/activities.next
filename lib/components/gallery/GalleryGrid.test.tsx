@@ -39,7 +39,13 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
 
 const items = [
   buildGalleryItem('1', {
-    subject: { name: 'Red Fox', scientificName: null, category: 'mammal' }
+    subject: {
+      name: 'Red Fox',
+      scientificName: null,
+      category: 'mammal',
+      taxonKey: null,
+      taxonPath: null
+    }
   }),
   buildGalleryItem('2'),
   buildGalleryItem('3')

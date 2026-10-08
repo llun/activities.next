@@ -7,13 +7,31 @@ import {
 } from './mediaDetailsDraft'
 
 const details: MediaDetailsEntity = {
-  subject: { name: 'Heron', scientificName: 'Ardea cinerea', category: 'bird' },
+  subject: {
+    name: 'Heron',
+    scientificName: 'Ardea cinerea',
+    category: 'bird',
+    taxonKey: null,
+    taxonPath: null,
+    iucnCategory: null,
+    threatStatus: 'unchecked',
+    lookupStatus: null
+  },
   takenAt: null,
   camera: { id: 'cam-1', name: 'Z9' },
   lens: null,
   exposure: null,
-  place: { name: 'Marsh', latitude: 1, longitude: 2, precision: 'area' },
-  inGallery: true
+  place: {
+    name: 'Marsh',
+    latitude: 1,
+    longitude: 2,
+    precision: 'area',
+    countryCode: null,
+    nameSource: null,
+    lookupStatus: null
+  },
+  inGallery: true,
+  subjectSuggestions: null
 }
 
 describe('draftFromDetails', () => {

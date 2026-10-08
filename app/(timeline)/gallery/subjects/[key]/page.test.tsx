@@ -52,6 +52,7 @@ describe('/gallery/subjects/[key]', () => {
     vi.mocked(getGallerySubjects).mockResolvedValue({
       groups: [],
       unidentifiedCount: 0,
+      countryCount: null,
       truncated: true
     })
   })
@@ -72,7 +73,9 @@ describe('/gallery/subjects/[key]', () => {
           subject: {
             name: 'Old Bird',
             scientificName: 'Avis vetus',
-            category: 'bird'
+            category: 'bird',
+            taxonKey: null,
+            taxonPath: null
           }
         })
       ],

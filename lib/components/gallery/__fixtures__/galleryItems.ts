@@ -43,6 +43,9 @@ export const buildGallerySubject = (
   name: 'Keel-billed Toucan',
   scientificName: 'Ramphastos sulfuratus',
   category: 'bird' as MediaSubjectCategory,
+  taxonKey: null,
+  taxonPath: null,
+  countryCodes: [],
   count: 2,
   firstSeenAt: '2025-03-14T09:30:00.000Z',
   lastSeenAt: '2025-03-16T09:30:00.000Z',
@@ -55,5 +58,10 @@ export const buildLifeListEntry = (
   overrides: Partial<GalleryLifeListEntry> = {}
 ): GalleryLifeListEntry => {
   const { cover, ...entry } = buildGallerySubject(key)
-  return { ...entry, coverMediaId: cover.mediaId, ...overrides }
+  return {
+    ...entry,
+    coverMediaId: cover.mediaId,
+    firstPlaceName: null,
+    ...overrides
+  }
 }

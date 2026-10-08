@@ -667,7 +667,8 @@ describe('/api/v1/media/[id]', () => {
         lens: null,
         exposure: null,
         place: null,
-        inGallery: false
+        inGallery: false,
+        subjectSuggestions: null
       })
     })
 
@@ -777,8 +778,79 @@ describe('/api/v1/media/[id]', () => {
         name: null,
         latitude: null,
         longitude: null,
-        precision: 'exact'
+        precision: 'exact',
+        countryCode: null,
+        nameSource: null,
+        lookupStatus: null
       })
+    })
+
+    it('saves the picked GBIF key and queues the subject for its lookup', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-taxon-key')
+
+      const response = await put(id, {
+        subject_name: 'Great Hornbill',
+        subject_scientific_name: 'Buceros bicornis',
+        subject_category: 'bird',
+        subject_taxon_key: '2481839'
+      })
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).details.subject).toEqual({
+        name: 'Great Hornbill',
+        scientificName: 'Buceros bicornis',
+        category: 'bird',
+        taxonKey: '2481839',
+        taxonPath: null,
+        iucnCategory: null,
+        // Not checked yet: its place is withheld from everyone else.
+        threatStatus: 'unchecked',
+        lookupStatus: 'pending'
+      })
+    })
+
+    it.each([
+      ['null', null],
+      ['an empty string', '']
+    ])('clears the GBIF key sent as %s', async (_, value) => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-taxon-key-clear')
+      await put(id, { subject_name: 'Hornbill', subject_taxon_key: '2481839' })
+
+      const response = await put(id, { subject_taxon_key: value })
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).details.subject.taxonKey).toBeNull()
+    })
+
+    it.each([
+      ['letters', 'abc'],
+      ['a negative number', '-1'],
+      ['more than 12 digits', '1234567890123'],
+      ['a number', 2481839]
+    ])('answers 422 for a GBIF key with %s', async (_, value) => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-taxon-key-bad')
+
+      const response = await put(id, { subject_taxon_key: value })
+
+      expect(response.status).toBe(422)
+    })
+
+    it('ignores a client-sent IUCN category or lookup status', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-iucn-ignored')
+
+      const response = await put(id, {
+        subject_scientific_name: 'Buceros bicornis',
+        subject_iucn_category: 'LC',
+        subject_lookup_status: 'resolved',
+        place_country_code: 'TH'
+      })
+
+      const details = (await response.json()).details
+      expect(details.subject).toMatchObject({
+        iucnCategory: null,
+        lookupStatus: 'pending'
+      })
+      expect(details.place).toBeNull()
     })
 
     it('reads multipart form fields, including numbers and booleans', async () => {

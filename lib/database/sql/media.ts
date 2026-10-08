@@ -9,14 +9,23 @@ import {
   parseCounterValue
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
+import { isSpeciesLike } from '@/lib/services/gallery/threatenedSpecies'
 import {
   EMPTY_MEDIA_DETAILS,
+  IUCN_CATEGORIES,
+  IucnCategory,
+  MAX_SUBJECT_SUGGESTIONS_BYTES,
+  MEDIA_LOOKUP_STATUSES,
+  MEDIA_PLACE_NAME_SOURCES,
   MEDIA_PLACE_PRECISIONS,
   MEDIA_SUBJECT_CATEGORIES,
   MediaDetailsRecord,
   MediaExposure,
+  MediaLookupStatus,
+  MediaPlaceNameSource,
   MediaPlacePrecision,
-  MediaSubjectCategory
+  MediaSubjectCategory,
+  MediaSubjectSuggestions
 } from '@/lib/types/database/gallery'
 import {
   AttachmentWithMedia,
@@ -41,6 +50,9 @@ import {
   MediaDatabase,
   MediaWithAttachedStatusIds,
   PaginatedMediaWithStatus,
+  SetMediaPlaceLookupParams,
+  SetMediaSubjectLookupParams,
+  SetMediaSubjectSuggestionsParams,
   UpdateAttachmentPlaybackParams,
   UpdateMediaDetailsParams,
   UpdateMediaParams,
@@ -199,6 +211,15 @@ export type MediaRow = {
   placeLongitude?: number | string | null
   placePrecision?: string | null
   inGallery?: boolean | number | null
+  subjectTaxonKey?: string | null
+  subjectTaxonPath?: string | null
+  subjectIucnCategory?: string | null
+  subjectLookupStatus?: string | null
+  subjectLookupAt?: number | string | Date | null
+  subjectSuggestions?: string | null
+  placeCountryCode?: string | null
+  placeNameSource?: string | null
+  placeLookupStatus?: string | null
 }
 
 type MediaMetaData = Media['original']['metaData']
@@ -244,6 +265,106 @@ const parseMediaExposure = (
   return Object.keys(exposure).length > 0 ? exposure : null
 }
 
+const parseEnum = <T extends string>(
+  values: readonly T[],
+  value: unknown
+): T | null =>
+  typeof value === 'string' && (values as readonly string[]).includes(value)
+    ? (value as T)
+    : null
+
+// An unknown category or status reads as null. For the threatened-species
+// rule null is "not cleared", so a corrupt value fails closed.
+export const parseIucnCategory = (value: unknown): IucnCategory | null =>
+  parseEnum(IUCN_CATEGORIES, value)
+
+export const parseLookupStatus = (value: unknown): MediaLookupStatus | null =>
+  parseEnum(MEDIA_LOOKUP_STATUSES, value)
+
+export const parsePlaceNameSource = (
+  value: unknown
+): MediaPlaceNameSource | null => parseEnum(MEDIA_PLACE_NAME_SOURCES, value)
+
+const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/
+export const parseCountryCode = (value: unknown): string | null =>
+  typeof value === 'string' && COUNTRY_CODE_PATTERN.test(value) ? value : null
+
+// `subjectTaxonPath` holds at most 7 names of at most 64 characters.
+export const MAX_TAXON_PATH_LENGTH = 7
+export const MAX_TAXON_NAME_LENGTH = 64
+
+const toTaxonPath = (value: unknown): string[] | null => {
+  if (!Array.isArray(value)) return null
+  const names = value
+    .filter((name): name is string => typeof name === 'string')
+    .map((name) => name.trim().slice(0, MAX_TAXON_NAME_LENGTH))
+    .filter(Boolean)
+    .slice(0, MAX_TAXON_PATH_LENGTH)
+  return names.length > 0 ? names : null
+}
+
+export const parseTaxonPath = (value: unknown): string[] | null => {
+  if (typeof value !== 'string' || !value) return null
+  try {
+    return toTaxonPath(JSON.parse(value))
+  } catch {
+    return null
+  }
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const toNullableString = (value: unknown): string | null =>
+  typeof value === 'string' && value ? value : null
+
+// The stored suggestions are re-validated on read: a hand-edited or truncated
+// blob reads as "no suggestions", never as half a structure.
+export const parseSubjectSuggestions = (
+  value: unknown
+): MediaSubjectSuggestions | null => {
+  if (typeof value !== 'string' || !value) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    return null
+  }
+  if (!isRecord(parsed)) return null
+  if (typeof parsed.model !== 'string' || !Array.isArray(parsed.candidates)) {
+    return null
+  }
+  const candidates = parsed.candidates.flatMap(
+    (candidate): MediaSubjectSuggestions['candidates'] => {
+      if (!isRecord(candidate) || typeof candidate.name !== 'string') return []
+      const category = parseEnum(MEDIA_SUBJECT_CATEGORIES, candidate.category)
+      if (!category) return []
+      const confidence = Number(candidate.confidence)
+      return [
+        {
+          name: candidate.name,
+          scientificName: toNullableString(candidate.scientificName),
+          category,
+          confidence: Number.isFinite(confidence)
+            ? Math.min(1, Math.max(0, confidence))
+            : 0,
+          taxonKey: toNullableString(candidate.taxonKey),
+          rank: toNullableString(candidate.rank),
+          taxonPath: toTaxonPath(candidate.taxonPath) ?? []
+        }
+      ]
+    }
+  )
+  return {
+    model: parsed.model,
+    generatedAt:
+      typeof parsed.generatedAt === 'string' ? parsed.generatedAt : '',
+    checkedAgainst: parsed.checkedAgainst === 'gbif' ? 'gbif' : null,
+    candidates,
+    group: parseEnum(MEDIA_SUBJECT_CATEGORIES, parsed.group)
+  }
+}
+
 const parseMediaDetails = (data: MediaRow): MediaDetailsRecord => ({
   ...EMPTY_MEDIA_DETAILS,
   subjectName: data.subjectName ?? null,
@@ -266,7 +387,18 @@ const parseMediaDetails = (data: MediaRow): MediaDetailsRecord => ({
     ? (data.placePrecision as MediaPlacePrecision)
     : null,
   // SQLite hands the boolean back as 0/1.
-  inGallery: Boolean(data.inGallery)
+  inGallery: Boolean(data.inGallery),
+  subjectTaxonKey: data.subjectTaxonKey ?? null,
+  subjectTaxonPath: parseTaxonPath(data.subjectTaxonPath),
+  subjectIucnCategory: parseIucnCategory(data.subjectIucnCategory),
+  subjectLookupStatus: parseLookupStatus(data.subjectLookupStatus),
+  subjectLookupAt: data.subjectLookupAt
+    ? getCompatibleTime(data.subjectLookupAt)
+    : null,
+  subjectSuggestions: parseSubjectSuggestions(data.subjectSuggestions),
+  placeCountryCode: parseCountryCode(data.placeCountryCode),
+  placeNameSource: parsePlaceNameSource(data.placeNameSource),
+  placeLookupStatus: parseLookupStatus(data.placeLookupStatus)
 })
 
 export const parseMediaRow = (data: MediaRow): Media => ({
@@ -303,11 +435,33 @@ export const parseMediaRow = (data: MediaRow): Media => ({
 // Maps the details an update or create may write to `medias` columns. Presence
 // semantics: only keys present in `details` produce a column, so a partial
 // update never blanks a column the caller did not mention.
+//
+// `current` is the row as it stands (EMPTY for a create), read in the same
+// transaction as the write. It decides the lookup resets, which go in the same
+// update as the edit so no reader ever sees a new subject with the old
+// subject's IUCN verdict:
+// - a subject that CHANGES (name, scientific name, category or taxon key)
+//   clears the IUCN category, taxon path and last attempt, and sets the lookup
+//   status to `pending` when the new subject is species-like (null otherwise).
+//   A name or scientific-name change without a taxon key also clears the old
+//   key: it named the previous species, and resolving it would clear the new
+//   subject against the wrong taxon.
+// - coordinates that CHANGE clear the country code and the place lookup
+//   status, and a geocoded name the request did not replace, since it named
+//   the previous point.
+// - a place name that changes is the owner's (`placeNameSource = 'owner'`);
+//   clearing it clears the source, so the geocoder may fill it again.
+// Re-sending the stored values changes nothing, so re-saving the dialog does
+// not throw away a finished lookup.
 const getDetailsColumns = (
-  details: UpdateMediaDetailsParams | undefined
+  details: UpdateMediaDetailsParams | undefined,
+  current: MediaDetailsRecord = EMPTY_MEDIA_DETAILS
 ): Record<string, unknown> => {
   if (!details) return {}
   const columns: Record<string, unknown> = {}
+  if ('subjectTaxonKey' in details) {
+    columns.subjectTaxonKey = details.subjectTaxonKey?.trim() || null
+  }
   if ('subjectName' in details)
     columns.subjectName = details.subjectName ?? null
   if ('subjectScientificName' in details) {
@@ -342,6 +496,50 @@ const getDetailsColumns = (
     columns.placePrecision = details.placePrecision ?? null
   }
   if (details.inGallery !== undefined) columns.inGallery = details.inGallery
+
+  const subjectChanged = (
+    [
+      'subjectName',
+      'subjectScientificName',
+      'subjectCategory',
+      'subjectTaxonKey'
+    ] as const
+  ).some((key) => key in columns && columns[key] !== current[key])
+  if (subjectChanged) {
+    const nameChanged = (
+      ['subjectName', 'subjectScientificName'] as const
+    ).some((key) => key in columns && columns[key] !== current[key])
+    if (nameChanged && !('subjectTaxonKey' in columns)) {
+      columns.subjectTaxonKey = null
+    }
+    const pick = <K extends keyof MediaDetailsRecord>(key: K) =>
+      (key in columns ? columns[key] : current[key]) as MediaDetailsRecord[K]
+    const next = {
+      subjectName: pick('subjectName'),
+      subjectScientificName: pick('subjectScientificName'),
+      subjectCategory: pick('subjectCategory'),
+      subjectTaxonKey: pick('subjectTaxonKey')
+    }
+    columns.subjectTaxonPath = null
+    columns.subjectIucnCategory = null
+    columns.subjectLookupAt = null
+    columns.subjectLookupStatus = isSpeciesLike(next) ? 'pending' : null
+  }
+
+  const coordinatesChanged = (
+    ['placeLatitude', 'placeLongitude'] as const
+  ).some((key) => key in columns && columns[key] !== current[key])
+  if (coordinatesChanged) {
+    columns.placeCountryCode = null
+    columns.placeLookupStatus = null
+    if (!('placeName' in columns) && current.placeNameSource === 'geocoder') {
+      columns.placeName = null
+      columns.placeNameSource = null
+    }
+  }
+  if ('placeName' in columns && columns.placeName !== current.placeName) {
+    columns.placeNameSource = columns.placeName === null ? null : 'owner'
+  }
   return columns
 }
 
@@ -373,8 +571,29 @@ export const MEDIA_COLUMNS = [
   'placeLatitude',
   'placeLongitude',
   'placePrecision',
-  'inGallery'
+  'inGallery',
+  'subjectTaxonKey',
+  'subjectTaxonPath',
+  'subjectIucnCategory',
+  'subjectLookupStatus',
+  'subjectLookupAt',
+  'subjectSuggestions',
+  'placeCountryCode',
+  'placeNameSource',
+  'placeLookupStatus'
 ] as const
+
+// `column = value`, or `column IS NULL` for a null value: SQL's `= NULL` is
+// never true, so a plain `where` would make every null expectation a miss.
+const whereNullSafe = (
+  query: Knex.QueryBuilder,
+  column: string,
+  value: string | number | null
+) => {
+  if (value === null) query.whereNull(column)
+  else query.where(column, value)
+  return query
+}
 
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   async createMedia({
@@ -451,7 +670,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         ...(description ? { description } : null),
         ...(focus ? { focus } : null),
         ...(blurhash ? { blurhash } : null),
-        details: { ...EMPTY_MEDIA_DETAILS, ...details }
+        // Read back through the row parser so the lookup state the write
+        // derived (a `pending` subject, the place name's source) is included.
+        details: parseMediaDetails(content as unknown as MediaRow)
       } as Media
     })
   },
@@ -520,7 +741,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           originalMetaData: JSON.stringify(metaData),
           ...(originalBytes === undefined ? null : { originalBytes }),
           ...(originalPath === undefined ? null : { original: originalPath }),
-          ...getDetailsColumns(details)
+          ...getDetailsColumns(details, media.details)
         })
       if (changed === 0) {
         const current = await trx('medias')
@@ -961,19 +1182,20 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     if (id === null) return null
 
     return database.transaction(async (trx) => {
-      const owned = await trx('medias')
+      // The whole row, locked on PostgreSQL: the lookup resets below are
+      // decided against what is stored, so a concurrent lookup write cannot
+      // slip in between this read and the update.
+      const ownedQuery = trx('medias')
         .join('actors', 'medias.actorId', 'actors.id')
         .where('medias.id', id)
         .where('actors.accountId', accountId)
         .modify((query) => {
           if (actorId) query.where('medias.actorId', actorId)
         })
-        .select('medias.id', 'medias.thumbnail', 'medias.thumbnailBytes')
-        .first<{
-          id: string | number
-          thumbnail: string | null
-          thumbnailBytes: number | string | null
-        }>()
+        .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
+        .first<MediaRow>()
+      if (isPostgresClient(database) && details) ownedQuery.forUpdate('medias')
+      const owned = await ownedQuery
       if (!owned) return null
 
       // Only touch fields the caller actually provided so a partial update can't
@@ -1002,7 +1224,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         updates.blurhash = blurhash
       }
 
-      Object.assign(updates, getDetailsColumns(details))
+      Object.assign(
+        updates,
+        getDetailsColumns(details, parseMediaDetails(owned))
+      )
 
       let thumbnailUsageDelta = 0
       let replacedThumbnailPath: string | null = null
@@ -1017,7 +1242,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         updates.thumbnailMimeType = thumbnail.mimeType
         updates.thumbnailMetaData = JSON.stringify(thumbnail.metaData)
         thumbnailUsageDelta =
-          thumbnail.bytes - parseCounterValue(owned.thumbnailBytes)
+          thumbnail.bytes -
+          parseCounterValue(owned.thumbnailBytes as number | string | null)
       }
 
       await trx('medias').where('id', id).update(updates)
@@ -1196,6 +1422,127 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       ]
       return { status: 'deleted', files }
     })
+  },
+
+  async setMediaSubjectLookup({
+    mediaId,
+    expect,
+    patch
+  }: SetMediaSubjectLookupParams): Promise<boolean> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return false
+
+    const { subjectLookupStatus } = patch
+    if (
+      subjectLookupStatus !== null &&
+      parseLookupStatus(subjectLookupStatus) === null
+    ) {
+      throw new Error(`Unknown subject lookup status: ${subjectLookupStatus}`)
+    }
+    if (
+      patch.subjectIucnCategory !== undefined &&
+      patch.subjectIucnCategory !== null &&
+      parseIucnCategory(patch.subjectIucnCategory) === null
+    ) {
+      throw new Error(`Unknown IUCN category: ${patch.subjectIucnCategory}`)
+    }
+
+    const updates: Record<string, unknown> = {
+      subjectLookupStatus,
+      subjectLookupAt: new Date(patch.subjectLookupAt ?? Date.now())
+    }
+    if (patch.subjectIucnCategory !== undefined) {
+      updates.subjectIucnCategory = patch.subjectIucnCategory
+    }
+    if (patch.subjectTaxonKey !== undefined) {
+      updates.subjectTaxonKey = patch.subjectTaxonKey?.trim() || null
+    }
+    if (patch.subjectTaxonPath !== undefined) {
+      const path = toTaxonPath(patch.subjectTaxonPath)
+      updates.subjectTaxonPath = path ? JSON.stringify(path) : null
+    }
+
+    const query = database('medias').where('id', id)
+    whereNullSafe(query, 'subjectName', expect.subjectName)
+    whereNullSafe(query, 'subjectScientificName', expect.subjectScientificName)
+    whereNullSafe(query, 'subjectTaxonKey', expect.subjectTaxonKey)
+    if (expect.subjectCategory !== undefined) {
+      whereNullSafe(query, 'subjectCategory', expect.subjectCategory)
+    }
+    const changed = await query.update(updates)
+    return changed > 0
+  },
+
+  async setMediaPlaceLookup({
+    mediaId,
+    expect,
+    patch
+  }: SetMediaPlaceLookupParams): Promise<boolean> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return false
+
+    const { placeLookupStatus } = patch
+    if (
+      placeLookupStatus !== null &&
+      parseLookupStatus(placeLookupStatus) === null
+    ) {
+      throw new Error(`Unknown place lookup status: ${placeLookupStatus}`)
+    }
+
+    const updates: Record<string, unknown> = { placeLookupStatus }
+    if (patch.placeCountryCode !== undefined) {
+      const code = patch.placeCountryCode?.trim().toUpperCase() || null
+      updates.placeCountryCode = parseCountryCode(code)
+    }
+
+    const matchesPoint = (query: Knex.QueryBuilder) => {
+      query.where('id', id)
+      whereNullSafe(query, 'placeLatitude', expect.placeLatitude)
+      whereNullSafe(query, 'placeLongitude', expect.placeLongitude)
+      return query
+    }
+
+    return database.transaction(async (trx) => {
+      const changed = await matchesPoint(trx('medias')).update(updates)
+      if (changed === 0) return false
+
+      if (patch.placeName !== undefined) {
+        const placeName = patch.placeName?.trim().slice(0, 255) || null
+        // Never replaces the owner's own name: only a missing name, or one the
+        // geocoder wrote itself (a legacy null source counts as the owner's).
+        await matchesPoint(trx('medias'))
+          .where((builder) =>
+            builder
+              .whereNull('placeName')
+              .orWhere('placeNameSource', 'geocoder')
+          )
+          .update({
+            placeName,
+            placeNameSource: placeName === null ? null : 'geocoder'
+          })
+      }
+      return true
+    })
+  },
+
+  async setMediaSubjectSuggestions({
+    mediaId,
+    suggestions
+  }: SetMediaSubjectSuggestionsParams): Promise<boolean> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return false
+
+    const value = suggestions === null ? null : JSON.stringify(suggestions)
+    if (
+      value !== null &&
+      Buffer.byteLength(value, 'utf8') > MAX_SUBJECT_SUGGESTIONS_BYTES
+    ) {
+      return false
+    }
+    const changed = await database('medias')
+      .where('id', id)
+      .update({ subjectSuggestions: value })
+    return changed > 0
   },
 
   async deleteMediaByPath({

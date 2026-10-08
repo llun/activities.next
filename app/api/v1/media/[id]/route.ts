@@ -169,6 +169,9 @@ const resolveDetailsUpdate = async ({
   if (provided.has('subject_category')) {
     details.subjectCategory = parsed.subject_category ?? null
   }
+  if (provided.has('subject_taxon_key')) {
+    details.subjectTaxonKey = parsed.subject_taxon_key ?? null
+  }
   if (provided.has('place_name')) details.placeName = parsed.place_name ?? null
   if (provided.has('place_precision')) {
     details.placePrecision = parsed.place_precision ?? null

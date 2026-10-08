@@ -3,7 +3,11 @@ import { Knex } from 'knex'
 import {
   MEDIA_COLUMNS,
   MediaRow,
+  parseCountryCode,
+  parseIucnCategory,
+  parseLookupStatus,
   parseMediaRow,
+  parseTaxonPath,
   toMediaRowId
 } from '@/lib/database/sql/media'
 import { buildActorVisibleStatusIdsQuery } from '@/lib/database/sql/status'
@@ -15,8 +19,10 @@ import {
 } from '@/lib/database/sql/utils/knex'
 import type { GalleryAudience } from '@/lib/services/gallery/galleryAudience'
 import {
+  IucnCategory,
   MEDIA_PLACE_PRECISIONS,
   MEDIA_SUBJECT_CATEGORIES,
+  MediaLookupStatus,
   MediaPlacePrecision,
   MediaSubjectCategory
 } from '@/lib/types/database/gallery'
@@ -46,12 +52,28 @@ export interface GalleryMediaRow {
   statusPublicId: string | null
 }
 
-/** The lightweight per-media read the subject grouping works from. */
+/**
+ * The lightweight per-media read the subject grouping works from. It carries
+ * every field of `PublicPlaceInput` under the same names, so the country and
+ * place stats can be computed from the PUBLIC projection of each row (a
+ * withheld place adds no country) without a second read.
+ */
 export interface GalleryIndexRow {
   id: string
   subjectName: string | null
   subjectScientificName: string | null
   subjectCategory: MediaSubjectCategory | null
+  subjectTaxonKey: string | null
+  subjectTaxonPath: string[] | null
+  // Owner-only facts: they decide the place rule and never leave the server.
+  subjectIucnCategory: IucnCategory | null
+  subjectLookupStatus: MediaLookupStatus | null
+  // The STORED place. Disclosing any of it is the projection's decision.
+  placeName: string | null
+  placePrecision: MediaPlacePrecision | null
+  placeLatitude: number | null
+  placeLongitude: number | null
+  placeCountryCode: string | null
   // Epoch milliseconds.
   takenAt: number | null
   createdAt: number
@@ -65,7 +87,14 @@ export interface GalleryMapRow {
   longitude: number
   placePrecision: MediaPlacePrecision | null
   placeName: string | null
+  placeCountryCode: string | null
   subjectName: string | null
+  subjectScientificName: string | null
+  subjectCategory: MediaSubjectCategory | null
+  subjectTaxonKey: string | null
+  // Owner-only facts: they decide the place rule and never leave the server.
+  subjectIucnCategory: IucnCategory | null
+  subjectLookupStatus: MediaLookupStatus | null
   takenAt: number | null
   // The chosen attachment's thumbnail, or its url when it is an image.
   thumbnailUrl: string | null
@@ -78,6 +107,9 @@ export interface GalleryGearUsageRow {
   gearId: string
   mediaId: string
   inGallery: boolean
+  originalMimeType: string
+  // Owner-only rows, so the stored code (no projection).
+  placeCountryCode: string | null
   takenAt: number | null
   createdAt: number
 }
@@ -514,6 +546,15 @@ export const GalleryMediaSQLDatabaseMixin = (
         'medias.subjectName',
         'medias.subjectScientificName',
         'medias.subjectCategory',
+        'medias.subjectTaxonKey',
+        'medias.subjectTaxonPath',
+        'medias.subjectIucnCategory',
+        'medias.subjectLookupStatus',
+        'medias.placeName',
+        'medias.placePrecision',
+        'medias.placeLatitude',
+        'medias.placeLongitude',
+        'medias.placeCountryCode',
         'medias.takenAt',
         'medias.createdAt'
       )
@@ -529,6 +570,15 @@ export const GalleryMediaSQLDatabaseMixin = (
         subjectScientificName:
           (row.subjectScientificName as string | null) ?? null,
         subjectCategory: parseCategory(row.subjectCategory),
+        subjectTaxonKey: (row.subjectTaxonKey as string | null) ?? null,
+        subjectTaxonPath: parseTaxonPath(row.subjectTaxonPath),
+        subjectIucnCategory: parseIucnCategory(row.subjectIucnCategory),
+        subjectLookupStatus: parseLookupStatus(row.subjectLookupStatus),
+        placeName: (row.placeName as string | null) ?? null,
+        placePrecision: parsePrecision(row.placePrecision),
+        placeLatitude: parseCoordinate(row.placeLatitude),
+        placeLongitude: parseCoordinate(row.placeLongitude),
+        placeCountryCode: parseCountryCode(row.placeCountryCode),
         takenAt: parseNullableTime(row.takenAt),
         createdAt: parseNullableTime(row.createdAt) ?? 0
       }))
@@ -545,7 +595,13 @@ export const GalleryMediaSQLDatabaseMixin = (
           'medias.placeLongitude',
           'medias.placePrecision',
           'medias.placeName',
+          'medias.placeCountryCode',
           'medias.subjectName',
+          'medias.subjectScientificName',
+          'medias.subjectCategory',
+          'medias.subjectTaxonKey',
+          'medias.subjectIucnCategory',
+          'medias.subjectLookupStatus',
           'medias.takenAt'
         )
         .whereNotNull('medias.placeLatitude')
@@ -581,7 +637,14 @@ export const GalleryMediaSQLDatabaseMixin = (
             longitude,
             placePrecision: parsePrecision(row.placePrecision),
             placeName: (row.placeName as string | null) ?? null,
+            placeCountryCode: parseCountryCode(row.placeCountryCode),
             subjectName: (row.subjectName as string | null) ?? null,
+            subjectScientificName:
+              (row.subjectScientificName as string | null) ?? null,
+            subjectCategory: parseCategory(row.subjectCategory),
+            subjectTaxonKey: (row.subjectTaxonKey as string | null) ?? null,
+            subjectIucnCategory: parseIucnCategory(row.subjectIucnCategory),
+            subjectLookupStatus: parseLookupStatus(row.subjectLookupStatus),
             takenAt: parseNullableTime(row.takenAt),
             thumbnailUrl:
               attachment.thumbnailUrl ??
@@ -613,6 +676,8 @@ export const GalleryMediaSQLDatabaseMixin = (
             'medias.cameraGearId',
             'medias.lensGearId',
             'medias.inGallery',
+            'medias.originalMimeType',
+            'medias.placeCountryCode',
             'medias.takenAt',
             'medias.createdAt'
           )
@@ -636,6 +701,8 @@ export const GalleryMediaSQLDatabaseMixin = (
           const base = {
             mediaId: String(row.id),
             inGallery: Boolean(row.inGallery),
+            originalMimeType: (row.originalMimeType as string | null) ?? '',
+            placeCountryCode: parseCountryCode(row.placeCountryCode),
             takenAt: parseNullableTime(row.takenAt),
             createdAt: parseNullableTime(row.createdAt) ?? 0
           }

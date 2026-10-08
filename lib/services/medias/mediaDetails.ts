@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { getSubjectThreatStatus } from '@/lib/services/gallery/threatenedSpecies'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
 import {
   MediaDetailsEntity,
@@ -8,7 +9,9 @@ import { EMPTY_MEDIA_DETAILS } from '@/lib/types/database/gallery'
 import { Media } from '@/lib/types/database/operations'
 
 /**
- * The `details` extension for the media's OWNER, with exact stored coordinates.
+ * The `details` extension for the media's OWNER, with exact stored
+ * coordinates, the IUCN category, both lookup statuses and the model's subject
+ * suggestions — none of which anyone else is ever sent.
  * Gear names are looked up in one query; a gear row that has since been
  * deleted reads as no gear.
  */
@@ -44,7 +47,12 @@ export const buildOwnerMediaDetails = async (
         ? {
             name: details.subjectName,
             scientificName: details.subjectScientificName,
-            category: details.subjectCategory
+            category: details.subjectCategory,
+            taxonKey: details.subjectTaxonKey,
+            taxonPath: details.subjectTaxonPath,
+            iucnCategory: details.subjectIucnCategory,
+            threatStatus: getSubjectThreatStatus(details),
+            lookupStatus: details.subjectLookupStatus
           }
         : null,
     takenAt:
@@ -64,9 +72,13 @@ export const buildOwnerMediaDetails = async (
           name: details.placeName,
           latitude: details.placeLatitude,
           longitude: details.placeLongitude,
-          precision: details.placePrecision
+          precision: details.placePrecision,
+          countryCode: details.placeCountryCode,
+          nameSource: details.placeNameSource,
+          lookupStatus: details.placeLookupStatus
         }
       : null,
+    subjectSuggestions: details.subjectSuggestions,
     inGallery: details.inGallery
   }
 }

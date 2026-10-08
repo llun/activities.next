@@ -61,6 +61,7 @@ const makePoint = (
   publicState: 'shown-exact',
   subjectName: null,
   placeName: null,
+  countryCode: null,
   thumbnailUrl: null,
   takenAt: null,
   ...overrides
@@ -187,6 +188,7 @@ describe('GalleryMapView', () => {
       points: [
         makePoint('1', { precision: 'area', subjectName: 'Kingfisher' })
       ],
+      countryCount: null,
       truncated: false
     }
 
@@ -297,6 +299,7 @@ describe('GalleryMapView', () => {
     it('opens a previewed photo on the post the public projection chose', async () => {
       vi.mocked(getGalleryMap).mockResolvedValue({
         points: [makePoint('9', { statusId: 'public-status' })],
+        countryCount: null,
         truncated: false
       })
       renderView()

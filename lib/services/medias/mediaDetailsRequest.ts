@@ -56,6 +56,18 @@ export const MediaDetailsRequest = z.object({
   subject_name: clearableText(VARCHAR_MAX),
   subject_scientific_name: clearableText(VARCHAR_MAX),
   subject_category: clearableEnum(MEDIA_SUBJECT_CATEGORIES),
+  // The GBIF usage key the owner picked. Only the key is taken: the server
+  // resolves the taxonomy and IUCN category itself and never trusts a client's.
+  subject_taxon_key: z
+    .preprocess(
+      (value) =>
+        typeof value === 'string' && value.trim() === '' ? null : value,
+      z
+        .string()
+        .regex(/^\d{1,12}$/)
+        .nullable()
+    )
+    .optional(),
   camera_gear_id: clearableText(VARCHAR_MAX),
   lens_gear_id: clearableText(VARCHAR_MAX),
   place_name: clearableText(VARCHAR_MAX),

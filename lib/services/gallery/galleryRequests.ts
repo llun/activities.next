@@ -8,7 +8,10 @@ import {
 import {
   GALLERY_DEFAULTS,
   GALLERY_GEAR_KINDS,
-  MEDIA_PLACE_PRECISIONS
+  MAX_SUBJECT_CONFIDENCE_THRESHOLD,
+  MEDIA_PLACE_PRECISIONS,
+  MIN_SUBJECT_CONFIDENCE_THRESHOLD,
+  SUBJECT_CONFIDENCE_THRESHOLD_STEP
 } from '@/lib/types/database/gallery'
 
 // `name`, `brand`, `model` and `productUrl` are varchar(255).
@@ -84,6 +87,17 @@ export const UpdateGallerySettingsRequest = z.object({
     )
     .max(MAX_GALLERY_HIDDEN_LOCATIONS)
     .transform(parseGalleryHiddenLocations)
+    .optional(),
+  hideThreatenedPlaces: z.boolean().optional(),
+  // `classifier` is reserved for a species classifier no instance can
+  // configure yet, so it is refused rather than stored.
+  subjectSuggestionMode: z.enum(['model', 'off']).optional(),
+  subjectConfidenceThreshold: z
+    .number()
+    .int()
+    .min(MIN_SUBJECT_CONFIDENCE_THRESHOLD)
+    .max(MAX_SUBJECT_CONFIDENCE_THRESHOLD)
+    .multipleOf(SUBJECT_CONFIDENCE_THRESHOLD_STEP)
     .optional()
 })
 export type UpdateGallerySettingsRequest = z.infer<
