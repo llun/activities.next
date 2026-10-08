@@ -55,9 +55,12 @@ diff --stat`, or spot-checking a `file:line` a sub-agent cited), and git/PR
   may edit files, commit or push, and the exact shape of the result you want
   back.
 - **Verify before trusting.** Check a sub-agent's claims (diffs, test output,
-  `file:line` references) before building on them or reporting them. If a cheap
-  sub-agent's result is wrong or shallow, re-run that task one step up the
-  escalation ladder below rather than patching around it.
+  `file:line` references) before building on them or reporting them: spot-check
+  them yourself within the limits above, and send anything bigger (re-running
+  tests, reading a large diff) to a `haiku`/`low` sub-agent. If a result is
+  wrong or shallow because the brief left something out, fix the brief and
+  re-run at the same tier; otherwise re-run that task one step up the escalation
+  ladder below rather than patching around it.
 - **Review with a fresh sub-agent.** The code review loop always uses a separate
   reviewer sub-agent that did not write the change, and a new reviewer for each
   round; fixes go to an implementer sub-agent. Repeat until the reviewer comes
@@ -90,10 +93,15 @@ Guidelines:
   `medium`, a good balance of quality and cost for most coding work.
 - Use `haiku` freely for retrieval and mechanical changes. It is the cheapest
   and fastest, and a wrong search result is cheap to redo.
-- Reserve `opus` and `high` effort for work where a mistake is expensive:
-  design, the high-risk areas in the table, subtle bugs, and review. When a
-  task matches both a cheaper row and the high-risk row, the high-risk row wins.
-- Escalate one step at a time. A `haiku` task that falls short moves to `sonnet` at the table's effort for that kind of task (or `medium`); do not raise `haiku` past `medium`. On `sonnet`, raise effort to `high`, then move to `opus` at `high`. On `opus`, raise effort `high` → `xhigh` → `max`. Use `max` only on `opus`, when `xhigh` has failed or the problem is unusually hard.
+- Start at `opus` or `high` effort only where a mistake is expensive: design,
+  the high-risk areas in the table, subtle bugs, and review. When a task matches
+  both a cheaper row and the high-risk row, the high-risk row wins. Reaching
+  them by escalation is fine.
+- Escalate one step at a time, starting from the task's row in the table. The
+  ladder is `haiku`/`low` → `haiku`/`medium` → `sonnet`/`medium` →
+  `sonnet`/`high` → `opus`/`high` → `opus`/`xhigh` → `opus`/`max`; a task that
+  starts at `sonnet`/`low` steps to `sonnet`/`medium`. Never set `haiku` above
+  `medium`, and use `max` only on `opus` after `xhigh` has fallen short.
 - Do not pick other model values (for example `fable`) unless the user asks for
   them. When the available models change, map them onto the same three tiers
   (cheapest, balanced, strongest) rather than pinning these names.
