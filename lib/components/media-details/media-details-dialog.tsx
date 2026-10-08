@@ -193,15 +193,24 @@ export const MediaDetailsDialog: FC<Props> = ({
   const [savedOriginals, setOriginals] = useState<
     Record<string, MediaDetailsDraft>
   >({})
-  const [editedDrafts, setDrafts] = useState<Record<string, MediaDetailsDraft>>(
-    {}
-  )
+  // Only the fields the user changed, per item. Everything else keeps following
+  // the seed, so details that arrive late (EXIF read) are neither shown as
+  // blanks nor sent back as nulls on Save.
+  const [editedDrafts, setDrafts] = useState<
+    Record<string, Partial<MediaDetailsDraft>>
+  >({})
   const originals = useMemo(
     () => ({ ...seeds, ...savedOriginals }),
     [seeds, savedOriginals]
   )
   const drafts = useMemo(
-    () => ({ ...originals, ...editedDrafts }),
+    () =>
+      Object.fromEntries(
+        Object.entries(originals).map(([id, original]) => [
+          id,
+          { ...original, ...editedDrafts[id] }
+        ])
+      ) as Record<string, MediaDetailsDraft>,
     [originals, editedDrafts]
   )
   const [selectedId, setSelectedId] = useState(initialId)
@@ -246,10 +255,10 @@ export const MediaDetailsDialog: FC<Props> = ({
       const id = item.id
       setDrafts((current) => ({
         ...current,
-        [id]: { ...(current[id] ?? drafts[id]), ...patch }
+        [id]: { ...current[id], ...patch }
       }))
     },
-    [item, drafts]
+    [item]
   )
 
   const goTo = (next: number) => {
@@ -273,7 +282,7 @@ export const MediaDetailsDialog: FC<Props> = ({
       setDrafts((current) => ({
         ...current,
         [targetId]: {
-          ...(current[targetId] ?? drafts[targetId]),
+          ...current[targetId],
           description: text.slice(0, MAX_MEDIA_DESCRIPTION_LENGTH),
           decorative: false
         }
@@ -349,7 +358,7 @@ export const MediaDetailsDialog: FC<Props> = ({
       setOriginals((current) => ({ ...current, ...savedNow }))
       setDrafts((current) => {
         const next = { ...current }
-        for (const id of Object.keys(savedNow)) next[id] = savedNow[id]
+        for (const id of Object.keys(savedNow)) delete next[id]
         return next
       })
       setSaveError(failure)

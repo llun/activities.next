@@ -431,6 +431,49 @@ describe('MediaDetailsDialog', () => {
     expect(screen.getByText('1 of 1')).toBeInTheDocument()
   })
 
+  it('sends only edited fields when details arrive after a draft edit', async () => {
+    const onClose = vi.fn()
+    const onSaved = vi.fn()
+    const view = (item: MediaDetailsDialogItem) => (
+      <MediaDetailsDialog
+        items={[item]}
+        initialId="a"
+        settings={settings()}
+        onClose={onClose}
+        onSaved={onSaved}
+      />
+    )
+    const { rerender } = render(view(makeItem('a', { details: null })))
+    fireEvent.change(screen.getByLabelText('Description (alt text)'), {
+      target: { value: 'A heron' }
+    })
+
+    rerender(
+      view(
+        makeItem('a', {
+          details: {
+            ...emptyDetails,
+            inGallery: true,
+            camera: { id: 'cam-1', name: 'Nikon Z9' },
+            place: {
+              name: 'Marsh',
+              latitude: null,
+              longitude: null,
+              precision: 'area'
+            }
+          }
+        })
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(updateMediaDetailsMock).toHaveBeenCalledTimes(1)
+    expect(updateMediaDetailsMock).toHaveBeenCalledWith('a', {
+      description: 'A heron'
+    })
+  })
+
   it('keeps unsaved drafts of the failed and later items after a partial save', async () => {
     updateMediaDetailsMock.mockImplementation(async (id, fields) => {
       if (id === 'b') throw new Error('boom')

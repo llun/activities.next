@@ -505,20 +505,19 @@ describe('PostBox media details', () => {
     getMediaMock.mockReturnValueOnce(lateRead.promise)
     renderPostBox()
     attach('a.png', 'b.png')
-    // b's details are read; a's read is still pending.
+    // b's details are read; a's read is still pending, so a is not editable.
     await screen.findByRole('button', { name: 'Review details of b.png' })
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Review details of b.png' })
     )
     await screen.findByRole('dialog')
-    fireEvent.click(screen.getByRole('button', { name: 'Previous item' }))
     fireEvent.change(screen.getByLabelText('Description (alt text)'), {
       target: { value: 'A heron' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
     await waitFor(() =>
-      expect(updateMediaDetailsMock).toHaveBeenCalledWith('media-a.png', {
+      expect(updateMediaDetailsMock).toHaveBeenCalledWith('media-b.png', {
         description: 'A heron'
       })
     )
@@ -526,7 +525,7 @@ describe('PostBox media details', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     )
 
-    lateRead.resolve(mediaEntity('media-a.png', 'stale'))
+    lateRead.resolve(mediaEntity('media-a.png', 'late'))
     await waitFor(() =>
       expect(
         screen.queryByText('Reading details of a.png')
@@ -536,9 +535,27 @@ describe('PostBox media details', () => {
 
     await waitFor(() => expect(createNoteMock).toHaveBeenCalled())
     const attachments = createNoteMock.mock.calls[0][0].attachments ?? []
-    expect(attachments.find((item) => item.id === 'media-a.png')?.name).toBe(
+    expect(attachments.find((item) => item.id === 'media-b.png')?.name).toBe(
       'A heron'
     )
+    expect(attachments.find((item) => item.id === 'media-a.png')?.name).toBe(
+      'late'
+    )
+  })
+
+  it('leaves items that are still reading details out of the dialog', async () => {
+    const lateRead = createDeferred<ReturnType<typeof mediaEntity>>()
+    getMediaMock.mockReturnValueOnce(lateRead.promise)
+    renderPostBox()
+    attach('a.png', 'b.png')
+    await screen.findByRole('button', { name: 'Review details of b.png' })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review details of b.png' })
+    )
+    await screen.findByRole('dialog')
+    expect(screen.getByText('1 of 1')).toBeInTheDocument()
+    lateRead.resolve(mediaEntity('media-a.png', 'late'))
   })
 
   it('drops the revoked blob poster when the server returns no poster', async () => {

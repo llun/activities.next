@@ -1172,7 +1172,8 @@ export const PostBox: FC<Props> = ({
   }, [profile, replyStatus, editStatus, quotedStatus])
 
   const detailsDialogItems: MediaDetailsDialogItem[] = postExtension.attachments
-    .filter((item) => !item.file && !item.isLoading)
+    // Items still reading their details have nothing to edit yet.
+    .filter((item) => !item.file && !item.isLoading && !detailsPending[item.id])
     .map((item) => ({
       id: item.id,
       mediaType: item.mediaType,
