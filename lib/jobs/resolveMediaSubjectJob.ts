@@ -7,6 +7,10 @@ import {
   createGbifClient
 } from '@/lib/services/gallery/lookups/gbif'
 import {
+  isSameTaxonName,
+  kingdomOfCategory
+} from '@/lib/services/gallery/lookups/normalizeTaxon'
+import {
   SubjectAnswer,
   SubjectEvidence,
   decideSubjectLookup
@@ -24,23 +28,6 @@ const ResolveMediaSubjectJobData = z.object({
   retry: z.boolean().optional()
 })
 
-const KINGDOM_HINTS: Record<string, string> = {
-  plant: 'Plantae',
-  fungus: 'Fungi',
-  bird: 'Animalia',
-  mammal: 'Animalia',
-  reptile: 'Animalia',
-  amphibian: 'Animalia',
-  fish: 'Animalia',
-  insect: 'Animalia'
-}
-
-// The kingdom a living category names, or null (`landscape`, `other`, none).
-const kingdomOf = (category: string | null | undefined): string | null =>
-  category && Object.hasOwn(KINGDOM_HINTS, category)
-    ? KINGDOM_HINTS[category]
-    : null
-
 type SubjectFields = Pick<
   MediaDetailsRecord,
   | 'subjectName'
@@ -54,9 +41,14 @@ type SubjectFields = Pick<
  * `decideSubjectLookup`. It only gathers: it never chooses a status, so no
  * branch here can clear a place by itself. A lookup failure throws.
  *
- * - A stored key first. A key GBIF does not know falls through to the names
- *   (a backbone move can retire one), and the evidence says so; with no name
- *   left the unknown key is the evidence.
+ * - A stored key first. Its record is evidence only together with the names
+ *   the subject also has, which the decision checks it against: any key can
+ *   reach here (an API client's `subject_taxon_key`, a stale picker). For a
+ *   subject named only by a common name, the record's own vernacular name
+ *   is read first, then a search for the name, which lists every vernacular
+ *   name of each result. A key GBIF does not know falls through to the
+ *   names (a backbone move can retire one), and the evidence says so; with
+ *   no name left the unknown key is the evidence.
  * - A scientific name through `species/match`, with the category's kingdom
  *   hint. Any hinted answer but a confident match is asked again without the
  *   hint: a wrong category ("Panthera tigris" filed as a plant) makes GBIF
@@ -79,12 +71,44 @@ export const gatherSubjectEvidence = async (
   if (taxonKey) {
     const taxon = await gbif.getTaxon(taxonKey)
     if (taxon || (!scientificName && !commonName)) {
-      return { kind: 'taxon', via: 'stored-key', taxon, storedKeyUnknown }
+      return {
+        kind: 'taxon',
+        via: 'stored-key',
+        taxon,
+        scientificName,
+        name: commonName,
+        nameConfirmed: taxon
+          ? await isNameOfTaxon(gbif, taxon, scientificName, commonName)
+          : false,
+        category: subject.subjectCategory ?? null,
+        kingdom: kingdomOfCategory(subject.subjectCategory),
+        storedKeyUnknown
+      }
     }
     storedKeyUnknown = true
   }
   const answer = await askByName(gbif, subject, scientificName, commonName)
   return { ...answer, storedKeyUnknown }
+}
+
+/**
+ * Whether `name` is one of the vernacular names of the stored key's record.
+ * Asked only for a subject with no scientific name (the scientific name
+ * decides otherwise). The search is not asked to be exhaustive: it only has
+ * to list this key as a result that names `name` exactly.
+ */
+const isNameOfTaxon = async (
+  gbif: GbifClient,
+  taxon: { taxonKey: string; vernacularName: string | null },
+  scientificName: string | null,
+  name: string | null
+): Promise<boolean> => {
+  if (scientificName || !name) return false
+  if (taxon.vernacularName && isSameTaxonName(taxon.vernacularName, name)) {
+    return true
+  }
+  const search = await gbif.lookupSearch(name)
+  return Boolean(search?.exactTaxonKeys.includes(taxon.taxonKey))
 }
 
 const askByName = async (
@@ -94,7 +118,7 @@ const askByName = async (
   commonName: string | null
 ): Promise<SubjectAnswer> => {
   if (scientificName) {
-    const kingdom = kingdomOf(subject.subjectCategory) ?? undefined
+    const kingdom = kingdomOfCategory(subject.subjectCategory) ?? undefined
     // A typed genus or family ("Pongo") is a group, as a "Just genus" pick is.
     let outcome = await gbif.lookupMatch(scientificName, {
       kingdom,
@@ -141,7 +165,7 @@ const askByName = async (
       complete,
       exhaustive,
       exactHits: exactTaxonKeys.length,
-      kingdom: kingdomOf(subject.subjectCategory),
+      kingdom: kingdomOfCategory(subject.subjectCategory),
       taxon: confirmable ? await gbif.getTaxon(exactTaxonKeys[0]) : null
     }
   }

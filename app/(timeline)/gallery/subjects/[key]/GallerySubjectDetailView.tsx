@@ -154,14 +154,15 @@ export const GallerySubjectDetailView: FC<Props> = ({
           className="space-y-2 rounded-xl border p-4"
         >
           <h2 id="subject-fediverse-heading" className="font-semibold">
-            {/* Only a common name takes a plural; a scientific name is
-                written as it is ("More Alcedo atthis", not "atthiss"). */}
+            {/* No plural is built from a name: "Finchs", "Foxs" and
+                "Basss" all read wrong, and a scientific name never takes one. */}
             {subject.name ? (
-              <>More {subject.name}s on the fediverse</>
+              <>More posts about {subject.name} on the fediverse</>
             ) : subject.scientificName ? (
               <>
-                More <span className="italic">{subject.scientificName}</span> on
-                the fediverse
+                More posts about{' '}
+                <span className="italic">{subject.scientificName}</span> on the
+                fediverse
               </>
             ) : (
               <>More posts on the fediverse</>

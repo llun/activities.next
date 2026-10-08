@@ -1,6 +1,8 @@
 import { getConfig } from '@/lib/config'
+import { DEFAULT_NOMINATIM_ENDPOINT } from '@/lib/config/gallery'
 import { Database } from '@/lib/database/types'
 import { snapToGrid } from '@/lib/services/gallery/publicMediaDetails'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import { GeocodedPlace, formatGeocodedPlace } from './formatGeocodedPlace'
 import { readThroughLookupCache } from './lookupCache'
@@ -42,6 +44,15 @@ export const snapPoint = (point: SnappedPoint): SnappedPoint => ({
   longitude: snapToGrid(point.longitude)
 })
 
+// Answers cached under one endpoint are not answers from another, as for
+// GBIF: a regional self-hosted Nominatim has no name for a cell outside its
+// import, and that miss must not outlive a switch back to the public one.
+// The default endpoint keeps unprefixed keys; any other gets a short tag.
+const endpointKeyPrefix = (baseUrl: string) =>
+  baseUrl === DEFAULT_NOMINATIM_ENDPOINT
+    ? ''
+    : `@${getHashFromString(baseUrl).slice(0, 12)}|`
+
 export interface NominatimClientDeps {
   database: Database
   fetch?: LookupFetch
@@ -49,8 +60,13 @@ export interface NominatimClientDeps {
   endpoint?: string
   email?: string | null
   language?: string
-  // The owner's Retry: ask again rather than answer a remembered failure.
+  // The owner's Retry (and the backfill): ask again rather than answer a
+  // remembered failure.
   skipCachedErrors?: boolean
+  // Ask again past a remembered "no name for this cell" too. The same
+  // callers set it: a cell's miss is final for a place (`no-match`), so only
+  // a retry ever asks it again.
+  skipCachedMiss?: boolean
 }
 
 export interface NominatimClient {
@@ -71,7 +87,8 @@ export const createNominatimClient = ({
   endpoint,
   email,
   language,
-  skipCachedErrors = false
+  skipCachedErrors = false,
+  skipCachedMiss = false
 }: NominatimClientDeps): NominatimClient => ({
   async reverseGeocode(point) {
     const config = getConfig()
@@ -79,17 +96,18 @@ export const createNominatimClient = ({
     const lang = language ?? config.languages?.[0] ?? 'en'
     const latitude = snapped.latitude.toFixed(2)
     const longitude = snapped.longitude.toFixed(2)
+    const base = (endpoint ?? config.gallery.nominatim.endpoint).replace(
+      /\/+$/,
+      ''
+    )
 
     const result = await readThroughLookupCache<GeocodedPlace>({
       database,
       skipCachedError: skipCachedErrors,
+      skipCachedMiss,
       kind: 'geocode',
-      key: `${lang}:${latitude},${longitude}`,
+      key: `${endpointKeyPrefix(base)}${lang}:${latitude},${longitude}`,
       fetcher: async () => {
-        const base = (endpoint ?? config.gallery.nominatim.endpoint).replace(
-          /\/+$/,
-          ''
-        )
         const url = new URL(`${base}/reverse`)
         url.searchParams.set('format', 'jsonv2')
         url.searchParams.set('lat', latitude)

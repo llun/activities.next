@@ -97,6 +97,10 @@ export const SubjectSuggestions: FC<Props> = ({
     (groupPick !== null && isSubjectPicked(draft, groupPick))
   const showChosenChip =
     showChosen && Boolean(chosenName || chosenScientific) && !chipIsChosen
+  // A chip is a toggle (it has `aria-pressed`): pressing the chosen one again
+  // un-picks it, so a suggestion can be cleared with "Edit manually" closed.
+  const toggle = (picked: PickedSubject, selected: boolean) =>
+    selected && onClear ? onClear() : onPick(picked)
 
   return (
     <div className="space-y-3">
@@ -172,7 +176,7 @@ export const SubjectSuggestions: FC<Props> = ({
                 key={`${candidate.name}-${candidate.taxonKey ?? ''}`}
                 type="button"
                 aria-pressed={selected}
-                onClick={() => onPick(picked)}
+                onClick={() => toggle(picked, selected)}
                 className={chipClass(selected)}
               >
                 {selected ? (
@@ -199,7 +203,9 @@ export const SubjectSuggestions: FC<Props> = ({
             <button
               type="button"
               aria-pressed={isSubjectPicked(draft, groupPick)}
-              onClick={() => onPick(groupPick)}
+              onClick={() =>
+                toggle(groupPick, isSubjectPicked(draft, groupPick))
+              }
               className={chipClass(isSubjectPicked(draft, groupPick), true)}
             >
               {choices.group.named

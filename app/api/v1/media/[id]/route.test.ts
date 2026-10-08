@@ -5,6 +5,9 @@ import {
   RESOLVE_MEDIA_PLACE_JOB_NAME,
   RESOLVE_MEDIA_SUBJECT_JOB_NAME
 } from '@/lib/jobs/names'
+import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
+import iucnLeastConcern from '@/lib/services/gallery/lookups/__fixtures__/gbif-iucn-lc.json'
+import taxonPandaOleosa from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-panda-oleosa.json'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
@@ -62,8 +65,29 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
-    secretPhase: 'test-secret'
+    secretPhase: 'test-secret',
+    languages: ['en'],
+    gallery: { gbif: { endpoint: 'https://gbif.test/v1' } }
   })
+}))
+
+// GBIF, for the one test that runs the subject job the PUT queues: served
+// from the recorded fixtures, never the network.
+const gbifAnswers = new Map<string, { statusCode: number; body: unknown }>()
+vi.mock('@/lib/utils/safeRemoteFetch', () => ({
+  safeRemoteFetch: async ({ url }: { url: string }) => {
+    const answer = gbifAnswers.get(new URL(url).pathname) ?? {
+      statusCode: 404,
+      body: '<!DOCTYPE html><html></html>'
+    }
+    return {
+      body: JSON.stringify(answer.body),
+      bodyTruncated: false,
+      headers: {},
+      statusCode: answer.statusCode,
+      url
+    }
+  }
 }))
 
 describe('/api/v1/media/[id]', () => {
@@ -1124,6 +1148,48 @@ describe('/api/v1/media/[id]', () => {
           countryCode: 'TH',
           lookupStatus: 'resolved'
         })
+      })
+
+      // An API client may send any key. The job checks it against the names
+      // the subject also has, so another species' key (here the LC tree
+      // Panda oleosa for a giant panda) never clears the place.
+      it('records failed for a subject sent with another species’ taxon key', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-subject-wrong-key')
+        gbifAnswers.set('/v1/species/5380987', {
+          statusCode: 200,
+          body: taxonPandaOleosa
+        })
+        gbifAnswers.set('/v1/species/5380987/iucnRedListCategory', {
+          statusCode: 200,
+          body: iucnLeastConcern
+        })
+        mockPublish.mockImplementation(async (message) => {
+          if (message.name === RESOLVE_MEDIA_SUBJECT_JOB_NAME) {
+            await resolveMediaSubjectJob(database, message)
+          }
+        })
+
+        const response = await put(id, {
+          subject_name: 'Giant Panda',
+          subject_scientific_name: 'Ailuropoda melanoleuca',
+          subject_category: 'mammal',
+          subject_taxon_key: '5380987'
+        })
+
+        expect(response.status).toBe(200)
+        expect((await response.json()).details.subject).toMatchObject({
+          taxonKey: '5380987',
+          iucnCategory: null,
+          lookupStatus: 'failed'
+        })
+        const stored = await database.getMediaWithAttachedStatusIds({
+          mediaId: id
+        })
+        expect(stored?.media.details).toMatchObject({
+          subjectLookupStatus: 'failed',
+          subjectIucnCategory: null
+        })
+        gbifAnswers.clear()
       })
 
       it('queues nothing for a description-only update', async () => {

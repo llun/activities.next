@@ -2,7 +2,11 @@ import { isThreatenedIucnCategory } from '@/lib/services/gallery/threatenedSpeci
 import { IUCN_CATEGORIES, IucnCategory } from '@/lib/types/database/gallery'
 
 import type { GbifTaxon } from './gbif'
-import { GROUP_RANKS, SPECIES_OR_LOWER_RANKS } from './normalizeTaxon'
+import {
+  GROUP_RANKS,
+  SPECIES_OR_LOWER_RANKS,
+  isSameTaxonName
+} from './normalizeTaxon'
 
 // The one place that decides what a subject lookup stores. It is fail-closed
 // by construction: `decideSubjectLookup` writes a status that lets a place be
@@ -26,13 +30,27 @@ export type SubjectEvidence = SubjectAnswer & {
 }
 
 export type SubjectAnswer =
-  // A `species/{key}` record: for the stored key or the key of a confident
-  // match. Null when GBIF answered that it does not know the key.
+  // The `species/{key}` record of the stored key. Null when GBIF answered
+  // that it does not know the key. A key alone proves nothing about the
+  // subject the owner named: an API client, a stale picker or a wrong
+  // suggestion can send any species' key. So the record must agree with the
+  // names the subject also has. `scientificName` and `name`: the subject's,
+  // null when unset. `nameConfirmed`: one of the record's vernacular names is
+  // `name` exactly (the record's own, or a search that lists the key as an
+  // exact hit). `category`: the subject's category, null when unset.
+  // `kingdom`: the kingdom that category names, null for one that names none.
   | {
       kind: 'taxon'
       via: 'stored-key'
       taxon: GbifTaxon | null
+      scientificName: string | null
+      name: string | null
+      nameConfirmed: boolean
+      category: string | null
+      kingdom: string | null
     }
+  // The `species/{key}` record of the key of a confident match. Null when
+  // GBIF answered that it does not know the key.
   // `matchRank`: the rank the match named. A record counts as a species only
   // when the match named one too: a genus match is a group, whatever the
   // record says.
@@ -96,7 +114,8 @@ export type SubjectLookupDecision =
  * the place withheld.
  *
  * 1. A readable `species/{key}` record at species rank or lower for the
- *    stored key, or for the key of a confident (EXACT or FUZZY, at least 90)
+ *    stored key that agrees with the subject (see `storedKeyAgrees`), or
+ *    for the key of a confident (EXACT or FUZZY, at least 90)
  *    `species/match` on the scientific name that named a species too. Its
  *    key, path and category are stored. A genus or family record (a "Just genus" pick, a typed "Pongo")
  *    is stored with its key and path and NO category: GBIF never assesses a
@@ -115,7 +134,8 @@ export type SubjectLookupDecision =
  *    knowing: such a subject was confirmed once, and only a taxon found by
  *    its names replaces it.
  *
- * Everything else is `failed`: GBIF's NONE, a search with no exact hit, more
+ * Everything else is `failed`: a stored key whose record disagrees with the
+ * subject's names or category, GBIF's NONE, a search with no exact hit, more
  * than one, a page that is not the last or a result that could not be read,
  * a hit in another kingdom, an answer placed above a genus, and any shape
  * this file does not know.
@@ -190,6 +210,51 @@ const readTaxon = (
   }
 }
 
+const readName = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim() ? value : null
+
+/**
+ * Whether a stored key's record is the subject the owner named. A subject
+ * with a scientific name agrees only when the record's canonical or full
+ * scientific name is that name; one with only a common name, only when one
+ * of the record's vernacular names is that name exactly. A living category
+ * must name the record's kingdom, and be the record's own category when GBIF
+ * files it under one ("Vaquita" the mammal is also a beetle's common name,
+ * in the same kingdom). A key-only subject (no names, no living category)
+ * has nothing to disagree with.
+ */
+const storedKeyAgrees = (
+  answer: Record<string, unknown>,
+  record: Record<string, unknown>,
+  taxonPath: string[]
+): boolean => {
+  if (answer.category !== null && typeof answer.category !== 'string') {
+    return false
+  }
+  if (answer.kingdom !== null) {
+    if (typeof answer.kingdom !== 'string' || !answer.kingdom) return false
+    if (taxonPath[0] !== answer.kingdom) return false
+    const recordCategory = record.category
+    if (typeof recordCategory !== 'string') return false
+    if (recordCategory !== 'other' && recordCategory !== answer.category) {
+      return false
+    }
+  }
+  if (answer.scientificName !== null) {
+    const scientificName = readName(answer.scientificName)
+    if (!scientificName) return false
+    return [record.scientificName, record.fullScientificName].some(
+      (value) =>
+        typeof value === 'string' && isSameTaxonName(value, scientificName)
+    )
+  }
+  if (answer.name !== null) {
+    if (!readName(answer.name)) return false
+    return answer.nameConfirmed === true
+  }
+  return true
+}
+
 const isTaxonRank = (rank: string) =>
   SPECIES_OR_LOWER_RANKS.has(rank) || GROUP_RANKS.has(rank)
 const isSpeciesRank = (rank: string) => SPECIES_OR_LOWER_RANKS.has(rank)
@@ -237,6 +302,19 @@ export const decideSubjectLookup = (
       // move), and a stored key may be retired. Hidden, with Retry.
       const taxon = readTaxon(answer.taxon, isTaxonRank)
       if (!taxon) return FAILED
+      if (answer.via === 'stored-key') {
+        // "Panda" (a mammal) stored with the key of the tree Panda oleosa
+        // must not clear as that tree.
+        if (
+          !storedKeyAgrees(
+            answer,
+            answer.taxon as Record<string, unknown>,
+            taxon.taxonPath
+          )
+        ) {
+          return FAILED
+        }
+      }
       if (answer.via === 'match') {
         if (typeof answer.matchRank !== 'string') return FAILED
         const matchRank = answer.matchRank.toUpperCase()

@@ -11,7 +11,8 @@ import { toLoggableError } from '@/lib/utils/toLoggableError'
 
 const ResolveMediaPlaceJobData = z.object({
   mediaId: z.string().min(1),
-  // The owner's Retry: remembered provider failures are asked again.
+  // The owner's Retry (and the backfill): remembered provider failures, and
+  // a remembered cell with no name, are asked again.
   retry: z.boolean().optional()
 })
 
@@ -85,7 +86,8 @@ export const resolveMediaPlaceJob: JobHandle = createJobHandle(
     try {
       const place = await createNominatimClient({
         database,
-        skipCachedErrors: retry
+        skipCachedErrors: retry,
+        skipCachedMiss: retry
       }).reverseGeocode({
         latitude,
         longitude

@@ -23,16 +23,27 @@ const KINGFISHER: GbifTaxon = {
   iucnCategory: 'LC'
 }
 
-// A record for the stored key, or for a confident match that named a
-// `matchRank` (a species unless said otherwise).
+// A record for the stored key (of a key-only subject unless `subject` says
+// otherwise), or for a confident match that named a `matchRank` (a species
+// unless said otherwise).
 const taxon = (
   via: 'stored-key' | 'match',
   value: unknown,
-  matchRank: unknown = 'SPECIES'
+  matchRank: unknown = 'SPECIES',
+  subject: Record<string, unknown> = {}
 ) => ({
   kind: 'taxon',
   via,
-  ...(via === 'match' ? { matchRank } : {}),
+  ...(via === 'match'
+    ? { matchRank }
+    : {
+        scientificName: null,
+        name: null,
+        nameConfirmed: false,
+        category: null,
+        kingdom: null,
+        ...subject
+      }),
   taxon: value,
   storedKeyUnknown: false
 })
@@ -64,6 +75,112 @@ const isPublic = (decision: ReturnType<typeof decideSubjectLookup>) =>
   )
 
 describe('decideSubjectLookup', () => {
+  describe('a stored key checked against the subject', () => {
+    const stored = (value: unknown, subject: Record<string, unknown>) =>
+      taxon('stored-key', value, undefined, subject)
+
+    it.each([
+      ['the canonical name', { scientificName: 'Alcedo atthis' }],
+      [
+        'the full scientific name',
+        { scientificName: 'Alcedo atthis (Linnaeus, 1758)' }
+      ],
+      ['the name in another case', { scientificName: 'alcedo  ATTHIS' }],
+      [
+        'the scientific name, with a renamed common name',
+        { scientificName: 'Alcedo atthis', name: 'Kawasemi' }
+      ],
+      [
+        'a confirmed common name',
+        { name: 'Common Kingfisher', nameConfirmed: true }
+      ],
+      [
+        'the category and its kingdom',
+        {
+          scientificName: 'Alcedo atthis',
+          category: 'bird',
+          kingdom: 'Animalia'
+        }
+      ],
+      [
+        'a category that names no kingdom',
+        { scientificName: 'Alcedo atthis', category: 'other' }
+      ]
+    ])('resolves a record that agrees with %s', (_label, subject) => {
+      expect(
+        decideSubjectLookup(
+          stored(
+            {
+              ...KINGFISHER,
+              fullScientificName: 'Alcedo atthis (Linnaeus, 1758)'
+            },
+            subject
+          )
+        )
+      ).toMatchObject({
+        subjectLookupStatus: 'resolved',
+        subjectIucnCategory: 'LC'
+      })
+    })
+
+    it.each([
+      [
+        'another scientific name',
+        { scientificName: 'Panthera tigris', name: 'Common Kingfisher' }
+      ],
+      ['an unconfirmed common name', { name: 'Panda', nameConfirmed: false }],
+      [
+        'a common name confirmed as not a string',
+        { name: 'Panda', nameConfirmed: 'true' }
+      ],
+      [
+        'another kingdom',
+        {
+          scientificName: 'Alcedo atthis',
+          category: 'plant',
+          kingdom: 'Plantae'
+        }
+      ],
+      [
+        'another category in the same kingdom',
+        {
+          name: 'Vaquita',
+          nameConfirmed: true,
+          category: 'mammal',
+          kingdom: 'Animalia'
+        }
+      ],
+      ['a kingdom with no names', { category: 'fungus', kingdom: 'Fungi' }],
+      ['an unreadable category', { category: 7 }],
+      ['an unreadable kingdom', { kingdom: 42 }],
+      ['an unreadable scientific name', { scientificName: 7 }],
+      ['an empty name', { name: ' ', nameConfirmed: true }],
+      ['names missing from the evidence', { scientificName: undefined }]
+    ])('fails a record that disagrees: %s', (_label, subject) => {
+      expect(decideSubjectLookup(stored(KINGFISHER, subject))).toEqual({
+        subjectLookupStatus: 'failed'
+      })
+    })
+
+    it('fails a key whose record is another species, even an LC one', () => {
+      // "Panda" (a mammal) stored with the key of the tree Panda oleosa.
+      const decision = decideSubjectLookup(
+        stored(
+          {
+            ...KINGFISHER,
+            taxonKey: '5380987',
+            scientificName: 'Panda oleosa',
+            taxonPath: ['Plantae', 'Tracheophyta'],
+            category: 'plant'
+          },
+          { name: 'Panda', category: 'mammal', kingdom: 'Animalia' }
+        )
+      )
+      expect(decision).toEqual({ subjectLookupStatus: 'failed' })
+      expect(isPublic(decision)).toBe(false)
+    })
+  })
+
   describe('a taxon record', () => {
     it.each(['stored-key', 'match'] as const)(
       'resolves a readable record found by %s, with its key and path',
@@ -198,7 +315,9 @@ describe('decideSubjectLookup', () => {
       ['a string', taxon('match', 'Alcedo atthis')],
       [
         'no match rank',
-        (({ matchRank: _, ...rest }) => rest)(taxon('match', KINGFISHER))
+        (({ matchRank: _, ...rest }) => rest)(
+          taxon('match', KINGFISHER) as Record<string, unknown>
+        )
       ],
       ['a match rank above a family', taxon('match', KINGFISHER, 'ORDER')],
       ['a match rank that is not a string', taxon('match', KINGFISHER, 7)],

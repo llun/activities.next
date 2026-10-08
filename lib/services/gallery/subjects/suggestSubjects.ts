@@ -2,6 +2,11 @@ import { z } from 'zod'
 
 import { requestVisionCompletion } from '@/lib/services/altText/openai'
 import type { GbifClient } from '@/lib/services/gallery/lookups/gbif'
+import {
+  NormalizedTaxon,
+  SPECIES_OR_LOWER_RANKS,
+  kingdomOfCategory
+} from '@/lib/services/gallery/lookups/normalizeTaxon'
 import type { SubjectProviderConfig } from '@/lib/services/gallery/subjects/subjectProvider'
 import {
   MEDIA_SUBJECT_CATEGORIES,
@@ -115,51 +120,56 @@ export const parseSubjectSuggestions = (
   }
 }
 
-const KINGDOM_HINTS: Partial<Record<MediaSubjectCategory, string>> = {
-  bird: 'Animalia',
-  mammal: 'Animalia',
-  reptile: 'Animalia',
-  amphibian: 'Animalia',
-  fish: 'Animalia',
-  insect: 'Animalia',
-  plant: 'Plantae',
-  fungus: 'Fungi'
-}
-
-type GbifLookup = Pick<GbifClient, 'matchTaxon' | 'searchTaxa'>
-
-const sameName = (a: string, b: string) =>
-  a.trim().toLowerCase() === b.trim().toLowerCase()
+type GbifLookup = Pick<GbifClient, 'matchTaxon' | 'lookupSearch'>
 
 /**
  * Checks one candidate against the GBIF backbone: by its scientific name when
- * the model gave one, otherwise by a vernacular-name search whose result must
- * carry the candidate's own name. The model's common name is kept as it is;
- * the taxon only adds the canonical scientific name, key, rank and path.
+ * the model gave one, otherwise by a vernacular-name search. The model's
+ * common name is kept as it is; a taxon only adds the canonical scientific
+ * name, key, rank and path.
+ *
+ * A key attached here reaches the subject job as a stored key when the owner
+ * picks the chip, so a common name is given one only under the job's own
+ * rules for a search (Addendum 2, path 3): every result readable, GBIF's
+ * last page, exactly one result naming the candidate exactly, at species
+ * rank and in the kingdom the model's category names. Anything else leaves
+ * the candidate unchecked, with no key and the model's category ("Panda" is
+ * not the tree Panda oleosa). A taxon from another kingdom never replaces a
+ * living category, by either path.
  */
 const checkCandidate = async (
   candidate: ParsedSubjects['candidates'][number],
   gbif: GbifLookup
 ): Promise<ParsedSubjects['candidates'][number]> => {
   if (candidate.category === 'landscape') return candidate
+  const kingdom = kingdomOfCategory(candidate.category)
 
-  let taxon: Awaited<ReturnType<GbifLookup['matchTaxon']>>
+  let taxon: NormalizedTaxon | null
   if (candidate.scientificName) {
     taxon = await gbif.matchTaxon(candidate.scientificName, {
-      kingdom: KINGDOM_HINTS[candidate.category]
+      kingdom: kingdom ?? undefined
     })
   } else {
-    const results = await gbif.searchTaxa(candidate.name)
-    taxon =
-      results.find(
-        (result) =>
-          sameName(result.scientificName, candidate.name) ||
-          (result.vernacularName !== null &&
-            sameName(result.vernacularName, candidate.name)) ||
-          result.vernacularNames.some((name) => sameName(name, candidate.name))
-      ) ?? null
+    // A common name is only confirmed for a category that names a kingdom.
+    if (!kingdom) return candidate
+    const search = await gbif.lookupSearch(candidate.name)
+    if (
+      !search ||
+      !search.complete ||
+      !search.exhaustive ||
+      search.exactTaxonKeys.length !== 1
+    ) {
+      return candidate
+    }
+    const [exactKey] = search.exactTaxonKeys
+    const hit = search.results.find((result) => result.taxonKey === exactKey)
+    if (!hit || !SPECIES_OR_LOWER_RANKS.has(hit.rank.toUpperCase())) {
+      return candidate
+    }
+    taxon = hit
   }
   if (!taxon) return candidate
+  if (kingdom && taxon.taxonPath[0] !== kingdom) return candidate
 
   return {
     ...candidate,

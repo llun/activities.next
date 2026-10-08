@@ -48,10 +48,14 @@ export const buildOwnerMediaDetails = async (
     details.placePrecision !== null
 
   return {
+    // A subject known only by its taxon key (an API client may send just
+    // `subject_taxon_key`) is still a subject: it hides the place, so its
+    // owner sees it, its lookup and Retry.
     subject:
       details.subjectName ||
       details.subjectScientificName ||
-      details.subjectCategory
+      details.subjectCategory ||
+      details.subjectTaxonKey
         ? {
             name: details.subjectName,
             scientificName: details.subjectScientificName,

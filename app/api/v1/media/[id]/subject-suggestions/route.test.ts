@@ -77,7 +77,10 @@ vi.mock('@/lib/services/gallery/galleryLookupAvailability', () => ({
 }))
 
 vi.mock('@/lib/services/gallery/lookups/gbif', () => ({
-  createGbifClient: vi.fn(() => ({ matchTaxon: vi.fn(), searchTaxa: vi.fn() }))
+  createGbifClient: vi.fn(() => ({
+    matchTaxon: vi.fn(),
+    lookupSearch: vi.fn()
+  }))
 }))
 
 vi.mock('@/lib/services/medias/readStoredMedia', () => ({
@@ -207,6 +210,54 @@ describe('POST /api/v1/media/[id]/subject-suggestions', () => {
       gbif: expect.any(Object)
     })
     expect(await storedSuggestions(id)).toEqual(SUGGESTIONS)
+  })
+
+  it('answers 409, and asks nothing, when the owner turned suggestions off', async () => {
+    const id = await createMediaFor(ACTOR1_ID)
+    await request(id)
+    vi.mocked(suggestSubjects).mockClear()
+    vi.mocked(readStoredImage).mockClear()
+    takeMock.mockClear()
+    await database.updateGallerySettings({
+      actorId: ACTOR1_ID,
+      subjectSuggestionMode: 'off'
+    })
+
+    try {
+      for (const body of [undefined, { refresh: true }]) {
+        const response = await request(id, body)
+
+        expect(response.status).toBe(409)
+        expect(await response.json()).toEqual({
+          error: 'Subject suggestions are turned off'
+        })
+      }
+      expect(readStoredImage).not.toHaveBeenCalled()
+      expect(suggestSubjects).not.toHaveBeenCalled()
+      expect(takeMock).not.toHaveBeenCalled()
+    } finally {
+      await database.updateGallerySettings({
+        actorId: ACTOR1_ID,
+        subjectSuggestionMode: 'model'
+      })
+    }
+  })
+
+  it('still answers 404 for another account’s media when suggestions are off', async () => {
+    const id = await createMediaFor(ACTOR2_ID)
+    await database.updateGallerySettings({
+      actorId: ACTOR1_ID,
+      subjectSuggestionMode: 'off'
+    })
+
+    try {
+      expect((await request(id)).status).toBe(404)
+    } finally {
+      await database.updateGallerySettings({
+        actorId: ACTOR1_ID,
+        subjectSuggestionMode: 'model'
+      })
+    }
   })
 
   it('returns the stored suggestions without asking the model again', async () => {

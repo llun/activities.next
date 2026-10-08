@@ -330,7 +330,38 @@ const SUBJECTS: Partial<MediaDetailsRecord>[] = [
     subjectScientificName: null,
     subjectCategory: 'bird',
     subjectTaxonKey: '111'
-  }
+  },
+  // A stored key that agrees with the names, and keys that do not: another
+  // species' scientific name, a common name the record does not carry, a
+  // category in another kingdom or another category in the same one. Every
+  // record served below is the tiger's ("Panthera tigris", "tiger", a
+  // mammal) under the key asked for.
+  ...(['mammal', 'bird', 'plant', null] as const).map((subjectCategory) => ({
+    subjectName: 'Tiger',
+    subjectScientificName: 'Panthera tigris',
+    subjectCategory,
+    subjectTaxonKey: '5219416'
+  })),
+  {
+    subjectName: 'Giant Panda',
+    subjectScientificName: 'Ailuropoda melanoleuca',
+    subjectCategory: 'mammal',
+    subjectTaxonKey: '5219416'
+  },
+  ...(['Tiger', 'Vaquita'] as const).map((subjectName) => ({
+    subjectName,
+    subjectScientificName: null,
+    subjectCategory: 'mammal' as const,
+    subjectTaxonKey: '5219416'
+  })),
+  // Named only by a common name the record does not carry, but which a
+  // search may list the key under.
+  ...(['bird', null] as const).map((subjectCategory) => ({
+    subjectName: 'Common Kingfisher',
+    subjectScientificName: null,
+    subjectCategory,
+    subjectTaxonKey: '2475532'
+  }))
 ]
 
 const draw = (catalogue: Catalogue) => {
@@ -384,6 +415,43 @@ const SPECIES_RANKS = new Set(['readable-SPECIES', 'readable-SUBSPECIES'])
 const CONFIRMING_SEARCHES = new Set(['exact-hit', 'exact-hit-late-name'])
 // The categories whose kingdom is the taxon fixtures' (Animalia).
 const ANIMAL_CATEGORIES = new Set(['bird', 'mammal'])
+// The categories that name a kingdom, among the subjects drawn.
+const LIVING_CATEGORIES = new Set(['bird', 'mammal', 'plant'])
+// Searches that list key 2475532 as a result named "Common Kingfisher"
+// exactly, whatever else they say.
+const NAMING_SEARCHES = new Set([
+  'exact-hit',
+  'exact-hit-more-pages',
+  'exact-hit-no-end-flag',
+  'exact-hit-end-flag-string',
+  'two-exact-hits',
+  'exact-hit-late-name'
+])
+
+/**
+ * Whether a stored key's record (always the tiger's, under that key) agrees
+ * with the subject: the scientific name is the tiger's, or with none, the
+ * common name is one of its vernacular names; a living category is the
+ * record's own (a mammal).
+ */
+const storedKeyAgrees = (subject: Partial<MediaDetailsRecord>) => {
+  const category = subject.subjectCategory ?? null
+  if (category && LIVING_CATEGORIES.has(category) && category !== 'mammal') {
+    return false
+  }
+  if (subject.subjectScientificName) {
+    return subject.subjectScientificName === 'Panthera tigris'
+  }
+  if (subject.subjectName) {
+    if (subject.subjectName.toLowerCase() === 'tiger') return true
+    return (
+      subject.subjectName === 'Common Kingfisher' &&
+      subject.subjectTaxonKey === '2475532' &&
+      NAMING_SEARCHES.has(labelOf('species/search') ?? '')
+    )
+  }
+  return true
+}
 
 const labelOf = (path: string) =>
   served.filter((answer) => answer.path === path).at(-1)?.label
@@ -424,7 +492,13 @@ const allowedToShow = (
   ) {
     return null
   }
-  if (key === subject.subjectTaxonKey) return 'stored-key-species'
+  if (key === subject.subjectTaxonKey) {
+    // A stored key never clears a place for names its record disagrees with.
+    if (!storedKeyAgrees(subject)) return null
+    return subject.subjectScientificName || !subject.subjectName
+      ? 'stored-key-species'
+      : 'stored-key-common-name'
+  }
   if (subject.subjectScientificName) {
     return lastMatch?.label === 'confident' ? 'match-species' : null
   }
@@ -434,7 +508,7 @@ const allowedToShow = (
     : null
 }
 
-const RUNS = 2000
+const RUNS = 4000
 
 describe('resolveMediaSubjectJob never shows a place off the allow-list', () => {
   it(`holds for ${RUNS} random combinations of GBIF answers`, async () => {
@@ -490,6 +564,7 @@ describe('resolveMediaSubjectJob never shows a place off the allow-list', () => 
     expect([...reached.keys()].sort()).toEqual([
       'match-species',
       'search-single-exact-hit',
+      'stored-key-common-name',
       'stored-key-species',
       'uncertain-species-not-threatened'
     ])

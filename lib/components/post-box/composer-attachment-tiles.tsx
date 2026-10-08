@@ -49,17 +49,26 @@ export const getAttachmentLabel = (
   `${index + 1}`
 
 /**
- * The subject line of a tile: the confirmed name once the author saved one,
- * else the model's best guess ("Suggested: Warbling White-eye", or the kind of
- * subject when no species is confident enough). Null when there is neither.
+ * The subject line of a tile: the confirmed name once the author saved one
+ * (the scientific name, in italics, when that is all they saved), else the
+ * model's best guess ("Suggested: Warbling White-eye", or the kind of subject
+ * when no species is confident enough). A saved subject of any kind (a
+ * category or a taxon key alone included) is the author's answer, so it is
+ * never contradicted by a suggestion. Null when there is neither.
  */
 const getSubjectLine = (
   details: MediaDetailsEntity | undefined,
   threshold: number,
   suggestionsEnabled: boolean
-): { confirmed: boolean; text: string } | null => {
-  const name = details?.subject?.name?.trim()
+): { confirmed: boolean; text: string; scientific?: boolean } | null => {
+  const subject = details?.subject
+  const name = subject?.name?.trim()
   if (name) return { confirmed: true, text: name }
+  const scientificName = subject?.scientificName?.trim()
+  if (scientificName) {
+    return { confirmed: true, text: scientificName, scientific: true }
+  }
+  if (subject?.category || subject?.taxonKey) return null
   if (!suggestionsEnabled) return null
   const choices = getSubjectChoices(
     details?.subjectSuggestions ?? null,
@@ -75,12 +84,12 @@ const getSubjectLine = (
 }
 
 const TileSubject: FC<{
-  line: { confirmed: boolean; text: string } | null
+  line: ReturnType<typeof getSubjectLine>
 }> = ({ line }) => {
   if (!line) return null
   return line.confirmed ? (
     <span className="block text-[13px] leading-[17px] font-semibold">
-      {line.text}
+      {line.scientific ? <i>{line.text}</i> : line.text}
     </span>
   ) : (
     <span className="block text-[13px] leading-[17px]">

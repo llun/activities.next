@@ -996,6 +996,20 @@ describe('MediaDetailsDialog smart subjects', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('un-picks a chosen suggestion chip when it is pressed again', () => {
+    renderDialog([withSuggestions()])
+    const chip = screen.getByRole('button', { name: 'Warbling White-eye 81%' })
+
+    fireEvent.click(chip)
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(chip)
+
+    expect(chip).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit manually' }))
+    expect(screen.getByLabelText('Name')).toHaveValue('')
+    expect(screen.getByLabelText('Scientific name')).toHaveValue('')
+  })
+
   // The race: a slow suggestion used to publish the details captured when
   // Suggest was clicked, putting back the status a Retry had just replaced.
   it('merges a slow suggestion into the details a retry refreshed meanwhile', async () => {
@@ -1416,6 +1430,27 @@ describe('MediaDetailsDialog smart subjects', () => {
       expect(
         screen.queryByText(/couldn’t confirm the species/)
       ).not.toBeInTheDocument()
+    })
+
+    it('hides the IUCN status once only the draft’s category changed', () => {
+      renderDialog([
+        makeItem('m1', {
+          details: subject({
+            iucnCategory: 'EN',
+            threatStatus: 'threatened',
+            lookupStatus: 'resolved'
+          })
+        })
+      ])
+
+      expect(screen.getByText(/Endangered \(EN\)/)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Edit manually' }))
+      fireEvent.change(screen.getByLabelText('Category'), {
+        target: { value: 'plant' }
+      })
+
+      expect(screen.queryByText(/Endangered \(EN\)/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/place is hidden/)).not.toBeInTheDocument()
     })
 
     it('reports a failed retry', async () => {

@@ -16,6 +16,7 @@ import {
   NormalizedTaxon,
   UncertainMatch,
   classifyMatch,
+  isSameTaxonName,
   normalizeIucnCategory,
   normalizeTaxonRecord
 } from './normalizeTaxon'
@@ -47,6 +48,10 @@ export const gbifProvider: LookupProvider = {
 }
 
 export interface GbifTaxon extends NormalizedTaxon {
+  // The record's own `scientificName`, authorship included ("Panthera tigris
+  // (Linnaeus, 1758)"); `scientificName` is the canonical name. Absent from
+  // rows cached before it was kept.
+  fullScientificName?: string | null
   vernacularName: string | null
   // Null when GBIF has no IUCN assessment for the taxon (or its species).
   iucnCategory: IucnCategory | null
@@ -214,11 +219,6 @@ export interface GbifClient {
 // share a row, and bounded so they fit the 255 character key column.
 const normalizeKeyPart = (value: string) =>
   value.trim().replace(/\s+/g, ' ').toLowerCase()
-
-// Whether two names are the same name: case, spacing and Unicode composition
-// aside ("เสือโคร่ง" typed and served in different normal forms).
-const sameName = (a: string, b: string) =>
-  normalizeKeyPart(a.normalize('NFC')) === normalizeKeyPart(b.normalize('NFC'))
 
 // Answers cached under one endpoint are not answers from another: an admin who
 // fixes a wrong endpoint must not be served what the wrong one said. The
@@ -445,10 +445,17 @@ export const createGbifClient = ({
               iucnCategory = await fetchIucn(String(speciesKey))
             }
 
-            const vernacular = (response.json as { vernacularName?: unknown })
-              .vernacularName
+            const { vernacularName: vernacular, scientificName: fullName } =
+              response.json as {
+                vernacularName?: unknown
+                scientificName?: unknown
+              }
             return {
               ...taxon,
+              fullScientificName:
+                typeof fullName === 'string' && fullName.trim()
+                  ? fullName.trim().slice(0, 255)
+                  : null,
               vernacularName:
                 typeof vernacular === 'string' && vernacular.trim()
                   ? vernacular.trim().slice(0, 255)
@@ -515,8 +522,8 @@ export const createGbifClient = ({
               vernacularNames: names.all.slice(0, MAX_VERNACULAR_NAMES)
             })
             if (
-              sameName(taxon.scientificName, query) ||
-              names.all.some((name) => sameName(name, query))
+              isSameTaxonName(taxon.scientificName, query) ||
+              names.all.some((name) => isSameTaxonName(name, query))
             ) {
               exact.add(taxon.taxonKey)
             }

@@ -993,7 +993,9 @@ export const MediaDetailsDialog: FC<Props> = ({
   const subjectUnchanged =
     draft.subjectName === savedSubject.subjectName &&
     draft.subjectScientificName === savedSubject.subjectScientificName &&
-    draft.subjectTaxonKey === savedSubject.subjectTaxonKey
+    draft.subjectTaxonKey === savedSubject.subjectTaxonKey &&
+    // The category too: the server resets the lookup when it changes.
+    draft.subjectCategory === savedSubject.subjectCategory
   const subjectStatus = subjectUnchanged ? (details?.subject ?? null) : null
   const placeStatus = details?.place ?? null
 

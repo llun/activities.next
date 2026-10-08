@@ -13,19 +13,19 @@
  *
  * It selects:
  *   - media with coordinates whose place lookup is not final (never
- *     attempted, pending, failed or disabled);
+ *     attempted, pending, failed or disabled), and a place `no-match`, which
+ *     may be what a wrong or regional Nominatim answered;
  *   - species-like subjects whose subject lookup is not final (the same, and
  *     `no-match`, which no longer clears a place).
- * A `resolved` result, and a place's `no-match`, is final and is never redone
- * here.
+ * A `resolved` result is final and is never redone here.
  *
  * A provider outage does not fail the rest of the run. When a provider's
  * circuit is open (after a timeout, a 5xx or a 429) the script waits for it to
  * close before the next lookup, and a lookup that failed because the circuit
  * opened under it is asked again once it closes. Without that, one blip would
  * mark every remaining photo `failed` within seconds. Every lookup runs as a
- * retry, so a failure the lookup cache remembers (from the app server, say) is
- * asked again rather than answered.
+ * retry, so a failure the lookup cache remembers (from the app server, say),
+ * and a remembered cell with no name, is asked again rather than answered.
  *
  * A persistent outage is bounded: after 3 lookups in a row that failed both
  * times, the script gives up on that provider for the rest of the run, says
@@ -75,8 +75,11 @@ const PRUNE_BATCH_SIZE = 500
 // A lookup in one of these states (or with no status) is not final.
 const NON_FINAL_STATUSES = ['pending', 'failed', 'disabled']
 // A subject `no-match` no longer clears a place (an earlier release wrote it
-// for names GBIF's first page of results missed), so it is asked again.
+// for names GBIF's first page of results missed), so it is asked again. A
+// place `no-match` may be what a wrong or regional endpoint answered, so it
+// is asked again too, past the remembered miss.
 const SUBJECT_NON_FINAL_STATUSES = [...NON_FINAL_STATUSES, 'no-match']
+const PLACE_NON_FINAL_STATUSES = [...NON_FINAL_STATUSES, 'no-match']
 
 export interface BackfillOptions {
   apply: boolean
@@ -151,7 +154,7 @@ const isNonFinal = (status: string | null, nonFinal = NON_FINAL_STATUSES) =>
 export const needsPlaceLookup = (row: CandidateRow): boolean =>
   row.placeLatitude !== null &&
   row.placeLongitude !== null &&
-  isNonFinal(row.placeLookupStatus)
+  isNonFinal(row.placeLookupStatus, PLACE_NON_FINAL_STATUSES)
 
 export const needsSubjectLookup = (row: CandidateRow): boolean =>
   isNonFinal(row.subjectLookupStatus, SUBJECT_NON_FINAL_STATUSES) &&
@@ -191,7 +194,7 @@ export const selectCandidates = async ({
           .where((status) =>
             status
               .whereNull('placeLookupStatus')
-              .orWhereIn('placeLookupStatus', NON_FINAL_STATUSES)
+              .orWhereIn('placeLookupStatus', PLACE_NON_FINAL_STATUSES)
           )
       )
     }

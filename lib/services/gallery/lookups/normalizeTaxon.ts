@@ -51,6 +51,38 @@ export const SPECIES_OR_LOWER_RANKS: ReadonlySet<string> = new Set([
 // The ranks a group pick ("Just genus") may name.
 export const GROUP_RANKS: ReadonlySet<string> = new Set(['GENUS', 'FAMILY'])
 
+// The kingdom each living category names. `landscape`, `other` and no
+// category name none.
+const CATEGORY_KINGDOMS: Record<string, string> = {
+  plant: 'Plantae',
+  fungus: 'Fungi',
+  bird: 'Animalia',
+  mammal: 'Animalia',
+  reptile: 'Animalia',
+  amphibian: 'Animalia',
+  fish: 'Animalia',
+  insect: 'Animalia'
+}
+
+/** The kingdom a living category names, or null (`landscape`, `other`, none). */
+export const kingdomOfCategory = (
+  category: string | null | undefined
+): string | null =>
+  category && Object.hasOwn(CATEGORY_KINGDOMS, category)
+    ? CATEGORY_KINGDOMS[category]
+    : null
+
+/**
+ * Whether two names are the same name: case, spacing and Unicode composition
+ * aside ("เสือโคร่ง" typed and served in different normal forms). Never a
+ * partial or fuzzy match.
+ */
+export const isSameTaxonName = (a: string, b: string) => {
+  const normalize = (value: string) =>
+    value.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase()
+  return normalize(a) === normalize(b)
+}
+
 const CLASS_CATEGORY: Record<string, MediaSubjectCategory> = {
   aves: 'bird',
   mammalia: 'mammal',

@@ -1435,6 +1435,43 @@ describe('PostBox media details', () => {
       expect(screen.getByText('Edit')).toBeInTheDocument()
     })
 
+    it('shows a saved scientific name, in italics, instead of a suggestion', async () => {
+      getMediaMock.mockResolvedValue(
+        mediaEntity('media-bird.png', 'A bird', {
+          subject: {
+            name: null,
+            scientificName: 'Alcedo atthis',
+            category: 'bird'
+          },
+          subjectSuggestions: SUGGESTIONS
+        })
+      )
+      renderPostBox()
+
+      attach('bird.png')
+
+      const name = await screen.findByText('Alcedo atthis')
+      expect(name.tagName).toBe('I')
+      expect(screen.queryByText('Suggested:')).not.toBeInTheDocument()
+      expect(screen.getByText('Edit')).toBeInTheDocument()
+    })
+
+    it('offers no suggestion over a saved subject with only a category', async () => {
+      getMediaMock.mockResolvedValue(
+        mediaEntity('media-bird.png', 'A bird', {
+          subject: { name: null, scientificName: null, category: 'bird' },
+          subjectSuggestions: SUGGESTIONS
+        })
+      )
+      renderPostBox()
+
+      attach('bird.png')
+
+      expect(await screen.findByText('Edit')).toBeInTheDocument()
+      expect(screen.queryByText('Suggested:')).not.toBeInTheDocument()
+      expect(screen.queryByText('Warbling White-eye')).not.toBeInTheDocument()
+    })
+
     it.each([
       ['the server has no model', { subjectSuggestionsAvailable: false }],
       ['the author turned suggestions off', { subjectSuggestionMode: 'off' }]

@@ -151,10 +151,10 @@ describe('parseSubjectSuggestions', () => {
 
 describe('suggestSubjects', () => {
   const matchTaxon = vi.fn()
-  const searchTaxa = vi.fn()
-  const gbif: Pick<GbifClient, 'matchTaxon' | 'searchTaxa'> = {
+  const lookupSearch = vi.fn()
+  const gbif: Pick<GbifClient, 'matchTaxon' | 'lookupSearch'> = {
     matchTaxon,
-    searchTaxa
+    lookupSearch
   }
 
   beforeEach(() => {
@@ -253,38 +253,140 @@ describe('suggestSubjects', () => {
     expect(suggestions.candidates[0].category).toBe('plant')
   })
 
-  it('searches by common name when there is no scientific name and takes only an exact name match', async () => {
+  const WHITE_EYE = {
+    taxonKey: '5232437',
+    scientificName: 'Zosterops japonicus',
+    vernacularName: 'Japanese White-eye',
+    vernacularNames: ['Japanese White-eye', 'warbling white-eye'],
+    rank: 'SPECIES',
+    taxonPath: ['Animalia', 'Chordata', 'Aves'],
+    category: 'bird'
+  }
+  const OTHER_WHITE_EYE = {
+    taxonKey: '9',
+    scientificName: 'Zosterops simplex',
+    vernacularName: 'Swinhoe’s White-eye',
+    vernacularNames: ['Swinhoe’s White-eye'],
+    rank: 'SPECIES',
+    taxonPath: ['Animalia', 'Chordata', 'Aves'],
+    category: 'bird'
+  }
+  // A search that confirms its one exact hit, unless overridden.
+  const searchOutcome = (overrides: Record<string, unknown> = {}) => ({
+    results: [OTHER_WHITE_EYE, WHITE_EYE],
+    complete: true,
+    exhaustive: true,
+    exactTaxonKeys: ['5232437'],
+    ...overrides
+  })
+
+  it('takes the one exact hit of a complete, exhaustive common-name search', async () => {
     answer({
       subjects: [subject({ scientificName: null })],
       group: 'bird'
     })
-    searchTaxa.mockResolvedValue([
-      {
-        taxonKey: '9',
-        scientificName: 'Zosterops simplex',
-        vernacularName: 'Swinhoe’s White-eye',
-        vernacularNames: ['Swinhoe’s White-eye'],
-        rank: 'SPECIES',
-        taxonPath: [],
-        category: 'bird'
-      },
-      {
-        taxonKey: '5232437',
-        scientificName: 'Zosterops japonicus',
-        vernacularName: 'Japanese White-eye',
-        vernacularNames: ['Japanese White-eye', 'warbling white-eye'],
-        rank: 'SPECIES',
-        taxonPath: ['Animalia'],
-        category: 'bird'
-      }
-    ])
+    lookupSearch.mockResolvedValue(searchOutcome())
 
     const suggestions = await run()
 
-    expect(searchTaxa).toHaveBeenCalledWith('Warbling White-eye')
+    expect(lookupSearch).toHaveBeenCalledWith('Warbling White-eye')
+    expect(suggestions.candidates[0]).toMatchObject({
+      name: 'Warbling White-eye',
+      scientificName: 'Zosterops japonicus',
+      category: 'bird',
+      taxonKey: '5232437'
+    })
+  })
+
+  it.each([
+    ['the search is not exhaustive', searchOutcome({ exhaustive: false })],
+    ['a result could not be read', searchOutcome({ complete: false })],
+    [
+      'two results name it exactly',
+      searchOutcome({ exactTaxonKeys: ['9', '5232437'] })
+    ],
+    ['no result names it exactly', searchOutcome({ exactTaxonKeys: [] })],
+    [
+      'the hit is not in the results',
+      searchOutcome({ results: [OTHER_WHITE_EYE] })
+    ],
+    [
+      'the hit is a genus',
+      searchOutcome({ results: [{ ...WHITE_EYE, rank: 'GENUS' }] })
+    ],
+    [
+      'the hit is in another kingdom',
+      searchOutcome({
+        results: [
+          {
+            ...WHITE_EYE,
+            taxonPath: ['Plantae', 'Tracheophyta'],
+            category: 'plant'
+          }
+        ]
+      })
+    ],
+    ['the query is too short to ask', null]
+  ])(
+    'leaves a common name unchecked, with the model’s category, when %s',
+    async (_, outcome) => {
+      answer({
+        subjects: [subject({ scientificName: null })],
+        group: 'bird'
+      })
+      lookupSearch.mockResolvedValue(outcome)
+
+      const suggestions = await run()
+
+      expect(suggestions.checkedAgainst).toBe('gbif')
+      expect(suggestions.candidates[0]).toEqual({
+        name: 'Warbling White-eye',
+        scientificName: null,
+        category: 'bird',
+        confidence: 0.81,
+        taxonKey: null,
+        rank: null,
+        taxonPath: []
+      })
+    }
+  )
+
+  it('does not search a common name whose category names no kingdom', async () => {
+    answer({
+      subjects: [subject({ scientificName: null, category: 'other' })],
+      group: null
+    })
+    lookupSearch.mockResolvedValue(searchOutcome())
+
+    const suggestions = await run()
+
+    expect(lookupSearch).not.toHaveBeenCalled()
+    expect(suggestions.candidates[0]).toMatchObject({
+      category: 'other',
+      taxonKey: null
+    })
+  })
+
+  it('never replaces a living category with a match from another kingdom', async () => {
+    answer({ subjects: [subject({ category: 'plant' })], group: 'plant' })
+    matchTaxon.mockResolvedValue({
+      taxonKey: '5232437',
+      scientificName: 'Zosterops japonicus',
+      rank: 'SPECIES',
+      taxonPath: ['Animalia', 'Chordata', 'Aves'],
+      category: 'bird'
+    })
+
+    const suggestions = await run()
+
+    expect(matchTaxon).toHaveBeenCalledWith('Zosterops japonicus', {
+      kingdom: 'Plantae'
+    })
     expect(suggestions.candidates[0]).toMatchObject({
       scientificName: 'Zosterops japonicus',
-      taxonKey: '5232437'
+      category: 'plant',
+      taxonKey: null,
+      taxonPath: []
     })
   })
 
@@ -306,7 +408,7 @@ describe('suggestSubjects', () => {
     const suggestions = await run()
 
     expect(matchTaxon).toHaveBeenCalledTimes(1)
-    expect(searchTaxa).not.toHaveBeenCalled()
+    expect(lookupSearch).not.toHaveBeenCalled()
     expect(suggestions.checkedAgainst).toBe('gbif')
     expect(suggestions.candidates.map((c) => c.taxonKey)).toEqual([null, null])
   })

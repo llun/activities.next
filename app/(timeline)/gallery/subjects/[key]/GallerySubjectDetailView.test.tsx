@@ -130,7 +130,7 @@ describe('GallerySubjectDetailView', () => {
 
       expect(
         screen.getByRole('heading', {
-          name: 'More Keel-billed Toucans on the fediverse'
+          name: 'More posts about Keel-billed Toucan on the fediverse'
         })
       ).toBeInTheDocument()
       expect(
@@ -143,6 +143,16 @@ describe('GallerySubjectDetailView', () => {
       ).toHaveAttribute('href', '/tags/RamphastosSulfuratus')
     })
 
+    it('never builds a plural from a common name', () => {
+      render_({ subject: { ...identified, name: 'Red Fox' } })
+
+      expect(
+        screen.getByRole('heading', {
+          name: 'More posts about Red Fox on the fediverse'
+        })
+      ).toBeInTheDocument()
+    })
+
     it('writes a scientific name as it is, never pluralized', () => {
       render_({
         subject: { ...identified, name: null },
@@ -150,7 +160,7 @@ describe('GallerySubjectDetailView', () => {
       })
 
       const heading = screen.getByRole('heading', {
-        name: 'More Ramphastos sulfuratus on the fediverse'
+        name: 'More posts about Ramphastos sulfuratus on the fediverse'
       })
       expect(heading.querySelector('.italic')).toHaveTextContent(
         'Ramphastos sulfuratus'

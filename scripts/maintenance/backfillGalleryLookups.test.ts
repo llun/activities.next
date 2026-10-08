@@ -96,7 +96,9 @@ describe('needsPlaceLookup / needsSubjectLookup', () => {
     ['failed', true],
     ['disabled', true],
     ['resolved', false],
-    ['no-match', false]
+    // Asked again past the remembered miss: a wrong or regional endpoint may
+    // have answered it.
+    ['no-match', true]
   ])('place status %s -> %s', (placeLookupStatus, expected) => {
     expect(
       needsPlaceLookup(

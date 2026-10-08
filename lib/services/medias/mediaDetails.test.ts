@@ -103,6 +103,25 @@ describe('buildOwnerMediaDetails', () => {
     expect(db.getGalleryGearNamesByIds).toHaveBeenCalledOnce()
   })
 
+  it('shows the owner a subject known only by its taxon key', async () => {
+    const details = await buildOwnerMediaDetails(
+      database(),
+      media({
+        subjectTaxonKey: '5219416',
+        subjectLookupStatus: 'failed',
+        subjectLookupAt: Date.UTC(2026, 9, 8)
+      })
+    )
+
+    expect(details.subject).toMatchObject({
+      name: null,
+      scientificName: null,
+      category: null,
+      taxonKey: '5219416',
+      lookupStatus: 'failed'
+    })
+  })
+
   it('does not query gear for a media that has none', async () => {
     const db = database()
 

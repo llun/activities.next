@@ -1,4 +1,5 @@
 import { getConfig } from '@/lib/config'
+import { DEFAULT_NOMINATIM_ENDPOINT } from '@/lib/config/gallery'
 
 import nominatimNone from './__fixtures__/nominatim-reverse-none.json'
 import nominatimThailand from './__fixtures__/nominatim-reverse-th.json'
@@ -26,10 +27,12 @@ const RAW = { latitude: 14.534709, longitude: 101.391256 }
 
 const setup = ({
   handler = (() => ({ body: nominatimThailand })) as StubHandler,
-  email = null as string | null
+  email = null as string | null,
+  endpoint = ENDPOINT,
+  skipCachedMiss = false,
+  db = createFakeLookupDatabase()
 } = {}) => {
   const stub = createStubFetch(handler)
-  const db = createFakeLookupDatabase()
   const provider = createTestProvider({
     name: 'Nominatim',
     limiter: createLimiter({ maxConcurrent: 1, minIntervalMs: 0 }),
@@ -39,8 +42,9 @@ const setup = ({
     database: db.database,
     fetch: stub.fetch,
     provider,
-    endpoint: ENDPOINT,
-    email
+    endpoint,
+    email,
+    skipCachedMiss
   })
   return { client, provider, ...stub, ...db }
 }
@@ -118,7 +122,53 @@ describe('nominatim client', () => {
     await client.reverseGeocode({ latitude: 14.56, longitude: 101.42 })
 
     expect(requests).toHaveLength(1)
+    // A self-hosted endpoint's rows carry a tag of their own.
+    expect([...rows.keys()]).toEqual([
+      expect.stringMatching(/^geocode:@[0-9a-f]{12}\|en:14\.55,101\.40$/)
+    ])
+  })
+
+  it('keys the public endpoint’s rows without a tag', async () => {
+    const { client, rows } = setup({ endpoint: DEFAULT_NOMINATIM_ENDPOINT })
+
+    await client.reverseGeocode(RAW)
+
     expect([...rows.keys()]).toEqual(['geocode:en:14.55,101.40'])
+  })
+
+  // A regional Nominatim has no name outside its import; switching back to
+  // the public one must not keep serving that miss.
+  it('does not share a cached miss between endpoints', async () => {
+    const db = createFakeLookupDatabase()
+    const regional = setup({
+      db,
+      endpoint: 'https://nominatim.example.th',
+      handler: () => ({ body: nominatimNone })
+    })
+    await expect(regional.client.reverseGeocode(RAW)).resolves.toBeNull()
+
+    const fixed = setup({ db, endpoint: DEFAULT_NOMINATIM_ENDPOINT })
+    await expect(fixed.client.reverseGeocode(RAW)).resolves.toMatchObject({
+      countryCode: 'TH'
+    })
+    expect(fixed.requests).toHaveLength(1)
+    expect(db.rows.size).toBe(2)
+  })
+
+  it('asks again past a cached miss with skipCachedMiss (Retry, backfill)', async () => {
+    const db = createFakeLookupDatabase()
+    const first = setup({ db, handler: () => ({ body: nominatimNone }) })
+    await expect(first.client.reverseGeocode(RAW)).resolves.toBeNull()
+
+    const cached = setup({ db })
+    await expect(cached.client.reverseGeocode(RAW)).resolves.toBeNull()
+    expect(cached.requests).toHaveLength(0)
+
+    const retry = setup({ db, skipCachedMiss: true })
+    await expect(retry.client.reverseGeocode(RAW)).resolves.toMatchObject({
+      countryCode: 'TH'
+    })
+    expect(retry.requests).toHaveLength(1)
   })
 
   it('answers null (and caches the miss) when Nominatim has no name', async () => {

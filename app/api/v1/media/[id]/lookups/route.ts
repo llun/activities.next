@@ -41,17 +41,20 @@ const retries = createWindowCounter({
   windowMs: ONE_HOUR_MS
 })
 
-// A finished place lookup: nothing to retry.
-const FINAL_PLACE_STATUSES = new Set(['resolved', 'no-match'])
+// A finished place lookup: nothing to retry. A `no-match` is asked again
+// (past the remembered miss): it may be what a wrong or regional endpoint
+// answered, and it leaves the photo with no name or country.
+const FINAL_PLACE_STATUSES = new Set(['resolved'])
 
 // POST /api/v1/media/:id/lookups — publishes the place and subject lookups of
 // a media the caller owns again, for the dialog's "Couldn't check · Retry".
 // Only a lookup that has not finished is queued: a place with coordinates that
-// is not `resolved` or `no-match` (a stale `pending` whose job was lost, and a
+// is not `resolved` (a `no-match`, a stale `pending` whose job was lost, and a
 // null status from before the lookups existed, included), and a species-like
 // subject whose threat status is still unchecked. Each job gets a fresh id
 // and is told it is a retry, so it asks the provider again rather than
-// answering a remembered failure (an open circuit still fails fast). Each
+// answering a remembered failure or place miss (an open circuit still fails
+// fast). Each
 // queued lookup is marked `pending` first, so the answer says it is under
 // way. The jobs re-read the media and re-check the admin switches themselves,
 // so this only queues them (under NoQueue they run before this answers) and

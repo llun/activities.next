@@ -48,6 +48,9 @@ const SuggestionsRequest = z.object({ refresh: z.boolean().optional() })
 // result is persisted on the media (owner-only), so reopening the dialog or
 // another device does not ask the model again. Suggestions are never decisions:
 // nothing here touches the `subject*` columns. Same scopes as `describe`.
+// An owner whose Suggestions setting is off gets 409 for every call: the
+// setting is enforced here, not only by the web client, so a stale tab or
+// another client never sends the photo to the vision model.
 export const POST = traceApiRoute(
   'suggestMediaSubjects',
   OAuthGuardAnyScope<Params>(
@@ -77,6 +80,18 @@ export const POST = traceApiRoute(
           allowedMethods: CORS_HEADERS,
           data: ERROR_404,
           responseStatusCode: 404
+        })
+      }
+
+      const { subjectSuggestionMode } = await database.getGallerySettings({
+        actorId: currentActor.id
+      })
+      if (subjectSuggestionMode === 'off') {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Subject suggestions are turned off' },
+          responseStatusCode: 409
         })
       }
 
