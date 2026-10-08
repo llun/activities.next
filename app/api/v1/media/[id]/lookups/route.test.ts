@@ -101,11 +101,15 @@ describe('POST /api/v1/media/[id]/lookups', () => {
     return media!.id
   }
 
-  const request = (id: string) =>
+  const request = (id: string, body?: string) =>
     POST(
       new NextRequest(`https://llun.test/api/v1/media/${id}/lookups`, {
         method: 'POST',
-        headers: { origin: 'https://llun.test' }
+        headers: {
+          origin: 'https://llun.test',
+          ...(body !== undefined ? { 'content-type': 'application/json' } : {})
+        },
+        ...(body !== undefined ? { body } : {})
       }),
       { params: Promise.resolve({ id }) }
     )
@@ -283,8 +287,8 @@ describe('POST /api/v1/media/[id]/lookups', () => {
     await request(subjectNoMatch)
     expect(publishedNames()).toEqual([RESOLVE_MEDIA_SUBJECT_JOB_NAME])
 
-    // A place no-match is asked again too (the job skips the remembered
-    // miss): a wrong or regional endpoint may have answered it.
+    // A place no-match is final: the geocode cache key carries the
+    // endpoint, so it is not asked again.
     mockPublish.mockClear()
     const placeNoMatch = await createMediaFor(ACTOR1_ID, SPECIES)
     await setLookups(placeNoMatch, {
@@ -292,7 +296,7 @@ describe('POST /api/v1/media/[id]/lookups', () => {
       place: { placeLookupStatus: 'no-match' }
     })
     await request(placeNoMatch)
-    expect(publishedNames()).toEqual([RESOLVE_MEDIA_PLACE_JOB_NAME])
+    expect(mockPublish).not.toHaveBeenCalled()
 
     // Disabled and pending are retried.
     mockPublish.mockClear()
@@ -305,6 +309,91 @@ describe('POST /api/v1/media/[id]/lookups', () => {
     expect(publishedNames().sort()).toEqual(
       [RESOLVE_MEDIA_PLACE_JOB_NAME, RESOLVE_MEDIA_SUBJECT_JOB_NAME].sort()
     )
+  })
+
+  describe('a kind in the body', () => {
+    const BOTH_FAILED = {
+      subjectName: 'Common Kingfisher',
+      subjectScientificName: 'Alcedo atthis',
+      subjectCategory: 'bird',
+      placeLatitude: 14.5,
+      placeLongitude: 101.4
+    }
+    const bothFailed = async () => {
+      const id = await createMediaFor(ACTOR1_ID, BOTH_FAILED)
+      await setLookups(id, {
+        subject: { subjectLookupStatus: 'failed' },
+        place: { placeLookupStatus: 'failed' }
+      })
+      return id
+    }
+    const placeStatusOf = async (id: string) => {
+      const account = (await database.getActorFromId({ id: ACTOR1_ID }))!
+        .account!
+      const media = await database.getMediaByIdForAccount({
+        mediaId: id,
+        accountId: account.id
+      })
+      return media!.details!.placeLookupStatus
+    }
+
+    it('retries only the subject for kind subject, leaving the place as it was', async () => {
+      const id = await bothFailed()
+
+      const response = await request(id, JSON.stringify({ kind: 'subject' }))
+
+      expect(response.status).toBe(200)
+      expect(publishedNames()).toEqual([RESOLVE_MEDIA_SUBJECT_JOB_NAME])
+      expect(await placeStatusOf(id)).toBe('failed')
+    })
+
+    it('leaves a no-match place untouched on a subject retry', async () => {
+      const id = await createMediaFor(ACTOR1_ID, BOTH_FAILED)
+      await setLookups(id, {
+        subject: { subjectLookupStatus: 'failed' },
+        place: { placeLookupStatus: 'no-match' }
+      })
+
+      await request(id, JSON.stringify({ kind: 'subject' }))
+
+      expect(publishedNames()).toEqual([RESOLVE_MEDIA_SUBJECT_JOB_NAME])
+      expect(await placeStatusOf(id)).toBe('no-match')
+    })
+
+    it('retries only the place for kind place', async () => {
+      const id = await bothFailed()
+
+      await request(id, JSON.stringify({ kind: 'place' }))
+
+      expect(publishedNames()).toEqual([RESOLVE_MEDIA_PLACE_JOB_NAME])
+    })
+
+    it.each([
+      ['an empty object', '{}'],
+      ['no body', undefined]
+    ])('retries both with %s', async (_, body) => {
+      const id = await bothFailed()
+
+      await request(id, body)
+
+      expect(publishedNames().sort()).toEqual(
+        [RESOLVE_MEDIA_PLACE_JOB_NAME, RESOLVE_MEDIA_SUBJECT_JOB_NAME].sort()
+      )
+    })
+
+    it.each([
+      ['an unknown kind', JSON.stringify({ kind: 'both' })],
+      ['a kind that is not a string', JSON.stringify({ kind: 1 })]
+    ])('refuses %s with 422, before it costs a retry', async (_, body) => {
+      const id = await bothFailed()
+
+      const response = await request(id, body)
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ error: 'Invalid input' })
+      expect(takeMock).not.toHaveBeenCalled()
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
   })
 
   it('queues the subject lookup for a subject known only by its taxon key', async () => {

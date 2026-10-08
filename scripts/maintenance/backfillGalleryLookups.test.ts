@@ -96,9 +96,9 @@ describe('needsPlaceLookup / needsSubjectLookup', () => {
     ['failed', true],
     ['disabled', true],
     ['resolved', false],
-    // Asked again past the remembered miss: a wrong or regional endpoint may
-    // have answered it.
-    ['no-match', true]
+    // Final: the geocode cache key carries the endpoint, so a wrong or
+    // regional endpoint's miss never answers for another one.
+    ['no-match', false]
   ])('place status %s -> %s', (placeLookupStatus, expected) => {
     expect(
       needsPlaceLookup(

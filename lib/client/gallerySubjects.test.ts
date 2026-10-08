@@ -77,5 +77,12 @@ describe('gallery subjects client module', () => {
     fetchMock.mockResponseOnce(JSON.stringify({ details: { inGallery: true } }))
     expect(await retryMediaLookups('m1')).toEqual({ inGallery: true })
     expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/media/m1/lookups')
+    expect(fetchMock.mock.calls[0][1]?.body).toBe('{}')
+  })
+
+  it('retryMediaLookups names the lookup whose Retry was pressed', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ details: { inGallery: true } }))
+    await retryMediaLookups('m1', { kind: 'place' })
+    expect(fetchMock.mock.calls[0][1]?.body).toBe('{"kind":"place"}')
   })
 })

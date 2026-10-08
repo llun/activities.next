@@ -1138,7 +1138,9 @@ describe('MediaDetailsDialog smart subjects', () => {
       expect(
         await screen.findByText('Checking IUCN status…')
       ).toBeInTheDocument()
-      expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1')
+      expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1', {
+        kind: 'subject'
+      })
       expect(onDetailsRefreshed).toHaveBeenCalled()
     })
 
@@ -1261,7 +1263,9 @@ describe('MediaDetailsDialog smart subjects', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
         await advance(1_000)
 
-        expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1')
+        expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1', {
+          kind: 'subject'
+        })
         expect(getMediaMock).toHaveBeenCalledTimes(5)
         expect(screen.getByText(/Least Concern \(LC\)/)).toBeInTheDocument()
       })
@@ -1526,7 +1530,9 @@ describe('MediaDetailsDialog smart subjects', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
       await waitFor(() =>
-        expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1')
+        expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1', {
+          kind: 'place'
+        })
       )
       expect(
         await screen.findByDisplayValue('Khao Yai National Park, Thailand')

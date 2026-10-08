@@ -822,7 +822,7 @@ export const MediaDetailsDialog: FC<Props> = ({
     }
     try {
       // The server's answer is the whole, current entity.
-      const value = await retryMediaLookups(target.id)
+      const value = await retryMediaLookups(target.id, { kind })
       const latest =
         itemsRef.current.find((entry) => entry.id === target.id) ?? target
       setFetched((current) => ({

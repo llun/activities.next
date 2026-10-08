@@ -23,10 +23,13 @@ import {
  * here and is recorded as `failed`.
  */
 export type SubjectEvidence = SubjectAnswer & {
-  // The subject has a stored key GBIF answered it does not know, so the
-  // answer came from its names. Such a subject was confirmed once: only a
-  // taxon found by its names may replace the key.
-  storedKeyUnknown: boolean
+  // The subject has a stored key the answer did not come from: GBIF
+  // answered it does not know the key, or the key's readable record
+  // disagrees with the subject's names (a synonym or FUZZY name the job
+  // matched once, then renamed, or another species' key), so the answer came
+  // from its names. Only a taxon found by its names may replace the key,
+  // never a guess.
+  storedKeySkipped: boolean
 }
 
 export type SubjectAnswer =
@@ -130,12 +133,14 @@ export type SubjectLookupDecision =
  *    Stored `resolved` with that category but no taxon key or path: the
  *    owner's name was not confirmed. CR, EN or VU is stored the same way and
  *    keeps the place hidden; EX, EW or a genus-only placement is `failed`.
- *    This answer never clears a subject whose stored key GBIF has stopped
- *    knowing: such a subject was confirmed once, and only a taxon found by
- *    its names replaces it.
+ *    This answer never clears a subject whose stored key was set aside
+ *    (GBIF has stopped knowing it, or its record disagrees with the names):
+ *    only a taxon found by its names replaces a key, never a guess.
  *
- * Everything else is `failed`: a stored key whose record disagrees with the
- * subject's names or category, GBIF's NONE, a search with no exact hit, more
+ * A stored key whose readable record disagrees with the subject's names or
+ * category is set aside, and the names are asked (2, or a confident match
+ * as in 1; never 3). Everything else is `failed`: such a key with no name
+ * to ask, GBIF's NONE, a search with no exact hit, more
  * than one, a page that is not the last or a result that could not be read,
  * a hit in another kingdom, an answer placed above a genus, and any shape
  * this file does not know.
@@ -260,6 +265,23 @@ const isTaxonRank = (rank: string) =>
 const isSpeciesRank = (rank: string) => SPECIES_OR_LOWER_RANKS.has(rank)
 
 /**
+ * Whether stored-key evidence has a readable record that disagrees with the
+ * subject's names or category: the job then asks by the names instead. An
+ * unreadable record is not "disagrees"; the decision fails it closed.
+ */
+export const storedKeyDisagrees = (
+  answer: Extract<SubjectAnswer, { via: 'stored-key' }>
+): boolean => {
+  const taxon = readTaxon(answer.taxon, isTaxonRank)
+  if (!taxon) return false
+  return !storedKeyAgrees(
+    answer as unknown as Record<string, unknown>,
+    answer.taxon as unknown as Record<string, unknown>,
+    taxon.taxonPath
+  )
+}
+
+/**
  * A taxon as stored: a species keeps its category, a genus or family (or a
  * record `asSpecies` says is not confirmed as a species) is stored with
  * none, so its place stays hidden.
@@ -290,7 +312,7 @@ export const decideSubjectLookup = (
 ): SubjectLookupDecision => {
   if (!evidence || typeof evidence !== 'object') return FAILED
   const answer = evidence as Record<string, unknown>
-  if (typeof answer.storedKeyUnknown !== 'boolean') return FAILED
+  if (typeof answer.storedKeySkipped !== 'boolean') return FAILED
 
   switch (answer.kind) {
     case 'taxon': {
@@ -340,7 +362,7 @@ export const decideSubjectLookup = (
     case 'match-uncertain': {
       // A subject confirmed by a key once is replaced only by a taxon found
       // by its names, never by a guess.
-      if (answer.storedKeyUnknown !== false) return FAILED
+      if (answer.storedKeySkipped !== false) return FAILED
       if (answer.hinted !== false) return FAILED
       if (!isUsageKey(answer.speciesKey)) return FAILED
       // Placed in a species: that species' Red List category decides. The

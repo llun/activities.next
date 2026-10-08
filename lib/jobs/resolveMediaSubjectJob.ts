@@ -13,7 +13,8 @@ import {
 import {
   SubjectAnswer,
   SubjectEvidence,
-  decideSubjectLookup
+  decideSubjectLookup,
+  storedKeyDisagrees
 } from '@/lib/services/gallery/lookups/subjectDecision'
 import { isSpeciesLike } from '@/lib/services/gallery/publicMediaDetails'
 import { JobHandle } from '@/lib/services/queue/type'
@@ -46,9 +47,11 @@ type SubjectFields = Pick<
  *   reach here (an API client's `subject_taxon_key`, a stale picker). For a
  *   subject named only by a common name, the record's own vernacular name
  *   is read first, then a search for the name, which lists every vernacular
- *   name of each result. A key GBIF does not know falls through to the
- *   names (a backbone move can retire one), and the evidence says so; with
- *   no name left the unknown key is the evidence.
+ *   name of each result. A key GBIF does not know, or whose readable record
+ *   disagrees with the names (a synonym or FUZZY name matched once, then
+ *   renamed), falls through to the names (a backbone move can retire one),
+ *   and the evidence says so; with no name left the stored key is the
+ *   evidence.
  * - A scientific name through `species/match`, with the category's kingdom
  *   hint. Any hinted answer but a confident match is asked again without the
  *   hint: a wrong category ("Panthera tigris" filed as a plant) makes GBIF
@@ -67,11 +70,12 @@ export const gatherSubjectEvidence = async (
   const scientificName = subject.subjectScientificName?.trim() || null
   const commonName = subject.subjectName?.trim() || null
 
-  let storedKeyUnknown = false
+  let storedKeySkipped = false
   if (taxonKey) {
     const taxon = await gbif.getTaxon(taxonKey)
-    if (taxon || (!scientificName && !commonName)) {
-      return {
+    const hasNames = Boolean(scientificName || commonName)
+    if (taxon || !hasNames) {
+      const stored: Extract<SubjectAnswer, { via: 'stored-key' }> = {
         kind: 'taxon',
         via: 'stored-key',
         taxon,
@@ -81,14 +85,20 @@ export const gatherSubjectEvidence = async (
           ? await isNameOfTaxon(gbif, taxon, scientificName, commonName)
           : false,
         category: subject.subjectCategory ?? null,
-        kingdom: kingdomOfCategory(subject.subjectCategory),
-        storedKeyUnknown
+        kingdom: kingdomOfCategory(subject.subjectCategory)
+      }
+      // A record that disagrees with the names is set aside and the names
+      // are asked, under their own rules: a synonym or FUZZY name the job
+      // matched once resolves again after a rename or a category edit, and
+      // "Panda" with the tree Panda oleosa's key still ends up `failed`.
+      if (!hasNames || !storedKeyDisagrees(stored)) {
+        return { ...stored, storedKeySkipped }
       }
     }
-    storedKeyUnknown = true
+    storedKeySkipped = true
   }
   const answer = await askByName(gbif, subject, scientificName, commonName)
-  return { ...answer, storedKeyUnknown }
+  return { ...answer, storedKeySkipped }
 }
 
 /**

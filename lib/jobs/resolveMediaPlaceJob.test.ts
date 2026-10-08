@@ -194,20 +194,22 @@ describe('resolveMediaPlaceJob', () => {
     }
   )
 
-  it('asks Nominatim again past a remembered failure or miss only on a retry', async () => {
+  it('asks Nominatim again past a remembered failure only on a retry', async () => {
     mediaWith({ ...POINT })
 
     await resolveMediaPlaceJob(database, message({ mediaId: '7' }))
     expect(createNominatimClient).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        skipCachedErrors: false,
-        skipCachedMiss: false
-      })
+      expect.objectContaining({ skipCachedErrors: false })
     )
 
+    // A remembered cell with no name is still answered on a retry: a place
+    // `no-match` is final, so the backfill never re-asks a cell per photo.
     await resolveMediaPlaceJob(database, message({ mediaId: '7', retry: true }))
     expect(createNominatimClient).toHaveBeenLastCalledWith(
-      expect.objectContaining({ skipCachedErrors: true, skipCachedMiss: true })
+      expect.objectContaining({ skipCachedErrors: true })
+    )
+    expect(createNominatimClient).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ skipCachedMiss: expect.anything() })
     )
   })
 

@@ -61,12 +61,10 @@ export interface NominatimClientDeps {
   email?: string | null
   language?: string
   // The owner's Retry (and the backfill): ask again rather than answer a
-  // remembered failure.
+  // remembered failure. A remembered "no name for this cell" is still
+  // answered: a place `no-match` is final, and the endpoint tag on the key
+  // keeps one endpoint's misses from answering for another.
   skipCachedErrors?: boolean
-  // Ask again past a remembered "no name for this cell" too. The same
-  // callers set it: a cell's miss is final for a place (`no-match`), so only
-  // a retry ever asks it again.
-  skipCachedMiss?: boolean
 }
 
 export interface NominatimClient {
@@ -87,8 +85,7 @@ export const createNominatimClient = ({
   endpoint,
   email,
   language,
-  skipCachedErrors = false,
-  skipCachedMiss = false
+  skipCachedErrors = false
 }: NominatimClientDeps): NominatimClient => ({
   async reverseGeocode(point) {
     const config = getConfig()
@@ -104,7 +101,6 @@ export const createNominatimClient = ({
     const result = await readThroughLookupCache<GeocodedPlace>({
       database,
       skipCachedError: skipCachedErrors,
-      skipCachedMiss,
       kind: 'geocode',
       key: `${endpointKeyPrefix(base)}${lang}:${latitude},${longitude}`,
       fetcher: async () => {

@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import {
   publishPlaceLookup,
   publishSubjectLookup
@@ -41,25 +43,29 @@ const retries = createWindowCounter({
   windowMs: ONE_HOUR_MS
 })
 
-// A finished place lookup: nothing to retry. A `no-match` is asked again
-// (past the remembered miss): it may be what a wrong or regional endpoint
-// answered, and it leaves the photo with no name or country.
-const FINAL_PLACE_STATUSES = new Set(['resolved'])
+// A finished place lookup: nothing to retry. A `no-match` is final: the
+// geocode cache key carries an endpoint tag, so a wrong or regional
+// endpoint's miss never answers for another endpoint.
+const FINAL_PLACE_STATUSES = new Set(['resolved', 'no-match'])
+
+// Which lookup the owner pressed Retry on. With no kind both are retried, as
+// for clients that send no body.
+const RetryRequest = z.object({ kind: z.enum(['subject', 'place']).optional() })
 
 // POST /api/v1/media/:id/lookups — publishes the place and subject lookups of
 // a media the caller owns again, for the dialog's "Couldn't check · Retry".
 // Only a lookup that has not finished is queued: a place with coordinates that
-// is not `resolved` (a `no-match`, a stale `pending` whose job was lost, and a
+// is not `resolved` or `no-match` (a stale `pending` whose job was lost, and a
 // null status from before the lookups existed, included), and a species-like
 // subject whose threat status is still unchecked. Each job gets a fresh id
 // and is told it is a retry, so it asks the provider again rather than
-// answering a remembered failure or place miss (an open circuit still fails
-// fast). Each
+// answering a remembered failure (an open circuit still fails fast). Each
 // queued lookup is marked `pending` first, so the answer says it is under
 // way. The jobs re-read the media and re-check the admin switches themselves,
 // so this only queues them (under NoQueue they run before this answers) and
 // returns the owner's details as they are now. Same scopes and 404 rule as
-// `describe`.
+// `describe`. A body of `{ "kind": "subject" }` or `{ "kind": "place" }`
+// retries only that lookup; an empty body retries both.
 export const POST = traceApiRoute(
   'retryMediaLookups',
   OAuthGuardAnyScope<Params>(
@@ -92,6 +98,25 @@ export const POST = traceApiRoute(
         })
       }
 
+      // An empty body, or one that is not JSON at all, reads as `{}`. A JSON
+      // body of the wrong shape is refused before it costs a retry.
+      let body: unknown = {}
+      try {
+        body = await req.json()
+      } catch {
+        // No body.
+      }
+      const parsed = RetryRequest.safeParse(body ?? {})
+      if (!parsed.success) {
+        return apiResponse({
+          req,
+          allowedMethods: CORS_HEADERS,
+          data: { error: 'Invalid input' },
+          responseStatusCode: 422
+        })
+      }
+      const { kind } = parsed.data
+
       if (!retries.tryHit(currentActor.id)) {
         return apiResponse({
           req,
@@ -105,6 +130,7 @@ export const POST = traceApiRoute(
       const latitude = details.placeLatitude
       const longitude = details.placeLongitude
       if (
+        kind !== 'subject' &&
         typeof latitude === 'number' &&
         typeof longitude === 'number' &&
         !FINAL_PLACE_STATUSES.has(details.placeLookupStatus ?? '')
@@ -127,7 +153,7 @@ export const POST = traceApiRoute(
       }
       // `unchecked` is every species-like subject not yet cleared or found
       // threatened, a subject known only by its taxon key included.
-      if (getSubjectThreatStatus(details) === 'unchecked') {
+      if (kind !== 'place' && getSubjectThreatStatus(details) === 'unchecked') {
         await database.setMediaSubjectLookup({
           mediaId: media.id,
           expect: {

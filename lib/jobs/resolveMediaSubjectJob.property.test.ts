@@ -492,13 +492,14 @@ const allowedToShow = (
   ) {
     return null
   }
-  if (key === subject.subjectTaxonKey) {
-    // A stored key never clears a place for names its record disagrees with.
-    if (!storedKeyAgrees(subject)) return null
+  if (key === subject.subjectTaxonKey && storedKeyAgrees(subject)) {
     return subject.subjectScientificName || !subject.subjectName
       ? 'stored-key-species'
       : 'stored-key-common-name'
   }
+  // A stored key whose record disagrees with the names never clears a place
+  // by itself: it is set aside, and only what the names alone would clear
+  // may show (a synonym or FUZZY name matched to that same key included).
   if (subject.subjectScientificName) {
     return lastMatch?.label === 'confident' ? 'match-species' : null
   }

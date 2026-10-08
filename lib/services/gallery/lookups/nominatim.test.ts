@@ -29,7 +29,7 @@ const setup = ({
   handler = (() => ({ body: nominatimThailand })) as StubHandler,
   email = null as string | null,
   endpoint = ENDPOINT,
-  skipCachedMiss = false,
+  skipCachedErrors = false,
   db = createFakeLookupDatabase()
 } = {}) => {
   const stub = createStubFetch(handler)
@@ -44,7 +44,7 @@ const setup = ({
     provider,
     endpoint,
     email,
-    skipCachedMiss
+    skipCachedErrors
   })
   return { client, provider, ...stub, ...db }
 }
@@ -155,20 +155,16 @@ describe('nominatim client', () => {
     expect(db.rows.size).toBe(2)
   })
 
-  it('asks again past a cached miss with skipCachedMiss (Retry, backfill)', async () => {
+  // A place `no-match` is final: a retry (the owner's Retry, the backfill)
+  // asks past a remembered failure, never past a remembered miss.
+  it('answers a cached miss even on a retry', async () => {
     const db = createFakeLookupDatabase()
     const first = setup({ db, handler: () => ({ body: nominatimNone }) })
     await expect(first.client.reverseGeocode(RAW)).resolves.toBeNull()
 
-    const cached = setup({ db })
-    await expect(cached.client.reverseGeocode(RAW)).resolves.toBeNull()
-    expect(cached.requests).toHaveLength(0)
-
-    const retry = setup({ db, skipCachedMiss: true })
-    await expect(retry.client.reverseGeocode(RAW)).resolves.toMatchObject({
-      countryCode: 'TH'
-    })
-    expect(retry.requests).toHaveLength(1)
+    const retry = setup({ db, skipCachedErrors: true })
+    await expect(retry.client.reverseGeocode(RAW)).resolves.toBeNull()
+    expect(retry.requests).toHaveLength(0)
   })
 
   it('answers null (and caches the miss) when Nominatim has no name', async () => {

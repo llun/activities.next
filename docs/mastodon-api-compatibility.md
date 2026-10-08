@@ -401,7 +401,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `place` is `null` for every non-owner. `POST /api/v1/media/:id/subject-suggestions`
   and `POST /api/v1/media/:id/lookups` are owner-only; Mastodon clients get no
   suggestions. A suggestions body that is JSON but not `{ refresh?: boolean }`
-  is a 422. Fresh suggestion runs are limited to 30 per actor per hour, lookup
+  is a 422. A lookups body may be `{ kind?: 'subject' | 'place' }`: a kind
+  retries only that lookup (the web dialog sends the kind of the Retry that
+  was pressed, so a subject Retry never re-queues the place), and an empty
+  body, or none, retries both; any other JSON body is a 422 that costs no
+  retry. Fresh suggestion runs are limited to 30 per actor per hour, lookup
   retries to 20 per actor per hour, and `GET /api/v1/gallery/taxa` (species
   search for the picker) to 60 per actor per minute, all answering 429 past the
   limit; the counters are in process

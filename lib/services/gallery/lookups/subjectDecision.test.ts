@@ -45,7 +45,7 @@ const taxon = (
         ...subject
       }),
   taxon: value,
-  storedKeyUnknown: false
+  storedKeySkipped: false
 })
 
 // A common-name search that could confirm its one exact hit.
@@ -56,7 +56,7 @@ const search = (value: unknown, overrides: Record<string, unknown> = {}) => ({
   exactHits: 1,
   kingdom: 'Animalia',
   taxon: value,
-  storedKeyUnknown: false,
+  storedKeySkipped: false,
   ...overrides
 })
 
@@ -276,7 +276,7 @@ describe('decideSubjectLookup', () => {
       expect(
         decideSubjectLookup({
           ...taxon('match', KINGFISHER),
-          storedKeyUnknown: true
+          storedKeySkipped: true
         })
       ).toMatchObject({ subjectLookupStatus: 'resolved' })
     })
@@ -323,7 +323,7 @@ describe('decideSubjectLookup', () => {
       ['a match rank that is not a string', taxon('match', KINGFISHER, 7)],
       [
         'no stored-key flag',
-        (({ storedKeyUnknown: _, ...rest }) => rest)(taxon('match', KINGFISHER))
+        (({ storedKeySkipped: _, ...rest }) => rest)(taxon('match', KINGFISHER))
       ]
     ])('records failed for %s', (_, evidence) => {
       expect(decideSubjectLookup(evidence)).toEqual({
@@ -335,12 +335,12 @@ describe('decideSubjectLookup', () => {
   // GBIF's NONE: a typo and a species GBIF files under another name cannot
   // be told apart, so it never clears a place.
   it.each([
-    ['without a kingdom hint', { hinted: false, storedKeyUnknown: false }],
-    ['with a kingdom hint', { hinted: true, storedKeyUnknown: false }],
-    ['with no hint flag', { storedKeyUnknown: false }],
+    ['without a kingdom hint', { hinted: false, storedKeySkipped: false }],
+    ['with a kingdom hint', { hinted: true, storedKeySkipped: false }],
+    ['with no hint flag', { storedKeySkipped: false }],
     [
       'after a stored key GBIF no longer knows',
-      { hinted: false, storedKeyUnknown: true }
+      { hinted: false, storedKeySkipped: true }
     ]
   ])('records failed for a NONE answer %s', (_, fields) => {
     const decision = decideSubjectLookup({ kind: 'match-none', ...fields })
@@ -354,7 +354,7 @@ describe('decideSubjectLookup', () => {
       hinted: false,
       speciesKey: '5707420',
       species,
-      storedKeyUnknown: false,
+      storedKeySkipped: false,
       ...overrides
     })
 
@@ -408,7 +408,7 @@ describe('decideSubjectLookup', () => {
       ['a bad species key', uncertain(KINGFISHER, { speciesKey: 5707420 })],
       [
         'a stored key GBIF no longer knows',
-        uncertain(KINGFISHER, { storedKeyUnknown: true })
+        uncertain(KINGFISHER, { storedKeySkipped: true })
       ]
     ])('is failed for %s', (_, evidence) => {
       expect(decideSubjectLookup(evidence)).toEqual({
@@ -437,7 +437,7 @@ describe('decideSubjectLookup', () => {
 
     it('resolves after a stored key GBIF stopped knowing', () => {
       expect(
-        decideSubjectLookup(search(KINGFISHER, { storedKeyUnknown: true }))
+        decideSubjectLookup(search(KINGFISHER, { storedKeySkipped: true }))
       ).toMatchObject({ subjectLookupStatus: 'resolved' })
     })
 
@@ -478,11 +478,11 @@ describe('decideSubjectLookup', () => {
       ],
       [
         'no stored-key flag',
-        (({ storedKeyUnknown: _, ...rest }) => rest)(search(KINGFISHER))
+        (({ storedKeySkipped: _, ...rest }) => rest)(search(KINGFISHER))
       ],
       [
         'an older search-no-exact answer',
-        { kind: 'search-no-exact', complete: true, storedKeyUnknown: false }
+        { kind: 'search-no-exact', complete: true, storedKeySkipped: false }
       ]
     ])('records failed when %s', (_, evidence) => {
       const decision = decideSubjectLookup(evidence)
@@ -494,15 +494,15 @@ describe('decideSubjectLookup', () => {
   it.each([
     [
       'an unplaced match',
-      { kind: 'match-unplaced', hinted: false, storedKeyUnknown: false }
+      { kind: 'match-unplaced', hinted: false, storedKeySkipped: false }
     ],
-    ['nothing to ask', { kind: 'nothing-to-ask', storedKeyUnknown: false }],
-    ['an unknown kind', { kind: 'match-maybe', storedKeyUnknown: false }],
-    ['no kind', { storedKeyUnknown: false }],
+    ['nothing to ask', { kind: 'nothing-to-ask', storedKeySkipped: false }],
+    ['an unknown kind', { kind: 'match-maybe', storedKeySkipped: false }],
+    ['no kind', { storedKeySkipped: false }],
     ['null', null],
     ['undefined', undefined],
     ['a string', 'match-none'],
-    ['a list', [{ kind: 'match-none', hinted: false, storedKeyUnknown: false }]]
+    ['a list', [{ kind: 'match-none', hinted: false, storedKeySkipped: false }]]
   ])('records failed for %s', (_, evidence) => {
     expect(decideSubjectLookup(evidence)).toEqual({
       subjectLookupStatus: 'failed'
@@ -577,7 +577,7 @@ describe('decideSubjectLookup', () => {
       exhaustive: () => pick([true, false, 1, undefined]),
       exactHits: () => pick([1, 0, 2, '1']),
       kingdom: () => pick(['Animalia', 'Plantae', null]),
-      storedKeyUnknown: () => pick([false, true, undefined])
+      storedKeySkipped: () => pick([false, true, undefined])
     }
     const SPECIES_TAXON = {
       taxonKey: '5219416',
@@ -595,7 +595,7 @@ describe('decideSubjectLookup', () => {
         hinted: false,
         speciesKey: '5707420',
         species: SPECIES_TAXON,
-        storedKeyUnknown: false
+        storedKeySkipped: false
       }
     ]
     // An allow-listed answer with one or two fields changed: the edges of
@@ -635,7 +635,7 @@ describe('decideSubjectLookup', () => {
         exhaustive: maybe(pick([true, false, 1, 'true', null])),
         exactHits: maybe(pick([1, 0, 2, 7, '1', null, 1.5])),
         kingdom: maybe(pick(['Animalia', 'Plantae', null, '', 1])),
-        storedKeyUnknown: maybe(pick([false, true, 0, null]))
+        storedKeySkipped: maybe(pick([false, true, 0, null]))
       }
     }
 
@@ -666,7 +666,7 @@ describe('decideSubjectLookup', () => {
     const onAllowList = (evidence: unknown): boolean => {
       if (!evidence || typeof evidence !== 'object') return false
       const e = evidence as Record<string, unknown>
-      if (typeof e.storedKeyUnknown !== 'boolean') return false
+      if (typeof e.storedKeySkipped !== 'boolean') return false
       const notThreatened = (value: unknown) =>
         !['CR', 'EN', 'VU'].includes(categoryOf(value))
       if (e.kind === 'taxon') {
@@ -693,7 +693,7 @@ describe('decideSubjectLookup', () => {
           notThreatened(e.taxon)
         )
       }
-      if (e.storedKeyUnknown !== false) return false
+      if (e.storedKeySkipped !== false) return false
       if (e.kind === 'match-uncertain') {
         return (
           e.hinted === false &&

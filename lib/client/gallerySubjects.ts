@@ -81,15 +81,25 @@ export const searchGalleryTaxa = async (
 }
 
 /**
- * Asks the server to run the subject (IUCN) and place lookups again, for the
- * "Couldn't check · Retry" affordance. Resolves to the owner's fresh details.
+ * Asks the server to run the subject (IUCN) or place lookup again, for the
+ * "Couldn't check · Retry" affordance: `kind` is the lookup whose Retry was
+ * pressed, and with no kind both are retried. Resolves to the owner's fresh
+ * details.
  */
 export const retryMediaLookups = async (
-  mediaId: string
+  mediaId: string,
+  { kind }: { kind?: 'subject' | 'place' } = {}
 ): Promise<MediaDetailsEntity> => {
   const response = await fetch(
     `/api/v1/media/${encodeURIComponent(mediaId)}/lookups`,
-    { method: 'POST', headers: { Accept: 'application/json' } }
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(kind ? { kind } : {})
+    }
   )
   if (!response.ok) {
     throw new Error(await parseApiError(response, 'Failed to retry the check.'))
