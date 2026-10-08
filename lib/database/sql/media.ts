@@ -1,5 +1,6 @@
 import { Knex } from 'knex'
 
+import { removeMediaFromGalleryAlbums } from '@/lib/database/sql/galleryAlbumCleanup'
 import { buildActorVisibleStatusIdsQuery } from '@/lib/database/sql/status'
 import {
   CounterKey,
@@ -155,6 +156,7 @@ const deleteMediaByConditions = async (
       .where({ ...conditions, id: media.id })
       .del()
     if (!deleted) return false
+    await removeMediaFromGalleryAlbums(trx, Number(media.id))
 
     const usageDelta =
       parseCounterValue(media.originalBytes) +
@@ -1423,6 +1425,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
 
       const deleted = await trx('medias').where('id', media.id).del()
       if (!deleted) return { status: 'not-found' }
+      await removeMediaFromGalleryAlbums(trx, Number(media.id))
 
       const usageDelta =
         parseCounterValue(media.originalBytes) +

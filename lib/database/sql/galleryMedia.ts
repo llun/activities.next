@@ -317,10 +317,10 @@ export const buildGalleryMediaScope = (
   }
 }
 
-const normalizeLimit = (limit: number): number =>
+export const normalizeLimit = (limit: number): number =>
   Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0
 
-const parseNullableTime = (value: unknown): number | null => {
+export const parseNullableTime = (value: unknown): number | null => {
   if (value === null || value === undefined || value === '') return null
   const time = getCompatibleTime(value as number | string | Date)
   return Number.isFinite(time) ? time : null
@@ -343,6 +343,47 @@ const parsePrecision = (value: unknown): MediaPlacePrecision | null =>
   (MEDIA_PLACE_PRECISIONS as readonly string[]).includes(value)
     ? (value as MediaPlacePrecision)
     : null
+
+/** The columns `GalleryIndexRow` is read from, parsed. */
+export const GALLERY_INDEX_COLUMNS = [
+  'id',
+  'subjectName',
+  'subjectScientificName',
+  'subjectCategory',
+  'subjectTaxonKey',
+  'subjectTaxonPath',
+  'subjectIucnCategory',
+  'subjectLookupStatus',
+  'placeName',
+  'placePrecision',
+  'placeLatitude',
+  'placeLongitude',
+  'placeCountryCode',
+  'placeNameSource',
+  'takenAt',
+  'createdAt'
+] as const
+
+export const toGalleryIndexRow = (
+  row: Record<string, unknown>
+): GalleryIndexRow => ({
+  id: String(row.id),
+  subjectName: (row.subjectName as string | null) ?? null,
+  subjectScientificName: (row.subjectScientificName as string | null) ?? null,
+  subjectCategory: parseCategory(row.subjectCategory),
+  subjectTaxonKey: (row.subjectTaxonKey as string | null) ?? null,
+  subjectTaxonPath: parseTaxonPath(row.subjectTaxonPath),
+  subjectIucnCategory: parseIucnCategory(row.subjectIucnCategory),
+  subjectLookupStatus: parseLookupStatus(row.subjectLookupStatus),
+  placeName: (row.placeName as string | null) ?? null,
+  placePrecision: parsePrecision(row.placePrecision),
+  placeLatitude: parseCoordinate(row.placeLatitude),
+  placeLongitude: parseCoordinate(row.placeLongitude),
+  placeCountryCode: parseCountryCode(row.placeCountryCode),
+  placeNameSource: parsePlaceNameSource(row.placeNameSource),
+  takenAt: parseNullableTime(row.takenAt),
+  createdAt: parseNullableTime(row.createdAt) ?? 0
+})
 
 type AttachmentRow = Record<string, unknown> & {
   galleryMediaId: string | number
@@ -570,25 +611,7 @@ export const GalleryMediaSQLDatabaseMixin = (
         .orderBy('medias.id', 'desc')
         .limit(size)
 
-      return rows.map((row) => ({
-        id: String(row.id),
-        subjectName: (row.subjectName as string | null) ?? null,
-        subjectScientificName:
-          (row.subjectScientificName as string | null) ?? null,
-        subjectCategory: parseCategory(row.subjectCategory),
-        subjectTaxonKey: (row.subjectTaxonKey as string | null) ?? null,
-        subjectTaxonPath: parseTaxonPath(row.subjectTaxonPath),
-        subjectIucnCategory: parseIucnCategory(row.subjectIucnCategory),
-        subjectLookupStatus: parseLookupStatus(row.subjectLookupStatus),
-        placeName: (row.placeName as string | null) ?? null,
-        placePrecision: parsePrecision(row.placePrecision),
-        placeLatitude: parseCoordinate(row.placeLatitude),
-        placeLongitude: parseCoordinate(row.placeLongitude),
-        placeCountryCode: parseCountryCode(row.placeCountryCode),
-        placeNameSource: parsePlaceNameSource(row.placeNameSource),
-        takenAt: parseNullableTime(row.takenAt),
-        createdAt: parseNullableTime(row.createdAt) ?? 0
-      }))
+      return rows.map(toGalleryIndexRow)
     },
 
     async getGalleryMapRows({ actorId, audience, limit }) {
