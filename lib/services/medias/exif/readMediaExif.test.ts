@@ -101,6 +101,24 @@ describe('readMediaExif', () => {
           new Date('2024-05-06T07:08:09.000Z')
         )
       }))
+
+    it('treats an all-zero EXIF date as missing', () =>
+      withTimeZone(zone, () => {
+        // What exifr builds from "0000:00:00 00:00:00".
+        expect(toTakenAt(new Date(0, -1, 0, 0, 0, 0), undefined)).toBeNull()
+      }))
+
+    it('treats a tiny year as missing', () =>
+      withTimeZone(zone, () => {
+        expect(toTakenAt(new Date(1, 0, 1, 0, 0, 0), undefined)).toBeNull()
+      }))
+
+    it('treats a date more than a day in the future as missing', () =>
+      withTimeZone(zone, () => {
+        const next = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+        expect(toTakenAt(next, undefined)).toBeNull()
+        expect(toTakenAt(next, '+00:00')).toBeNull()
+      }))
   })
 
   it('returns nulls for an image with no EXIF', async () => {

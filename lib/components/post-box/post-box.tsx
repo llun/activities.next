@@ -1186,7 +1186,20 @@ export const PostBox: FC<Props> = ({
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
               fileNames={fileNames}
+              disabled={isPosting}
               onAddAttachment={(attachment) => {
+                // A picker batch that resolves after submit began must not
+                // change what is being posted: the submit already captured
+                // the attachments, and a late one would upload for nothing.
+                if (submitInFlightRef.current) {
+                  if (attachment.url.startsWith('blob:')) {
+                    URL.revokeObjectURL(attachment.url)
+                  }
+                  if (attachment.posterUrl?.startsWith('blob:')) {
+                    URL.revokeObjectURL(attachment.posterUrl)
+                  }
+                  return
+                }
                 // Bounds postExtensionRef, not postExtension: this callback
                 // writes the ref synchronously below, before dispatch, so
                 // the reducer's own addAttachment cap (which guards only the

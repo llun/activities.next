@@ -17,6 +17,8 @@ const MEDIA_TYPE = 'upload'
 
 interface Props {
   isMediaUploadEnabled?: boolean
+  /** Disables picking, e.g. while the post is submitting. */
+  disabled?: boolean
   attachments?: PostBoxAttachment[]
   /**
    * Original file names by attachment id. Once an upload finishes the
@@ -34,6 +36,7 @@ interface Props {
 
 export const UploadMediaButton: FC<Props> = ({
   isMediaUploadEnabled,
+  disabled = false,
   attachments = [],
   fileNames = {},
   onAddAttachment,
@@ -46,12 +49,13 @@ export const UploadMediaButton: FC<Props> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onOpenFile = () => {
     const input = fileInputRef.current
-    if (!input) return
+    if (!input || disabled) return
     input.click()
   }
   const onSelectFile = async (
     event: SyntheticEvent<HTMLInputElement, Event>
   ) => {
+    if (disabled) return
     if (!event.currentTarget.files) return
     if (!event.currentTarget.files.length) return
 
@@ -174,6 +178,7 @@ export const UploadMediaButton: FC<Props> = ({
         multiple
         accept={ACCEPTED_FILE_TYPES.join(',')}
         className="hidden"
+        disabled={disabled}
         onChange={onSelectFile}
       />
       <Button
@@ -181,7 +186,7 @@ export const UploadMediaButton: FC<Props> = ({
         variant="ghost"
         size="icon-sm"
         onClick={onOpenFile}
-        disabled={attachments.length >= maxMediaAttachments}
+        disabled={disabled || attachments.length >= maxMediaAttachments}
         className="text-muted-foreground hover:text-foreground"
         aria-label={`Add media (${attachments.length}/${maxMediaAttachments})`}
         title={`Add media (${attachments.length}/${maxMediaAttachments})`}

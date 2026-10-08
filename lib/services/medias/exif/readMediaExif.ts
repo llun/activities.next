@@ -88,6 +88,15 @@ export const formatExposureTime = (seconds: unknown): string | null => {
   return String(Number(value.toFixed(1)))
 }
 
+// Cameras with an unset clock write "0000:00:00 00:00:00" (which a Date turns
+// into 1899-11-30) or a tiny year (the Date constructor maps years 1-99 into
+// 1901-1999); a clock set wrong can also land in the future. None of those is
+// a real taken time, so they read as missing. The floor is 1990, before
+// digital cameras wrote EXIF, which also catches most of the 1901-1999 range
+// those tiny years land in.
+const MIN_PLAUSIBLE_YEAR = 1990
+const FUTURE_TOLERANCE_MS = 24 * 60 * 60 * 1000
+
 const OFFSET_PATTERN = /^([+-])(\d{2}):(\d{2})$/
 
 // exifr revives `DateTimeOriginal` with `new Date(y, m, d, h, mi, s)`, i.e. in
@@ -112,10 +121,14 @@ export const toTakenAt = (value: unknown, offset: unknown): Date | null => {
   // subtracting it yields the real instant; without one the wall-clock reading
   // (as UTC) is the best we have.
   const match = typeof offset === 'string' ? OFFSET_PATTERN.exec(offset) : null
-  if (!match) return new Date(wallClock)
-  const offsetMinutes =
-    (match[1] === '-' ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3]))
-  return new Date(wallClock - offsetMinutes * 60_000)
+  const offsetMinutes = match
+    ? (match[1] === '-' ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3]))
+    : 0
+  const takenAt = new Date(wallClock - offsetMinutes * 60_000)
+
+  if (new Date(wallClock).getUTCFullYear() < MIN_PLAUSIBLE_YEAR) return null
+  if (takenAt.getTime() > Date.now() + FUTURE_TOLERANCE_MS) return null
+  return takenAt
 }
 
 // `0,0` is what a camera writes when it has no fix, and no bird was ever

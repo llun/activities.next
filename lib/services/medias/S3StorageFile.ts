@@ -68,6 +68,7 @@ import {
   PresignedUrlOutput,
   ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
+import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { extractVideoPreviewFrame } from '@/lib/services/medias/videoPreview'
 import { getAcceptedVideoDimensions } from '@/lib/services/medias/videoProbe'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
@@ -478,9 +479,11 @@ export class S3FileStorage implements MediaStorage {
         // and delete a good upload).
         const stripped = media.original.mimeType.startsWith('image')
           ? await this._stripPresignedImageMetadata(
+              actor,
               media.original.path,
               tempFilePath,
-              expectedContentType
+              expectedContentType,
+              expectedSize
             )
           : undefined
 
@@ -650,17 +653,32 @@ export class S3FileStorage implements MediaStorage {
   // rather than left public with its metadata. A transient storage error
   // propagates, leaving the upload pending (and the client's object as it
   // was) for a retry.
+  //
+  // The copy is re-encoded, so it can come out larger than what was uploaded
+  // (and presign-time checks only saw the original). A copy larger than the
+  // original is re-encoded once more at a lower quality; one that still
+  // exceeds the per-file limit, or would push the account past its quota by
+  // the growth, is refused like a failed re-encode — before anything is
+  // written to storage.
   private async _stripPresignedImageMetadata(
+    actor: Actor,
     key: string,
     tempFilePath: string,
-    contentType: string
+    contentType: string,
+    originalBytes: number
   ): Promise<{ key: string; bytes: number }> {
     let stripped: Buffer
     try {
-      const image = sharp(tempFilePath).rotate()
-      stripped = await (
-        contentType === 'image/png' ? image.png() : image.jpeg({ quality: 95 })
-      ).toBuffer()
+      const encode = (quality: number) => {
+        const image = sharp(tempFilePath).rotate()
+        return contentType === 'image/png'
+          ? image.png({ compressionLevel: quality === 95 ? 6 : 9 }).toBuffer()
+          : image.jpeg({ quality }).toBuffer()
+      }
+      stripped = await encode(95)
+      if (stripped.length > originalBytes) {
+        stripped = await encode(85)
+      }
     } catch (error) {
       logger.warn({
         message: 'Failed to strip metadata from a presigned image upload',
@@ -669,6 +687,25 @@ export class S3FileStorage implements MediaStorage {
       throw new PresignedUploadValidationError(
         'Uploaded image could not be processed'
       )
+    }
+    const maxFileSize = await getMaxMediaUploadSize(this._database)
+    if (stripped.length > maxFileSize) {
+      throw new PresignedUploadValidationError(
+        'Uploaded image is too large once its metadata is removed'
+      )
+    }
+    const bytesDelta = stripped.length - originalBytes
+    if (bytesDelta > 0) {
+      const quotaCheck = await checkQuotaAvailable(
+        this._database,
+        actor,
+        bytesDelta
+      )
+      if (!quotaCheck.available) {
+        throw new PresignedUploadValidationError(
+          'Storage quota exceeded once the uploaded image metadata is removed'
+        )
+      }
     }
     // Same directory and extension as the presigned key (both server-made),
     // new random name.

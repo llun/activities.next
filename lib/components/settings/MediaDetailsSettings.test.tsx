@@ -209,7 +209,37 @@ describe('MediaDetailsSettings', () => {
     expect(screen.getByRole('status')).toBeEmptyDOMElement()
   })
 
-  it('disables only the switch whose save is in flight', async () => {
+  it('keeps the switch enabled and focused, marked busy, while its save is in flight', async () => {
+    let resolveSave: (value: GallerySettingsEntity) => void = () => {}
+    mockUpdateGallerySettings.mockReturnValue(
+      new Promise<GallerySettingsEntity>((resolve) => {
+        resolveSave = resolve
+      })
+    )
+
+    render(<MediaDetailsSettings />)
+
+    const hashtags = await screen.findByRole('switch', {
+      name: SUBJECT_HASHTAGS
+    })
+    hashtags.focus()
+    fireEvent.click(hashtags)
+
+    expect(hashtags).toBeChecked()
+    expect(hashtags).toBeEnabled()
+    expect(hashtags).toHaveFocus()
+    expect(hashtags).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('switch', { name: ALLOW_EMPTY })).toBeEnabled()
+    expect(screen.getByRole('switch', { name: AUTO_DESCRIBE })).toBeEnabled()
+
+    resolveSave({ ...baseSettings, subjectHashtags: true })
+
+    await waitFor(() => expect(hashtags).toHaveAttribute('aria-busy', 'false'))
+    expect(hashtags).toBeChecked()
+    expect(hashtags).toHaveFocus()
+  })
+
+  it('ignores a repeat toggle while the same switch is saving', async () => {
     let resolveSave: (value: GallerySettingsEntity) => void = () => {}
     mockUpdateGallerySettings.mockReturnValue(
       new Promise<GallerySettingsEntity>((resolve) => {
@@ -223,16 +253,26 @@ describe('MediaDetailsSettings', () => {
       name: SUBJECT_HASHTAGS
     })
     fireEvent.click(hashtags)
+    fireEvent.click(hashtags)
 
+    expect(mockUpdateGallerySettings).toHaveBeenCalledTimes(1)
     expect(hashtags).toBeChecked()
-    expect(hashtags).toBeDisabled()
-    expect(screen.getByRole('switch', { name: ALLOW_EMPTY })).toBeEnabled()
-    expect(screen.getByRole('switch', { name: AUTO_DESCRIBE })).toBeEnabled()
 
     resolveSave({ ...baseSettings, subjectHashtags: true })
-
-    await waitFor(() => expect(hashtags).toBeEnabled())
+    await waitFor(() => expect(hashtags).toHaveAttribute('aria-busy', 'false'))
     expect(hashtags).toBeChecked()
+  })
+
+  it('keeps the precision select enabled and busy while it saves', async () => {
+    mockUpdateGallerySettings.mockReturnValue(new Promise(() => {}))
+    render(<MediaDetailsSettings />)
+
+    const select = await screen.findByLabelText('Default place precision')
+    await waitFor(() => expect(select).toBeEnabled())
+    fireEvent.change(select, { target: { value: 'area' } })
+
+    expect(select).toBeEnabled()
+    expect(select).toHaveAttribute('aria-busy', 'true')
   })
 
   it('keeps two saves for different switches independent', async () => {
@@ -253,17 +293,19 @@ describe('MediaDetailsSettings', () => {
     fireEvent.click(hashtags)
     fireEvent.click(allowEmpty)
 
-    expect(hashtags).toBeDisabled()
-    expect(allowEmpty).toBeDisabled()
+    expect(hashtags).toHaveAttribute('aria-busy', 'true')
+    expect(allowEmpty).toHaveAttribute('aria-busy', 'true')
     expect(mockUpdateGallerySettings).toHaveBeenCalledTimes(2)
 
     resolvers[0]({ ...baseSettings, subjectHashtags: true })
 
-    await waitFor(() => expect(hashtags).toBeEnabled())
-    expect(allowEmpty).toBeDisabled()
+    await waitFor(() => expect(hashtags).toHaveAttribute('aria-busy', 'false'))
+    expect(allowEmpty).toHaveAttribute('aria-busy', 'true')
 
     resolvers[1]({ ...baseSettings, allowEmptyDescription: false })
 
-    await waitFor(() => expect(allowEmpty).toBeEnabled())
+    await waitFor(() =>
+      expect(allowEmpty).toHaveAttribute('aria-busy', 'false')
+    )
   })
 })

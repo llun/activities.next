@@ -38,6 +38,8 @@ interface ToggleRowProps {
   description: string
   checked: boolean
   disabled: boolean
+  /** A save is in flight: announced, but the control stays enabled and focused. */
+  busy: boolean
   notice?: string
   onCheckedChange: (checked: boolean) => void
 }
@@ -48,6 +50,7 @@ const ToggleRow: FC<ToggleRowProps> = ({
   description,
   checked,
   disabled,
+  busy,
   notice,
   onCheckedChange
 }) => (
@@ -66,6 +69,7 @@ const ToggleRow: FC<ToggleRowProps> = ({
         id={id}
         checked={checked}
         disabled={disabled}
+        aria-busy={busy}
         onCheckedChange={onCheckedChange}
       />
     </div>
@@ -76,8 +80,9 @@ export const MediaDetailsSettings: FC = () => {
   const [settings, setSettings] = useState<GallerySettingsEntity | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
-  // Keys with a save in flight. Only the switch whose save is pending is
-  // disabled; the others stay usable.
+  // Keys with a save in flight. The control stays enabled (disabling it would
+  // drop keyboard focus) and is marked aria-busy; `pendingKeys` ignores a
+  // repeat change for the key until its save settles.
   const [savingKeys, setSavingKeys] = useState<ReadonlySet<SettingKey>>(
     () => new Set()
   )
@@ -215,9 +220,8 @@ export const MediaDetailsSettings: FC = () => {
               : undefined
           }
           checked={settings?.autoDescribe ?? false}
-          disabled={
-            !loaded || !altTextAvailable || savingKeys.has('autoDescribe')
-          }
+          disabled={!loaded || !altTextAvailable}
+          busy={savingKeys.has('autoDescribe')}
           onCheckedChange={(checked) => handleSave('autoDescribe', checked)}
         />
 
@@ -226,7 +230,8 @@ export const MediaDetailsSettings: FC = () => {
           label="Allow posting media without a description"
           description="When off, every item needs a description or must be marked decorative."
           checked={settings?.allowEmptyDescription ?? false}
-          disabled={!loaded || savingKeys.has('allowEmptyDescription')}
+          disabled={!loaded}
+          busy={savingKeys.has('allowEmptyDescription')}
           onCheckedChange={(checked) =>
             handleSave('allowEmptyDescription', checked)
           }
@@ -246,7 +251,8 @@ export const MediaDetailsSettings: FC = () => {
           label="Add subjects as hashtags"
           description="Adds a hashtag such as #CommonKingfisher to the post for each subject."
           checked={settings?.subjectHashtags ?? false}
-          disabled={!loaded || savingKeys.has('subjectHashtags')}
+          disabled={!loaded}
+          busy={savingKeys.has('subjectHashtags')}
           onCheckedChange={(checked) => handleSave('subjectHashtags', checked)}
         />
       </section>
@@ -278,7 +284,8 @@ export const MediaDetailsSettings: FC = () => {
               id="media-default-place-precision"
               aria-describedby="media-default-place-precision-help"
               value={settings?.defaultPlacePrecision ?? 'hidden'}
-              disabled={!loaded || savingKeys.has('defaultPlacePrecision')}
+              disabled={!loaded}
+              aria-busy={savingKeys.has('defaultPlacePrecision')}
               onChange={(event) =>
                 handleSave(
                   'defaultPlacePrecision',

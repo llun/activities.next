@@ -18,6 +18,7 @@ import {
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { UploadedAttachment } from '@/lib/types/domain/attachment'
+import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { PostBox } from './post-box'
 
@@ -572,6 +573,63 @@ describe('PostBox media details', () => {
     ).toBeInTheDocument()
 
     post.resolve({ status: {} as never, attachments: [] })
+  })
+
+  it('ignores a file that finishes processing after the submit has started', async () => {
+    const upload = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockReturnValueOnce(upload.promise)
+    renderPostBox()
+    attach('a.png')
+    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalledTimes(1))
+
+    // b.png is picked before the submit but is still being resized when the
+    // submit begins.
+    const resize = createDeferred<File>()
+    vi.mocked(resizeImage).mockReturnValueOnce(resize.promise)
+    attach('b.png')
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Posting...' })).toBeDisabled()
+    )
+
+    resize.resolve(new File(['b.png'], 'b.png', { type: 'image/png' }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(uploadAttachmentMock).toHaveBeenCalledTimes(1)
+    expect(global.URL.revokeObjectURL).toHaveBeenCalledWith('blob:media')
+
+    upload.resolve(uploaded('media-a.png', 'a.png'))
+    await waitFor(() =>
+      expect(createNoteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attachments: [expect.objectContaining({ id: 'media-a.png' })]
+        })
+      )
+    )
+    expect(createNoteMock.mock.calls[0][0].attachments).toHaveLength(1)
+  })
+
+  it('disables the add media button and ignores picks while posting', async () => {
+    const upload = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockReturnValueOnce(upload.promise)
+    renderPostBox()
+    attach('a.png')
+    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Posting...' })).toBeDisabled()
+    )
+
+    expect(screen.getByRole('button', { name: /^Add media/ })).toBeDisabled()
+    attach('b.png')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(uploadAttachmentMock).toHaveBeenCalledTimes(1)
+
+    upload.resolve(uploaded('media-a.png', 'a.png'))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+    expect(createNoteMock.mock.calls[0][0].attachments).toHaveLength(1)
   })
 
   it('deletes uploaded media when the composer unmounts without posting', async () => {

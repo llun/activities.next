@@ -70,6 +70,18 @@ vi.mock('@/lib/config', () => ({
   getConfig: () => mockGetConfig()
 }))
 
+const mockMaxUploadSize = vi.fn()
+vi.mock('@/lib/services/medias/uploadSizeLimit', async (importActual) => {
+  const actual =
+    await importActual<typeof import('@/lib/services/medias/uploadSizeLimit')>()
+  return {
+    ...actual,
+    getMaxMediaUploadSize: (
+      ...args: Parameters<typeof actual.getMaxMediaUploadSize>
+    ) => mockMaxUploadSize(...args) ?? actual.getMaxMediaUploadSize(...args)
+  }
+})
+
 const mockGenerateAltText = vi.fn()
 vi.mock('@/lib/services/altText/openai', () => ({
   generateAltText: (...args: unknown[]) => mockGenerateAltText(...args)
@@ -121,6 +133,7 @@ describe('S3FileStorage presigned upload completion', () => {
     vi.clearAllMocks()
     mockGetConfig.mockReturnValue({})
     mockGenerateAltText.mockReset()
+    mockMaxUploadSize.mockReset()
     // The presigned video path extracts through the real
     // `extractVideoPreviewFrame`, which writes a temp copy and delegates to
     // `extractVideoImage`; the default keeps an unconfigured call from
@@ -1974,6 +1987,67 @@ describe('S3FileStorage presigned upload completion', () => {
 
       expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
       expect(database.deleteMedia).toHaveBeenCalledWith({ mediaId: 'media-1' })
+    })
+
+    // Seeded noise stored with mozjpeg at a low quality: re-encoding it with
+    // plain libjpeg comes out larger than the upload even at q85.
+    const smallNoisyJpeg = async () => {
+      const raw = Buffer.alloc(128 * 128 * 3)
+      let seed = 12345
+      for (let i = 0; i < raw.length; i++) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff
+        raw[i] = (seed >> 16) & 255
+      }
+      return sharp(raw, { raw: { width: 128, height: 128, channels: 3 } })
+        .jpeg({ quality: 50, mozjpeg: true })
+        .withExif({ IFD0: { Make: 'Canon' } })
+        .toBuffer()
+    }
+
+    it('refuses and removes an image whose stripped copy exceeds the file limit', async () => {
+      const original = await smallNoisyJpeg()
+      mockMaxUploadSize.mockResolvedValue(original.length + 100)
+
+      await expect(
+        completeUpload(original, 'image/jpeg', 'photo.jpg')
+      ).rejects.toThrow(PresignedUploadValidationError)
+
+      // Nothing was written, the row and the client's object are removed.
+      expect(putKeys()).toEqual([])
+      expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+      expect(deletedKeys).toEqual(['medias/2026-01-01/photo.jpg'])
+      expect(database.deleteMedia).toHaveBeenCalledWith({ mediaId: 'media-1' })
+    })
+
+    it('refuses and removes an image whose growth pushes the account past its quota', async () => {
+      const original = await smallNoisyJpeg()
+      mockGetConfig.mockReturnValue({
+        mediaStorage: { quotaPerAccount: original.length + 10 }
+      })
+      // The pending original is already counted in the usage.
+      database.getStorageUsageForAccount.mockResolvedValue(original.length)
+
+      await expect(
+        completeUpload(original, 'image/jpeg', 'photo.jpg')
+      ).rejects.toThrow(/quota/i)
+
+      expect(putKeys()).toEqual([])
+      expect(database.markMediaUploadVerified).not.toHaveBeenCalled()
+      expect(deletedKeys).toEqual(['medias/2026-01-01/photo.jpg'])
+      expect(database.deleteMedia).toHaveBeenCalledWith({ mediaId: 'media-1' })
+    })
+
+    it('re-encodes at a lower quality when the first strip grows', async () => {
+      const original = await smallNoisyJpeg()
+      const toBuffer = vi.spyOn(sharp.prototype, 'jpeg')
+
+      await completeUpload(original, 'image/jpeg', 'photo.jpg')
+
+      const qualities = toBuffer.mock.calls.map(
+        ([options]) => (options as { quality?: number } | undefined)?.quality
+      )
+      expect(qualities).toEqual(expect.arrayContaining([95, 85]))
+      toBuffer.mockRestore()
     })
 
     it('does not rewrite a video', async () => {
