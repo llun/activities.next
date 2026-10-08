@@ -621,6 +621,47 @@ describe('getPublicPlace country names', () => {
     }
   )
 
+  // No precision: the owner never chose to publish the place (an API client
+  // set only the point, say). A geocoded name would name their town.
+  it.each([
+    ['a code', 'TH'],
+    ['no code', null]
+  ])(
+    'shows no place for a geocoded name with no precision and %s',
+    (_, placeCountryCode) => {
+      expect(
+        getPublicPlace(
+          {
+            ...EMPTY_MEDIA_DETAILS,
+            placeName: 'Pak Chong, Thailand',
+            placeNameSource: 'geocoder',
+            placePrecision: null,
+            placeLatitude: 14.4,
+            placeLongitude: 101.4,
+            placeCountryCode
+          },
+          NO_ZONES
+        )
+      ).toBeNull()
+    }
+  )
+
+  it('keeps the owner’s own name with no precision', () => {
+    expect(
+      getPublicPlace(
+        {
+          ...EMPTY_MEDIA_DETAILS,
+          placeName: 'Our garden',
+          placeNameSource: 'owner',
+          placePrecision: null,
+          placeLatitude: 14.4,
+          placeLongitude: 101.4
+        },
+        NO_ZONES
+      )
+    ).toEqual({ name: 'Our garden', precision: null, countryCode: null })
+  })
+
   it('keeps the owner’s own name for country without a code', () => {
     expect(
       getPublicPlace(

@@ -140,6 +140,42 @@ describe('POST /api/v1/media/[id]/lookups', () => {
     }
   })
 
+  // On a real queue the job has not run when this answers; the owner must
+  // see that the lookup is under way, not the failure they just retried.
+  it('marks each re-queued lookup pending before it answers', async () => {
+    const id = await createMediaFor(ACTOR1_ID, {
+      subjectScientificName: 'Panthera tigris',
+      subjectCategory: 'mammal',
+      placeLatitude: 14.5,
+      placeLongitude: 101.4
+    })
+    await database.setMediaPlaceLookup({
+      mediaId: id,
+      expect: { placeLatitude: 14.5, placeLongitude: 101.4 },
+      patch: { placeLookupStatus: 'failed' }
+    })
+    await database.setMediaSubjectLookup({
+      mediaId: id,
+      expect: {
+        subjectName: null,
+        subjectScientificName: 'Panthera tigris',
+        subjectTaxonKey: null
+      },
+      patch: { subjectLookupStatus: 'failed' }
+    })
+
+    const body = await (await request(id)).json()
+
+    expect(body.details.place).toMatchObject({
+      lookupStatus: 'pending',
+      lookupStale: false
+    })
+    expect(body.details.subject).toMatchObject({
+      lookupStatus: 'pending',
+      lookupStale: false
+    })
+  })
+
   it('uses a fresh job id each time, so a retry is not collapsed', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {

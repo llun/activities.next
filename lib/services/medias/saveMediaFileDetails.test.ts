@@ -105,7 +105,9 @@ describe('uploading a photo with EXIF', () => {
         precision: 'area',
         countryCode: null,
         nameSource: null,
-        lookupStatus: null
+        // Queued for its place lookup by the upload; not stale yet.
+        lookupStatus: 'pending',
+        lookupStale: false
       },
       inGallery: false,
       subjectSuggestions: null

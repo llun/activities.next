@@ -13,7 +13,8 @@
  *   and never applied to the `subject*` columns by itself.
  * - `placeCountryCode` (ISO 3166-1 alpha-2), `placeNameSource` (`owner` or
  *   `geocoder`; null = a name from before this migration, treated as the
- *   owner's) and `placeLookupStatus` (the same enum as the subject's).
+ *   owner's), `placeLookupStatus` (the same enum as the subject's) and
+ *   `placeLookupAt` (when it became pending, or the last attempt).
  *
  * `gallery_settings` gains `hideThreatenedPlaces` (default on: a species-like
  * subject's place is withheld from everyone but the owner until a lookup says
@@ -62,6 +63,10 @@ export const up = async function (knex) {
     [
       'placeLookupStatus',
       (table) => table.string('placeLookupStatus', 16).nullable()
+    ],
+    [
+      'placeLookupAt',
+      (table) => table.timestamp('placeLookupAt', { useTz: true }).nullable()
     ]
   ]
 
@@ -142,6 +147,7 @@ export const down = async function (knex) {
   }
 
   const mediaColumns = [
+    'placeLookupAt',
     'placeLookupStatus',
     'placeNameSource',
     'placeCountryCode',

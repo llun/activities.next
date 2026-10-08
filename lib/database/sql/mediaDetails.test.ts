@@ -108,7 +108,10 @@ describe('MediaDatabase details', () => {
         subjectSuggestions: null,
         placeCountryCode: null,
         placeNameSource: 'owner',
-        placeLookupStatus: null
+        // A point is queued for its place lookup the same way, so the dialog
+        // says it is being looked up rather than that it never was.
+        placeLookupStatus: 'pending',
+        placeLookupAt: expect.any(Number)
       })
     })
 
@@ -481,10 +484,74 @@ describe('MediaDatabase details', () => {
           placeLatitude: 18.79,
           placeLongitude: 98.98,
           placeCountryCode: null,
-          placeLookupStatus: null,
+          // The new point's lookup is queued right after this write.
+          placeLookupStatus: 'pending',
+          placeLookupAt: expect.any(Number),
           // The geocoded name described the old point.
           placeName: null,
           placeNameSource: null
+        })
+      })
+
+      it('records when a place lookup became pending, and when it ran', async () => {
+        const before = Date.now()
+        const media = await createMedia('lookup-place-at', {
+          placeLatitude: 14.4,
+          placeLongitude: 101.4
+        })
+        const pending = await getDetails(media!.id)
+        expect(pending.placeLookupStatus).toBe('pending')
+        expect(pending.placeLookupAt).toBeGreaterThanOrEqual(before - 1000)
+
+        await database.setMediaPlaceLookup({
+          mediaId: media!.id,
+          expect: { placeLatitude: 14.4, placeLongitude: 101.4 },
+          patch: { placeLookupStatus: 'failed', placeLookupAt: before + 5000 }
+        })
+        expect(await getDetails(media!.id)).toMatchObject({
+          placeLookupStatus: 'failed',
+          placeLookupAt: before + 5000
+        })
+      })
+
+      it('clears the place status when the point is cleared', async () => {
+        const media = await createMedia('lookup-place-cleared', {
+          placeLatitude: 14.4,
+          placeLongitude: 101.4
+        })
+
+        const result = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          details: { placeLatitude: null, placeLongitude: null }
+        })
+
+        expect(result?.media.details).toMatchObject({
+          placeLookupStatus: null,
+          placeLookupAt: null
+        })
+      })
+
+      it('keeps a finished place lookup when the same point is re-sent', async () => {
+        const media = await createMedia('lookup-place-same', {
+          placeLatitude: 14.4,
+          placeLongitude: 101.4
+        })
+        await database.setMediaPlaceLookup({
+          mediaId: media!.id,
+          expect: { placeLatitude: 14.4, placeLongitude: 101.4 },
+          patch: { placeLookupStatus: 'resolved', placeCountryCode: 'TH' }
+        })
+
+        const result = await database.updateMedia({
+          mediaId: media!.id,
+          accountId,
+          details: { placeLatitude: 14.4, placeLongitude: 101.4 }
+        })
+
+        expect(result?.media.details).toMatchObject({
+          placeLookupStatus: 'resolved',
+          placeCountryCode: 'TH'
         })
       })
 
@@ -681,7 +748,7 @@ describe('MediaDatabase details', () => {
         expect(await getDetails(media!.id)).toMatchObject({
           placeCountryCode: null,
           placeName: null,
-          placeLookupStatus: null
+          placeLookupStatus: 'pending'
         })
       })
 

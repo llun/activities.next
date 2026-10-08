@@ -47,14 +47,16 @@ const FINAL_PLACE_STATUSES = new Set(['resolved', 'no-match'])
 // POST /api/v1/media/:id/lookups — publishes the place and subject lookups of
 // a media the caller owns again, for the dialog's "Couldn't check · Retry".
 // Only a lookup that has not finished is queued: a place with coordinates that
-// is not `resolved` or `no-match` (a null status included, the state an edit
-// leaves when its job was lost), and a species-like subject whose threat
-// status is still unchecked. Each job gets a fresh id and is told it is a
-// retry, so it asks the provider again rather than answering a remembered
-// failure (an open circuit still fails fast). The jobs re-read the media and
-// re-check the admin switches themselves, so this only queues them (under
-// NoQueue they run before this answers) and returns the owner's details as
-// they are now. Same scopes and 404 rule as `describe`.
+// is not `resolved` or `no-match` (a stale `pending` whose job was lost, and a
+// null status from before the lookups existed, included), and a species-like
+// subject whose threat status is still unchecked. Each job gets a fresh id
+// and is told it is a retry, so it asks the provider again rather than
+// answering a remembered failure (an open circuit still fails fast). Each
+// queued lookup is marked `pending` first, so the answer says it is under
+// way. The jobs re-read the media and re-check the admin switches themselves,
+// so this only queues them (under NoQueue they run before this answers) and
+// returns the owner's details as they are now. Same scopes and 404 rule as
+// `describe`.
 export const POST = traceApiRoute(
   'retryMediaLookups',
   OAuthGuardAnyScope<Params>(
@@ -104,6 +106,14 @@ export const POST = traceApiRoute(
         typeof longitude === 'number' &&
         !FINAL_PLACE_STATUSES.has(details.placeLookupStatus ?? '')
       ) {
+        // `pending` first, so the owner sees the lookup is under way until
+        // the job writes its result (under NoQueue it does so before this
+        // answers). A compare-and-set: a move made meanwhile wins.
+        await database.setMediaPlaceLookup({
+          mediaId: media.id,
+          expect: { placeLatitude: latitude, placeLongitude: longitude },
+          patch: { placeLookupStatus: 'pending' }
+        })
         await publishPlaceLookup({
           mediaId: media.id,
           latitude,
@@ -115,6 +125,15 @@ export const POST = traceApiRoute(
       // `unchecked` is every species-like subject not yet cleared or found
       // threatened, a subject known only by its taxon key included.
       if (getSubjectThreatStatus(details) === 'unchecked') {
+        await database.setMediaSubjectLookup({
+          mediaId: media.id,
+          expect: {
+            subjectName: details.subjectName,
+            subjectScientificName: details.subjectScientificName,
+            subjectTaxonKey: details.subjectTaxonKey
+          },
+          patch: { subjectLookupStatus: 'pending' }
+        })
         await publishSubjectLookup({
           mediaId: media.id,
           subjectName: details.subjectName,

@@ -128,7 +128,9 @@ export const MediaDetailsEntity = z.object({
       precision: z.enum(MEDIA_PLACE_PRECISIONS).nullable(),
       countryCode: z.string().nullable(),
       nameSource: z.enum(MEDIA_PLACE_NAME_SOURCES).nullable(),
-      lookupStatus: z.enum(MEDIA_LOOKUP_STATUSES).nullable()
+      lookupStatus: z.enum(MEDIA_LOOKUP_STATUSES).nullable(),
+      // `pending` for longer than a lookup should take: the owner may Retry.
+      lookupStale: z.boolean()
     })
     .nullable(),
   inGallery: z.boolean(),

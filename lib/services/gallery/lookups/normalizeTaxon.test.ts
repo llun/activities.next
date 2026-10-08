@@ -3,12 +3,15 @@ import iucnLeastConcern from './__fixtures__/gbif-iucn-lc.json'
 import matchExact from './__fixtures__/gbif-match-exact.json'
 import matchFuzzy from './__fixtures__/gbif-match-fuzzy.json'
 import matchGenus from './__fixtures__/gbif-match-genus.json'
+import matchGenusOnly from './__fixtures__/gbif-match-higherrank-genus.json'
+import matchPongoHigherRank from './__fixtures__/gbif-match-higherrank-pongo.json'
 import matchNone from './__fixtures__/gbif-match-none.json'
 import matchSynonym from './__fixtures__/gbif-match-synonym.json'
 import searchKingfisher from './__fixtures__/gbif-search-kingfisher.json'
 import taxonKingfisher from './__fixtures__/gbif-taxon-kingfisher.json'
 import {
   getTaxonCategory,
+  getUncertainMatch,
   isReadableMatch,
   normalizeIucnCategory,
   normalizeMatch,
@@ -211,5 +214,57 @@ describe('isReadableMatch', () => {
     [{ matchType: 'EXACT', usageKey: 1, canonicalName: 'A b', rank: 'SPECIES' }]
   ])('does not read %j', (raw) => {
     expect(isReadableMatch(raw)).toBe(false)
+  })
+})
+
+describe('getUncertainMatch', () => {
+  it('names the species of a HIGHERRANK answer', () => {
+    expect(getUncertainMatch(matchPongoHigherRank)).toEqual({
+      speciesKey: '5707420',
+      genusKey: '5219531'
+    })
+  })
+
+  it('names only the genus when GBIF got no further', () => {
+    expect(getUncertainMatch(matchGenusOnly)).toEqual({
+      speciesKey: null,
+      genusKey: '5219531'
+    })
+  })
+
+  it('names the species of a species match below the confidence bar', () => {
+    expect(
+      getUncertainMatch({
+        usageKey: 42,
+        rank: 'SPECIES',
+        matchType: 'FUZZY',
+        confidence: 70
+      })
+    ).toEqual({ speciesKey: '42', genusKey: null })
+  })
+
+  it.each([
+    ['a NONE answer', { matchType: 'NONE', confidence: 100 }],
+    [
+      'a confident genus (the owner named a group)',
+      {
+        usageKey: 2475493,
+        genusKey: 2475493,
+        rank: 'GENUS',
+        matchType: 'EXACT',
+        confidence: 98
+      }
+    ],
+    [
+      'a family-level answer',
+      {
+        usageKey: 5483,
+        rank: 'FAMILY',
+        matchType: 'HIGHERRANK',
+        confidence: 90
+      }
+    ]
+  ])('answers null for %s', (_, raw) => {
+    expect(getUncertainMatch(raw)).toBeNull()
   })
 })

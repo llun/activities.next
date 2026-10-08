@@ -8,7 +8,11 @@ import { getGallerySettingsOrDefaults } from '@/lib/services/gallery/uploadMedia
 import { saveMedia } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { getStoredMediaExtension } from '@/lib/services/medias/fileName'
-import { MediaSchema } from '@/lib/services/medias/types'
+import { buildOwnerMediaDetails } from '@/lib/services/medias/mediaDetails'
+import {
+  MediaSchema,
+  MediaStorageSaveFileOutput
+} from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { extractVideoPreviewFrame } from '@/lib/services/medias/videoPreview'
 import { Actor } from '@/lib/types/domain/actor'
@@ -16,6 +20,28 @@ import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import { ERROR_422, ERROR_500, apiResponse } from '@/lib/utils/response'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
+
+// Re-reads the upload's owner details into `response`, best effort: a failed
+// read keeps the details the upload already returned.
+const refreshDetails = async (
+  database: Database,
+  response: Pick<MediaStorageSaveFileOutput, 'id' | 'details'>,
+  accountId: string
+) => {
+  try {
+    const media = await database.getMediaByIdForAccount({
+      mediaId: response.id,
+      accountId
+    })
+    if (media) response.details = await buildOwnerMediaDetails(database, media)
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to re-read the details of an uploaded media',
+      mediaId: response.id,
+      err: toLoggableError(error)
+    })
+  }
+}
 
 // Shared handler for the two synchronous upload endpoints (POST /api/v1/media
 // and POST /api/v2/media). Both accept the same params (file, thumbnail,
@@ -145,11 +171,17 @@ export const handleSyncMediaUpload = async (
       typeof longitude === 'number' &&
       currentActor.account?.id
     ) {
-      await publishPlaceLookup({
+      const published = await publishPlaceLookup({
         mediaId: response.id,
         latitude,
         longitude
       })
+      // The details above were built before the lookup was queued. Under
+      // NoQueue it has already run, so answer with what it wrote; on a real
+      // queue this reads the `pending` the upload recorded.
+      if (published) {
+        await refreshDetails(database, response, currentActor.account.id)
+      }
     }
 
     return apiResponse({

@@ -32,7 +32,8 @@ const details: MediaDetailsEntity = {
     precision: 'area',
     countryCode: null,
     nameSource: null,
-    lookupStatus: null
+    lookupStatus: null,
+    lookupStale: false
   },
   inGallery: true,
   subjectSuggestions: null

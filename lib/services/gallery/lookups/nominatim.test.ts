@@ -144,6 +144,31 @@ describe('nominatim client', () => {
     expect([...rows.values()][0]?.outcome).toBe('error')
   })
 
+  // A 404 is a wrong endpoint (Nominatim's "nothing here" is a 200), so it
+  // must not be cached as a cell with no name.
+  it('throws an http error for a 404, and caches no miss', async () => {
+    const { client, rows } = setup({
+      handler: () => ({ statusCode: 404, body: '<html>Not Found</html>' })
+    })
+
+    await expect(client.reverseGeocode(RAW)).rejects.toMatchObject({
+      code: 'http'
+    })
+    expect([...rows.values()][0]?.outcome).toBe('error')
+  })
+
+  it('does not cache a fail-fast open circuit', async () => {
+    const { client, rows, provider } = setup({
+      handler: () => ({ body: nominatimNone })
+    })
+    provider.breaker.open()
+
+    await expect(client.reverseGeocode(RAW)).rejects.toMatchObject({
+      code: 'circuit-open'
+    })
+    expect(rows.size).toBe(0)
+  })
+
   it('opens the circuit on a 429 and then fails fast without a request', async () => {
     const { client, requests, provider } = setup({
       handler: () => ({ statusCode: 429, headers: { 'retry-after': '60' } })

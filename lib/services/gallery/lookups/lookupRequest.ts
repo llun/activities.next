@@ -49,13 +49,28 @@ export const getLookupHeaders = (): Record<string, string> => {
 export type LookupResponse =
   // 200 with a JSON body.
   | { status: 'ok'; json: unknown }
-  // 204 or 404: the provider has nothing for this request.
+  // An answer the caller declared as "nothing here" (`isEmptyAnswer`).
   | { status: 'empty' }
+
+/**
+ * Which non-200 answers mean "the provider has nothing for this request".
+ * Each call names its own: no status is "empty" by default, because the same
+ * code means different things per endpoint. A 404 from `species/match` is a
+ * wrong or retired endpoint (a real no-match is a 200), and reading it as
+ * "nothing found" would clear a threatened species' place.
+ */
+export type IsEmptyAnswer = (answer: {
+  statusCode: number
+  body: string
+}) => boolean
 
 /**
  * One GET against a lookup provider: circuit breaker, rate limit, timeouts and
  * body cap. Throws LookupError for every failure. A timeout, a 5xx and a 429
- * open the provider's circuit; a 4xx other than 404 does not.
+ * open the provider's circuit; another 4xx does not.
+ *
+ * Only a 200 is an answer. Anything else that `isEmptyAnswer` does not claim
+ * (none by default) is an `http` failure, never "nothing found".
  *
  * Never forwards credentials: the headers are the fixed lookup headers only,
  * and redirects to another host are refused.
@@ -63,11 +78,13 @@ export type LookupResponse =
 export const lookupGet = async ({
   provider,
   url,
-  fetch = safeRemoteFetch
+  fetch = safeRemoteFetch,
+  isEmptyAnswer
 }: {
   provider: LookupProvider
   url: string
   fetch?: LookupFetch
+  isEmptyAnswer?: IsEmptyAnswer
 }): Promise<LookupResponse> => {
   const circuitOpen = () =>
     new LookupError(
@@ -130,8 +147,10 @@ export const lookupGet = async ({
       `${provider.name} answered ${statusCode}`
     )
   }
-  if (statusCode === 204 || statusCode === 404) return { status: 'empty' }
-  if (statusCode < 200 || statusCode >= 300) {
+  if (isEmptyAnswer?.({ statusCode, body: response.body })) {
+    return { status: 'empty' }
+  }
+  if (statusCode !== 200) {
     throw new LookupError('http', `${provider.name} answered ${statusCode}`)
   }
 

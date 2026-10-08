@@ -89,7 +89,8 @@ describe('buildOwnerMediaDetails', () => {
         precision: 'area',
         countryCode: null,
         nameSource: null,
-        lookupStatus: null
+        lookupStatus: null,
+        lookupStale: false
       },
       inGallery: true,
       subjectSuggestions: null
@@ -128,7 +129,8 @@ describe('buildOwnerMediaDetails', () => {
       precision: null,
       countryCode: null,
       nameSource: null,
-      lookupStatus: null
+      lookupStatus: null,
+      lookupStale: false
     })
   })
 
@@ -233,6 +235,33 @@ describe('buildOwnerMediaDetails lookupStale', () => {
   it('is false for any status but pending', async () => {
     expect(
       await staleOf({ subjectLookupStatus: 'failed', subjectLookupAt: 0 })
+    ).toBe(false)
+  })
+
+  // The place lookup follows the same rule, from `placeLookupAt`.
+  const placeStaleOf = async (details: Partial<typeof EMPTY_MEDIA_DETAILS>) =>
+    (
+      await buildOwnerMediaDetails(
+        database(),
+        media({ placeLatitude: 14.4, placeLongitude: 101.4, ...details })
+      )
+    ).place?.lookupStale
+
+  it('marks a place lookup stale only once pending for too long', async () => {
+    expect(
+      await placeStaleOf({
+        placeLookupStatus: 'pending',
+        placeLookupAt: Date.now() - (STALE_SUBJECT_LOOKUP_MS - 1)
+      })
+    ).toBe(false)
+    expect(
+      await placeStaleOf({
+        placeLookupStatus: 'pending',
+        placeLookupAt: Date.now() - STALE_SUBJECT_LOOKUP_MS
+      })
+    ).toBe(true)
+    expect(
+      await placeStaleOf({ placeLookupStatus: 'failed', placeLookupAt: 0 })
     ).toBe(false)
   })
 })

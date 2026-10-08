@@ -113,6 +113,7 @@ export const toCountryCode = (
  *   it overrides the precision, and fails closed while a lookup is pending,
  *   failed or disabled),
  * - the precision is `hidden`, or there is neither a precision nor a name,
+ * - there is no precision and the name is the geocoder's, not the owner's,
  * - the place falls inside one of the owner's hidden locations. That test runs
  *   on the stored point AND on the point that would be disclosed: an `area`
  *   cell centre can land inside a zone the true point is just outside of, and
@@ -137,6 +138,12 @@ export const getPublicPlace = (
 
   if (placePrecision === 'hidden') return null
   if (placeName === null && placePrecision === null) return null
+  // With no precision the owner never chose to show anything; only a name
+  // they typed themselves (or one from before lookups existed) is theirs to
+  // show. A geocoded name names the town of a point they never published.
+  if (placePrecision === null && details.placeNameSource === 'geocoder') {
+    return null
+  }
 
   const place: PublicPlace = {
     name:

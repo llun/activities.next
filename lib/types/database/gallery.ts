@@ -150,6 +150,8 @@ export interface MediaDetailsRecord {
   placeCountryCode: string | null
   placeNameSource: MediaPlaceNameSource | null
   placeLookupStatus: MediaLookupStatus | null
+  // Epoch milliseconds the place lookup became pending, or was last attempted.
+  placeLookupAt: number | null
 }
 
 // The details only the lookups write (see `MediaDetailsRecord`).
@@ -161,7 +163,8 @@ export const MEDIA_LOOKUP_OWNED_DETAILS = [
   'subjectSuggestions',
   'placeCountryCode',
   'placeNameSource',
-  'placeLookupStatus'
+  'placeLookupStatus',
+  'placeLookupAt'
 ] as const satisfies readonly (keyof MediaDetailsRecord)[]
 export type MediaLookupOwnedDetail = (typeof MEDIA_LOOKUP_OWNED_DETAILS)[number]
 
@@ -186,7 +189,8 @@ export const EMPTY_MEDIA_DETAILS: MediaDetailsRecord = {
   subjectSuggestions: null,
   placeCountryCode: null,
   placeNameSource: null,
-  placeLookupStatus: null
+  placeLookupStatus: null,
+  placeLookupAt: null
 }
 
 // SQL row type for `gallery_gears`. Timestamps are loose because the two

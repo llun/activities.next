@@ -2,6 +2,8 @@ import { Database } from '@/lib/database/types'
 import { logger } from '@/lib/utils/logger'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
+import { LookupError } from './lookupRequest'
+
 const MINUTE = 60 * 1000
 const DAY = 24 * 60 * MINUTE
 
@@ -28,6 +30,10 @@ export type CachedLookup<T> =
   // The lookup failed now, or failed recently enough to be remembered.
   | { status: 'error'; error?: unknown }
 
+const isLocalFailure = (error: unknown) =>
+  error instanceof LookupError &&
+  (error.code === 'circuit-open' || error.code === 'rate-limited')
+
 const inFlight = new Map<string, Promise<CachedLookup<unknown>>>()
 
 /**
@@ -36,7 +42,9 @@ const inFlight = new Map<string, Promise<CachedLookup<unknown>>>()
  * fetch, so a burst of uploads from one place makes one request.
  *
  * `fetcher` answers the value, or null for "the provider has nothing". It may
- * throw; the failure is remembered briefly and returned as `status: 'error'`.
+ * throw; the failure is returned as `status: 'error'` and, when the provider
+ * was actually asked, remembered briefly. A `circuit-open` or `rate-limited`
+ * failure is decided locally and is not remembered.
  * A cache that cannot be read or written never fails the lookup; it only
  * means the provider is asked again.
  *
@@ -107,7 +115,11 @@ export const readThroughLookupCache = async <T>({
     try {
       value = await fetcher()
     } catch (error) {
-      await write('error', null, ttl.error)
+      // A failure decided in this process (an open circuit, the limiter's
+      // wait cap) never asked the provider, so it says nothing about this key.
+      // Remembering it would outlive the circuit and answer another process
+      // whose provider is fine (a backfill has its own breaker).
+      if (!isLocalFailure(error)) await write('error', null, ttl.error)
       return { status: 'error', error }
     }
 

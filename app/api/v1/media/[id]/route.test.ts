@@ -797,7 +797,8 @@ describe('/api/v1/media/[id]', () => {
         precision: 'exact',
         countryCode: null,
         nameSource: null,
-        lookupStatus: null
+        lookupStatus: null,
+        lookupStale: false
       })
     })
 
@@ -1034,6 +1035,93 @@ describe('/api/v1/media/[id]', () => {
           RESOLVE_MEDIA_SUBJECT_JOB_NAME
         ])
         expect(mockPublish.mock.calls[0][0].data).toEqual({ mediaId: id })
+      })
+
+      // An API client re-saving the whole subject used to queue a fresh job,
+      // which overwrote a good `resolved` with `failed` while GBIF was down.
+      it('queues nothing when the stored subject is sent again', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-subject-same')
+        const subject = {
+          subject_name: 'Tiger',
+          subject_scientific_name: 'Panthera tigris',
+          subject_category: 'mammal'
+        }
+        await put(id, subject)
+        await database.setMediaSubjectLookup({
+          mediaId: id,
+          expect: {
+            subjectName: 'Tiger',
+            subjectScientificName: 'Panthera tigris',
+            subjectTaxonKey: null
+          },
+          patch: {
+            subjectLookupStatus: 'resolved',
+            subjectIucnCategory: 'EN',
+            subjectTaxonKey: '5219416'
+          }
+        })
+        mockPublish.mockClear()
+
+        const response = await put(id, subject)
+
+        expect(response.status).toBe(200)
+        expect(mockPublish).not.toHaveBeenCalled()
+        expect((await response.json()).details.subject).toMatchObject({
+          lookupStatus: 'resolved',
+          iucnCategory: 'EN'
+        })
+      })
+
+      it('queues the subject lookup when one sent field changed', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-subject-change')
+        await put(id, { subject_name: 'Tiger', subject_category: 'mammal' })
+        mockPublish.mockClear()
+
+        await put(id, { subject_name: 'Tiger', subject_category: 'bird' })
+
+        expect(publishedNames()).toEqual([RESOLVE_MEDIA_SUBJECT_JOB_NAME])
+      })
+
+      it('answers with the place lookup pending while it is queued', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-place-pending')
+
+        const response = await put(id, {
+          place_latitude: 14.5,
+          place_longitude: 101.4
+        })
+
+        expect((await response.json()).details.place).toMatchObject({
+          lookupStatus: 'pending',
+          lookupStale: false
+        })
+      })
+
+      // NoQueue runs the job inside the publish; the answer must carry what
+      // it wrote, not the `pending` from before it ran.
+      it('answers with what a lookup that ran inline wrote', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-place-inline')
+        mockPublish.mockImplementation(async () => {
+          await database.setMediaPlaceLookup({
+            mediaId: id,
+            expect: { placeLatitude: 14.5, placeLongitude: 101.4 },
+            patch: {
+              placeLookupStatus: 'resolved',
+              placeCountryCode: 'TH',
+              placeName: 'Pak Chong, Thailand'
+            }
+          })
+        })
+
+        const response = await put(id, {
+          place_latitude: 14.5,
+          place_longitude: 101.4
+        })
+
+        expect((await response.json()).details.place).toMatchObject({
+          name: 'Pak Chong, Thailand',
+          countryCode: 'TH',
+          lookupStatus: 'resolved'
+        })
       })
 
       it('queues nothing for a description-only update', async () => {

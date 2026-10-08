@@ -8,6 +8,7 @@ import {
   createGalleryGear,
   describeMedia,
   getGalleryGears,
+  getMedia,
   retryMediaLookups,
   searchGalleryTaxa,
   suggestMediaSubjects,
@@ -26,6 +27,7 @@ vi.mock('@/lib/client', () => ({
   createGalleryGear: vi.fn(),
   describeMedia: vi.fn(),
   getGalleryGears: vi.fn(),
+  getMedia: vi.fn(),
   retryMediaLookups: vi.fn(),
   searchGalleryTaxa: vi.fn(),
   suggestMediaSubjects: vi.fn(),
@@ -39,6 +41,7 @@ const getGalleryGearsMock = vi.mocked(getGalleryGears)
 const createGalleryGearMock = vi.mocked(createGalleryGear)
 const suggestMediaSubjectsMock = vi.mocked(suggestMediaSubjects)
 const retryMediaLookupsMock = vi.mocked(retryMediaLookups)
+const getMediaMock = vi.mocked(getMedia)
 
 const emptyDetails: MediaDetailsEntity = {
   subject: null,
@@ -142,6 +145,9 @@ describe('MediaDetailsDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getGalleryGearsMock.mockResolvedValue(gears)
+    // A lookup under way makes the dialog read the media again; by default
+    // that read never answers.
+    getMediaMock.mockImplementation(() => new Promise(() => {}))
     updateMediaDetailsMock.mockImplementation(
       async (id, fields) =>
         ({
@@ -470,7 +476,8 @@ describe('MediaDetailsDialog', () => {
             precision: null,
             countryCode: null,
             nameSource: null,
-            lookupStatus: null
+            lookupStatus: null,
+            lookupStale: false
           }
         }
       })
@@ -554,7 +561,8 @@ describe('MediaDetailsDialog', () => {
               precision: 'area',
               countryCode: null,
               nameSource: null,
-              lookupStatus: null
+              lookupStatus: null,
+              lookupStale: false
             }
           }
         })
@@ -665,6 +673,9 @@ describe('MediaDetailsDialog smart subjects', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getGalleryGearsMock.mockResolvedValue(gears)
+    // A lookup under way makes the dialog read the media again; by default
+    // that read never answers.
+    getMediaMock.mockImplementation(() => new Promise(() => {}))
     updateMediaDetailsMock.mockImplementation(
       async (id) =>
         ({ id, description: null }) as unknown as Awaited<
@@ -1224,6 +1235,7 @@ describe('MediaDetailsDialog smart subjects', () => {
         countryCode: 'TH',
         nameSource: 'geocoder',
         lookupStatus: 'resolved',
+        lookupStale: false,
         ...overrides
       }
     })
@@ -1338,6 +1350,87 @@ describe('MediaDetailsDialog smart subjects', () => {
 
       expect(screen.getByRole('status')).toHaveTextContent(
         'Looking up the place name…'
+      )
+      // Queued, not lost: no Retry yet, and no "hasn't been looked up".
+      expect(
+        screen.queryByRole('button', { name: 'Retry' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText(/hasn’t been looked up/)
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers Retry once the lookup has been pending too long', () => {
+      renderDialog([
+        makeItem('m1', {
+          details: place({
+            name: null,
+            nameSource: null,
+            lookupStatus: 'pending',
+            lookupStale: true
+          })
+        })
+      ])
+
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Looking up the place name…'
+      )
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+    })
+
+    // The composer holds the details the upload answered with, from before
+    // the job ran. The dialog reads the media again, so the geocoded name
+    // and "From file" appear without a Retry.
+    it('reads a new upload again while its lookup is under way', async () => {
+      getMediaMock.mockResolvedValue({
+        id: 'm1',
+        details: place({})
+      } as unknown as Awaited<ReturnType<typeof getMedia>>)
+      const { onDetailsRefreshed } = renderDialog([
+        makeItem('m1', {
+          details: place({
+            name: null,
+            nameSource: null,
+            countryCode: null,
+            lookupStatus: 'pending'
+          })
+        })
+      ])
+
+      expect(
+        await screen.findByDisplayValue('Khao Yai National Park, Thailand')
+      ).toBeInTheDocument()
+      expect(getMediaMock).toHaveBeenCalledWith('m1')
+      expect(screen.getByText('From file')).toBeInTheDocument()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(retryMediaLookupsMock).not.toHaveBeenCalled()
+      expect(onDetailsRefreshed).toHaveBeenCalledWith(
+        'm1',
+        expect.objectContaining({
+          place: expect.objectContaining({ lookupStatus: 'resolved' })
+        }),
+        expect.anything()
+      )
+    })
+
+    it('does not read the media again when nothing is under way', () => {
+      renderDialog([makeItem('m1', { details: place({}) })])
+
+      expect(getMediaMock).not.toHaveBeenCalled()
+    })
+
+    it('shows a failed place Retry beside the place, with no subject set', async () => {
+      retryMediaLookupsMock.mockRejectedValue(new Error('Too many requests'))
+      renderDialog([
+        makeItem('m1', {
+          details: place({ name: null, lookupStatus: 'failed' })
+        })
+      ])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Too many requests'
       )
     })
   })

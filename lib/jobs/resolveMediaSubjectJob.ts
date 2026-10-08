@@ -1,8 +1,18 @@
 import { z } from 'zod'
 
+import { Database } from '@/lib/database/types'
 import { createJobHandle } from '@/lib/jobs/createJobHandle'
 import { RESOLVE_MEDIA_SUBJECT_JOB_NAME } from '@/lib/jobs/names'
-import { createGbifClient } from '@/lib/services/gallery/lookups/gbif'
+import {
+  GbifClient,
+  GbifTaxon,
+  createGbifClient
+} from '@/lib/services/gallery/lookups/gbif'
+import { LookupError } from '@/lib/services/gallery/lookups/lookupRequest'
+import {
+  IucnCategory,
+  UncertainMatch
+} from '@/lib/services/gallery/lookups/normalizeTaxon'
 import { isSpeciesLike } from '@/lib/services/gallery/publicMediaDetails'
 import { JobHandle } from '@/lib/services/queue/type'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -25,6 +35,77 @@ const KINGDOM_HINTS: Record<string, string> = {
   amphibian: 'Animalia',
   fish: 'Animalia',
   insect: 'Animalia'
+}
+
+// The categories under which an uncertain match may clear the place: GBIF's
+// best guess is a species the Red List does not count as threatened (or that
+// it has not assessed, which a confident match also clears).
+const CLEARING_CATEGORIES: ReadonlySet<IucnCategory> = new Set([
+  'LC',
+  'NT',
+  'DD',
+  'NE'
+])
+const THREATENED_CATEGORIES: ReadonlySet<IucnCategory> = new Set([
+  'CR',
+  'EN',
+  'VU'
+])
+
+type SubjectLookupPatch = Parameters<
+  Database['setMediaSubjectLookup']
+>[0]['patch']
+
+/**
+ * The result for a name GBIF placed in a species or genus without a confident
+ * match (HIGHERRANK, or below the confidence bar). It is never `no-match` by
+ * itself: GBIF did classify the name, and "Pongo abelii xyz" is placed in the
+ * Sumatran orangutan, which is CR.
+ *
+ * - Placed in a species: that species' IUCN category decides. LC, NT, DD or
+ *   NE (or no assessment) is `no-match`, which clears the place as a name GBIF
+ *   cannot classify would, and leaves the owner's subject unconfirmed. CR, EN
+ *   or VU is `resolved` with that category but no taxon key (the owner's name
+ *   was not confirmed), so the place stays hidden and the owner is told why.
+ *   EX or EW is `failed`: a confident match would show that place, but GBIF's
+ *   guess is not a confident match, so it stays hidden.
+ * - Placed only in a genus: which species it is cannot be told, and a genus
+ *   has no Red List category of its own, so it is `failed` (hidden, with
+ *   Retry) until the owner corrects or confirms the name.
+ * A lookup failure while checking the species throws, which records `failed`.
+ */
+const resolveUncertainMatch = async (
+  gbif: GbifClient,
+  uncertain: UncertainMatch,
+  mediaId: string
+): Promise<SubjectLookupPatch> => {
+  if (!uncertain.speciesKey) {
+    logger.info({
+      message: 'Subject only placed in a genus; its place stays hidden',
+      mediaId
+    })
+    return { subjectLookupStatus: 'failed' }
+  }
+  const species = await gbif.getTaxon(uncertain.speciesKey)
+  if (!species) {
+    throw new LookupError('parse', 'GBIF does not know the species it named')
+  }
+  const category = species.iucnCategory ?? 'NE'
+  if (CLEARING_CATEGORIES.has(category)) {
+    return {
+      subjectIucnCategory: null,
+      subjectTaxonPath: null,
+      subjectLookupStatus: 'no-match'
+    }
+  }
+  if (THREATENED_CATEGORIES.has(category)) {
+    return {
+      subjectIucnCategory: category,
+      subjectTaxonPath: null,
+      subjectLookupStatus: 'resolved'
+    }
+  }
+  return { subjectLookupStatus: 'failed' }
 }
 
 const sameName = (a: string, b: string) =>
@@ -101,16 +182,25 @@ export const resolveMediaSubjectJob: JobHandle = createJobHandle(
     try {
       const gbif = createGbifClient({ database, skipCachedErrors: retry })
 
-      let taxonKey = expect.subjectTaxonKey
-      if (!taxonKey && expect.subjectScientificName) {
-        const match = await gbif.matchTaxon(expect.subjectScientificName, {
+      // A stored key first. GBIF answers a key it does not know (a backbone
+      // move can retire one) with its own 404, and then the names are tried,
+      // so a retired key never reads as "no such species" on its own.
+      let taxon: GbifTaxon | null = expect.subjectTaxonKey
+        ? await gbif.getTaxon(expect.subjectTaxonKey)
+        : null
+      let uncertain: UncertainMatch | null = null
+      if (!taxon && expect.subjectScientificName) {
+        const outcome = await gbif.lookupMatch(expect.subjectScientificName, {
           kingdom: details.subjectCategory
             ? KINGDOM_HINTS[details.subjectCategory]
             : undefined
         })
-        taxonKey = match?.taxonKey ?? null
-      }
-      if (!taxonKey && !expect.subjectScientificName && expect.subjectName) {
+        if (outcome?.kind === 'match') {
+          taxon = await gbif.getTaxon(outcome.taxon.taxonKey)
+        } else if (outcome?.kind === 'uncertain') {
+          uncertain = outcome.uncertain
+        }
+      } else if (!taxon && expect.subjectName) {
         // Only a common name: take a search result that names it exactly.
         // A near miss is not a match; the owner can pick from the search.
         const subjectName = expect.subjectName
@@ -120,10 +210,14 @@ export const resolveMediaSubjectJob: JobHandle = createJobHandle(
             sameName(result.scientificName, subjectName) ||
             result.vernacularNames.some((name) => sameName(name, subjectName))
         )
-        taxonKey = exact?.taxonKey ?? null
+        taxon = exact ? await gbif.getTaxon(exact.taxonKey) : null
       }
 
-      const taxon = taxonKey ? await gbif.getTaxon(taxonKey) : null
+      if (!taxon && uncertain) {
+        await write(await resolveUncertainMatch(gbif, uncertain, mediaId))
+        return
+      }
+
       if (!taxon) {
         await write({
           subjectIucnCategory: null,

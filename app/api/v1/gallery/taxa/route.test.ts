@@ -92,6 +92,7 @@ describe('GET /api/v1/gallery/taxa', () => {
     searchTaxa.mockResolvedValue([TAXON])
     vi.mocked(createGbifClient).mockReturnValue({
       matchTaxon: vi.fn(),
+      lookupMatch: vi.fn(),
       getTaxon: vi.fn(),
       getIucnCategory: vi.fn(),
       searchTaxa

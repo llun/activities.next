@@ -8,6 +8,7 @@ import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
 
 import {
   BackfillOptions,
+  MAX_CONSECUTIVE_OUTAGES,
   needsPlaceLookup,
   needsSubjectLookup,
   parseArgs,
@@ -225,7 +226,8 @@ describe('runBackfill', () => {
       mediaSeen: 5,
       placeLookups: 4,
       subjectLookups: 2,
-      prunedCacheRows: 0
+      prunedCacheRows: 0,
+      gaveUp: []
     })
     expect(resolveMediaPlaceJob).not.toHaveBeenCalled()
     expect(resolveMediaSubjectJob).not.toHaveBeenCalled()
@@ -258,7 +260,8 @@ describe('runBackfill', () => {
     expect(resolveMediaPlaceJob).toHaveBeenCalledWith(database, {
       id: 'backfill-place-1',
       name: 'ResolveMediaPlaceJob',
-      data: { mediaId: '1' }
+      // Always a retry: a failure the cache remembers is asked again.
+      data: { mediaId: '1', retry: true }
     })
   })
 
@@ -326,16 +329,83 @@ describe('runBackfill', () => {
     // No lookup ran while the circuit was open; the one that failed under
     // it was asked again as a retry once it closed, then the rest went on.
     expect(calls).toEqual([
-      { mediaId: '1', at: 0 },
+      { mediaId: '1', retry: true, at: 0 },
       { mediaId: '1', retry: true, at: 300_000 },
-      { mediaId: '6', at: 300_000 },
-      { mediaId: '8', at: 300_000 },
-      { mediaId: '9', at: 300_000 }
+      { mediaId: '6', retry: true, at: 300_000 },
+      { mediaId: '8', retry: true, at: 300_000 },
+      { mediaId: '9', retry: true, at: 300_000 }
     ])
     expect(sleep).toHaveBeenCalledWith(300_000)
     expect(log).toHaveBeenCalledWith(
       'Nominatim is unavailable; waiting 300 s before going on'
     )
+  })
+
+  // A provider that never comes back (an air-gapped server with the switch
+  // still on) must not stall the run for ten minutes per photo.
+  it('gives up on a provider after a persistent outage', async () => {
+    let now = 0
+    let openUntil = 0
+    const breaker = {
+      isOpen: () => now < openUntil,
+      remainingMs: () => Math.max(0, openUntil - now),
+      open: vi.fn(),
+      close: vi.fn()
+    }
+    const sleep = vi.fn(async (ms: number) => {
+      now += ms
+    })
+    // Every attempt fails and opens the circuit again: it never closes for
+    // long enough to succeed.
+    vi.mocked(resolveMediaPlaceJob).mockImplementation(async () => {
+      openUntil = now + 5 * 60 * 1000
+    })
+
+    const summary = await run(
+      { apply: true },
+      { providers: { places: breaker, subjects: closedBreaker() }, sleep }
+    )
+
+    // Three photos, each asked twice, then no more place lookups.
+    expect(resolveMediaPlaceJob).toHaveBeenCalledTimes(
+      MAX_CONSECUTIVE_OUTAGES * 2
+    )
+    expect(summary.gaveUp).toEqual(['Nominatim'])
+    // The subject lookups still ran.
+    expect(resolveMediaSubjectJob).toHaveBeenCalledTimes(2)
+    expect(log).toHaveBeenCalledWith(
+      expect.stringMatching(/^Gave up on Nominatim: 3 lookups in a row failed/)
+    )
+    // Bounded: at most two circuit waits per given-up lookup.
+    expect(now).toBeLessThanOrEqual(MAX_CONSECUTIVE_OUTAGES * 2 * 300_000)
+  })
+
+  it('resets the outage count after a lookup that succeeds', async () => {
+    let now = 0
+    let openUntil = 0
+    const breaker = {
+      isOpen: () => now < openUntil,
+      remainingMs: () => Math.max(0, openUntil - now),
+      open: vi.fn(),
+      close: vi.fn()
+    }
+    const sleep = vi.fn(async (ms: number) => {
+      now += ms
+    })
+    let attempt = 0
+    // Fails twice (one double failure), then works.
+    vi.mocked(resolveMediaPlaceJob).mockImplementation(async () => {
+      attempt++
+      if (attempt <= 2) openUntil = now + 5 * 60 * 1000
+    })
+
+    const summary = await run(
+      { apply: true, only: 'places' },
+      { providers: { places: breaker, subjects: closedBreaker() }, sleep }
+    )
+
+    expect(summary.gaveUp).toEqual([])
+    expect(resolveMediaPlaceJob).toHaveBeenCalledTimes(5)
   })
 
   it('does not wait on the other provider’s circuit', async () => {

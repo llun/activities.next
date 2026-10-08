@@ -220,6 +220,7 @@ export type MediaRow = {
   placeCountryCode?: string | null
   placeNameSource?: string | null
   placeLookupStatus?: string | null
+  placeLookupAt?: number | string | Date | null
 }
 
 type MediaMetaData = Media['original']['metaData']
@@ -398,7 +399,10 @@ const parseMediaDetails = (data: MediaRow): MediaDetailsRecord => ({
   subjectSuggestions: parseSubjectSuggestions(data.subjectSuggestions),
   placeCountryCode: parseCountryCode(data.placeCountryCode),
   placeNameSource: parsePlaceNameSource(data.placeNameSource),
-  placeLookupStatus: parseLookupStatus(data.placeLookupStatus)
+  placeLookupStatus: parseLookupStatus(data.placeLookupStatus),
+  placeLookupAt: data.placeLookupAt
+    ? getCompatibleTime(data.placeLookupAt)
+    : null
 })
 
 export const parseMediaRow = (data: MediaRow): Media => ({
@@ -447,9 +451,10 @@ export const parseMediaRow = (data: MediaRow): Media => ({
 //   A name or scientific-name change without a taxon key also clears the old
 //   key: it named the previous species, and resolving it would clear the new
 //   subject against the wrong taxon.
-// - coordinates that CHANGE clear the country code and the place lookup
-//   status, and a geocoded name the request did not replace, since it named
-//   the previous point.
+// - coordinates that CHANGE clear the country code and a geocoded name the
+//   request did not replace, since it named the previous point, and set the
+//   place lookup status to `pending` (null when the point was cleared), with
+//   `placeLookupAt` as the time it became pending.
 // - a place name that changes is the owner's (`placeNameSource = 'owner'`);
 //   clearing it clears the source, so the geocoder may fill it again.
 // Re-sending the stored values changes nothing, so re-saving the dialog does
@@ -534,8 +539,25 @@ const getDetailsColumns = (
     ['placeLatitude', 'placeLongitude'] as const
   ).some((key) => key in columns && columns[key] !== current[key])
   if (coordinatesChanged) {
+    const latitude =
+      'placeLatitude' in columns ? columns.placeLatitude : current.placeLatitude
+    const longitude =
+      'placeLongitude' in columns
+        ? columns.placeLongitude
+        : current.placeLongitude
+    const hasPoint =
+      latitude !== null &&
+      latitude !== undefined &&
+      longitude !== null &&
+      longitude !== undefined
     columns.placeCountryCode = null
-    columns.placeLookupStatus = null
+    // A point is looked up whenever it is set or moved (the upload and the
+    // update publish the lookup after this commits), so it is `pending` from
+    // here, with the time it became pending: the dialog says it is being
+    // looked up, and offers a Retry once that has taken too long (a lost
+    // job, a queue outage). With no point there is nothing to look up.
+    columns.placeLookupStatus = hasPoint ? 'pending' : null
+    columns.placeLookupAt = hasPoint ? new Date() : null
     if (!('placeName' in columns) && current.placeNameSource === 'geocoder') {
       columns.placeName = null
       columns.placeNameSource = null
@@ -584,7 +606,8 @@ export const MEDIA_COLUMNS = [
   'subjectSuggestions',
   'placeCountryCode',
   'placeNameSource',
-  'placeLookupStatus'
+  'placeLookupStatus',
+  'placeLookupAt'
 ] as const
 
 // `column = value`, or `column IS NULL` for a null value: SQL's `= NULL` is
@@ -1493,7 +1516,10 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       throw new Error(`Unknown place lookup status: ${placeLookupStatus}`)
     }
 
-    const updates: Record<string, unknown> = { placeLookupStatus }
+    const updates: Record<string, unknown> = {
+      placeLookupStatus,
+      placeLookupAt: new Date(patch.placeLookupAt ?? Date.now())
+    }
     if (patch.placeCountryCode !== undefined) {
       const code = patch.placeCountryCode?.trim().toUpperCase() || null
       updates.placeCountryCode = parseCountryCode(code)

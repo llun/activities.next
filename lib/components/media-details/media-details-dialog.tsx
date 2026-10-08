@@ -28,6 +28,7 @@ import {
   createGalleryGear,
   describeMedia,
   getGalleryGears,
+  getMedia,
   retryMediaLookups,
   suggestMediaSubjects,
   updateMediaDetails
@@ -366,42 +367,69 @@ const PlaceLookupStatus: FC<{
   canRetry: boolean
   retrying: boolean
   disabled: boolean
+  error: string | null
   onRetry: () => void
-}> = ({ place, canRetry, retrying, disabled, onRetry }) => {
-  if (!place) return null
-  if (place.lookupStatus === 'pending') {
-    return (
-      <p role="status" className="text-xs text-muted-foreground">
-        Looking up the place name…
-      </p>
+}> = ({ place, canRetry, retrying, disabled, error, onRetry }) => {
+  const retry = canRetry ? (
+    <>
+      {' · '}
+      <RetryLink busy={retrying} disabled={disabled} onRetry={onRetry} />
+    </>
+  ) : null
+  const hasCoordinates =
+    place !== null && place.latitude !== null && place.longitude !== null
+
+  let content: ReactNode = null
+  if (place?.lookupStatus === 'pending') {
+    // Queued or running. Retry only once it has taken too long: a job lost to
+    // a queue outage would otherwise leave this up for good.
+    content = (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <span role="status">Looking up the place name…</span>
+        {place.lookupStale ? retry : null}
+      </span>
     )
-  }
-  if (!canRetry) return null
-  const hasCoordinates = place.latitude !== null && place.longitude !== null
-  const retry = (
-    <RetryLink busy={retrying} disabled={disabled} onRetry={onRetry} />
-  )
-  if (
-    place.lookupStatus === 'failed' ||
-    (hasCoordinates && place.lookupStatus === 'disabled')
+  } else if (
+    canRetry &&
+    (place?.lookupStatus === 'failed' ||
+      (hasCoordinates && place?.lookupStatus === 'disabled'))
   ) {
-    return (
-      <p className="inline-flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-        Couldn’t look up the place name · {retry}
-      </p>
+    content = (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        Couldn’t look up the place name{retry}
+      </span>
+    )
+  } else if (canRetry && hasCoordinates && place?.lookupStatus === null) {
+    // Coordinates whose lookup was never queued: saved before lookups
+    // existed. (A point set or moved since is `pending` until its job runs.)
+    content = (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        The place name hasn’t been looked up{retry}
+      </span>
     )
   }
-  // Coordinates whose lookup never ran: a lost job, or a queue that was down
-  // when the photo was uploaded or moved.
-  if (hasCoordinates && place.lookupStatus === null) {
-    return (
-      <p className="inline-flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-        The place name hasn’t been looked up · {retry}
-      </p>
-    )
-  }
-  return null
+  if (!content && !error) return null
+  return (
+    <div className="text-xs text-muted-foreground">
+      {content}
+      {error ? (
+        <p role="alert" className="text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  )
 }
+
+// While a lookup is under way the dialog reads the media again, a few times
+// and a few seconds apart: the composer's copy is the one the upload or save
+// answered with, from before the job ran.
+const LOOKUP_REFRESH_ATTEMPTS = 4
+const LOOKUP_REFRESH_DELAY_MS = 3_000
+
+const isLookupUnderWay = (details: MediaDetailsEntity | null) =>
+  (details?.place?.lookupStatus === 'pending' && !details.place.lookupStale) ||
+  (details?.subject?.lookupStatus === 'pending' && !details.subject.lookupStale)
 
 export const MediaDetailsDialog: FC<Props> = ({
   items,
@@ -480,7 +508,11 @@ export const MediaDetailsDialog: FC<Props> = ({
   const [retrying, setRetrying] = useState<Record<string, 'subject' | 'place'>>(
     {}
   )
-  const [retryError, setRetryError] = useState<string | null>(null)
+  // Shown beside the Retry that failed, not the other one.
+  const [retryError, setRetryError] = useState<{
+    kind: 'subject' | 'place'
+    message: string
+  } | null>(null)
   // The items as of the latest render, for requests that finish later than
   // the render that started them.
   const itemsRef = useRef(items)
@@ -546,6 +578,56 @@ export const MediaDetailsDialog: FC<Props> = ({
     setAddingGear(null)
     setSelectedId(target.id)
   }
+
+  // Reads the selected media again while one of its lookups is under way, so
+  // a name or IUCN status the job wrote since shows up without a Retry.
+  const refreshAttempts = useRef<Record<string, number>>({})
+  // A ref, so a parent that passes a new callback each render does not
+  // restart the wait.
+  const onDetailsRefreshedRef = useRef(onDetailsRefreshed)
+  useEffect(() => {
+    onDetailsRefreshedRef.current = onDetailsRefreshed
+  }, [onDetailsRefreshed])
+  const itemId = item?.id
+  const underWay = item
+    ? isLookupUnderWay(resolveDetails(item, fetched))
+    : false
+  useEffect(() => {
+    if (!itemId || !underWay) return
+    const id = itemId
+    const attempts = refreshAttempts.current[id] ?? 0
+    if (attempts >= LOOKUP_REFRESH_ATTEMPTS) return
+    let active = true
+    const timer = setTimeout(
+      async () => {
+        refreshAttempts.current[id] = attempts + 1
+        try {
+          const media = await getMedia(id)
+          const value = media.details
+          if (!active || !value) return
+          const latest = itemsRef.current.find((entry) => entry.id === id)
+          if (!latest) return
+          setFetched((current) => ({
+            ...current,
+            [id]: { base: latest.details, value }
+          }))
+          // Only the lookups' results: suggestions fetched meanwhile stay.
+          onDetailsRefreshedRef.current?.(
+            id,
+            { subject: value.subject, place: value.place },
+            value
+          )
+        } catch {
+          // Best effort: the dialog keeps what it has, and Retry still works.
+        }
+      },
+      attempts === 0 ? 0 : LOOKUP_REFRESH_DELAY_MS
+    )
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [itemId, underWay, fetched])
 
   if (!item) return null
   const draft = drafts[item.id]
@@ -621,7 +703,10 @@ export const MediaDetailsDialog: FC<Props> = ({
       }))
       onDetailsRefreshed?.(target.id, value, value)
     } catch (error) {
-      setRetryError(errorMessage(error, 'Failed to retry the check.'))
+      setRetryError({
+        kind,
+        message: errorMessage(error, 'Failed to retry the check.')
+      })
     } finally {
       setRetrying((current) => {
         const { [target.id]: _done, ...rest } = current
@@ -1090,7 +1175,9 @@ export const MediaDetailsDialog: FC<Props> = ({
                   canRetry={canSearch}
                   retrying={retrying[item.id] === 'subject'}
                   disabled={Boolean(retrying[item.id])}
-                  error={retryError}
+                  error={
+                    retryError?.kind === 'subject' ? retryError.message : null
+                  }
                   onRetry={() => void onRetryLookups('subject')}
                 />
               ) : null}
@@ -1298,6 +1385,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                 canRetry={settings?.placeLookupsAvailable !== false}
                 retrying={retrying[item.id] === 'place'}
                 disabled={Boolean(retrying[item.id])}
+                error={retryError?.kind === 'place' ? retryError.message : null}
                 onRetry={() => void onRetryLookups('place')}
               />
               <div

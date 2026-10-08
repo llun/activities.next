@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { RESOLVE_MEDIA_PLACE_JOB_NAME } from '@/lib/jobs/names'
+import { getOwnerMediaAttachment } from '@/lib/services/medias/mediaDetails'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -184,6 +185,81 @@ describe('POST /api/v1/media', () => {
 
       expect(response.status).toBe(200)
       expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    // The upload's details, as the owner's dialog will first see them: the
+    // lookup is `pending` while it is queued, and what the job wrote once it
+    // has run inline (NoQueue). Never the null "hasn't been looked up" that
+    // offered a Retry for a lookup already under way.
+    describe('the upload’s place status', () => {
+      const uploadRealMedia = () =>
+        mockSaveMedia.mockImplementation(async () => {
+          const media = await database.createMedia({
+            actorId: ACTOR1_ID,
+            original: {
+              path: `medias/upload-${Math.random()}`,
+              bytes: 3,
+              mimeType: 'image/png',
+              metaData: { width: 1, height: 1 }
+            },
+            details: {
+              placeLatitude: 14.5347,
+              placeLongitude: 101.3912,
+              placePrecision: 'hidden'
+            }
+          })
+          return getOwnerMediaAttachment(database, media!, 'llun.test')
+        })
+
+      it('is pending while the lookup is queued', async () => {
+        uploadRealMedia()
+
+        const response = await POST(postRequest('write-media-token'), {
+          params: Promise.resolve({})
+        })
+
+        expect(mockPublish).toHaveBeenCalledTimes(1)
+        expect((await response.json()).details.place).toMatchObject({
+          lookupStatus: 'pending',
+          lookupStale: false
+        })
+      })
+
+      it('is the job’s result when the lookup ran inline', async () => {
+        uploadRealMedia()
+        const statuses: (string | null)[] = []
+        mockPublish.mockImplementation(async ({ data }) => {
+          const before = await database.getMediaByIdForAccount({
+            mediaId: data.mediaId,
+            accountId: (await database.getActorFromId({ id: ACTOR1_ID }))!
+              .account!.id
+          })
+          statuses.push(before?.details?.placeLookupStatus ?? null)
+          // What ResolveMediaPlaceJob writes for this cell.
+          await database.setMediaPlaceLookup({
+            mediaId: data.mediaId,
+            expect: { placeLatitude: 14.5347, placeLongitude: 101.3912 },
+            patch: {
+              placeLookupStatus: 'resolved',
+              placeCountryCode: 'TH',
+              placeName: 'Pak Chong, Thailand'
+            }
+          })
+        })
+
+        const response = await POST(postRequest('write-media-token'), {
+          params: Promise.resolve({})
+        })
+        const place = (await response.json()).details.place
+        statuses.push(place.lookupStatus)
+
+        expect(statuses).toEqual(['pending', 'resolved'])
+        expect(place).toMatchObject({
+          name: 'Pak Chong, Thailand',
+          countryCode: 'TH',
+          nameSource: 'geocoder'
+        })
+      })
     })
 
     it('still answers 200 with the attachment when the queue fails', async () => {

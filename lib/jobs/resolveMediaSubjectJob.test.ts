@@ -6,7 +6,7 @@ import { LookupError } from '@/lib/services/gallery/lookups/lookupRequest'
 import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 
 const gbif = {
-  matchTaxon: vi.fn(),
+  lookupMatch: vi.fn(),
   getTaxon: vi.fn(),
   getIucnCategory: vi.fn(),
   searchTaxa: vi.fn()
@@ -54,7 +54,10 @@ describe('resolveMediaSubjectJob', () => {
     vi.clearAllMocks()
     resolvedSettings.network.speciesLookups = true
     setMediaSubjectLookup.mockResolvedValue(true)
-    gbif.matchTaxon.mockResolvedValue({ taxonKey: KINGFISHER.taxonKey })
+    gbif.lookupMatch.mockResolvedValue({
+      kind: 'match',
+      taxon: { taxonKey: KINGFISHER.taxonKey }
+    })
     gbif.getTaxon.mockResolvedValue(KINGFISHER)
     gbif.searchTaxa.mockResolvedValue([])
   })
@@ -82,7 +85,7 @@ describe('resolveMediaSubjectJob', () => {
 
     await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
 
-    expect(gbif.matchTaxon).toHaveBeenCalledWith('Alcedo atthis', {
+    expect(gbif.lookupMatch).toHaveBeenCalledWith('Alcedo atthis', {
       kingdom: 'Animalia'
     })
     expect(gbif.getTaxon).toHaveBeenCalledWith('2475532')
@@ -160,7 +163,7 @@ describe('resolveMediaSubjectJob', () => {
 
     await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
 
-    expect(gbif.matchTaxon).not.toHaveBeenCalled()
+    expect(gbif.lookupMatch).not.toHaveBeenCalled()
     expect(gbif.getTaxon).toHaveBeenCalledWith('2475532')
     expect(setMediaSubjectLookup).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -216,7 +219,7 @@ describe('resolveMediaSubjectJob', () => {
   })
 
   it('records no-match when GBIF cannot place the name', async () => {
-    gbif.matchTaxon.mockResolvedValue(null)
+    gbif.lookupMatch.mockResolvedValue(null)
     mediaWith({ subjectScientificName: 'Alcdo athis typo' })
 
     await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
@@ -251,7 +254,7 @@ describe('resolveMediaSubjectJob', () => {
 
       await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
 
-      expect(gbif.matchTaxon).not.toHaveBeenCalled()
+      expect(gbif.lookupMatch).not.toHaveBeenCalled()
       expect(setMediaSubjectLookup).toHaveBeenCalledWith(
         expect.objectContaining({ patch: { subjectLookupStatus: null } })
       )
@@ -276,7 +279,7 @@ describe('resolveMediaSubjectJob', () => {
 
       await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
 
-      expect(gbif.matchTaxon).not.toHaveBeenCalled()
+      expect(gbif.lookupMatch).not.toHaveBeenCalled()
       expect(gbif.getTaxon).not.toHaveBeenCalled()
       expect(setMediaSubjectLookup).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -317,7 +320,7 @@ describe('resolveMediaSubjectJob', () => {
       ['a lookup error', new LookupError('unavailable', 'GBIF answered 503')],
       ['an unexpected error', new Error('boom')]
     ])('%s is swallowed and persisted as failed', async (_label, error) => {
-      gbif.matchTaxon.mockRejectedValue(error)
+      gbif.lookupMatch.mockRejectedValue(error)
       mediaWith({
         subjectScientificName: 'Alcedo atthis',
         subjectLookupStatus: 'pending'
@@ -333,7 +336,7 @@ describe('resolveMediaSubjectJob', () => {
     })
 
     it('still returns when recording the failure fails too', async () => {
-      gbif.matchTaxon.mockRejectedValue(new Error('boom'))
+      gbif.lookupMatch.mockRejectedValue(new Error('boom'))
       setMediaSubjectLookup.mockRejectedValue(new Error('db down'))
       mediaWith({ subjectScientificName: 'Alcedo atthis' })
 

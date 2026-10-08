@@ -149,6 +149,48 @@ export const normalizeMatch = (
 }
 
 /**
+ * Where GBIF placed a name it did not confidently match: a HIGHERRANK answer
+ * ("Pongo abelii xyz" is placed in the species Pongo abelii), an EXACT or
+ * FUZZY one below the confidence bar, or a match type this code does not
+ * know. GBIF did classify these, so they are
+ * not a miss for the place rule. The species is the answer's `speciesKey`, or
+ * its own key when it is at species rank or lower; the genus likewise.
+ */
+export interface UncertainMatch {
+  speciesKey: string | null
+  genusKey: string | null
+}
+
+/**
+ * The species or genus a `species/match` answer that `normalizeMatch`
+ * rejected still names, or null when it names neither (`NONE`, or an answer
+ * placed no lower than a family). Only call it for a readable answer that
+ * `normalizeMatch` turned down.
+ */
+export const getUncertainMatch = (raw: unknown): UncertainMatch | null => {
+  if (!raw || typeof raw !== 'object') return null
+  const match = raw as Record<string, unknown>
+  if (match.matchType === 'NONE') return null
+  // A confident EXACT or FUZZY answer that was turned down for its rank names
+  // a genus or family itself ("Pongo"): the owner named a group, which the
+  // place rule clears as it clears a "Just genus" pick.
+  const confident =
+    (match.matchType === 'EXACT' || match.matchType === 'FUZZY') &&
+    typeof match.confidence === 'number' &&
+    match.confidence >= MIN_MATCH_CONFIDENCE
+  if (confident) return null
+
+  const rank = asString(match.rank)?.toUpperCase() ?? null
+  const ownKey = keyOf(match.acceptedUsageKey) ?? keyOf(match.usageKey)
+  const speciesKey =
+    keyOf(match.speciesKey) ??
+    (rank && SPECIES_OR_LOWER_RANKS.has(rank) ? ownKey : null)
+  const genusKey = keyOf(match.genusKey) ?? (rank === 'GENUS' ? ownKey : null)
+  if (!speciesKey && !genusKey) return null
+  return { speciesKey, genusKey }
+}
+
+/**
  * Normalizes a `species/{key}` answer or a `species/search` result. These
  * carry no match confidence; the key is the backbone key when there is one.
  */

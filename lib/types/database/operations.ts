@@ -3578,6 +3578,8 @@ export type SetMediaPlaceLookupParams = {
   }
   patch: {
     placeLookupStatus: MediaLookupStatus | null
+    // Epoch milliseconds; defaults to now.
+    placeLookupAt?: number
     // Omitted keys are left alone.
     placeCountryCode?: string | null
     // Written (with `placeNameSource = 'geocoder'`) only when the stored name

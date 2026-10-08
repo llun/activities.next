@@ -1,4 +1,5 @@
 import { LOOKUP_CACHE_TTL_MS, readThroughLookupCache } from './lookupCache'
+import { LookupError } from './lookupRequest'
 import { createFakeLookupDatabase as createFakeDatabase } from './lookupTestUtils'
 
 describe('readThroughLookupCache', () => {
@@ -108,6 +109,52 @@ describe('readThroughLookupCache', () => {
     ).resolves.toEqual({ status: 'ok', value: 'back' })
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
+
+  // Decided in this process: the provider was never asked, so the failure
+  // says nothing about the key. Cached, it would outlive the circuit and
+  // answer another process (the backfill) whose provider is fine.
+  it.each(['circuit-open', 'rate-limited'] as const)(
+    'does not remember a %s failure',
+    async (code) => {
+      const { database, rows, spies } = createFakeDatabase()
+      const fetcher = vi
+        .fn<() => Promise<string | null>>()
+        .mockRejectedValueOnce(new LookupError(code, 'local'))
+        .mockResolvedValueOnce('fine')
+      const params = { database, kind: 'geocode', key: 'k', fetcher } as const
+
+      await expect(readThroughLookupCache(params)).resolves.toMatchObject({
+        status: 'error'
+      })
+      expect(spies.putGalleryLookup).not.toHaveBeenCalled()
+      expect(rows.size).toBe(0)
+
+      // The next call asks the provider, without a retry.
+      await expect(readThroughLookupCache(params)).resolves.toEqual({
+        status: 'ok',
+        value: 'fine'
+      })
+    }
+  )
+
+  it.each(['network', 'unavailable', 'http', 'parse'] as const)(
+    'remembers a %s failure from the provider',
+    async (code) => {
+      const { database, rows } = createFakeDatabase()
+      const fetcher = vi.fn(async () => {
+        throw new LookupError(code, 'remote')
+      })
+
+      await readThroughLookupCache({
+        database,
+        kind: 'geocode',
+        key: 'k',
+        fetcher
+      })
+
+      expect(rows.get('geocode:k')?.outcome).toBe('error')
+    }
+  )
 
   it('still serves hits and misses from the cache on a retry', async () => {
     const { database } = createFakeDatabase()

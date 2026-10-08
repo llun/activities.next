@@ -1,0 +1,23 @@
+{
+  "usageKey": 5707420,
+  "scientificName": "Pongo abelii Lesson, 1827",
+  "canonicalName": "Pongo abelii",
+  "rank": "SPECIES",
+  "status": "ACCEPTED",
+  "confidence": 99,
+  "matchType": "HIGHERRANK",
+  "kingdom": "Animalia",
+  "phylum": "Chordata",
+  "order": "Primates",
+  "family": "Hominidae",
+  "genus": "Pongo",
+  "species": "Pongo abelii",
+  "kingdomKey": 1,
+  "phylumKey": 44,
+  "classKey": 359,
+  "orderKey": 798,
+  "familyKey": 5483,
+  "genusKey": 5219531,
+  "speciesKey": 5707420,
+  "class": "Mammalia"
+}

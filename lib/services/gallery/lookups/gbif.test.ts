@@ -1,14 +1,19 @@
 import { getConfig } from '@/lib/config'
+import { DEFAULT_GBIF_ENDPOINT } from '@/lib/config/gallery'
+import { getHashFromString } from '@/lib/utils/getHashFromString'
 
 import iucnEndangered from './__fixtures__/gbif-iucn-en.json'
 import iucnLeastConcern from './__fixtures__/gbif-iucn-lc.json'
 import matchExact from './__fixtures__/gbif-match-exact.json'
 import matchGenus from './__fixtures__/gbif-match-genus.json'
+import matchGenusOnly from './__fixtures__/gbif-match-higherrank-genus.json'
+import matchPongoHigherRank from './__fixtures__/gbif-match-higherrank-pongo.json'
 import matchNone from './__fixtures__/gbif-match-none.json'
 import matchSynonym from './__fixtures__/gbif-match-synonym.json'
 import matchTiger from './__fixtures__/gbif-match-tiger.json'
 import searchKingfisher from './__fixtures__/gbif-search-kingfisher.json'
 import taxonKingfisher from './__fixtures__/gbif-taxon-kingfisher.json'
+import taxonNotFound from './__fixtures__/gbif-taxon-not-found.json'
 import taxonTiger from './__fixtures__/gbif-taxon-tiger.json'
 import { createGbifClient } from './gbif'
 import { LookupError } from './lookupRequest'
@@ -25,6 +30,12 @@ vi.mock('@/lib/config', () => ({
 }))
 
 const ENDPOINT = 'https://gbif.test/v1'
+// Cache keys for an endpoint other than the default carry its tag.
+const TAG = `@${getHashFromString(ENDPOINT).slice(0, 12)}|`
+const HTML_404: StubResponse = {
+  statusCode: 404,
+  body: '<!DOCTYPE html><html><body>404 Not Found</body></html>'
+}
 
 // The GBIF API as recorded fixtures, keyed by the path after the endpoint.
 const gbifApi = (url: URL): StubResponse => {
@@ -35,6 +46,8 @@ const gbifApi = (url: URL): StubResponse => {
     if (name === 'Parus caeruleus') return { body: matchSynonym }
     if (name === 'Alcedo') return { body: matchGenus }
     if (name === 'Panthera tigris') return { body: matchTiger }
+    if (name === 'Pongo abelii xyz') return { body: matchPongoHigherRank }
+    if (name === 'Pongo xyzzy') return { body: matchGenusOnly }
     return { body: matchNone }
   }
   if (path === 'species/2475532') return { body: taxonKingfisher }
@@ -60,7 +73,14 @@ const gbifApi = (url: URL): StubResponse => {
     return { body: iucnLeastConcern }
   }
   if (path === 'species/search') return { body: searchKingfisher }
-  return { statusCode: 404 }
+  // What GBIF answers for a key it does not know, and for no assessment.
+  if (/^species\/\d+$/.test(path)) {
+    return { statusCode: 404, body: taxonNotFound }
+  }
+  if (/^species\/\d+\/iucnRedListCategory$/.test(path)) {
+    return { statusCode: 204 }
+  }
+  return HTML_404
 }
 
 const setup = (handler: (url: URL) => StubResponse | Error = gbifApi) => {
@@ -158,7 +178,7 @@ describe('gbif client', () => {
       await client.matchTaxon('  alcedo   ATTHIS ')
 
       expect(requests).toHaveLength(1)
-      expect([...rows.keys()]).toEqual(['gbif-match:alcedo atthis'])
+      expect([...rows.keys()]).toEqual([`gbif-match:${TAG}alcedo atthis`])
     })
 
     it('caches a no-match so a typo is not asked again', async () => {
@@ -168,6 +188,152 @@ describe('gbif client', () => {
       await client.matchTaxon('Zzzqx blorp')
 
       expect(requests).toHaveLength(1)
+    })
+  })
+
+  describe('lookupMatch', () => {
+    it('keeps a confident match', async () => {
+      const { client } = setup()
+      await expect(client.lookupMatch('Alcedo atthis')).resolves.toMatchObject({
+        kind: 'match',
+        taxon: { taxonKey: '2475532' }
+      })
+    })
+
+    it('reports a HIGHERRANK answer as uncertain, with its species', async () => {
+      const { client, rows } = setup()
+
+      // "Pongo abelii xyz": GBIF places it in Pongo abelii (CR).
+      await expect(client.lookupMatch('Pongo abelii xyz')).resolves.toEqual({
+        kind: 'uncertain',
+        uncertain: { speciesKey: '5707420', genusKey: '5219531' }
+      })
+      // matchTaxon still answers only confident matches.
+      await expect(client.matchTaxon('Pongo abelii xyz')).resolves.toBeNull()
+      // Cached as an answer, not as a miss.
+      expect(rows.get(`gbif-match:${TAG}pongo abelii xyz`)?.outcome).toBe('ok')
+    })
+
+    it('reports a name placed only in a genus as uncertain', async () => {
+      const { client } = setup()
+      await expect(client.lookupMatch('Pongo xyzzy')).resolves.toEqual({
+        kind: 'uncertain',
+        uncertain: { speciesKey: null, genusKey: '5219531' }
+      })
+    })
+
+    it('answers null for a NONE answer', async () => {
+      const { client } = setup()
+      await expect(client.lookupMatch('Zzzqx blorp')).resolves.toBeNull()
+    })
+  })
+
+  // A 404 is "nothing here" only where GBIF itself says so; anywhere else it
+  // is a wrong or retired endpoint, and "nothing found" would clear a
+  // threatened species' place.
+  describe('non-200 answers', () => {
+    it.each([
+      [
+        'species/match',
+        () =>
+          setup((url) =>
+            url.pathname.endsWith('/match') ? HTML_404 : gbifApi(url)
+          ).client.matchTaxon('Panthera tigris')
+      ],
+      [
+        'species/search',
+        () =>
+          setup((url) =>
+            url.pathname.endsWith('/search') ? HTML_404 : gbifApi(url)
+          ).client.searchTaxa('kingfisher')
+      ],
+      [
+        'iucnRedListCategory',
+        () =>
+          setup((url) =>
+            url.pathname.endsWith('/iucnRedListCategory')
+              ? { statusCode: 404, body: taxonNotFound }
+              : gbifApi(url)
+          ).client.getTaxon('5219416')
+      ],
+      [
+        'species/{key} with an HTML page',
+        () =>
+          setup((url) =>
+            url.pathname === '/v1/species/5219416' ? HTML_404 : gbifApi(url)
+          ).client.getTaxon('5219416')
+      ]
+    ])('throws an http error for a 404 from %s', async (_, call) => {
+      await expect(call()).rejects.toMatchObject({ code: 'http' })
+    })
+
+    it('throws an http error for a 204 from species/match', async () => {
+      const { client } = setup((url) =>
+        url.pathname.endsWith('/match') ? { statusCode: 204 } : gbifApi(url)
+      )
+      await expect(client.matchTaxon('Panthera tigris')).rejects.toMatchObject({
+        code: 'http'
+      })
+    })
+
+    it('does not cache a 404 from species/match as a miss', async () => {
+      const { client, rows } = setup((url) =>
+        url.pathname.endsWith('/match') ? HTML_404 : gbifApi(url)
+      )
+      await expect(client.matchTaxon('Panthera tigris')).rejects.toThrow()
+      expect(rows.get(`gbif-match:${TAG}panthera tigris`)?.outcome).toBe(
+        'error'
+      )
+    })
+
+    it('throws for a JSON 404 from species/{key} that is not GBIF’s', async () => {
+      const { client } = setup((url) =>
+        url.pathname === '/v1/species/5219416'
+          ? { statusCode: 404, body: { error: 'no route' } }
+          : gbifApi(url)
+      )
+      await expect(client.getTaxon('5219416')).rejects.toMatchObject({
+        code: 'http'
+      })
+    })
+
+    it('reads GBIF’s own 404 for an unknown key as no taxon', async () => {
+      const { client } = setup()
+      await expect(client.getTaxon('111')).resolves.toBeNull()
+    })
+  })
+
+  describe('cache keys', () => {
+    it('keeps unprefixed keys for the default endpoint', async () => {
+      const stub = createStubFetch((request) => gbifApi(request.url))
+      const db = createFakeLookupDatabase()
+      const client = createGbifClient({
+        database: db.database,
+        fetch: stub.fetch,
+        provider: createTestProvider({ name: 'GBIF' }),
+        endpoint: DEFAULT_GBIF_ENDPOINT
+      })
+
+      await client.matchTaxon('Alcedo atthis')
+
+      expect([...db.rows.keys()]).toEqual(['gbif-match:alcedo atthis'])
+    })
+
+    it('does not serve one endpoint’s answers for another', async () => {
+      const db = createFakeLookupDatabase()
+      const stub = createStubFetch((request) => gbifApi(request.url))
+      const clientFor = (endpoint: string) =>
+        createGbifClient({
+          database: db.database,
+          fetch: stub.fetch,
+          provider: createTestProvider({ name: 'GBIF' }),
+          endpoint
+        })
+
+      await clientFor(ENDPOINT).matchTaxon('Alcedo atthis')
+      await clientFor('https://gbif.other.test/v1').matchTaxon('Alcedo atthis')
+
+      expect(stub.requests).toHaveLength(2)
     })
   })
 
@@ -372,7 +538,7 @@ describe('gbif client', () => {
       await expect(client.getTaxon('5219416')).rejects.toBeInstanceOf(
         LookupError
       )
-      expect(rows.get('gbif-taxon:5219416')?.outcome).toBe('error')
+      expect(rows.get(`gbif-taxon:${TAG}5219416`)?.outcome).toBe('error')
     })
 
     it('throws a parse error for a species record it cannot read', async () => {

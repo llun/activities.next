@@ -1,8 +1,16 @@
 import { Database } from '@/lib/database/types'
 import { RESOLVE_MEDIA_SUBJECT_JOB_NAME } from '@/lib/jobs/names'
 import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
+import iucnCritical from '@/lib/services/gallery/lookups/__fixtures__/gbif-iucn-cr.json'
 import iucnEndangered from '@/lib/services/gallery/lookups/__fixtures__/gbif-iucn-en.json'
+import iucnLeastConcern from '@/lib/services/gallery/lookups/__fixtures__/gbif-iucn-lc.json'
+import matchGenusOnly from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-higherrank-genus.json'
+import matchPongoHigherRank from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-higherrank-pongo.json'
 import matchTiger from '@/lib/services/gallery/lookups/__fixtures__/gbif-match-tiger.json'
+import searchKingfisher from '@/lib/services/gallery/lookups/__fixtures__/gbif-search-kingfisher.json'
+import taxonKingfisher from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-kingfisher.json'
+import taxonNotFound from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-not-found.json'
+import taxonPongoAbelii from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-pongo-abelii.json'
 import taxonTiger from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-tiger.json'
 import { createFakeLookupDatabase } from '@/lib/services/gallery/lookups/lookupTestUtils'
 import { isPlaceWithheldForThreat } from '@/lib/services/gallery/threatenedSpecies'
@@ -12,10 +20,16 @@ import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 // stubbed: an answer the client cannot read must end as `failed` (place
 // withheld), never as `resolved`/`NE` or `no-match` (place shown).
 
+// What a wrong or retired endpoint answers (live: api.gbif.org without /v1).
+const HTML_404 = {
+  statusCode: 404,
+  body: '<!DOCTYPE html><html><head><title>404 Not Found</title></head></html>'
+}
+
 const answers = new Map<string, { statusCode: number; body: unknown }>()
 const mockFetch = vi.fn(async ({ url }: { url: string }) => {
   const { pathname } = new URL(url)
-  const answer = answers.get(pathname) ?? { statusCode: 404, body: '' }
+  const answer = answers.get(pathname) ?? HTML_404
   return {
     body:
       typeof answer.body === 'string'
@@ -53,13 +67,13 @@ const TIGER: Partial<MediaDetailsRecord> = {
   subjectLookupStatus: 'pending'
 }
 
-const run = async () => {
+const run = async (details: Partial<MediaDetailsRecord> = TIGER) => {
   const lookups = createFakeLookupDatabase()
   const setMediaSubjectLookup = vi.fn().mockResolvedValue(true)
   const database = {
     ...lookups.spies,
     getMediaWithAttachedStatusIds: vi.fn().mockResolvedValue({
-      media: { id: '7', details: TIGER },
+      media: { id: '7', details },
       statusIds: []
     }),
     setMediaSubjectLookup
@@ -74,7 +88,7 @@ const run = async () => {
   expect(setMediaSubjectLookup).toHaveBeenCalledTimes(1)
   const { patch } = setMediaSubjectLookup.mock.calls[0][0]
   const stored = {
-    ...TIGER,
+    ...details,
     subjectIucnCategory: null,
     ...patch
   } as MediaDetailsRecord
@@ -156,6 +170,187 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
     expect(patch).toMatchObject({
       subjectIucnCategory: 'NE',
       subjectLookupStatus: 'resolved'
+    })
+  })
+
+  describe('a 404 is not "nothing found"', () => {
+    it('records failed for a 404 from species/match', async () => {
+      answers.set('/v1/species/match', HTML_404)
+
+      const { patch, withheld } = await run()
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('records failed for a 404 from species/search', async () => {
+      answers.set('/v1/species/search', HTML_404)
+
+      const { patch, withheld } = await run({
+        subjectName: 'Common Kingfisher',
+        subjectScientificName: null,
+        subjectCategory: 'bird',
+        subjectTaxonKey: null,
+        subjectLookupStatus: 'pending'
+      })
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('still resolves a common name when search answers 200', async () => {
+      answers.set('/v1/species/search', {
+        statusCode: 200,
+        body: searchKingfisher
+      })
+      answers.set('/v1/species/2475532', {
+        statusCode: 200,
+        body: taxonKingfisher
+      })
+      answers.set('/v1/species/2475532/iucnRedListCategory', {
+        statusCode: 200,
+        body: iucnLeastConcern
+      })
+
+      const { patch } = await run({
+        subjectName: 'Common Kingfisher',
+        subjectScientificName: null,
+        subjectCategory: 'bird',
+        subjectTaxonKey: null,
+        subjectLookupStatus: 'pending'
+      })
+
+      expect(patch).toMatchObject({ subjectLookupStatus: 'resolved' })
+    })
+
+    it('records failed for a 404 from iucnRedListCategory', async () => {
+      answers.set('/v1/species/5219416/iucnRedListCategory', {
+        statusCode: 404,
+        body: ''
+      })
+
+      const { patch, withheld } = await run()
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('records failed for an HTML 404 for a stored taxon key', async () => {
+      answers.set('/v1/species/5219416', HTML_404)
+
+      const { patch, withheld } = await run({
+        ...TIGER,
+        subjectScientificName: null,
+        subjectTaxonKey: '5219416'
+      })
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('tries the names when GBIF no longer knows a stored key', async () => {
+      answers.set('/v1/species/111', { statusCode: 404, body: taxonNotFound })
+
+      const { patch, withheld } = await run({
+        ...TIGER,
+        subjectTaxonKey: '111'
+      })
+
+      expect(patch).toMatchObject({
+        subjectTaxonKey: '5219416',
+        subjectIucnCategory: 'EN',
+        subjectLookupStatus: 'resolved'
+      })
+      expect(withheld).toBe(true)
+    })
+  })
+
+  describe('a HIGHERRANK answer is not a no-match', () => {
+    const MISTYPED_ORANGUTAN: Partial<MediaDetailsRecord> = {
+      subjectName: 'Sumatran orangutan',
+      subjectScientificName: 'Pongo abelii xyz',
+      subjectCategory: 'mammal',
+      subjectTaxonKey: null,
+      subjectLookupStatus: 'pending'
+    }
+
+    beforeEach(() => {
+      answers.set('/v1/species/match', {
+        statusCode: 200,
+        body: matchPongoHigherRank
+      })
+      answers.set('/v1/species/5707420', {
+        statusCode: 200,
+        body: taxonPongoAbelii
+      })
+      answers.set('/v1/species/5707420/iucnRedListCategory', {
+        statusCode: 200,
+        body: iucnCritical
+      })
+    })
+
+    it('keeps the place of a CR species GBIF placed the name in hidden', async () => {
+      const { patch, withheld } = await run(MISTYPED_ORANGUTAN)
+
+      // Resolved with the category, but the owner's name is not confirmed:
+      // no taxon key is written.
+      expect(patch).toEqual({
+        subjectIucnCategory: 'CR',
+        subjectTaxonPath: null,
+        subjectLookupStatus: 'resolved'
+      })
+      expect(withheld).toBe(true)
+    })
+
+    it('clears the place when that species is not threatened', async () => {
+      answers.set('/v1/species/5707420/iucnRedListCategory', {
+        statusCode: 200,
+        body: iucnLeastConcern
+      })
+
+      const { patch, withheld } = await run(MISTYPED_ORANGUTAN)
+
+      expect(patch).toMatchObject({ subjectLookupStatus: 'no-match' })
+      expect(withheld).toBe(false)
+    })
+
+    it('records failed when the IUCN check of that species fails', async () => {
+      answers.set('/v1/species/5707420/iucnRedListCategory', HTML_404)
+
+      const { patch, withheld } = await run(MISTYPED_ORANGUTAN)
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('records failed for a name placed only in a genus', async () => {
+      answers.set('/v1/species/match', {
+        statusCode: 200,
+        body: matchGenusOnly
+      })
+
+      const { patch, withheld } = await run({
+        ...MISTYPED_ORANGUTAN,
+        subjectScientificName: 'Pongo xyzzy'
+      })
+
+      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
+      expect(withheld).toBe(true)
+    })
+
+    it('treats a species match below the confidence bar the same way', async () => {
+      answers.set('/v1/species/match', {
+        statusCode: 200,
+        body: { ...matchPongoHigherRank, matchType: 'FUZZY', confidence: 80 }
+      })
+
+      const { patch, withheld } = await run(MISTYPED_ORANGUTAN)
+
+      expect(patch).toMatchObject({
+        subjectIucnCategory: 'CR',
+        subjectLookupStatus: 'resolved'
+      })
+      expect(withheld).toBe(true)
     })
   })
 })

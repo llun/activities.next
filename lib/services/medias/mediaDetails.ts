@@ -9,9 +9,10 @@ import { EMPTY_MEDIA_DETAILS } from '@/lib/types/database/gallery'
 import { Media } from '@/lib/types/database/operations'
 
 /**
- * How long a subject lookup may stay `pending` before the owner is offered a
- * Retry: a job lost to a queue outage, or one the queue dropped, would
- * otherwise leave "Checking IUCN status…" up for good.
+ * How long a subject or place lookup may stay `pending` before the owner is
+ * offered a Retry: a job lost to a queue outage, or one the queue dropped,
+ * would otherwise leave "Checking IUCN status…" (or "Looking up the place
+ * name…") up for good.
  */
 export const STALE_SUBJECT_LOOKUP_MS = 2 * 60 * 1000
 
@@ -95,7 +96,12 @@ export const buildOwnerMediaDetails = async (
           precision: details.placePrecision,
           countryCode: details.placeCountryCode,
           nameSource: details.placeNameSource,
-          lookupStatus: details.placeLookupStatus
+          lookupStatus: details.placeLookupStatus,
+          lookupStale: isStalePending(
+            details.placeLookupStatus,
+            details.placeLookupAt,
+            Date.now()
+          )
         }
       : null,
     subjectSuggestions: details.subjectSuggestions,
