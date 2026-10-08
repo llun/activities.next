@@ -125,10 +125,9 @@ describe('GalleryGearDetailView', () => {
   it('draws the header: back link, name, meta line and product link', () => {
     renderView()
 
-    expect(screen.getByRole('link', { name: 'Back to gear' })).toHaveAttribute(
-      'href',
-      '/gallery/gear'
-    )
+    const back = screen.getByRole('link', { name: 'Back to gear' })
+    expect(back).toHaveAttribute('href', '/gallery/gear')
+    expect(back).toHaveTextContent(/^Back$/)
     expect(screen.getByRole('heading', { name: 'Sony α1' })).toBeVisible()
     expect(
       screen.getByText(

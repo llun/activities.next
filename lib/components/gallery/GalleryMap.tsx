@@ -69,6 +69,8 @@ const HIT_LAYER_ID = 'gallery-media-points-hit'
 const CLUSTER_RADIUS_PX = 56
 const CLUSTER_MAX_ZOOM = 16
 const CLUSTER_ZOOM_STEP = 2
+// Map zoom is fractional; treat a hair under the max as having reached it.
+const ZOOM_EPSILON = 0.01
 const FIT_PADDING_PX = 56
 const MAX_GROUP_MEMBERS = 50
 const FIT_MAX_ZOOM = 12
@@ -135,7 +137,7 @@ interface GalleryGlMapProps {
   points: GalleryMapPoint[]
   mapProvider: Exclude<PublicMapProvider, { type: 'apple' }>
   onPick: (mediaId: string) => void
-  onPickGroup: (mediaIds: string[]) => void
+  onPickGroup: (mediaIds: string[], total?: number) => void
   onUnavailable: (reason: FallbackReason) => void
 }
 
@@ -258,7 +260,7 @@ const GalleryGlMapSurface: FC<GalleryGlMapProps> = ({
                 const zoom = map.getZoom()
                 // Past the clustering zoom a cluster is photos at one spot, and
                 // zooming further would show nothing new: list its members.
-                if (zoom >= CLUSTER_MAX_ZOOM) {
+                if (zoom >= CLUSTER_MAX_ZOOM - ZOOM_EPSILON) {
                   void readClusterMembers(
                     map,
                     Number(properties.cluster_id),
@@ -267,14 +269,14 @@ const GalleryGlMapSurface: FC<GalleryGlMapProps> = ({
                     const ids = indexes.flatMap((member) =>
                       current[member] ? [current[member].mediaId] : []
                     )
-                    if (ids.length > 1) onPickGroupRef.current(ids)
+                    if (ids.length > 1) onPickGroupRef.current(ids, count)
                     else onPickRef.current(point.mediaId)
                   })
                   return
                 }
                 map.easeTo({
                   center: coordinates,
-                  zoom: Math.min(zoom + CLUSTER_ZOOM_STEP, CLUSTER_MAX_ZOOM + 1)
+                  zoom: Math.min(zoom + CLUSTER_ZOOM_STEP, CLUSTER_MAX_ZOOM)
                 })
               }
             })
@@ -459,6 +461,8 @@ const SelectionCard: FC<SelectionCardProps> = ({ point, onClose, onOpen }) => {
 
 interface SelectionListCardProps {
   points: GalleryMapPoint[]
+  /** The cluster's full size, when it is larger than the members listed. */
+  total?: number
   onClose: () => void
   onOpen?: (mediaId: string) => void
   onFocusPoint: (mediaId: string) => void
@@ -471,6 +475,7 @@ interface SelectionListCardProps {
  */
 const SelectionListCard: FC<SelectionListCardProps> = ({
   points,
+  total,
   onClose,
   onOpen,
   onFocusPoint
@@ -481,7 +486,9 @@ const SelectionListCard: FC<SelectionListCardProps> = ({
     className={cn(CARD_CLASS, 'flex items-start gap-1 p-2')}
   >
     <div className="min-w-0 flex-1 text-sm">
-      <p className="px-1 pb-1 font-medium">{points.length} photos here</p>
+      <p className="px-1 pb-1 font-medium">
+        {Math.max(points.length, total ?? 0)} photos here
+      </p>
       <ul className="max-h-48 overflow-y-auto">
         {points.map((point) => (
           <li key={point.mediaId}>
@@ -511,6 +518,11 @@ const SelectionListCard: FC<SelectionListCardProps> = ({
           </li>
         ))}
       </ul>
+      {total !== undefined && total > points.length ? (
+        <p className="text-muted-foreground px-1 pt-1 text-xs">
+          +{total - points.length} more, see Places below
+        </p>
+      ) : null}
     </div>
     <CloseButton label="Close selected photos" onClose={onClose} />
   </div>
@@ -542,6 +554,7 @@ export const GalleryMap: FC<GalleryMapProps> = ({
   onSelect
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [selectedTotal, setSelectedTotal] = useState<number | undefined>()
   const [fallbackReason, setFallbackReason] = useState<FallbackReason | null>(
     null
   )
@@ -559,7 +572,11 @@ export const GalleryMap: FC<GalleryMapProps> = ({
     const found = points.find((point) => point.mediaId === id)
     return found ? [found] : []
   })
-  const pickOne = (mediaId: string) => setSelectedIds([mediaId])
+  const pickGroup = (mediaIds: string[], total?: number) => {
+    setSelectedIds(mediaIds)
+    setSelectedTotal(total)
+  }
+  const pickOne = (mediaId: string) => pickGroup([mediaId])
   const hasAreaPoints = points.some((point) => point.precision === 'area')
 
   if (points.length === 0) {
@@ -605,7 +622,7 @@ export const GalleryMap: FC<GalleryMapProps> = ({
             <GalleryMapKit
               points={points}
               onPick={pickOne}
-              onPickGroup={setSelectedIds}
+              onPickGroup={pickGroup}
               onUnavailable={() => setFallbackReason('render-failed')}
             />
           ) : (
@@ -613,7 +630,7 @@ export const GalleryMap: FC<GalleryMapProps> = ({
               points={points}
               mapProvider={mapProvider}
               onPick={pickOne}
-              onPickGroup={setSelectedIds}
+              onPickGroup={pickGroup}
               onUnavailable={setFallbackReason}
             />
           )}
@@ -626,6 +643,7 @@ export const GalleryMap: FC<GalleryMapProps> = ({
           ) : selectedPoints.length > 1 ? (
             <SelectionListCard
               points={selectedPoints}
+              total={selectedTotal}
               onClose={() => setSelectedIds([])}
               onOpen={onSelect}
               onFocusPoint={pickOne}

@@ -1,4 +1,7 @@
-import type { GalleryIndexRow } from '@/lib/database/sql/galleryMedia'
+import type {
+  GalleryIndexRow,
+  GalleryMapRow
+} from '@/lib/database/sql/galleryMedia'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -496,6 +499,51 @@ describe('gallery queries at the index cap', () => {
       expect(subjects.truncated).toBe(truncated)
       expect(subjects.unidentifiedCount).toBe(GALLERY_INDEX_CAP / 2)
       expect(lifeList.entries[0].count).toBe(GALLERY_INDEX_CAP / 2)
+    }
+  )
+
+  const mapRows = (count: number): GalleryMapRow[] =>
+    Array.from({ length: count }, (_, index) => ({
+      id: String(count - index),
+      latitude: 13.7,
+      longitude: 100.5,
+      placePrecision: 'exact',
+      placeName: null,
+      subjectName: null,
+      takenAt: null,
+      thumbnailUrl: null,
+      statusId: `status-${index}`,
+      statusPublicId: null
+    }))
+
+  it.each([
+    { description: 'at the cap', count: GALLERY_INDEX_CAP, truncated: false },
+    {
+      description: 'past the cap',
+      count: GALLERY_INDEX_CAP + 10,
+      truncated: true
+    }
+  ])(
+    'caps the map points and reports truncated $truncated $description',
+    async ({ count, truncated }) => {
+      const database = {
+        ...fakeDatabase([]),
+        getGalleryMapRows: vi.fn(async ({ limit }: { limit: number }) =>
+          mapRows(count).slice(0, limit)
+        )
+      }
+
+      const result = await getGalleryMapPoints({
+        database,
+        owner: { id: 'owner' },
+        audience: OWNER_GALLERY_AUDIENCE
+      })
+
+      expect(database.getGalleryMapRows).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: GALLERY_INDEX_CAP + 1 })
+      )
+      expect(result.points).toHaveLength(GALLERY_INDEX_CAP)
+      expect(result.truncated).toBe(truncated)
     }
   )
 

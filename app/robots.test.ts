@@ -19,6 +19,7 @@ describe('robots metadata route', () => {
         '/collections/*/edit',
         '/favorites',
         '/fitness',
+        '/gallery',
         '/health',
         '/inbox',
         '/lists',

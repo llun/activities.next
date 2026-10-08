@@ -21,7 +21,10 @@ import type {
 
 interface Props {
   actorId: string
-  subject: Omit<GallerySubjectEntry, 'cover'>
+  // `count` is null when the subject is missing from the capped index.
+  subject: Omit<GallerySubjectEntry, 'cover' | 'count'> & {
+    count: number | null
+  }
   initialPage: GalleryMediaPage
 }
 
@@ -74,7 +77,7 @@ export const GallerySubjectDetailView: FC<Props> = ({
         <FitnessStatCell
           label="Photos"
           icon={Images}
-          value={subject.count.toLocaleString('en-US')}
+          value={subject.count?.toLocaleString('en-US') ?? null}
         />
       </FitnessStatGrid>
 

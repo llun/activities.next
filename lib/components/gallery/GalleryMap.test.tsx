@@ -299,6 +299,78 @@ describe('GalleryMap', () => {
       ).toBeInTheDocument()
     })
 
+    it('caps the ease target at the clustering zoom, then lists members from zoom 15.3', async () => {
+      const points = [makePoint(0), makePoint(1), makePoint(2)]
+      const fake = createFakeGl([
+        {
+          properties: { cluster: true, cluster_id: 3, point_count: 3, rep: 0 },
+          geometry: { coordinates: [101.45, 14.45] }
+        }
+      ])
+      fake.map.getSource.mockReturnValue({
+        setData: fake.sourceData.setData,
+        getClusterLeaves: vi.fn(async () =>
+          [0, 1, 2].map((idx) => ({ properties: { idx } }))
+        )
+      } as never)
+      vi.mocked(loadMaplibreModule).mockResolvedValue(fake.gl as never)
+
+      render(<GalleryMap points={points} mapProvider={{ type: 'osm' }} />)
+      await screen.findByText('OpenFreeMap')
+      act(() => fake.handlers.render())
+      const button = within(fake.markers[0].element).getByRole('button')
+
+      fake.state.zoom = 15.3
+      fireEvent.click(button)
+      expect(fake.map.easeTo).toHaveBeenCalledWith({
+        center: [101.45, 14.45],
+        zoom: 16
+      })
+      expect(
+        screen.queryByRole('group', { name: 'Selected photos' })
+      ).toBeNull()
+
+      fake.state.zoom = 15.995
+      fireEvent.click(button)
+      expect(
+        await screen.findByRole('group', { name: 'Selected photos' })
+      ).toBeInTheDocument()
+    })
+
+    it('notes how many photos a capped member list leaves out', async () => {
+      const points = [makePoint(0), makePoint(1), makePoint(2)]
+      const fake = createFakeGl([
+        {
+          properties: {
+            cluster: true,
+            cluster_id: 3,
+            point_count: 200,
+            rep: 0
+          },
+          geometry: { coordinates: [101.45, 14.45] }
+        }
+      ])
+      fake.map.getSource.mockReturnValue({
+        setData: fake.sourceData.setData,
+        getClusterLeaves: vi.fn(async () =>
+          [0, 1, 2].map((idx) => ({ properties: { idx } }))
+        )
+      } as never)
+      vi.mocked(loadMaplibreModule).mockResolvedValue(fake.gl as never)
+
+      render(<GalleryMap points={points} mapProvider={{ type: 'osm' }} />)
+      await screen.findByText('OpenFreeMap')
+      act(() => fake.handlers.render())
+      fake.state.zoom = 16
+      fireEvent.click(within(fake.markers[0].element).getByRole('button'))
+
+      const list = await screen.findByRole('group', {
+        name: 'Selected photos'
+      })
+      expect(within(list).getByText('200 photos here')).toBeInTheDocument()
+      expect(within(list).getByText(/\+197 more/)).toBeInTheDocument()
+    })
+
     it('lists the members of a cluster that cannot split, each one reachable', async () => {
       const onSelect = vi.fn()
       const points = [makePoint(0), makePoint(1), makePoint(2)]

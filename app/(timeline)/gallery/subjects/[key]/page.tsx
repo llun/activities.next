@@ -65,13 +65,35 @@ const Page = async ({ params }: PageProps) => {
   const entry = subjects.groups
     .flatMap((group) => group.subjects)
     .find((subject) => subject.key === subjectKey)
-  if (!entry) return notFound()
 
-  const { cover: _cover, ...subject } = entry
+  if (entry) {
+    const { cover: _cover, ...subject } = entry
+    return (
+      <GallerySubjectDetailView
+        actorId={actor.id}
+        subject={subject}
+        initialPage={page}
+      />
+    )
+  }
+
+  // The index is capped, so a subject seen only on older photos has no entry
+  // while its photos are still reachable. 404 only when nothing is there.
+  const first = page.items[0]
+  if (!first && page.nextMaxId === null) return notFound()
+
   return (
     <GallerySubjectDetailView
       actorId={actor.id}
-      subject={subject}
+      subject={{
+        key: subjectKey,
+        name: first?.subject?.name ?? null,
+        scientificName: first?.subject?.scientificName ?? null,
+        category: first?.subject?.category ?? null,
+        count: null,
+        firstSeenAt: null,
+        lastSeenAt: null
+      }}
       initialPage={page}
     />
   )

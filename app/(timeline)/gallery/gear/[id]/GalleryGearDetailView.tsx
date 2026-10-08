@@ -2,7 +2,6 @@
 
 import {
   Archive,
-  ArrowLeft,
   CalendarCheck,
   CalendarDays,
   History,
@@ -22,6 +21,7 @@ import {
   getGearHref
 } from '@/app/(timeline)/gallery/gear/galleryGearUi'
 import { deleteGalleryGear, setGalleryGearRetired } from '@/lib/client'
+import { BackLink } from '@/lib/components/back-link'
 import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
 import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
 import {
@@ -129,13 +129,7 @@ export const GalleryGearDetailView: FC<Props> = ({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/gallery/gear"
-        className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" aria-hidden="true" />
-        Back to gear
-      </Link>
+      <BackLink href="/gallery/gear" accessibleName="Back to gear" />
 
       <PageHeader
         className="mb-4"

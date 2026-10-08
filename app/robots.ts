@@ -16,6 +16,7 @@ export default function robots(): MetadataRoute.Robots {
         '/collections/*/edit',
         '/favorites',
         '/fitness',
+        '/gallery',
         '/health',
         '/inbox',
         '/lists',
