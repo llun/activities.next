@@ -38,12 +38,19 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn()
 }))
 
-const configWith = (altText?: object) => ({
+// `gallery.subjects` is derived from alt text the way lib/config/gallery.ts
+// does it: the alt text endpoint and key, or null without them.
+const configWith = (altText?: {
+  endpoint?: string
+  apiKey?: string
+  model?: string
+}) => ({
   host: 'llun.test',
   secretPhase: 'test-secret',
   allowEmails: [],
   allowActorDomains: [],
-  ...(altText ? { altText } : {})
+  ...(altText ? { altText } : {}),
+  gallery: { subjects: altText ? { model: altText.model } : null }
 })
 
 // What GET answers about the instance when nothing is configured: no alt

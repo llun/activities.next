@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { getGalleryLookupAvailability } from '@/lib/services/gallery/galleryLookupAvailability'
 import { createGbifClient } from '@/lib/services/gallery/lookups/gbif'
-import { createActorWindow } from '@/lib/services/gallery/subjects/actorWindow'
+import { createWindowCounter } from '@/lib/services/gallery/lookups/rateLimit'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -16,7 +16,7 @@ import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 // 60 searches per actor per minute: the picker searches as you type.
 const SEARCHES_PER_MINUTE = 60
 const ONE_MINUTE_MS = 60 * 1000
-const searches = createActorWindow({
+const searches = createWindowCounter({
   limit: SEARCHES_PER_MINUTE,
   windowMs: ONE_MINUTE_MS
 })
@@ -46,7 +46,7 @@ export const GET = traceApiRoute(
       return apiErrorResponse(HTTP_STATUS.SERVICE_UNAVAILABLE)
     }
 
-    if (!searches.take(currentActor.id)) {
+    if (!searches.tryHit(currentActor.id)) {
       return apiErrorResponse(HTTP_STATUS.TOO_MANY_REQUESTS)
     }
 

@@ -1,7 +1,8 @@
 // Client-safe helpers the gallery and viewer UI share for taxonomy and country
 // text. The server has its own copies behind database-bound modules
-// (`countryDisplayName`, `toSubjectHashtag`); these are pure so a client
+// (`countryDisplayName`); these are pure so a client
 // component can import them without pulling server code into the bundle.
+import { toScientificHashtag as sharedToScientificHashtag } from '@/lib/utils/text/subjectHashtagRules'
 
 const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/
 
@@ -63,26 +64,11 @@ export const getGbifSpeciesHref = (
     ? `https://www.gbif.org/species/${taxonKey}`
     : null
 
-/**
- * The scientific-name hashtag a post carries when its author turned subject
- * hashtags on: `Alcedo atthis` -> `AlcedoAtthis`. Only a name of two or more
- * words has one; the genus and species are used, so a subspecies shares its
- * species' tag. Null otherwise.
- */
+// The one shared rule (also used when a post gets its tags): only a
+// well-formed binomial has a tag, and a subspecies shares its species' tag.
 export const toScientificHashtag = (
   scientificName: string | null | undefined
-): string | null => {
-  const words = (scientificName ?? '')
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .split(/[^A-Za-z]+/)
-    .filter(Boolean)
-  if (words.length < 2) return null
-  return words
-    .slice(0, 2)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join('')
-}
+): string | null => sharedToScientificHashtag(scientificName ?? '')
 
 export const getHashtagHref = (tag: string): string =>
   `/tags/${encodeURIComponent(tag)}`

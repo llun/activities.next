@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { getGalleryLookupAvailability } from '@/lib/services/gallery/galleryLookupAvailability'
 import { createGbifClient } from '@/lib/services/gallery/lookups/gbif'
-import { createActorWindow } from '@/lib/services/gallery/subjects/actorWindow'
+import { createWindowCounter } from '@/lib/services/gallery/lookups/rateLimit'
 import { getSubjectProviderConfig } from '@/lib/services/gallery/subjects/subjectProvider'
 import { suggestSubjects } from '@/lib/services/gallery/subjects/suggestSubjects'
 import {
@@ -36,7 +36,7 @@ interface Params {
 // is free: only a run of the model counts.
 const SUGGESTION_RUNS_PER_HOUR = 30
 const ONE_HOUR_MS = 60 * 60 * 1000
-const suggestionRuns = createActorWindow({
+const suggestionRuns = createWindowCounter({
   limit: SUGGESTION_RUNS_PER_HOUR,
   windowMs: ONE_HOUR_MS
 })
@@ -127,7 +127,7 @@ export const POST = traceApiRoute(
         })
       }
 
-      if (!suggestionRuns.take(currentActor.id)) {
+      if (!suggestionRuns.tryHit(currentActor.id)) {
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,

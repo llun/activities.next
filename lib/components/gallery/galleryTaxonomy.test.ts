@@ -58,7 +58,7 @@ describe('galleryTaxonomy', () => {
     ['Alcedo atthis', 'AlcedoAtthis'],
     ['Ramphastos sulfuratus', 'RamphastosSulfuratus'],
     ['Alcedo atthis bengalensis', 'AlcedoAtthis'],
-    ['alcedo ATTHIS', 'AlcedoAtthis'],
+    ['alcedo ATTHIS', null],
     ['Alcedo', null],
     ['', null],
     [null, null]

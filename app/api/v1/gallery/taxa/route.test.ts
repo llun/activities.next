@@ -33,8 +33,8 @@ vi.mock('@/lib/config', () => ({
 }))
 
 const takeMock = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/services/gallery/subjects/actorWindow', () => ({
-  createActorWindow: () => ({ take: takeMock })
+vi.mock('@/lib/services/gallery/lookups/rateLimit', () => ({
+  createWindowCounter: () => ({ tryHit: takeMock, reset: vi.fn() })
 }))
 
 const speciesLookupsAvailable = vi.hoisted(() => ({ value: true }))

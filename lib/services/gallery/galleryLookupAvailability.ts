@@ -13,36 +13,19 @@ export interface GalleryLookupAvailability {
   placeLookupsAvailable: boolean
 }
 
-// The instance switches `network.speciesLookups` and `network.placeLookups`
-// (Admin › Network). Read loosely so this module does not depend on the
-// registry's exact shape; an absent switch is its default, on.
-type LookupSwitches = Partial<
-  Record<'speciesLookups' | 'placeLookups', boolean>
->
-
 export const getGalleryLookupAvailability = async (
   database: Database
 ): Promise<GalleryLookupAvailability> => {
-  const config = getConfig() as ReturnType<typeof getConfig> & {
-    gallery?: { subjects?: { model: string } | null }
-  }
-  // `config.gallery.subjects` is the subject provider (the alt text endpoint
-  // and key with an optional model override); null when it is switched off or
-  // there is no alt text configuration to reuse.
-  const subjects =
-    config.gallery !== undefined
-      ? (config.gallery.subjects ?? null)
-      : config.altText
-        ? { model: config.altText.model }
-        : null
-
-  const network = (await getResolvedServerSettings(database))
-    .network as LookupSwitches
+  // `gallery.subjects` is the subject provider (the alt text endpoint and key
+  // with an optional model override); null when it is switched off or there
+  // is no alt text configuration to reuse.
+  const { subjects } = getConfig().gallery
+  const { network } = await getResolvedServerSettings(database)
 
   return {
     subjectSuggestionsAvailable: subjects !== null,
     subjectModel: subjects?.model ?? null,
-    speciesLookupsAvailable: network.speciesLookups !== false,
-    placeLookupsAvailable: network.placeLookups !== false
+    speciesLookupsAvailable: network.speciesLookups,
+    placeLookupsAvailable: network.placeLookups
   }
 }

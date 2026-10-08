@@ -395,7 +395,10 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   ever returned to anyone else, and a threatened or not-yet-checked species'
   `place` is `null` for every non-owner. `POST /api/v1/media/:id/subject-suggestions`
   and `POST /api/v1/media/:id/lookups` are owner-only; Mastodon clients get no
-  suggestions. See "Media Details, EXIF and Gallery Settings" in
+  suggestions. Fresh suggestion runs are limited to 30 per actor per hour and
+  `GET /api/v1/gallery/taxa` (species search for the picker) to 60 per actor per
+  minute, both answering 429 past the limit; the counters are in process
+  (`createWindowCounter`, `lib/services/gallery/lookups/rateLimit.ts`). See "Media Details, EXIF and Gallery Settings" in
   [maintenance.md](maintenance.md#media-details-exif-and-gallery-settings).
 - **`?format=activities_next`** — timeline endpoints and
   `GET /api/v1/trends/statuses` accept this query flag to return the raw internal
