@@ -21,7 +21,7 @@ const baseSettings: GallerySettingsEntity = {
   allowEmptyDescription: true,
   subjectHashtags: false,
   galleryDefault: 'subject',
-  defaultPlacePrecision: 'area',
+  defaultPlacePrecision: 'hidden',
   showGear: true,
   mapPublic: true,
   lifeListPublic: false,
@@ -87,6 +87,51 @@ describe('MediaDetailsSettings', () => {
       })
     )
     expect(hashtags).toBeChecked()
+  })
+
+  it('shows the default place precision and saves a change on its own', async () => {
+    render(<MediaDetailsSettings />)
+
+    const select = await screen.findByRole('combobox', {
+      name: 'Default place precision'
+    })
+    expect(select).toHaveValue('hidden')
+    expect(
+      screen.getByText(
+        'Who can see where new photos were taken. You can change it on each photo.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent)
+    ).toEqual(['Hidden', 'Country', 'Area (about 5 km)', 'Exact'])
+
+    fireEvent.change(select, { target: { value: 'country' } })
+
+    await waitFor(() =>
+      expect(mockUpdateGallerySettings).toHaveBeenCalledWith({
+        defaultPlacePrecision: 'country'
+      })
+    )
+    expect(select).toHaveValue('country')
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+  })
+
+  it('reverts the precision and shows an error when saving it fails', async () => {
+    mockUpdateGallerySettings.mockRejectedValue(new Error('network down'))
+
+    render(<MediaDetailsSettings />)
+
+    const select = await screen.findByRole('combobox', {
+      name: 'Default place precision'
+    })
+    fireEvent.change(select, { target: { value: 'exact' } })
+
+    expect(
+      await screen.findByText(
+        'Failed to save media settings. Please try again.'
+      )
+    ).toBeInTheDocument()
+    await waitFor(() => expect(select).toHaveValue('hidden'))
   })
 
   it('reverts the toggle and shows an error when saving fails', async () => {

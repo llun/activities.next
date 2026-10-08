@@ -97,7 +97,7 @@ const settings = (overrides: Record<string, unknown> = {}) =>
   ({
     allowEmptyDescription: true,
     altTextAvailable: false,
-    defaultPlacePrecision: 'area',
+    defaultPlacePrecision: 'hidden',
     ...overrides
   }) as unknown as Awaited<ReturnType<typeof getGallerySettings>>
 
@@ -282,6 +282,73 @@ describe('PostBox media details', () => {
     expect(
       screen.getByRole('button', { name: 'Remove media b.png' })
     ).toBeInTheDocument()
+  })
+
+  it('deletes uploaded media and revokes its previews when a poll replaces it', async () => {
+    renderPostBox()
+    attach('a.png')
+    await screen.findByText('Review')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add poll' }))
+
+    expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
+      mediaId: 'media-a.png'
+    })
+    expect(global.URL.revokeObjectURL).toHaveBeenCalledWith('blob:media')
+    expect(
+      screen.queryByRole('button', { name: 'Remove media a.png' })
+    ).not.toBeInTheDocument()
+    // Nothing of the old media survives into the next attachment.
+    expect(screen.queryByText('Review')).not.toBeInTheDocument()
+  })
+
+  it('does not open the details dialog for an item removed while its details loaded', async () => {
+    const pendingSettings =
+      createDeferred<Awaited<ReturnType<typeof getGallerySettings>>>()
+    getGallerySettingsMock.mockReturnValueOnce(pendingSettings.promise)
+    renderPostBox()
+    attach('a.png')
+    const open = await screen.findByRole('button', {
+      name: 'Review details of a.png'
+    })
+
+    fireEvent.click(open)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove media a.png' }))
+    pendingSettings.resolve(settings())
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('does not open the details dialog once a submit has started', async () => {
+    // The first details read fails, so opening the dialog reads them again.
+    const retry = createDeferred<Awaited<ReturnType<typeof getMedia>>>()
+    getMediaMock
+      .mockRejectedValueOnce(new Error('down'))
+      .mockReturnValueOnce(retry.promise)
+    const post = createDeferred<Awaited<ReturnType<typeof createNote>>>()
+    createNoteMock.mockReturnValueOnce(post.promise)
+    renderPostBox()
+    attach('a.png')
+    const open = await screen.findByRole('button', {
+      name: 'Review details of a.png'
+    })
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'hello' }
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+    )
+
+    fireEvent.click(open)
+    await waitFor(() => expect(getMediaMock).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalled())
+    retry.resolve(mediaEntity('media-a.png', null))
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    post.resolve({ status: {} as never, attachments: [] })
   })
 
   it('opens the details dialog when a tile is clicked', async () => {

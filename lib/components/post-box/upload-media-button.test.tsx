@@ -226,6 +226,42 @@ describe('UploadMediaButton', () => {
       })
     })
 
+    it('matches an uploaded attachment by the file name it was picked with', async () => {
+      // After the upload finishes the attachment has no file and its name is
+      // the alt text, so only the known file names can identify it.
+      const uploaded: PostBoxAttachment[] = [
+        {
+          type: 'upload',
+          id: 'media-1',
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/heron.jpg',
+          width: 100,
+          height: 100,
+          name: 'A heron on a reed'
+        }
+      ]
+
+      render(
+        <UploadMediaButton
+          isMediaUploadEnabled={true}
+          attachments={uploaded}
+          fileNames={{ 'media-1': 'heron.jpg' }}
+          onAddAttachment={mockOnAddAttachment}
+          onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
+        />
+      )
+
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      fireEvent.change(input, {
+        target: { files: [createMockFile('heron.jpg')] }
+      })
+
+      await waitFor(() => expect(mockOnDuplicateError).toHaveBeenCalledTimes(1))
+      expect(mockOnAddAttachment).not.toHaveBeenCalled()
+    })
+
     it('does not call onDuplicateError when no duplicates exist', async () => {
       render(
         <UploadMediaButton

@@ -5,14 +5,27 @@ import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { getGallerySettings, updateGallerySettings } from '@/lib/client'
 import { Button } from '@/lib/components/ui/button'
 import { Label } from '@/lib/components/ui/label'
+import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import type { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
-import type { GallerySettings } from '@/lib/types/database/gallery'
+import {
+  type GallerySettings,
+  MEDIA_PLACE_PRECISIONS,
+  type MediaPlacePrecision
+} from '@/lib/types/database/gallery'
 
 type ToggleKey = keyof Pick<
   GallerySettings,
   'autoDescribe' | 'allowEmptyDescription' | 'subjectHashtags'
 >
+type SettingKey = ToggleKey | 'defaultPlacePrecision'
+
+const PRECISION_LABELS: Record<MediaPlacePrecision, string> = {
+  hidden: 'Hidden',
+  country: 'Country',
+  area: 'Area (about 5 km)',
+  exact: 'Exact'
+}
 
 const SAVE_ERROR = 'Failed to save media settings. Please try again.'
 const LOAD_ERROR = 'Failed to load media settings.'
@@ -65,7 +78,7 @@ export const MediaDetailsSettings: FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null)
   // Keys with a save in flight. Only the switch whose save is pending is
   // disabled; the others stay usable.
-  const [savingKeys, setSavingKeys] = useState<ReadonlySet<ToggleKey>>(
+  const [savingKeys, setSavingKeys] = useState<ReadonlySet<SettingKey>>(
     () => new Set()
   )
   const [savedStatus, setSavedStatus] = useState<string | null>(null)
@@ -76,8 +89,8 @@ export const MediaDetailsSettings: FC = () => {
   // revert that key. Keys with a save in flight are refused synchronously, so
   // two saves for one key never overlap and `previous` is always the last
   // confirmed value.
-  const saveSequence = useRef<Partial<Record<ToggleKey, number>>>({})
-  const pendingKeys = useRef<Set<ToggleKey>>(new Set())
+  const saveSequence = useRef<Partial<Record<SettingKey, number>>>({})
+  const pendingKeys = useRef<Set<SettingKey>>(new Set())
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearSavedTimer = useCallback(() => {
@@ -108,7 +121,10 @@ export const MediaDetailsSettings: FC = () => {
 
   // Optimistic: the switch flips at once, reverts only its own key on failure,
   // and takes the server's value when the save succeeds.
-  const handleToggle = async (key: ToggleKey, value: boolean) => {
+  const handleSave = async <K extends SettingKey>(
+    key: K,
+    value: GallerySettings[K]
+  ) => {
     if (pendingKeys.current.has(key)) return
     pendingKeys.current.add(key)
     const sequence = (saveSequence.current[key] ?? 0) + 1
@@ -202,7 +218,7 @@ export const MediaDetailsSettings: FC = () => {
           disabled={
             !loaded || !altTextAvailable || savingKeys.has('autoDescribe')
           }
-          onCheckedChange={(checked) => handleToggle('autoDescribe', checked)}
+          onCheckedChange={(checked) => handleSave('autoDescribe', checked)}
         />
 
         <ToggleRow
@@ -212,7 +228,7 @@ export const MediaDetailsSettings: FC = () => {
           checked={settings?.allowEmptyDescription ?? false}
           disabled={!loaded || savingKeys.has('allowEmptyDescription')}
           onCheckedChange={(checked) =>
-            handleToggle('allowEmptyDescription', checked)
+            handleSave('allowEmptyDescription', checked)
           }
         />
       </section>
@@ -231,10 +247,53 @@ export const MediaDetailsSettings: FC = () => {
           description="Adds a hashtag such as #CommonKingfisher to the post for each subject."
           checked={settings?.subjectHashtags ?? false}
           disabled={!loaded || savingKeys.has('subjectHashtags')}
-          onCheckedChange={(checked) =>
-            handleToggle('subjectHashtags', checked)
-          }
+          onCheckedChange={(checked) => handleSave('subjectHashtags', checked)}
         />
+      </section>
+
+      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold">Location</h2>
+          <p className="text-sm text-muted-foreground">
+            Photos can carry the place they were taken. Only you ever see the
+            exact coordinates.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0 space-y-0.5">
+            <Label htmlFor="media-default-place-precision">
+              Default place precision
+            </Label>
+            <p
+              id="media-default-place-precision-help"
+              className="text-[0.8rem] text-muted-foreground"
+            >
+              Who can see where new photos were taken. You can change it on each
+              photo.
+            </p>
+          </div>
+          <div className="w-40 shrink-0">
+            <Select
+              id="media-default-place-precision"
+              aria-describedby="media-default-place-precision-help"
+              value={settings?.defaultPlacePrecision ?? 'hidden'}
+              disabled={!loaded || savingKeys.has('defaultPlacePrecision')}
+              onChange={(event) =>
+                handleSave(
+                  'defaultPlacePrecision',
+                  event.target.value as MediaPlacePrecision
+                )
+              }
+            >
+              {MEDIA_PLACE_PRECISIONS.map((option) => (
+                <option key={option} value={option}>
+                  {PRECISION_LABELS[option]}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
       </section>
     </div>
   )

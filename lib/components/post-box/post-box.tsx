@@ -513,6 +513,15 @@ export const PostBox: FC<Props> = ({
       ensureGallerySettings(),
       ...missing.map((item) => loadDetails(item.id))
     ])
+    // The awaits above leave a window: a submit may have started, or the
+    // attachment may have been removed or replaced (poll, fitness file).
+    if (
+      !isMountedRef.current ||
+      submitInFlightRef.current ||
+      !findAttachment(id)
+    ) {
+      return
+    }
     setActiveDetailsId(id)
   }
 
@@ -1176,6 +1185,7 @@ export const PostBox: FC<Props> = ({
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
+              fileNames={fileNames}
               onAddAttachment={(attachment) => {
                 // Bounds postExtensionRef, not postExtension: this callback
                 // writes the ref synchronously below, before dispatch, so
@@ -1302,9 +1312,16 @@ export const PostBox: FC<Props> = ({
                   ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                   : 'text-muted-foreground hover:text-foreground'
               )}
-              onClick={() =>
+              onClick={() => {
+                // The poll replaces any attached media (the reducer drops it
+                // and revokes the previews), so delete what was already
+                // uploaded for it instead of orphaning it on the server.
+                if (!submitInFlightRef.current) {
+                  discardUploadedMedia(postExtensionRef.current.attachments)
+                  resetMediaState()
+                }
                 dispatch(setPollVisibility(!postExtension.poll.showing))
-              }
+              }}
             >
               <BarChart3 className="size-4" />
             </Button>

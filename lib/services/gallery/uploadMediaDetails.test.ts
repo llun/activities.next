@@ -4,6 +4,7 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import { getPublicPlace } from '@/lib/services/gallery/publicMediaDetails'
 import {
   buildUploadMediaDetails,
   getGallerySettingsOrDefaults,
@@ -13,6 +14,7 @@ import { EMPTY_MEDIA_EXIF } from '@/lib/services/medias/exif/readMediaExif'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { DEFAULT_GALLERY_SETTINGS } from '@/lib/types/database/gallery'
+import type { Media } from '@/lib/types/database/operations'
 
 const createPhoto = (withGps = true) =>
   sharp({
@@ -83,8 +85,9 @@ describe('buildUploadMediaDetails', () => {
         },
         placeLatitude: 51.5,
         placeLongitude: -0.125,
-        // No settings row yet: the default precision applies.
-        placePrecision: 'area',
+        // No settings row yet: the default precision applies, and it
+        // discloses nothing.
+        placePrecision: 'hidden',
         inGallery: false
       })
     })
@@ -155,6 +158,23 @@ describe('buildUploadMediaDetails', () => {
       }
     )
 
+    it('discloses no public coordinates for a GPS upload from an actor with no settings row', async () => {
+      expect(
+        await getGallerySettingsOrDefaults(database, actors.pollAuthor.id)
+      ).toMatchObject({ defaultPlacePrecision: 'hidden' })
+
+      const details = await buildUploadMediaDetails({
+        database,
+        actorId: actors.pollAuthor.id,
+        original: await createPhoto()
+      })
+
+      // The coordinates are kept for the owner, but nothing is public.
+      expect(details.placeLatitude).toBeCloseTo(51.5, 3)
+      expect(details.placePrecision).toBe('hidden')
+      expect(getPublicPlace(details as Media['details'])).toBeNull()
+    })
+
     it.each(['hidden', 'country', 'area', 'exact'] as const)(
       'stamps GPS with the owner’s "%s" default precision',
       async (defaultPlacePrecision) => {
@@ -191,7 +211,7 @@ describe('buildUploadMediaDetails', () => {
     expect(details).toMatchObject({
       inGallery: false,
       takenAt: Date.UTC(2024, 4, 6, 7, 8, 9),
-      placePrecision: 'area'
+      placePrecision: 'hidden'
     })
     expect(details).not.toHaveProperty('cameraGearId')
   })

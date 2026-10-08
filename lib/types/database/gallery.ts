@@ -134,7 +134,7 @@ export const DEFAULT_GALLERY_SETTINGS: GallerySettings = {
   allowEmptyDescription: true,
   subjectHashtags: true,
   galleryDefault: 'subject',
-  defaultPlacePrecision: 'area',
+  defaultPlacePrecision: 'hidden',
   showGear: true,
   mapPublic: true,
   lifeListPublic: false,

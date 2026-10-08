@@ -651,7 +651,7 @@ CREATE TABLE public.gallery_settings (
     "allowEmptyDescription" boolean DEFAULT true NOT NULL,
     "subjectHashtags" boolean DEFAULT true NOT NULL,
     "galleryDefault" character varying(255) DEFAULT 'subject'::character varying NOT NULL,
-    "defaultPlacePrecision" character varying(255) DEFAULT 'area'::character varying NOT NULL,
+    "defaultPlacePrecision" character varying(255) DEFAULT 'hidden'::character varying NOT NULL,
     "showGear" boolean DEFAULT true NOT NULL,
     "mapPublic" boolean DEFAULT true NOT NULL,
     "lifeListPublic" boolean DEFAULT false NOT NULL,

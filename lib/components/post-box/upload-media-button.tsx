@@ -18,6 +18,12 @@ const MEDIA_TYPE = 'upload'
 interface Props {
   isMediaUploadEnabled?: boolean
   attachments?: PostBoxAttachment[]
+  /**
+   * Original file names by attachment id. Once an upload finishes the
+   * attachment drops its `file` and its `name` becomes the alt text, so the
+   * names of files already picked can only be matched from here.
+   */
+  fileNames?: Record<string, string>
   onAddAttachment: (attachment: PostBoxAttachment) => void
   onDuplicateError: () => void
   /** Reports every file rejected before upload (currently: over the size cap). */
@@ -29,6 +35,7 @@ interface Props {
 export const UploadMediaButton: FC<Props> = ({
   isMediaUploadEnabled,
   attachments = [],
+  fileNames = {},
   onAddAttachment,
   onDuplicateError,
   onFilesRejected,
@@ -58,7 +65,10 @@ export const UploadMediaButton: FC<Props> = ({
 
     const filteredFiles = selectedFiles.filter((file) => {
       return !attachments.some(
-        (attachment) => (attachment.file?.name ?? attachment.name) === file.name
+        (attachment) =>
+          (attachment.file?.name ??
+            fileNames[attachment.id] ??
+            attachment.name) === file.name
       )
     })
 

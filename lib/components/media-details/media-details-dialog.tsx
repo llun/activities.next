@@ -386,7 +386,7 @@ export const MediaDetailsDialog: FC<Props> = ({
   const hasFilePlace =
     details?.place?.latitude != null && details?.place?.longitude != null
   const precision: MediaPlacePrecision =
-    draft.placePrecision || settings?.defaultPlacePrecision || 'area'
+    draft.placePrecision || settings?.defaultPlacePrecision || 'hidden'
 
   const onPrecisionKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const count = MEDIA_PLACE_PRECISIONS.length

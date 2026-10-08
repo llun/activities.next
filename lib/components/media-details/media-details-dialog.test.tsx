@@ -355,7 +355,7 @@ describe('MediaDetailsDialog', () => {
 
     const group = screen.getByRole('radiogroup', { name: 'Place precision' })
     expect(group).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Area · 5 km' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Hidden' })).toBeChecked()
 
     fireEvent.click(screen.getByRole('radio', { name: 'Exact' }))
 
@@ -468,10 +468,10 @@ describe('MediaDetailsDialog', () => {
     const group = screen.getByRole('radiogroup', { name: 'Place precision' })
 
     fireEvent.keyDown(group, { key: 'ArrowRight' })
-    const exact = screen.getByRole('radio', { name: 'Exact' })
-    expect(exact).toBeChecked()
-    expect(exact).toHaveFocus()
-    expect(exact).toHaveAttribute('tabindex', '0')
+    const country = screen.getByRole('radio', { name: 'Country' })
+    expect(country).toBeChecked()
+    expect(country).toHaveFocus()
+    expect(country).toHaveAttribute('tabindex', '0')
 
     fireEvent.keyDown(group, { key: 'Home' })
     expect(screen.getByRole('radio', { name: 'Hidden' })).toHaveFocus()

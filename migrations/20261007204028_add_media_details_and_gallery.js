@@ -112,7 +112,7 @@ export const up = async function (knex) {
       table.boolean('allowEmptyDescription').notNullable().defaultTo(true)
       table.boolean('subjectHashtags').notNullable().defaultTo(true)
       table.string('galleryDefault').notNullable().defaultTo('subject')
-      table.string('defaultPlacePrecision').notNullable().defaultTo('area')
+      table.string('defaultPlacePrecision').notNullable().defaultTo('hidden')
       table.boolean('showGear').notNullable().defaultTo(true)
       table.boolean('mapPublic').notNullable().defaultTo(true)
       table.boolean('lifeListPublic').notNullable().defaultTo(false)
