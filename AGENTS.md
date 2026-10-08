@@ -93,19 +93,19 @@ tool's current model list and use its newest model in the same tier; any model
 not listed here (another vendor, a local model, a new release) goes in the tier
 that matches its capability and cost.
 
-| Tier                                                             | Claude Code (Agent tool `model`) | OpenAI Codex                                             | Google Antigravity        | Open-weight (Qwen, DeepSeek, GLM, Kimi, gpt-oss, …)                                                      |
-| ---------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `fast`: cheapest and quickest, for retrieval and mechanical work | `haiku`                          | the smallest current GPT model (for example GPT-6 Luna)  | a Gemini Flash model      | a small model, such as Qwen3-Coder-30B-A3B or gpt-oss-20b                                                |
-| `balanced`: most implementation work                             | `sonnet`                         | the mid-tier current GPT model (for example GPT-6.1 Sol) | Claude Sonnet             | a mid-size coding model, such as Qwen3-Coder-Next, DeepSeek V4 Flash or gpt-oss-120b                     |
-| `strongest`: design, hard debugging, high-risk code and review   | `opus`                           | the top current GPT model (for example GPT-6 Astra)      | Claude Opus or Gemini Pro | the largest current release of a frontier family, such as Qwen3.8, DeepSeek V4 Pro, GLM-5.2 or Kimi K2.6 |
+| Tier                                                             | Claude Code (Agent tool `model`) | OpenAI Codex                                      | Google Antigravity        | Open-weight (Qwen, DeepSeek, GLM, Kimi, gpt-oss, …)                                                      |
+| ---------------------------------------------------------------- | -------------------------------- | ------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `fast`: cheapest and quickest, for retrieval and mechanical work | `haiku`                          | the smallest current GPT model (for example Luna) | a Gemini Flash model      | a small model, such as Qwen3-Coder-30B-A3B or gpt-oss-20b                                                |
+| `balanced`: most implementation work                             | `sonnet`                         | the mid-tier current GPT model (for example Sol)  | Claude Sonnet             | a mid-size coding model, such as Qwen3-Coder-Next, DeepSeek V4 Flash or gpt-oss-120b                     |
+| `strongest`: design, hard debugging, high-risk code and review   | `opus`                           | the top current GPT model (for example Astra)     | Claude Opus or Gemini Pro | the largest current release of a frontier family, such as Qwen3.8, DeepSeek V4 Pro, GLM-5.2 or Kimi K2.6 |
 
 How each tool sets the effort step:
 
 | Tool               | How to set effort                                                                                                                                                                                                                                                                                                                                             |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Claude Code        | The Agent tool's `effort` takes the five steps as written.                                                                                                                                                                                                                                                                                                    |
-| OpenAI Codex       | `model_reasoning_effort` in the config or in a custom agent's TOML file (`.codex/agents/`); use the config value Codex documents for each step (for example `low`, `medium`, `high`, `xhigh`), and map `max` to its highest value below Ultra.                                                                                                                |
-| Google Antigravity | There is no separate effort control: pick the model variant in the model picker, the plain variant for `low` and `medium`, the thinking variant for `high` and above.                                                                                                                                                                                         |
+| OpenAI Codex       | `model_reasoning_effort` in the config or in a custom agent's TOML file (`.codex/agents/`); use the config value Codex documents for each step (for example `low`, `medium`, `high`, `xhigh`), and map `max` to its highest documented value.                                                                                                                 |
+| Google Antigravity | For Gemini models, pick the effort level the model picker offers that is closest to the step. Models offered as a single thinking variant (such as Claude in Antigravity) have no effort steps, so skip them as the ladder says.                                                                                                                              |
 | Open-weight models | Use the serving stack's reasoning setting where it has one (`reasoning_effort`, a thinking on/off switch, or a thinking-token budget): thinking off for `low`, on with the default budget for `medium`, a larger budget for `high`, and the largest budget the stack allows for `xhigh` and `max`. If it has none, skip the effort steps, as the ladder says. |
 
 Guidelines:
@@ -126,8 +126,7 @@ Guidelines:
   `strongest` after `xhigh` has fallen short. Where a tool has fewer effort
   steps than this ladder, skip the steps it lacks.
 - Do not go beyond these tiers and steps (for example Claude Code's `fable`
-  model, or an effort above `max` such as Codex's Ultra) unless the user asks
-  for it.
+  model, or an effort level above `max`) unless the user asks for it.
 - Tools without a sub-agent feature still follow the same split as closely as
   they allow (a separate session or pass for review, the cheapest adequate model
   per task) rather than skipping it.
