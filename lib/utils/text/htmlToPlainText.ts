@@ -6,6 +6,12 @@ import type {
 } from 'html-react-parser'
 import sanitizeHtml from 'sanitize-html'
 
+import {
+  isEllipsisClass,
+  isInvisibleClass,
+  isQuoteInlineClass
+} from '@/lib/utils/text/statusBodyClasses'
+
 const BLOCK_TAGS = new Set([
   'blockquote',
   'div',
@@ -42,7 +48,19 @@ const appendText = (parts: string[], text: string) => {
   parts.push(text)
 }
 
-const collectText = (nodes: PlainTextDomNode[], parts: string[]) => {
+export interface HtmlToPlainTextOptions {
+  // Read the markup the way the status body renders it: Mastodon's `invisible`
+  // link parts are dropped, `ellipsis` gets its "…", and the `quote-inline`
+  // fallback is dropped when `hideQuoteInline` is set. Off by default.
+  matchStatusBody?: boolean
+  hideQuoteInline?: boolean
+}
+
+const collectText = (
+  nodes: PlainTextDomNode[],
+  parts: string[],
+  options: HtmlToPlainTextOptions = {}
+) => {
   nodes.forEach((node) => {
     if (isTextNode(node)) {
       appendText(parts, node.data)
@@ -51,6 +69,21 @@ const collectText = (nodes: PlainTextDomNode[], parts: string[]) => {
 
     if (!isElementNode(node)) return
 
+    if (options.matchStatusBody) {
+      const className = node.attribs?.class
+      if (
+        isInvisibleClass(className) ||
+        (options.hideQuoteInline && isQuoteInlineClass(className))
+      ) {
+        return
+      }
+      if (isEllipsisClass(className)) {
+        collectText(node.children, parts, options)
+        appendText(parts, '…')
+        return
+      }
+    }
+
     if (node.name === 'br') {
       appendSpace(parts)
       return
@@ -58,12 +91,12 @@ const collectText = (nodes: PlainTextDomNode[], parts: string[]) => {
 
     if (BLOCK_TAGS.has(node.name)) {
       appendSpace(parts)
-      collectText(node.children, parts)
+      collectText(node.children, parts, options)
       appendSpace(parts)
       return
     }
 
-    collectText(node.children, parts)
+    collectText(node.children, parts, options)
   })
 }
 
@@ -73,13 +106,20 @@ const collectText = (nodes: PlainTextDomNode[], parts: string[]) => {
 // while their text is kept, so a hostile bio cannot overflow the stack.
 const MAX_NESTING_DEPTH = 10
 
-export const htmlToPlainText = (html: string | null | undefined) => {
+export const htmlToPlainText = (
+  html: string | null | undefined,
+  options: HtmlToPlainTextOptions = {}
+) => {
   const sanitizedHtml = sanitizeHtml(html ?? '', {
-    allowedTags: ALLOWED_STRUCTURE_TAGS,
-    allowedAttributes: {},
+    allowedTags: options.matchStatusBody
+      ? [...ALLOWED_STRUCTURE_TAGS, 'a', 'span']
+      : ALLOWED_STRUCTURE_TAGS,
+    allowedAttributes: options.matchStatusBody
+      ? { a: ['class'], p: ['class'], span: ['class'] }
+      : {},
     nestingLimit: MAX_NESTING_DEPTH
   })
   const parts: string[] = []
-  collectText(htmlToDOM(sanitizedHtml), parts)
+  collectText(htmlToDOM(sanitizedHtml), parts, options)
   return parts.join('').replace(/\s+/g, ' ').trim()
 }

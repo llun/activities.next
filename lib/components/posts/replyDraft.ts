@@ -9,7 +9,10 @@ import {
   getOriginalStatus
 } from '@/lib/types/domain/status'
 import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
-import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
+import {
+  HtmlToPlainTextOptions,
+  htmlToPlainText
+} from '@/lib/utils/text/htmlToPlainText'
 import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 export type ReplyMentionMode = 'all' | 'author-first' | 'author-only'
@@ -56,8 +59,12 @@ export interface ViewerIdentity {
 }
 
 /** Builds a plain-text snippet from status HTML (not raw markdown). */
-export const createTextSnippet = (text: string, maxLength = 140): string => {
-  const clean = htmlToPlainText(text)
+export const createTextSnippet = (
+  text: string,
+  maxLength = 140,
+  options?: HtmlToPlainTextOptions
+): string => {
+  const clean = htmlToPlainText(text, options)
   if (clean.length <= maxLength) return clean
   return `${clean.slice(0, maxLength - 1).trimEnd()}…`
 }
@@ -320,7 +327,12 @@ export const prepareReplyDraft = ({
         actualStatus.tags,
         actualStatus.isLocalActor,
         { convertEmojis: false }
-      )
+      ),
+      undefined,
+      // Read it as `post.tsx` renders the body: long links collapse to their
+      // visible part, and the "RE: <link>" fallback hides once a quote card
+      // renders.
+      { matchStatusBody: true, hideQuoteInline: Boolean(actualStatus.quote) }
     ),
     spoilerText: spoilerText || undefined,
     visibility,

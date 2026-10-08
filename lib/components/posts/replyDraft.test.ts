@@ -433,6 +433,11 @@ describe('replyDraft', () => {
   })
 
   describe('prepareReplyDraft text snippet', () => {
+    const quote = {
+      quotedStatusId: 'https://remote.social/@a/1',
+      state: 'accepted' as const
+    }
+
     it.each([
       {
         description: 'keeps an unclosed angle bracket in local plain text',
@@ -451,10 +456,29 @@ describe('replyDraft', () => {
         isLocalActor: false,
         text: '<p><span class="h-card" translate="no"><a href="https://mastodon.in.th/@null" class="u-url mention">@<span>null</span></a></span> isn&#39;t it supposed to degrade enamel?</p>',
         expected: "@null isn't it supposed to degrade enamel?"
+      },
+      {
+        description: 'shortens a Mastodon long link like the body does',
+        isLocalActor: false,
+        text: '<p>see <a href="https://example.com/longpath"><span class="invisible">https://</span><span class="ellipsis">example.com/long</span><span class="invisible">path</span></a></p>',
+        expected: 'see example.com/long…'
+      },
+      {
+        description: 'hides the quote fallback when the status has a quote',
+        isLocalActor: false,
+        quote,
+        text: '<p>my take</p><p class="quote-inline">RE: <a href="https://remote.social/@a/1">https://remote.social/@a/1</a></p>',
+        expected: 'my take'
+      },
+      {
+        description: 'keeps the quote fallback when the status has no quote',
+        isLocalActor: false,
+        text: '<p>my take</p><p class="quote-inline">RE: <a href="https://remote.social/@a/1">https://remote.social/@a/1</a></p>',
+        expected: 'my take RE: https://remote.social/@a/1'
       }
-    ])('$description', ({ isLocalActor, text, expected }) => {
+    ])('$description', ({ isLocalActor, text, expected, quote }) => {
       const draft = prepareReplyDraft({
-        targetStatus: { ...baseNote, isLocalActor, text },
+        targetStatus: { ...baseNote, isLocalActor, text, quote },
         currentViewer: viewer
       })
       expect(draft.targetPreview.textSnippet).toBe(expected)

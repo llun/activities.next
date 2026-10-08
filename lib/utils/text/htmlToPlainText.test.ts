@@ -65,3 +65,37 @@ describe('htmlToPlainText', () => {
     expect(htmlToPlainText(html)).toBe('inner outer')
   })
 })
+
+describe('htmlToPlainText matchStatusBody', () => {
+  const quoteHtml =
+    '<p>take</p><p class="quote-inline">RE: <a href="https://r.social/1">link</a></p>'
+
+  it.each([
+    {
+      description: 'ignores classes by default',
+      html: '<a href="x"><span class="invisible">https://</span><span class="ellipsis">a.com/b</span></a>',
+      options: undefined,
+      expected: 'https://a.com/b'
+    },
+    {
+      description: 'drops invisible parts and marks the ellipsis',
+      html: '<a href="x"><span class="invisible">https://</span><span class="ellipsis">a.com/b</span><span class="invisible">c</span></a>',
+      options: { matchStatusBody: true },
+      expected: 'a.com/b…'
+    },
+    {
+      description: 'keeps quote-inline unless hideQuoteInline is set',
+      html: quoteHtml,
+      options: { matchStatusBody: true },
+      expected: 'take RE: link'
+    },
+    {
+      description: 'drops quote-inline when hideQuoteInline is set',
+      html: quoteHtml,
+      options: { matchStatusBody: true, hideQuoteInline: true },
+      expected: 'take'
+    }
+  ])('$description', ({ html, options, expected }) => {
+    expect(htmlToPlainText(html, options)).toBe(expected)
+  })
+})
