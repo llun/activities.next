@@ -11,6 +11,12 @@ interface Props {
   fileNames: Record<string, string>
   detailsById: Record<string, MediaDetailsEntity>
   decorativeIds: Record<string, true>
+  /**
+   * Stable React keys by attachment id. An upload swaps the temporary id for
+   * the server's, so the key must outlive that swap or the tile remounts and
+   * focus leaves its buttons. Falls back to the id.
+   */
+  clientKeys?: Record<string, string>
   uploadErrors: Record<string, string>
   /** Ids whose owner details are still being read after the upload. */
   detailsPending: Record<string, true>
@@ -73,6 +79,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
   fileNames,
   detailsById,
   decorativeIds,
+  clientKeys = {},
   uploadErrors,
   detailsPending,
   disabled = false,
@@ -109,7 +116,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
             !decorative &&
             (item.name ?? '').trim().length === 0
           return (
-            <li key={item.id} className="relative">
+            <li key={clientKeys[item.id] ?? item.id} className="relative">
               <button
                 type="button"
                 data-attachment-tile={item.id}

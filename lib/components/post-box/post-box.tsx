@@ -188,6 +188,14 @@ export const PostBox: FC<Props> = ({
   // In-flight uploads by attachment id; submit waits on every one of them.
   const uploadsRef = useRef(new Map<string, Promise<void>>())
   const settingsPromiseRef = useRef<Promise<void> | null>(null)
+  // The latest settings and decorative marks for the submit gate, which runs
+  // after awaits and must not read the stale render closure.
+  const gallerySettingsRef = useRef<GallerySettingsEntity | null>(null)
+  const decorativeIdsRef = useRef<Record<string, true>>({})
+  // Server media id -> the temporary id the tile was first rendered with, so
+  // the tile's React key survives the id swap when its upload finishes (a new
+  // key would remount the tile and drop focus from its Remove button).
+  const [clientKeys, setClientKeys] = useState<Record<string, string>>({})
   // The actor's default quote policy (Mastodon posting:default:quote_policy),
   // fetched once and re-applied after each post so it stays sticky across the
   // resetExtension() that follows a successful create.
@@ -387,6 +395,7 @@ export const PostBox: FC<Props> = ({
       settingsPromiseRef.current = getGallerySettings()
         .then((settings) => {
           setSettingsFailed(false)
+          gallerySettingsRef.current = settings
           setGallerySettings(settings)
         })
         .catch(() => {
@@ -477,6 +486,10 @@ export const PostBox: FC<Props> = ({
           deleteAccountMedia({ mediaId: uploaded.id }).catch(() => undefined)
           return
         }
+        setClientKeys((keys) => ({
+          ...keys,
+          [uploaded.id]: keys[tempId] ?? tempId
+        }))
         replaceAttachment(tempId, {
           ...current,
           ...uploaded,
@@ -603,9 +616,42 @@ export const PostBox: FC<Props> = ({
     setUploadErrors({})
     setDetailsById({})
     setDecorativeIds({})
+    setClientKeys({})
     setFileNames({})
     setDetailsPending({})
     setActiveDetailsId(null)
+  }
+
+  decorativeIdsRef.current = decorativeIds
+
+  // Whether a settled attachment still lacks the description the instance
+  // requires. Still uploading or failed items are skipped (the tile says so;
+  // "add a description" would be misleading until there is a stored media to
+  // describe), and so is media already on the status being edited: a legacy
+  // item posted without a description must not block a typo fix.
+  const isUndescribed = (
+    item: PostBoxAttachment,
+    decorative: Record<string, true>
+  ) =>
+    !item.file &&
+    !item.isLoading &&
+    !originalMediaIdsRef.current.has(item.id) &&
+    !(item.name ?? '').trim() &&
+    !decorative[item.id]
+
+  // The submit gate. Unlike the tile prompt below (render state), this runs
+  // after the uploads have settled: an upload still in flight when Post was
+  // clicked has no description yet but may well need one.
+  const hasMissingDescriptionAfterUploads = async (
+    attachments: PostBoxAttachment[]
+  ) => {
+    await ensureGallerySettings()
+    if (gallerySettingsRef.current?.allowEmptyDescription !== false) {
+      return false
+    }
+    return attachments.some((item) =>
+      isUndescribed(item, decorativeIdsRef.current)
+    )
   }
 
   const descriptionRequired = gallerySettings?.allowEmptyDescription === false
@@ -613,15 +659,8 @@ export const PostBox: FC<Props> = ({
   // skipped by posting before they arrive; a failed load fails open.
   // Media already on the status being edited is not re-validated: a legacy
   // item posted without a description must not block a typo fix.
-  const hasUndescribedAttachment = postExtension.attachments.some(
-    (item) =>
-      // Still uploading or failed: the tile says so; "add a description" would
-      // be misleading until there is a stored media to describe.
-      !item.file &&
-      !item.isLoading &&
-      !originalMediaIdsRef.current.has(item.id) &&
-      !(item.name ?? '').trim() &&
-      !decorativeIds[item.id]
+  const hasUndescribedAttachment = postExtension.attachments.some((item) =>
+    isUndescribed(item, decorativeIds)
   )
   const settingsLoading =
     hasUndescribedAttachment && !gallerySettings && !settingsFailed
@@ -677,6 +716,11 @@ export const PostBox: FC<Props> = ({
 
       if (editStatus) {
         const attachments = await uploadMediaAttachments()
+        if (await hasMissingDescriptionAfterUploads(attachments)) {
+          setIsPosting(false)
+          setAllowPost(true)
+          return
+        }
         const baselineText = getEditableStatusText(editStatus)
         const baselineContentWarning = editStatus.summary ?? ''
         const currentContentWarning = postExtension.contentWarningVisible
@@ -777,6 +821,11 @@ export const PostBox: FC<Props> = ({
       }
 
       const attachments = await uploadMediaAttachments()
+      if (await hasMissingDescriptionAfterUploads(attachments)) {
+        setIsPosting(false)
+        setAllowPost(true)
+        return
+      }
 
       const response = await createNote({
         message,
@@ -1512,6 +1561,7 @@ export const PostBox: FC<Props> = ({
           attachments={postExtension.attachments}
           fileNames={fileNames}
           detailsById={detailsById}
+          clientKeys={clientKeys}
           decorativeIds={decorativeIds}
           uploadErrors={uploadErrors}
           detailsPending={detailsPending}

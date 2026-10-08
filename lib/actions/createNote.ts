@@ -16,6 +16,7 @@ import {
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   canActorReadStatus,
   isPublicOrUnlisted
@@ -362,14 +363,23 @@ export const createNoteFromUserInput = async ({
     // Subject hashtags are part of the post: appended here, before the text is
     // stored and before its hashtags are extracted below, so they are rendered,
     // federated and counted like tags the author typed.
+    const subjectMediaIds = attachments
+      .map((attachment) => attachment.id)
+      .filter((id): id is string => Boolean(id))
+    // The request was validated against `posts.maxCharacters` before this
+    // runs, so appended tags are held to the same limit (or the stored post
+    // could no longer be edited).
+    const maxCharacters =
+      subjectMediaIds.length > 0
+        ? (await getResolvedServerSettings(database)).posts.maxCharacters
+        : undefined
     text = await appendSubjectHashtags({
       database,
       accountId: currentActor.account?.id,
       actorId: currentActor.id,
       text,
-      mediaIds: attachments
-        .map((attachment) => attachment.id)
-        .filter((id): id is string => Boolean(id))
+      mediaIds: subjectMediaIds,
+      maxCharacters
     })
 
     const fitnessFile = fitnessFileId

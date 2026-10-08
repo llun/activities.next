@@ -115,6 +115,41 @@ describe('appendSubjectHashtags', () => {
       expect(await append('  \n', [id])).toBe('#RedFox')
     })
 
+    it('adds tags only while they fit under maxCharacters', async () => {
+      const heron = await createMedia('Grey Heron')
+      const otter = await createMedia('Otter')
+      const fox = await createMedia('Red Fox')
+      const base = 'Morning'
+      // "Morning\n\n#GreyHeron" = 7 + 2 + 10 = 19; " #Otter" adds 7 = 26;
+      // " #RedFox" would add 8 = 34.
+      const text = await appendSubjectHashtags({
+        database,
+        accountId,
+        actorId: actors.primary.id,
+        text: base,
+        mediaIds: [heron, otter, fox],
+        maxCharacters: 28
+      })
+
+      expect(text).toBe('Morning\n\n#GreyHeron #Otter')
+      expect(text.length).toBeLessThanOrEqual(28)
+    })
+
+    it('adds no tags when the text is already at maxCharacters', async () => {
+      const id = await createMedia('Common Kingfisher')
+
+      expect(
+        await appendSubjectHashtags({
+          database,
+          accountId,
+          actorId: actors.primary.id,
+          text: 'Morning',
+          mediaIds: [id],
+          maxCharacters: 7
+        })
+      ).toBe('Morning')
+    })
+
     it('does not repeat a tag the text already has, whatever its case', async () => {
       const id = await createMedia('Common Kingfisher')
 

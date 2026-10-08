@@ -551,6 +551,50 @@ describe('PostBox media details', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('re-checks descriptions after an in-flight upload settles at Post', async () => {
+    getGallerySettingsMock.mockResolvedValue(
+      settings({ allowEmptyDescription: false })
+    )
+    const upload = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockReturnValueOnce(upload.promise)
+    renderPostBox()
+    attach('a.png')
+    await screen.findByText('Uploading…')
+
+    // Uploading items are not flagged, so Post is clickable mid-upload.
+    const post = screen.getByRole('button', { name: 'Post' })
+    expect(post).toBeEnabled()
+    fireEvent.click(post)
+    upload.resolve(uploaded('media-a.png', 'a.png'))
+
+    await screen.findByText(
+      'Add a description to every item, or mark it decorative'
+    )
+    expect(createNoteMock).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Post' })).toBeDisabled()
+    )
+  })
+
+  it('keeps focus on Remove when an upload swaps the temporary id', async () => {
+    const upload = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockReturnValueOnce(upload.promise)
+    renderPostBox()
+    attach('a.png')
+    await screen.findByText('Uploading…')
+
+    const remove = screen.getByRole('button', { name: 'Remove media a.png' })
+    remove.focus()
+    expect(remove).toHaveFocus()
+
+    upload.resolve(uploaded('media-a.png', 'a.png'))
+    await screen.findByText('Review')
+
+    const after = screen.getByRole('button', { name: 'Remove media a.png' })
+    expect(after).toBe(remove)
+    expect(after).toHaveFocus()
+  })
+
   it('does not require descriptions when empty ones are allowed', async () => {
     renderPostBox()
     attach('a.png')

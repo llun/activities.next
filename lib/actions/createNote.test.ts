@@ -9,6 +9,7 @@ import {
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import { updateServerSettings } from '@/lib/services/serverSettings'
 import * as timelinesService from '@/lib/services/timelines'
 import { mockRequests } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
@@ -739,6 +740,20 @@ How are you?
         })
         const status = await postWith(await createSubjectMedia())
         expect(status.text).toContain('#CommonKingfisher')
+      })
+
+      it('does not append a subject hashtag past posts.maxCharacters', async () => {
+        await database.updateGallerySettings({
+          actorId: actor1.id,
+          subjectHashtags: true
+        })
+        await updateServerSettings(database, { 'posts.maxCharacters': 12 })
+        try {
+          const status = await postWith(await createSubjectMedia())
+          expect(status.text).toBe('Morning walk')
+        } finally {
+          await updateServerSettings(database, { 'posts.maxCharacters': 500 })
+        }
       })
 
       it('leaves the text alone when the setting is off', async () => {

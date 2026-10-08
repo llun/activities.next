@@ -52,7 +52,8 @@ export const appendSubjectHashtags = async ({
   accountId,
   actorId,
   text,
-  mediaIds
+  mediaIds,
+  maxCharacters
 }: {
   database: Database
   accountId: string | undefined
@@ -60,6 +61,14 @@ export const appendSubjectHashtags = async ({
   actorId: string
   text: string
   mediaIds: string[]
+  /**
+   * The instance's `posts.maxCharacters`. The caller has already validated the
+   * author's text against it, so appended tags must not push the post over:
+   * once the next tag would, it and the rest are skipped. Lengths are counted
+   * with `String.length`, the way `validateStatusContentLimits` does. Omit for
+   * no limit.
+   */
+  maxCharacters?: number
 }): Promise<string> => {
   if (!accountId || mediaIds.length === 0) return text
 
@@ -90,18 +99,29 @@ export const appendSubjectHashtags = async ({
     const orderedMedias = [...subjectMedias].sort(
       (a, b) => mediaIds.indexOf(a.id) - mediaIds.indexOf(b.id)
     )
+    const trimmed = text.trimEnd()
+    // Joiner before the first tag: a blank line after text, nothing otherwise.
+    const separator = trimmed ? '\n\n' : ''
+    let length = trimmed.length
     for (const media of orderedMedias) {
       const tag = toSubjectHashtag(media.details?.subjectName ?? '')
       if (!tag || present.has(tag.toLowerCase())) continue
+      const addition = `#${tag}`
+      if (maxCharacters !== undefined) {
+        const cost =
+          additions.length === 0
+            ? separator.length + addition.length
+            : 1 + addition.length
+        // Stop at the first tag that does not fit, so tags stay in photo order.
+        if (length + cost > maxCharacters) break
+        length += cost
+      }
       present.add(tag.toLowerCase())
-      additions.push(`#${tag}`)
+      additions.push(addition)
     }
     if (additions.length === 0) return text
 
-    const trimmed = text.trimEnd()
-    return trimmed
-      ? `${trimmed}\n\n${additions.join(' ')}`
-      : additions.join(' ')
+    return `${trimmed}${separator}${additions.join(' ')}`
   } catch (error) {
     logger.warn({
       message: 'Failed to append subject hashtags to a post',
