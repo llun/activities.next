@@ -430,6 +430,9 @@ export const PostBox: FC<Props> = ({
   // be "no details"), and fetches currently running. Neither is re-requested.
   const fetchedDetailsRef = useRef<Set<string>>(new Set())
   const detailsInFlightRef = useRef<Map<string, Promise<void>>>(new Map())
+  // Bumped per id whenever the dialog saves it, so a details read that started
+  // earlier cannot overwrite what the user just saved.
+  const savedGenerationRef = useRef<Map<string, number>>(new Map())
   // The tile that opened the dialog, so focus can go back to it on close.
   const detailsOpenerIdRef = useRef<string | null>(null)
 
@@ -442,7 +445,13 @@ export const PostBox: FC<Props> = ({
     if (!silent) setDetailsPending((current) => ({ ...current, [id]: true }))
     const promise = (async () => {
       try {
-        applyMedia(id, await getMedia(id))
+        const generation = savedGenerationRef.current.get(id) ?? 0
+        const media = await getMedia(id)
+        // Saved (or edited) in the dialog while this read was in flight: the
+        // read is stale, so keep what the user saved.
+        if ((savedGenerationRef.current.get(id) ?? 0) === generation) {
+          applyMedia(id, media)
+        }
         fetchedDetailsRef.current.add(id)
       } catch {
         // The tile simply shows the state it has; opening the dialog retries.
@@ -493,6 +502,9 @@ export const PostBox: FC<Props> = ({
         replaceAttachment(tempId, {
           ...current,
           ...uploaded,
+          // Explicit: the revoked blob poster must not survive when the
+          // server returns no poster.
+          posterUrl: uploaded.posterUrl,
           isLoading: false,
           file: undefined,
           posterFile: undefined
@@ -579,6 +591,12 @@ export const PostBox: FC<Props> = ({
   }
 
   const onDetailsSaved = (saved: MediaDetailsSavedItem[]) => {
+    saved.forEach((item) => {
+      savedGenerationRef.current.set(
+        item.id,
+        (savedGenerationRef.current.get(item.id) ?? 0) + 1
+      )
+    })
     setDetailsById((current) => {
       const next = { ...current }
       saved.forEach((item) => {

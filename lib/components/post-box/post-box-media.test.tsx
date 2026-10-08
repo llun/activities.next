@@ -18,6 +18,7 @@ import {
 import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { UploadedAttachment } from '@/lib/types/domain/attachment'
+import { extractVideoPoster } from '@/lib/utils/extractVideoPoster'
 import { resizeImage } from '@/lib/utils/resizeImage'
 
 import { PostBox } from './post-box'
@@ -37,6 +38,10 @@ vi.mock('@/lib/client', () => ({
   updateNote: vi.fn(),
   uploadAttachment: vi.fn(),
   uploadFitnessFile: vi.fn()
+}))
+
+vi.mock('@/lib/utils/extractVideoPoster', () => ({
+  extractVideoPoster: vi.fn()
 }))
 
 vi.mock('@/lib/utils/resizeImage', () => ({
@@ -493,6 +498,76 @@ describe('PostBox media details', () => {
     )
     expect(screen.getByText('ALT')).toBeInTheDocument()
     expect(screen.queryByText('Review')).not.toBeInTheDocument()
+  })
+
+  it('keeps a description saved in the dialog when a late details read resolves', async () => {
+    const lateRead = createDeferred<ReturnType<typeof mediaEntity>>()
+    getMediaMock.mockReturnValueOnce(lateRead.promise)
+    renderPostBox()
+    attach('a.png', 'b.png')
+    // b's details are read; a's read is still pending.
+    await screen.findByRole('button', { name: 'Review details of b.png' })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review details of b.png' })
+    )
+    await screen.findByRole('dialog')
+    fireEvent.click(screen.getByRole('button', { name: 'Previous item' }))
+    fireEvent.change(screen.getByLabelText('Description (alt text)'), {
+      target: { value: 'A heron' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    await waitFor(() =>
+      expect(updateMediaDetailsMock).toHaveBeenCalledWith('media-a.png', {
+        description: 'A heron'
+      })
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+
+    lateRead.resolve(mediaEntity('media-a.png', 'stale'))
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Reading details of a.png')
+      ).not.toBeInTheDocument()
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+    await waitFor(() => expect(createNoteMock).toHaveBeenCalled())
+    const attachments = createNoteMock.mock.calls[0][0].attachments ?? []
+    expect(attachments.find((item) => item.id === 'media-a.png')?.name).toBe(
+      'A heron'
+    )
+  })
+
+  it('drops the revoked blob poster when the server returns no poster', async () => {
+    vi.mocked(extractVideoPoster).mockResolvedValueOnce(
+      new File(['p'], 'poster.jpg', { type: 'image/jpeg' })
+    )
+    let blobCount = 0
+    global.URL.createObjectURL = vi.fn(() =>
+      blobCount++ === 0 ? 'blob:video' : 'blob:poster'
+    )
+    uploadAttachmentMock.mockResolvedValueOnce(
+      uploaded('media-clip.mp4', 'clip.mp4', { mediaType: 'video/mp4' })
+    )
+    renderPostBox()
+    const fileInput = document.querySelector<HTMLInputElement>(
+      'input[type="file"][name="file"]'
+    )!
+    fireEvent.change(fileInput, {
+      target: {
+        files: [new File(['v'], 'clip.mp4', { type: 'video/mp4' })]
+      }
+    })
+
+    await screen.findByText('Review')
+    expect(uploadAttachmentMock).toHaveBeenCalledWith(
+      expect.any(File),
+      expect.any(File)
+    )
+    expect(document.querySelector('[style*="blob:poster"]')).toBeNull()
   })
 
   it('applies the all-items sections across the composer items', async () => {
