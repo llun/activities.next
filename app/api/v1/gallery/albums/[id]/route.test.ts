@@ -130,18 +130,15 @@ describe('/api/v1/gallery/albums/[id]', () => {
   })
 
   describe('without a session', () => {
-    it.each([
-      ['GET', () => get(albumId)],
-      ['PATCH', () => write('PATCH', albumId, { title: 'x' })],
-      ['DELETE', () => write('DELETE', albumId)]
-    ])('answers 401 with CORS headers for %s', async (method, call) => {
+    // The wiring test pins the guard on every method; this checks that the
+    // error carries the route's CORS headers.
+    it('answers 401 with CORS headers', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
-      const response = await call()
+      const response = await get(albumId)
 
       expect(response.status).toBe(401)
-      expect(await response.json()).toEqual({ error: expect.any(String) })
-      allowsMethod(response, method)
+      allowsMethod(response, 'GET')
     })
   })
 
@@ -167,6 +164,8 @@ describe('/api/v1/gallery/albums/[id]', () => {
       ).toEqual(['Grey Heron', 'Kingfisher', 'Red Fox'])
       expect(body.page.items).toHaveLength(3)
       expect(body.page.nextMaxId).toBeNull()
+      // Every stored item, for the add dialog's room left in the album.
+      expect(body.storedItemCount).toBe(3)
     })
 
     it('pages with the limit and a cursor', async () => {
@@ -218,6 +217,9 @@ describe('/api/v1/gallery/albums/[id]', () => {
       })
 
       expect(response.status).toBe(200)
+      // One hit, counted for the signed-in actor.
+      expect(takeMock).toHaveBeenCalledTimes(1)
+      expect(takeMock).toHaveBeenCalledWith(ACTOR1_ID)
       const { album } = await response.json()
       expect(album).toMatchObject({
         id,
@@ -261,6 +263,8 @@ describe('/api/v1/gallery/albums/[id]', () => {
       expect(response.status).toBe(422)
       expect(await response.json()).toEqual({ error: expect.any(String) })
       allowsMethod(response, 'PATCH')
+      // A bad request uses up none of the write quota.
+      expect(takeMock).not.toHaveBeenCalled()
     })
 
     it('answers 404 for a missing and for another account album alike, even with a bad body', async () => {
@@ -272,10 +276,30 @@ describe('/api/v1/gallery/albums/[id]', () => {
       expect(missing.status).toBe(404)
       expect(foreign.status).toBe(404)
       expect(foreignBad.status).toBe(404)
+      expect(takeMock).not.toHaveBeenCalled()
       allowsMethod(missing, 'PATCH')
       expect(await foreign.json()).toEqual(await missing.json())
       signIn(seedActor1.email)
       expect((await (await get(albumId)).json()).album.title).toBe('Detail')
+    })
+
+    it('checks the body before the write limit: a bad body is still 422 when over it', async () => {
+      takeMock.mockReturnValue(false)
+
+      const response = await write('PATCH', albumId, { title: ' ' })
+
+      expect(response.status).toBe(422)
+      expect(takeMock).not.toHaveBeenCalled()
+    })
+
+    it('checks the album before the write limit: another account album is 404 when over it', async () => {
+      takeMock.mockReturnValue(false)
+      signIn(seedActor2.email)
+
+      const response = await write('PATCH', albumId, { title: 'Hijack' })
+
+      expect(response.status).toBe(404)
+      expect(takeMock).not.toHaveBeenCalled()
     })
 
     it('answers 429 over the write limit and changes nothing', async () => {
@@ -299,6 +323,8 @@ describe('/api/v1/gallery/albums/[id]', () => {
 
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({ status: 'OK' })
+      expect(takeMock).toHaveBeenCalledTimes(1)
+      expect(takeMock).toHaveBeenCalledWith(ACTOR1_ID)
       expect((await get(id)).status).toBe(404)
       expect(
         await database.getMediaByIdForAccount({
@@ -318,8 +344,18 @@ describe('/api/v1/gallery/albums/[id]', () => {
       expect(missing.status).toBe(404)
       expect(foreign.status).toBe(404)
       expect(await foreign.json()).toEqual(await missing.json())
+      expect(takeMock).not.toHaveBeenCalled()
       signIn(seedActor1.email)
       expect((await get(id)).status).toBe(200)
+    })
+
+    it('checks the album before the write limit: another account album is 404 when over it', async () => {
+      const id = await createAlbum('Probed')
+      takeMock.mockReturnValue(false)
+      signIn(seedActor2.email)
+
+      expect((await write('DELETE', id)).status).toBe(404)
+      expect(takeMock).not.toHaveBeenCalled()
     })
 
     it('answers 429 over the write limit and deletes nothing', async () => {

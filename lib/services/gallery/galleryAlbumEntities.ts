@@ -92,6 +92,10 @@ export interface GalleryAlbumDetailResponse {
   // Every photo in the album that the owner can see (media ids), so the add
   // dialog can show which of their photos are already in it.
   mediaIds: string[]
+  // Owner only: how many items count against the album's cap, including
+  // photos the owner can no longer see (a deleted post's), which `itemCount`
+  // leaves out. The add dialog's "can add up to N more" is the cap minus this.
+  storedItemCount: number
   page: GalleryAlbumMediaPage
 }
 

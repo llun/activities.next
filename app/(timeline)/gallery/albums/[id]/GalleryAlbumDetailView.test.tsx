@@ -149,6 +149,25 @@ describe('GalleryAlbumDetailView', () => {
     )
   })
 
+  it('keeps the thumbnail for an animated GIF cover', () => {
+    const gif = buildGalleryItem('gif-1', {
+      attachment: {
+        ...buildGalleryItem('gif-1').attachment,
+        mediaType: 'image/gif',
+        url: 'https://activities.local/media/gif-1.gif'
+      }
+    })
+    const { container } = renderView(
+      buildAlbumDetail({
+        album: buildAlbumCard('a1', { cover: gif, previews: [gif] })
+      })
+    )
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      'https://activities.local/media/gif-1-thumb.jpg'
+    )
+  })
+
   it('refetches the first page for a species chip and for a sort', async () => {
     items.mockResolvedValue({
       items: [buildGalleryItem('lion-1')],
@@ -312,9 +331,11 @@ describe('GalleryAlbumDetailView', () => {
         .map((button) => button.getAttribute('aria-label'))
       expect(new Set(names).size).toBe(3)
       expect(names[1]).toBe('Remove Common kingfisher, photo 2 from album')
+      // The first is the implicit cover, so it offers to keep it instead.
       const covers = screen
-        .getAllByRole('button', { name: /^Set .* as cover$/ })
+        .getAllByRole('button', { name: /as cover$/ })
         .map((button) => button.getAttribute('aria-label'))
+      expect(covers).toHaveLength(3)
       expect(new Set(covers).size).toBe(3)
     })
 
@@ -367,12 +388,88 @@ describe('GalleryAlbumDetailView', () => {
       renderView()
       enterEdit()
       fireEvent.click(
-        screen.getAllByRole('button', { name: /^Set .* as cover$/ })[2]
+        screen.getAllByRole('button', { name: /^Set .* as cover$/ })[1]
       )
       await waitFor(() =>
         expect(update).toHaveBeenCalledWith('a1', { coverMediaId: 'a1-3' })
       )
       expect(mockRefresh).toHaveBeenCalled()
+    })
+
+    it('marks the hero photo as the cover when none was chosen', () => {
+      renderView(
+        buildAlbumDetail({
+          album: buildAlbumCard('a1', { coverMediaId: null })
+        })
+      )
+      enterEdit()
+
+      // a1-1 is the hero (the newest photo): it is marked, and the others are
+      // not.
+      const marked = screen.getByTestId('album-cover-marker-pin')
+      expect(marked).toHaveAccessibleName('Keep Photo 1 as cover')
+      expect(marked).toHaveTextContent('Cover')
+      expect(screen.getAllByTestId('album-set-cover')).toHaveLength(2)
+      expect(screen.queryByTestId('album-cover-marker')).not.toBeInTheDocument()
+
+      // The marker still pins it, so the choice survives a newer photo.
+      fireEvent.click(marked)
+      expect(update).toHaveBeenCalledWith('a1', { coverMediaId: 'a1-1' })
+    })
+
+    it('tells the chosen cover from the Set as cover buttons', () => {
+      renderView(
+        buildAlbumDetail({
+          album: buildAlbumCard('a1', {
+            coverMediaId: 'a1-2',
+            cover: buildGalleryItem('a1-2')
+          })
+        })
+      )
+      enterEdit()
+
+      const marker = screen.getByTestId('album-cover-marker')
+      expect(marker).toHaveTextContent('Cover')
+      expect(marker.tagName).toBe('SPAN')
+      expect(marker.querySelector('svg')).toHaveClass('fill-current')
+
+      // The others are buttons that keep their full accessible name even where
+      // the label is hidden, with an outline star.
+      const buttons = screen.getAllByTestId('album-set-cover')
+      expect(buttons).toHaveLength(2)
+      expect(buttons[0]).toHaveAccessibleName('Set Photo 1 as cover')
+      expect(buttons[1]).toHaveAccessibleName('Set Photo 3 as cover')
+      for (const button of buttons) {
+        expect(button.querySelector('svg')).not.toHaveClass('fill-current')
+        expect(button).not.toBe(marker)
+      }
+      expect(screen.getAllByText('Cover')).toHaveLength(1)
+    })
+
+    it('moves focus to the new cover tile after Set as cover', async () => {
+      update.mockResolvedValue(buildAlbumCard('a1'))
+      renderView(
+        buildAlbumDetail({
+          album: buildAlbumCard('a1', { coverMediaId: 'a1-1' })
+        })
+      )
+      enterEdit()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Set Photo 3 as cover' })
+      )
+
+      await waitFor(() =>
+        expect(update).toHaveBeenCalledWith('a1', { coverMediaId: 'a1-3' })
+      )
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'Remove Photo 3 from album' })
+        ).toHaveFocus()
+      )
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Photo 3 is now the cover.'
+      )
     })
 
     it('shows a failure and keeps the photo', async () => {

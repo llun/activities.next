@@ -104,6 +104,9 @@ export const GalleryAlbumDetailView: FC<Props> = ({
   const gridRef = useRef<HTMLDivElement>(null)
   // Where focus goes once a removed photo has left the grid.
   const pendingFocus = useRef<number | null>(null)
+  // The photo made the cover, whose tile takes focus once the buttons are
+  // enabled again.
+  const pendingCoverFocus = useRef<string | null>(null)
 
   const fetchPage = useCallback(
     async (
@@ -202,6 +205,22 @@ export const GalleryAlbumDetailView: FC<Props> = ({
     target?.focus()
   }, [items])
 
+  // After Set as cover the pressed button is replaced by the cover marker, so
+  // focus the new cover's Remove button (the tile's one control left) once the
+  // buttons are enabled again.
+  useEffect(() => {
+    const mediaId = pendingCoverFocus.current
+    if (mediaId === null || busyId !== null) return
+    pendingCoverFocus.current = null
+    const buttons = gridRef.current?.querySelectorAll<HTMLElement>(
+      '[data-remove-photo]'
+    )
+    const target = Array.from(buttons ?? []).find(
+      (button) => button.dataset.remove === mediaId
+    )
+    ;(target ?? gridRef.current)?.focus()
+  }, [busyId])
+
   // After anything that changes the album: the facts, chips and cover come
   // from the server render, the grid from here.
   const refreshAll = async () => {
@@ -234,6 +253,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
     setActionError(null)
     try {
       await updateGalleryAlbum(album.id, { coverMediaId: item.mediaId })
+      pendingCoverFocus.current = item.mediaId
       setAnnouncement(`${getAlbumTileLabel(item, index)} is now the cover.`)
       router.refresh()
     } catch (error) {
@@ -266,6 +286,9 @@ export const GalleryAlbumDetailView: FC<Props> = ({
   const dateRange = formatAlbumDateRange(album.firstAt, album.lastAt)
   const isEmpty = album.itemCount === 0
   const factsParts = getAlbumFactsParts(facts)
+  // The hero shows the explicit cover, else the newest photo: mark whichever
+  // it is.
+  const effectiveCoverId = album.coverMediaId ?? album.cover?.mediaId ?? null
 
   return (
     <div className="space-y-5">
@@ -483,7 +506,8 @@ export const GalleryAlbumDetailView: FC<Props> = ({
             ) : isEditing ? (
               <ul className="grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2">
                 {items.map((item, index) => {
-                  const isCover = album.coverMediaId === item.mediaId
+                  const isCover = effectiveCoverId === item.mediaId
+                  const isPinned = album.coverMediaId === item.mediaId
                   const label = getAlbumTileLabel(item, index)
                   return (
                     <li key={item.mediaId} className="min-w-0">
@@ -493,6 +517,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
                           type="button"
                           aria-label={`Remove ${label} from album`}
                           data-remove-photo=""
+                          data-remove={item.mediaId}
                           disabled={busyId !== null}
                           onClick={() => void handleRemove(item, index)}
                           className={cn(
@@ -502,26 +527,46 @@ export const GalleryAlbumDetailView: FC<Props> = ({
                         >
                           <X className="size-4" aria-hidden="true" />
                         </button>
-                        {isCover ? (
-                          <span className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-xs font-medium text-white">
-                            <Star className="size-3" aria-hidden="true" />
+                        {isCover && isPinned ? (
+                          <span
+                            data-testid="album-cover-marker"
+                            className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-full bg-black/65 px-2 py-0.5 text-xs font-medium text-white"
+                          >
+                            <Star
+                              className="size-3 fill-current"
+                              aria-hidden="true"
+                            />
                             Cover
                           </span>
                         ) : (
                           <button
                             type="button"
-                            aria-label={`Set ${label} as cover`}
+                            data-testid={
+                              isCover
+                                ? 'album-cover-marker-pin'
+                                : 'album-set-cover'
+                            }
+                            aria-label={
+                              isCover
+                                ? `Keep ${label} as cover`
+                                : `Set ${label} as cover`
+                            }
                             disabled={busyId !== null}
                             onClick={() => void handleSetCover(item, index)}
                             className={cn(
-                              'focus-visible:outline-primary absolute bottom-1.5 left-1.5 inline-flex h-7 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full bg-black/65 px-1.5 text-xs font-medium text-white hover:bg-black/80 focus-visible:outline-2 disabled:opacity-50',
+                              'focus-visible:outline-primary absolute bottom-1.5 left-1.5 inline-flex h-7 cursor-pointer items-center gap-1 rounded-full bg-black/65 px-1.5 text-xs font-medium whitespace-nowrap text-white hover:bg-black/80 focus-visible:outline-2 disabled:opacity-50 max-[380px]:w-7 max-[380px]:justify-center max-[380px]:px-0',
                               TOUCH_BUTTON_CLASS
                             )}
                           >
-                            <Star className="size-3" aria-hidden="true" />
-                            <span className="max-[380px]:hidden">Set as </span>
-                            <span className="max-[380px]:capitalize">
-                              cover
+                            <Star
+                              className={cn(
+                                'size-3',
+                                isCover && 'fill-current'
+                              )}
+                              aria-hidden="true"
+                            />
+                            <span className="max-[380px]:hidden">
+                              {isCover ? 'Cover' : 'Set as cover'}
                             </span>
                           </button>
                         )}
@@ -561,6 +606,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
           ownerId={ownerId}
           album={album}
           existingMediaIds={detail.mediaIds}
+          storedItemCount={detail.storedItemCount}
           onOpenChange={(open) => {
             if (!open) setDialog(null)
           }}

@@ -315,9 +315,37 @@ describe('GalleryAlbumFormDialog', () => {
     expect(screen.getByTestId('existing')).toHaveTextContent('x1,x2')
   })
 
-  it('says nothing about a visitor page that does not exist yet', () => {
-    renderDialog()
-    expect(screen.queryByText(/visitors only ever/i)).not.toBeInTheDocument()
+  it('describes the visibility choice without promising a visitor page', () => {
+    renderDialog({ intent: 'edit', album: buildAlbumCard('a1') })
+    expect(
+      screen.getByText(
+        'Anyone who can see the posts can see this album’s photos.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByText('Only you can see it.')).toBeInTheDocument()
+    // Nothing about a page that has not shipped.
+    expect(screen.queryByText(/public album pages/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/can be shared/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/arrive/i)).not.toBeInTheDocument()
+  })
+
+  it('counts room against the stored items, not only the visible ones', () => {
+    // 1,950 photos show, but 50 more rows (deleted posts) hold their places.
+    const album = buildAlbumCard('a1', { itemCount: 1950 })
+    renderDialog({ intent: 'add', album, storedItemCount: 2000 })
+
+    expect(screen.getByTestId('capacity')).toHaveTextContent('0')
+    expect(screen.getByTestId('album-selection-count')).toHaveTextContent(
+      '0 selected · can add up to 0 more'
+    )
+  })
+
+  it('falls back to the visible count when no stored count is given', () => {
+    renderDialog({
+      intent: 'add',
+      album: buildAlbumCard('a1', { itemCount: 1950 })
+    })
+    expect(screen.getByTestId('capacity')).toHaveTextContent('50')
   })
 
   it('closes on Cancel without saving', () => {

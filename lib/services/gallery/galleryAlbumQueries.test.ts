@@ -488,9 +488,51 @@ describe('gallery album queries', () => {
         countryName: 'Thailand'
       })
       expect(detail!.album.itemCount).toBe(7)
+      expect(detail!.storedItemCount).toBe(7)
       expect(detail!.album.hiddenPlaceCount).toBe(2)
       // Every photo the owner can see, for the add dialog's "already in".
       expect([...detail!.mediaIds].sort()).toEqual(Object.values(ids).sort())
+    })
+
+    it('sends the owner the stored count, which still includes a photo whose post was deleted', async () => {
+      const created = await database.createGalleryAlbumWithinLimit({
+        actorId: ownerId,
+        title: 'With a deleted post',
+        limit: 200
+      })
+      if (created.status !== 'created') throw new Error('not created')
+      try {
+        await addPhoto('deleted-post', [ACTIVITY_STREAM_PUBLIC], {
+          takenAt: Date.UTC(2026, 8, 20)
+        })
+        await database.addGalleryAlbumItems({
+          albumId: created.album.id,
+          actorId: ownerId,
+          mediaIds: [ids.kingfisher, ids['deleted-post']],
+          limit: 2000
+        })
+        await database.deleteStatus({
+          statusId: `${ownerId}/statuses/album-queries-deleted-post`
+        })
+
+        const detail = await getGalleryAlbumDetail({
+          database,
+          owner: { id: ownerId },
+          albumId: created.album.id,
+          limit: 50
+        })
+
+        // One photo shows, two rows take places in the album's cap.
+        expect(detail!.album.itemCount).toBe(1)
+        expect(detail!.mediaIds).toEqual([ids.kingfisher])
+        expect(detail!.storedItemCount).toBe(2)
+      } finally {
+        delete ids['deleted-post']
+        await database.deleteGalleryAlbum({
+          id: created.album.id,
+          actorId: ownerId
+        })
+      }
     })
 
     it('gives the owner of a private album the same public-safe numbers', async () => {

@@ -476,6 +476,54 @@ describe('GalleryAlbumDatabase', () => {
         })
       })
 
+      it('counts a photo whose post was deleted against the cap, and reports it', async () => {
+        await addPhoto('cap-gone', [ACTIVITY_STREAM_PUBLIC])
+        const album = await createAlbum(uniqueTitle())
+        await addItems(album.id, ['public', 'cap-gone'], 2)
+        // The post goes, the media and its album row stay: the owner no longer
+        // sees the photo, but it still takes one of the two places.
+        await database.deleteStatus({ statusId: statusId('cap-gone') })
+        expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
+          'public'
+        ])
+
+        expect(
+          await database.countGalleryAlbumStoredItems({
+            albumId: album.id,
+            actorId: ownerId
+          })
+        ).toBe(2)
+        expect(await addItems(album.id, ['public2'], 2)).toEqual({
+          status: 'limit-reached'
+        })
+        expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
+          'public'
+        ])
+        // Repeating what is already there still passes at the cap.
+        expect(await addItems(album.id, ['public'], 2)).toMatchObject({
+          status: 'added',
+          added: [],
+          existing: [ids.public]
+        })
+      })
+
+      it('reports no stored items for a missing or foreign album', async () => {
+        const album = await createAlbum(uniqueTitle())
+        await addItems(album.id, ['public'])
+        expect(
+          await database.countGalleryAlbumStoredItems({
+            albumId: album.id,
+            actorId: otherActorId
+          })
+        ).toBe(0)
+        expect(
+          await database.countGalleryAlbumStoredItems({
+            albumId: 'missing',
+            actorId: ownerId
+          })
+        ).toBe(0)
+      })
+
       it('holds the item cap under concurrent adds', async () => {
         const album = await createAlbum(uniqueTitle())
         await addItems(album.id, ['public'], 2)
@@ -1320,6 +1368,90 @@ describe('gallery albums when an account is deleted', () => {
       .first()
     return Number(row?.total ?? 0)
   }
+
+  it('does not count an item whose media is gone against the cap', async () => {
+    const username = `album-orphan-${crypto.randomUUID().slice(0, 8)}`
+    const actorId = `https://${TEST_DOMAIN}/users/${username}`
+    await database.createAccount({
+      email: `${username}@${TEST_DOMAIN}`,
+      username,
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: `privateKey-${username}`,
+      publicKey: `publicKey-${username}`
+    })
+    const mediaIds: string[] = []
+    for (const name of ['one', 'two', 'three']) {
+      const statusId = `${actorId}/statuses/album-orphan-${name}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: name
+      })
+      const media = await database.createMedia({
+        actorId,
+        original: {
+          path: `/test/album-orphan-${name}.jpg`,
+          bytes: 1000,
+          mimeType: 'image/jpeg',
+          metaData: { width: 100, height: 100 }
+        },
+        details: { inGallery: true }
+      })
+      mediaIds.push(media!.id)
+      await database.createAttachment({
+        actorId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: `https://media.test/album-orphan-${name}.jpg`,
+        width: 100,
+        height: 100,
+        mediaId: media!.id
+      })
+    }
+    const created = await database.createGalleryAlbumWithinLimit({
+      actorId,
+      title: 'Orphans',
+      limit: MAX_GALLERY_ALBUMS_PER_ACTOR
+    })
+    if (created.status !== 'created') throw new Error('not created')
+    const add = (ids: string[], limit: number) =>
+      database.addGalleryAlbumItems({
+        albumId: created.album.id,
+        actorId,
+        mediaIds: ids,
+        limit
+      })
+    expect(await add(mediaIds.slice(0, 2), 2)).toMatchObject({
+      status: 'added'
+    })
+    expect(
+      await database.countGalleryAlbumStoredItems({
+        albumId: created.album.id,
+        actorId
+      })
+    ).toBe(2)
+
+    // The media vanishes without the store's cleanup (SQLite runs without
+    // foreign keys; PostgreSQL cascades, with the same result).
+    await instance('attachments').where('mediaId', mediaIds[0]).delete()
+    await instance('medias').where('id', mediaIds[0]).delete()
+
+    expect(
+      await database.countGalleryAlbumStoredItems({
+        albumId: created.album.id,
+        actorId
+      })
+    ).toBe(1)
+    // The freed place can be used, though a row may still be left behind.
+    expect(await add([mediaIds[2]], 2)).toMatchObject({
+      status: 'added',
+      added: [mediaIds[2]]
+    })
+  })
 
   it('removes the albums, their items and covers of the deleted actor', async () => {
     const username = `album-delete-${crypto.randomUUID().slice(0, 8)}`

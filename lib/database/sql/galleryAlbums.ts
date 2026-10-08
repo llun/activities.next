@@ -246,6 +246,11 @@ export interface CountGalleryAlbumMediaParams {
   audience: GalleryAudience
 }
 
+export interface CountGalleryAlbumStoredItemsParams {
+  albumId: string
+  actorId: string
+}
+
 export interface GetAlbumsForMediaParams {
   mediaId: string
   actorId: string
@@ -305,6 +310,13 @@ export interface GalleryAlbumDatabase {
   // (public albums only, for anyone but the owner). A photo in several albums
   // counts once.
   countGalleryAlbumMedia(params: CountGalleryAlbumMediaParams): Promise<number>
+  // How many items the album holds against its item cap: every stored row
+  // whose media still exists, whether or not the owner can see it any more (a
+  // deleted post's photo still counts). 0 for a missing or foreign album. Owner
+  // data: callers must only send it to the owner.
+  countGalleryAlbumStoredItems(
+    params: CountGalleryAlbumStoredItemsParams
+  ): Promise<number>
   // The albums the media is in. Owner only: any other audience gets none.
   getAlbumsForMedia(
     params: GetAlbumsForMediaParams
@@ -528,6 +540,21 @@ export const GalleryAlbumSQLDatabaseMixin = (
 
   const lockActor = lockGalleryAlbumActor
 
+  // The rows that count against the item cap: every item whose media still
+  // exists, visible to the owner or not. A row left behind by a media that is
+  // gone (SQLite has no foreign keys) takes no room.
+  const countStoredItems = async (
+    albumId: string,
+    executor: Knex | Knex.Transaction = database
+  ): Promise<number> => {
+    const row = await executor(`${ITEMS} as album_items`)
+      .innerJoin('medias', 'medias.id', 'album_items.mediaId')
+      .where('album_items.albumId', albumId)
+      .count<{ total: number | string }[]>({ total: '*' })
+      .first()
+    return Number(row?.total ?? 0)
+  }
+
   // Adds the actor's own gallery media to the album inside the caller's
   // transaction, which holds the actor lock. All or nothing against `limit`.
   const addItems = async (
@@ -576,11 +603,7 @@ export const GalleryAlbumSQLDatabaseMixin = (
     }
 
     const fresh = [...usable].filter((id) => !present.has(id))
-    const count = await trx(ITEMS)
-      .where('albumId', albumId)
-      .count<{ total: number | string }[]>({ total: '*' })
-      .first()
-    if (Number(count?.total ?? 0) + fresh.length > limit) {
+    if ((await countStoredItems(albumId, trx)) + fresh.length > limit) {
       return { status: 'limit-reached' }
     }
 
@@ -948,6 +971,11 @@ export const GalleryAlbumSQLDatabaseMixin = (
         .countDistinct<{ total: number | string }[]>({ total: 'medias.id' })
         .first()
       return Number(row?.total ?? 0)
+    },
+
+    async countGalleryAlbumStoredItems({ albumId, actorId }) {
+      const album = await readAlbum(albumId, actorId)
+      return album ? countStoredItems(album.id) : 0
     },
 
     async getAlbumsForMedia({ mediaId, actorId, audience }) {

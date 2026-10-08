@@ -95,6 +95,30 @@ describe('GalleryAlbumsView', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('shows the hidden-places pill only on a card with hidden places', () => {
+    const withPlaces = [
+      buildAlbumCard('p1', { title: 'Hides places', hiddenPlaceCount: 2 }),
+      buildAlbumCard('p2', { title: 'Shows places', hiddenPlaceCount: 0 })
+    ]
+    render(
+      <GalleryAlbumsView
+        ownerId="owner"
+        data={{ albums: withPlaces, photoCount: 6 }}
+      />
+    )
+    expect(
+      within(screen.getByRole('link', { name: /Hides places/ })).getByText(
+        'Places hidden from visitors'
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('link', { name: /Shows places/ })).queryByText(
+        'Places hidden from visitors'
+      )
+    ).not.toBeInTheDocument()
+    expect(screen.getAllByText('Places hidden from visitors')).toHaveLength(1)
+  })
+
   it('opens the create dialog from the header and the dashed card, then opens the new album', () => {
     render(
       <GalleryAlbumsView ownerId="owner" data={{ albums, photoCount: 5 }} />

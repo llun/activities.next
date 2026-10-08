@@ -53,6 +53,7 @@ type AlbumQueryDatabase = Pick<
   | 'getGalleryAlbumIndex'
   | 'getGalleryAlbumPlaceIndexes'
   | 'countGalleryAlbumMedia'
+  | 'countGalleryAlbumStoredItems'
 >
 
 interface AlbumQueryBase {
@@ -437,31 +438,33 @@ export const getGalleryAlbumDetail = async ({
   })
   if (!card) return null
 
-  const [settings, ownerRows, publicRows, page] = await Promise.all([
-    database.getGallerySettings({ actorId: owner.id }),
-    database.getGalleryAlbumIndex({
-      albumId,
-      actorId: owner.id,
-      audience: OWNER_GALLERY_AUDIENCE
-    }),
-    database.getGalleryAlbumIndex({
-      albumId,
-      actorId: owner.id,
-      audience: PUBLIC_GALLERY_AUDIENCE,
-      // The route has already checked the album is the owner's. A private
-      // album is not open to a visitor, but its owner is still shown what its
-      // public-safe numbers would be.
-      ignoreAlbumVisibility: true
-    }),
-    getGalleryAlbumPage({
-      database,
-      owner,
-      audience: OWNER_GALLERY_AUDIENCE,
-      albumId,
-      sort: sort ?? card.sortOrder,
-      limit
-    })
-  ])
+  const [settings, ownerRows, publicRows, page, storedItemCount] =
+    await Promise.all([
+      database.getGallerySettings({ actorId: owner.id }),
+      database.getGalleryAlbumIndex({
+        albumId,
+        actorId: owner.id,
+        audience: OWNER_GALLERY_AUDIENCE
+      }),
+      database.getGalleryAlbumIndex({
+        albumId,
+        actorId: owner.id,
+        audience: PUBLIC_GALLERY_AUDIENCE,
+        // The route has already checked the album is the owner's. A private
+        // album is not open to a visitor, but its owner is still shown what its
+        // public-safe numbers would be.
+        ignoreAlbumVisibility: true
+      }),
+      getGalleryAlbumPage({
+        database,
+        owner,
+        audience: OWNER_GALLERY_AUDIENCE,
+        albumId,
+        sort: sort ?? card.sortOrder,
+        limit
+      }),
+      database.countGalleryAlbumStoredItems({ albumId, actorId: owner.id })
+    ])
 
   return {
     album: card,
@@ -469,6 +472,7 @@ export const getGalleryAlbumDetail = async ({
     hiddenPlaceCount: countHiddenThreatenedPlaces(ownerRows, settings),
     species: toSpeciesChips(ownerRows),
     mediaIds: ownerRows.map((row) => row.id),
+    storedItemCount,
     page: page ?? { items: [], nextMaxId: null }
   }
 }

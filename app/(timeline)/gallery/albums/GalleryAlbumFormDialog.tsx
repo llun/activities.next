@@ -50,6 +50,11 @@ interface Props {
   album?: GalleryAlbumCardEntity | null
   /** Media ids already in the album, shown as such (and not pickable) in the picker. */
   existingMediaIds?: string[]
+  /**
+   * How many items count against the album's cap, including photos the owner
+   * can no longer see. Defaults to the visible count.
+   */
+  storedItemCount?: number
   onOpenChange: (open: boolean) => void
   /** Called with the album id once everything asked for is saved. */
   onSaved: (albumId: string) => void
@@ -61,7 +66,7 @@ const VISIBILITY_COPY: Record<
 > = {
   public: {
     label: 'Public',
-    hint: 'Can be shared once public album pages arrive.',
+    hint: 'Anyone who can see the posts can see this album’s photos.',
     icon: Globe
   },
   private: { label: 'Private', hint: 'Only you can see it.', icon: Lock }
@@ -87,6 +92,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   intent,
   album = null,
   existingMediaIds,
+  storedItemCount,
   onOpenChange,
   onSaved
 }) => {
@@ -124,7 +130,10 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   const showPicker = intent !== 'edit'
   const capacity =
     intent === 'add'
-      ? Math.max(MAX_GALLERY_ALBUM_ITEMS - (album?.itemCount ?? 0), 0)
+      ? Math.max(
+          MAX_GALLERY_ALBUM_ITEMS - (storedItemCount ?? album?.itemCount ?? 0),
+          0
+        )
       : MAX_GALLERY_ALBUM_ITEMS
 
   const handleSubmit = async (event: FormEvent) => {

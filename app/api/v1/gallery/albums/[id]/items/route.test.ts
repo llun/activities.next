@@ -134,18 +134,15 @@ describe('/api/v1/gallery/albums/[id]/items', () => {
   })
 
   describe('without a session', () => {
-    it.each([
-      ['GET', () => get('any')],
-      ['POST', () => write('POST', 'any', { media_ids: ['1'] })],
-      ['DELETE', () => write('DELETE', 'any', { media_ids: ['1'] })]
-    ])('answers 401 with CORS headers for %s', async (method, call) => {
+    // The wiring test pins the guard on every method; this checks that the
+    // error carries the route's CORS headers.
+    it('answers 401 with CORS headers', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
-      const response = await call()
+      const response = await get('any')
 
       expect(response.status).toBe(401)
-      expect(await response.json()).toEqual({ error: expect.any(String) })
-      allowsMethod(response, method)
+      allowsMethod(response, 'GET')
     })
   })
 
@@ -157,6 +154,9 @@ describe('/api/v1/gallery/albums/[id]/items', () => {
         media_ids: [ids.kingfisher, '999999']
       })
       expect(first.status).toBe(200)
+      // One hit, counted for the signed-in actor.
+      expect(takeMock).toHaveBeenCalledTimes(1)
+      expect(takeMock).toHaveBeenCalledWith(ACTOR1_ID)
       expect(await first.json()).toMatchObject({
         added: [ids.kingfisher],
         existing: [],
@@ -229,6 +229,29 @@ describe('/api/v1/gallery/albums/[id]/items', () => {
       expect(response.status).toBe(422)
       expect(await response.json()).toEqual({ error: expect.any(String) })
       allowsMethod(response, 'POST')
+      // A bad request uses up none of the write quota.
+      expect(takeMock).not.toHaveBeenCalled()
+    })
+
+    it('checks the body before the write limit: a bad body is still 422 when over it', async () => {
+      const id = await createAlbum('Invalid over the limit')
+      takeMock.mockReturnValue(false)
+
+      const response = await write('POST', id, { media_ids: [] })
+
+      expect(response.status).toBe(422)
+      expect(takeMock).not.toHaveBeenCalled()
+    })
+
+    it('checks the album before the write limit: another account album is 404 when over it', async () => {
+      const id = await createAlbum('Probed')
+      takeMock.mockReturnValue(false)
+      signIn(seedActor2.email)
+
+      const response = await write('POST', id, { media_ids: [ids.kingfisher] })
+
+      expect(response.status).toBe(404)
+      expect(takeMock).not.toHaveBeenCalled()
     })
 
     it('answers 404 for a missing and for another account album alike', async () => {
@@ -242,6 +265,7 @@ describe('/api/v1/gallery/albums/[id]/items', () => {
       expect(missing.status).toBe(404)
       expect(foreign.status).toBe(404)
       expect(await foreign.json()).toEqual(await missing.json())
+      expect(takeMock).not.toHaveBeenCalled()
       allowsMethod(missing, 'POST')
       signIn(seedActor1.email)
       expect(await mediaIdsOf(id)).toEqual([])
@@ -271,6 +295,8 @@ describe('/api/v1/gallery/albums/[id]/items', () => {
       })
 
       expect(response.status).toBe(200)
+      expect(takeMock).toHaveBeenCalledTimes(2)
+      expect(takeMock).toHaveBeenLastCalledWith(ACTOR1_ID)
       expect(await response.json()).toMatchObject({
         removed: [ids.kingfisher],
         album: { itemCount: 1 }
@@ -292,6 +318,19 @@ describe('/api/v1/gallery/albums/[id]/items', () => {
       expect(
         (await write('DELETE', id, { media_ids: [ids.kingfisher] })).status
       ).toBe(404)
+      expect(takeMock).not.toHaveBeenCalled()
+    })
+
+    it('checks the album and the body before the write limit', async () => {
+      const id = await createAlbum('Remove order')
+      takeMock.mockReturnValue(false)
+
+      expect((await write('DELETE', id, { media_ids: [] })).status).toBe(422)
+      signIn(seedActor2.email)
+      expect(
+        (await write('DELETE', id, { media_ids: [ids.kingfisher] })).status
+      ).toBe(404)
+      expect(takeMock).not.toHaveBeenCalled()
     })
 
     it('answers 429 over the write limit', async () => {

@@ -279,7 +279,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
             ))}
           </Select>
         </div>
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1 max-sm:col-span-2">
           <Label htmlFor="album-picker-from" className="text-xs">
             Taken from
           </Label>
@@ -293,7 +293,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
             disabled={disabled}
           />
         </div>
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 space-y-1 max-sm:col-span-2">
           <Label htmlFor="album-picker-to" className="text-xs">
             Taken to
           </Label>

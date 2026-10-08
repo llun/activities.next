@@ -51,6 +51,7 @@ export const buildAlbumDetail = (
       { key: 'sci:loxodonta africana', name: 'African Elephant', count: 1 }
     ],
     mediaIds: album.previews.map((item) => item.mediaId),
+    storedItemCount: album.itemCount,
     page: {
       items: album.previews,
       nextMaxId: null

@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedGalleryRouteFixtures } from '@/lib/services/gallery/galleryRouteFixtures'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { seedActor3 } from '@/lib/stub/seed/actor3'
 import { MAX_GALLERY_ALBUMS_PER_ACTOR } from '@/lib/types/database/galleryAlbums'
@@ -112,6 +112,9 @@ describe('/api/v1/gallery/albums', () => {
       const response = await create({ title: '  Kruger, September  ' })
 
       expect(response.status).toBe(200)
+      // One hit, counted for the signed-in actor.
+      expect(takeMock).toHaveBeenCalledTimes(1)
+      expect(takeMock).toHaveBeenCalledWith(ACTOR1_ID)
       const body = await response.json()
       expect(body).toMatchObject({
         album: {
@@ -126,18 +129,6 @@ describe('/api/v1/gallery/albums', () => {
         added: [],
         skipped: []
       })
-    })
-
-    it('answers 401 with CORS headers when nobody is signed in', async () => {
-      mockGetServerSession.mockResolvedValue(null)
-
-      const response = await create({ title: 'Nobody' })
-
-      expect(response.status).toBe(401)
-      expect(await response.json()).toEqual({ error: expect.any(String) })
-      expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
-        'POST'
-      )
     })
 
     it('creates the album and its first photos in one write', async () => {
@@ -228,6 +219,17 @@ describe('/api/v1/gallery/albums', () => {
         'POST'
       )
       expect((await (await list()).json()).albums).toHaveLength(before)
+      // A bad request uses up none of the write quota.
+      expect(takeMock).not.toHaveBeenCalled()
+    })
+
+    it('checks the body before the write limit: a bad body is still 422 when over it', async () => {
+      takeMock.mockReturnValue(false)
+
+      const response = await create({ title: '   ' })
+
+      expect(response.status).toBe(422)
+      expect(takeMock).not.toHaveBeenCalled()
     })
 
     it('answers 429 over the write limit and creates nothing', async () => {
@@ -270,13 +272,14 @@ describe('/api/v1/gallery/albums', () => {
   })
 
   describe('GET', () => {
+    // The wiring test pins the guard on every method; this checks that the
+    // error carries the route's CORS headers.
     it('answers 401 with CORS headers when nobody is signed in', async () => {
       mockGetServerSession.mockResolvedValue(null)
 
       const response = await list()
 
       expect(response.status).toBe(401)
-      expect(await response.json()).toEqual({ error: expect.any(String) })
       expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
         'GET'
       )

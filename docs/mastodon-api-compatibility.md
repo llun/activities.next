@@ -413,19 +413,23 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   [maintenance.md](maintenance.md#media-details-exif-and-gallery-settings).
 - **Gallery albums** — owner-only, non-Mastodon routes (snake_case on the way
   in), taking `read` or `read:statuses` to read and `write` or `write:media` to
-  write (or the web session). `GET /api/v1/gallery/albums` lists the
-  owner's albums with `photoCount`; `POST` creates one (`title`, `description`,
+  write (or the web session). `GET /api/v1/gallery/albums` returns `albums`
+  (each with `itemCount`, dates, `cover`, `previews` and the owner-only
+  `hiddenPlaceCount`) and a top-level `photoCount`, the number of distinct
+  photos across them; `POST` creates one (`title`, `description`,
   `visibility` `public` or `private`, `sort_order` `taken_desc`, `taken_asc` or
   `added_desc`, and up to 100 `media_ids`, created together with the album in one transaction). `GET`, `PATCH` (`cover_media_id` must
   be an item, `null` clears it) and `DELETE /api/v1/gallery/albums/:id` read,
   change and remove an album, the `GET` carrying the facts (the public-safe
   numbers, for a private album too), species chips, `mediaIds` (every photo
-  the owner can see in it) and the first page of photos (`?limit&sort`). Each
+  the owner can see in it), `storedItemCount` (the items that count against the
+  2,000 cap, including photos whose post was deleted, which `itemCount` leaves
+  out) and the first page of photos (`?limit&sort`). Each
   album card carries the owner-only `hiddenPlaceCount`. `GET`, `POST` and `DELETE
 /api/v1/gallery/albums/:id/items` page the photos (`?max_id&limit&sort&subject`)
   and add or remove `media_ids` (1 to 100; the `POST` answers `added`,
   `existing` and `skipped`, and is all or nothing). An album holds at most 2,000
-  photos and an account 200 albums (422 past either). A missing album and
+  photos and an actor 200 albums (422 past either). A missing album and
   somebody else's both answer 404; writes are limited to 120 per actor per
   minute (429, in process). Albums are not federated.
 - **`?format=activities_next`** — timeline endpoints and
