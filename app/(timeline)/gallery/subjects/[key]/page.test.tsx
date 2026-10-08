@@ -94,8 +94,22 @@ describe('/gallery/subjects/[key]', () => {
 
     await renderPage('sci:avis vetus')
 
+    expect(screen.getByText('avis vetus')).toBeVisible()
+    expect(screen.queryByText('Unnamed subject')).toBeNull()
     expect(
       screen.getByRole('link', { name: 'Back to subjects' })
     ).toBeInTheDocument()
+  })
+
+  it('takes the fallback header from a name: key when the first page is empty', async () => {
+    vi.mocked(getGalleryMediaPage).mockResolvedValue({
+      items: [],
+      nextMaxId: '42'
+    })
+
+    await renderPage('name:kingfisher')
+
+    expect(screen.getByRole('heading', { name: 'kingfisher' })).toBeVisible()
+    expect(screen.queryByText('Unnamed subject')).toBeNull()
   })
 })

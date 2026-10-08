@@ -337,6 +337,48 @@ describe('GalleryMap', () => {
       ).toBeInTheDocument()
     })
 
+    it('caps the map zoom where clustering stops so shared coordinates never stack', async () => {
+      const fake = createFakeGl([
+        {
+          properties: { cluster: true, cluster_id: 3, point_count: 2, rep: 0 },
+          geometry: { coordinates: [101.45, 14.45] }
+        }
+      ])
+      fake.map.getSource.mockReturnValue({
+        setData: fake.sourceData.setData,
+        getClusterLeaves: vi.fn(async () =>
+          [0, 1].map((idx) => ({ properties: { idx } }))
+        )
+      } as never)
+      vi.mocked(loadMaplibreModule).mockResolvedValue(fake.gl as never)
+
+      render(
+        <GalleryMap
+          points={[makePoint(0), makePoint(1)]}
+          mapProvider={{ type: 'osm' }}
+        />
+      )
+      await screen.findByText('OpenFreeMap')
+
+      const options = (fake.gl.Map.mock.calls as unknown[][])[0][0] as Record<
+        string,
+        unknown
+      >
+      expect(options.maxZoom).toBe(16)
+      expect(fake.map.addSource).toHaveBeenCalledWith(
+        'gallery-media-points',
+        expect.objectContaining({ clusterMaxZoom: 16 })
+      )
+
+      // A tap at the cap still lists the cluster's members.
+      act(() => fake.handlers.render())
+      fake.state.zoom = 16
+      fireEvent.click(within(fake.markers[0].element).getByRole('button'))
+      expect(
+        await screen.findByRole('group', { name: 'Selected photos' })
+      ).toBeInTheDocument()
+    })
+
     it('notes how many photos a capped member list leaves out', async () => {
       const points = [makePoint(0), makePoint(1), makePoint(2)]
       const fake = createFakeGl([

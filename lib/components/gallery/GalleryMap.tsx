@@ -68,6 +68,9 @@ const SOURCE_ID = 'gallery-media-points'
 const HIT_LAYER_ID = 'gallery-media-points-hit'
 const CLUSTER_RADIUS_PX = 56
 const CLUSTER_MAX_ZOOM = 16
+// The map cannot zoom past where the source still clusters: beyond it,
+// photos sharing a coordinate would render as stacked, unreachable markers.
+const MAP_MAX_ZOOM = CLUSTER_MAX_ZOOM
 const CLUSTER_ZOOM_STEP = 2
 // Map zoom is fractional; treat a hair under the max as having reached it.
 const ZOOM_EPSILON = 0.01
@@ -100,7 +103,11 @@ const isLngLat = (value: unknown): value is [number, number] =>
   typeof value[0] === 'number' &&
   typeof value[1] === 'number'
 
-// The members of a cluster, newest first. Empty when the source cannot say.
+// Up to MAX_GROUP_MEMBERS members of a cluster, in point order (the points
+// arrive newest first, so a lower index is newer). The source returns the
+// leaves in its own order, so a capped list is not necessarily the newest
+// members overall; the "+N more" note covers the rest. Empty when the source
+// cannot say.
 const readClusterMembers = (
   map: GalleryGlMap,
   clusterId: number,
@@ -203,7 +210,8 @@ const GalleryGlMapSurface: FC<GalleryGlMapProps> = ({
           attributionControl: true,
           center: [0, 20],
           zoom: 1.4,
-          ...provider.mapOptions
+          ...provider.mapOptions,
+          maxZoom: MAP_MAX_ZOOM
         })
         mapRef.current = map
 

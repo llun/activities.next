@@ -31,6 +31,20 @@ const decodeKey = (key: string): string | null => {
   }
 }
 
+// The header for a subject whose photos are not on the first page: the key
+// is `name:<name>` or `sci:<scientific name>` (lowercased).
+const parseSubjectKey = (
+  key: string
+): { name: string | null; scientificName: string | null } => {
+  if (key.startsWith('sci:')) {
+    return { name: null, scientificName: key.slice('sci:'.length) || null }
+  }
+  if (key.startsWith('name:')) {
+    return { name: key.slice('name:'.length) || null, scientificName: null }
+  }
+  return { name: null, scientificName: null }
+}
+
 const Page = async ({ params }: PageProps) => {
   const database = getDatabase()
   if (!database) {
@@ -82,13 +96,16 @@ const Page = async ({ params }: PageProps) => {
   const first = page.items[0]
   if (!first && page.nextMaxId === null) return notFound()
 
+  const fromKey = parseSubjectKey(subjectKey)
   return (
     <GallerySubjectDetailView
       actorId={actor.id}
       subject={{
         key: subjectKey,
-        name: first?.subject?.name ?? null,
-        scientificName: first?.subject?.scientificName ?? null,
+        name: first ? (first.subject?.name ?? null) : fromKey.name,
+        scientificName: first
+          ? (first.subject?.scientificName ?? null)
+          : fromKey.scientificName,
         category: first?.subject?.category ?? null,
         count: null,
         firstSeenAt: null,
