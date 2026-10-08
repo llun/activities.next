@@ -218,6 +218,34 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     )
   })
 
+  it('also deletes the presigned client key left behind by the metadata strip', async () => {
+    mockDatabase.getMediaByIdForAccount.mockResolvedValue({
+      ...sampleMedia,
+      original: {
+        ...sampleMedia.original,
+        metaData: { upload: { clientPath: 'uploads/client.jpg' } }
+      }
+    })
+
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/media/media-123',
+      { method: 'DELETE' }
+    )
+    const res = await DELETE(req, {
+      params: Promise.resolve({ mediaId: 'media-123' })
+    })
+
+    expect(res.status).toBe(200)
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      mockDatabase,
+      'uploads/original.jpg'
+    )
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      mockDatabase,
+      'uploads/client.jpg'
+    )
+  })
+
   it('handles media without thumbnail', async () => {
     mockDatabase.getMediaByIdForAccount.mockResolvedValue({
       id: 'media-no-thumb',
