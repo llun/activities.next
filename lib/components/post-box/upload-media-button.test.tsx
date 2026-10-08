@@ -567,4 +567,48 @@ describe('UploadMediaButton', () => {
       ).toBeInTheDocument()
     })
   })
+
+  describe('file input reset', () => {
+    const watchValue = (input: HTMLInputElement) => {
+      const setValue = vi.fn()
+      Object.defineProperty(input, 'value', {
+        configurable: true,
+        get: () => '',
+        set: setValue
+      })
+      return setValue
+    }
+
+    it('clears the input after selecting so the same file can be picked again', async () => {
+      renderButton({ attachments: [] })
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const setValue = watchValue(input)
+
+      fireEvent.change(input, { target: { files: [createMockFile('a.jpg')] } })
+
+      await waitFor(() => {
+        expect(mockOnAddAttachment).toHaveBeenCalledTimes(1)
+      })
+      expect(setValue).toHaveBeenCalledWith('')
+    })
+
+    it('clears the input even when the attachment limit returns early', async () => {
+      renderButton({
+        attachments: existingAttachments(
+          DEFAULT_INSTANCE_LIMITS.maxMediaAttachments
+        )
+      })
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const setValue = watchValue(input)
+
+      fireEvent.change(input, { target: { files: [createMockFile('a.jpg')] } })
+
+      await waitFor(() => {
+        expect(setValue).toHaveBeenCalledWith('')
+      })
+      expect(mockOnAddAttachment).not.toHaveBeenCalled()
+    })
+  })
 })

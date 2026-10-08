@@ -144,6 +144,10 @@ describe('POST /api/v1/media', () => {
     expect(response.status).toBe(200)
     const media = mockSaveMedia.mock.calls[0][2]
     expect(media.description).toBe(longDescription)
+    // The user upload path is the only one that builds gallery details.
+    expect(mockSaveMedia.mock.calls[0][3]).toEqual({
+      withGalleryDetails: true
+    })
   })
 
   it.each([

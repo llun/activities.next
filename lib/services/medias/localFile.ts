@@ -34,6 +34,7 @@ import {
   MediaSchema,
   MediaStorage,
   MediaStorageGetFileOutput,
+  SaveFileOptions,
   ThumbnailStorageOutput
 } from './types'
 import { extractVideoPreviewFrame } from './videoPreview'
@@ -142,12 +143,13 @@ export class LocalFileStorage implements MediaStorage {
     return null
   }
 
-  async saveFile(actor: Actor, media: MediaSchema) {
+  async saveFile(actor: Actor, media: MediaSchema, options?: SaveFileOptions) {
     return saveMediaFile({
       database: this._database,
       host: this._host,
       actor,
       media,
+      withGalleryDetails: options?.withGalleryDetails,
       driver: {
         saveVideoFile: (file, options) => this._saveVideoFile(file, options),
         saveImageFile: (file, options) => this._saveImageFile(file, options),

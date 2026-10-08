@@ -71,7 +71,9 @@ export const handleSyncMediaUpload = async (
   }
 
   try {
-    const response = await saveMedia(database, currentActor, media.data)
+    const response = await saveMedia(database, currentActor, media.data, {
+      withGalleryDetails: true
+    })
     if (!response) {
       return apiResponse({
         req,

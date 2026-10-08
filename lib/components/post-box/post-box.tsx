@@ -417,18 +417,38 @@ export const PostBox: FC<Props> = ({
     }
   }
 
-  const loadDetails = async (id: string) => {
-    setDetailsPending((current) => ({ ...current, [id]: true }))
-    try {
-      applyMedia(id, await getMedia(id))
-    } catch {
-      // The tile simply shows the state it has; opening the dialog retries.
-    } finally {
-      setDetailsPending((current) => {
-        const { [id]: _done, ...rest } = current
-        return rest
-      })
-    }
+  // Ids whose details were fetched successfully (the answer may legitimately
+  // be "no details"), and fetches currently running. Neither is re-requested.
+  const fetchedDetailsRef = useRef<Set<string>>(new Set())
+  const detailsInFlightRef = useRef<Map<string, Promise<void>>>(new Map())
+  // The tile that opened the dialog, so focus can go back to it on close.
+  const detailsOpenerIdRef = useRef<string | null>(null)
+
+  // `silent` skips the tile's busy state: a details refetch triggered by
+  // opening the dialog must not disable the tile that has focus.
+  const loadDetails = (id: string, { silent = false } = {}) => {
+    if (fetchedDetailsRef.current.has(id)) return Promise.resolve()
+    const running = detailsInFlightRef.current.get(id)
+    if (running) return running
+    if (!silent) setDetailsPending((current) => ({ ...current, [id]: true }))
+    const promise = (async () => {
+      try {
+        applyMedia(id, await getMedia(id))
+        fetchedDetailsRef.current.add(id)
+      } catch {
+        // The tile simply shows the state it has; opening the dialog retries.
+      } finally {
+        detailsInFlightRef.current.delete(id)
+        if (!silent) {
+          setDetailsPending((current) => {
+            const { [id]: _done, ...rest } = current
+            return rest
+          })
+        }
+      }
+    })()
+    detailsInFlightRef.current.set(id, promise)
+    return promise
   }
 
   // Uploads when the file is attached rather than at Post: the tile shows the
@@ -507,11 +527,16 @@ export const PostBox: FC<Props> = ({
     // The post is about to use this media; nothing may change it mid-submit.
     if (isPosting || submitInFlightRef.current) return
     const missing = postExtensionRef.current.attachments.filter(
-      (item) => !item.file && !item.isLoading && !detailsById[item.id]
+      (item) =>
+        !item.file &&
+        !item.isLoading &&
+        !detailsById[item.id] &&
+        !fetchedDetailsRef.current.has(item.id) &&
+        !detailsInFlightRef.current.has(item.id)
     )
     await Promise.all([
       ensureGallerySettings(),
-      ...missing.map((item) => loadDetails(item.id))
+      ...missing.map((item) => loadDetails(item.id, { silent: true }))
     ])
     // The awaits above leave a window: a submit may have started, or the
     // attachment may have been removed or replaced (poll, fitness file).
@@ -522,7 +547,22 @@ export const PostBox: FC<Props> = ({
     ) {
       return
     }
+    detailsOpenerIdRef.current = id
     setActiveDetailsId(id)
+  }
+
+  const closeDetails = () => {
+    const openerId = detailsOpenerIdRef.current
+    setActiveDetailsId(null)
+    if (!openerId) return
+    // After the dialog has unmounted (and Radix has run its own focus return).
+    setTimeout(() => {
+      document
+        .querySelector<HTMLElement>(
+          `[data-attachment-tile="${CSS.escape(openerId)}"]`
+        )
+        ?.focus()
+    }, 0)
   }
 
   const onDetailsSaved = (saved: MediaDetailsSavedItem[]) => {
@@ -557,6 +597,8 @@ export const PostBox: FC<Props> = ({
 
   const resetMediaState = () => {
     uploadsRef.current.clear()
+    fetchedDetailsRef.current.clear()
+    detailsInFlightRef.current.clear()
     uploadErrorsRef.current = {}
     setUploadErrors({})
     setDetailsById({})
@@ -573,6 +615,10 @@ export const PostBox: FC<Props> = ({
   // item posted without a description must not block a typo fix.
   const hasUndescribedAttachment = postExtension.attachments.some(
     (item) =>
+      // Still uploading or failed: the tile says so; "add a description" would
+      // be misleading until there is a stored media to describe.
+      !item.file &&
+      !item.isLoading &&
       !originalMediaIdsRef.current.has(item.id) &&
       !(item.name ?? '').trim() &&
       !decorativeIds[item.id]
@@ -779,10 +825,13 @@ export const PostBox: FC<Props> = ({
     onDiscardQuote?.()
   }
 
-  const onRemoveAttachment = (attachmentIndex: number) => {
+  const onRemoveAttachment = (attachmentId: string) => {
     // Removing deletes the uploaded media, which the in-flight post is using.
     if (isPosting || submitInFlightRef.current) return
-    const attachment = postExtension.attachments[attachmentIndex]
+    // Read the ref, not the render closure (an upload may have replaced the
+    // list since), and resolve the target by id, not by position.
+    const attachment = findAttachment(attachmentId)
+    if (!attachment) return
     revokeAttachmentUrls(attachment)
     discardUploadedMedia([attachment])
     setUploadError(attachment.id, null)
@@ -794,10 +843,10 @@ export const PostBox: FC<Props> = ({
     setDetailsById(prune)
     setDecorativeIds(prune)
     setDetailsPending(prune)
-    const nextAttachments = [
-      ...postExtension.attachments.slice(0, attachmentIndex),
-      ...postExtension.attachments.slice(attachmentIndex + 1)
-    ]
+    fetchedDetailsRef.current.delete(attachment.id)
+    const nextAttachments = postExtensionRef.current.attachments.filter(
+      (item) => item.id !== attachment.id
+    )
     const nextExtension = {
       ...postExtensionRef.current,
       attachments: nextAttachments
@@ -1480,7 +1529,7 @@ export const PostBox: FC<Props> = ({
           items={detailsDialogItems}
           initialId={activeDetailsId}
           settings={gallerySettings}
-          onClose={() => setActiveDetailsId(null)}
+          onClose={closeDetails}
           onSaved={onDetailsSaved}
         />
       ) : null}

@@ -217,11 +217,18 @@ export interface ImageRenditionOutput {
   metaData: { width: number; height: number }
 }
 
+export interface SaveFileOptions {
+  // Build gallery details (EXIF, gear, place, inGallery). Only the user media
+  // upload path sets this.
+  withGalleryDetails?: boolean
+}
+
 export interface MediaStorage {
   isPresigedSupported(): boolean
   saveFile(
     actor: Actor,
-    media: MediaSchema
+    media: MediaSchema,
+    options?: SaveFileOptions
   ): Promise<MediaStorageSaveFileOutput | null>
   // Processes and stores a standalone thumbnail image (used by PUT/PATCH
   // /api/v1/media/:id to replace a custom thumbnail). Enforces the account

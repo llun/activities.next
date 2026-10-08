@@ -80,7 +80,11 @@ describe('uploading a photo with EXIF', () => {
   }
 
   it('records the date, gear, exposure and place on the media and its owner entity', async () => {
-    const entity = await storage().saveFile(actor, { file: await photo() })
+    const entity = await storage().saveFile(
+      actor,
+      { file: await photo() },
+      { withGalleryDetails: true }
+    )
 
     expect(entity?.details).toEqual({
       subject: null,
@@ -117,7 +121,11 @@ describe('uploading a photo with EXIF', () => {
   })
 
   it('does not keep the EXIF in the stored file', async () => {
-    const entity = await storage().saveFile(actor, { file: await photo() })
+    const entity = await storage().saveFile(
+      actor,
+      { file: await photo() },
+      { withGalleryDetails: true }
+    )
     const stored = await database.getMediaByIdForAccount({
       mediaId: entity!.id,
       accountId: actor.account!.id
@@ -132,8 +140,16 @@ describe('uploading a photo with EXIF', () => {
   })
 
   it('reuses one gear row across uploads from the same camera', async () => {
-    const first = await storage().saveFile(actor, { file: await photo() })
-    const second = await storage().saveFile(actor, { file: await photo() })
+    const first = await storage().saveFile(
+      actor,
+      { file: await photo() },
+      { withGalleryDetails: true }
+    )
+    const second = await storage().saveFile(
+      actor,
+      { file: await photo() },
+      { withGalleryDetails: true }
+    )
 
     expect(second!.details!.camera!.id).toBe(first!.details!.camera!.id)
     expect(second!.details!.lens!.id).toBe(first!.details!.lens!.id)
@@ -145,7 +161,11 @@ describe('uploading a photo with EXIF', () => {
       defaultPlacePrecision: 'hidden'
     })
 
-    const entity = await storage().saveFile(actor, { file: await photo() })
+    const entity = await storage().saveFile(
+      actor,
+      { file: await photo() },
+      { withGalleryDetails: true }
+    )
 
     expect(entity!.details!.place!.precision).toBe('hidden')
   })
@@ -162,16 +182,22 @@ describe('uploading a photo with EXIF', () => {
         galleryDefault
       })
 
-      const entity = await storage().saveFile(actor, { file: await photo() })
+      const entity = await storage().saveFile(
+        actor,
+        { file: await photo() },
+        { withGalleryDetails: true }
+      )
 
       expect(entity!.details!.inGallery).toBe(inGallery)
     }
   )
 
   it('uploads a photo with no EXIF with empty details', async () => {
-    const entity = await storage().saveFile(actor, {
-      file: await photo(false)
-    })
+    const entity = await storage().saveFile(
+      actor,
+      { file: await photo(false) },
+      { withGalleryDetails: true }
+    )
 
     expect(entity!.details).toEqual({
       subject: null,
@@ -182,5 +208,33 @@ describe('uploading a photo with EXIF', () => {
       place: null,
       inGallery: false
     })
+  })
+
+  it('skips gallery details unless the caller opts in', async () => {
+    await database.updateGallerySettings({
+      actorId: ACTOR1_ID,
+      galleryDefault: 'always'
+    })
+    const gearBefore = await database.getGalleryGearsByActor({
+      actorId: ACTOR1_ID
+    })
+
+    const entity = await storage().saveFile(actor, { file: await photo() })
+
+    expect(entity!.details).toMatchObject({
+      camera: null,
+      lens: null,
+      place: null,
+      inGallery: false
+    })
+    const stored = await database.getMediaByIdForAccount({
+      mediaId: entity!.id,
+      accountId: actor.account!.id
+    })
+    expect(stored?.details?.inGallery ?? false).toBe(false)
+    expect(stored?.details?.placeLatitude ?? null).toBeNull()
+    expect(
+      await database.getGalleryGearsByActor({ actorId: ACTOR1_ID })
+    ).toHaveLength(gearBefore.length)
   })
 })

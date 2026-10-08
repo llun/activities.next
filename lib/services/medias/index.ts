@@ -7,7 +7,11 @@ import {
 } from '@/lib/services/medias/S3StorageFile'
 import type { ImageOutputFormat } from '@/lib/services/medias/imageOutputFormat'
 import { LocalFileStorage } from '@/lib/services/medias/localFile'
-import { MediaSchema, PresigedMediaInput } from '@/lib/services/medias/types'
+import {
+  MediaSchema,
+  PresigedMediaInput,
+  SaveFileOptions
+} from '@/lib/services/medias/types'
 import { Actor } from '@/lib/types/domain/actor'
 
 export { PresignedUploadValidationError }
@@ -15,21 +19,24 @@ export { PresignedUploadValidationError }
 export const saveMedia = async (
   database: Database,
   actor: Actor,
-  media: MediaSchema
+  media: MediaSchema,
+  options?: SaveFileOptions
 ) => {
   const { mediaStorage, host } = getConfig()
   switch (mediaStorage?.type) {
     case MediaStorageType.LocalFile: {
       return LocalFileStorage.getStorage(mediaStorage, host, database).saveFile(
         actor,
-        media
+        media,
+        options
       )
     }
     case MediaStorageType.S3Storage:
     case MediaStorageType.ObjectStorage: {
       return S3FileStorage.getStorage(mediaStorage, host, database).saveFile(
         actor,
-        media
+        media,
+        options
       )
     }
     default:

@@ -148,6 +148,9 @@ describe('POST /api/v2/media', () => {
     const media = mockSaveMedia.mock.calls[0][2]
     expect(media.description).toBe('alt text')
     expect(media.focus).toEqual({ x: 0.1, y: -0.2 })
+    expect(mockSaveMedia.mock.calls[0][3]).toEqual({
+      withGalleryDetails: true
+    })
   })
 
   it('accepts the coarser write scope', async () => {

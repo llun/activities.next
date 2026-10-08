@@ -55,11 +55,15 @@ export const UploadMediaButton: FC<Props> = ({
   const onSelectFile = async (
     event: SyntheticEvent<HTMLInputElement, Event>
   ) => {
-    if (disabled) return
-    if (!event.currentTarget.files) return
-    if (!event.currentTarget.files.length) return
+    // Copy the (live) FileList first, then clear the input so picking the same
+    // file again still fires `change` — including after an early return below.
+    const input = event.currentTarget
+    const selectedFiles = input.files ? Array.from(input.files) : []
+    input.value = ''
 
-    const selectedFiles = Array.from(event.currentTarget.files)
+    if (disabled) return
+    if (!selectedFiles.length) return
+
     onUploadStart()
 
     // The instance's resolved posts.maxMediaAttachments, not a build-time

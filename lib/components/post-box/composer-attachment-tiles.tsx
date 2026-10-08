@@ -17,7 +17,7 @@ interface Props {
   /** True while a submit is in flight: every tile control renders disabled. */
   disabled?: boolean
   onOpen: (id: string) => void
-  onRemove: (index: number) => void
+  onRemove: (id: string) => void
   onRetry: (id: string) => void
 }
 
@@ -112,6 +112,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
             <li key={item.id} className="relative">
               <button
                 type="button"
+                data-attachment-tile={item.id}
                 disabled={disabled || busy || Boolean(error)}
                 onClick={() => onOpen(item.id)}
                 className={cn(
@@ -175,7 +176,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
                 type="button"
                 aria-label={`Remove media ${label}`}
                 disabled={disabled}
-                onClick={() => onRemove(index)}
+                onClick={() => onRemove(item.id)}
                 className="absolute top-0 right-0 flex size-6 translate-x-1/3 -translate-y-1/3 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs hover:text-foreground"
               >
                 <X className="size-3.5" />

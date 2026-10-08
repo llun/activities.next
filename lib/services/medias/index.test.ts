@@ -126,7 +126,7 @@ const MEDIA_STORAGE_FUNCTIONS: MediaStorageFunctionCase[] = [
   {
     name: 'saveMedia',
     method: 'saveFile',
-    callArguments: [actor, media],
+    callArguments: [actor, media, { withGalleryDetails: true }],
     supportedTypes: ALL_STORAGE_TYPES,
     fallbackValue: null
   },

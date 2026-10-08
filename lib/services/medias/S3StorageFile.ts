@@ -66,6 +66,7 @@ import {
   MediaType,
   PresigedMediaInput,
   PresignedUrlOutput,
+  SaveFileOptions,
   ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
 import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
@@ -885,13 +886,14 @@ export class S3FileStorage implements MediaStorage {
     }
   }
 
-  async saveFile(actor: Actor, media: MediaSchema) {
+  async saveFile(actor: Actor, media: MediaSchema, options?: SaveFileOptions) {
     const currentTime = Date.now()
     return saveMediaFile({
       database: this._database,
       host: this._host,
       actor,
       media,
+      withGalleryDetails: options?.withGalleryDetails,
       driver: {
         saveVideoFile: (file, options) =>
           this._uploadVideoToS3(currentTime, file, options),

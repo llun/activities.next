@@ -366,6 +366,109 @@ describe('PostBox media details', () => {
     expect(screen.getByText('2 of 2')).toBeInTheDocument()
   })
 
+  it('keeps the opener enabled during a details refetch and refocuses it on close', async () => {
+    getMediaMock.mockRejectedValueOnce(new Error('offline'))
+    renderPostBox()
+    attach('a.png')
+    const tile = await screen.findByRole('button', {
+      name: 'Review details of a.png'
+    })
+    await waitFor(() => expect(getMediaMock).toHaveBeenCalledTimes(1))
+    const refetch = createDeferred<ReturnType<typeof mediaEntity>>()
+    getMediaMock.mockReturnValueOnce(refetch.promise)
+
+    tile.focus()
+    fireEvent.click(tile)
+
+    await waitFor(() => expect(getMediaMock).toHaveBeenCalledTimes(2))
+    expect(tile).toBeEnabled()
+    refetch.resolve(mediaEntity('media-a.png', null))
+    await screen.findByRole('dialog', { name: 'Media details' })
+
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Review details of a.png' })
+      ).toHaveFocus()
+    )
+  })
+
+  it('does not refetch details that were already fetched, even when empty', async () => {
+    getMediaMock.mockResolvedValue({
+      id: 'media-a.png',
+      description: null,
+      details: null
+    } as unknown as Awaited<ReturnType<typeof getMedia>>)
+    renderPostBox()
+    attach('a.png')
+    await waitFor(() => expect(getMediaMock).toHaveBeenCalledTimes(1))
+
+    const open = async () => {
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Review details of a.png' })
+      )
+      await screen.findByRole('dialog', { name: 'Media details' })
+    }
+    await open()
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+    await open()
+
+    expect(getMediaMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('removes the right item by id while another upload is still running', async () => {
+    const upload = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockImplementation(async (file) =>
+      file.name === 'b.png'
+        ? upload.promise
+        : uploaded(`media-${file.name}`, file.name)
+    )
+    renderPostBox()
+    attach('a.png', 'b.png')
+    await screen.findByText('Review')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove media a.png' }))
+    upload.resolve(uploaded('media-b.png', 'b.png'))
+    await screen.findByRole('button', { name: 'Review details of b.png' })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove media b.png' }))
+
+    expect(
+      screen.queryByRole('button', { name: /details of/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not ask for a description while an item is uploading or has failed', async () => {
+    getGallerySettingsMock.mockResolvedValue(
+      settings({ allowEmptyDescription: false })
+    )
+    const upload = createDeferred<UploadedAttachment>()
+    uploadAttachmentMock.mockReturnValueOnce(upload.promise)
+    renderPostBox()
+    attach('a.png')
+
+    await screen.findByText('Uploading…')
+    expect(
+      screen.queryByText(
+        'Add a description to every item, or mark it decorative'
+      )
+    ).not.toBeInTheDocument()
+
+    upload.reject(new Error('disk full'))
+    await screen.findByText('Upload failed')
+    expect(
+      screen.queryByText(
+        'Add a description to every item, or mark it decorative'
+      )
+    ).not.toBeInTheDocument()
+  })
+
   it('saves only the edited fields and shows the description on the tile', async () => {
     renderPostBox()
     attach('a.png')
