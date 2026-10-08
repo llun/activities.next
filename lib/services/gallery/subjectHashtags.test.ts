@@ -4,6 +4,7 @@ import {
 } from '@/lib/database/testUtils'
 import {
   appendSubjectHashtags,
+  toScientificHashtag,
   toSubjectHashtag
 } from '@/lib/services/gallery/subjectHashtags'
 import { seedDatabase } from '@/lib/stub/database'
@@ -39,6 +40,31 @@ describe('toSubjectHashtag', () => {
   })
 })
 
+describe('toScientificHashtag', () => {
+  it.each([
+    ['Alcedo atthis', 'AlcedoAtthis'],
+    ['  Alcedo   atthis ', 'AlcedoAtthis'],
+    ['Alcedo atthis bengalensis', 'AlcedoAtthis'],
+    ['Alcedo atthis (Linnaeus, 1758)', 'AlcedoAtthis'],
+    ['Ficus benghalensis', 'FicusBenghalensis'],
+    ['Zosterops japonicus', 'ZosteropsJaponicus']
+  ])('turns %j into #%s', (name, expected) => {
+    expect(toScientificHashtag(name)).toBe(expected)
+  })
+
+  it.each([
+    ['', 'empty'],
+    ['Alcedo', 'a genus alone'],
+    ['Quercus × rosacea', 'a hybrid mark'],
+    ['Alcedo sp.', 'an unidentified species'],
+    ['alcedo atthis', 'a lowercase genus'],
+    ['Alcedo 2', 'a number for an epithet'],
+    ['カワセミ 科', 'a script the hashtag grammar cannot hold']
+  ])('returns null for %j (%s)', (name) => {
+    expect(toScientificHashtag(name)).toBeNull()
+  })
+})
+
 describe('appendSubjectHashtags', () => {
   const { actors } = DatabaseSeed
   const table = getTestDatabaseTable()
@@ -67,7 +93,10 @@ describe('appendSubjectHashtags', () => {
       })
     })
 
-    const createMedia = async (subjectName: string | null) => {
+    const createMedia = async (
+      subjectName: string | null,
+      subjectScientificName?: string
+    ) => {
       const media = await database.createMedia({
         actorId: actors.primary.id,
         original: {
@@ -76,7 +105,14 @@ describe('appendSubjectHashtags', () => {
           mimeType: 'image/jpeg',
           metaData: { width: 10, height: 10 }
         },
-        ...(subjectName ? { details: { subjectName } } : {})
+        ...(subjectName || subjectScientificName
+          ? {
+              details: {
+                ...(subjectName ? { subjectName } : {}),
+                ...(subjectScientificName ? { subjectScientificName } : {})
+              }
+            }
+          : {})
       })
       return media!.id
     }
@@ -105,6 +141,38 @@ describe('appendSubjectHashtags', () => {
 
       expect(await append('Morning', [otter, heron, heronAgain])).toBe(
         'Morning\n\n#Otter #GreyHeron'
+      )
+    })
+
+    it('appends the binomial tag beside the common-name tag', async () => {
+      const id = await createMedia('Common Kingfisher', 'Alcedo atthis')
+
+      expect(await append('Look', [id])).toBe(
+        'Look\n\n#CommonKingfisher #AlcedoAtthis'
+      )
+    })
+
+    it('tags a subject that has only a binomial', async () => {
+      const id = await createMedia(null, 'Alcedo atthis')
+
+      expect(await append('Look', [id])).toBe('Look\n\n#AlcedoAtthis')
+    })
+
+    it('adds no scientific tag for a genus alone', async () => {
+      const id = await createMedia('Kingfisher', 'Alcedo')
+
+      expect(await append('Look', [id])).toBe('Look\n\n#Kingfisher')
+    })
+
+    it('does not repeat a binomial tag across photos or in the text', async () => {
+      const first = await createMedia('Common Kingfisher', 'Alcedo atthis')
+      const second = await createMedia('Kingfisher', 'Alcedo atthis')
+
+      expect(await append('Look', [first, second])).toBe(
+        'Look\n\n#CommonKingfisher #AlcedoAtthis #Kingfisher'
+      )
+      expect(await append('Look #alcedoatthis', [first])).toBe(
+        'Look #alcedoatthis\n\n#CommonKingfisher'
       )
     })
 

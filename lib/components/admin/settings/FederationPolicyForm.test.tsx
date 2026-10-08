@@ -38,7 +38,9 @@ const settingsWith = (
     requestTimeoutMs: 4000,
     requestRetries: 1,
     maxResponseSizeBytes: 2097152,
-    linkPreviews: true
+    linkPreviews: true,
+    speciesLookups: true,
+    placeLookups: true
   },
   federation,
   features: { fitness: true, explore: true, messages: true }

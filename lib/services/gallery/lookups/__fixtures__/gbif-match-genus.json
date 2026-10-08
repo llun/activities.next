@@ -1,0 +1,21 @@
+{
+  "usageKey": 2475493,
+  "scientificName": "Alcedo Linnaeus, 1758",
+  "canonicalName": "Alcedo",
+  "rank": "GENUS",
+  "status": "ACCEPTED",
+  "confidence": 92,
+  "matchType": "EXACT",
+  "kingdom": "Animalia",
+  "phylum": "Chordata",
+  "order": "Coraciiformes",
+  "family": "Alcedinidae",
+  "genus": "Alcedo",
+  "kingdomKey": 1,
+  "phylumKey": 44,
+  "classKey": 212,
+  "orderKey": 1447,
+  "familyKey": 2984,
+  "genusKey": 2475493,
+  "class": "Aves"
+}

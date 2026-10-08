@@ -34,6 +34,73 @@ export type MediaPlacePrecision = (typeof MEDIA_PLACE_PRECISIONS)[number]
 export const GALLERY_DEFAULTS = ['subject', 'always', 'never'] as const
 export type GalleryDefault = (typeof GALLERY_DEFAULTS)[number]
 
+// What a subject or place lookup last came to. Null on a row means it was
+// never attempted (or, for a subject, that the subject is not species-like).
+export const MEDIA_LOOKUP_STATUSES = [
+  'pending',
+  'resolved',
+  'no-match',
+  'failed',
+  'disabled'
+] as const
+export type MediaLookupStatus = (typeof MEDIA_LOOKUP_STATUSES)[number]
+
+// IUCN Red List categories, as GBIF reports them. Only CR, EN and VU count as
+// threatened (see `THREATENED_IUCN` in `lib/services/gallery/threatenedSpecies.ts`).
+export const IUCN_CATEGORIES = [
+  'CR',
+  'EN',
+  'VU',
+  'NT',
+  'LC',
+  'DD',
+  'NE',
+  'EW',
+  'EX'
+] as const
+export type IucnCategory = (typeof IUCN_CATEGORIES)[number]
+
+// Who wrote `placeName`. A null source is a name from before lookups existed,
+// and is treated as the owner's.
+export const MEDIA_PLACE_NAME_SOURCES = ['owner', 'geocoder'] as const
+export type MediaPlaceNameSource = (typeof MEDIA_PLACE_NAME_SOURCES)[number]
+
+// How the composer suggests a subject. `classifier` is reserved for a species
+// classifier an admin may configure later; the API rejects it for now.
+export const SUBJECT_SUGGESTION_MODES = ['model', 'off', 'classifier'] as const
+export type SubjectSuggestionMode = (typeof SUBJECT_SUGGESTION_MODES)[number]
+
+// The species-name confidence floor, in percent: 50 to 95 in steps of 5.
+export const MIN_SUBJECT_CONFIDENCE_THRESHOLD = 50
+export const MAX_SUBJECT_CONFIDENCE_THRESHOLD = 95
+export const SUBJECT_CONFIDENCE_THRESHOLD_STEP = 5
+
+// The largest `subjectSuggestions` JSON the database accepts, in bytes.
+export const MAX_SUBJECT_SUGGESTIONS_BYTES = 16 * 1024
+
+/**
+ * The vision model's subject candidates for one media, as stored in
+ * `medias.subjectSuggestions`. Owner-only, and never applied to the `subject*`
+ * columns by itself: only the owner's save does that.
+ */
+export interface MediaSubjectSuggestions {
+  model: string
+  // ISO 8601.
+  generatedAt: string
+  checkedAgainst: 'gbif' | null
+  candidates: {
+    name: string
+    scientificName: string | null
+    category: MediaSubjectCategory
+    // 0..1.
+    confidence: number
+    taxonKey: string | null
+    rank: string | null
+    taxonPath: string[]
+  }[]
+  group: MediaSubjectCategory | null
+}
+
 export const GALLERY_GEAR_KINDS = ['camera', 'lens'] as const
 export type GalleryGearKind = (typeof GALLERY_GEAR_KINDS)[number]
 
@@ -62,7 +129,44 @@ export interface MediaDetailsRecord {
   placeLongitude: number | null
   placePrecision: MediaPlacePrecision | null
   inGallery: boolean
+  // GBIF usage key: set by the owner's picker or by the subject lookup.
+  subjectTaxonKey: string | null
+  // Below here, what the lookups resolve. None of it is client-writable: the
+  // update path resets it when the subject or the coordinates change, and only
+  // `setMediaSubjectLookup` / `setMediaPlaceLookup` /
+  // `setMediaSubjectSuggestions` write it.
+  //
+  // Kingdom to family names, stored at resolve time so a public read never
+  // triggers a lookup.
+  subjectTaxonPath: string[] | null
+  // Owner-only: never sent to anyone else. It only drives the place rule.
+  subjectIucnCategory: IucnCategory | null
+  subjectLookupStatus: MediaLookupStatus | null
+  // Epoch milliseconds of the last attempt.
+  subjectLookupAt: number | null
+  // Owner-only.
+  subjectSuggestions: MediaSubjectSuggestions | null
+  // ISO 3166-1 alpha-2, upper case.
+  placeCountryCode: string | null
+  placeNameSource: MediaPlaceNameSource | null
+  placeLookupStatus: MediaLookupStatus | null
+  // Epoch milliseconds the place lookup became pending, or was last attempted.
+  placeLookupAt: number | null
 }
+
+// The details only the lookups write (see `MediaDetailsRecord`).
+export const MEDIA_LOOKUP_OWNED_DETAILS = [
+  'subjectTaxonPath',
+  'subjectIucnCategory',
+  'subjectLookupStatus',
+  'subjectLookupAt',
+  'subjectSuggestions',
+  'placeCountryCode',
+  'placeNameSource',
+  'placeLookupStatus',
+  'placeLookupAt'
+] as const satisfies readonly (keyof MediaDetailsRecord)[]
+export type MediaLookupOwnedDetail = (typeof MEDIA_LOOKUP_OWNED_DETAILS)[number]
 
 export const EMPTY_MEDIA_DETAILS: MediaDetailsRecord = {
   subjectName: null,
@@ -76,7 +180,17 @@ export const EMPTY_MEDIA_DETAILS: MediaDetailsRecord = {
   placeLatitude: null,
   placeLongitude: null,
   placePrecision: null,
-  inGallery: false
+  inGallery: false,
+  subjectTaxonKey: null,
+  subjectTaxonPath: null,
+  subjectIucnCategory: null,
+  subjectLookupStatus: null,
+  subjectLookupAt: null,
+  subjectSuggestions: null,
+  placeCountryCode: null,
+  placeNameSource: null,
+  placeLookupStatus: null,
+  placeLookupAt: null
 }
 
 // SQL row type for `gallery_gears`. Timestamps are loose because the two
@@ -140,6 +254,13 @@ export interface GallerySettings {
   // these has no place at all: not on the map, not on an item, not in the
   // details endpoint.
   hiddenLocations: GalleryHiddenLocation[]
+  // For every viewer but the owner, a species-like subject's place is withheld
+  // until a lookup confirms it is not IUCN CR, EN or VU. Fails closed: a
+  // pending, failed or disabled lookup keeps the place hidden.
+  hideThreatenedPlaces: boolean
+  subjectSuggestionMode: SubjectSuggestionMode
+  // Percent; below it the composer offers only the group ("Bird?").
+  subjectConfidenceThreshold: number
 }
 
 export const DEFAULT_GALLERY_SETTINGS: GallerySettings = {
@@ -151,7 +272,10 @@ export const DEFAULT_GALLERY_SETTINGS: GallerySettings = {
   showGear: true,
   mapPublic: true,
   lifeListPublic: false,
-  hiddenLocations: []
+  hiddenLocations: [],
+  hideThreatenedPlaces: true,
+  subjectSuggestionMode: 'model',
+  subjectConfidenceThreshold: 70
 }
 
 export interface SQLGallerySettings {
@@ -165,6 +289,9 @@ export interface SQLGallerySettings {
   mapPublic: boolean | number
   lifeListPublic: boolean | number
   hiddenLocations: string
+  hideThreatenedPlaces?: boolean | number | null
+  subjectSuggestionMode?: string | null
+  subjectConfidenceThreshold?: number | string | null
   createdAt: number | Date
   updatedAt: number | Date
 }

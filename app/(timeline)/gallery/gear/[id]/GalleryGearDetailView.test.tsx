@@ -65,6 +65,8 @@ const createGear = (
   retiredAt: null,
   createdAt: Date.UTC(2024, 2, 12),
   photoCount: 846,
+  videoCount: 34,
+  countryCount: 5,
   firstUsedAt: Date.UTC(2024, 2, 14),
   lastUsedAt: Date.UTC(2026, 9, 7),
   ...overrides
@@ -142,10 +144,27 @@ describe('GalleryGearDetailView', () => {
   it('shows the stat strip', () => {
     renderView()
 
-    expect(screen.getByText('846')).toBeVisible()
+    // 846 items in the gallery, 34 of them videos.
     expect(screen.getByText('Photos')).toBeVisible()
-    expect(screen.getByText('First used')).toBeVisible()
-    expect(screen.getByText('Last used')).toBeVisible()
+    expect(screen.getByText('812')).toBeVisible()
+    expect(screen.getByText('Videos')).toBeVisible()
+    expect(screen.getByText('34')).toBeVisible()
+    expect(screen.getByText('Places')).toBeVisible()
+    expect(screen.getByText('5 countries')).toBeVisible()
+  })
+
+  it('shows a dash for Places when no country is known', () => {
+    renderView({ gear: createGear({ countryCount: null }) })
+
+    const places = screen.getByText('Places').closest('dl')
+    expect(places).toHaveTextContent('Unavailable')
+    expect(screen.queryByText(/countries/)).not.toBeInTheDocument()
+  })
+
+  it('says 1 country in the singular', () => {
+    renderView({ gear: createGear({ countryCount: 1 }) })
+
+    expect(screen.getByText('1 country')).toBeVisible()
   })
 
   it('omits the brand and model from the meta line when they are the name', () => {

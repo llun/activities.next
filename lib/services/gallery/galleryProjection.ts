@@ -9,11 +9,15 @@ import {
   GalleryMapPublicState
 } from '@/lib/services/gallery/galleryEntities'
 import {
+  PublicPlace,
+  PublicPlaceInput,
   getPublicPlace,
+  toCountryCode,
   toExposureEntity,
   toSubjectEntity,
   toTakenAtIso
 } from '@/lib/services/gallery/publicMediaDetails'
+import { isPlaceWithheldForThreat } from '@/lib/services/gallery/threatenedSpecies'
 import {
   EMPTY_MEDIA_DETAILS,
   GallerySettings,
@@ -24,8 +28,15 @@ import { getClientStatusId } from '@/lib/utils/publicId'
 // The ONLY place that decides what of a gallery row leaves the server. The
 // database layer decides which rows a viewer may see at all; this decides how
 // much of each one they learn. Everything public goes through
-// `getPublicPlace`, so the place rules (precision, snapping, hidden locations)
-// are the same here, on the map and in the details endpoint.
+// `getPublicPlace`, so the place rules (threatened species, precision,
+// snapping, hidden locations) are the same here, on the map and in the details
+// endpoint.
+
+/** The settings every public place decision needs. */
+export type GalleryPlaceSettings = Pick<
+  GallerySettings,
+  'hiddenLocations' | 'hideThreatenedPlaces'
+>
 
 export type GalleryProjectionViewer = 'owner' | 'public'
 
@@ -36,7 +47,7 @@ export const toGalleryProjectionViewer = (
 
 export interface GalleryItemProjectionContext {
   viewer: GalleryProjectionViewer
-  settings: Pick<GallerySettings, 'showGear' | 'hiddenLocations'>
+  settings: Pick<GallerySettings, 'showGear'> & GalleryPlaceSettings
   // `id -> name` from `getGalleryGearNamesByIds`; a missing id (deleted gear)
   // projects as no gear.
   gearNames: Record<string, string>
@@ -80,7 +91,8 @@ const toOwnerPlace = (
     name: placeName,
     precision: placePrecision,
     latitude: placeLatitude,
-    longitude: placeLongitude
+    longitude: placeLongitude,
+    countryCode: toCountryCode(details.placeCountryCode)
   }
 }
 
@@ -115,14 +127,15 @@ export const toGalleryItemEntity = (
     place: isOwner
       ? toOwnerPlace(details)
       : getPublicPlace(details, {
-          hiddenLocations: ctx.settings.hiddenLocations
+          hiddenLocations: ctx.settings.hiddenLocations,
+          hideThreatenedPlaces: ctx.settings.hideThreatenedPlaces
         })
   }
 }
 
 export interface GalleryMapProjectionContext {
   viewer: GalleryProjectionViewer
-  settings: Pick<GallerySettings, 'hiddenLocations'>
+  settings: GalleryPlaceSettings
   /**
    * Owner only: the ids of the media a logged-out visitor can reach through a
    * public post. A map row outside it is marked `not-public-post`.
@@ -130,12 +143,25 @@ export interface GalleryMapProjectionContext {
   publicMediaIds?: ReadonlySet<string>
 }
 
-const mapRowDetails = (row: GalleryMapRow): MediaDetailsRecord => ({
-  ...EMPTY_MEDIA_DETAILS,
+/**
+ * Every field the public place rule reads, copied explicitly from a map row.
+ * No `EMPTY_MEDIA_DETAILS` spread: `PublicPlaceInput` makes each field
+ * required, so a field the row stops carrying is a compile error rather than a
+ * silent "no subject" that would disclose a threatened species' point.
+ */
+export const toPublicPlaceInput = (row: GalleryMapRow): PublicPlaceInput => ({
   placeName: row.placeName,
   placePrecision: row.placePrecision,
   placeLatitude: row.latitude,
-  placeLongitude: row.longitude
+  placeLongitude: row.longitude,
+  placeCountryCode: row.placeCountryCode,
+  placeNameSource: row.placeNameSource,
+  subjectName: row.subjectName,
+  subjectScientificName: row.subjectScientificName,
+  subjectCategory: row.subjectCategory,
+  subjectTaxonKey: row.subjectTaxonKey,
+  subjectIucnCategory: row.subjectIucnCategory,
+  subjectLookupStatus: row.subjectLookupStatus
 })
 
 /**
@@ -147,21 +173,18 @@ const mapRowDetails = (row: GalleryMapRow): MediaDetailsRecord => ({
 const toPublicMapLocation = (
   row: GalleryMapRow,
   settings: GalleryMapProjectionContext['settings']
-): { latitude: number; longitude: number; placeName: string | null } | null => {
+): (PublicPlace & { latitude: number; longitude: number }) | null => {
   if (row.placePrecision !== 'area' && row.placePrecision !== 'exact') {
     return null
   }
-  const place = getPublicPlace(mapRowDetails(row), {
-    hiddenLocations: settings.hiddenLocations
+  const place = getPublicPlace(toPublicPlaceInput(row), {
+    hiddenLocations: settings.hiddenLocations,
+    hideThreatenedPlaces: settings.hideThreatenedPlaces
   })
   if (!place || place.latitude === undefined || place.longitude === undefined) {
     return null
   }
-  return {
-    latitude: place.latitude,
-    longitude: place.longitude,
-    placeName: place.name
-  }
+  return { ...place, latitude: place.latitude, longitude: place.longitude }
 }
 
 const getPublicState = (
@@ -172,6 +195,13 @@ const getPublicState = (
     return 'not-shown'
   }
   if (publicMediaIds && !publicMediaIds.has(row.id)) return 'not-public-post'
+  if (
+    isPlaceWithheldForThreat(toPublicPlaceInput(row), {
+      hideThreatenedPlaces: settings.hideThreatenedPlaces
+    })
+  ) {
+    return 'threatened-species'
+  }
   if (!toPublicMapLocation(row, settings)) return 'in-hidden-location'
   return row.placePrecision === 'exact' ? 'shown-exact' : 'shown-area'
 }
@@ -202,7 +232,8 @@ export const toGalleryMapPoint = (
       longitude: row.longitude,
       precision: row.placePrecision,
       publicState: getPublicState(row, ctx),
-      placeName: row.placeName
+      placeName: row.placeName,
+      countryCode: toCountryCode(row.placeCountryCode)
     }
   }
 
@@ -213,6 +244,7 @@ export const toGalleryMapPoint = (
     latitude: location.latitude,
     longitude: location.longitude,
     precision: row.placePrecision,
-    placeName: location.placeName
+    placeName: location.name,
+    countryCode: location.countryCode
   }
 }

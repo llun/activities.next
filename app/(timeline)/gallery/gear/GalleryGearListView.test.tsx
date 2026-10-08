@@ -41,6 +41,8 @@ const createGear = (
   retiredAt: null,
   createdAt: Date.UTC(2024, 2, 12),
   photoCount: 812,
+  videoCount: 34,
+  countryCount: 5,
   firstUsedAt: Date.UTC(2024, 2, 14),
   lastUsedAt: Date.UTC(2026, 9, 7),
   ...overrides

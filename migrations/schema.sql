@@ -645,6 +645,15 @@ CREATE TABLE public.gallery_gears (
     "deletedAt" timestamp with time zone
 );
 
+CREATE TABLE public.gallery_lookup_cache (
+    kind character varying(32) NOT NULL,
+    key character varying(255) NOT NULL,
+    outcome character varying(8) NOT NULL,
+    value text,
+    "fetchedAt" timestamp with time zone NOT NULL,
+    "expiresAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.gallery_settings (
     "actorId" character varying(255) NOT NULL,
     "autoDescribe" boolean DEFAULT true NOT NULL,
@@ -657,7 +666,10 @@ CREATE TABLE public.gallery_settings (
     "lifeListPublic" boolean DEFAULT false NOT NULL,
     "hiddenLocations" text DEFAULT '[]'::text NOT NULL,
     "createdAt" timestamp with time zone NOT NULL,
-    "updatedAt" timestamp with time zone NOT NULL
+    "updatedAt" timestamp with time zone NOT NULL,
+    "hideThreatenedPlaces" boolean DEFAULT true NOT NULL,
+    "subjectSuggestionMode" character varying(16) DEFAULT 'model'::character varying NOT NULL,
+    "subjectConfidenceThreshold" integer DEFAULT 70 NOT NULL
 );
 
 CREATE TABLE public.idempotency_keys (
@@ -809,7 +821,17 @@ CREATE TABLE public.medias (
     "placeLatitude" double precision,
     "placeLongitude" double precision,
     "placePrecision" character varying(16),
-    "inGallery" boolean DEFAULT false NOT NULL
+    "inGallery" boolean DEFAULT false NOT NULL,
+    "subjectTaxonKey" character varying(32),
+    "subjectTaxonPath" text,
+    "subjectIucnCategory" character varying(2),
+    "subjectLookupStatus" character varying(16),
+    "subjectLookupAt" timestamp with time zone,
+    "subjectSuggestions" text,
+    "placeCountryCode" character varying(2),
+    "placeNameSource" character varying(16),
+    "placeLookupStatus" character varying(16),
+    "placeLookupAt" timestamp with time zone
 );
 
 CREATE SEQUENCE public.medias_id_seq
@@ -1646,6 +1668,9 @@ ALTER TABLE ONLY public.gallery_gears
 ALTER TABLE ONLY public.gallery_gears
     ADD CONSTRAINT gallery_gears_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.gallery_lookup_cache
+    ADD CONSTRAINT gallery_lookup_cache_pkey PRIMARY KEY (kind, key);
+
 ALTER TABLE ONLY public.gallery_settings
     ADD CONSTRAINT gallery_settings_pkey PRIMARY KEY ("actorId");
 
@@ -1988,6 +2013,8 @@ CREATE INDEX followed_tags_name ON public.followed_tags USING btree ("nameNormal
 CREATE INDEX "followsIndex" ON public.follows USING btree ("actorId", "actorHost", "targetActorId", "targetActorHost", status, "createdAt", "updatedAt");
 
 CREATE INDEX gallery_gears_actor_id_idx ON public.gallery_gears USING btree ("actorId");
+
+CREATE INDEX gallery_lookup_cache_expires_at_idx ON public.gallery_lookup_cache USING btree ("expiresAt");
 
 CREATE INDEX idempotency_keys_created ON public.idempotency_keys USING btree ("createdAt");
 

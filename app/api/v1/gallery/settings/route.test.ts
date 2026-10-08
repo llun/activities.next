@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { DEFAULT_GALLERY_SETTINGS } from '@/lib/types/database/gallery'
@@ -19,6 +20,15 @@ vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
 }))
 
+vi.mock('@/lib/services/serverSettings', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/lib/services/serverSettings')>()
+  return {
+    ...original,
+    getResolvedServerSettings: vi.fn(original.getResolvedServerSettings)
+  }
+})
+
 vi.mock('next/headers', () => ({
   cookies: vi.fn().mockResolvedValue({ get: () => undefined })
 }))
@@ -28,22 +38,44 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn()
 }))
 
-const configWith = (altText?: object) => ({
+// `gallery.subjects` is derived from alt text the way lib/config/gallery.ts
+// does it: the alt text endpoint and key, or null without them.
+const configWith = (altText?: {
+  endpoint?: string
+  apiKey?: string
+  model?: string
+}) => ({
   host: 'llun.test',
   secretPhase: 'test-secret',
   allowEmails: [],
   allowActorDomains: [],
-  ...(altText ? { altText } : {})
+  ...(altText ? { altText } : {}),
+  gallery: { subjects: altText ? { model: altText.model } : null }
 })
+
+// What GET answers about the instance when nothing is configured: no alt
+// text to suggest subjects with, and both lookup switches at their default.
+const NO_LOOKUP_CONFIG = {
+  altTextAvailable: false,
+  subjectSuggestionsAvailable: false,
+  subjectModel: null,
+  speciesLookupsAvailable: true,
+  placeLookupsAvailable: true
+}
 
 describe('/api/v1/gallery/settings', () => {
   const { database, prepare } = getTestDatabaseWithInstance()
+  let resolveServerSettings: typeof getResolvedServerSettings
 
   beforeAll(async () => {
     await prepare()
     await database.migrate()
     await seedDatabase(database)
     mockDatabase = database
+    const original = await vi.importActual<
+      typeof import('@/lib/services/serverSettings')
+    >('@/lib/services/serverSettings')
+    resolveServerSettings = original.getResolvedServerSettings
   })
 
   afterAll(async () => {
@@ -59,6 +91,9 @@ describe('/api/v1/gallery/settings', () => {
       ...DEFAULT_GALLERY_SETTINGS
     })
     vi.mocked(getConfig).mockReturnValue(configWith() as never)
+    vi.mocked(getResolvedServerSettings).mockImplementation(
+      resolveServerSettings
+    )
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -88,7 +123,7 @@ describe('/api/v1/gallery/settings', () => {
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({
         ...DEFAULT_GALLERY_SETTINGS,
-        altTextAvailable: false
+        ...NO_LOOKUP_CONFIG
       })
     })
 
@@ -107,6 +142,61 @@ describe('/api/v1/gallery/settings', () => {
         const response = await GET(getRequest(), context)
 
         expect((await response.json()).altTextAvailable).toBe(expected)
+      }
+    )
+
+    it('reports the subject model when alt text is configured', async () => {
+      vi.mocked(getConfig).mockReturnValue(
+        configWith({
+          endpoint: 'https://x',
+          apiKey: 'k',
+          model: 'vision-1'
+        }) as never
+      )
+
+      expect(await (await GET(getRequest(), context)).json()).toMatchObject({
+        subjectSuggestionsAvailable: true,
+        subjectModel: 'vision-1'
+      })
+    })
+
+    it('prefers the gallery subject provider over the alt text model', async () => {
+      vi.mocked(getConfig).mockReturnValue({
+        ...configWith({ endpoint: 'https://x', apiKey: 'k', model: 'alt-1' }),
+        gallery: { subjects: { model: 'subjects-2' } }
+      } as never)
+      expect(await (await GET(getRequest(), context)).json()).toMatchObject({
+        subjectSuggestionsAvailable: true,
+        subjectModel: 'subjects-2'
+      })
+
+      // Switched off, it wins over alt text being configured.
+      vi.mocked(getConfig).mockReturnValue({
+        ...configWith({ endpoint: 'https://x', apiKey: 'k', model: 'alt-1' }),
+        gallery: { subjects: null }
+      } as never)
+      expect(await (await GET(getRequest(), context)).json()).toMatchObject({
+        subjectSuggestionsAvailable: false,
+        subjectModel: null
+      })
+    })
+
+    it.each([
+      [false, true],
+      [true, false]
+    ])(
+      'reports the lookup switches (species %s, places %s)',
+      async (speciesLookups, placeLookups) => {
+        const settings = await resolveServerSettings(database)
+        vi.mocked(getResolvedServerSettings).mockResolvedValue({
+          ...settings,
+          network: { ...settings.network, speciesLookups, placeLookups }
+        } as never)
+
+        expect(await (await GET(getRequest(), context)).json()).toMatchObject({
+          speciesLookupsAvailable: speciesLookups,
+          placeLookupsAvailable: placeLookups
+        })
       }
     )
 
@@ -140,11 +230,46 @@ describe('/api/v1/gallery/settings', () => {
         hiddenLocations: [
           { latitude: 51.5, longitude: -0.1, hideRadiusMeters: 500 }
         ],
-        altTextAvailable: false
+        ...NO_LOOKUP_CONFIG
       })
       expect(
         await database.getGallerySettings({ actorId: ACTOR1_ID })
       ).toMatchObject({ autoDescribe: false, galleryDefault: 'always' })
+    })
+
+    it('saves the subject and threatened-species settings', async () => {
+      const response = await PUT(
+        putRequest({
+          hideThreatenedPlaces: false,
+          subjectSuggestionMode: 'off',
+          subjectConfidenceThreshold: 85
+        }),
+        context
+      )
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({
+        hideThreatenedPlaces: false,
+        subjectSuggestionMode: 'off',
+        subjectConfidenceThreshold: 85
+      })
+      expect(
+        await database.getGallerySettings({ actorId: ACTOR1_ID })
+      ).toMatchObject({
+        hideThreatenedPlaces: false,
+        subjectSuggestionMode: 'off',
+        subjectConfidenceThreshold: 85
+      })
+    })
+
+    it.each([50, 55, 95])('accepts a %s%% threshold', async (threshold) => {
+      const response = await PUT(
+        putRequest({ subjectConfidenceThreshold: threshold }),
+        context
+      )
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).subjectConfidenceThreshold).toBe(threshold)
     })
 
     it('leaves the settings it was not sent alone', async () => {
@@ -185,6 +310,18 @@ describe('/api/v1/gallery/settings', () => {
         }
       ],
       ['a non-object body', []],
+      ['a threshold below 50', { subjectConfidenceThreshold: 45 }],
+      ['a threshold above 95', { subjectConfidenceThreshold: 100 }],
+      ['a threshold off the 5% step', { subjectConfidenceThreshold: 72 }],
+      ['a fractional threshold', { subjectConfidenceThreshold: 72.5 }],
+      ['a threshold as a string', { subjectConfidenceThreshold: '70' }],
+      // Reserved for a classifier no instance can configure yet.
+      [
+        'the classifier suggestion mode',
+        { subjectSuggestionMode: 'classifier' }
+      ],
+      ['an unknown suggestion mode', { subjectSuggestionMode: 'always' }],
+      ['hideThreatenedPlaces as a string', { hideThreatenedPlaces: 'no' }],
       [
         'a hidden location missing its radius',
         { hiddenLocations: [{ latitude: 1, longitude: 2 }] }

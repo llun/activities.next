@@ -25,6 +25,7 @@ const makePoint = (
   precision: 'exact',
   subjectName: `Subject ${index}`,
   placeName: null,
+  countryCode: null,
   thumbnailUrl: `https://cdn.example/thumb-${index}.jpg`,
   takenAt: null,
   ...overrides

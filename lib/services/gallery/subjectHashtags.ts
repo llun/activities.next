@@ -1,43 +1,21 @@
 import { Database } from '@/lib/database/types'
 import { getGallerySettingsOrDefaults } from '@/lib/services/gallery/uploadMediaDetails'
 import { logger } from '@/lib/utils/logger'
-import { HASHTAG_REGEX, getHashtags } from '@/lib/utils/text/getHashtags'
+import { getHashtags } from '@/lib/utils/text/getHashtags'
+import {
+  toScientificHashtag,
+  toSubjectHashtag
+} from '@/lib/utils/text/subjectHashtagRules'
 import { toLoggableError } from '@/lib/utils/toLoggableError'
 
-// A hashtag longer than this is a sentence, not a tag.
-const MAX_HASHTAG_LENGTH = 100
-
-/**
- * "Common Kingfisher" -> "CommonKingfisher"; "Eurasian Eagle-Owl" ->
- * "EurasianEagleOwl"; "Côte d'Ivoire" -> "CoteDIvoire". Diacritics are
- * stripped because the hashtag grammar this server extracts
- * (`HASHTAG_REGEX`) is ASCII-only. Returns null for a name with no usable
- * letter in it (a name written in a script the grammar does not cover), which
- * gets no hashtag rather than a broken one.
- */
-export const toSubjectHashtag = (subjectName: string): string | null => {
-  const words = subjectName
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .split(/[^A-Za-z0-9]+/)
-    .filter(Boolean)
-  const tag = words
-    .map((word) => {
-      const rest = word.slice(1)
-      // Leave "McCown" alone, but tame an all-caps "KINGFISHER".
-      const tamedRest = rest === rest.toUpperCase() ? rest.toLowerCase() : rest
-      return word.charAt(0).toUpperCase() + tamedRest
-    })
-    .join('')
-    .slice(0, MAX_HASHTAG_LENGTH)
-
-  // The same test the extractor applies: at least one letter or underscore.
-  return new RegExp(HASHTAG_REGEX.source).test(` #${tag}`) ? tag : null
-}
+// Re-exported so server callers keep one import; the rules live in a pure
+// module the client components share.
+export { toScientificHashtag, toSubjectHashtag }
 
 /**
  * Appends a `#PascalCase` hashtag to a post's text for each attached media that
- * has a subject name, when the author's `subjectHashtags` setting is on and the
+ * has a subject name, and a `#GenusSpecies` one beside it when the subject has a
+ * scientific name (`#CommonKingfisher #AlcedoAtthis`), when the author's `subjectHashtags` setting is on and the
  * text does not already carry that tag (compared case-insensitively, the way
  * hashtags are everywhere else).
  *
@@ -81,7 +59,9 @@ export const appendSubjectHashtags = async ({
       accountId
     })
     const subjectMedias = medias.filter((media) =>
-      Boolean(media.details?.subjectName)
+      Boolean(
+        media.details?.subjectName || media.details?.subjectScientificName
+      )
     )
     if (subjectMedias.length === 0) return text
 
@@ -103,8 +83,12 @@ export const appendSubjectHashtags = async ({
     // Joiner before the first tag: a blank line after text, nothing otherwise.
     const separator = trimmed ? '\n\n' : ''
     let length = trimmed.length
-    for (const media of orderedMedias) {
-      const tag = toSubjectHashtag(media.details?.subjectName ?? '')
+    // The common-name tag first, then the scientific one, per photo.
+    const tags = orderedMedias.flatMap((media) => [
+      toSubjectHashtag(media.details?.subjectName ?? ''),
+      toScientificHashtag(media.details?.subjectScientificName ?? '')
+    ])
+    for (const tag of tags) {
       if (!tag || present.has(tag.toLowerCase())) continue
       const addition = `#${tag}`
       if (maxCharacters !== undefined) {

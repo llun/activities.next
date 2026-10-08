@@ -17,6 +17,7 @@ import {
   getEmailConfig
 } from './email'
 import { FitnessStorageConfig, getFitnessStorageConfig } from './fitnessStorage'
+import { GalleryLookupConfig, getGalleryConfig } from './gallery'
 import { getHostConfigFromEnvironment } from './host'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
@@ -64,7 +65,9 @@ const Config = z.object({
   openTelemetry: OpenTelemetryConfig.optional(),
   request: RequestConfig.optional(),
   translation: TranslationConfig.optional(),
-  altText: AltTextConfig.optional()
+  altText: AltTextConfig.optional(),
+  // Always present, defaults applied; see lib/config/gallery.ts.
+  gallery: GalleryLookupConfig
 })
 export type Config = z.infer<typeof Config>
 
@@ -119,6 +122,8 @@ const getConfigFromEnvironment = () => {
       onInvalidList: 'throw'
     })
 
+    const altTextConfig = getAltTextConfig()
+
     config = Config.parse({
       host: hostConfig.host,
       serviceName: process.env.ACTIVITIES_SERVICE_NAME,
@@ -150,7 +155,8 @@ const getConfigFromEnvironment = () => {
       ...getQueueConfig(),
       ...getPushConfig(),
       ...getTranslationConfig(),
-      ...getAltTextConfig()
+      ...altTextConfig,
+      ...getGalleryConfig(altTextConfig?.altText)
     })
   } catch (error) {
     if (error instanceof UnsupportedEmailProviderError) throw error

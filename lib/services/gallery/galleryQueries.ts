@@ -20,11 +20,17 @@ import {
   toSubjectKey
 } from '@/lib/services/gallery/galleryEntities'
 import {
+  GalleryPlaceSettings,
+  GalleryProjectionViewer,
   getGalleryGearIdsToResolve,
   toGalleryItemEntity,
   toGalleryMapPoint,
   toGalleryProjectionViewer
 } from '@/lib/services/gallery/galleryProjection'
+import {
+  getPublicPlace,
+  toCountryCode
+} from '@/lib/services/gallery/publicMediaDetails'
 import {
   GallerySettings,
   MEDIA_SUBJECT_CATEGORIES,
@@ -264,21 +270,97 @@ const groupBySubject = (
 const firstNonNull = <T>(values: Array<T | null>): T | null =>
   values.find((value): value is T => value !== null) ?? null
 
+interface ViewerPlace {
+  name: string | null
+  countryCode: string | null
+}
+
+/**
+ * The place of an index row as the viewer is shown it: the stored one for the
+ * owner, and `getPublicPlace` for everyone else. Every place-derived stat
+ * (countries, the life list's "Where") is computed from this, so a place the
+ * public projection withholds — a threatened species, a hidden location, a
+ * `hidden` precision — contributes nothing a viewer could infer it from.
+ */
+type PlaceOf = (row: GalleryIndexRow) => ViewerPlace | null
+
+const toPlaceOf = (
+  viewer: GalleryProjectionViewer,
+  settings: GalleryPlaceSettings
+): PlaceOf => {
+  const cache = new Map<string, ViewerPlace | null>()
+  return (row) => {
+    const cached = cache.get(row.id)
+    if (cached !== undefined) return cached
+    let place: ViewerPlace | null
+    if (viewer === 'owner') {
+      place =
+        row.placeName === null && row.placeCountryCode === null
+          ? null
+          : {
+              name: row.placeName,
+              countryCode: toCountryCode(row.placeCountryCode)
+            }
+    } else {
+      const projected = getPublicPlace(row, {
+        hiddenLocations: settings.hiddenLocations,
+        hideThreatenedPlaces: settings.hideThreatenedPlaces
+      })
+      place = projected
+        ? { name: projected.name, countryCode: projected.countryCode }
+        : null
+    }
+    cache.set(row.id, place)
+    return place
+  }
+}
+
+/** Country codes, most rows first (then by code); each row counts once. */
+const toCountryCodes = (rows: GalleryIndexRow[], placeOf: PlaceOf) => {
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    const code = placeOf(row)?.countryCode
+    if (code) counts.set(code, (counts.get(code) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([code]) => code)
+}
+
+/** Distinct countries, or null when none is known (the stat is omitted). */
+export const toCountryCount = (codes: Iterable<string | null>) => {
+  const distinct = new Set<string>()
+  for (const code of codes) if (code) distinct.add(code)
+  return distinct.size > 0 ? distinct.size : null
+}
+
 const toIso = (time: number | null): string | null =>
   time === null || !Number.isFinite(time) ? null : new Date(time).toISOString()
 
 // Min and max are reduced here, over parsed times, never with SQL MIN/MAX over
 // SQLite's mixed storage types.
 const summarizeGroup = (
-  group: SubjectGroup
-): Omit<GallerySubjectEntry, 'cover'> & { coverMediaId: string } => {
+  group: SubjectGroup,
+  placeOf: PlaceOf
+): GalleryLifeListEntry => {
   let first: number | null = null
   let last: number | null = null
+  let firstPlaceName: string | null = null
+  let firstPlaceSeenAt: number | null = null
   for (const row of group.rows) {
     const seenAt = row.takenAt ?? row.createdAt
     if (!Number.isFinite(seenAt)) continue
     if (first === null || seenAt < first) first = seenAt
     if (last === null || seenAt > last) last = seenAt
+    const placeName = placeOf(row)?.name ?? null
+    // Rows are newest first, so `<=` lets an older row with the same time win.
+    if (
+      placeName !== null &&
+      (firstPlaceSeenAt === null || seenAt <= firstPlaceSeenAt)
+    ) {
+      firstPlaceName = placeName
+      firstPlaceSeenAt = seenAt
+    }
   }
   return {
     key: group.key,
@@ -288,10 +370,14 @@ const summarizeGroup = (
       group.rows.map((row) => row.subjectScientificName)
     ),
     category: firstNonNull(group.rows.map((row) => row.subjectCategory)),
+    taxonKey: firstNonNull(group.rows.map((row) => row.subjectTaxonKey)),
+    taxonPath: firstNonNull(group.rows.map((row) => row.subjectTaxonPath)),
+    countryCodes: toCountryCodes(group.rows, placeOf),
     count: group.rows.length,
     firstSeenAt: toIso(first),
     lastSeenAt: toIso(last),
-    coverMediaId: group.rows[0].id
+    coverMediaId: group.rows[0].id,
+    firstPlaceName
   }
 }
 
@@ -305,7 +391,8 @@ export const getGallerySubjects = async ({
     readIndex(database, owner.id, audience)
   ])
   const { groups, unidentifiedCount } = groupBySubject(rows)
-  const summaries = groups.map(summarizeGroup)
+  const placeOf = toPlaceOf(toGalleryProjectionViewer(audience), settings)
+  const summaries = groups.map((group) => summarizeGroup(group, placeOf))
 
   const coverRows = await database.getGalleryMediaByIds({
     actorId: owner.id,
@@ -318,7 +405,11 @@ export const getGallerySubjects = async ({
     GallerySubjectGroupCategory,
     GallerySubjectEntry[]
   >()
-  for (const { coverMediaId, ...summary } of summaries) {
+  for (const {
+    coverMediaId,
+    firstPlaceName: _firstPlaceName,
+    ...summary
+  } of summaries) {
     const cover = covers.get(coverMediaId)
     // The cover's post went away between the two reads; so has the subject's
     // newest photo, and the next read will show it with its new cover.
@@ -341,6 +432,9 @@ export const getGallerySubjects = async ({
       return [{ category, subjects }]
     }),
     unidentifiedCount,
+    countryCount: toCountryCount(
+      rows.map((row) => placeOf(row)?.countryCode ?? null)
+    ),
     truncated
   }
 }
@@ -350,12 +444,16 @@ export const getGalleryLifeList = async ({
   owner,
   audience
 }: GalleryQueryBase): Promise<GalleryLifeListResponse> => {
-  const { rows, truncated } = await readIndex(database, owner.id, audience)
+  const [settings, { rows, truncated }] = await Promise.all([
+    database.getGallerySettings({ actorId: owner.id }),
+    readIndex(database, owner.id, audience)
+  ])
   const { groups } = groupBySubject(rows)
+  const placeOf = toPlaceOf(toGalleryProjectionViewer(audience), settings)
 
   // A landscape is not a species. A subject with no key never reaches here.
   const entries: GalleryLifeListEntry[] = groups
-    .map(summarizeGroup)
+    .map((group) => summarizeGroup(group, placeOf))
     .filter((entry) => entry.category !== 'landscape')
     .sort((a, b) => {
       if (a.firstSeenAt !== b.firstSeenAt) {
@@ -405,11 +503,14 @@ export const getGalleryMapPoints = async ({
         )
       : undefined
 
+  const points = rows.slice(0, GALLERY_INDEX_CAP).flatMap((row) => {
+    const point = toGalleryMapPoint(row, { viewer, settings, publicMediaIds })
+    return point ? [point] : []
+  })
   return {
-    points: rows.slice(0, GALLERY_INDEX_CAP).flatMap((row) => {
-      const point = toGalleryMapPoint(row, { viewer, settings, publicMediaIds })
-      return point ? [point] : []
-    }),
+    points,
+    // From the points as projected, so a withheld point adds no country.
+    countryCount: toCountryCount(points.map((point) => point.countryCode)),
     truncated: rows.length > GALLERY_INDEX_CAP
   }
 }

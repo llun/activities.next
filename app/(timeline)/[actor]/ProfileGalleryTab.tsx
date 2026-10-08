@@ -16,6 +16,7 @@ import { GalleryMap } from '@/lib/components/gallery/GalleryMap'
 import { GalleryPagedGrid } from '@/lib/components/gallery/GalleryPagedGrid'
 import { GallerySubjectsOverview } from '@/lib/components/gallery/GallerySubjectsOverview'
 import { GALLERY_CATEGORY_LABELS } from '@/lib/components/gallery/galleryCategories'
+import { formatGalleryMapSummary } from '@/lib/components/gallery/galleryTaxonomy'
 import {
   SectionNavSelect,
   type SectionNavSelectTab
@@ -130,7 +131,8 @@ const SubjectsPanel: FC<{
   actorId: string
   onSelectSubject: (key: string, label: string) => void
   onSeeAll: (category: GallerySubjectGroupCategory) => void
-}> = ({ actorId, onSelectSubject, onSeeAll }) => {
+  onOpenMap?: () => void
+}> = ({ actorId, onSelectSubject, onSeeAll, onOpenMap }) => {
   const result = useGalleryLoad<GallerySubjectsResponse>(
     () => getGallerySubjects(actorId),
     'Failed to load subjects.'
@@ -142,6 +144,7 @@ const SubjectsPanel: FC<{
       data={result.data}
       onSelectSubject={onSelectSubject}
       onSeeAll={onSeeAll}
+      onOpenMap={onOpenMap}
     />
   )
 }
@@ -190,11 +193,18 @@ const MapPanel: FC<{
     router.push(`/${handle}/${encodeURIComponent(point.statusId)}`)
   }
   return (
-    <GalleryMap
-      points={points}
-      mapProvider={mapProvider}
-      onSelect={handle ? openPost : undefined}
-    />
+    <div className="space-y-3">
+      {points.length > 0 ? (
+        <p className="text-muted-foreground text-sm">
+          {formatGalleryMapSummary(points.length, result.data?.countryCount)}
+        </p>
+      ) : null}
+      <GalleryMap
+        points={points}
+        mapProvider={mapProvider}
+        onSelect={handle ? openPost : undefined}
+      />
+    </div>
   )
 }
 
@@ -261,6 +271,9 @@ export const ProfileGalleryTab: FC<Props> = ({
             actorId={actorId}
             onSelectSubject={selectSubject}
             onSeeAll={seeAll}
+            onOpenMap={
+              subviews.includes('map') ? () => changeView('map') : undefined
+            }
           />
         )
       case 'recent':

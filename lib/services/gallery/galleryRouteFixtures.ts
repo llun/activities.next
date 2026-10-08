@@ -1,4 +1,5 @@
 import { Database } from '@/lib/database/types'
+import { isSpeciesLike } from '@/lib/services/gallery/threatenedSpecies'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
 import { FollowStatus } from '@/lib/types/domain/follow'
@@ -55,6 +56,20 @@ export const seedGalleryRouteFixtures = async (
       details: { inGallery: true, ...details }
     })
     ids[name] = media!.id
+    // What the subject job would write: every fixture species is Least
+    // Concern, so the threatened-species rule (on by default) shows their
+    // places and the route tests see only the other place rules.
+    if (media!.details && isSpeciesLike(media!.details)) {
+      await database.setMediaSubjectLookup({
+        mediaId: media!.id,
+        expect: {
+          subjectName: media!.details.subjectName,
+          subjectScientificName: media!.details.subjectScientificName,
+          subjectTaxonKey: media!.details.subjectTaxonKey
+        },
+        patch: { subjectLookupStatus: 'resolved', subjectIucnCategory: 'LC' }
+      })
+    }
     await database.createAttachment({
       actorId: ACTOR1_ID,
       statusId,

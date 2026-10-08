@@ -323,6 +323,8 @@ export interface UpdateMediaDetailsFields {
   subject_name?: string | null
   subject_scientific_name?: string | null
   subject_category?: MediaSubjectCategory | null
+  /** A GBIF usage key (digits). `null` clears it. */
+  subject_taxon_key?: string | null
   camera_gear_id?: string | null
   lens_gear_id?: string | null
   place_name?: string | null

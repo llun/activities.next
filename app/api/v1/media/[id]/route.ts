@@ -2,6 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
 import {
+  publishPlaceLookup,
+  publishSubjectLookup
+} from '@/lib/services/gallery/lookups/publishLookups'
+import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
@@ -16,6 +20,7 @@ import {
 } from '@/lib/services/medias/mediaDetailsRequest'
 import { FileSchema, MediaSchema } from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
+import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 import {
   Media,
   Scope,
@@ -49,6 +54,21 @@ const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
 interface Params {
   id: string
 }
+
+// Request fields that change a media's subject. A lookup is queued when one of
+// them was sent and the stored subject (SUBJECT_DETAIL_KEYS) actually changed.
+const SUBJECT_REQUEST_KEYS: readonly string[] = [
+  'subject_name',
+  'subject_scientific_name',
+  'subject_category',
+  'subject_taxon_key'
+]
+const SUBJECT_DETAIL_KEYS = [
+  'subjectName',
+  'subjectScientificName',
+  'subjectCategory',
+  'subjectTaxonKey'
+] as const satisfies readonly (keyof MediaDetailsRecord)[]
 
 // Beyond Mastodon's fields this route also takes the non-Mastodon media details
 // (subject, gear, place, `in_gallery`); see MediaDetailsRequest.
@@ -168,6 +188,9 @@ const resolveDetailsUpdate = async ({
   }
   if (provided.has('subject_category')) {
     details.subjectCategory = parsed.subject_category ?? null
+  }
+  if (provided.has('subject_taxon_key')) {
+    details.subjectTaxonKey = parsed.subject_taxon_key ?? null
   }
   if (provided.has('place_name')) details.placeName = parsed.place_name ?? null
   if (provided.has('place_precision')) {
@@ -345,6 +368,11 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
   }
 
   let details: UpdateMediaDetailsParams | undefined
+  let previousCoordinates: { latitude: number; longitude: number } | null = null
+  let previousSubject: Pick<
+    MediaDetailsRecord,
+    (typeof SUBJECT_DETAIL_KEYS)[number]
+  > | null = null
   if (detailsProvided) {
     const existing = await database.getMediaByIdForAccount({
       mediaId: id,
@@ -374,6 +402,22 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
       })
     }
     details = resolved.details
+    previousSubject = existing.details
+      ? {
+          subjectName: existing.details.subjectName ?? null,
+          subjectScientificName: existing.details.subjectScientificName ?? null,
+          subjectCategory: existing.details.subjectCategory ?? null,
+          subjectTaxonKey: existing.details.subjectTaxonKey ?? null
+        }
+      : null
+    previousCoordinates =
+      existing.details?.placeLatitude != null &&
+      existing.details?.placeLongitude != null
+        ? {
+            latitude: existing.details.placeLatitude,
+            longitude: existing.details.placeLongitude
+          }
+        : null
   }
 
   // Produce the new stored thumbnail (if any) before touching the DB. The
@@ -496,12 +540,67 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
     accountId: account.id
   })
 
+  // The update has committed; look up what changed. Each publish swallows its
+  // own failure, so neither can fail this request.
+  let published = false
+  if (details) {
+    const updated = result.media.details
+    const latitude = updated?.placeLatitude
+    const longitude = updated?.placeLongitude
+    if (
+      typeof latitude === 'number' &&
+      typeof longitude === 'number' &&
+      (latitude !== previousCoordinates?.latitude ||
+        longitude !== previousCoordinates?.longitude)
+    ) {
+      // `fresh`: the update reset the lookup, and an edit back to an earlier
+      // point must not reuse that earlier job's id (see publishLookups).
+      published =
+        (await publishPlaceLookup({
+          mediaId: id,
+          latitude,
+          longitude,
+          fresh: true
+        })) || published
+    }
+    // Only a subject that changed is looked up again. Re-sending the stored
+    // subject keeps its finished lookup (the update does not reset it), and a
+    // fresh job for it could only overwrite a good result with `failed` while
+    // the provider is down.
+    const subjectChanged =
+      providedDetailsKeys.some((key) =>
+        SUBJECT_REQUEST_KEYS.includes(key as string)
+      ) &&
+      SUBJECT_DETAIL_KEYS.some(
+        (key) => (updated?.[key] ?? null) !== (previousSubject?.[key] ?? null)
+      )
+    if (subjectChanged) {
+      published =
+        (await publishSubjectLookup({
+          mediaId: id,
+          subjectName: updated?.subjectName ?? null,
+          subjectScientificName: updated?.subjectScientificName ?? null,
+          subjectCategory: updated?.subjectCategory ?? null,
+          subjectTaxonKey: updated?.subjectTaxonKey ?? null,
+          fresh: true
+        })) || published
+    }
+  }
+
+  // Under NoQueue a published lookup has already run; answer with what it
+  // wrote. On a real queue this reads the `pending` the update recorded.
+  const current = published
+    ? await database
+        .getMediaByIdForAccount({ mediaId: id, accountId: account.id })
+        .catch(() => null)
+    : null
+
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
     data: await getOwnerMediaAttachment(
       database,
-      result.media,
+      current ?? result.media,
       headerHost(req.headers)
     )
   })

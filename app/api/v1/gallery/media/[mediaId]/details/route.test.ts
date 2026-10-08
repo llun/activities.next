@@ -68,7 +68,8 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
     await database.updateGallerySettings({
       actorId: ACTOR1_ID,
       showGear: true,
-      hiddenLocations: []
+      hiddenLocations: [],
+      hideThreatenedPlaces: true
     })
   })
 
@@ -88,12 +89,16 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
   // A media owned by ACTOR1, optionally attached to a new status addressed to
   // `to`.
   let counter = 0
+  // `iucn` is what the subject lookup found; by default the kingfisher is
+  // Least Concern, so the threatened-species rule lets its place through.
   const createMedia = async ({
     to,
-    details = {}
+    details = {},
+    iucn = 'LC'
   }: {
     to?: string[]
     details?: Partial<MediaDetailsRecord>
+    iucn?: 'LC' | 'EN' | 'VU' | 'CR' | null
   }) => {
     counter += 1
     const camera = await database.createGalleryGear({
@@ -121,6 +126,17 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
         ...details
       }
     })
+    if (iucn) {
+      await database.setMediaSubjectLookup({
+        mediaId: media!.id,
+        expect: {
+          subjectName: media!.details!.subjectName,
+          subjectScientificName: media!.details!.subjectScientificName,
+          subjectTaxonKey: media!.details!.subjectTaxonKey
+        },
+        patch: { subjectLookupStatus: 'resolved', subjectIucnCategory: iucn }
+      })
+    }
     if (to) {
       const statusId = `${ACTOR1_ID}/statuses/gallery-details-${counter}`
       await database.createNote({
@@ -165,7 +181,9 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
       subject: {
         name: 'Common Kingfisher',
         scientificName: 'Alcedo atthis',
-        category: 'bird'
+        category: 'bird',
+        taxonKey: null,
+        taxonPath: null
       },
       takenAt: '2024-05-06T07:08:09.000Z',
       camera: { name: camera.name },
@@ -181,7 +199,8 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
         name: 'Lea Valley',
         precision: 'area',
         latitude: 51.55,
-        longitude: -0.05
+        longitude: -0.05,
+        countryCode: null
       }
     })
   })
@@ -203,10 +222,63 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
       expect(place).toEqual({
         name: 'Lea Valley',
         precision: placePrecision,
-        ...coordinates
+        ...coordinates,
+        countryCode: null
       })
     }
   )
+
+  it.each(['CR', 'EN', 'VU'] as const)(
+    'gives a %s species no place, whatever the precision',
+    async (iucn) => {
+      const { id } = await createMedia({
+        to: [ACTIVITY_STREAM_PUBLIC],
+        details: { placePrecision: 'exact' },
+        iucn
+      })
+
+      const body = await (await request(id)).json()
+
+      expect(body.place).toBeNull()
+      expect(body.subject).toMatchObject({ name: 'Common Kingfisher' })
+      const json = JSON.stringify(body)
+      expect(json).not.toContain(iucn)
+      expect(json).not.toContain('resolved')
+      expect(json).not.toContain('51.5543')
+    }
+  )
+
+  it('gives an unchecked species no place until its lookup clears it', async () => {
+    const { id } = await createMedia({
+      to: [ACTIVITY_STREAM_PUBLIC],
+      details: { placePrecision: 'exact' },
+      iucn: null
+    })
+
+    expect((await (await request(id)).json()).place).toBeNull()
+
+    // The owner may see the post too, but this endpoint is the public view:
+    // the owner gets no exception here either.
+    signInAs(seedActor1.email)
+    expect((await (await request(id)).json()).place).toBeNull()
+  })
+
+  it('shows a threatened species place when the owner turns the rule off', async () => {
+    await database.updateGallerySettings({
+      actorId: ACTOR1_ID,
+      hideThreatenedPlaces: false
+    })
+    const { id } = await createMedia({
+      to: [ACTIVITY_STREAM_PUBLIC],
+      details: { placePrecision: 'exact' },
+      iucn: 'EN'
+    })
+
+    expect((await (await request(id)).json()).place).toMatchObject({
+      latitude: 51.5543,
+      longitude: -0.0731
+    })
+  })
 
   it('returns no place for a hidden one', async () => {
     const { id } = await createMedia({
@@ -257,7 +329,8 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
       name: 'Lea Valley',
       precision: 'exact',
       latitude: 51.5543,
-      longitude: -0.0731
+      longitude: -0.0731,
+      countryCode: null
     })
   })
 

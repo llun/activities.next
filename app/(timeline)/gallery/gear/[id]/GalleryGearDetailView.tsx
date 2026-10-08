@@ -2,12 +2,12 @@
 
 import {
   Archive,
-  CalendarCheck,
-  CalendarDays,
   History,
   Images,
+  MapPin,
   Pencil,
-  Trash2
+  Trash2,
+  Video
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -30,6 +30,7 @@ import {
 } from '@/lib/components/fitness/FitnessStatCell'
 import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { GalleryPagedGrid } from '@/lib/components/gallery/GalleryPagedGrid'
+import { formatCountryCount } from '@/lib/components/gallery/galleryTaxonomy'
 import { PageHeader } from '@/lib/components/page-header'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
@@ -155,8 +156,9 @@ export const GalleryGearDetailView: FC<Props> = ({
       {error && <FitnessAlert title={error} />}
 
       <div className="space-y-4">
-        {/* Videos and a place count are not here: neither is known per gear
-            without reading every media's attachment or reverse geocoding. */}
+        {/* `photoCount` is every gallery item (it matches the grid below), so
+            the photos are what is left of it once the videos are taken out.
+            The first and last use are in the header line. */}
         <FitnessStatGrid
           variant="summary"
           columns={3}
@@ -165,20 +167,22 @@ export const GalleryGearDetailView: FC<Props> = ({
           <FitnessStatCell
             label="Photos"
             icon={Images}
-            value={formatInteger(gear.photoCount)}
+            value={formatInteger(
+              Math.max(gear.photoCount - gear.videoCount, 0)
+            )}
           />
           <FitnessStatCell
-            label="First used"
-            icon={CalendarDays}
-            value={
-              gear.firstUsedAt === null ? null : formatGearDay(gear.firstUsedAt)
-            }
+            label="Videos"
+            icon={Video}
+            value={formatInteger(gear.videoCount)}
           />
           <FitnessStatCell
-            label="Last used"
-            icon={CalendarCheck}
+            label="Places"
+            icon={MapPin}
             value={
-              gear.lastUsedAt === null ? null : formatGearDay(gear.lastUsedAt)
+              gear.countryCount === null
+                ? null
+                : formatCountryCount(gear.countryCount)
             }
           />
         </FitnessStatGrid>

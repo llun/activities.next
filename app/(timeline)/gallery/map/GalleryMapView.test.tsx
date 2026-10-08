@@ -61,6 +61,7 @@ const makePoint = (
   publicState: 'shown-exact',
   subjectName: null,
   placeName: null,
+  countryCode: null,
   thumbnailUrl: null,
   takenAt: null,
   ...overrides
@@ -158,6 +159,60 @@ describe('GalleryMapView', () => {
     ).toBeInTheDocument()
   })
 
+  it('counts and names the points kept off the map for threatened species', () => {
+    renderView({
+      initialPoints: [
+        makePoint('1'),
+        makePoint('2', { publicState: 'threatened-species' }),
+        makePoint('3', { publicState: 'threatened-species' }),
+        makePoint('4', { publicState: 'in-hidden-location' })
+      ]
+    })
+
+    expect(
+      screen.getByText(
+        '3 items are not shown on the public map, 2 because of threatened-species hiding.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('adds the distinct countries to the header, and leaves them out when unknown', () => {
+    const { unmount } = renderView({
+      initialPoints: [
+        makePoint('1', { countryCode: 'TH' }),
+        makePoint('2', { countryCode: 'TH' }),
+        makePoint('3', { countryCode: 'KE' }),
+        makePoint('4')
+      ]
+    })
+    expect(
+      screen.getByText('4 photos and videos with a place · 2 countries')
+    ).toBeInTheDocument()
+    unmount()
+
+    renderView({ initialPoints: [makePoint('1', { countryCode: 'TH' })] })
+    expect(
+      screen.getByText('1 photo or video with a place · 1 country')
+    ).toBeInTheDocument()
+  })
+
+  it('counts the countries of the filtered subject only', () => {
+    renderView({
+      initialPoints: [
+        makePoint('1', { subjectName: 'Kingfisher', countryCode: 'TH' }),
+        makePoint('2', { subjectName: 'Roller', countryCode: 'KE' })
+      ]
+    })
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Subject' }), {
+      target: { value: 'Roller' }
+    })
+
+    expect(
+      screen.getByText('1 photo or video with a place · 1 country')
+    ).toBeInTheDocument()
+  })
+
   it('says nothing about the public map when all of it is shown', () => {
     renderView({ initialPoints: [ownerPoints[0]] })
 
@@ -187,6 +242,7 @@ describe('GalleryMapView', () => {
       points: [
         makePoint('1', { precision: 'area', subjectName: 'Kingfisher' })
       ],
+      countryCount: null,
       truncated: false
     }
 
@@ -297,6 +353,7 @@ describe('GalleryMapView', () => {
     it('opens a previewed photo on the post the public projection chose', async () => {
       vi.mocked(getGalleryMap).mockResolvedValue({
         points: [makePoint('9', { statusId: 'public-status' })],
+        countryCount: null,
         truncated: false
       })
       renderView()

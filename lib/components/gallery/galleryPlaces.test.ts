@@ -14,6 +14,7 @@ const point = (overrides: Partial<GalleryMapPoint>): GalleryMapPoint => ({
   precision: 'exact',
   subjectName: null,
   placeName: null,
+  countryCode: null,
   thumbnailUrl: null,
   takenAt: null,
   ...overrides

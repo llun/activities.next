@@ -102,9 +102,16 @@ describe('uploading a photo with EXIF', () => {
         name: null,
         latitude: 51.5,
         longitude: -0.125,
-        precision: 'area'
+        precision: 'area',
+        countryCode: null,
+        nameSource: null,
+        // Queued for its place lookup by the upload; not stale yet.
+        lookupStatus: 'pending',
+        lookupAt: expect.any(String),
+        lookupStale: false
       },
-      inGallery: false
+      inGallery: false,
+      subjectSuggestions: null
     })
 
     const stored = await database.getMediaByIdForAccount({
@@ -206,7 +213,8 @@ describe('uploading a photo with EXIF', () => {
       lens: null,
       exposure: null,
       place: null,
-      inGallery: false
+      inGallery: false,
+      subjectSuggestions: null
     })
   })
 

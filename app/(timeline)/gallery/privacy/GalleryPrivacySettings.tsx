@@ -30,6 +30,7 @@ import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 type SettingKey = keyof Pick<
   GallerySettings,
   | 'defaultPlacePrecision'
+  | 'hideThreatenedPlaces'
   | 'galleryDefault'
   | 'showGear'
   | 'mapPublic'
@@ -200,6 +201,33 @@ export const GalleryPrivacySettings: FC<Props> = ({ mapProvider }) => {
             save('defaultPlacePrecision', value as MediaPlacePrecision)
           }
         />
+        <ToggleRow
+          id="gallery-hide-threatened-places"
+          label="Hide the place for threatened species"
+          description="Uses IUCN status from GBIF. Overrides the precision above."
+          checked={settings?.hideThreatenedPlaces ?? true}
+          disabled={!loaded}
+          busy={savingKeys.has('hideThreatenedPlaces')}
+          // Until the settings load the availability flags are unknown, so no
+          // notice flashes. The rule fails closed, so both states say what a
+          // species photo's place does until its status is known; with the
+          // switch off neither holds, so there is no notice.
+          notice={
+            !settings || !settings.hideThreatenedPlaces
+              ? undefined
+              : settings.speciesLookupsAvailable
+                ? 'A species’ place stays hidden until GBIF confirms the species and it isn’t threatened.'
+                : 'This server can’t check IUCN status, so places of photos with a species name stay hidden while this is on.'
+          }
+          onCheckedChange={(checked) => save('hideThreatenedPlaces', checked)}
+        />
+        {settings ? (
+          <p className="text-[0.8rem] text-muted-foreground">
+            {settings.placeLookupsAvailable
+              ? 'Place names for photos with GPS come from OpenStreetMap’s Nominatim. It is sent only the centre of the roughly 5 km area around a photo, never the exact point, even when the place is hidden.'
+              : 'This server doesn’t look up place names, so you type them yourself.'}
+          </p>
+        ) : null}
       </Section>
 
       <Section

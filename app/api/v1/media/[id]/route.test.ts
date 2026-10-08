@@ -1,7 +1,15 @@
 import { NextRequest } from 'next/server'
 
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import {
+  RESOLVE_MEDIA_PLACE_JOB_NAME,
+  RESOLVE_MEDIA_SUBJECT_JOB_NAME
+} from '@/lib/jobs/names'
+import { resolveMediaSubjectJob } from '@/lib/jobs/resolveMediaSubjectJob'
+import iucnLeastConcern from '@/lib/services/gallery/lookups/__fixtures__/gbif-iucn-lc.json'
+import taxonPandaOleosa from '@/lib/services/gallery/lookups/__fixtures__/gbif-taxon-panda-oleosa.json'
 import { MediaValidationError } from '@/lib/services/medias/errors'
+import { DatabaseQueue } from '@/lib/services/queue/database'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
@@ -19,6 +27,15 @@ const mockDeleteMediaFile = vi.fn()
 vi.mock('@/lib/services/medias', () => ({
   saveMediaThumbnail: (...args: unknown[]) => mockSaveMediaThumbnail(...args),
   deleteMediaFile: (...args: unknown[]) => mockDeleteMediaFile(...args)
+}))
+
+// Lookups are published as jobs after an update; no job runs in this suite.
+const mockPublish = vi.fn()
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({
+    runsInline: false,
+    publish: (...args: unknown[]) => mockPublish(...args)
+  })
 }))
 
 let mockDatabase:
@@ -48,8 +65,29 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
-    secretPhase: 'test-secret'
+    secretPhase: 'test-secret',
+    languages: ['en'],
+    gallery: { gbif: { endpoint: 'https://gbif.test/v1' } }
   })
+}))
+
+// GBIF, for the one test that runs the subject job the PUT queues: served
+// from the recorded fixtures, never the network.
+const gbifAnswers = new Map<string, { statusCode: number; body: unknown }>()
+vi.mock('@/lib/utils/safeRemoteFetch', () => ({
+  safeRemoteFetch: async ({ url }: { url: string }) => {
+    const answer = gbifAnswers.get(new URL(url).pathname) ?? {
+      statusCode: 404,
+      body: '<!DOCTYPE html><html></html>'
+    }
+    return {
+      body: JSON.stringify(answer.body),
+      bodyTruncated: false,
+      headers: {},
+      statusCode: answer.statusCode,
+      url
+    }
+  }
 }))
 
 describe('/api/v1/media/[id]', () => {
@@ -79,6 +117,8 @@ describe('/api/v1/media/[id]', () => {
       user: { email: seedActor1.email }
     })
     mockStoredToken.mockResolvedValue(null)
+    mockPublish.mockReset()
+    mockPublish.mockResolvedValue(undefined)
     await database.deleteServerSetting({ key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
@@ -667,7 +707,8 @@ describe('/api/v1/media/[id]', () => {
         lens: null,
         exposure: null,
         place: null,
-        inGallery: false
+        inGallery: false,
+        subjectSuggestions: null
       })
     })
 
@@ -777,8 +818,84 @@ describe('/api/v1/media/[id]', () => {
         name: null,
         latitude: null,
         longitude: null,
-        precision: 'exact'
+        precision: 'exact',
+        countryCode: null,
+        nameSource: null,
+        lookupStatus: null,
+        lookupAt: null,
+        lookupStale: false
       })
+    })
+
+    it('saves the picked GBIF key and queues the subject for its lookup', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-taxon-key')
+
+      const response = await put(id, {
+        subject_name: 'Great Hornbill',
+        subject_scientific_name: 'Buceros bicornis',
+        subject_category: 'bird',
+        subject_taxon_key: '2481839'
+      })
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).details.subject).toEqual({
+        name: 'Great Hornbill',
+        scientificName: 'Buceros bicornis',
+        category: 'bird',
+        taxonKey: '2481839',
+        taxonPath: null,
+        iucnCategory: null,
+        // Not checked yet: its place is withheld from everyone else.
+        threatStatus: 'unchecked',
+        lookupStatus: 'pending',
+        lookupAt: expect.any(String),
+        // It only just became pending: no Retry yet.
+        lookupStale: false
+      })
+    })
+
+    it.each([
+      ['null', null],
+      ['an empty string', '']
+    ])('clears the GBIF key sent as %s', async (_, value) => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-taxon-key-clear')
+      await put(id, { subject_name: 'Hornbill', subject_taxon_key: '2481839' })
+
+      const response = await put(id, { subject_taxon_key: value })
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).details.subject.taxonKey).toBeNull()
+    })
+
+    it.each([
+      ['letters', 'abc'],
+      ['a negative number', '-1'],
+      ['more than 12 digits', '1234567890123'],
+      ['a number', 2481839]
+    ])('answers 422 for a GBIF key with %s', async (_, value) => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-taxon-key-bad')
+
+      const response = await put(id, { subject_taxon_key: value })
+
+      expect(response.status).toBe(422)
+    })
+
+    it('ignores a client-sent IUCN category or lookup status', async () => {
+      const id = await createMediaFor(ACTOR1_ID, 'details-iucn-ignored')
+
+      const response = await put(id, {
+        subject_scientific_name: 'Buceros bicornis',
+        subject_iucn_category: 'LC',
+        subject_lookup_status: 'resolved',
+        place_country_code: 'TH'
+      })
+
+      const details = (await response.json()).details
+      expect(details.subject).toMatchObject({
+        iucnCategory: null,
+        lookupStatus: 'pending'
+      })
+      expect(details.place).toBeNull()
     })
 
     it('reads multipart form fields, including numbers and booleans', async () => {
@@ -838,6 +955,273 @@ describe('/api/v1/media/[id]', () => {
 
       expect(response.status).toBe(422)
       expect(await detailsOf(id)).toMatchObject({ subject: null, place: null })
+    })
+
+    describe('lookup jobs', () => {
+      const publishedNames = () =>
+        mockPublish.mock.calls.map(([message]) => message.name)
+
+      it('queues the place lookup when the coordinates are set', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-place')
+
+        const response = await put(id, {
+          place_latitude: 14.5347,
+          place_longitude: 101.3912
+        })
+
+        expect(response.status).toBe(200)
+        expect(mockPublish).toHaveBeenCalledTimes(1)
+        expect(mockPublish).toHaveBeenCalledWith({
+          id: expect.stringMatching(/^[0-9a-f]{64}$/),
+          name: RESOLVE_MEDIA_PLACE_JOB_NAME,
+          data: { mediaId: id }
+        })
+      })
+
+      it('queues it again only when the coordinates changed', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-place-twice')
+        const point = { place_latitude: 51.5, place_longitude: -0.12 }
+
+        await put(id, point)
+        await put(id, point)
+        expect(mockPublish).toHaveBeenCalledTimes(1)
+
+        await put(id, { place_latitude: 51.6, place_longitude: -0.12 })
+        expect(mockPublish).toHaveBeenCalledTimes(2)
+      })
+
+      it('gives different media different job ids', async () => {
+        const first = await createMediaFor(ACTOR1_ID, 'lookup-id-1')
+        const second = await createMediaFor(ACTOR1_ID, 'lookup-id-2')
+
+        await put(first, { place_latitude: 1, place_longitude: 2 })
+        await put(second, { place_latitude: 1, place_longitude: 2 })
+
+        const ids = mockPublish.mock.calls.map(([message]) => message.id)
+        expect(new Set(ids).size).toBe(2)
+      })
+
+      // The race: job ids were a hash of the media and its inputs only, and
+      // the database queue keeps finished jobs for days and ignores a new
+      // job under a taken id. An edit back to an earlier subject or point
+      // (A, then B, then A) reset the lookup to pending, then had its job
+      // dropped as a duplicate, so it stayed pending for good.
+      it('queues a new job for an edit back to an earlier subject or point', async () => {
+        const queue = new DatabaseQueue(undefined, database)
+        mockPublish.mockImplementation((message) => queue.publish(message))
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-a-b-a')
+        const tiger = {
+          subject_name: 'Tiger',
+          subject_scientific_name: 'Panthera tigris',
+          subject_category: 'mammal',
+          place_latitude: 14.5,
+          place_longitude: 101.4
+        }
+        const leopard = {
+          subject_name: 'Leopard',
+          subject_scientific_name: 'Panthera pardus',
+          subject_category: 'mammal',
+          place_latitude: 15.5,
+          place_longitude: 101.4
+        }
+
+        await put(id, tiger)
+        await put(id, leopard)
+        await put(id, tiger)
+
+        const ids = mockPublish.mock.calls.map(([message]) => message.id)
+        expect(ids).toHaveLength(6)
+        expect(new Set(ids).size).toBe(6)
+        // Every publish has its own row, so the last edit's jobs will run.
+        for (const jobId of ids.slice(-2)) {
+          expect(await database.getQueueJobById(jobId)).toMatchObject({
+            id: jobId,
+            status: 'pending'
+          })
+        }
+        expect((await detailsOf(id)).subject.lookupStatus).toBe('pending')
+      })
+
+      it('does not queue the place lookup when only the name changed', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-place-name')
+
+        await put(id, { place_name: 'My garden' })
+
+        expect(mockPublish).not.toHaveBeenCalled()
+      })
+
+      it('queues the subject lookup for any subject field', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-subject')
+
+        await put(id, { subject_scientific_name: 'Alcedo atthis' })
+        await put(id, { subject_category: 'bird' })
+
+        expect(publishedNames()).toEqual([
+          RESOLVE_MEDIA_SUBJECT_JOB_NAME,
+          RESOLVE_MEDIA_SUBJECT_JOB_NAME
+        ])
+        expect(mockPublish.mock.calls[0][0].data).toEqual({ mediaId: id })
+      })
+
+      // An API client re-saving the whole subject used to queue a fresh job,
+      // which overwrote a good `resolved` with `failed` while GBIF was down.
+      it('queues nothing when the stored subject is sent again', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-subject-same')
+        const subject = {
+          subject_name: 'Tiger',
+          subject_scientific_name: 'Panthera tigris',
+          subject_category: 'mammal'
+        }
+        await put(id, subject)
+        await database.setMediaSubjectLookup({
+          mediaId: id,
+          expect: {
+            subjectName: 'Tiger',
+            subjectScientificName: 'Panthera tigris',
+            subjectTaxonKey: null
+          },
+          patch: {
+            subjectLookupStatus: 'resolved',
+            subjectIucnCategory: 'EN',
+            subjectTaxonKey: '5219416'
+          }
+        })
+        mockPublish.mockClear()
+
+        const response = await put(id, subject)
+
+        expect(response.status).toBe(200)
+        expect(mockPublish).not.toHaveBeenCalled()
+        expect((await response.json()).details.subject).toMatchObject({
+          lookupStatus: 'resolved',
+          iucnCategory: 'EN'
+        })
+      })
+
+      it('queues the subject lookup when one sent field changed', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-subject-change')
+        await put(id, { subject_name: 'Tiger', subject_category: 'mammal' })
+        mockPublish.mockClear()
+
+        await put(id, { subject_name: 'Tiger', subject_category: 'bird' })
+
+        expect(publishedNames()).toEqual([RESOLVE_MEDIA_SUBJECT_JOB_NAME])
+      })
+
+      it('answers with the place lookup pending while it is queued', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-place-pending')
+
+        const response = await put(id, {
+          place_latitude: 14.5,
+          place_longitude: 101.4
+        })
+
+        expect((await response.json()).details.place).toMatchObject({
+          lookupStatus: 'pending',
+          lookupStale: false
+        })
+      })
+
+      // NoQueue runs the job inside the publish; the answer must carry what
+      // it wrote, not the `pending` from before it ran.
+      it('answers with what a lookup that ran inline wrote', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-place-inline')
+        mockPublish.mockImplementation(async () => {
+          await database.setMediaPlaceLookup({
+            mediaId: id,
+            expect: { placeLatitude: 14.5, placeLongitude: 101.4 },
+            patch: {
+              placeLookupStatus: 'resolved',
+              placeCountryCode: 'TH',
+              placeName: 'Pak Chong, Thailand'
+            }
+          })
+        })
+
+        const response = await put(id, {
+          place_latitude: 14.5,
+          place_longitude: 101.4
+        })
+
+        expect((await response.json()).details.place).toMatchObject({
+          name: 'Pak Chong, Thailand',
+          countryCode: 'TH',
+          lookupStatus: 'resolved'
+        })
+      })
+
+      // An API client may send any key. The job checks it against the names
+      // the subject also has, so another species' key (here the LC tree
+      // Panda oleosa for a giant panda) never clears the place.
+      it('records failed for a subject sent with another species’ taxon key', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-subject-wrong-key')
+        gbifAnswers.set('/v1/species/5380987', {
+          statusCode: 200,
+          body: taxonPandaOleosa
+        })
+        gbifAnswers.set('/v1/species/5380987/iucnRedListCategory', {
+          statusCode: 200,
+          body: iucnLeastConcern
+        })
+        mockPublish.mockImplementation(async (message) => {
+          if (message.name === RESOLVE_MEDIA_SUBJECT_JOB_NAME) {
+            await resolveMediaSubjectJob(database, message)
+          }
+        })
+
+        const response = await put(id, {
+          subject_name: 'Giant Panda',
+          subject_scientific_name: 'Ailuropoda melanoleuca',
+          subject_category: 'mammal',
+          subject_taxon_key: '5380987'
+        })
+
+        expect(response.status).toBe(200)
+        expect((await response.json()).details.subject).toMatchObject({
+          taxonKey: '5380987',
+          iucnCategory: null,
+          lookupStatus: 'failed'
+        })
+        const stored = await database.getMediaWithAttachedStatusIds({
+          mediaId: id
+        })
+        expect(stored?.media.details).toMatchObject({
+          subjectLookupStatus: 'failed',
+          subjectIucnCategory: null
+        })
+        gbifAnswers.clear()
+      })
+
+      it('queues nothing for a description-only update', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-none')
+
+        await put(id, { description: 'after' })
+
+        expect(mockPublish).not.toHaveBeenCalled()
+      })
+
+      it('queues nothing for another account’s media', async () => {
+        const id = await createMediaFor(ACTOR2_ID, 'lookup-foreign')
+
+        const response = await put(id, { subject_name: 'Otter' })
+
+        expect(response.status).toBe(404)
+        expect(mockPublish).not.toHaveBeenCalled()
+      })
+
+      it('still answers 200 when the queue fails', async () => {
+        mockPublish.mockRejectedValue(new Error('queue down'))
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-queue-down')
+
+        const response = await put(id, {
+          subject_name: 'Otter',
+          place_latitude: 10,
+          place_longitude: 20
+        })
+
+        expect(response.status).toBe(200)
+        expect((await response.json()).details.subject.name).toBe('Otter')
+      })
     })
 
     describe('gear', () => {

@@ -1,0 +1,25 @@
+{
+  "place_id": 255259460,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "node",
+  "osm_id": 8107748815,
+  "lat": "14.5347090",
+  "lon": "101.3912560",
+  "category": "place",
+  "type": "municipality",
+  "place_rank": 14,
+  "importance": 0.2133833348592355,
+  "addresstype": "municipality",
+  "name": "หมูสี",
+  "display_name": "หมูสี, อำเภอปากช่อง, จังหวัดนครราชสีมา, 30450, ประเทศไทย",
+  "address": {
+    "municipality": "หมูสี",
+    "county": "อำเภอปากช่อง",
+    "province": "จังหวัดนครราชสีมา",
+    "ISO3166-2-lvl4": "TH-30",
+    "postcode": "30450",
+    "country": "ประเทศไทย",
+    "country_code": "th"
+  },
+  "boundingbox": ["14.3747090", "14.6947090", "101.2312560", "101.5512560"]
+}

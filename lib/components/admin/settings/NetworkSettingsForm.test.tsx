@@ -46,7 +46,9 @@ const baseSettings: ResolvedServerSettings = {
     requestTimeoutMs: 4000,
     requestRetries: 1,
     maxResponseSizeBytes: 2097152,
-    linkPreviews: true
+    linkPreviews: true,
+    speciesLookups: true,
+    placeLookups: true
   },
   federation: { mode: 'open', allowActorDomains: [] },
   features: { fitness: true, explore: true, messages: true }
@@ -97,6 +99,28 @@ describe('NetworkSettingsForm', () => {
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith({ 'network.linkPreviews': false })
+    )
+  })
+
+  it('saves the species lookup switch on its own', async () => {
+    renderForm()
+    fireEvent.click(screen.getByLabelText('Look up species'))
+    fireEvent.click(updateButtonFor('Species lookups'))
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith({
+        'network.speciesLookups': false
+      })
+    )
+  })
+
+  it('saves the place lookup switch on its own', async () => {
+    renderForm()
+    fireEvent.click(screen.getByLabelText('Look up place names'))
+    fireEvent.click(updateButtonFor('Place names'))
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith({ 'network.placeLookups': false })
     )
   })
 

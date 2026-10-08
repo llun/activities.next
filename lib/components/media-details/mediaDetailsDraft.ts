@@ -14,6 +14,10 @@ export interface MediaDetailsDraft {
   subjectName: string
   subjectScientificName: string
   subjectCategory: MediaSubjectCategory | ''
+  /** A GBIF usage key (digits), '' when the subject is not a matched taxon. */
+  subjectTaxonKey: string
+  /** Display only, never sent: the matched taxon's kingdom-to-family names. */
+  subjectTaxonPath: string[]
   cameraGearId: string
   lensGearId: string
   placeName: string
@@ -31,6 +35,8 @@ export const draftFromDetails = (
   subjectName: details?.subject?.name ?? '',
   subjectScientificName: details?.subject?.scientificName ?? '',
   subjectCategory: details?.subject?.category ?? '',
+  subjectTaxonKey: details?.subject?.taxonKey ?? '',
+  subjectTaxonPath: details?.subject?.taxonPath ?? [],
   cameraGearId: details?.camera?.id ?? '',
   lensGearId: details?.lens?.id ?? '',
   placeName: details?.place?.name ?? '',
@@ -61,6 +67,48 @@ export const applySharedSections = (
     ? { placeName: source.placeName, placePrecision: source.placePrecision }
     : {})
 })
+
+/** A subject the author chose from the suggestions or the species picker. */
+export interface PickedSubject {
+  name: string
+  scientificName: string
+  category: MediaSubjectCategory | ''
+  taxonKey: string
+  taxonPath: string[]
+}
+
+export const SUBJECT_DRAFT_KEYS = [
+  'subjectName',
+  'subjectScientificName',
+  'subjectCategory',
+  'subjectTaxonKey',
+  'subjectTaxonPath'
+] as const
+
+/** The draft fields a picked subject fills in. */
+export const subjectPatch = (
+  picked: PickedSubject
+): Pick<MediaDetailsDraft, (typeof SUBJECT_DRAFT_KEYS)[number]> => ({
+  subjectName: picked.name,
+  subjectScientificName: picked.scientificName,
+  subjectCategory: picked.category,
+  subjectTaxonKey: picked.taxonKey,
+  subjectTaxonPath: picked.taxonPath
+})
+
+/** Whether the draft already holds this picked subject. */
+export const isSubjectPicked = (
+  draft: MediaDetailsDraft,
+  picked: PickedSubject
+): boolean =>
+  draft.subjectName.trim().toLowerCase() === picked.name.toLowerCase() &&
+  draft.subjectScientificName.trim().toLowerCase() ===
+    picked.scientificName.toLowerCase() &&
+  draft.subjectTaxonKey === picked.taxonKey
+
+// `subject_taxon_key` is digits, at most 12; anything else would fail the
+// whole save, so it is treated as "no taxon".
+const TAXON_KEY = /^\d{1,12}$/
 
 const clean = (value: string): string | null => {
   const trimmed = value.trim()
@@ -95,6 +143,21 @@ export const diffDraft = (
   }
   if (original.subjectCategory !== draft.subjectCategory) {
     fields.subject_category = draft.subjectCategory || null
+  }
+  // The server clears a stored taxon key whenever the name or scientific name
+  // changes without a key in the same request, so a key the draft still holds
+  // (a renamed common name for the same species) is sent along to keep it.
+  const taxonKey = TAXON_KEY.test(draft.subjectTaxonKey)
+    ? draft.subjectTaxonKey
+    : ''
+  const identityChanged =
+    fields.subject_name !== undefined ||
+    fields.subject_scientific_name !== undefined ||
+    fields.subject_category !== undefined
+  if (original.subjectTaxonKey !== draft.subjectTaxonKey) {
+    fields.subject_taxon_key = taxonKey || null
+  } else if (identityChanged && taxonKey) {
+    fields.subject_taxon_key = taxonKey
   }
   if (original.cameraGearId !== draft.cameraGearId) {
     fields.camera_gear_id = draft.cameraGearId || null

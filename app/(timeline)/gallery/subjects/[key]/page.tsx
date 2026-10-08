@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 
+import { formatCountryNames } from '@/lib/components/gallery/galleryTaxonomy'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { OWNER_GALLERY_AUDIENCE } from '@/lib/services/gallery/galleryAudience'
@@ -8,6 +9,7 @@ import {
   getGalleryMediaPage,
   getGallerySubjects
 } from '@/lib/services/gallery/galleryQueries'
+import { toSubjectHashtag } from '@/lib/services/gallery/subjectHashtags'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { GallerySubjectDetailView } from './GallerySubjectDetailView'
@@ -87,6 +89,8 @@ const Page = async ({ params }: PageProps) => {
         actorId={actor.id}
         subject={subject}
         initialPage={page}
+        commonTag={subject.name ? toSubjectHashtag(subject.name) : null}
+        where={formatCountryNames(subject.countryCodes)}
       />
     )
   }
@@ -97,21 +101,26 @@ const Page = async ({ params }: PageProps) => {
   if (!first && page.nextMaxId === null) return notFound()
 
   const fromKey = parseSubjectKey(subjectKey)
+  const fallbackName = first ? (first.subject?.name ?? null) : fromKey.name
   return (
     <GallerySubjectDetailView
       actorId={actor.id}
       subject={{
         key: subjectKey,
-        name: first ? (first.subject?.name ?? null) : fromKey.name,
+        name: fallbackName,
         scientificName: first
           ? (first.subject?.scientificName ?? null)
           : fromKey.scientificName,
         category: first?.subject?.category ?? null,
+        taxonKey: first?.subject?.taxonKey ?? null,
+        taxonPath: first?.subject?.taxonPath ?? null,
+        countryCodes: [],
         count: null,
         firstSeenAt: null,
         lastSeenAt: null
       }}
       initialPage={page}
+      commonTag={fallbackName ? toSubjectHashtag(fallbackName) : null}
     />
   )
 }

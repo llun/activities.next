@@ -5,6 +5,7 @@ import {
   type GalleryGearUsageEntity,
   toGalleryGearEntity
 } from '@/lib/services/gallery/galleryEntities'
+import { toCountryCode } from '@/lib/services/gallery/publicMediaDetails'
 
 // Reduces `getGalleryGearUsageRows` to what the Gear section shows. Min and max
 // are taken here, in JS, over the selected rows: SQLite can hold `takenAt` as
@@ -23,15 +24,20 @@ export interface GalleryGearPairing {
 
 const emptyUsage = (): GalleryGearUsageEntity => ({
   photoCount: 0,
+  videoCount: 0,
+  countryCount: null,
   firstUsedAt: null,
   lastUsedAt: null
 })
 
 /**
- * Photo count over gallery media only, so it matches the gear page's grid; the
- * first and last use over every posted media, in the gallery or not, because
- * the capture date shows real use either way. The upload time stands in for a
- * media without a capture date. Every id asked for gets an entry.
+ * Item count over gallery media only (photos and videos, so it matches the gear
+ * page's grid), of which `videoCount` are videos, and the distinct countries
+ * among them (null when no media has a country code: the stat is then left out,
+ * not 0). The first and last use run over every posted media, in the gallery or
+ * not, because the capture date shows real use either way. The upload time
+ * stands in for a media without a capture date. Every id asked for gets an
+ * entry.
  */
 export const reduceGalleryGearUsage = (
   rows: GalleryGearUsageRow[],
@@ -41,11 +47,23 @@ export const reduceGalleryGearUsage = (
     gearIds.map((gearId) => [gearId, emptyUsage()])
   )
 
+  const countries = new Map<string, Set<string>>()
+
   for (const row of rows) {
     const entry = usage.get(row.gearId)
     if (!entry) continue
 
-    if (row.inGallery) entry.photoCount += 1
+    if (row.inGallery) {
+      entry.photoCount += 1
+      if (row.originalMimeType.startsWith('video/')) entry.videoCount += 1
+      // Owner-only rows, so the stored code; a media with no lookup adds none.
+      const code = toCountryCode(row.placeCountryCode)
+      if (code) {
+        const seen = countries.get(row.gearId) ?? new Set<string>()
+        seen.add(code)
+        countries.set(row.gearId, seen)
+      }
+    }
     const usedAt = row.takenAt ?? row.createdAt
     if (!Number.isFinite(usedAt) || usedAt <= 0) continue
     if (entry.firstUsedAt === null || usedAt < entry.firstUsedAt) {
@@ -54,6 +72,11 @@ export const reduceGalleryGearUsage = (
     if (entry.lastUsedAt === null || usedAt > entry.lastUsedAt) {
       entry.lastUsedAt = usedAt
     }
+  }
+
+  for (const [gearId, seen] of countries) {
+    const entry = usage.get(gearId)
+    if (entry) entry.countryCount = seen.size
   }
 
   return usage

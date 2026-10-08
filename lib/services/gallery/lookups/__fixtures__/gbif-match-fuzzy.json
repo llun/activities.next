@@ -1,0 +1,23 @@
+{
+  "usageKey": 2475532,
+  "scientificName": "Alcedo atthis (Linnaeus, 1758)",
+  "canonicalName": "Alcedo atthis",
+  "rank": "SPECIES",
+  "status": "ACCEPTED",
+  "confidence": 96,
+  "matchType": "FUZZY",
+  "kingdom": "Animalia",
+  "phylum": "Chordata",
+  "order": "Coraciiformes",
+  "family": "Alcedinidae",
+  "genus": "Alcedo",
+  "species": "Alcedo atthis",
+  "kingdomKey": 1,
+  "phylumKey": 44,
+  "classKey": 212,
+  "orderKey": 1447,
+  "familyKey": 2984,
+  "genusKey": 2475493,
+  "speciesKey": 2475532,
+  "class": "Aves"
+}

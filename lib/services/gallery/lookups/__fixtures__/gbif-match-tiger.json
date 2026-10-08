@@ -1,0 +1,23 @@
+{
+  "usageKey": 5219416,
+  "scientificName": "Panthera tigris (Linnaeus, 1758)",
+  "canonicalName": "Panthera tigris",
+  "rank": "SPECIES",
+  "status": "ACCEPTED",
+  "confidence": 99,
+  "matchType": "EXACT",
+  "kingdom": "Animalia",
+  "phylum": "Chordata",
+  "order": "Carnivora",
+  "family": "Felidae",
+  "genus": "Panthera",
+  "species": "Panthera tigris",
+  "kingdomKey": 1,
+  "phylumKey": 44,
+  "classKey": 359,
+  "orderKey": 732,
+  "familyKey": 9703,
+  "genusKey": 2435194,
+  "speciesKey": 5219416,
+  "class": "Mammalia"
+}

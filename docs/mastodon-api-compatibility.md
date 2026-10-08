@@ -384,6 +384,33 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Fitness tracking** — `/api/v1/fitness/*` (general settings, `.fit`/`.gpx`/`.tcx`
   imports, Strava sync) plus per-account fitness summaries, calendars, activity
   types, and route heatmaps under `/api/v1/accounts/:id/fitness-*`.
+- **Media details and gallery** — `GET`/`PUT`/`PATCH /api/v1/media/:id` carry a
+  non-Mastodon `details` object (snake_case on the way in), and
+  `/api/v1/gallery/*` and `/api/v1/accounts/:id/gallery/*` serve the gallery.
+  The owner's `details` (camelCase on the way out) also reports what the
+  lookups found: `subject.taxonKey`, `subject.taxonPath`,
+  `subject.iucnCategory`, `subject.threatStatus` (`threatened`,
+  `not-threatened` or `unchecked`), `subject.lookupStatus`,
+  `subject.lookupAt` (when the status was last written, ISO 8601),
+  `subject.lookupStale` (pending for over two minutes, so Retry is offered),
+  `place.countryCode`, `place.nameSource`, `place.lookupStatus`,
+  `place.lookupAt`, `place.lookupStale` (the same rules for the place
+  lookup), and the
+  model's `subjectSuggestions`. None of the IUCN fields or the suggestions is
+  ever returned to anyone else, and a threatened or not-yet-checked species'
+  `place` is `null` for every non-owner. `POST /api/v1/media/:id/subject-suggestions`
+  and `POST /api/v1/media/:id/lookups` are owner-only; Mastodon clients get no
+  suggestions. A suggestions body that is JSON but not `{ refresh?: boolean }`
+  is a 422. A lookups body may be `{ kind?: 'subject' | 'place' }`: a kind
+  retries only that lookup (the web dialog sends the kind of the Retry that
+  was pressed, so a subject Retry never re-queues the place), and an empty
+  body, or none, retries both; any other JSON body is a 422 that costs no
+  retry. Fresh suggestion runs are limited to 30 per actor per hour, lookup
+  retries to 20 per actor per hour, and `GET /api/v1/gallery/taxa` (species
+  search for the picker) to 60 per actor per minute, all answering 429 past the
+  limit; the counters are in process
+  (`createWindowCounter`, `lib/services/gallery/lookups/rateLimit.ts`). See "Media Details, EXIF and Gallery Settings" in
+  [maintenance.md](maintenance.md#media-details-exif-and-gallery-settings).
 - **`?format=activities_next`** — timeline endpoints and
   `GET /api/v1/trends/statuses` accept this query flag to return the raw internal
   status JSON instead of the Mastodon status shape (the web `/explore` Posts tab
@@ -1024,6 +1051,7 @@ system's `Attachments` component.
 - **One subquery decides both tables.** `buildActorVisibleStatusIdsQuery` (`lib/database/sql/status.ts`) returns the actor's visible status ids, or `null` for the unfiltered mode; `getActorStatuses` filters `statuses.id` by it and `getAttachmentsForActor` filters `attachments.statusId` by it, so an attachment is withheld from exactly the viewers its post is. Never scope one without the other — a gallery that outlives its timeline's filter leaks the same posts as image URLs.
 - **Where a required argument fits, use it; `lib/database/statusVisibilityCallSites.test.ts` covers the case where it does not.** `getProfileData`'s viewer IS required (`currentActor: DomainActor | null`, and the options object with it), so the compiler rejects an omission — which is what the original bug was — at every call site, including ones no directory scan would reach. The two database methods are the case a type cannot serve: their unfiltered mode is legitimate, so a required discriminant would make both honest callers restate an intent it still could not verify, and rewrite hundreds of existing calls. Those are enforced by the test instead: every call must state a visibility argument, spread or name a local object that carries one, or carry the `visibility-unfiltered` marker in a comment explaining why. It reads the AST rather than matching names — a name-based rule was defeated four times, by a `...maxIdScope` pagination cursor, by a decoy named for an audience carrying no viewer, by an aliased import that made a call site vanish entirely, and by `database?.getActorStatuses(…)`, whose optional chaining hid it from the walk. Its one documented blind spot is a default re-export, which needs cross-module resolution.
 - **The gallery methods (`getGalleryMediaPage`, `getGallerySubjects`, `getGalleryLifeList`, `getGalleryMapPoints` in `lib/services/gallery/galleryQueries.ts`, and `getGalleryMediaByIds`) take a required `GalleryAudience` and have no fail-open mode.** `owner` is the only unfiltered audience; a viewer audience whose flags are all falsy is coerced to `publicOnly` in `lib/database/sql/galleryMedia.ts`, not by `toGalleryAudience` (which copies the flags through unchanged), so a caller that forgets them gets the public view, not everything. Do not loosen that database-layer coercion. Their attachment filter reuses `buildActorVisibleStatusIdsQuery`, so a photo is withheld from exactly the viewers its post is, and `getGalleryMediaByIds` re-applies the scope instead of trusting the ids it is given.
+- **The gallery's place rule takes both its options, and no caller may default them.** `getPublicPlace(details, { hiddenLocations, hideThreatenedPlaces })` and the projection's `settings` pick (`showGear`, `hiddenLocations`, `hideThreatenedPlaces`) have no optional fields, and every `PublicPlaceInput` field is required, so a read path that selects a new column but forgets to pass it fails to compile instead of reading it as "no subject". The map builds its input with `toPublicPlaceInput(row)`, never by spreading `EMPTY_MEDIA_DETAILS` over a map row. Country counts and `firstPlaceName` are derived from the projected place, not from the stored `placeCountryCode`, for every non-owner audience.
 
 <a id="agents-publicly-readable-status-ids"></a>
 

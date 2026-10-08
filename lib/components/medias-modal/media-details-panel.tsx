@@ -1,6 +1,12 @@
 import { Camera, MapPin } from 'lucide-react'
+import Link from 'next/link'
 import { FC } from 'react'
 
+import {
+  formatTaxonPath,
+  getHashtagHref,
+  toScientificHashtag
+} from '@/lib/components/gallery/galleryTaxonomy'
 import type { MediaPublicDetails } from '@/lib/services/gallery/galleryEntities'
 
 type Exposure = NonNullable<MediaPublicDetails['exposure']>
@@ -35,12 +41,21 @@ const formatPlace = (place: MediaPublicDetails['place']): string | null => {
 
 interface Props {
   details: MediaPublicDetails
+  /**
+   * The photo's owner, when the viewer knows it. Every subject the public
+   * details carry was confirmed by the owner (suggestions are never applied
+   * without them), so with a name the category line reads "Bird · confirmed
+   * by <name>".
+   */
+  ownerName?: string | null
 }
 
 const summarize = (details: MediaPublicDetails) => {
   const subjectName = details.subject?.name?.trim() || null
   const scientificName = details.subject?.scientificName?.trim() || null
   const category = details.subject?.category ?? null
+  const taxonPath = formatTaxonPath(details.subject?.taxonPath)
+  const scientificTag = toScientificHashtag(scientificName)
   const gear = [details.camera?.name, details.lens?.name].filter(
     (name): name is string => Boolean(name)
   )
@@ -54,6 +69,8 @@ const summarize = (details: MediaPublicDetails) => {
     subjectName,
     scientificName,
     category,
+    taxonPath,
+    scientificTag,
     gear,
     exposure,
     place,
@@ -72,11 +89,13 @@ export const hasPublicDetailsContent = (
 
 // Compact, read-only summary of a photo's public details, shown under the
 // viewer's alt text. Renders nothing when none of the details are present.
-export const MediaDetailsPanel: FC<Props> = ({ details }) => {
+export const MediaDetailsPanel: FC<Props> = ({ details, ownerName }) => {
   const {
     subjectName,
     scientificName,
     category,
+    taxonPath,
+    scientificTag,
     gear,
     exposure,
     place,
@@ -98,11 +117,30 @@ export const MediaDetailsPanel: FC<Props> = ({ details }) => {
           {scientificName && (
             <span className="italic text-white/60">{scientificName}</span>
           )}
-          {category && (
+          {category && !ownerName && (
             <span className="rounded-full bg-white/15 px-2 py-0.5 text-[0.7rem] capitalize">
               {category}
             </span>
           )}
+        </p>
+      )}
+      {taxonPath && <p className="text-white/60">{taxonPath}</p>}
+      {hasSubject && ownerName && (
+        <p>
+          {category && <span className="capitalize">{category} · </span>}
+          confirmed by {ownerName}
+        </p>
+      )}
+      {scientificTag && (
+        <p>
+          <Link
+            href={getHashtagHref(scientificTag)}
+            prefetch={false}
+            className="underline underline-offset-2 hover:text-white"
+          >
+            #{scientificTag}
+          </Link>{' '}
+          on the fediverse
         </p>
       )}
       {gear.length > 0 && (

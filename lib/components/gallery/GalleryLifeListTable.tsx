@@ -99,6 +99,12 @@ export const GalleryLifeListTable: FC<Props> = ({
               >
                 First seen
               </th>
+              <th
+                scope="col"
+                className="hidden px-3 py-2 font-medium sm:table-cell"
+              >
+                Where
+              </th>
               <th scope="col" className="px-3 py-2 text-right font-medium">
                 Photos
               </th>
@@ -132,10 +138,12 @@ export const GalleryLifeListTable: FC<Props> = ({
                     ) : (
                       name
                     )}
-                    {/* The First seen column is hidden below `sm`, so the date
-                        sits under the name and Photos stays on screen. */}
+                    {/* The First seen and Where columns are hidden below `sm`, so
+                        the date (and place) sit under the name and Photos stays
+                        on screen. */}
                     <span className="text-muted-foreground block text-xs font-normal sm:hidden">
                       First seen {formatGalleryDate(entry.firstSeenAt)}
+                      {entry.firstPlaceName ? ` · ${entry.firstPlaceName}` : ''}
                     </span>
                   </td>
                   <td className="text-muted-foreground hidden px-3 py-2 italic sm:table-cell">
@@ -143,6 +151,14 @@ export const GalleryLifeListTable: FC<Props> = ({
                   </td>
                   <td className="text-muted-foreground hidden px-3 py-2 whitespace-nowrap sm:table-cell">
                     {formatGalleryDate(entry.firstSeenAt)}
+                  </td>
+                  <td className="text-muted-foreground hidden px-3 py-2 sm:table-cell">
+                    {entry.firstPlaceName ?? (
+                      <>
+                        <span aria-hidden="true">—</span>
+                        <span className="sr-only">No place</span>
+                      </>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     {entry.count}

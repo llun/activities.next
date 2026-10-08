@@ -91,6 +91,7 @@ export const StatusBox: FC<Props> = ({
           medias={modalMedias?.medias ?? null}
           tags={modalMedias?.tags ?? null}
           initialSelection={modalMedias?.initialSelection ?? 0}
+          ownerName={actualStatus.actor?.name || actualStatus.actor?.username}
           onClosed={() => setModalMedias(null)}
         />
       </>
@@ -168,6 +169,7 @@ export const StatusBox: FC<Props> = ({
         medias={modalMedias?.medias ?? null}
         tags={modalMedias?.tags ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}
+        ownerName={actualStatus.actor?.name || actualStatus.actor?.username}
         onClosed={() => setModalMedias(null)}
       />
     </>

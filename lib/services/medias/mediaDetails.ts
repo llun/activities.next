@@ -1,5 +1,11 @@
 import { Database } from '@/lib/database/types'
+import { getSubjectThreatStatus } from '@/lib/services/gallery/threatenedSpecies'
 import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
+import {
+  STALE_PLACE_LOOKUP_MS,
+  STALE_SUBJECT_LOOKUP_MS,
+  isStalePending
+} from '@/lib/services/medias/lookupStaleness'
 import {
   MediaDetailsEntity,
   MediaStorageSaveFileOutput
@@ -7,8 +13,13 @@ import {
 import { EMPTY_MEDIA_DETAILS } from '@/lib/types/database/gallery'
 import { Media } from '@/lib/types/database/operations'
 
+const toIsoTime = (value: number | null) =>
+  value === null ? null : new Date(value).toISOString()
+
 /**
- * The `details` extension for the media's OWNER, with exact stored coordinates.
+ * The `details` extension for the media's OWNER, with exact stored
+ * coordinates, the IUCN category, both lookup statuses and the model's subject
+ * suggestions — none of which anyone else is ever sent.
  * Gear names are looked up in one query; a gear row that has since been
  * deleted reads as no gear.
  */
@@ -37,14 +48,30 @@ export const buildOwnerMediaDetails = async (
     details.placePrecision !== null
 
   return {
+    // A subject known only by its taxon key (an API client may send just
+    // `subject_taxon_key`) is still a subject: it hides the place, so its
+    // owner sees it, its lookup and Retry.
     subject:
       details.subjectName ||
       details.subjectScientificName ||
-      details.subjectCategory
+      details.subjectCategory ||
+      details.subjectTaxonKey
         ? {
             name: details.subjectName,
             scientificName: details.subjectScientificName,
-            category: details.subjectCategory
+            category: details.subjectCategory,
+            taxonKey: details.subjectTaxonKey,
+            taxonPath: details.subjectTaxonPath,
+            iucnCategory: details.subjectIucnCategory,
+            threatStatus: getSubjectThreatStatus(details),
+            lookupStatus: details.subjectLookupStatus,
+            lookupAt: toIsoTime(details.subjectLookupAt),
+            lookupStale: isStalePending(
+              details.subjectLookupStatus,
+              details.subjectLookupAt,
+              Date.now(),
+              STALE_SUBJECT_LOOKUP_MS
+            )
           }
         : null,
     takenAt:
@@ -64,9 +91,20 @@ export const buildOwnerMediaDetails = async (
           name: details.placeName,
           latitude: details.placeLatitude,
           longitude: details.placeLongitude,
-          precision: details.placePrecision
+          precision: details.placePrecision,
+          countryCode: details.placeCountryCode,
+          nameSource: details.placeNameSource,
+          lookupStatus: details.placeLookupStatus,
+          lookupAt: toIsoTime(details.placeLookupAt),
+          lookupStale: isStalePending(
+            details.placeLookupStatus,
+            details.placeLookupAt,
+            Date.now(),
+            STALE_PLACE_LOOKUP_MS
+          )
         }
       : null,
+    subjectSuggestions: details.subjectSuggestions,
     inGallery: details.inGallery
   }
 }

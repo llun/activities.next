@@ -7,6 +7,7 @@ import { FC, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { getGalleryMap } from '@/lib/client'
 import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
 import { GalleryMap } from '@/lib/components/gallery/GalleryMap'
+import { formatGalleryMapSummary } from '@/lib/components/gallery/galleryTaxonomy'
 import { PageHeader } from '@/lib/components/page-header'
 import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
@@ -28,9 +29,6 @@ interface Props {
 }
 
 const ALL_SUBJECTS = ''
-
-const formatCount = (count: number) =>
-  `${count.toLocaleString('en-US')} ${count === 1 ? 'photo or video' : 'photos and videos'}`
 
 /**
  * The owner's map: every photo with a place at its stored position, a subject
@@ -116,13 +114,30 @@ export const GalleryMapView: FC<Props> = ({
     [shown.points, activeSubject]
   )
 
+  // Distinct countries of the points on the map. The owner's own points carry
+  // their stored codes; the preview's are the public projection's, so a
+  // withheld place adds none. Null (left out of the summary) when none has one.
+  const countryCount = useMemo(() => {
+    const codes = new Set(
+      visiblePoints.flatMap((point) =>
+        point.countryCode ? [point.countryCode] : []
+      )
+    )
+    return codes.size > 0 ? codes.size : null
+  }, [visiblePoints])
+
   // Every owner point the public map would not show: a precision it never
-  // shows, a hidden location, or a photo only on non-public posts.
+  // shows, a threatened species' place, a hidden location, or a photo only on
+  // non-public posts.
   const hiddenFromPublic = initialPoints.filter(
     (point) =>
       point.publicState === 'not-shown' ||
       point.publicState === 'not-public-post' ||
+      point.publicState === 'threatened-species' ||
       point.publicState === 'in-hidden-location'
+  ).length
+  const hiddenThreatened = initialPoints.filter(
+    (point) => point.publicState === 'threatened-species'
   ).length
   const isPublicPreviewOff =
     isPreview && (!mapPublic || (previewSettled && preview === null))
@@ -139,7 +154,10 @@ export const GalleryMapView: FC<Props> = ({
     <div className="space-y-6">
       <PageHeader
         title="Map"
-        description={`${formatCount(visiblePoints.length)} with a place`}
+        description={formatGalleryMapSummary(
+          visiblePoints.length,
+          countryCount
+        )}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
@@ -199,7 +217,11 @@ export const GalleryMapView: FC<Props> = ({
             <p className="text-muted-foreground text-sm">
               {hiddenFromPublic.toLocaleString('en-US')}{' '}
               {hiddenFromPublic === 1 ? 'item is' : 'items are'} not shown on
-              the public map.
+              the public map
+              {hiddenThreatened > 0
+                ? `, ${hiddenThreatened.toLocaleString('en-US')} because of threatened-species hiding`
+                : ''}
+              .
             </p>
           ) : null}
           {shown.truncated ? (

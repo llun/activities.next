@@ -1,6 +1,7 @@
 'use client'
 
-import { Clock, Images, Sparkles } from 'lucide-react'
+import { Clock, ExternalLink, Images, MapPin, Sparkles } from 'lucide-react'
+import Link from 'next/link'
 import { FC } from 'react'
 
 import { BackLink } from '@/lib/components/back-link'
@@ -13,6 +14,12 @@ import {
   GALLERY_CATEGORY_SINGULAR,
   formatGalleryDate
 } from '@/lib/components/gallery/galleryCategories'
+import {
+  formatTaxonPath,
+  getGbifSpeciesHref,
+  getHashtagHref,
+  toScientificHashtag
+} from '@/lib/components/gallery/galleryTaxonomy'
 import { PageHeader } from '@/lib/components/page-header'
 import type {
   GalleryMediaPage,
@@ -26,14 +33,38 @@ interface Props {
     count: number | null
   }
   initialPage: GalleryMediaPage
+  /**
+   * The hashtag a post gets from the common name (`CommonKingfisher`), worked
+   * out on the server where the hashtag rules live. The scientific-name tag is
+   * worked out here.
+   */
+  commonTag?: string | null
+  /**
+   * "Where": the subject's country names ("Costa Rica, Panama +2"), worked
+   * out on the server. `Intl.DisplayNames` names some regions differently
+   * across ICU versions (Türkiye or Turkey), so naming them here would let the
+   * browser's text disagree with the server HTML it hydrates.
+   */
+  where?: string | null
 }
 
 export const GallerySubjectDetailView: FC<Props> = ({
   actorId,
   subject,
-  initialPage
+  initialPage,
+  commonTag = null,
+  where = null
 }) => {
   const name = subject.name ?? subject.scientificName ?? 'Unnamed subject'
+  const taxonPath = formatTaxonPath(subject.taxonPath)
+  const gbifHref = getGbifSpeciesHref(subject.taxonKey)
+  const scientificTag = toScientificHashtag(subject.scientificName)
+  const browseTag = scientificTag ?? commonTag
+  const tagLabel = [scientificTag, commonTag]
+    .filter(
+      (tag, index, all): tag is string => !!tag && all.indexOf(tag) === index
+    )
+    .map((tag) => `#${tag}`)
   const CategoryIcon = subject.category
     ? GALLERY_CATEGORY_ICONS[subject.category]
     : null
@@ -59,9 +90,36 @@ export const GallerySubjectDetailView: FC<Props> = ({
         </p>
       ) : null}
 
+      {taxonPath || gbifHref || scientificTag ? (
+        <div className="text-muted-foreground -mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          {taxonPath ? <span>{taxonPath}</span> : null}
+          {scientificTag ? (
+            <Link
+              href={getHashtagHref(scientificTag)}
+              prefetch={false}
+              className="text-primary-text font-medium hover:underline"
+            >
+              Follow #{scientificTag}
+            </Link>
+          ) : null}
+          {gbifHref ? (
+            <a
+              href={gbifHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-text inline-flex items-center gap-1 font-medium hover:underline"
+            >
+              GBIF
+              <ExternalLink className="size-3.5" aria-hidden="true" />
+              <span className="sr-only">(opens in a new tab)</span>
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+
       <FitnessStatGrid
         variant="summary"
-        columns={3}
+        columns={where ? 4 : 3}
         className={FITNESS_STAT_STRIP_CLASS}
       >
         <FitnessStatCell
@@ -79,6 +137,9 @@ export const GallerySubjectDetailView: FC<Props> = ({
           icon={Images}
           value={subject.count?.toLocaleString('en-US') ?? null}
         />
+        {where ? (
+          <FitnessStatCell label="Where" icon={MapPin} value={where} />
+        ) : null}
       </FitnessStatGrid>
 
       <GalleryPagedGrid
@@ -86,6 +147,39 @@ export const GallerySubjectDetailView: FC<Props> = ({
         subject={subject.key}
         initialPage={initialPage}
       />
+
+      {browseTag ? (
+        <section
+          aria-labelledby="subject-fediverse-heading"
+          className="space-y-2 rounded-xl border p-4"
+        >
+          <h2 id="subject-fediverse-heading" className="font-semibold">
+            {/* No plural is built from a name: "Finchs", "Foxs" and
+                "Basss" all read wrong, and a scientific name never takes one. */}
+            {subject.name ? (
+              <>More posts about {subject.name} on the fediverse</>
+            ) : subject.scientificName ? (
+              <>
+                More posts about{' '}
+                <span className="italic">{subject.scientificName}</span> on the
+                fediverse
+              </>
+            ) : (
+              <>More posts on the fediverse</>
+            )}
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Posts tagged {tagLabel.join(' or ')}.
+          </p>
+          <Link
+            href={getHashtagHref(browseTag)}
+            prefetch={false}
+            className="text-primary-text inline-block text-sm font-medium hover:underline"
+          >
+            Browse posts
+          </Link>
+        </section>
+      ) : null}
     </div>
   )
 }

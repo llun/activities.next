@@ -2,7 +2,14 @@ import { z } from 'zod'
 
 import { JobMessage } from '@/lib/services/queue/type'
 import { Timeline } from '@/lib/services/timelines/types'
-import { MediaDetailsRecord } from '@/lib/types/database/gallery'
+import {
+  IucnCategory,
+  MediaDetailsRecord,
+  MediaLookupOwnedDetail,
+  MediaLookupStatus,
+  MediaSubjectCategory,
+  MediaSubjectSuggestions
+} from '@/lib/types/database/gallery'
 import {
   ActorSettings,
   PostLineLimit,
@@ -3343,8 +3350,9 @@ interface BaseMedia {
   focus?: { x: number; y: number }
   blurhash?: string | null
   // Subject, EXIF-derived and owner-edited details (see MediaDetailsRecord).
-  // Omitted fields take the column default.
-  details?: Partial<MediaDetailsRecord>
+  // Omitted fields take the column default. The lookup-owned details are not
+  // writable here (see UpdateMediaDetailsParams).
+  details?: UpdateMediaDetailsParams
 }
 
 // A processed thumbnail ready to persist on an existing media row. Mirrors the
@@ -3478,8 +3486,11 @@ export type UpdateMediaParams = {
   // may write — `inGallery` is a boolean, never null.
   details?: UpdateMediaDetailsParams
 }
+// The lookup-owned details (`MEDIA_LOOKUP_OWNED_DETAILS`) are not writable
+// here: the update resets them itself when the subject or the coordinates
+// change, and only the lookup methods below set them.
 export type UpdateMediaDetailsParams = Partial<
-  Omit<MediaDetailsRecord, 'inGallery'>
+  Omit<MediaDetailsRecord, 'inGallery' | MediaLookupOwnedDetail>
 > & { inGallery?: boolean }
 export type UpdateMediaResult = {
   media: Media
@@ -3534,7 +3545,61 @@ export type MediaWithAttachedStatusIds = {
   statusIds: string[]
 }
 
+// Compare-and-set writes of a lookup's result. `expect` holds the values the
+// lookup read; the write lands only if the row still has them (null compares
+// as IS NULL), so an owner edit made while the lookup ran wins. Both return
+// whether the row was written.
+export type SetMediaSubjectLookupParams = {
+  mediaId: string
+  expect: {
+    subjectName: string | null
+    subjectScientificName: string | null
+    subjectTaxonKey: string | null
+    // Optional: compared only when given.
+    subjectCategory?: MediaSubjectCategory | null
+  }
+  patch: {
+    subjectLookupStatus: MediaLookupStatus | null
+    // Omitted keys are left alone. A resolved taxon must carry a category
+    // (`NE` when GBIF has no assessment): `resolved` with none keeps the place
+    // withheld.
+    subjectIucnCategory?: IucnCategory | null
+    subjectTaxonKey?: string | null
+    subjectTaxonPath?: string[] | null
+    // Epoch milliseconds; defaults to now.
+    subjectLookupAt?: number
+  }
+}
+export type SetMediaPlaceLookupParams = {
+  mediaId: string
+  expect: {
+    placeLatitude: number | null
+    placeLongitude: number | null
+  }
+  patch: {
+    placeLookupStatus: MediaLookupStatus | null
+    // Epoch milliseconds; defaults to now.
+    placeLookupAt?: number
+    // Omitted keys are left alone.
+    placeCountryCode?: string | null
+    // Written (with `placeNameSource = 'geocoder'`) only when the stored name
+    // is null or was itself the geocoder's; an owner's name is never replaced.
+    placeName?: string | null
+  }
+}
+// Owner-only subject suggestions; null clears them. A blob over
+// `MAX_SUBJECT_SUGGESTIONS_BYTES` is refused (returns false).
+export type SetMediaSubjectSuggestionsParams = {
+  mediaId: string
+  suggestions: MediaSubjectSuggestions | null
+}
+
 export interface MediaDatabase {
+  setMediaSubjectLookup(params: SetMediaSubjectLookupParams): Promise<boolean>
+  setMediaPlaceLookup(params: SetMediaPlaceLookupParams): Promise<boolean>
+  setMediaSubjectSuggestions(
+    params: SetMediaSubjectSuggestionsParams
+  ): Promise<boolean>
   createMedia(params: CreateMediaParams): Promise<Media | null>
   getMediaWithAttachedStatusIds(
     params: GetMediaWithAttachedStatusIdsParams

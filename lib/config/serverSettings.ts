@@ -75,6 +75,12 @@ export interface ResolvedServerSettings {
     // actually turning off. Off stops new fetches; cards already stored keep
     // rendering.
     linkPreviews: boolean
+    // Whether the server looks species up in GBIF (taxonomy and IUCN status)
+    // for gallery subjects. Off stops new lookups; stored results stay.
+    speciesLookups: boolean
+    // Whether the server reverse-geocodes gallery photos with Nominatim. Only
+    // the 0.05 degree snapped cell centre is ever sent, never the stored point.
+    placeLookups: boolean
   }
   federation: {
     mode: 'open' | 'allowlist'
@@ -121,7 +127,9 @@ export const DEFAULT_SERVER_SETTINGS: ResolvedServerSettings = {
     requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
     requestRetries: DEFAULT_REQUEST_RETRIES,
     maxResponseSizeBytes: DEFAULT_MAX_RESPONSE_SIZE_BYTES,
-    linkPreviews: true
+    linkPreviews: true,
+    speciesLookups: true,
+    placeLookups: true
   },
   federation: {
     mode: 'open',
@@ -452,6 +460,29 @@ export const SERVER_SETTING_FIELDS: ServerSettingField[] = [
     get: (s) => s.network.linkPreviews,
     set: (s, v) => {
       s.network.linkPreviews = v
+    }
+  }),
+  // Gallery lookups. No env vars, for the same reason as linkPreviews: these
+  // are kill switches meant for the admin UI. The endpoints they talk to are
+  // configured in the environment (ACTIVITIES_GALLERY_*).
+  field<boolean>({
+    key: 'network.speciesLookups',
+    group: 'network',
+    schema: z.boolean(),
+    readEnv: () => undefined,
+    get: (s) => s.network.speciesLookups,
+    set: (s, v) => {
+      s.network.speciesLookups = v
+    }
+  }),
+  field<boolean>({
+    key: 'network.placeLookups',
+    group: 'network',
+    schema: z.boolean(),
+    readEnv: () => undefined,
+    get: (s) => s.network.placeLookups,
+    set: (s, v) => {
+      s.network.placeLookups = v
     }
   }),
 

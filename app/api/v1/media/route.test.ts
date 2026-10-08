@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { RESOLVE_MEDIA_PLACE_JOB_NAME } from '@/lib/jobs/names'
+import { getOwnerMediaAttachment } from '@/lib/services/medias/mediaDetails'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -39,6 +41,14 @@ vi.mock('@/lib/config', () => ({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
+  })
+}))
+
+const mockPublish = vi.fn()
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({
+    runsInline: false,
+    publish: (...args: unknown[]) => mockPublish(...args)
   })
 }))
 
@@ -101,6 +111,8 @@ describe('POST /api/v1/media', () => {
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
     mockSaveMedia.mockResolvedValue(sampleAttachment)
+    mockPublish.mockReset()
+    mockPublish.mockResolvedValue(undefined)
     await database.deleteServerSetting({ key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
@@ -120,6 +132,147 @@ describe('POST /api/v1/media', () => {
     const data = await response.json()
     expect(data).toMatchObject({ id: '7', type: 'image', blurhash: null })
     expect(mockSaveMedia).toHaveBeenCalledTimes(1)
+  })
+
+  describe('place lookup', () => {
+    const withPlace = (latitude: number | null, longitude: number | null) => ({
+      ...sampleAttachment,
+      details: {
+        subject: null,
+        takenAt: null,
+        camera: null,
+        lens: null,
+        exposure: null,
+        place: { name: null, latitude, longitude, precision: 'hidden' },
+        inGallery: false
+      }
+    })
+
+    beforeEach(() => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: new Date(Date.now() + 60_000),
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+    })
+
+    it('queues it after the upload when the photo has coordinates, even at hidden precision', async () => {
+      mockSaveMedia.mockResolvedValue(withPlace(14.5347, 101.3912))
+
+      const response = await POST(postRequest('write-media-token'), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockPublish).toHaveBeenCalledTimes(1)
+      expect(mockPublish).toHaveBeenCalledWith({
+        id: expect.stringMatching(/^[0-9a-f]{64}$/),
+        name: RESOLVE_MEDIA_PLACE_JOB_NAME,
+        data: { mediaId: '7' }
+      })
+    })
+
+    it.each([
+      ['no details', sampleAttachment],
+      ['no place', { ...withPlace(1, 1), details: { place: null } }],
+      ['no coordinates', withPlace(null, null)]
+    ])('queues nothing for %s', async (_label, attachment) => {
+      mockSaveMedia.mockResolvedValue(attachment)
+
+      const response = await POST(postRequest('write-media-token'), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    // The upload's details, as the owner's dialog will first see them: the
+    // lookup is `pending` while it is queued, and what the job wrote once it
+    // has run inline (NoQueue). Never the null "hasn't been looked up" that
+    // offered a Retry for a lookup already under way.
+    describe('the upload’s place status', () => {
+      const uploadRealMedia = () =>
+        mockSaveMedia.mockImplementation(async () => {
+          const media = await database.createMedia({
+            actorId: ACTOR1_ID,
+            original: {
+              path: `medias/upload-${Math.random()}`,
+              bytes: 3,
+              mimeType: 'image/png',
+              metaData: { width: 1, height: 1 }
+            },
+            details: {
+              placeLatitude: 14.5347,
+              placeLongitude: 101.3912,
+              placePrecision: 'hidden'
+            }
+          })
+          return getOwnerMediaAttachment(database, media!, 'llun.test')
+        })
+
+      it('is pending while the lookup is queued', async () => {
+        uploadRealMedia()
+
+        const response = await POST(postRequest('write-media-token'), {
+          params: Promise.resolve({})
+        })
+
+        expect(mockPublish).toHaveBeenCalledTimes(1)
+        expect((await response.json()).details.place).toMatchObject({
+          lookupStatus: 'pending',
+          lookupStale: false
+        })
+      })
+
+      it('is the job’s result when the lookup ran inline', async () => {
+        uploadRealMedia()
+        const statuses: (string | null)[] = []
+        mockPublish.mockImplementation(async ({ data }) => {
+          const before = await database.getMediaByIdForAccount({
+            mediaId: data.mediaId,
+            accountId: (await database.getActorFromId({ id: ACTOR1_ID }))!
+              .account!.id
+          })
+          statuses.push(before?.details?.placeLookupStatus ?? null)
+          // What ResolveMediaPlaceJob writes for this cell.
+          await database.setMediaPlaceLookup({
+            mediaId: data.mediaId,
+            expect: { placeLatitude: 14.5347, placeLongitude: 101.3912 },
+            patch: {
+              placeLookupStatus: 'resolved',
+              placeCountryCode: 'TH',
+              placeName: 'Pak Chong, Thailand'
+            }
+          })
+        })
+
+        const response = await POST(postRequest('write-media-token'), {
+          params: Promise.resolve({})
+        })
+        const place = (await response.json()).details.place
+        statuses.push(place.lookupStatus)
+
+        expect(statuses).toEqual(['pending', 'resolved'])
+        expect(place).toMatchObject({
+          name: 'Pak Chong, Thailand',
+          countryCode: 'TH',
+          nameSource: 'geocoder'
+        })
+      })
+    })
+
+    it('still answers 200 with the attachment when the queue fails', async () => {
+      mockSaveMedia.mockResolvedValue(withPlace(14.5347, 101.3912))
+      mockPublish.mockRejectedValue(new Error('queue down'))
+
+      const response = await POST(postRequest('write-media-token'), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ id: '7' })
+    })
   })
 
   it('accepts a 1500-character description and forwards it to saveMedia', async () => {

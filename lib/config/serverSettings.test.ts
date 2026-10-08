@@ -98,3 +98,20 @@ describe('optional feature settings', () => {
     }
   )
 })
+
+describe('gallery lookup settings', () => {
+  it.each([['network.speciesLookups'], ['network.placeLookups']])(
+    'gives %s a network switch with no env var that ships turned on',
+    (key) => {
+      const field = SERVER_SETTING_FIELDS_BY_KEY[key]
+
+      expect(field).toBeDefined()
+      expect(field.group).toBe('network')
+      expect(field.envVar).toBeUndefined()
+      expect(field.readEnv()).toBeUndefined()
+      expect(field.schema.safeParse(false).success).toBe(true)
+      expect(field.schema.safeParse('off').success).toBe(false)
+      expect(field.get(DEFAULT_SERVER_SETTINGS)).toBe(true)
+    }
+  )
+})

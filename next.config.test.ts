@@ -74,6 +74,12 @@ describe('next config runtime isolation', () => {
       process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS,
     ACTIVITIES_EMAIL: process.env.ACTIVITIES_EMAIL,
     ACTIVITIES_EMAIL_TYPE: process.env.ACTIVITIES_EMAIL_TYPE,
+    ACTIVITIES_GALLERY_GBIF_ENDPOINT:
+      process.env.ACTIVITIES_GALLERY_GBIF_ENDPOINT,
+    ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT:
+      process.env.ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT,
+    ACTIVITIES_GALLERY_SUBJECTS_MODEL:
+      process.env.ACTIVITIES_GALLERY_SUBJECTS_MODEL,
     ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
     NODE_ENV: process.env.NODE_ENV
   }
@@ -87,6 +93,11 @@ describe('next config runtime isolation', () => {
     process.env.ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS = 'not-json'
     delete process.env.ACTIVITIES_EMAIL
     delete process.env.ACTIVITIES_EMAIL_TYPE
+    // Gallery lookups are server-side only: even invalid values must not reach
+    // the next config, its CSP or its image patterns.
+    process.env.ACTIVITIES_GALLERY_GBIF_ENDPOINT = 'not a url'
+    process.env.ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT = 'http://10.0.0.1'
+    process.env.ACTIVITIES_GALLERY_SUBJECTS_MODEL = 'x'
     process.env.ACTIVITIES_HOST = 'build-host-should-not-be-used.example.com'
     setNodeEnv('production')
     fs.writeFileSync(
@@ -1202,5 +1213,29 @@ describe('next config security hardening', () => {
     } finally {
       setNodeEnv(originalNodeEnv)
     }
+  })
+})
+
+describe('gallery lookup variables', () => {
+  it('do not change the CSP or the security headers', () => {
+    // Every lookup is server-side, so the browser's policy has nothing to learn.
+    const withLookupVariables = withEnv(
+      {
+        ACTIVITIES_GALLERY_GBIF_ENDPOINT: 'https://gbif.example.com/v1',
+        ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT: 'https://geo.example.com',
+        ACTIVITIES_GALLERY_SUBJECTS_MODEL: 'x'
+      },
+      () => getSecurityHeaders()
+    )
+    const withoutLookupVariables = withEnv(
+      {
+        ACTIVITIES_GALLERY_GBIF_ENDPOINT: undefined,
+        ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT: undefined,
+        ACTIVITIES_GALLERY_SUBJECTS_MODEL: undefined
+      },
+      () => getSecurityHeaders()
+    )
+
+    expect(withLookupVariables).toEqual(withoutLookupVariables)
   })
 })

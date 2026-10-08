@@ -1,6 +1,7 @@
 'use client'
 
-import { Images, ListChecks, Shapes } from 'lucide-react'
+import { Images, ListChecks, MapPin, Shapes } from 'lucide-react'
+import Link from 'next/link'
 import { FC, useMemo, useState } from 'react'
 
 import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
@@ -9,6 +10,7 @@ import { FitnessStatCell } from '@/lib/components/fitness/FitnessStatCell'
 import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { GalleryCategorySection } from '@/lib/components/gallery/GalleryCategorySection'
 import { GALLERY_CATEGORY_LABELS } from '@/lib/components/gallery/galleryCategories'
+import { formatCountryCount } from '@/lib/components/gallery/galleryTaxonomy'
 import type {
   GallerySubjectGroupCategory,
   GallerySubjectsResponse
@@ -25,6 +27,10 @@ interface Props {
   getSeeAllHref?: (category: GallerySubjectGroupCategory) => string | undefined
   /** Profile tab: "See all" switches to the Recent subview. */
   onSeeAll?: (category: GallerySubjectGroupCategory) => void
+  /** Owner pages: where the Places cell's "Open map" goes. */
+  mapHref?: string
+  /** Profile tab: "Open map" switches to the Map subview instead. */
+  onOpenMap?: () => void
 }
 
 const numberFormat = new Intl.NumberFormat('en-US')
@@ -41,7 +47,9 @@ export const GallerySubjectsOverview: FC<Props> = ({
   linkSubjects = false,
   onSelectSubject,
   getSeeAllHref,
-  onSeeAll
+  onSeeAll,
+  mapHref,
+  onOpenMap
 }) => {
   const [filter, setFilter] = useState<GallerySubjectGroupCategory | 'all'>(
     'all'
@@ -71,6 +79,10 @@ export const GallerySubjectsOverview: FC<Props> = ({
   }
 
   const suffix = data.truncated ? '+' : ''
+  // Left out, not 0, when no place the viewer may see has a country.
+  const showPlaces = data.countryCount !== null
+  const openMapClass =
+    'text-primary-text block text-sm font-medium whitespace-nowrap hover:underline'
   const visibleGroups =
     filter === 'all' ? groups : groups.filter((g) => g.category === filter)
 
@@ -78,7 +90,7 @@ export const GallerySubjectsOverview: FC<Props> = ({
     <div className="space-y-6">
       <FitnessStatGrid
         variant="summary"
-        columns={3}
+        columns={showPlaces ? 4 : 3}
         className={FITNESS_STAT_STRIP_CLASS}
       >
         <FitnessStatCell
@@ -96,6 +108,36 @@ export const GallerySubjectsOverview: FC<Props> = ({
           icon={Shapes}
           value={numberFormat.format(data.unidentifiedCount)}
         />
+        {data.countryCount !== null ? (
+          <FitnessStatCell
+            label="Places"
+            icon={MapPin}
+            value={
+              <>
+                <span className="whitespace-nowrap">
+                  {formatCountryCount(data.countryCount)}
+                </span>
+                {mapHref ? (
+                  <Link
+                    href={mapHref}
+                    prefetch={false}
+                    className={openMapClass}
+                  >
+                    Open map ›
+                  </Link>
+                ) : onOpenMap ? (
+                  <button
+                    type="button"
+                    className={openMapClass}
+                    onClick={onOpenMap}
+                  >
+                    Open map ›
+                  </button>
+                ) : null}
+              </>
+            }
+          />
+        ) : null}
       </FitnessStatGrid>
 
       {groups.length > 1 ? (

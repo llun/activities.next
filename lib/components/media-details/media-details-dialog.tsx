@@ -24,9 +24,13 @@ import {
 } from 'react'
 
 import {
+  SubjectSuggestionsEntity,
   createGalleryGear,
   describeMedia,
   getGalleryGears,
+  getMedia,
+  retryMediaLookups,
+  suggestMediaSubjects,
   updateMediaDetails
 } from '@/lib/client'
 import { Badge } from '@/lib/components/ui/badge'
@@ -49,8 +53,13 @@ import type {
   GallerySettingsEntity
 } from '@/lib/services/gallery/galleryEntities'
 import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
+import {
+  STALE_PLACE_LOOKUP_MS,
+  STALE_SUBJECT_LOOKUP_MS
+} from '@/lib/services/medias/lookupStaleness'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
 import {
+  IucnCategory,
   MEDIA_PLACE_PRECISIONS,
   MEDIA_SUBJECT_CATEGORIES,
   MediaPlacePrecision,
@@ -60,12 +69,17 @@ import { cn } from '@/lib/utils'
 
 import {
   MediaDetailsDraft,
+  PickedSubject,
   SharedSections,
   applySharedSections,
   diffDraft,
   draftFromDetails,
-  effectiveDescription
+  effectiveDescription,
+  subjectPatch
 } from './mediaDetailsDraft'
+import { SpeciesPickerDialog } from './species-picker-dialog'
+import { SubjectSuggestions, TaxonPathLine } from './subject-suggestions'
+import { capitalize } from './subjectChoices'
 
 export interface MediaDetailsDialogItem {
   id: string
@@ -95,9 +109,32 @@ interface Props {
   settings: GallerySettingsEntity | null
   onClose: () => void
   onSaved: (items: MediaDetailsSavedItem[]) => void
+  /**
+   * Owner details the dialog fetched without saving (subject suggestions, a
+   * lookup retry), so the composer's tile and a reopened dialog agree. `patch`
+   * holds only what this fetch is authoritative for, to be merged into the
+   * composer's LATEST details (a slow suggestion must not put back the
+   * statuses a retry replaced meanwhile); `details` is the whole entity, for
+   * a composer that holds none for the item yet.
+   */
+  onDetailsRefreshed?: (
+    id: string,
+    patch: Partial<MediaDetailsEntity>,
+    details: MediaDetailsEntity
+  ) => void
+  /** Ids whose suggestions the composer is still fetching. */
+  suggestionsPending?: Record<string, true>
 }
 
 const ADD_NEW_GEAR = '__add_new_gear__'
+
+const NO_SUBJECT: PickedSubject = {
+  name: '',
+  scientificName: '',
+  category: '',
+  taxonKey: '',
+  taxonPath: []
+}
 
 const PRECISION_LABELS: Record<MediaPlacePrecision, string> = {
   hidden: 'Hidden',
@@ -105,9 +142,6 @@ const PRECISION_LABELS: Record<MediaPlacePrecision, string> = {
   area: 'Area · 5 km',
   exact: 'Exact'
 }
-
-const capitalize = (value: string) =>
-  value.charAt(0).toUpperCase() + value.slice(1)
 
 const isVideo = (item: Pick<MediaDetailsDialogItem, 'mediaType'>) =>
   item.mediaType.startsWith('video')
@@ -124,15 +158,64 @@ const formatTakenAt = (value: string): string => {
   }).format(date)
 }
 
+const EMPTY_DETAILS: MediaDetailsEntity = {
+  subject: null,
+  takenAt: null,
+  camera: null,
+  lens: null,
+  exposure: null,
+  place: null,
+  inGallery: false,
+  subjectSuggestions: null
+}
+
+type FetchedDetails = Record<
+  string,
+  { base: MediaDetailsEntity | null; value: MediaDetailsEntity }
+>
+
+/**
+ * The details the dialog fetched itself (suggestions, a lookup retry) win over
+ * the composer's, until the composer hands over newer ones.
+ */
+const resolveDetails = (
+  entry: MediaDetailsDialogItem,
+  fetched: FetchedDetails
+): MediaDetailsEntity | null => {
+  const own = fetched[entry.id]
+  return own && own.base === entry.details ? own.value : entry.details
+}
+
+const mergeDetails = (
+  base: MediaDetailsEntity | null,
+  patch: Partial<MediaDetailsEntity>
+): MediaDetailsEntity => ({ ...(base ?? EMPTY_DETAILS), ...patch })
+
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback
 
-const Section: FC<{ title: string; children: ReactNode }> = ({
-  title,
-  children
-}) => (
+const IUCN_LABELS: Record<IucnCategory, string> = {
+  CR: 'Critically Endangered',
+  EN: 'Endangered',
+  VU: 'Vulnerable',
+  NT: 'Near Threatened',
+  LC: 'Least Concern',
+  DD: 'Data Deficient',
+  NE: 'Not Evaluated',
+  EW: 'Extinct in the Wild',
+  EX: 'Extinct'
+}
+
+const Section: FC<{
+  title: string
+  aside?: ReactNode
+  children: ReactNode
+}> = ({ title, aside, children }) => (
   <section className="space-y-3 border-b px-5 py-4 last:border-b-0">
-    <h3 className="text-sm font-semibold">{title}</h3>
+    <div className="flex items-baseline justify-between gap-3">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      {aside}
+    </div>
     {children}
   </section>
 )
@@ -170,14 +253,289 @@ const CheckRow: FC<{
   </div>
 )
 
+const RetryLink: FC<{
+  busy: boolean
+  disabled?: boolean
+  onRetry: () => void
+}> = ({ busy, disabled = false, onRetry }) => (
+  <Button
+    type="button"
+    variant="link"
+    size="sm"
+    disabled={busy || disabled}
+    onClick={onRetry}
+    className="h-auto p-0 text-xs"
+  >
+    {busy ? <Loader2 className="animate-spin" /> : null}
+    Retry
+  </Button>
+)
+
+/**
+ * Owner-only state of the subject's IUCN check. The category itself is never
+ * public; it only drives whether other people see the photo's place, so every
+ * state that keeps the place hidden says so.
+ */
+const SubjectLookupStatus: FC<{
+  subject: NonNullable<MediaDetailsEntity['subject']>
+  hidePlaces: boolean
+  /** Whether a retry can succeed: species lookups are on for this server. */
+  canRetry: boolean
+  retrying: boolean
+  disabled: boolean
+  error: string | null
+  onRetry: () => void
+  /** Opens the species picker; null when GBIF search is off. */
+  onPick: (() => void) | null
+}> = ({
+  subject,
+  hidePlaces,
+  canRetry,
+  retrying,
+  disabled,
+  error,
+  onRetry,
+  onPick
+}) => {
+  const retry = canRetry ? (
+    <>
+      {' · '}
+      <RetryLink busy={retrying} disabled={disabled} onRetry={onRetry} />
+    </>
+  ) : null
+  // Pending, failed, disabled or never checked: the fail-closed rule keeps
+  // the place from everyone else meanwhile.
+  const hiddenNote =
+    hidePlaces && subject.threatStatus === 'unchecked' ? (
+      <span className="block">
+        The place stays hidden from other people until it’s checked.
+      </span>
+    ) : null
+
+  let content: ReactNode = null
+  if (subject.lookupStatus === 'pending') {
+    content = (
+      <>
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          <span role="status">Checking IUCN status…</span>
+          {subject.lookupStale ? retry : null}
+        </span>
+        {hiddenNote}
+      </>
+    )
+  } else if (
+    subject.lookupStatus === 'resolved' &&
+    subject.iucnCategory !== null
+  ) {
+    content = (
+      <>
+        <span>
+          {IUCN_LABELS[subject.iucnCategory]} ({subject.iucnCategory}) · IUCN
+          Red List status via GBIF
+        </span>
+        {subject.threatStatus === 'threatened' && hidePlaces ? (
+          <span className="block">
+            Threatened: the place is hidden from other people.
+          </span>
+        ) : null}
+      </>
+    )
+  } else if (
+    subject.threatStatus === 'unchecked' &&
+    (subject.lookupStatus === 'failed' ||
+      subject.lookupStatus === 'no-match' ||
+      subject.lookupStatus === 'resolved')
+  ) {
+    // GBIF answered, but not with one species it could vouch for: a common
+    // name it cannot place, several species that share it, a genus or a
+    // family, or an answer it could not read. The owner fixes it by picking
+    // the species.
+    const pick = onPick ? (
+      <>
+        {' '}
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          disabled={disabled}
+          onClick={onPick}
+          className="h-auto p-0 text-xs"
+        >
+          Pick the species
+        </Button>{' '}
+        to show it.
+      </>
+    ) : null
+    content = (
+      <span>
+        {hidePlaces
+          ? 'We couldn’t confirm the species, so the place stays hidden.'
+          : 'We couldn’t confirm the species, so it has no IUCN status.'}
+        {hidePlaces ? pick : null}
+        {subject.lookupStatus === 'failed' ? retry : null}
+      </span>
+    )
+  } else if (subject.threatStatus === 'unchecked') {
+    // `disabled`, or a species-like subject that was never checked (null).
+    content = (
+      <>
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          Couldn’t check IUCN status
+          {retry}
+        </span>
+        {hiddenNote}
+      </>
+    )
+  }
+  if (!content && !error) return null
+  return (
+    <div className="text-xs text-muted-foreground">
+      {content}
+      {error ? (
+        <p role="alert" className="text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+const PlaceLookupStatus: FC<{
+  place: NonNullable<MediaDetailsEntity['place']> | null
+  /** Whether a retry can succeed: place lookups are on for this server. */
+  canRetry: boolean
+  retrying: boolean
+  disabled: boolean
+  error: string | null
+  onRetry: () => void
+}> = ({ place, canRetry, retrying, disabled, error, onRetry }) => {
+  const retry = canRetry ? (
+    <>
+      {' · '}
+      <RetryLink busy={retrying} disabled={disabled} onRetry={onRetry} />
+    </>
+  ) : null
+  const hasCoordinates =
+    place !== null && place.latitude !== null && place.longitude !== null
+
+  let content: ReactNode = null
+  if (place?.lookupStatus === 'pending') {
+    // Queued or running. Retry only once it has taken too long: a job lost to
+    // a queue outage would otherwise leave this up for good.
+    content = (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <span role="status">Looking up the place name…</span>
+        {place.lookupStale ? retry : null}
+      </span>
+    )
+  } else if (
+    canRetry &&
+    (place?.lookupStatus === 'failed' ||
+      (hasCoordinates && place?.lookupStatus === 'disabled'))
+  ) {
+    content = (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        Couldn’t look up the place name{retry}
+      </span>
+    )
+  } else if (canRetry && hasCoordinates && place?.lookupStatus === null) {
+    // Coordinates whose lookup was never queued: saved before lookups
+    // existed. (A point set or moved since is `pending` until its job runs.)
+    content = (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        The place name hasn’t been looked up{retry}
+      </span>
+    )
+  }
+  if (!content && !error) return null
+  return (
+    <div className="text-xs text-muted-foreground">
+      {content}
+      {error ? (
+        <p role="alert" className="text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+// While a lookup is under way the dialog reads the media again, a few times
+// and a few seconds apart: the composer's copy is the one the upload or save
+// answered with, from before the job ran. Each pending state (a new upload, a
+// Retry: each stamps a new lookup time) gets its own budget of reads.
+const LOOKUP_REFRESH_ATTEMPTS = 4
+const LOOKUP_REFRESH_DELAY_MS = 3_000
+
+const isLookupUnderWay = (details: MediaDetailsEntity | null) =>
+  (details?.place?.lookupStatus === 'pending' && !details.place.lookupStale) ||
+  (details?.subject?.lookupStatus === 'pending' && !details.subject.lookupStale)
+
+type LookupKind = 'subject' | 'place'
+const STALE_LOOKUP_MS: Record<LookupKind, number> = {
+  subject: STALE_SUBJECT_LOOKUP_MS,
+  place: STALE_PLACE_LOOKUP_MS
+}
+
+// When a pending, not yet stale lookup of `kind` turns stale (epoch ms), or
+// null. No lookup time means the server already decided.
+const staleTimeOf = (
+  details: MediaDetailsEntity | null,
+  kind: LookupKind
+): number | null => {
+  const lookup = details?.[kind]
+  if (lookup?.lookupStatus !== 'pending' || lookup.lookupStale) return null
+  const at = lookup.lookupAt ? Date.parse(lookup.lookupAt) : NaN
+  return Number.isNaN(at) ? null : at + STALE_LOOKUP_MS[kind]
+}
+
+// The pending state the budget of reads belongs to.
+const pendingStateKey = (details: MediaDetailsEntity | null) =>
+  (['subject', 'place'] as const)
+    .map((kind) =>
+      details?.[kind]?.lookupStatus === 'pending'
+        ? `${kind}@${details[kind]?.lookupAt ?? ''}`
+        : ''
+    )
+    .join('|')
+
+/**
+ * The lookups that have been pending for longer than they should, marked
+ * stale as the server would mark them on its next read, so Retry shows in a
+ * dialog that has stopped reading. Unchanged when none are.
+ */
+const withClientStaleness = (
+  details: MediaDetailsEntity,
+  now: number
+): MediaDetailsEntity => {
+  let next = details
+  for (const kind of ['subject', 'place'] as const) {
+    const staleAt = staleTimeOf(next, kind)
+    const lookup = next[kind]
+    if (staleAt === null || staleAt > now || !lookup) continue
+    next = { ...next, [kind]: { ...lookup, lookupStale: true } }
+  }
+  return next
+}
+
+function withoutKey<T>(record: Record<string, T>, key: string) {
+  const { [key]: _removed, ...rest } = record
+  return rest
+}
+
 export const MediaDetailsDialog: FC<Props> = ({
   items,
   initialId,
   settings,
   onClose,
-  onSaved
+  onSaved,
+  onDetailsRefreshed,
+  suggestionsPending = {}
 }) => {
   const uid = useId()
+  // Details the dialog fetched itself; each is only used while the details the
+  // composer holds for the item are still the ones it was fetched against.
+  const [fetched, setFetched] = useState<FetchedDetails>({})
   const precisionRefs = useRef<(HTMLButtonElement | null)[]>([])
   // `items` is recomputed by the parent while the dialog is open (uploads
   // finish, attachments are removed), so items we have not edited yet fall back
@@ -187,10 +545,14 @@ export const MediaDetailsDialog: FC<Props> = ({
       Object.fromEntries(
         items.map((entry) => [
           entry.id,
-          draftFromDetails(entry.description, entry.decorative, entry.details)
+          draftFromDetails(
+            entry.description,
+            entry.decorative,
+            resolveDetails(entry, fetched)
+          )
         ])
       ),
-    [items]
+    [items, fetched]
   )
   const [savedOriginals, setOriginals] = useState<
     Record<string, MediaDetailsDraft>
@@ -230,12 +592,34 @@ export const MediaDetailsDialog: FC<Props> = ({
   const [describeError, setDescribeError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [suggesting, setSuggesting] = useState<Record<string, true>>({})
+  // Keyed by item id: a request that settles after the owner moved on must
+  // not show its error on the photo now open.
+  const [suggestErrors, setSuggestErrors] = useState<Record<string, string>>({})
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [manualOpen, setManualOpen] = useState(false)
+  // Per item, which Retry is running: one item's retry is not another's.
+  const [retrying, setRetrying] = useState<Record<string, 'subject' | 'place'>>(
+    {}
+  )
+  // Shown beside the Retry that failed, not the other one.
+  const [retryErrors, setRetryErrors] = useState<
+    Record<string, { kind: 'subject' | 'place'; message: string }>
+  >({})
+  // The items as of the latest render, for requests that finish later than
+  // the render that started them.
+  const itemsRef = useRef(items)
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
 
   // The selected item can disappear (removed or failed upload); clamp.
   const foundIndex = items.findIndex((entry) => entry.id === selectedId)
   const index = Math.max(0, foundIndex)
   const item: MediaDetailsDialogItem | undefined = items[index]
   const total = items.length
+  const suggestError = item ? (suggestErrors[item.id] ?? null) : null
+  const retryError = item ? (retryErrors[item.id] ?? null) : null
 
   useEffect(() => {
     let active = true
@@ -288,6 +672,93 @@ export const MediaDetailsDialog: FC<Props> = ({
     setSelectedId(target.id)
   }
 
+  // Reads the selected media again while one of its lookups is under way, so
+  // a name or IUCN status the job wrote since shows up without a Retry. The
+  // budget is per item and pending state; a failed read still counts and the
+  // next one follows.
+  const refreshAttempts = useRef<Record<string, number>>({})
+  const [refreshTick, setRefreshTick] = useState(0)
+  // A ref, so a parent that passes a new callback each render does not
+  // restart the wait.
+  const onDetailsRefreshedRef = useRef(onDetailsRefreshed)
+  useEffect(() => {
+    onDetailsRefreshedRef.current = onDetailsRefreshed
+  }, [onDetailsRefreshed])
+  const itemId = item?.id
+  const shownDetails = item ? resolveDetails(item, fetched) : null
+  const underWay = isLookupUnderWay(shownDetails)
+  const budgetKey =
+    itemId && underWay ? `${itemId}#${pendingStateKey(shownDetails)}` : null
+  useEffect(() => {
+    if (!itemId || !budgetKey) return
+    const id = itemId
+    const attempts = refreshAttempts.current[budgetKey] ?? 0
+    if (attempts >= LOOKUP_REFRESH_ATTEMPTS) return
+    let active = true
+    const timer = setTimeout(
+      async () => {
+        refreshAttempts.current[budgetKey] = attempts + 1
+        try {
+          const media = await getMedia(id)
+          if (!active || !media.details) return
+          const value = withClientStaleness(media.details, Date.now())
+          const latest = itemsRef.current.find((entry) => entry.id === id)
+          if (!latest) return
+          setFetched((existing) => ({
+            ...existing,
+            [id]: { base: latest.details, value }
+          }))
+          // Only the lookups' results: suggestions fetched meanwhile stay.
+          onDetailsRefreshedRef.current?.(
+            id,
+            { subject: value.subject, place: value.place },
+            value
+          )
+        } catch {
+          // Best effort: the next read (or Retry) may do better.
+        } finally {
+          if (active) setRefreshTick((tick) => tick + 1)
+        }
+      },
+      attempts === 0 ? 0 : LOOKUP_REFRESH_DELAY_MS
+    )
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [itemId, budgetKey, refreshTick])
+
+  // Once a pending lookup is older than the stale limit, it is marked stale
+  // here, so Retry shows without reopening the dialog even after the reads
+  // above have run out.
+  const subjectStaleAt = staleTimeOf(shownDetails, 'subject')
+  const placeStaleAt = staleTimeOf(shownDetails, 'place')
+  const staleAt =
+    subjectStaleAt === null
+      ? placeStaleAt
+      : placeStaleAt === null
+        ? subjectStaleAt
+        : Math.min(subjectStaleAt, placeStaleAt)
+  useEffect(() => {
+    if (!itemId || staleAt === null) return
+    const id = itemId
+    const timer = setTimeout(
+      () => {
+        const latest = itemsRef.current.find((entry) => entry.id === id)
+        if (!latest) return
+        setFetched((existing) => {
+          const details = resolveDetails(latest, existing)
+          if (!details) return existing
+          const value = withClientStaleness(details, Date.now())
+          if (value === details) return existing
+          return { ...existing, [id]: { base: latest.details, value } }
+        })
+      },
+      Math.max(0, staleAt - Date.now())
+    )
+    return () => clearTimeout(timer)
+  }, [itemId, staleAt])
+
   if (!item) return null
   const draft = drafts[item.id]
   const video = isVideo(item)
@@ -311,6 +782,88 @@ export const MediaDetailsDialog: FC<Props> = ({
     } finally {
       setDescribing(false)
     }
+  }
+
+  const onSuggest = async () => {
+    const target = item
+    setSuggesting((current) => ({ ...current, [target.id]: true }))
+    setSuggestErrors((current) => withoutKey(current, target.id))
+    try {
+      const suggestions = await suggestMediaSubjects(target.id)
+      // The model can take seconds; a Retry may have refreshed the item
+      // meanwhile. Merge only the suggestions into the details as they are
+      // NOW, never into the ones captured when Suggest was clicked.
+      const patch = { subjectSuggestions: suggestions }
+      const latest =
+        itemsRef.current.find((entry) => entry.id === target.id) ?? target
+      setFetched((current) => ({
+        ...current,
+        [target.id]: {
+          base: latest.details,
+          value: mergeDetails(resolveDetails(latest, current), patch)
+        }
+      }))
+      onDetailsRefreshed?.(
+        target.id,
+        patch,
+        mergeDetails(latest.details, patch)
+      )
+    } catch (error) {
+      setSuggestErrors((current) => ({
+        ...current,
+        [target.id]: errorMessage(error, 'Subjects could not be suggested.')
+      }))
+    } finally {
+      setSuggesting((current) => {
+        const { [target.id]: _done, ...rest } = current
+        return rest
+      })
+    }
+  }
+
+  const onRetryLookups = async (kind: 'subject' | 'place') => {
+    const target = item
+    setRetrying((current) => ({ ...current, [target.id]: kind }))
+    setRetryErrors((current) => withoutKey(current, target.id))
+    // A Retry starts the reads afresh, whatever the last pending state used.
+    for (const key of Object.keys(refreshAttempts.current)) {
+      if (key.startsWith(`${target.id}#`)) delete refreshAttempts.current[key]
+    }
+    try {
+      // The server's answer is the whole, current entity.
+      const value = await retryMediaLookups(target.id, { kind })
+      const latest =
+        itemsRef.current.find((entry) => entry.id === target.id) ?? target
+      setFetched((current) => ({
+        ...current,
+        [target.id]: { base: latest.details, value }
+      }))
+      onDetailsRefreshed?.(target.id, value, value)
+      setRefreshTick((tick) => tick + 1)
+    } catch (error) {
+      setRetryErrors((current) => ({
+        ...current,
+        [target.id]: {
+          kind,
+          message: errorMessage(error, 'Failed to retry the check.')
+        }
+      }))
+    } finally {
+      setRetrying((current) => {
+        const { [target.id]: _done, ...rest } = current
+        return rest
+      })
+    }
+  }
+
+  const applySubjectTo = (picked: PickedSubject, everyItem: boolean) => {
+    const patch = subjectPatch(picked)
+    setDrafts((current) => {
+      const next = { ...current }
+      const targets = everyItem ? items.map((entry) => entry.id) : [item.id]
+      for (const id of targets) next[id] = { ...next[id], ...patch }
+      return next
+    })
   }
 
   const onAddGear = async () => {
@@ -415,7 +968,7 @@ export const MediaDetailsDialog: FC<Props> = ({
         ]
       : list
 
-  const details = item.details
+  const details = resolveDetails(item, fetched)
   const exposure = details?.exposure
   const exposureChips = [
     exposure?.focalLengthMm ? `${exposure.focalLengthMm} mm` : null,
@@ -427,6 +980,36 @@ export const MediaDetailsDialog: FC<Props> = ({
     details?.place?.latitude != null && details?.place?.longitude != null
   const precision: MediaPlacePrecision =
     draft.placePrecision || settings?.defaultPlacePrecision || 'hidden'
+
+  // Smart subjects: the model's candidates, when the server and the author's
+  // setting allow them, and GBIF search when species lookups are on.
+  const canSuggest =
+    Boolean(settings?.subjectSuggestionsAvailable) &&
+    settings?.subjectSuggestionMode === 'model'
+  const canSearch = settings?.speciesLookupsAvailable === true
+  const suggestions: SubjectSuggestionsEntity | null = canSuggest
+    ? (details?.subjectSuggestions ?? null)
+    : null
+  const isSuggesting = Boolean(
+    suggesting[item.id] || suggestionsPending[item.id]
+  )
+  const hasAssist = canSuggest || canSearch
+  const showManual = !hasAssist || manualOpen
+  const subjectPath = draft.subjectTaxonPath
+  const showPathLine =
+    subjectPath.length > 0 || (hasAssist && draft.subjectScientificName !== '')
+
+  // The lookup status belongs to the subject as saved, so it is only shown
+  // while the draft still holds that subject.
+  const savedSubject = originals[item.id]
+  const subjectUnchanged =
+    draft.subjectName === savedSubject.subjectName &&
+    draft.subjectScientificName === savedSubject.subjectScientificName &&
+    draft.subjectTaxonKey === savedSubject.subjectTaxonKey &&
+    // The category too: the server resets the lookup when it changes.
+    draft.subjectCategory === savedSubject.subjectCategory
+  const subjectStatus = subjectUnchanged ? (details?.subject ?? null) : null
+  const placeStatus = details?.place ?? null
 
   const onPrecisionKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const count = MEDIA_PLACE_PRECISIONS.length
@@ -583,7 +1166,7 @@ export const MediaDetailsDialog: FC<Props> = ({
         </header>
 
         <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:overflow-hidden">
-          <div className="space-y-3 bg-muted/40 p-5 md:overflow-y-auto">
+          <div className="min-w-0 space-y-3 bg-muted/40 p-5 md:overflow-y-auto">
             <div className="flex items-center justify-center overflow-hidden rounded-lg bg-muted">
               {video ? (
                 <video
@@ -651,7 +1234,7 @@ export const MediaDetailsDialog: FC<Props> = ({
             </dl>
           </div>
 
-          <div className="md:overflow-y-auto">
+          <div className="min-w-0 md:overflow-y-auto">
             <Section title="Show in my gallery">
               <div
                 className={cn(
@@ -708,46 +1291,105 @@ export const MediaDetailsDialog: FC<Props> = ({
             ) : null}
 
             <Section title="Subject">
-              <Field label="Name" htmlFor={idFor('subject-name')}>
-                <Input
-                  id={idFor('subject-name')}
-                  value={draft.subjectName}
-                  onChange={(event) =>
-                    patchDraft({ subjectName: event.target.value })
-                  }
+              <SubjectSuggestions
+                suggestions={suggestions}
+                threshold={settings?.subjectConfidenceThreshold ?? 70}
+                draft={draft}
+                canSuggest={canSuggest}
+                suggesting={isSuggesting}
+                error={suggestError}
+                canSearch={canSearch}
+                showChosen={!showManual}
+                onPick={(picked) => applySubjectTo(picked, false)}
+                onClear={() => applySubjectTo(NO_SUBJECT, false)}
+                onSuggest={() => void onSuggest()}
+                onSearch={() => setPickerOpen(true)}
+              />
+              {showPathLine ? (
+                <TaxonPathLine
+                  scientificName={draft.subjectScientificName}
+                  path={subjectPath}
                 />
-              </Field>
-              <Field
-                label="Scientific name"
-                htmlFor={idFor('subject-scientific')}
-              >
-                <Input
-                  id={idFor('subject-scientific')}
-                  value={draft.subjectScientificName}
-                  onChange={(event) =>
-                    patchDraft({ subjectScientificName: event.target.value })
+              ) : null}
+              {subjectStatus ? (
+                <SubjectLookupStatus
+                  subject={subjectStatus}
+                  hidePlaces={settings?.hideThreatenedPlaces ?? true}
+                  canRetry={canSearch}
+                  retrying={retrying[item.id] === 'subject'}
+                  disabled={Boolean(retrying[item.id])}
+                  error={
+                    retryError?.kind === 'subject' ? retryError.message : null
                   }
+                  onRetry={() => void onRetryLookups('subject')}
+                  onPick={canSearch ? () => setPickerOpen(true) : null}
                 />
-              </Field>
-              <Field label="Category" htmlFor={idFor('subject-category')}>
-                <Select
-                  id={idFor('subject-category')}
-                  value={draft.subjectCategory}
-                  onChange={(event) =>
-                    patchDraft({
-                      subjectCategory: event.target.value as
-                        MediaSubjectCategory | ''
-                    })
-                  }
+              ) : null}
+              {hasAssist ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-expanded={showManual}
+                  aria-controls={idFor('subject-manual')}
+                  className="-ml-2"
+                  onClick={() => setManualOpen((open) => !open)}
                 >
-                  <option value="">No category</option>
-                  {MEDIA_SUBJECT_CATEGORIES.map((category) => (
-                    <option key={category} value={category}>
-                      {capitalize(category)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+                  Edit manually
+                </Button>
+              ) : null}
+              <div
+                id={idFor('subject-manual')}
+                hidden={!showManual}
+                className="space-y-3"
+              >
+                <Field label="Name" htmlFor={idFor('subject-name')}>
+                  <Input
+                    id={idFor('subject-name')}
+                    value={draft.subjectName}
+                    onChange={(event) =>
+                      patchDraft({ subjectName: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Scientific name"
+                  htmlFor={idFor('subject-scientific')}
+                >
+                  <Input
+                    id={idFor('subject-scientific')}
+                    value={draft.subjectScientificName}
+                    onChange={(event) =>
+                      // A different scientific name is a different taxon, so the
+                      // matched one no longer applies; the server clears it too.
+                      patchDraft({
+                        subjectScientificName: event.target.value,
+                        subjectTaxonKey: '',
+                        subjectTaxonPath: []
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="Category" htmlFor={idFor('subject-category')}>
+                  <Select
+                    id={idFor('subject-category')}
+                    value={draft.subjectCategory}
+                    onChange={(event) =>
+                      patchDraft({
+                        subjectCategory: event.target.value as
+                          MediaSubjectCategory | ''
+                      })
+                    }
+                  >
+                    <option value="">No category</option>
+                    {MEDIA_SUBJECT_CATEGORIES.map((category) => (
+                      <option key={category} value={category}>
+                        {capitalize(category)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
             </Section>
 
             <Section title="Description (alt text)">
@@ -855,7 +1497,16 @@ export const MediaDetailsDialog: FC<Props> = ({
               ) : null}
             </Section>
 
-            <Section title="Place">
+            <Section
+              title="Place"
+              aside={
+                hasFilePlace && settings?.placeLookupsAvailable ? (
+                  <span className="text-xs text-muted-foreground">
+                    Place names © OpenStreetMap contributors
+                  </span>
+                ) : undefined
+              }
+            >
               <Field label="Place name" htmlFor={idFor('place-name')}>
                 <div className="flex items-center gap-2">
                   <Input
@@ -873,6 +1524,14 @@ export const MediaDetailsDialog: FC<Props> = ({
                   ) : null}
                 </div>
               </Field>
+              <PlaceLookupStatus
+                place={placeStatus}
+                canRetry={settings?.placeLookupsAvailable !== false}
+                retrying={retrying[item.id] === 'place'}
+                disabled={Boolean(retrying[item.id])}
+                error={retryError?.kind === 'place' ? retryError.message : null}
+                onRetry={() => void onRetryLookups('place')}
+              />
               <div
                 role="radiogroup"
                 aria-label="Place precision"
@@ -935,6 +1594,21 @@ export const MediaDetailsDialog: FC<Props> = ({
             Save details
           </Button>
         </footer>
+        {pickerOpen ? (
+          <SpeciesPickerDialog
+            photo={{
+              url: item.posterUrl || item.url,
+              alt: effectiveDescription(draft) ?? `Preview of item ${index + 1}`
+            }}
+            position={{ index, total }}
+            suggestions={suggestions}
+            onCancel={() => setPickerOpen(false)}
+            onUse={(picked, everyItem) => {
+              applySubjectTo(picked, everyItem)
+              setPickerOpen(false)
+            }}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   )
