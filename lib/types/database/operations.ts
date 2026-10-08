@@ -3315,6 +3315,10 @@ interface MetaData {
     contentType?: string
     size?: number
     verifiedAt?: number
+    // The key the client's presigned PUT targeted, recorded when the stripped
+    // copy is swapped in. The presigned URL outlives the swap, so a re-PUT can
+    // recreate an object here; media deletion removes this key too.
+    clientPath?: string
   }
 }
 
@@ -3499,6 +3503,9 @@ export type MarkMediaUploadVerifiedParams = {
   // stripped copy to a NEW key and swaps it in here, so the client's upload is
   // never overwritten while the row is still pending.
   originalPath?: string
+  // The client's presign key being replaced by `originalPath`; persisted in
+  // `upload.clientPath` so deletion can remove a re-PUT at that key.
+  clientPath?: string
   // The details built from the client's bytes before they were stripped (EXIF
   // date, gear, place, the gallery default). Written in the same conditional
   // pending → verified update as `originalPath`, so they commit with the swap

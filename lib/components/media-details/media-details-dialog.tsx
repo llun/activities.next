@@ -351,7 +351,12 @@ export const MediaDetailsDialog: FC<Props> = ({
           const updated = await updateMediaDetails(target.id, fields)
           saved.push({
             id: target.id,
-            description: updated.description ?? '',
+            // The row's description is only authoritative when this save sent
+            // one; otherwise keep what the composer already shows.
+            description:
+              fields.description !== undefined
+                ? (updated.description ?? '')
+                : (effectiveDescription(effective) ?? ''),
             decorative: effective.decorative,
             details: updated.details
           })

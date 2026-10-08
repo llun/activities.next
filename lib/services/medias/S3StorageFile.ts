@@ -503,7 +503,11 @@ export class S3FileStorage implements MediaStorage {
               : { details: prepared.details }),
             ...(stripped === undefined
               ? null
-              : { originalBytes: stripped.bytes, originalPath: stripped.key })
+              : {
+                  originalBytes: stripped.bytes,
+                  originalPath: stripped.key,
+                  clientPath: media.original.path
+                })
           })
         } catch (error) {
           // The upload stays pending with the client's object intact, so a

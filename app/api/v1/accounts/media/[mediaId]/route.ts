@@ -69,6 +69,12 @@ export const DELETE = traceApiRoute(
 
     // Delete the storage files (original and thumbnail if present)
     const filesToDelete: string[] = [media.original.path]
+    // A re-PUT through the still-valid presigned URL can recreate the client's
+    // original key after the stripped copy was swapped in.
+    const clientPath = media.original.metaData.upload?.clientPath
+    if (clientPath && clientPath !== media.original.path) {
+      filesToDelete.push(clientPath)
+    }
     if (media.thumbnail) {
       filesToDelete.push(media.thumbnail.path)
     }

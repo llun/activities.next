@@ -259,6 +259,30 @@ describe('MediaDetailsDialog', () => {
     })
   })
 
+  it('keeps the composer alt text when only non-description fields change', async () => {
+    updateMediaDetailsMock.mockResolvedValue({
+      id: 'a',
+      description: null
+    } as unknown as Awaited<ReturnType<typeof updateMediaDetails>>)
+    const { onSaved } = renderDialog([
+      makeItem('a', { description: 'A heron' })
+    ])
+    await screen.findByRole('option', { name: 'Nikon Z9' })
+
+    fireEvent.change(screen.getByLabelText('Camera'), {
+      target: { value: 'cam-1' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(updateMediaDetailsMock).toHaveBeenCalledWith('a', {
+      camera_gear_id: 'cam-1'
+    })
+    expect(onSaved).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'a', description: 'A heron' })
+    ])
+  })
+
   it('lists only active gear of the matching kind', async () => {
     renderDialog([makeItem('a')])
     await screen.findByRole('option', { name: 'Nikon Z9' })

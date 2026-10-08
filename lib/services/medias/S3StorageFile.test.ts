@@ -1857,7 +1857,8 @@ describe('S3FileStorage presigned upload completion', () => {
       expect(database.markMediaUploadVerified).toHaveBeenCalledWith(
         expect.objectContaining({
           originalBytes: puts[0].length,
-          originalPath: strippedKey
+          originalPath: strippedKey,
+          clientPath: 'medias/2026-01-01/photo.jpg'
         })
       )
       // Only once the swap is committed does the unstripped object go.

@@ -448,6 +448,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     dimensions,
     originalBytes,
     originalPath,
+    clientPath,
     details
   }: MarkMediaUploadVerifiedParams): Promise<MarkMediaUploadVerifiedResult | null> {
     const id = toMediaRowId(mediaId)
@@ -483,7 +484,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         upload: {
           ...media.original.metaData.upload,
           state: 'verified' as const,
-          verifiedAt
+          verifiedAt,
+          ...(clientPath === undefined ? null : { clientPath })
         }
       }
 
@@ -1125,6 +1127,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .select(
           'medias.id',
           'medias.original',
+          'medias.originalMetaData',
           'medias.thumbnail',
           'medias.originalBytes',
           'medias.thumbnailBytes'
@@ -1132,6 +1135,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .first<{
           id: string | number
           original: string
+          originalMetaData: string | MediaMetaData | null
           thumbnail: string | null
           originalBytes: number | string | bigint | null
           thumbnailBytes: number | string | bigint | null
@@ -1167,8 +1171,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
 
       // Return the paths captured inside the transaction so the caller deletes
       // exactly the files that belonged to this row (no racy prefetch).
+      // The presigned URL outlives the key swap, so a re-PUT may have
+      // recreated an object at the client's original key: delete it as well.
+      const clientPath = parseMediaMetaData(media.originalMetaData).upload
+        ?.clientPath
       const files = [
         media.original,
+        ...(clientPath && clientPath !== media.original ? [clientPath] : []),
         ...(media.thumbnail ? [media.thumbnail] : [])
       ]
       return { status: 'deleted', files }

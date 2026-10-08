@@ -2173,6 +2173,45 @@ describe('MediaDatabase', () => {
         expect(retrieved).toBeNull()
       })
 
+      it('also returns the presign key recorded as upload.clientPath', async () => {
+        const actor = await database.getActorFromId({ id: actors.empty.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.empty.id,
+          original: {
+            path: '/test/del-client-path-client.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: {
+              width: 100,
+              height: 100,
+              upload: { state: 'pending', checksumSha1: 'abc', size: 1000 }
+            }
+          }
+        })
+        await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          originalPath: '/test/del-client-path-stripped.jpg',
+          originalBytes: 900,
+          clientPath: '/test/del-client-path-client.jpg'
+        })
+
+        const result = await database.deleteMediaForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+
+        expect(result).toEqual({
+          status: 'deleted',
+          files: [
+            '/test/del-client-path-stripped.jpg',
+            '/test/del-client-path-client.jpg'
+          ]
+        })
+      })
+
       it('returns not-found for a nonexistent media id', async () => {
         const actor = await database.getActorFromId({ id: actors.primary.id })
         const result = await database.deleteMediaForAccount({
