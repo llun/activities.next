@@ -27,6 +27,8 @@ const NETWORK_KEYS = [
 ]
 
 const LINK_PREVIEW_KEYS = ['network.linkPreviews']
+const SPECIES_LOOKUP_KEYS = ['network.speciesLookups']
+const PLACE_LOOKUP_KEYS = ['network.placeLookups']
 
 export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
   settings,
@@ -37,12 +39,16 @@ export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
       'network.requestTimeoutMs': settings.network.requestTimeoutMs,
       'network.requestRetries': settings.network.requestRetries,
       'network.maxResponseSizeBytes': settings.network.maxResponseSizeBytes,
-      'network.linkPreviews': settings.network.linkPreviews
+      'network.linkPreviews': settings.network.linkPreviews,
+      'network.speciesLookups': settings.network.speciesLookups,
+      'network.placeLookups': settings.network.placeLookups
     })
 
   const lock = (key: string) => locks[key] ?? { locked: false }
   const status = statusFor('network')
   const linkPreviewStatus = statusFor('linkPreviews')
+  const speciesLookupStatus = statusFor('speciesLookups')
+  const placeLookupStatus = statusFor('placeLookups')
   const responseBytes = values['network.maxResponseSizeBytes'] as number
 
   return (
@@ -78,6 +84,68 @@ export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
             disabled={lock('network.linkPreviews').locked}
             onCheckedChange={(checked) =>
               setValue('network.linkPreviews', checked)
+            }
+          />
+        </ControlRow>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Species lookups"
+        description="Check the subject of a gallery photo against the GBIF taxonomy. On by default; the server it asks can be changed in the environment."
+        footer={
+          <SaveBar
+            dirty={isDirty(SPECIES_LOOKUP_KEYS)}
+            saving={speciesLookupStatus.saving}
+            saved={speciesLookupStatus.saved}
+            error={speciesLookupStatus.error}
+            onSave={() => saveSection('speciesLookups', SPECIES_LOOKUP_KEYS)}
+          />
+        }
+      >
+        <ControlRow
+          label="Look up species"
+          description="Checks subject names against the GBIF taxonomy and the IUCN Red List status it carries. Off stops new requests to GBIF. While people hide threatened species places, photos whose species cannot be checked keep their place hidden from others."
+          htmlFor="network-species-lookups"
+          locked={lock('network.speciesLookups').locked}
+          envVar={lock('network.speciesLookups').envVar}
+        >
+          <Switch
+            id="network-species-lookups"
+            checked={values['network.speciesLookups'] as boolean}
+            disabled={lock('network.speciesLookups').locked}
+            onCheckedChange={(checked) =>
+              setValue('network.speciesLookups', checked)
+            }
+          />
+        </ControlRow>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Place names"
+        description="Name the place a gallery photo was taken from its coordinates. On by default; the server it asks can be changed in the environment."
+        footer={
+          <SaveBar
+            dirty={isDirty(PLACE_LOOKUP_KEYS)}
+            saving={placeLookupStatus.saving}
+            saved={placeLookupStatus.saved}
+            error={placeLookupStatus.error}
+            onSave={() => saveSection('placeLookups', PLACE_LOOKUP_KEYS)}
+          />
+        }
+      >
+        <ControlRow
+          label="Look up place names"
+          description="Asks OpenStreetMap Nominatim for a name. Only the centre of a roughly 5 km grid cell is sent, never the photo's exact point. Off stops new requests; names already stored stay."
+          htmlFor="network-place-lookups"
+          locked={lock('network.placeLookups').locked}
+          envVar={lock('network.placeLookups').envVar}
+        >
+          <Switch
+            id="network-place-lookups"
+            checked={values['network.placeLookups'] as boolean}
+            disabled={lock('network.placeLookups').locked}
+            onCheckedChange={(checked) =>
+              setValue('network.placeLookups', checked)
             }
           />
         </ControlRow>

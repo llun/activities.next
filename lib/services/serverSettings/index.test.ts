@@ -216,6 +216,29 @@ describe('server settings resolver', () => {
       await database.destroy()
     })
 
+    it('round-trips the gallery lookup switches, on by default and never env-locked', async () => {
+      const database = await freshDatabase()
+      const before = await getServerSettingsView(database)
+      expect(before.settings.network.speciesLookups).toBe(true)
+      expect(before.settings.network.placeLookups).toBe(true)
+      expect(before.locks['network.speciesLookups']?.locked ?? false).toBe(
+        false
+      )
+      expect(before.locks['network.placeLookups']?.locked ?? false).toBe(false)
+
+      const result = await updateServerSettings(database, {
+        'network.speciesLookups': false,
+        'network.placeLookups': false
+      })
+      expect(result.applied).toBe(true)
+
+      invalidateServerSettingsCache(database)
+      const settings = await getResolvedServerSettings(database)
+      expect(settings.network.speciesLookups).toBe(false)
+      expect(settings.network.placeLookups).toBe(false)
+      await database.destroy()
+    })
+
     it('rejects the whole patch when a key is env-locked and writes nothing', async () => {
       const database = await freshDatabase()
       process.env.ACTIVITIES_SERVICE_NAME = 'Env Name'

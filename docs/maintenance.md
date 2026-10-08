@@ -400,6 +400,43 @@ code at `1`.
 - Stops instead of looping when a pass selects rows but changes none of them
   (its `UPDATE`s are not taking effect), and says so.
 
+## Gallery Lookup Backfill
+
+Fills in place names, country codes and GBIF/IUCN subject status for gallery media that was uploaded before those lookups existed, or whose lookup never finished. See [Gallery Lookups](environment-variables.md#gallery-lookups) for what is sent where.
+
+### When to Use
+
+- After upgrading to the release that adds smart subjects. **While "Hide the place of threatened species" is on, a photo with a species subject keeps its place hidden from other people until its subject lookup has run**, so existing species photos stay place-hidden until this script (or an edit of the subject) resolves them.
+- After a provider outage left lookups `failed`, or after turning a lookup back on in **Admin → Network** (media looked up while it was off is marked `disabled`).
+
+It is a script and not a queue fan-out because Nominatim's usage policy forbids bulk bursts: it walks the media in id order and calls the two job handlers directly, one media at a time, through the same in-process rate limiters the jobs use. Nominatim is called at most once a second, so a large library takes a while. Only the centre of the roughly 5 km grid cell of each photo is sent, never the stored point. A `resolved` or `no-match` result is final and is never redone. Safe to repeat.
+
+### Usage
+
+```bash
+# Preview what would be looked up (the default)
+NODE_ENV=production ./scripts/maintenance/backfillGalleryLookups.ts --dry-run
+
+# Run the lookups
+NODE_ENV=production ./scripts/maintenance/backfillGalleryLookups.ts --apply
+
+# One actor, subjects only, first 200 media
+NODE_ENV=production ./scripts/maintenance/backfillGalleryLookups.ts \
+  --apply --actor https://example.com/users/me --only subjects --limit 200
+
+# Also delete expired lookup cache rows
+NODE_ENV=production ./scripts/maintenance/backfillGalleryLookups.ts --apply --prune-cache
+```
+
+### Options
+
+- `--dry-run` - Report what would be looked up and change nothing (default)
+- `--apply` - Run the lookups and write the results
+- `--actor <id>` - Only this actor's media
+- `--limit <n>` - Stop after `n` media
+- `--only subjects|places` - Only one kind of lookup
+- `--prune-cache` - Also delete expired rows from `gallery_lookup_cache` (with `--apply`)
+
 ## Search Index Rebuild
 
 The `rebuildSearchIndex.ts` script rebuilds full-text search indexes for accounts, hashtags, and statuses. It scans records, regenerates search tokens and searchable text, and updates the search documents table in batches.

@@ -532,7 +532,9 @@ describe('request utility', () => {
           requestTimeoutMs: 4000,
           requestRetries: 2,
           maxResponseSizeBytes: 2 * 1024 * 1024,
-          linkPreviews: true
+          linkPreviews: true,
+          speciesLookups: true,
+          placeLookups: true
         }
       })
       const error = Object.assign(new Error('connection reset'), {

@@ -14,6 +14,7 @@ import { Readable } from 'stream'
 
 import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
+import { RESOLVE_MEDIA_PLACE_JOB_NAME } from '@/lib/jobs/names'
 import {
   PresignedUploadValidationError,
   S3FileStorage
@@ -82,6 +83,15 @@ vi.mock('@/lib/services/medias/uploadSizeLimit', async (importActual) => {
   }
 })
 
+// Lookups are published as jobs after verification; none runs in this suite.
+const mockPublish = vi.fn()
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({
+    runsInline: false,
+    publish: (...args: unknown[]) => mockPublish(...args)
+  })
+}))
+
 const mockGenerateAltText = vi.fn()
 vi.mock('@/lib/services/altText/openai', () => ({
   generateAltText: (...args: unknown[]) => mockGenerateAltText(...args)
@@ -133,6 +143,8 @@ describe('S3FileStorage presigned upload completion', () => {
     vi.clearAllMocks()
     mockGetConfig.mockReturnValue({})
     mockGenerateAltText.mockReset()
+    mockPublish.mockReset()
+    mockPublish.mockResolvedValue(undefined)
     mockMaxUploadSize.mockReset()
     // The presigned video path extracts through the real
     // `extractVideoPreviewFrame`, which writes a temp copy and delegates to
@@ -1831,6 +1843,42 @@ describe('S3FileStorage presigned upload completion', () => {
           })
         })
       )
+    })
+
+    it('queues the place lookup for a photo with GPS, whatever its precision', async () => {
+      gallery.getGallerySettings.mockResolvedValue(
+        settings({ defaultPlacePrecision: 'hidden' })
+      )
+      database.markMediaUploadVerified.mockClear()
+
+      await completeUpload(await jpegWithExif(), 'image/jpeg', 'photo.jpg')
+
+      expect(mockPublish).toHaveBeenCalledTimes(1)
+      expect(mockPublish).toHaveBeenCalledWith({
+        id: expect.stringMatching(/^[0-9a-f]{64}$/),
+        name: RESOLVE_MEDIA_PLACE_JOB_NAME,
+        data: { mediaId: expect.any(String) }
+      })
+    })
+
+    it('does not fail the upload when the queue fails', async () => {
+      mockPublish.mockRejectedValue(new Error('queue down'))
+
+      await completeUpload(await jpegWithExif(), 'image/jpeg', 'photo.jpg')
+
+      expect(lastResult).toMatchObject({ id: expect.any(String) })
+    })
+
+    it('queues nothing for a photo without GPS', async () => {
+      const plain = await sharp({
+        create: { width: 8, height: 8, channels: 3, background: '#808080' }
+      })
+        .jpeg()
+        .toBuffer()
+
+      await completeUpload(plain, 'image/jpeg', 'photo.jpg')
+
+      expect(mockPublish).not.toHaveBeenCalled()
     })
 
     it('stores the original again without its EXIF and accounts for the new size', async () => {

@@ -1,6 +1,10 @@
 import { NextRequest } from 'next/server'
 
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import {
+  RESOLVE_MEDIA_PLACE_JOB_NAME,
+  RESOLVE_MEDIA_SUBJECT_JOB_NAME
+} from '@/lib/jobs/names'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
@@ -19,6 +23,15 @@ const mockDeleteMediaFile = vi.fn()
 vi.mock('@/lib/services/medias', () => ({
   saveMediaThumbnail: (...args: unknown[]) => mockSaveMediaThumbnail(...args),
   deleteMediaFile: (...args: unknown[]) => mockDeleteMediaFile(...args)
+}))
+
+// Lookups are published as jobs after an update; no job runs in this suite.
+const mockPublish = vi.fn()
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({
+    runsInline: false,
+    publish: (...args: unknown[]) => mockPublish(...args)
+  })
 }))
 
 let mockDatabase:
@@ -79,6 +92,8 @@ describe('/api/v1/media/[id]', () => {
       user: { email: seedActor1.email }
     })
     mockStoredToken.mockResolvedValue(null)
+    mockPublish.mockReset()
+    mockPublish.mockResolvedValue(undefined)
     await database.deleteServerSetting({ key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
@@ -910,6 +925,103 @@ describe('/api/v1/media/[id]', () => {
 
       expect(response.status).toBe(422)
       expect(await detailsOf(id)).toMatchObject({ subject: null, place: null })
+    })
+
+    describe('lookup jobs', () => {
+      const publishedNames = () =>
+        mockPublish.mock.calls.map(([message]) => message.name)
+
+      it('queues the place lookup when the coordinates are set', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-place')
+
+        const response = await put(id, {
+          place_latitude: 14.5347,
+          place_longitude: 101.3912
+        })
+
+        expect(response.status).toBe(200)
+        expect(mockPublish).toHaveBeenCalledTimes(1)
+        expect(mockPublish).toHaveBeenCalledWith({
+          id: expect.stringMatching(/^[0-9a-f]{64}$/),
+          name: RESOLVE_MEDIA_PLACE_JOB_NAME,
+          data: { mediaId: id }
+        })
+      })
+
+      it('queues it again only when the coordinates changed', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-place-twice')
+        const point = { place_latitude: 51.5, place_longitude: -0.12 }
+
+        await put(id, point)
+        await put(id, point)
+        expect(mockPublish).toHaveBeenCalledTimes(1)
+
+        await put(id, { place_latitude: 51.6, place_longitude: -0.12 })
+        expect(mockPublish).toHaveBeenCalledTimes(2)
+      })
+
+      it('gives different jobs different ids and the same inputs the same id', async () => {
+        const first = await createMediaFor(ACTOR1_ID, 'lookup-id-1')
+        const second = await createMediaFor(ACTOR1_ID, 'lookup-id-2')
+
+        await put(first, { place_latitude: 1, place_longitude: 2 })
+        await put(second, { place_latitude: 1, place_longitude: 2 })
+
+        const ids = mockPublish.mock.calls.map(([message]) => message.id)
+        expect(new Set(ids).size).toBe(2)
+      })
+
+      it('does not queue the place lookup when only the name changed', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-place-name')
+
+        await put(id, { place_name: 'My garden' })
+
+        expect(mockPublish).not.toHaveBeenCalled()
+      })
+
+      it('queues the subject lookup for any subject field', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-subject')
+
+        await put(id, { subject_scientific_name: 'Alcedo atthis' })
+        await put(id, { subject_category: 'bird' })
+
+        expect(publishedNames()).toEqual([
+          RESOLVE_MEDIA_SUBJECT_JOB_NAME,
+          RESOLVE_MEDIA_SUBJECT_JOB_NAME
+        ])
+        expect(mockPublish.mock.calls[0][0].data).toEqual({ mediaId: id })
+      })
+
+      it('queues nothing for a description-only update', async () => {
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-none')
+
+        await put(id, { description: 'after' })
+
+        expect(mockPublish).not.toHaveBeenCalled()
+      })
+
+      it('queues nothing for another account’s media', async () => {
+        const id = await createMediaFor(ACTOR2_ID, 'lookup-foreign')
+
+        const response = await put(id, { subject_name: 'Otter' })
+
+        expect(response.status).toBe(404)
+        expect(mockPublish).not.toHaveBeenCalled()
+      })
+
+      it('still answers 200 when the queue fails', async () => {
+        mockPublish.mockRejectedValue(new Error('queue down'))
+        const id = await createMediaFor(ACTOR1_ID, 'lookup-queue-down')
+
+        const response = await put(id, {
+          subject_name: 'Otter',
+          place_latitude: 10,
+          place_longitude: 20
+        })
+
+        expect(response.status).toBe(200)
+        expect((await response.json()).details.subject.name).toBe('Otter')
+      })
     })
 
     describe('gear', () => {

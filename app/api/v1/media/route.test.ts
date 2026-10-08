@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { RESOLVE_MEDIA_PLACE_JOB_NAME } from '@/lib/jobs/names'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -39,6 +40,14 @@ vi.mock('@/lib/config', () => ({
     allowEmails: [],
     host: 'llun.test',
     secretPhase: 'test-secret'
+  })
+}))
+
+const mockPublish = vi.fn()
+vi.mock('@/lib/services/queue', () => ({
+  getQueue: () => ({
+    runsInline: false,
+    publish: (...args: unknown[]) => mockPublish(...args)
   })
 }))
 
@@ -101,6 +110,8 @@ describe('POST /api/v1/media', () => {
     mockGetServerSession.mockResolvedValue(null)
     mockStoredToken.mockResolvedValue(null)
     mockSaveMedia.mockResolvedValue(sampleAttachment)
+    mockPublish.mockReset()
+    mockPublish.mockResolvedValue(undefined)
     await database.deleteServerSetting({ key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
@@ -120,6 +131,72 @@ describe('POST /api/v1/media', () => {
     const data = await response.json()
     expect(data).toMatchObject({ id: '7', type: 'image', blurhash: null })
     expect(mockSaveMedia).toHaveBeenCalledTimes(1)
+  })
+
+  describe('place lookup', () => {
+    const withPlace = (latitude: number | null, longitude: number | null) => ({
+      ...sampleAttachment,
+      details: {
+        subject: null,
+        takenAt: null,
+        camera: null,
+        lens: null,
+        exposure: null,
+        place: { name: null, latitude, longitude, precision: 'hidden' },
+        inGallery: false
+      }
+    })
+
+    beforeEach(() => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: new Date(Date.now() + 60_000),
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+    })
+
+    it('queues it after the upload when the photo has coordinates, even at hidden precision', async () => {
+      mockSaveMedia.mockResolvedValue(withPlace(14.5347, 101.3912))
+
+      const response = await POST(postRequest('write-media-token'), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockPublish).toHaveBeenCalledTimes(1)
+      expect(mockPublish).toHaveBeenCalledWith({
+        id: expect.stringMatching(/^[0-9a-f]{64}$/),
+        name: RESOLVE_MEDIA_PLACE_JOB_NAME,
+        data: { mediaId: '7' }
+      })
+    })
+
+    it.each([
+      ['no details', sampleAttachment],
+      ['no place', { ...withPlace(1, 1), details: { place: null } }],
+      ['no coordinates', withPlace(null, null)]
+    ])('queues nothing for %s', async (_label, attachment) => {
+      mockSaveMedia.mockResolvedValue(attachment)
+
+      const response = await POST(postRequest('write-media-token'), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(mockPublish).not.toHaveBeenCalled()
+    })
+
+    it('still answers 200 with the attachment when the queue fails', async () => {
+      mockSaveMedia.mockResolvedValue(withPlace(14.5347, 101.3912))
+      mockPublish.mockRejectedValue(new Error('queue down'))
+
+      const response = await POST(postRequest('write-media-token'), {
+        params: Promise.resolve({})
+      })
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ id: '7' })
+    })
   })
 
   it('accepts a 1500-character description and forwards it to saveMedia', async () => {

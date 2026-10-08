@@ -2,6 +2,10 @@ import { NextRequest } from 'next/server'
 
 import { Database } from '@/lib/database/types'
 import {
+  publishPlaceLookup,
+  publishSubjectLookup
+} from '@/lib/services/gallery/lookups/publishLookups'
+import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
@@ -49,6 +53,16 @@ const guardOptions = { errorResponse: corsErrorResponse(CORS_HEADERS) }
 interface Params {
   id: string
 }
+
+// Request fields that change a media's subject; any of them being sent queues a
+// lookup of the stored subject. `subject_taxon_key` is accepted by the request
+// schema once the data layer lands.
+const SUBJECT_REQUEST_KEYS: readonly string[] = [
+  'subject_name',
+  'subject_scientific_name',
+  'subject_category',
+  'subject_taxon_key'
+]
 
 // Beyond Mastodon's fields this route also takes the non-Mastodon media details
 // (subject, gear, place, `in_gallery`); see MediaDetailsRequest.
@@ -348,6 +362,7 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
   }
 
   let details: UpdateMediaDetailsParams | undefined
+  let previousCoordinates: { latitude: number; longitude: number } | null = null
   if (detailsProvided) {
     const existing = await database.getMediaByIdForAccount({
       mediaId: id,
@@ -377,6 +392,14 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
       })
     }
     details = resolved.details
+    previousCoordinates =
+      existing.details?.placeLatitude != null &&
+      existing.details?.placeLongitude != null
+        ? {
+            latitude: existing.details.placeLatitude,
+            longitude: existing.details.placeLongitude
+          }
+        : null
   }
 
   // Produce the new stored thumbnail (if any) before touching the DB. The
@@ -498,6 +521,35 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
     mediaId: id,
     accountId: account.id
   })
+
+  // The update has committed; look up what changed. Each publish swallows its
+  // own failure, so neither can fail this request.
+  if (details) {
+    const updated = result.media.details
+    const latitude = updated?.placeLatitude
+    const longitude = updated?.placeLongitude
+    if (
+      typeof latitude === 'number' &&
+      typeof longitude === 'number' &&
+      (latitude !== previousCoordinates?.latitude ||
+        longitude !== previousCoordinates?.longitude)
+    ) {
+      await publishPlaceLookup({ mediaId: id, latitude, longitude })
+    }
+    if (
+      providedDetailsKeys.some((key) =>
+        SUBJECT_REQUEST_KEYS.includes(key as string)
+      )
+    ) {
+      await publishSubjectLookup({
+        mediaId: id,
+        subjectName: updated?.subjectName ?? null,
+        subjectScientificName: updated?.subjectScientificName ?? null,
+        subjectCategory: updated?.subjectCategory ?? null,
+        subjectTaxonKey: updated?.subjectTaxonKey ?? null
+      })
+    }
+  }
 
   return apiResponse({
     req,

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { getConfig } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { generateAltText } from '@/lib/services/altText/openai'
+import { publishPlaceLookup } from '@/lib/services/gallery/lookups/publishLookups'
 import { getGallerySettingsOrDefaults } from '@/lib/services/gallery/uploadMediaDetails'
 import { saveMedia } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
@@ -133,6 +134,22 @@ export const handleSyncMediaUpload = async (
           })
         }
       }
+    }
+
+    // Name the place from the coordinates. After the alt text so the first
+    // lookup never delays it, and never failing the upload: publishing swallows
+    // its own errors (under NoQueue the job runs here, bounded by its timeouts).
+    const { latitude, longitude } = response.details?.place ?? {}
+    if (
+      typeof latitude === 'number' &&
+      typeof longitude === 'number' &&
+      currentActor.account?.id
+    ) {
+      await publishPlaceLookup({
+        mediaId: response.id,
+        latitude,
+        longitude
+      })
     }
 
     return apiResponse({

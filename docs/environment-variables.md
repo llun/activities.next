@@ -42,6 +42,11 @@ this server makes outbound requests to the pages people link to. Turning it off
 stops new fetches immediately; cards already stored keep rendering, and the
 Mastodon `card` field simply stays null for statuses posted afterwards.
 
+`network.speciesLookups` (GBIF) and `network.placeLookups` (Nominatim) work the
+same way, on **Admin → Network**, with no environment variable and both on by
+default. They gate the gallery lookups described under
+[Gallery Lookups](#gallery-lookups); queued jobs re-check them when they run.
+
 The `features.*` settings (`features.fitness`, `features.explore`,
 `features.messages`) are edited on **Admin → Instance** under **Optional
 features** and have no environment variable, so they are never locked. Turning
@@ -265,6 +270,26 @@ Optional. Automatically generates accessibility descriptions (alt text) for uplo
 | `ACTIVITIES_ALT_TEXT_ENDPOINT` | Chat-completions endpoint URL supporting vision (e.g. `https://api.openai.com/v1/chat/completions`). Required. |
 | `ACTIVITIES_ALT_TEXT_API_KEY`  | API key for the chat-completions endpoint. Required.                                                           |
 | `ACTIVITIES_ALT_TEXT_MODEL`    | Model name supporting vision (e.g. `gpt-4o-mini`). Required.                                                   |
+
+## Gallery Lookups
+
+Optional. Smart subjects and place names for photos in the media gallery. Every variable is optional and the defaults work out of the box.
+
+- **Subject suggestions** reuse the Alt Text Generation endpoint and key above. They are available only when alt text is configured and `ACTIVITIES_GALLERY_SUBJECTS` is not `off`. Suggestions are never decisions: they are stored as owner-only candidates and a subject is only saved when its owner confirms it.
+- **Species lookups** call the [GBIF](https://www.gbif.org/developer/summary) v1 API (taxonomy, plus the IUCN Red List category GBIF carries). No key is needed. The IUCN category is only used to hide the place of threatened species (CR, EN, VU) from other people.
+- **Place names** call [Nominatim](https://nominatim.org/release-docs/latest/api/Reverse/) reverse geocoding. **Only the centre of the 0.05 degree grid cell (about 5 km) a photo is in is ever sent, never the stored point.** The lookup runs for every photo with GPS coordinates, including ones whose public precision is hidden, so the owner can be offered a name. The public Nominatim service is on by default; see its [usage policy](https://operations.osmfoundation.org/policies/nominatim/). Point `ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT` at your own Nominatim for a busy instance.
+- **Rate limits and the circuit breaker.** Calls are throttled in-process (GBIF: 4 at a time, 10 per second; Nominatim: one at a time, at least 1.1 seconds apart). After a timeout, a 5xx or a 429 a provider is treated as down for its `Retry-After` or 5 minutes, so an air-gapped server does not add a timeout to every upload. This is best effort per process; on several instances the lookup cache (the `gallery_lookup_cache` table, which stores snapped ~5 km cells, so it is a coarse record of where photos were taken) is the real protection.
+- **Admin switches.** Species lookups and place names can each be turned off under **Admin → Network**. They have no environment variable, so they are never locked. Turning one off stops new requests; results already stored stay. Queued lookups re-check the switch when they run.
+
+| Variable                                | Description                                                                                                            |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_GALLERY_SUBJECTS`           | Set to `off` to disable subject suggestions even when alt text is configured. Default: on when alt text is configured. |
+| `ACTIVITIES_GALLERY_SUBJECTS_MODEL`     | Vision model used for subject suggestions. Defaults to `ACTIVITIES_ALT_TEXT_MODEL`.                                    |
+| `ACTIVITIES_GALLERY_GBIF_ENDPOINT`      | GBIF API base URL. Default: `https://api.gbif.org/v1`.                                                                 |
+| `ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT` | Nominatim base URL. Default: `https://nominatim.openstreetmap.org`.                                                    |
+| `ACTIVITIES_GALLERY_NOMINATIM_EMAIL`    | Contact email sent as the `email` parameter, as the Nominatim usage policy asks. Optional.                             |
+
+An endpoint must be an `https:` URL without credentials. An invalid value logs one warning and falls back to the default; it never stops the server or the build. The vision API key is never sent to GBIF or Nominatim.
 
 ## Media Storage
 

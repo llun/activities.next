@@ -19,6 +19,7 @@ import { getConfig } from '@/lib/config'
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { generateAltText } from '@/lib/services/altText/openai'
+import { publishPlaceLookup } from '@/lib/services/gallery/lookups/publishLookups'
 import {
   buildUploadMediaDetails,
   getGallerySettingsOrDefaults
@@ -528,6 +529,19 @@ export class S3FileStorage implements MediaStorage {
         const verifiedMedia = result.media
         if (stripped) {
           await this._deleteReplacedPresignedOriginal(media.original.path)
+        }
+
+        // Name the place from the coordinates (a job; never fails the upload).
+        const { placeLatitude, placeLongitude } = prepared.details
+        if (
+          typeof placeLatitude === 'number' &&
+          typeof placeLongitude === 'number'
+        ) {
+          await publishPlaceLookup({
+            mediaId: verifiedMedia.id,
+            latitude: placeLatitude,
+            longitude: placeLongitude
+          })
         }
 
         const output = await this._decoratePresignedMedia(
