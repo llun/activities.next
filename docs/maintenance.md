@@ -965,7 +965,7 @@ An uploaded image carries optional owner-edited details on its `medias` row: `su
   - **Scientific hashtags.** With `subjectHashtags` on, a `#GenusSpecies` tag (`#AlcedoAtthis`) is appended next to `#CommonKingfisher`, de-duplicated the same way. Only a well-formed binomial (capitalised genus, lower-case epithet, no hybrid mark or `sp.`) gets one, and a subspecies shares its species' tag; the rule lives once in `lib/utils/text/subjectHashtagRules.ts`.
   - **Degradation.** No alt-text endpoint (or `ACTIVITIES_GALLERY_SUBJECTS=off`): no suggestions, the dialog is manual. GBIF off or unreachable: suggestions come back unchecked, species search says it is unavailable, and species places stay hidden (the privacy page says so). Nominatim off or unreachable: no automatic place name, countries are omitted. Neither affects uploads, posting or the gallery.
 - **Viewer**: the lightbox (`MediasModal`) fetches `GET /api/v1/gallery/media/:mediaId/details` for the open media and renders it read-only through `MediaDetailsPanel` (subject with its taxonomy path, taken-at, camera and lens, exposure, place), showing exactly what the privacy-trimmed endpoint returned and nothing when it answers 404. The panel adds "<category> · confirmed by <owner>" only where the modal is told the owner (`ownerName`, passed from the status page), which is always true of a saved subject because suggestions are never applied without the owner, and "#<ScientificName> on the fediverse" linking to `/tags/<tag>`. It has no "More in <owner>'s gallery" link: the profile's tabs are client state with no URL to deep link to. The tag is built by `toScientificHashtag` (`lib/utils/text/subjectHashtagRules.ts`), the same pure function the server uses when it appends the tag to a post, so the tag shown is always the tag posts get.
-- Covered by the tests beside each module: `lib/database/sql/{gallery,galleryMedia,galleryMediaQueryPlan,mediaDetails}.test.ts`, `lib/services/gallery/{galleryQueries,galleryProjection,hiddenLocations,galleryGearUsage}.test.ts`, `lib/components/gallery/*.test.tsx`, `app/api/v1/gallery/**/route.test.ts` and `app/api/v1/accounts/[id]/gallery/**/route.test.ts`.
+- Covered by the tests beside each module: `lib/database/sql/{gallery,galleryMedia,galleryMediaQueryPlan,galleryAlbums,mediaDetails}.test.ts`, `lib/services/gallery/{galleryQueries,galleryProjection,hiddenLocations,galleryGearUsage,galleryAlbumQueries,galleryAlbumRouteSupport}.test.ts`, `lib/components/gallery/*.test.tsx`, `app/(timeline)/gallery/albums/**/*.test.{ts,tsx}`, `app/api/v1/gallery/**/route.test.ts` (including `app/api/v1/gallery/albums/**`) and `app/api/v1/accounts/[id]/gallery/**/route.test.ts`. `galleryAlbums.test.ts` and `galleryAlbumQueries.test.ts` also run against PostgreSQL in CI (they pin the actor-lock caps and cover races, which SQLite's single writer cannot show).
 
 <a id="agents-deleting-media-a-post-uses"></a>
 
@@ -994,6 +994,22 @@ An uploaded image carries optional owner-edited details on its `medias` row: `su
 preserving legacy and fitness attachments` pins the surviving-null behaviour.
   Deleting the attachment row instead removes the promised placeholder and
   silently rewrites a published status whose federated copies keep it.
+- **Deleting a `medias` row also takes it out of every gallery album.** The
+  `gallery_album_items` rows cascade on PostgreSQL, but an album's
+  `coverMediaId` is a plain column with no foreign key, and SQLite may run
+  without foreign keys, so `deleteMedia` and `deleteMediaForAccount` call
+  `removeMediaFromGalleryAlbums` (`lib/database/sql/galleryAlbumCleanup.ts`)
+  inside their own transaction, and the actor delete (`deleteActorData`) removes
+  the actor's `gallery_album_items` and `gallery_albums` before their `medias`.
+  **Lock order matters:** those two media paths take the owner's actor-row lock
+  (`lockGalleryAlbumActor`) first, then clear the album rows, then delete the
+  `medias` row, the same order every album write uses (`createGalleryAlbumWithinLimit`,
+  `addGalleryAlbumItems`, `updateGalleryAlbum`, `removeGalleryAlbumItems`,
+  `deleteGalleryAlbum`). Deleting the media row first and locking afterwards
+  can deadlock against a concurrent remove, and skipping the lock lets a cover
+  set a moment earlier outlive its photo. `galleryAlbums.test.ts` pins the
+  media and actor-delete cleanup on both backends (the actor delete with
+  SQLite's foreign keys switched off) and the races on PostgreSQL.
 
 <a id="agents-security-configuration-tips"></a>
 

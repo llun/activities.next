@@ -630,6 +630,25 @@ CREATE TABLE public.follows (
     languages text
 );
 
+CREATE TABLE public.gallery_album_items (
+    "albumId" character varying(255) NOT NULL,
+    "mediaId" integer NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL
+);
+
+CREATE TABLE public.gallery_albums (
+    id character varying(255) NOT NULL,
+    "actorId" character varying(255) NOT NULL,
+    title character varying(120) NOT NULL,
+    description text,
+    "coverMediaId" integer,
+    visibility character varying(16) DEFAULT 'public'::character varying NOT NULL,
+    "sortOrder" character varying(16) DEFAULT 'taken_desc'::character varying NOT NULL,
+    "createdAt" timestamp with time zone NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
+);
+
 CREATE TABLE public.gallery_gears (
     id character varying(255) NOT NULL,
     "actorId" character varying(255) NOT NULL,
@@ -1662,6 +1681,12 @@ ALTER TABLE ONLY public.followed_tags
 ALTER TABLE ONLY public.follows
     ADD CONSTRAINT follows_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY public.gallery_album_items
+    ADD CONSTRAINT gallery_album_items_pkey PRIMARY KEY ("albumId", "mediaId");
+
+ALTER TABLE ONLY public.gallery_albums
+    ADD CONSTRAINT gallery_albums_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY public.gallery_gears
     ADD CONSTRAINT gallery_gears_actor_device_key_unique UNIQUE ("actorId", "deviceKey");
 
@@ -2012,6 +2037,10 @@ CREATE INDEX followed_tags_name ON public.followed_tags USING btree ("nameNormal
 
 CREATE INDEX "followsIndex" ON public.follows USING btree ("actorId", "actorHost", "targetActorId", "targetActorHost", status, "createdAt", "updatedAt");
 
+CREATE INDEX gallery_album_items_media_idx ON public.gallery_album_items USING btree ("mediaId");
+
+CREATE INDEX gallery_albums_actor_updated_idx ON public.gallery_albums USING btree ("actorId", "updatedAt");
+
 CREATE INDEX gallery_gears_actor_id_idx ON public.gallery_gears USING btree ("actorId");
 
 CREATE INDEX gallery_lookup_cache_expires_at_idx ON public.gallery_lookup_cache USING btree ("expiresAt");
@@ -2217,6 +2246,15 @@ ALTER TABLE ONLY public.fitness_route_heatmaps
 
 ALTER TABLE ONLY public.fitness_settings
     ADD CONSTRAINT fitness_settings_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id);
+
+ALTER TABLE ONLY public.gallery_album_items
+    ADD CONSTRAINT gallery_album_items_albumid_foreign FOREIGN KEY ("albumId") REFERENCES public.gallery_albums(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.gallery_album_items
+    ADD CONSTRAINT gallery_album_items_mediaid_foreign FOREIGN KEY ("mediaId") REFERENCES public.medias(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.gallery_albums
+    ADD CONSTRAINT gallery_albums_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY public.gallery_gears
     ADD CONSTRAINT gallery_gears_actorid_foreign FOREIGN KEY ("actorId") REFERENCES public.actors(id) ON DELETE CASCADE;

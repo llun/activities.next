@@ -1982,6 +1982,11 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // Delete attachments created by this actor
       await trx('attachments').where('actorId', actorId).delete()
 
+      // Delete the actor's gallery albums before their media (SQLite runs
+      // without the foreign keys that cascade these on PostgreSQL).
+      await trx('gallery_album_items').where('actorId', actorId).delete()
+      await trx('gallery_albums').where('actorId', actorId).delete()
+
       // Delete medias created by this actor
       await trx('medias').where('actorId', actorId).delete()
 

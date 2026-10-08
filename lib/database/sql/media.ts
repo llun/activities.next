@@ -1,5 +1,9 @@
 import { Knex } from 'knex'
 
+import {
+  lockGalleryAlbumActor,
+  removeMediaFromGalleryAlbums
+} from '@/lib/database/sql/galleryAlbumCleanup'
 import { buildActorVisibleStatusIdsQuery } from '@/lib/database/sql/status'
 import {
   CounterKey,
@@ -151,6 +155,10 @@ const deleteMediaByConditions = async (
       .select<{ accountId: string | null }>('accountId')
       .first()
 
+    // The owner's album lock first, then the album rows, then the media row:
+    // the same order every album write takes.
+    await lockGalleryAlbumActor(trx, media.actorId)
+    await removeMediaFromGalleryAlbums(trx, Number(media.id))
     const deleted = await trx('medias')
       .where({ ...conditions, id: media.id })
       .del()
@@ -1393,6 +1401,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .where('actors.accountId', accountId)
         .select(
           'medias.id',
+          'medias.actorId',
           'medias.original',
           'medias.originalMetaData',
           'medias.thumbnail',
@@ -1401,6 +1410,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         )
         .first<{
           id: string | number
+          actorId: string
           original: string
           originalMetaData: string | MediaMetaData | null
           thumbnail: string | null
@@ -1421,6 +1431,9 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .first('attachments.id')
       if (attached) return { status: 'in-use' }
 
+      // The owner's album lock first, then the album rows, then the media row.
+      await lockGalleryAlbumActor(trx, media.actorId)
+      await removeMediaFromGalleryAlbums(trx, Number(media.id))
       const deleted = await trx('medias').where('id', media.id).del()
       if (!deleted) return { status: 'not-found' }
 

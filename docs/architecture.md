@@ -239,6 +239,16 @@ Wahoo OAuth callback and token-refresh writes are fenced by the saved credential
 
 External queue clients (`@upstash/qstash` and `@google-cloud/tasks`), the PostgreSQL driver (`pg`), and optional email providers (`nodemailer`, `resend`, `@aws-sdk/client-ses`) are isolated into dedicated Yarn workspaces under `packages/` (`@activities/qstash`, `@activities/cloudtasks`, `@activities/pg`, `@activities/nodemailer`, `@activities/resend`, `@activities/ses`). They are loaded on demand dynamically (via `dynamicImport` with type stubs for queue and email clients, or Knex dynamic driver loading for PostgreSQL), preventing optional SDKs from being unconditionally bundled into the minimal standalone application. The Dockerfile includes `@activities/nodemailer` by default; builds omitting email workspaces gracefully disable email delivery.
 
+#### Gallery albums
+
+Albums are owner-curated groups of the owner's own gallery media (`gallery_albums`, `gallery_album_items`; the migration is additive and guarded with `hasTable`). They are never federated and never stored per viewer: every read goes through `buildGalleryMediaScope` with a required `GalleryAudience`, so what an audience sees is decided at read time by the posts the photos hang off, and the same album shows an owner every photo and a visitor only theirs.
+
+- **The store** is `GalleryAlbumSQLDatabaseMixin` (`lib/database/sql/galleryAlbums.ts`). Summaries, facts, dates, covers and the three-photo collage are all derived from the _visible_ items only, so a hidden photo never shows through a cover, a count or a date range. Sorting, the `<sortKey>:<mediaId>` keyset cursor and the date range are done in JS over a light item index (the sort key is `takenAt ?? createdAt`, or the item's `addedAt` for `added_desc`), because timestamp columns differ between SQLite and PostgreSQL.
+- **Caps and races** are enforced in the store, atomically: 200 albums per actor, 2,000 items per album and 1 to 100 ids per request. The item cap counts every stored row whose media still exists, including a photo whose post was deleted (the owner no longer sees it, so the owner detail response carries that count as `storedItemCount` for the Add photos dialog); a row whose media is gone takes no room. Every album write (create, add, edit, remove, delete) and both media-delete paths take the owner's actor-row lock first (`lockGalleryAlbumActor`, PostgreSQL only) and re-read the album after it, so two creates cannot both pass the cap and a cover cannot be set on a photo that is being removed or deleted. Adding is all or nothing, only the owner's gallery media is added, and anything else comes back as `skipped`. `POST /albums` with `media_ids` creates the album and its first photos in one transaction, so a failed add leaves no empty album.
+- **SQLite has no foreign keys**, so `deleteMedia`, `deleteMediaForAccount` and the actor delete remove the matching `gallery_album_items` and null any `coverMediaId` themselves (`removeMediaFromGalleryAlbums`).
+- **Routes** (`app/api/v1/gallery/albums/**`) are owner-only: a missing album and somebody else's are the same 404, writes check the album, then validate the body (422), then the in-process limit of 120 writes per actor per minute (429). They sit in `routeScopeWiring.test.ts`.
+- **Pages**: `/gallery/albums` and `/gallery/albums/[id]` (`app/(timeline)/gallery/albums/`). The detail page's facts are computed for the logged-out audience, and for a private album too (`getGalleryAlbumIndex({ ignoreAlbumVisibility: true })`, after the route has checked ownership), so the owner previews the real public-safe numbers, with an owner-only note of how many places are hidden for threatened species. The same count is on each album card for the owner (`hiddenPlaceCount`, never computed for a visitor). There is no Share link yet: the public album page, and the link to it, arrive together.
+
 #### Gallery lookup jobs
 
 `ResolveMediaPlaceJob` (reverse geocoding) is published after an upload with coordinates commits (the sync upload path and the presigned path's verify step; uploads carry no subject) and after a `PUT /api/v1/media/:id` that changed the coordinates. `ResolveMediaSubjectJob` (GBIF taxon plus IUCN category) is published after a `PUT /api/v1/media/:id` that changed the subject (re-sending the stored one queues nothing). `POST /api/v1/media/:id/lookups`, the owner's Retry, re-publishes whichever of the two has not finished (only the one named by `{ kind }`, when the body names one). Under the synchronous queue they run inline, bounded by the lookup timeouts. The bulk backfill is a script, not a queue fan-out, because Nominatim forbids bursts.
@@ -509,7 +519,8 @@ the matcher with Next's own config parser and runtime matcher. Do not fold the
          └──────────┘ └────────┘ └────────────┘ └───────┘ └──────────┘
 
 Other tables: sessions, notifications, medias, gallery_gears,
-              gallery_settings, gallery_lookup_cache, fitness_files,
+              gallery_settings, gallery_lookup_cache, gallery_albums,
+              gallery_album_items, fitness_files,
               fitness_settings, strava_archive_imports,
               wahoo_imports, wahoo_history_imports,
               fitness_route_heatmaps, fitness_route_heatmap_region_names,
