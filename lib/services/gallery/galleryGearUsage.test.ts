@@ -25,8 +25,26 @@ describe('reduceGalleryGearUsage', () => {
   it('gives every asked-for gear an entry, empty when unused', () => {
     expect(reduceGalleryGearUsage([], ['a', 'b'])).toEqual(
       new Map([
-        ['a', { photoCount: 0, firstUsedAt: null, lastUsedAt: null }],
-        ['b', { photoCount: 0, firstUsedAt: null, lastUsedAt: null }]
+        [
+          'a',
+          {
+            photoCount: 0,
+            videoCount: 0,
+            countryCount: null,
+            firstUsedAt: null,
+            lastUsedAt: null
+          }
+        ],
+        [
+          'b',
+          {
+            photoCount: 0,
+            videoCount: 0,
+            countryCount: null,
+            firstUsedAt: null,
+            lastUsedAt: null
+          }
+        ]
       ])
     )
   })
@@ -43,6 +61,8 @@ describe('reduceGalleryGearUsage', () => {
 
     expect(usage.get('a')).toEqual({
       photoCount: 2,
+      videoCount: 0,
+      countryCount: null,
       firstUsedAt: 2_000,
       lastUsedAt: 9_000
     })
@@ -79,9 +99,49 @@ describe('reduceGalleryGearUsage', () => {
 
     expect(usage.get('a')).toEqual({
       photoCount: 1,
+      videoCount: 0,
+      countryCount: null,
       firstUsedAt: null,
       lastUsedAt: null
     })
+  })
+})
+
+describe('reduceGalleryGearUsage videos and countries', () => {
+  it('counts gallery videos and distinct countries per gear', () => {
+    const usage = reduceGalleryGearUsage(
+      [
+        row('a', 'm1', { placeCountryCode: 'TH' }),
+        row('a', 'm2', {
+          originalMimeType: 'video/mp4',
+          placeCountryCode: 'TH'
+        }),
+        row('a', 'm3', {
+          originalMimeType: 'video/quicktime',
+          placeCountryCode: 'KE'
+        }),
+        row('a', 'm4', { placeCountryCode: null }),
+        // Outside the gallery: neither a video nor a country counts.
+        row('a', 'm5', {
+          inGallery: false,
+          originalMimeType: 'video/mp4',
+          placeCountryCode: 'JP'
+        }),
+        row('b', 'm1', { placeCountryCode: 'TH' }),
+        row('c', 'm9', { placeCountryCode: 'not a code' })
+      ],
+      ['a', 'b', 'c', 'd']
+    )
+
+    expect(usage.get('a')).toMatchObject({
+      photoCount: 4,
+      videoCount: 2,
+      countryCount: 2
+    })
+    expect(usage.get('b')).toMatchObject({ videoCount: 0, countryCount: 1 })
+    // A malformed code and an unused gear both leave the country stat out.
+    expect(usage.get('c')?.countryCount).toBeNull()
+    expect(usage.get('d')?.countryCount).toBeNull()
   })
 })
 
@@ -146,6 +206,8 @@ describe('getGalleryGearUsage', () => {
     })
     expect(usage.get('a')).toEqual({
       photoCount: 1,
+      videoCount: 0,
+      countryCount: null,
       firstUsedAt: 4_000,
       lastUsedAt: 4_000
     })
@@ -188,6 +250,8 @@ describe('getGalleryGearOverview', () => {
     })
     expect(overview.usage).toEqual({
       photoCount: 2,
+      videoCount: 0,
+      countryCount: null,
       firstUsedAt: 1_000,
       lastUsedAt: 3_000
     })

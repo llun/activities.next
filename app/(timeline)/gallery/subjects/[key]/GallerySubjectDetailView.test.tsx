@@ -71,4 +71,116 @@ describe('GallerySubjectDetailView', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText('Bird')).not.toBeInTheDocument()
   })
+
+  describe('taxonomy', () => {
+    const identified = {
+      ...subject,
+      taxonKey: '2481017',
+      taxonPath: ['Animalia', 'Chordata', 'Aves', 'Piciformes', 'Ramphastidae'],
+      countryCodes: ['CR']
+    }
+    const render_ = (
+      overrides: Partial<Parameters<typeof GallerySubjectDetailView>[0]> = {}
+    ) =>
+      render(
+        <GallerySubjectDetailView
+          actorId="actor-1"
+          subject={identified}
+          initialPage={{ items: [buildGalleryItem('1')], nextMaxId: null }}
+          commonTag="KeelBilledToucan"
+          {...overrides}
+        />
+      )
+
+    it('shows the path, a GBIF link and the follow link', () => {
+      render_()
+
+      expect(
+        screen.getByText(
+          'Animalia › Chordata › Aves › Piciformes › Ramphastidae'
+        )
+      ).toBeInTheDocument()
+      const gbif = screen.getByRole('link', { name: /GBIF/ })
+      expect(gbif).toHaveAttribute(
+        'href',
+        'https://www.gbif.org/species/2481017'
+      )
+      expect(gbif).toHaveAttribute('rel', 'noopener noreferrer')
+      expect(gbif).toHaveAttribute('target', '_blank')
+      expect(
+        screen.getByRole('link', { name: 'Follow #RamphastosSulfuratus' })
+      ).toHaveAttribute('href', '/tags/RamphastosSulfuratus')
+    })
+
+    it('shows where the subject was seen, up to three countries then a count', () => {
+      const { unmount } = render_()
+      expect(
+        screen.getByText('Where', { selector: 'dt' }).closest('dl')
+      ).toHaveTextContent('Costa Rica')
+      unmount()
+
+      render_({
+        subject: {
+          ...identified,
+          countryCodes: ['CR', 'PA', 'MX', 'BZ', 'GT']
+        }
+      })
+      expect(screen.getByText('Costa Rica, Panama, Mexico +2')).toBeVisible()
+    })
+
+    it('offers a card that browses the posts under both hashtags', () => {
+      render_()
+
+      expect(
+        screen.getByRole('heading', {
+          name: 'More Keel-billed Toucans on the fediverse'
+        })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Posts tagged #RamphastosSulfuratus or #KeelBilledToucan.'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: 'Browse posts' })
+      ).toHaveAttribute('href', '/tags/RamphastosSulfuratus')
+    })
+
+    it('falls back to the common-name tag when there is no scientific name', () => {
+      render_({
+        subject: {
+          ...identified,
+          scientificName: null,
+          taxonKey: null,
+          taxonPath: null,
+          countryCodes: []
+        }
+      })
+
+      expect(
+        screen.getByRole('link', { name: 'Browse posts' })
+      ).toHaveAttribute('href', '/tags/KeelBilledToucan')
+      expect(screen.queryByText(/Follow #/)).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('link', { name: /GBIF/ })
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText('Where', { selector: 'dt' })).toBeNull()
+    })
+
+    it('shows none of it for a subject with no tag to follow', () => {
+      render_({
+        subject: {
+          ...identified,
+          name: 'Lake',
+          scientificName: null,
+          taxonKey: null,
+          taxonPath: null,
+          countryCodes: []
+        },
+        commonTag: null
+      })
+
+      expect(screen.queryByText(/on the fediverse/)).not.toBeInTheDocument()
+    })
+  })
 })

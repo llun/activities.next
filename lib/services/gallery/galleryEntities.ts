@@ -233,6 +233,11 @@ export interface GalleryMapResponse {
 export interface GalleryGearUsageEntity {
   // Gallery photos and videos taken with the gear.
   photoCount: number
+  // Of `photoCount`, the videos.
+  videoCount: number
+  // Distinct countries of those items (owner-only, so the stored codes); null
+  // when none has a country code.
+  countryCount: number | null
   // Epoch milliseconds, over every posted photo with the gear.
   firstUsedAt: number | null
   lastUsedAt: number | null

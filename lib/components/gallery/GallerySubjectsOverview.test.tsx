@@ -59,6 +59,51 @@ describe('GallerySubjectsOverview', () => {
     ).toHaveTextContent('4')
   })
 
+  it('leaves the Places cell out when no country is known', () => {
+    render(<GallerySubjectsOverview data={data} mapHref="/gallery/map" />)
+
+    expect(screen.queryByText('Places', { selector: 'dt' })).toBeNull()
+    expect(screen.queryByText(/Open map/)).toBeNull()
+  })
+
+  it('shows the countries with an Open map link on owner pages', () => {
+    render(
+      <GallerySubjectsOverview
+        data={{ ...data, countryCount: 7 }}
+        mapHref="/gallery/map"
+      />
+    )
+
+    expect(
+      screen.getByText('Places', { selector: 'dt' }).closest('dl')
+    ).toHaveTextContent('7 countries')
+    const link = screen.getByRole('link', { name: 'Open map ›' })
+    expect(link).toHaveAttribute('href', '/gallery/map')
+  })
+
+  it('says 1 country in the singular and opens the map in place on the profile', () => {
+    const onOpenMap = vi.fn()
+    render(
+      <GallerySubjectsOverview
+        data={{ ...data, countryCount: 1 }}
+        onOpenMap={onOpenMap}
+      />
+    )
+
+    expect(
+      screen.getByText('Places', { selector: 'dt' }).closest('dl')
+    ).toHaveTextContent('1 country')
+    fireEvent.click(screen.getByRole('button', { name: 'Open map ›' }))
+    expect(onOpenMap).toHaveBeenCalledOnce()
+  })
+
+  it('shows the countries without a link when there is nowhere to open', () => {
+    render(<GallerySubjectsOverview data={{ ...data, countryCount: 2 }} />)
+
+    expect(screen.getByText('2 countries')).toBeInTheDocument()
+    expect(screen.queryByText(/Open map/)).toBeNull()
+  })
+
   it('shows every category section, then only the chosen one', () => {
     render(<GallerySubjectsOverview data={data} />)
     expect(screen.getByRole('region', { name: 'Birds' })).toBeInTheDocument()

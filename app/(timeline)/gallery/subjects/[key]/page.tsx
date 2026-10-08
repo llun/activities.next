@@ -8,6 +8,7 @@ import {
   getGalleryMediaPage,
   getGallerySubjects
 } from '@/lib/services/gallery/galleryQueries'
+import { toSubjectHashtag } from '@/lib/services/gallery/subjectHashtags'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { GallerySubjectDetailView } from './GallerySubjectDetailView'
@@ -87,6 +88,7 @@ const Page = async ({ params }: PageProps) => {
         actorId={actor.id}
         subject={subject}
         initialPage={page}
+        commonTag={subject.name ? toSubjectHashtag(subject.name) : null}
       />
     )
   }
@@ -97,12 +99,13 @@ const Page = async ({ params }: PageProps) => {
   if (!first && page.nextMaxId === null) return notFound()
 
   const fromKey = parseSubjectKey(subjectKey)
+  const fallbackName = first ? (first.subject?.name ?? null) : fromKey.name
   return (
     <GallerySubjectDetailView
       actorId={actor.id}
       subject={{
         key: subjectKey,
-        name: first ? (first.subject?.name ?? null) : fromKey.name,
+        name: fallbackName,
         scientificName: first
           ? (first.subject?.scientificName ?? null)
           : fromKey.scientificName,
@@ -115,6 +118,7 @@ const Page = async ({ params }: PageProps) => {
         lastSeenAt: null
       }}
       initialPage={page}
+      commonTag={fallbackName ? toSubjectHashtag(fallbackName) : null}
     />
   )
 }

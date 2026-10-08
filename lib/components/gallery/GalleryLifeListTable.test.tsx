@@ -17,7 +17,8 @@ const data: GalleryLifeListResponse = {
       name: 'Common Kingfisher',
       scientificName: 'Alcedo atthis',
       count: 1,
-      firstSeenAt: '2025-03-14T09:30:00.000Z'
+      firstSeenAt: '2025-03-14T09:30:00.000Z',
+      firstPlaceName: 'Khao Yai, Thailand'
     }),
     buildLifeListEntry('sci:vulpes vulpes', {
       name: 'Red Fox',
@@ -50,6 +51,16 @@ describe('GalleryLifeListTable', () => {
     expect(within(rows[2]).getAllByRole('cell')[0]).toHaveTextContent('3')
   })
 
+  it('shows where each species was first seen, and a dash when no place is shown', () => {
+    render(<GalleryLifeListTable data={data} />)
+
+    const rows = screen.getAllByRole('row').slice(1)
+    // Once in the Where cell and once under the name on a narrow screen.
+    expect(within(rows[0]).getAllByText(/Khao Yai, Thailand/)).toHaveLength(2)
+    expect(within(rows[1]).queryByText(/·/)).toBeNull()
+    expect(within(rows[1]).getByText('No place')).toBeInTheDocument()
+  })
+
   it('labels the columns', () => {
     render(<GalleryLifeListTable data={data} />)
     for (const name of [
@@ -57,6 +68,7 @@ describe('GalleryLifeListTable', () => {
       'Name',
       'Scientific name',
       'First seen',
+      'Where',
       'Photos'
     ]) {
       expect(screen.getByRole('columnheader', { name })).toBeInTheDocument()

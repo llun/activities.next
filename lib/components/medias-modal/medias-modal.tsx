@@ -30,6 +30,8 @@ interface Props {
       )[]
     | null
   initialSelection: number
+  /** The media's owner, shown in the details panel's "confirmed by" line. */
+  ownerName?: string | null
   onClosed: () => void
 }
 
@@ -37,6 +39,7 @@ export const MediasModal: FC<Props> = ({
   medias,
   tags,
   initialSelection,
+  ownerName,
   onClosed
 }) => {
   const [modalGifPlaying, setModalGifPlaying] = useState<boolean | null>(null)
@@ -456,7 +459,10 @@ export const MediasModal: FC<Props> = ({
                           </p>
                         ) : null}
                         {panelIndex === 1 && currentDetails ? (
-                          <MediaDetailsPanel details={currentDetails} />
+                          <MediaDetailsPanel
+                            details={currentDetails}
+                            ownerName={ownerName}
+                          />
                         ) : null}
                       </div>
                     </div>

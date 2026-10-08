@@ -19,6 +19,7 @@ export const GallerySubjectsView: FC<Props> = ({ data }) => (
     <GallerySubjectsOverview
       data={data}
       linkSubjects
+      mapHref="/gallery/map"
       getSeeAllHref={(category) =>
         `/gallery/recent?category=${encodeURIComponent(category)}`
       }

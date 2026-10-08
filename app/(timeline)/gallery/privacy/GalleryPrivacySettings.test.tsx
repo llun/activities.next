@@ -51,6 +51,9 @@ const baseSettings: GallerySettingsEntity = {
 const SHOW_GEAR = 'Show gear and exposure on my media'
 const MAP_PUBLIC = 'Show my gallery map to others'
 const LIFE_LIST = 'Let others see my life list'
+const THREATENED = 'Hide the place for threatened species'
+const NO_LOOKUPS_NOTICE =
+  'This server can’t check IUCN status, so places of photos with a species name stay hidden while this is on.'
 const PRECISION = 'Default precision for new media'
 const GALLERY_DEFAULT = 'Add new photos and videos to my gallery'
 
@@ -104,7 +107,8 @@ describe('GalleryPrivacySettings', () => {
   it.each([
     [SHOW_GEAR, 'switch', 'showGear', false],
     [MAP_PUBLIC, 'switch', 'mapPublic', false],
-    [LIFE_LIST, 'switch', 'lifeListPublic', true]
+    [LIFE_LIST, 'switch', 'lifeListPublic', true],
+    [THREATENED, 'switch', 'hideThreatenedPlaces', false]
   ])(
     'saves %s on its own with only that key',
     async (name, role, key, value) => {
@@ -118,6 +122,61 @@ describe('GalleryPrivacySettings', () => {
       expect(await screen.findByText('Saved')).toBeInTheDocument()
     }
   )
+
+  it('explains the threatened-species switch and shows no notice when lookups work', async () => {
+    renderSettings()
+
+    expect(
+      await screen.findByRole('switch', { name: THREATENED })
+    ).toBeChecked()
+    expect(
+      screen.getByText(
+        'Uses IUCN status from GBIF. Overrides the precision above.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(NO_LOOKUPS_NOTICE)).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'A species’ place stays hidden until its status has been checked.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('explains what place lookups send, or that there are none', async () => {
+    const { unmount } = renderSettings()
+    expect(
+      await screen.findByText(/sent only the centre of the roughly 5 km area/)
+    ).toBeInTheDocument()
+    unmount()
+
+    mockGetGallerySettings.mockResolvedValue({
+      ...baseSettings,
+      placeLookupsAvailable: false
+    })
+    renderSettings()
+    expect(
+      await screen.findByText(
+        'This server doesn’t look up place names, so you type them yourself.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('says species places stay hidden when the server cannot check IUCN status', async () => {
+    mockGetGallerySettings.mockResolvedValue({
+      ...baseSettings,
+      speciesLookupsAvailable: false
+    })
+    renderSettings()
+
+    expect(await screen.findByText(NO_LOOKUPS_NOTICE)).toBeInTheDocument()
+  })
+
+  it('does not flash the notice before the settings are known', () => {
+    mockGetGallerySettings.mockReturnValue(new Promise(() => {}))
+    renderSettings()
+
+    expect(screen.queryByText(NO_LOOKUPS_NOTICE)).not.toBeInTheDocument()
+  })
 
   it('saves the default place precision and the gallery default on their own', async () => {
     renderSettings()
