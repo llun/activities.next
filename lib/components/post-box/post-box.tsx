@@ -1,11 +1,4 @@
-import {
-  Activity,
-  AlertTriangle,
-  BarChart3,
-  Eye,
-  Loader2,
-  X
-} from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, Eye, X } from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -20,25 +13,38 @@ import {
 import {
   createNote,
   createPoll,
+  deleteAccountMedia,
   deleteFitnessFile,
   getCustomEmojis,
   getDefaultQuotePolicy,
+  getGallerySettings,
+  getMedia,
   updateNote,
   uploadAttachment,
   uploadFitnessFile
 } from '@/lib/client'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
+import {
+  MediaDetailsDialog,
+  MediaDetailsDialogItem,
+  MediaDetailsSavedItem
+} from '@/lib/components/media-details/media-details-dialog'
 import { ContentWarning } from '@/lib/components/posts/content-warning'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
+import type { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
+import type {
+  MediaDetailsEntity,
+  MediaStorageSaveFileOutput
+} from '@/lib/services/medias/types'
 import { Duration } from '@/lib/services/statuses/pollDurations'
 import {
   ActorProfile,
   getMention,
   getMentionFromActorID
 } from '@/lib/types/domain/actor'
-import { Attachment } from '@/lib/types/domain/attachment'
+import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import {
   EditableStatus,
   QuoteApprovalPolicy,
@@ -56,7 +62,12 @@ import { getEmojiTags } from '@/lib/utils/text/getEmojiTags'
 import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 import {
+  ComposerAttachmentTiles,
+  getAttachmentLabel
+} from './composer-attachment-tiles'
+import {
   areAttachmentIdsEqualInOrder,
+  getChangedAttachmentDescriptions,
   getEditableStatusAttachments,
   getStatusAttachmentsFromUpdateResponse,
   getTimestamp
@@ -138,6 +149,11 @@ export const PostBox: FC<Props> = ({
   const formRef = useRef<HTMLFormElement>(null)
   const textRef = useRef(text)
   const submitInFlightRef = useRef(false)
+  // Ids of media that a create/update has already accepted. A parent may
+  // unmount the composer from inside `onPostCreated`/`onPostUpdated` (after
+  // which `submitInFlightRef` is already false again), so every discard path
+  // skips these: media that was posted must never be deleted.
+  const postedMediaIdsRef = useRef(new Set<string>())
   const fitnessCleanupInFlightRef = useRef<{
     uploadedId: string
     promise: Promise<boolean>
@@ -149,6 +165,37 @@ export const PostBox: FC<Props> = ({
     createDefaultState
   )
   const postExtensionRef = useRef(postExtension)
+  // Media ids that belong to the status being edited. They are the status's own
+  // media, so abandoning the composer must never delete them.
+  const originalMediaIdsRef = useRef<Set<string>>(new Set())
+  const isMountedRef = useRef(true)
+  // Media details live beside the attachments, keyed by media id, rather than
+  // on PostBoxAttachment: that type is what goes to the outbox, and the details
+  // (subject, gear, place) are already saved on the media row by the dialog.
+  const [gallerySettings, setGallerySettings] =
+    useState<GallerySettingsEntity | null>(null)
+  const [detailsById, setDetailsById] = useState<
+    Record<string, MediaDetailsEntity>
+  >({})
+  const [decorativeIds, setDecorativeIds] = useState<Record<string, true>>({})
+  const [fileNames, setFileNames] = useState<Record<string, string>>({})
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({})
+  // True once the lazy settings request has failed (and until a retry works).
+  const [settingsFailed, setSettingsFailed] = useState(false)
+  const [detailsPending, setDetailsPending] = useState<Record<string, true>>({})
+  const [activeDetailsId, setActiveDetailsId] = useState<string | null>(null)
+  const uploadErrorsRef = useRef<Record<string, string>>({})
+  // In-flight uploads by attachment id; submit waits on every one of them.
+  const uploadsRef = useRef(new Map<string, Promise<void>>())
+  const settingsPromiseRef = useRef<Promise<void> | null>(null)
+  // The latest settings and decorative marks for the submit gate, which runs
+  // after awaits and must not read the stale render closure.
+  const gallerySettingsRef = useRef<GallerySettingsEntity | null>(null)
+  const decorativeIdsRef = useRef<Record<string, true>>({})
+  // Server media id -> the temporary id the tile was first rendered with, so
+  // the tile's React key survives the id swap when its upload finishes (a new
+  // key would remount the tile and drop focus from its Remove button).
+  const [clientKeys, setClientKeys] = useState<Record<string, string>>({})
   // The actor's default quote policy (Mastodon posting:default:quote_policy),
   // fetched once and re-applied after each post so it stays sticky across the
   // resetExtension() that follows a successful create.
@@ -273,7 +320,14 @@ export const PostBox: FC<Props> = ({
   }, [maxStatusCharacters, isPosting, editStatus])
 
   useEffect(() => {
+    isMountedRef.current = true
     return () => {
+      isMountedRef.current = false
+      // Uploads happen on attach, so media still in the composer when it goes
+      // away was never posted: delete it (unless a submit is using it).
+      if (!submitInFlightRef.current) {
+        discardUploadedMedia(postExtensionRef.current.attachments)
+      }
       postExtensionRef.current.attachments.forEach((attachment) => {
         if (attachment.url.startsWith('blob:')) {
           URL.revokeObjectURL(attachment.url)
@@ -285,102 +339,359 @@ export const PostBox: FC<Props> = ({
     }
   }, [])
 
-  const uploadMediaAttachments = async () => {
-    const attachmentsToUpload = postExtensionRef.current.attachments
-
-    const uploadResults = await Promise.all(
-      attachmentsToUpload.map(async (attachment) => {
-        if (!attachment.file)
-          return {
-            originalId: attachment.id,
-            uploadedAttachment: attachment
-          }
-
-        const loadingAttachment = {
-          ...attachment,
-          isLoading: true
-        }
-        postExtensionRef.current = {
-          ...postExtensionRef.current,
-          attachments: postExtensionRef.current.attachments.map((item) =>
-            item.id === attachment.id ? loadingAttachment : item
-          )
-        }
-        dispatch(updateAttachment(attachment.id, loadingAttachment))
-
-        try {
-          const uploaded = attachment.posterFile
-            ? await uploadAttachment(attachment.file, attachment.posterFile)
-            : await uploadAttachment(attachment.file)
-          if (!uploaded) throw new Error()
-
-          // Revoke the blob URL after successful upload
-          if (attachment.url.startsWith('blob:')) {
-            URL.revokeObjectURL(attachment.url)
-          }
-          if (attachment.posterUrl?.startsWith('blob:')) {
-            URL.revokeObjectURL(attachment.posterUrl)
-          }
-
-          const newAttachment = {
-            ...attachment,
-            ...uploaded,
-            isLoading: false,
-            file: undefined,
-            posterFile: undefined
-          }
-          postExtensionRef.current = {
-            ...postExtensionRef.current,
-            attachments: postExtensionRef.current.attachments.map((item) =>
-              item.id === attachment.id ? newAttachment : item
-            )
-          }
-          dispatch(updateAttachment(attachment.id, newAttachment))
-          return {
-            originalId: attachment.id,
-            uploadedAttachment: newAttachment
-          }
-        } catch (error) {
-          const restoredAttachment = {
-            ...attachment,
-            isLoading: false
-          }
-          postExtensionRef.current = {
-            ...postExtensionRef.current,
-            attachments: postExtensionRef.current.attachments.map((item) =>
-              item.id === attachment.id ? restoredAttachment : item
-            )
-          }
-          dispatch(updateAttachment(attachment.id, restoredAttachment))
-          const reason =
-            error instanceof Error && error.message ? `: ${error.message}` : ''
-          throw new Error(
-            `Fail to upload ${attachment.file?.name ?? attachment.name ?? 'file'}${reason}`,
-            {
-              cause: error
-            }
-          )
-        }
-      })
-    )
-
-    // Filter out attachments that were removed during upload
-    const currentAttachmentIds = new Set(
-      postExtensionRef.current.attachments.map((a) => a.id)
-    )
-    return uploadResults
-      .filter((a) => {
-        return (
-          currentAttachmentIds.has(a.originalId) ||
-          currentAttachmentIds.has(a.uploadedAttachment.id)
-        )
-      })
-      .map((a) => a.uploadedAttachment)
+  // Best-effort delete of media that was uploaded on attach but never posted.
+  // Attachments still holding a file have no server copy yet, and the original
+  // attachments of a status being edited are never deleted.
+  function discardUploadedMedia(attachments: PostBoxAttachment[]) {
+    attachments.forEach((attachment) => {
+      if (attachment.file || attachment.isLoading) return
+      if (originalMediaIdsRef.current.has(attachment.id)) return
+      if (postedMediaIdsRef.current.has(attachment.id)) return
+      deleteAccountMedia({ mediaId: attachment.id }).catch(() => undefined)
+    })
   }
+
+  const markAttachmentsPosted = (attachments: PostBoxAttachment[]) => {
+    attachments.forEach((attachment) =>
+      postedMediaIdsRef.current.add(attachment.id)
+    )
+  }
+
+  const revokeAttachmentUrls = (
+    attachment: Pick<PostBoxAttachment, 'url' | 'posterUrl'>
+  ) => {
+    if (attachment.url.startsWith('blob:')) {
+      URL.revokeObjectURL(attachment.url)
+    }
+    if (attachment.posterUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(attachment.posterUrl)
+    }
+  }
+
+  const findAttachment = (id: string) =>
+    postExtensionRef.current.attachments.find((item) => item.id === id)
+
+  const replaceAttachment = (id: string, next: PostBoxAttachment) => {
+    postExtensionRef.current = {
+      ...postExtensionRef.current,
+      attachments: postExtensionRef.current.attachments.map((item) =>
+        item.id === id ? next : item
+      )
+    }
+    dispatch(updateAttachment(id, next))
+  }
+
+  const setUploadError = (id: string, message: string | null) => {
+    const { [id]: _removed, ...rest } = uploadErrorsRef.current
+    uploadErrorsRef.current =
+      message === null ? rest : { ...rest, [id]: message }
+    setUploadErrors(uploadErrorsRef.current)
+  }
+
+  // The gallery settings are only needed once the composer holds media, so they
+  // are requested lazily, once, the first time an attachment appears.
+  const ensureGallerySettings = () => {
+    if (!settingsPromiseRef.current) {
+      settingsPromiseRef.current = getGallerySettings()
+        .then((settings) => {
+          setSettingsFailed(false)
+          gallerySettingsRef.current = settings
+          setGallerySettings(settings)
+        })
+        .catch(() => {
+          // Without settings the composer fails open (no description
+          // requirement, no Regenerate): the server does not enforce the
+          // requirement, so a settings outage must not block posting. While
+          // the request is still in flight Post is disabled instead (see
+          // `settingsLoading`). Allow a later retry.
+          setSettingsFailed(true)
+          settingsPromiseRef.current = null
+        })
+    }
+    return settingsPromiseRef.current
+  }
+
+  const hasAttachments = postExtension.attachments.length > 0
+  useEffect(() => {
+    if (hasAttachments) void ensureGallerySettings()
+    // ensureGallerySettings only touches refs and a state setter.
+  }, [hasAttachments])
+
+  const applyMedia = (id: string, media: MediaStorageSaveFileOutput) => {
+    const { details } = media
+    if (details) setDetailsById((current) => ({ ...current, [id]: details }))
+    // An attachment of the status being edited keeps its own name: the media
+    // row's description may be empty while the attachment carries alt text, and
+    // only an explicit save in the dialog may change it.
+    if (originalMediaIdsRef.current.has(id)) return
+    const current = findAttachment(id)
+    if (current) {
+      replaceAttachment(id, { ...current, name: media.description ?? '' })
+    }
+  }
+
+  // Ids whose details were fetched successfully (the answer may legitimately
+  // be "no details"), and fetches currently running. Neither is re-requested.
+  const fetchedDetailsRef = useRef<Set<string>>(new Set())
+  const detailsInFlightRef = useRef<Map<string, Promise<void>>>(new Map())
+  // Bumped per id whenever the dialog saves it, so a details read that started
+  // earlier cannot overwrite what the user just saved.
+  const savedGenerationRef = useRef<Map<string, number>>(new Map())
+  // The tile that opened the dialog, so focus can go back to it on close.
+  const detailsOpenerIdRef = useRef<string | null>(null)
+
+  // `silent` skips the tile's busy state: a details refetch triggered by
+  // opening the dialog must not disable the tile that has focus.
+  const loadDetails = (id: string, { silent = false } = {}) => {
+    if (fetchedDetailsRef.current.has(id)) return Promise.resolve()
+    const running = detailsInFlightRef.current.get(id)
+    if (running) return running
+    if (!silent) setDetailsPending((current) => ({ ...current, [id]: true }))
+    const promise = (async () => {
+      try {
+        const generation = savedGenerationRef.current.get(id) ?? 0
+        const media = await getMedia(id)
+        // Saved (or edited) in the dialog while this read was in flight: the
+        // read is stale, so keep what the user saved.
+        if ((savedGenerationRef.current.get(id) ?? 0) === generation) {
+          applyMedia(id, media)
+        }
+        fetchedDetailsRef.current.add(id)
+      } catch {
+        // The tile simply shows the state it has; opening the dialog retries.
+      } finally {
+        detailsInFlightRef.current.delete(id)
+        if (!silent) {
+          setDetailsPending((current) => {
+            const { [id]: _done, ...rest } = current
+            return rest
+          })
+        }
+      }
+    })()
+    detailsInFlightRef.current.set(id, promise)
+    return promise
+  }
+
+  // Uploads when the file is attached rather than at Post: the tile shows the
+  // progress, the server reads the file's details, and Post only has to wait
+  // for whatever is still in flight.
+  const startUpload = (attachment: PostBoxAttachment) => {
+    const { file, posterFile } = attachment
+    if (!file) return
+    const tempId = attachment.id
+    void ensureGallerySettings()
+    setFileNames((current) => ({ ...current, [tempId]: file.name }))
+    setUploadError(tempId, null)
+    replaceAttachment(tempId, { ...attachment, isLoading: true })
+
+    const run = async () => {
+      try {
+        const uploaded = posterFile
+          ? await uploadAttachment(file, posterFile)
+          : await uploadAttachment(file)
+        if (!uploaded) throw new Error('The server rejected the upload')
+        revokeAttachmentUrls(attachment)
+        const current = findAttachment(tempId)
+        // Removed (or the composer unmounted) while uploading: the server copy
+        // is an orphan, so delete it (best effort) and leave no state behind.
+        if (!current || !isMountedRef.current) {
+          deleteAccountMedia({ mediaId: uploaded.id }).catch(() => undefined)
+          return
+        }
+        setClientKeys((keys) => ({
+          ...keys,
+          [uploaded.id]: keys[tempId] ?? tempId
+        }))
+        replaceAttachment(tempId, {
+          ...current,
+          ...uploaded,
+          // Explicit: the revoked blob poster must not survive when the
+          // server returns no poster.
+          posterUrl: uploaded.posterUrl,
+          isLoading: false,
+          file: undefined,
+          posterFile: undefined
+        })
+        setFileNames((names) => ({ ...names, [uploaded.id]: file.name }))
+        await loadDetails(uploaded.id)
+      } catch (error) {
+        const current = findAttachment(tempId)
+        // Removed while uploading: nothing to mark as failed.
+        if (!current || !isMountedRef.current) return
+        replaceAttachment(tempId, { ...current, isLoading: false })
+        // Never store '': the tile treats a falsy error as "no error".
+        setUploadError(
+          tempId,
+          error instanceof Error && error.message
+            ? error.message
+            : 'Upload failed'
+        )
+      }
+    }
+    const promise = run().finally(() => {
+      if (uploadsRef.current.get(tempId) === promise) {
+        uploadsRef.current.delete(tempId)
+      }
+    })
+    uploadsRef.current.set(tempId, promise)
+  }
+
+  const uploadMediaAttachments = async () => {
+    // Uploads start when media is attached; wait for the ones still running.
+    await Promise.all(Array.from(uploadsRef.current.values()))
+
+    const attachments = postExtensionRef.current.attachments
+    attachments.forEach((attachment, index) => {
+      if (!attachment.file) return
+      const reason = uploadErrorsRef.current[attachment.id]
+      throw new Error(
+        `Fail to upload ${getAttachmentLabel(attachment, fileNames, index)}${reason ? `: ${reason}` : ''}`
+      )
+    })
+    return attachments
+  }
+
+  const openDetails = async (id: string) => {
+    // The post is about to use this media; nothing may change it mid-submit.
+    if (isPosting || submitInFlightRef.current) return
+    const missing = postExtensionRef.current.attachments.filter(
+      (item) =>
+        !item.file &&
+        !item.isLoading &&
+        !detailsById[item.id] &&
+        !fetchedDetailsRef.current.has(item.id) &&
+        !detailsInFlightRef.current.has(item.id)
+    )
+    await Promise.all([
+      ensureGallerySettings(),
+      ...missing.map((item) => loadDetails(item.id, { silent: true }))
+    ])
+    // The awaits above leave a window: a submit may have started, or the
+    // attachment may have been removed or replaced (poll, fitness file).
+    if (
+      !isMountedRef.current ||
+      submitInFlightRef.current ||
+      !findAttachment(id)
+    ) {
+      return
+    }
+    detailsOpenerIdRef.current = id
+    setActiveDetailsId(id)
+  }
+
+  const closeDetails = () => {
+    const openerId = detailsOpenerIdRef.current
+    setActiveDetailsId(null)
+    if (!openerId) return
+    // After the dialog has unmounted (and Radix has run its own focus return).
+    setTimeout(() => {
+      document
+        .querySelector<HTMLElement>(
+          `[data-attachment-tile="${CSS.escape(openerId)}"]`
+        )
+        ?.focus()
+    }, 0)
+  }
+
+  const onDetailsSaved = (saved: MediaDetailsSavedItem[]) => {
+    saved.forEach((item) => {
+      savedGenerationRef.current.set(
+        item.id,
+        (savedGenerationRef.current.get(item.id) ?? 0) + 1
+      )
+    })
+    setDetailsById((current) => {
+      const next = { ...current }
+      saved.forEach((item) => {
+        if (item.details) next[item.id] = item.details
+      })
+      return next
+    })
+    setDecorativeIds((current) => {
+      const next = { ...current }
+      saved.forEach((item) => {
+        if (item.decorative) next[item.id] = true
+        else delete next[item.id]
+      })
+      return next
+    })
+    saved.forEach((item) => {
+      const current = findAttachment(item.id)
+      if (current) {
+        replaceAttachment(item.id, { ...current, name: item.description })
+      }
+    })
+    // In edit mode a description-only change makes the draft dirty (the
+    // description is sent as media_attributes on Update).
+    // Not mid-submit: that would re-enable Update while the request is in flight.
+    if (editStatus && !submitInFlightRef.current) {
+      setAllowPost(isEditSubmittable())
+    }
+  }
+
+  const resetMediaState = () => {
+    uploadsRef.current.clear()
+    fetchedDetailsRef.current.clear()
+    detailsInFlightRef.current.clear()
+    uploadErrorsRef.current = {}
+    setUploadErrors({})
+    setDetailsById({})
+    setDecorativeIds({})
+    setClientKeys({})
+    setFileNames({})
+    setDetailsPending({})
+    setActiveDetailsId(null)
+  }
+
+  decorativeIdsRef.current = decorativeIds
+
+  // Whether a settled attachment still lacks the description the instance
+  // requires. Still uploading or failed items are skipped (the tile says so;
+  // "add a description" would be misleading until there is a stored media to
+  // describe), and so is media already on the status being edited: a legacy
+  // item posted without a description must not block a typo fix.
+  const isUndescribed = (
+    item: PostBoxAttachment,
+    decorative: Record<string, true>
+  ) =>
+    !item.file &&
+    !item.isLoading &&
+    !originalMediaIdsRef.current.has(item.id) &&
+    !(item.name ?? '').trim() &&
+    !decorative[item.id]
+
+  // The submit gate. Unlike the tile prompt below (render state), this runs
+  // after the uploads have settled: an upload still in flight when Post was
+  // clicked has no description yet but may well need one.
+  const hasMissingDescriptionAfterUploads = async (
+    attachments: PostBoxAttachment[]
+  ) => {
+    await ensureGallerySettings()
+    if (gallerySettingsRef.current?.allowEmptyDescription !== false) {
+      return false
+    }
+    return attachments.some((item) =>
+      isUndescribed(item, decorativeIdsRef.current)
+    )
+  }
+
+  const descriptionRequired = gallerySettings?.allowEmptyDescription === false
+  // Post waits for the settings so the description requirement cannot be
+  // skipped by posting before they arrive; a failed load fails open.
+  // Media already on the status being edited is not re-validated: a legacy
+  // item posted without a description must not block a typo fix.
+  const hasUndescribedAttachment = postExtension.attachments.some((item) =>
+    isUndescribed(item, decorativeIds)
+  )
+  const settingsLoading =
+    hasUndescribedAttachment && !gallerySettings && !settingsFailed
+  const missingDescription = descriptionRequired && hasUndescribedAttachment
 
   const onPost = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault()
     if (!allowPost) return
+    if (missingDescription || settingsLoading) return
     if (!isWithinLengthLimit(textRef.current, maxStatusCharacters)) return
     if (submitInFlightRef.current) return
     submitInFlightRef.current = true
@@ -415,6 +726,7 @@ export const PostBox: FC<Props> = ({
         })
 
         dispatch(resetExtension())
+        resetMediaState()
         // Clear the draft like the note branch does. Leaving the question text
         // behind re-arms the (now poll-less) composer, so a second click posts
         // it again as a plain note.
@@ -426,6 +738,11 @@ export const PostBox: FC<Props> = ({
 
       if (editStatus) {
         const attachments = await uploadMediaAttachments()
+        if (await hasMissingDescriptionAfterUploads(attachments)) {
+          setIsPosting(false)
+          setAllowPost(true)
+          return
+        }
         const baselineText = getEditableStatusText(editStatus)
         const baselineContentWarning = editStatus.summary ?? ''
         const currentContentWarning = postExtension.contentWarningVisible
@@ -441,11 +758,16 @@ export const PostBox: FC<Props> = ({
             ? currentContentWarning
             : undefined
         const updateAttachments = attachmentsChanged ? attachments : undefined
+        const updateMediaAttributes = getChangedAttachmentDescriptions(
+          attachments,
+          getEditableStatusAttachments(editStatus)
+        )
 
         if (
           updateMessage === undefined &&
           updateContentWarning === undefined &&
-          updateAttachments === undefined
+          updateAttachments === undefined &&
+          updateMediaAttributes.length === 0
         ) {
           setIsPosting(false)
           return
@@ -455,7 +777,9 @@ export const PostBox: FC<Props> = ({
           statusId: editStatus.id,
           message: updateMessage,
           contentWarning: updateContentWarning,
-          attachments: updateAttachments
+          attachments: updateAttachments,
+          mediaAttributes:
+            updateMediaAttributes.length > 0 ? updateMediaAttributes : undefined
         })
         const responseStatus = updateResponse.status
         const responseCreatedAt = getTimestamp(
@@ -467,6 +791,7 @@ export const PostBox: FC<Props> = ({
           Date.now()
         )
         const responseStatusId = responseStatus.id || editStatus.id
+        markAttachmentsPosted(attachments)
         onPostUpdated({
           ...editStatus,
           id: responseStatusId,
@@ -484,6 +809,7 @@ export const PostBox: FC<Props> = ({
           updatedAt: responseUpdatedAt
         })
         dispatch(resetExtension())
+        resetMediaState()
 
         setText('')
         setIsPosting(false)
@@ -517,6 +843,11 @@ export const PostBox: FC<Props> = ({
       }
 
       const attachments = await uploadMediaAttachments()
+      if (await hasMissingDescriptionAfterUploads(attachments)) {
+        setIsPosting(false)
+        setAllowPost(true)
+        return
+      }
 
       const response = await createNote({
         message,
@@ -530,8 +861,10 @@ export const PostBox: FC<Props> = ({
       })
 
       const { status, attachments: storedAttachments } = response
+      markAttachmentsPosted(attachments)
       onPostCreated(status, storedAttachments)
       dispatch(resetExtension())
+      resetMediaState()
       // resetExtension() drops the policy back to the default 'public';
       // re-apply the actor's configured default so it stays sticky.
       dispatch(setQuoteApprovalPolicy(defaultQuotePolicyRef.current))
@@ -563,18 +896,28 @@ export const PostBox: FC<Props> = ({
     onDiscardQuote?.()
   }
 
-  const onRemoveAttachment = (attachmentIndex: number) => {
-    const attachment = postExtension.attachments[attachmentIndex]
-    if (attachment.url.startsWith('blob:')) {
-      URL.revokeObjectURL(attachment.url)
+  const onRemoveAttachment = (attachmentId: string) => {
+    // Removing deletes the uploaded media, which the in-flight post is using.
+    if (isPosting || submitInFlightRef.current) return
+    // Read the ref, not the render closure (an upload may have replaced the
+    // list since), and resolve the target by id, not by position.
+    const attachment = findAttachment(attachmentId)
+    if (!attachment) return
+    revokeAttachmentUrls(attachment)
+    discardUploadedMedia([attachment])
+    setUploadError(attachment.id, null)
+    const prune = <T,>(record: Record<string, T>) => {
+      const { [attachment.id]: _removed, ...rest } = record
+      return rest
     }
-    if (attachment.posterUrl?.startsWith('blob:')) {
-      URL.revokeObjectURL(attachment.posterUrl)
-    }
-    const nextAttachments = [
-      ...postExtension.attachments.slice(0, attachmentIndex),
-      ...postExtension.attachments.slice(attachmentIndex + 1)
-    ]
+    setFileNames(prune)
+    setDetailsById(prune)
+    setDecorativeIds(prune)
+    setDetailsPending(prune)
+    fetchedDetailsRef.current.delete(attachment.id)
+    const nextAttachments = postExtensionRef.current.attachments.filter(
+      (item) => item.id !== attachment.id
+    )
     const nextExtension = {
       ...postExtensionRef.current,
       attachments: nextAttachments
@@ -751,9 +1094,17 @@ export const PostBox: FC<Props> = ({
   }, [replyStatus, postExtension.fitnessFile, onRemoveFitnessFile])
 
   useEffect(() => {
+    // The composer is being re-targeted: media uploaded for the previous draft
+    // and never posted is abandoned (unless a submit is still using it).
+    if (!submitInFlightRef.current) {
+      discardUploadedMedia(postExtensionRef.current.attachments)
+    }
     if (editStatus) {
       const editText = getEditableStatusText(editStatus)
       const attachments = getEditableStatusAttachments(editStatus)
+      originalMediaIdsRef.current = new Set(
+        attachments.map((attachment) => attachment.id)
+      )
       const nextExtension = {
         ...createDefaultState(),
         attachments,
@@ -761,6 +1112,7 @@ export const PostBox: FC<Props> = ({
         contentWarningVisible: Boolean(editStatus.summary)
       }
       postExtensionRef.current = nextExtension
+      resetMediaState()
       textRef.current = editText
       setText(editText)
       dispatch(setAttachments(attachments))
@@ -769,10 +1121,12 @@ export const PostBox: FC<Props> = ({
       setAllowPost(false)
       return
     } else {
+      originalMediaIdsRef.current = new Set()
       setText('')
       textRef.current = ''
       postExtensionRef.current = createDefaultState()
       dispatch(resetExtension())
+      resetMediaState()
       setAllowPost(false)
     }
 
@@ -820,6 +1174,21 @@ export const PostBox: FC<Props> = ({
       }, 0)
     }
   }, [profile, replyStatus, editStatus, quotedStatus])
+
+  const detailsDialogItems: MediaDetailsDialogItem[] = postExtension.attachments
+    // Items still reading their details have nothing to edit yet.
+    .filter((item) => !item.file && !item.isLoading && !detailsPending[item.id])
+    .map((item) => ({
+      id: item.id,
+      mediaType: item.mediaType,
+      url: item.url,
+      posterUrl: item.posterUrl,
+      width: item.width,
+      height: item.height,
+      description: item.name ?? '',
+      decorative: Boolean(decorativeIds[item.id]),
+      details: detailsById[item.id] ?? null
+    }))
 
   return (
     <div>
@@ -937,7 +1306,21 @@ export const PostBox: FC<Props> = ({
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
+              fileNames={fileNames}
+              disabled={isPosting}
               onAddAttachment={(attachment) => {
+                // A picker batch that resolves after submit began must not
+                // change what is being posted: the submit already captured
+                // the attachments, and a late one would upload for nothing.
+                if (submitInFlightRef.current) {
+                  if (attachment.url.startsWith('blob:')) {
+                    URL.revokeObjectURL(attachment.url)
+                  }
+                  if (attachment.posterUrl?.startsWith('blob:')) {
+                    URL.revokeObjectURL(attachment.posterUrl)
+                  }
+                  return
+                }
                 // Bounds postExtensionRef, not postExtension: this callback
                 // writes the ref synchronously below, before dispatch, so
                 // the reducer's own addAttachment cap (which guards only the
@@ -959,11 +1342,15 @@ export const PostBox: FC<Props> = ({
                   }
                   return
                 }
+                // Pending from the start: the upload begins right below.
+                const pendingAttachment = attachment.file
+                  ? { ...attachment, isLoading: true }
+                  : attachment
                 const nextExtension = {
                   ...postExtensionRef.current,
                   attachments: [
                     ...postExtensionRef.current.attachments,
-                    attachment
+                    pendingAttachment
                   ],
                   fitnessFile: undefined,
                   poll: {
@@ -971,7 +1358,8 @@ export const PostBox: FC<Props> = ({
                   }
                 }
                 postExtensionRef.current = nextExtension
-                dispatch(addAttachment(attachment, maxMediaAttachments))
+                dispatch(addAttachment(pendingAttachment, maxMediaAttachments))
+                startUpload(pendingAttachment)
                 if (editStatus) {
                   setAllowPost(
                     isEditSubmittable(textRef.current, nextExtension)
@@ -998,6 +1386,8 @@ export const PostBox: FC<Props> = ({
                 disabled={isPosting}
                 onFileSelected={(file) => {
                   setWarningMsg(null)
+                  discardUploadedMedia(postExtensionRef.current.attachments)
+                  resetMediaState()
                   postExtensionRef.current.attachments.forEach((attachment) => {
                     if (attachment.url.startsWith('blob:')) {
                       URL.revokeObjectURL(attachment.url)
@@ -1056,9 +1446,16 @@ export const PostBox: FC<Props> = ({
                   ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
                   : 'text-muted-foreground hover:text-foreground'
               )}
-              onClick={() =>
+              onClick={() => {
+                // The poll replaces any attached media (the reducer drops it
+                // and revokes the previews), so delete what was already
+                // uploaded for it instead of orphaning it on the server.
+                if (!submitInFlightRef.current) {
+                  discardUploadedMedia(postExtensionRef.current.attachments)
+                  resetMediaState()
+                }
                 dispatch(setPollVisibility(!postExtension.poll.showing))
-              }
+              }}
             >
               <BarChart3 className="size-4" />
             </Button>
@@ -1136,13 +1533,24 @@ export const PostBox: FC<Props> = ({
                 Cancel Edit
               </Button>
             ) : null}
-            <Button disabled={!allowPost || isPosting} type="submit" size="sm">
+            <Button
+              disabled={
+                !allowPost || isPosting || missingDescription || settingsLoading
+              }
+              type="submit"
+              size="sm"
+            >
               {editStatus ? 'Update' : isPosting ? 'Posting...' : 'Post'}
             </Button>
           </div>
         </div>
         {warningMsg ? (
           <div className="text-xs text-destructive mb-3">{warningMsg}</div>
+        ) : null}
+        {missingDescription ? (
+          <div className="text-xs text-destructive mb-3" role="status">
+            Add a description to every item, or mark it decorative
+          </div>
         ) : null}
         {!replyStatus && postExtension.fitnessFile ? (
           <div className="mb-3 flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
@@ -1172,29 +1580,32 @@ export const PostBox: FC<Props> = ({
             </Button>
           </div>
         ) : null}
-        <div className="grid gap-4 grid-cols-8">
-          {postExtension.attachments.map((item, index) => {
-            return (
-              <button
-                type="button"
-                aria-label={`Remove media ${item.file?.name || item.name || index + 1}`}
-                className="w-full aspect-square bg-border bg-center bg-cover cursor-pointer relative"
-                key={item.id}
-                style={{
-                  backgroundImage: `url("${item.posterUrl || item.url}")`
-                }}
-                onClick={() => onRemoveAttachment(index)}
-              >
-                {item.isLoading ? (
-                  <div className="absolute inset-0 bg-background/50 flex items-center justify-center">
-                    <Loader2 className="animate-spin text-primary" />
-                  </div>
-                ) : null}
-              </button>
-            )
-          })}
-        </div>
+        <ComposerAttachmentTiles
+          attachments={postExtension.attachments}
+          fileNames={fileNames}
+          detailsById={detailsById}
+          clientKeys={clientKeys}
+          decorativeIds={decorativeIds}
+          uploadErrors={uploadErrors}
+          detailsPending={detailsPending}
+          disabled={isPosting}
+          onOpen={(id) => void openDetails(id)}
+          onRemove={onRemoveAttachment}
+          onRetry={(id) => {
+            const attachment = findAttachment(id)
+            if (attachment) startUpload(attachment)
+          }}
+        />
       </form>
+      {activeDetailsId ? (
+        <MediaDetailsDialog
+          items={detailsDialogItems}
+          initialId={activeDetailsId}
+          settings={gallerySettings}
+          onClose={closeDetails}
+          onSaved={onDetailsSaved}
+        />
+      ) : null}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { JobMessage } from '@/lib/services/queue/type'
 import { Timeline } from '@/lib/services/timelines/types'
+import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 import {
   ActorSettings,
   PostLineLimit,
@@ -3314,6 +3315,10 @@ interface MetaData {
     contentType?: string
     size?: number
     verifiedAt?: number
+    // The key the client's presigned PUT targeted, recorded when the stripped
+    // copy is swapped in. The presigned URL outlives the swap, so a re-PUT can
+    // recreate an object here; media deletion removes this key too.
+    clientPath?: string
   }
 }
 
@@ -3337,6 +3342,9 @@ interface BaseMedia {
   // MediaAttachment `meta.focus`.
   focus?: { x: number; y: number }
   blurhash?: string | null
+  // Subject, EXIF-derived and owner-edited details (see MediaDetailsRecord).
+  // Omitted fields take the column default.
+  details?: Partial<MediaDetailsRecord>
 }
 
 // A processed thumbnail ready to persist on an existing media row. Mirrors the
@@ -3348,8 +3356,11 @@ export type MediaThumbnailInput = {
   metaData: { width: number; height: number }
 }
 
-export interface Media extends BaseMedia {
+export interface Media extends Omit<BaseMedia, 'details'> {
   id: string
+  // Always present on a row read from the database; may be absent on a Media
+  // built by hand (tests, in-memory fixtures).
+  details?: MediaDetailsRecord
 }
 
 export interface MediaWithStatus extends Media {
@@ -3462,7 +3473,14 @@ export type UpdateMediaParams = {
   focus?: { x: number; y: number }
   blurhash?: string | null
   thumbnail?: MediaThumbnailInput
+  // Presence semantics, like the fields above: an omitted key is left alone and
+  // an explicit null clears the column. `details` is narrowed to what an update
+  // may write — `inGallery` is a boolean, never null.
+  details?: UpdateMediaDetailsParams
 }
+export type UpdateMediaDetailsParams = Partial<
+  Omit<MediaDetailsRecord, 'inGallery'>
+> & { inGallery?: boolean }
 export type UpdateMediaResult = {
   media: Media
   // Path of the thumbnail this update replaced, captured inside the update
@@ -3477,13 +3495,53 @@ export type MarkMediaUploadVerifiedParams = {
   // The dimensions probed from the uploaded bytes, replacing the ones the
   // client declared when it asked for the presigned URL.
   dimensions?: { width: number; height: number }
+  // The size of the original after completion rewrote it (metadata stripped),
+  // replacing the declared size. The account's media usage counter moves by the
+  // difference.
+  originalBytes?: number
+  // The key the rewritten original was stored under. Completion writes the
+  // stripped copy to a NEW key and swaps it in here, so the client's upload is
+  // never overwritten while the row is still pending.
+  originalPath?: string
+  // The client's presign key being replaced by `originalPath`; persisted in
+  // `upload.clientPath` so deletion can remove a re-PUT at that key.
+  clientPath?: string
+  // The details built from the client's bytes before they were stripped (EXIF
+  // date, gear, place, the gallery default). Written in the same conditional
+  // pending → verified update as `originalPath`, so they commit with the swap
+  // or not at all: once the client's object is deleted they cannot be
+  // rebuilt. Same presence semantics as `UpdateMediaParams.details`.
+  details?: UpdateMediaDetailsParams
+}
+// `transitioned` is true only for the one call whose conditional
+// pending → verified update changed the row; a concurrent or repeated
+// completion gets the already-verified media back with `transitioned: false`
+// and must not apply its own side effects (the usage counter moves only on the
+// transition).
+export type MarkMediaUploadVerifiedResult = {
+  media: Media
+  transitioned: boolean
+}
+
+export type GetMediaWithAttachedStatusIdsParams = {
+  mediaId: string
+}
+// A media row together with the statuses it is attached to, for the public
+// details endpoint — which has no account to scope by and therefore must be
+// paired with a status visibility check.
+export type MediaWithAttachedStatusIds = {
+  media: Media
+  statusIds: string[]
 }
 
 export interface MediaDatabase {
   createMedia(params: CreateMediaParams): Promise<Media | null>
+  getMediaWithAttachedStatusIds(
+    params: GetMediaWithAttachedStatusIdsParams
+  ): Promise<MediaWithAttachedStatusIds | null>
   markMediaUploadVerified(
     params: MarkMediaUploadVerifiedParams
-  ): Promise<Media | null>
+  ): Promise<MarkMediaUploadVerifiedResult | null>
 
   createAttachment(params: CreateAttachmentParams): Promise<Attachment>
   updateAttachmentPlayback(

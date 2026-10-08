@@ -28,9 +28,15 @@ import { PostBox } from './post-box'
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
   createPoll: vi.fn(),
+  deleteAccountMedia: vi.fn().mockResolvedValue(true),
   deleteFitnessFile: vi.fn(),
   getCustomEmojis: vi.fn().mockResolvedValue([]),
   getDefaultQuotePolicy: vi.fn().mockResolvedValue('public'),
+  getGallerySettings: vi.fn().mockResolvedValue({
+    allowEmptyDescription: true,
+    altTextAvailable: false
+  }),
+  getMedia: vi.fn().mockRejectedValue(new Error('details unavailable')),
   updateNote: vi.fn(),
   uploadAttachment: vi.fn(),
   uploadFitnessFile: vi.fn()
@@ -1677,7 +1683,7 @@ describe('PostBox attachment ref guard', () => {
   })
 
   // postExtensionRef is written synchronously in onAddAttachment before the
-  // capped dispatch fires, so uploadMediaAttachments() (called at submit)
+  // capped dispatch fires, so the upload that starts on attach
   // reads it directly rather than the reducer-committed postExtension.
   //
   // Two picker batches fired back to back — before either's resizeImage

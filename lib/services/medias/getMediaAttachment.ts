@@ -1,5 +1,6 @@
 import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import {
+  MediaDetailsEntity,
   MediaStorageSaveFileOutput,
   MediaType
 } from '@/lib/services/medias/types'
@@ -33,9 +34,15 @@ const mediaType = (mimeType: string): MediaType => {
 // truth for the entity shape — the upload paths (LocalFile/S3 saveFile) and the
 // GET/PUT/PATCH /api/v1/media/:id routes all build their response body here so
 // every field stays consistent.
+//
+// `options.details` is the non-Mastodon `details` extension. It is opt-in
+// because this builder also serves surfaces other than the owner's own media
+// endpoints (scheduled statuses), and the extension carries exact coordinates;
+// build it with `getOwnerMediaAttachment` rather than passing it by hand.
 export const getMediaAttachment = (
   media: Media,
-  host: string
+  host: string,
+  options: { details?: MediaDetailsEntity } = {}
 ): MediaStorageSaveFileOutput => {
   const url = getMediaFileUrl(host, media.original.path)
   const previewUrl = media.thumbnail
@@ -64,6 +71,7 @@ export const getMediaAttachment = (
     // whitespace-only legacy rows normalise to null too; a real description is
     // returned verbatim (not trimmed) to match the write-path transform.
     description: media.description?.trim() ? media.description : null,
-    blurhash: media.blurhash ?? null
+    blurhash: media.blurhash ?? null,
+    ...(options.details ? { details: options.details } : {})
   })
 }

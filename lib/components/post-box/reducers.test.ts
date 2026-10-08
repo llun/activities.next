@@ -8,6 +8,7 @@ import {
   setContentWarning,
   setContentWarningVisibility,
   setFitnessFile,
+  setPollVisibility,
   statusExtensionReducer
 } from './reducers'
 
@@ -249,5 +250,39 @@ describe('post-box reducers', () => {
     ])
     expect(afterReset.poll.choices[0]).not.toBe(state.poll.choices[0])
     expect(createDefaultState().poll.choices[0].text).toBe('')
+  })
+
+  describe('setPollVisibility', () => {
+    const withBlobs = () => ({
+      ...createDefaultState(),
+      attachments: [
+        {
+          ...attachment('a'),
+          url: 'blob:preview-a',
+          posterUrl: 'blob:poster-a'
+        },
+        attachment('b')
+      ]
+    })
+
+    beforeEach(() => {
+      global.URL.revokeObjectURL = vi.fn()
+    })
+
+    it.each([true, false])(
+      'drops the attachments and revokes their blob URLs when visible is %s',
+      (visible) => {
+        const next = statusExtensionReducer(
+          withBlobs(),
+          setPollVisibility(visible)
+        )
+
+        expect(next.attachments).toEqual([])
+        expect(next.poll.showing).toBe(visible)
+        expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2)
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-a')
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:poster-a')
+      }
+    )
   })
 })

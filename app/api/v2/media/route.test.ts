@@ -148,6 +148,9 @@ describe('POST /api/v2/media', () => {
     const media = mockSaveMedia.mock.calls[0][2]
     expect(media.description).toBe('alt text')
     expect(media.focus).toEqual({ x: 0.1, y: -0.2 })
+    expect(mockSaveMedia.mock.calls[0][3]).toEqual({
+      withGalleryDetails: true
+    })
   })
 
   it('accepts the coarser write scope', async () => {
@@ -354,6 +357,49 @@ describe('POST /api/v2/media', () => {
         expect.any(Buffer),
         'image/png'
       )
+    })
+
+    it('does not generate alt text when the owner turned auto-describe off', async () => {
+      mockStoredToken.mockResolvedValue({
+        expiresAt: new Date(Date.now() + 60_000),
+        referenceId: ACTOR1_ID,
+        scopes: 'write:media'
+      })
+      mockGetConfig.mockReturnValue({
+        allowEmails: [],
+        host: 'llun.test',
+        secretPhase: 'test-secret',
+        altText: {
+          endpoint: 'https://api.openai.com/v1/chat/completions',
+          apiKey: 'sk-test',
+          model: 'gpt-4o-mini'
+        }
+      })
+      mockSaveMedia.mockResolvedValue({
+        ...sampleAttachment,
+        description: null
+      })
+      mockGenerateAltText.mockResolvedValue('Should never be used')
+      await mockDatabase!.updateGallerySettings({
+        actorId: ACTOR1_ID,
+        autoDescribe: false
+      })
+
+      try {
+        const response = await POST(
+          postRequest('write-media-token', buildForm()),
+          { params: Promise.resolve({}) }
+        )
+
+        expect(response.status).toBe(200)
+        expect((await response.json()).description).toBeNull()
+        expect(mockGenerateAltText).not.toHaveBeenCalled()
+      } finally {
+        await mockDatabase!.updateGallerySettings({
+          actorId: ACTOR1_ID,
+          autoDescribe: true
+        })
+      }
     })
 
     it('does not generate alt text when user already provided a description', async () => {

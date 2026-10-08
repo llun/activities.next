@@ -6,6 +6,7 @@ import {
 } from '@/lib/jobs/names'
 import { buildMentionEmail } from '@/lib/services/email/templates/mention'
 import { buildReplyEmail } from '@/lib/services/email/templates/reply'
+import { appendSubjectHashtags } from '@/lib/services/gallery/subjectHashtags'
 import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import {
@@ -15,6 +16,7 @@ import {
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   canActorReadStatus,
   isPublicOrUnlisted
@@ -358,6 +360,28 @@ export const createNoteFromUserInput = async ({
   database
 }: CreateNoteFromUserInputParams) =>
   withSpan('actions', 'createNoteFromUser', { text, replyNoteId }, async () => {
+    // Subject hashtags are part of the post: appended here, before the text is
+    // stored and before its hashtags are extracted below, so they are rendered,
+    // federated and counted like tags the author typed.
+    const subjectMediaIds = attachments
+      .map((attachment) => attachment.id)
+      .filter((id): id is string => Boolean(id))
+    // The request was validated against `posts.maxCharacters` before this
+    // runs, so appended tags are held to the same limit (or the stored post
+    // could no longer be edited).
+    const maxCharacters =
+      subjectMediaIds.length > 0
+        ? (await getResolvedServerSettings(database)).posts.maxCharacters
+        : undefined
+    text = await appendSubjectHashtags({
+      database,
+      accountId: currentActor.account?.id,
+      actorId: currentActor.id,
+      text,
+      mediaIds: subjectMediaIds,
+      maxCharacters
+    })
+
     const fitnessFile = fitnessFileId
       ? await database.getFitnessFile({ id: fitnessFileId })
       : null
@@ -599,8 +623,16 @@ export const createNoteFromUserInput = async ({
 
     await Promise.all([
       addStatusToTimelines(database, createdStatus),
-      ...attachments.map((attachment) =>
-        database.createAttachment({
+      ...attachments.map((attachment) => {
+        // Link the attachment to a media row only when that row belongs to
+        // the author's account. The outbox takes attachment ids from the
+        // client, and `attachments.mediaId` is read as proof the media's owner
+        // published it (the public details endpoint relies on it), so an id
+        // that did not resolve to an owned row is written without a link.
+        const ownedMetadata = attachment.id
+          ? mediaMetadataById.get(String(attachment.id))
+          : undefined
+        return database.createAttachment({
           actorId: currentActor.id,
           statusId,
           mediaType: attachment.mediaType,
@@ -608,13 +640,10 @@ export const createNoteFromUserInput = async ({
           width: attachment.width,
           height: attachment.height,
           name: attachment.name,
-          mediaId: attachment.id,
-          ...(attachment.id
-            ? (mediaMetadataById.get(String(attachment.id)) ??
-              EMPTY_ATTACHMENT_MEDIA_METADATA)
-            : EMPTY_ATTACHMENT_MEDIA_METADATA)
+          ...(ownedMetadata ? { mediaId: String(attachment.id) } : {}),
+          ...(ownedMetadata ?? EMPTY_ATTACHMENT_MEDIA_METADATA)
         })
-      )
+      })
     ])
 
     if (fitnessFile) {

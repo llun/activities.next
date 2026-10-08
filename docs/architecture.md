@@ -497,7 +497,8 @@ the matcher with Next's own config parser and runtime matcher. Do not fold the
          │ follows  │ │ likes  │ │attachments │ │ tags  │ │timelines │
          └──────────┘ └────────┘ └────────────┘ └───────┘ └──────────┘
 
-Other tables: sessions, notifications, medias, fitness_files,
+Other tables: sessions, notifications, medias, gallery_gears,
+              gallery_settings, fitness_files,
               fitness_settings, strava_archive_imports,
               wahoo_imports, wahoo_history_imports,
               fitness_route_heatmaps, fitness_route_heatmap_region_names,
@@ -2153,12 +2154,13 @@ legacy shape left to copy.
   text column, while Explore's `p-2` shell override pushes the frame edge
   outward and carries the cards back to the unchanged article text column
   across that wider frame. Captions align with their own card — the card
-  already sits on the text line — and the strip pager's `pr` is the same right
-  bleed, so the controls end on the message's right line too. The media row
+  already sits on the text line. The strip's overlay arrows are positioned
+  against the media row itself, not the text column, so they sit at the row's
+  frame edges. The media row
   must not be narrowed to achieve this: a lone picture still sizes naturally at
   `min(100%, Npx)` — a wide one spans the message column, a narrow one keeps
-  its own width on the left line — the strip keeps its item widths, gaps,
-  snapping and pager, and no ancestor may clip the row.
+  its own width on the left line — the strip keeps its item widths, gaps and
+  snapping, and no ancestor may clip the row.
 - **Media corner rounding follows attachment order:** A single attachment rounds
   all four outer corners (`rounded-2xl`). For a horizontal media strip: the first item
   rounds only its top-left and bottom-left corners (`rounded-l-2xl`), middle items
@@ -2186,12 +2188,22 @@ legacy shape left to copy.
 - The gallery uses 240px image boxes, 12px gaps, aspect-ratio-based card widths
   with a 160px minimum and 78% maximum, and `scroll-snap-type: x proximity`.
   Captions sit below their images, preserve line breaks and custom emoji, and
-  clamp independently to three lines. Paired circular arrows sit below the
-  captions while overflowing, remain focusable at their boundaries with guarded
-  `aria-disabled` states. Each click advances exactly one adjacent card —
-  landing it on the text line through the `scroll-padding-left` inset — using
-  the first boundary in the requested direction when the user is between cards,
-  and clamps at either end. While layout is still pending and no card boundary
+  clamp independently to three lines. While the strip overflows (two or more pictures), the strip has
+  overlay chrome rather than a row beneath it: a 40px circular arrow in a 44px
+  hit area sits over each edge (6px in from the row's edge, `Previous media` on
+  the left, `Next media` on the right), each over a 64px gradient scrim that
+  fades the media under it. A scrim is drawn only on a side that has more
+  content. A position counter `N / M` sits at the top right, `aria-hidden`
+  because the strip's group label already names the count. Both arrows stay
+  mounted while the strip overflows. An arrow at its edge is `aria-disabled`,
+  invisible (`opacity-0`, `pointer-events-none`) and removed from the tab order
+  (`tabIndex={-1}`), and its click is a no-op. If the focused arrow reaches its
+  edge, focus moves to the opposite arrow so keyboard focus is never dropped to
+  `<body>`. The arrows unmount only when the strip stops overflowing (for
+  example after a resize), and that case does not hand focus off. Each click
+  advances exactly one adjacent card — landing it on the text line through the
+  `scroll-padding-left` inset — using the first boundary in the requested
+  direction when the user is between cards, and clamps at either end. While layout is still pending and no card boundary
   exists yet, a press falls back to one visible width (`clientWidth`) in the
   requested direction. Scrolling stays smooth unless reduced motion is
   requested.
@@ -2203,8 +2215,12 @@ legacy shape left to copy.
   and federated video never has a poster. A lone picture or video is
   deliberately eager, being the post's largest element. Re-adding a cap hides
   media the post actually carries.
-- There are no edge fades or overlaid arrows; the arrows sit beneath captions
-  so they do not obscure media or interfere with touch.
+- The counter names the 1-based card the strip is on. At the end of the strip
+  it is the last card, so it reads `N / N` exactly when the forward arrow is
+  disabled. Otherwise it is the first card whose left edge has reached the
+  viewport's left edge, within a 4px tolerance; a card still partly scrolled
+  off to the left counts as passed. It re-reads on scroll, on resize, and when
+  the item widths change without a scroll event.
 - **Filtering is layout-only.** `isVisualAttachment` picks what gets a picture
   box and `isAudibleAttachment` what becomes an inline player; a `.fit` file or
   PDF is skipped rather than rendering an empty box. But the lightbox is handed

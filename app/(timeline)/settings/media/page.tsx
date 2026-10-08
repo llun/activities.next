@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { MediaDetailsSettings } from '@/lib/components/settings/MediaDetailsSettings'
 import { MediaManagement } from '@/lib/components/settings/MediaManagement'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -10,7 +11,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Media Storage'
+  title: 'Activities.next: Media'
 }
 
 const Page = async ({
@@ -54,6 +55,7 @@ const Page = async ({
 
   return (
     <MediaManagement
+      settings={<MediaDetailsSettings />}
       used={used}
       limit={limit}
       medias={result.items.map((media) => {

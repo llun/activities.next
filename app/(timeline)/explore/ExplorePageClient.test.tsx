@@ -318,7 +318,7 @@ describe('ExplorePageClient', () => {
     const strip = screen.getByRole('group', {
       name: /2 media attachments/
     })
-    expect(strip.parentElement).toHaveClass(
+    expect(strip.parentElement?.parentElement).toHaveClass(
       '-ml-[var(--post-media-bleed-left,4.25rem)]',
       '-mr-[var(--post-media-bleed-right,1rem)]'
     )

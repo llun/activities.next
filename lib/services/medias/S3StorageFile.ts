@@ -19,6 +19,10 @@ import { getConfig } from '@/lib/config'
 import { MediaStorageS3Config } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { generateAltText } from '@/lib/services/altText/openai'
+import {
+  buildUploadMediaDetails,
+  getGallerySettingsOrDefaults
+} from '@/lib/services/gallery/uploadMediaDetails'
 import { PRESIGNED_ANALYSIS_MAX_BYTES } from '@/lib/services/medias/constants'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { extractVideoMeta } from '@/lib/services/medias/extractVideoMeta'
@@ -28,7 +32,6 @@ import {
   getStoredMediaExtension,
   sanitizeStoredFileName
 } from '@/lib/services/medias/fileName'
-import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
 import {
   ImageAnalysisResult,
   analyzeImageBuffer
@@ -39,6 +42,7 @@ import {
   encodeImageOutput,
   getImageOutputFormatDetail
 } from '@/lib/services/medias/imageOutputFormat'
+import { getOwnerMediaAttachment } from '@/lib/services/medias/mediaDetails'
 import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import {
   PresignedUploadValidationError,
@@ -62,11 +66,14 @@ import {
   MediaType,
   PresigedMediaInput,
   PresignedUrlOutput,
+  SaveFileOptions,
   ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
+import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
 import { extractVideoPreviewFrame } from '@/lib/services/medias/videoPreview'
 import { getAcceptedVideoDimensions } from '@/lib/services/medias/videoProbe'
 import { createStorageS3Client } from '@/lib/services/storage/s3Client'
+import { MediaDetailsRecord } from '@/lib/types/database/gallery'
 import { Media } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { logger } from '@/lib/utils/logger'
@@ -373,7 +380,7 @@ export class S3FileStorage implements MediaStorage {
 
     const upload = media.original.metaData.upload
     if (upload?.state === 'verified') {
-      return this._getSaveFileOutput(media)
+      return await this._getSaveFileOutput(media)
     }
     if (!upload || upload.state !== 'pending') {
       throw new Error('Media upload is not pending verification')
@@ -454,32 +461,121 @@ export class S3FileStorage implements MediaStorage {
           expectedContentType
         )
 
-        const verifiedMedia = await this._database.markMediaUploadVerified({
-          mediaId,
-          accountId,
-          verifiedAt: Date.now(),
-          dimensions
-        })
-        if (!verifiedMedia) {
-          return null
+        // Read the details from the client's bytes BEFORE the metadata is
+        // stripped from them, and before any size or analysis gate: the
+        // owner's gallery default applies to every upload, however large.
+        const prepared = await this._preparePresignedDetails(
+          media,
+          tempFilePath,
+          expectedSize
+        )
+
+        // The object is public and the client's bytes still carry their EXIF
+        // (GPS position, device serials), which the owner's place precision
+        // exists to withhold. Write a copy without it to a NEW key and swap
+        // that in as the original in the same update that marks the upload
+        // verified. The client's object is left untouched until then, so a
+        // retried or concurrent completion still finds the bytes it validates
+        // against (an in-place overwrite made every retry fail the size check
+        // and delete a good upload).
+        const stripped = media.original.mimeType.startsWith('image')
+          ? await this._stripPresignedImageMetadata(
+              actor,
+              media.original.path,
+              tempFilePath,
+              expectedContentType,
+              expectedSize
+            )
+          : undefined
+
+        let result
+        try {
+          result = await this._database.markMediaUploadVerified({
+            mediaId,
+            accountId,
+            verifiedAt: Date.now(),
+            dimensions,
+            // Committed with the swap: the client's original (and its EXIF)
+            // is deleted right after, so a separate write that failed would
+            // lose the details for good.
+            ...(Object.keys(prepared.details).length === 0
+              ? null
+              : { details: prepared.details }),
+            ...(stripped === undefined
+              ? null
+              : {
+                  originalBytes: stripped.bytes,
+                  originalPath: stripped.key,
+                  clientPath: media.original.path
+                })
+          })
+        } catch (error) {
+          // The upload stays pending with the client's object intact, so a
+          // retry starts over; only the copy made for this attempt goes.
+          if (stripped) {
+            await this.deleteFile(stripped.key).catch(() => false)
+          }
+          throw error
+        }
+        if (!result || !result.transitioned) {
+          // Gone, or another completion verified it first: that call owns the
+          // swap and the decoration, and this attempt's copy is unused.
+          if (stripped) {
+            await this.deleteFile(stripped.key).catch(() => false)
+          }
+          return result ? await this._getSaveFileOutput(result.media) : null
+        }
+        const verifiedMedia = result.media
+        if (stripped) {
+          await this._deleteReplacedPresignedOriginal(media.original.path)
         }
 
         const output = await this._decoratePresignedMedia(
           media,
           accountId,
           tempFilePath,
-          expectedSize
+          expectedSize,
+          prepared
         )
-        return output ?? this._getSaveFileOutput(verifiedMedia)
+        return output ?? (await this._getSaveFileOutput(verifiedMedia))
       } finally {
         await fs.unlink(tempFilePath).catch(() => undefined)
       }
     } catch (error) {
       if (error instanceof PresignedUploadValidationError) {
+        // A concurrent completion may have verified the upload and removed
+        // the client's object while this one was reading it — the "missing"
+        // seen here is then that call's cleanup, not a bad upload. Never
+        // delete a row that is no longer pending.
+        const current = await this._database
+          .getMediaByIdForAccount({ mediaId, accountId })
+          .catch(() => null)
+        if (current?.original.metaData.upload?.state === 'verified') {
+          return await this._getSaveFileOutput(current)
+        }
         await this.deleteFile(media.original.path).catch(() => false)
         await this._database.deleteMedia({ mediaId }).catch(() => false)
       }
       throw error
+    }
+  }
+
+  // The client's own object, replaced by the stripped copy the row now points
+  // at. It still carries the EXIF the strip removed and the files route serves
+  // any media key, so a failure to remove it is logged as an error rather than
+  // swallowed.
+  private async _deleteReplacedPresignedOriginal(key: string) {
+    try {
+      await this._client.send(
+        new DeleteObjectCommand({ Bucket: this._config.bucket, Key: key })
+      )
+    } catch (error) {
+      logger.error({
+        message:
+          'Failed to delete the unstripped original of a presigned image upload',
+        key,
+        err: toLoggableError(error)
+      })
     }
   }
 
@@ -523,22 +619,144 @@ export class S3FileStorage implements MediaStorage {
     }
   }
 
+  // The upload's details (EXIF, gear, place, gallery membership), built from
+  // the client's original bytes. Runs before the size and analysis gates and
+  // outside their error handling, so a large video or a failed analysis still
+  // gets the owner's `galleryDefault`. A video, an image over the analysis cap
+  // or one that cannot be read has no EXIF here and gets `original: null`.
+  // Never throws.
+  private async _preparePresignedDetails(
+    media: Media,
+    tempFilePath: string,
+    size: number
+  ): Promise<{
+    buffer: Buffer | null
+    details: Partial<MediaDetailsRecord>
+  }> {
+    const isImage = media.original.mimeType.startsWith('image')
+    const isVideo = media.original.mimeType.startsWith('video')
+    if (!isImage && !isVideo) return { buffer: null, details: {} }
+
+    let buffer: Buffer | null = null
+    if (size <= PRESIGNED_ANALYSIS_MAX_BYTES) {
+      buffer = await fs.readFile(tempFilePath).catch((error) => {
+        logger.warn({
+          message: 'Failed to read presigned media upload for analysis',
+          err: toLoggableError(error)
+        })
+        return null
+      })
+    }
+    const details = await buildUploadMediaDetails({
+      database: this._database,
+      actorId: media.actorId,
+      original: isImage ? buffer : null
+    })
+    return { buffer, details }
+  }
+
+  // Stores a copy of the original without its metadata under a fresh key next
+  // to it, and returns that key and its size. The re-encode keeps the declared
+  // format (so the content type and extension stay valid) and applies the EXIF
+  // orientation, which is the one piece of metadata that changes how the
+  // pixels display — the probed dimensions already account for it. Failing to
+  // produce a clean copy fails closed: the upload is refused and removed
+  // rather than left public with its metadata. A transient storage error
+  // propagates, leaving the upload pending (and the client's object as it
+  // was) for a retry.
+  //
+  // The copy is re-encoded, so it can come out larger than what was uploaded
+  // (and presign-time checks only saw the original). A copy larger than the
+  // original is re-encoded once more at a lower quality; one that still
+  // exceeds the per-file limit, or would push the account past its quota by
+  // the growth, is refused like a failed re-encode — before anything is
+  // written to storage.
+  private async _stripPresignedImageMetadata(
+    actor: Actor,
+    key: string,
+    tempFilePath: string,
+    contentType: string,
+    originalBytes: number
+  ): Promise<{ key: string; bytes: number }> {
+    let stripped: Buffer
+    try {
+      const encode = (quality: number) => {
+        const image = sharp(tempFilePath).rotate()
+        return contentType === 'image/png'
+          ? image.png({ compressionLevel: quality === 95 ? 6 : 9 }).toBuffer()
+          : image.jpeg({ quality }).toBuffer()
+      }
+      stripped = await encode(95)
+      if (stripped.length > originalBytes) {
+        stripped = await encode(85)
+      }
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to strip metadata from a presigned image upload',
+        err: toLoggableError(error)
+      })
+      throw new PresignedUploadValidationError(
+        'Uploaded image could not be processed'
+      )
+    }
+    const maxFileSize = await getMaxMediaUploadSize(this._database)
+    if (stripped.length > maxFileSize) {
+      throw new PresignedUploadValidationError(
+        'Uploaded image is too large once its metadata is removed'
+      )
+    }
+    const bytesDelta = stripped.length - originalBytes
+    if (bytesDelta > 0) {
+      const quotaCheck = await checkQuotaAvailable(
+        this._database,
+        actor,
+        bytesDelta
+      )
+      if (!quotaCheck.available) {
+        throw new PresignedUploadValidationError(
+          'Storage quota exceeded once the uploaded image metadata is removed'
+        )
+      }
+    }
+    // Same directory and extension as the presigned key (both server-made),
+    // new random name.
+    const nameStart = key.lastIndexOf('/') + 1
+    const extensionStart = key.lastIndexOf('.')
+    const extension =
+      extensionStart >= nameStart ? key.slice(extensionStart) : ''
+    const strippedKey = `${key.slice(0, nameStart)}${crypto
+      .randomBytes(8)
+      .toString('hex')}${extension}`
+    await this._client.send(
+      new PutObjectCommand({
+        Bucket: this._config.bucket,
+        Key: strippedKey,
+        ContentType: contentType,
+        Body: stripped
+      })
+    )
+    return { key: strippedKey, bytes: stripped.length }
+  }
+
   // Blurhash, focus, alt text and a video's poster. Decoration only: the media
   // is already verified, so a failure here is logged and the upload stands.
-  // Returns the updated attachment, or null when nothing was updated.
+  // The details built from the original were committed with the verification
+  // itself (`markMediaUploadVerified`), so nothing here can lose them. Returns
+  // the updated attachment, or null when nothing was updated.
   private async _decoratePresignedMedia(
     media: Media,
     accountId: string,
     tempFilePath: string,
-    size: number
+    size: number,
+    prepared: { buffer: Buffer | null }
   ): Promise<MediaStorageSaveFileOutput | null> {
     const mediaId = media.id
+    const { buffer } = prepared
     const isVideo = media.original.mimeType.startsWith('video')
     if (!media.original.mimeType.startsWith('image') && !isVideo) return null
-    if (size > PRESIGNED_ANALYSIS_MAX_BYTES) return null
+    if (size > PRESIGNED_ANALYSIS_MAX_BYTES || !buffer) return null
 
     try {
-      const buffer = await fs.readFile(tempFilePath)
       // A video is analysed and described from its representative preview
       // frame; the stored video itself is not an image sharp or the vision
       // model can read.
@@ -557,7 +775,11 @@ export class S3FileStorage implements MediaStorage {
       let generatedDescription: string | null = null
       if (media.description == null) {
         const { altText } = getConfig()
-        if (altText) {
+        const { autoDescribe } = await getGallerySettingsOrDefaults(
+          this._database,
+          media.actorId
+        )
+        if (altText && autoDescribe) {
           // generateAltText never throws — its entire body is wrapped in
           // try/catch and it returns null on any failure, logging its own
           // warn. A try/catch here would be dead code that only double-logs
@@ -624,7 +846,7 @@ export class S3FileStorage implements MediaStorage {
               () => false
             )
           }
-          return this._getSaveFileOutput(updated.media)
+          return await this._getSaveFileOutput(updated.media)
         }
         if (storedThumbnail) {
           await this.deleteFile(storedThumbnail.path).catch(() => false)
@@ -644,13 +866,14 @@ export class S3FileStorage implements MediaStorage {
     return null
   }
 
-  async saveFile(actor: Actor, media: MediaSchema) {
+  async saveFile(actor: Actor, media: MediaSchema, options?: SaveFileOptions) {
     const currentTime = Date.now()
     return saveMediaFile({
       database: this._database,
       host: this._host,
       actor,
       media,
+      withGalleryDetails: options?.withGalleryDetails,
       driver: {
         saveVideoFile: (file, options) =>
           this._uploadVideoToS3(currentTime, file, options),
@@ -875,7 +1098,9 @@ export class S3FileStorage implements MediaStorage {
     }
   }
 
-  private _getSaveFileOutput(media: Media): MediaStorageSaveFileOutput {
-    return getMediaAttachment(media, this._host)
+  private _getSaveFileOutput(
+    media: Media
+  ): Promise<MediaStorageSaveFileOutput> {
+    return getOwnerMediaAttachment(this._database, media, this._host)
   }
 }

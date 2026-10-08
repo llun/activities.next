@@ -2,9 +2,15 @@ import { ChevronLeft, ChevronRight, Pause, Play, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { getMediaPublicDetails } from '@/lib/client'
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
+import {
+  MediaDetailsPanel,
+  hasPublicDetailsContent
+} from '@/lib/components/medias-modal/media-details-panel'
 import { Media } from '@/lib/components/posts/media'
 import { Button } from '@/lib/components/ui/button'
+import type { MediaPublicDetails } from '@/lib/services/gallery/galleryEntities'
 import { ActorEmojiTag } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { Tag } from '@/lib/types/domain/tag'
@@ -46,6 +52,49 @@ export const MediasModal: FC<Props> = ({
   const touchEndX = useRef<number | null>(null)
   const isSwipeGesture = useRef(false)
   const swipeTrackRef = useRef<HTMLDivElement>(null)
+  // Public details, keyed by media id, so going back to a photo reuses the
+  // answer. The cache belongs to one viewing session: it is dropped whenever
+  // the attachment list changes (which includes closing the modal, since the
+  // parent passes null), so a later open never shows details fetched before
+  // the owner changed them. Requested ids are remembered so a photo is fetched
+  // at most once per session (a failed request is forgotten, so a later visit
+  // retries it). Responses carry the session they were requested in and are
+  // dropped when they arrive after the session has ended.
+  const [detailsByMediaId, setDetailsByMediaId] = useState<
+    Record<string, MediaPublicDetails | null>
+  >({})
+  const requestedMediaIds = useRef<Set<string>>(new Set())
+  const detailsSession = useRef(0)
+  const currentMediaId = medias?.[currentIndex]?.mediaId ?? null
+
+  useEffect(() => {
+    detailsSession.current += 1
+    requestedMediaIds.current = new Set()
+    setDetailsByMediaId((current) =>
+      Object.keys(current).length ? {} : current
+    )
+  }, [medias])
+
+  useEffect(() => {
+    if (!currentMediaId || requestedMediaIds.current.has(currentMediaId)) {
+      return
+    }
+    requestedMediaIds.current.add(currentMediaId)
+    const session = detailsSession.current
+    getMediaPublicDetails(currentMediaId).then(
+      (details) => {
+        if (session !== detailsSession.current) return
+        setDetailsByMediaId((current) => ({
+          ...current,
+          [currentMediaId]: details
+        }))
+      },
+      () => {
+        if (session !== detailsSession.current) return
+        requestedMediaIds.current.delete(currentMediaId)
+      }
+    )
+  }, [currentMediaId, medias])
 
   useEffect(() => {
     setMounted(true)
@@ -221,6 +270,14 @@ export const MediasModal: FC<Props> = ({
   const visibleIndices = [previousIndex, currentIndex, nextIndex]
   const hasDuplicateVisibleIndices =
     new Set(visibleIndices).size !== visibleIndices.length
+  const loadedDetails = currentMediaId
+    ? (detailsByMediaId[currentMediaId] ?? null)
+    : null
+  // Only details the panel will actually show: an all-null payload must not
+  // shrink the photo and leave empty space under it.
+  const currentDetails = hasPublicDetailsContent(loadedDetails)
+    ? loadedDetails
+    : null
 
   return createPortal(
     <div
@@ -301,6 +358,11 @@ export const MediasModal: FC<Props> = ({
             >
               {visibleIndices.map((index, panelIndex) => {
                 const isGif = medias[index].mediaType === 'image/gif'
+                // The details panel is shown under the active photo only. It
+                // needs room beneath the image, so the image cap shrinks and
+                // the caption-plus-panel region scrolls instead of being
+                // clipped by the swipe track's overflow-hidden.
+                const showsDetails = panelIndex === 1 && Boolean(currentDetails)
 
                 return (
                   <div
@@ -330,9 +392,11 @@ export const MediasModal: FC<Props> = ({
                           }
                           className={cn(
                             'max-w-full object-contain',
-                            medias[index].name?.trim()
-                              ? 'max-h-[72vh]'
-                              : 'max-h-[80vh]'
+                            showsDetails
+                              ? 'max-h-[45vh]'
+                              : medias[index].name?.trim()
+                                ? 'max-h-[72vh]'
+                                : 'max-h-[80vh]'
                           )}
                           attachment={medias[index]}
                         />
@@ -363,17 +427,38 @@ export const MediasModal: FC<Props> = ({
                           </button>
                         )}
                       </div>
-                      {medias[index].name?.trim() ? (
-                        <p
-                          onTouchStart={(e) => e.stopPropagation()}
-                          className="mt-2 max-h-24 max-w-2xl overflow-y-auto px-4 text-center text-sm leading-relaxed text-white/85 select-text"
-                        >
-                          <CustomEmojiText
-                            text={medias[index].name.trim()}
-                            tags={tags}
-                          />
-                        </p>
-                      ) : null}
+                      <div
+                        onTouchStart={
+                          showsDetails ? (e) => e.stopPropagation() : undefined
+                        }
+                        {...(showsDetails
+                          ? {
+                              tabIndex: 0,
+                              role: 'region',
+                              'aria-label': 'Photo details'
+                            }
+                          : {})}
+                        className={cn(
+                          'flex min-h-0 w-full flex-col items-center',
+                          showsDetails &&
+                            'max-h-[25vh] overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-white/60'
+                        )}
+                      >
+                        {medias[index].name?.trim() ? (
+                          <p
+                            onTouchStart={(e) => e.stopPropagation()}
+                            className="mt-2 max-h-24 max-w-2xl overflow-y-auto px-4 text-center text-sm leading-relaxed text-white/85 select-text"
+                          >
+                            <CustomEmojiText
+                              text={medias[index].name.trim()}
+                              tags={tags}
+                            />
+                          </p>
+                        ) : null}
+                        {panelIndex === 1 && currentDetails ? (
+                          <MediaDetailsPanel details={currentDetails} />
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 )

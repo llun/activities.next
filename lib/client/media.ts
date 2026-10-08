@@ -1,4 +1,11 @@
-import type { PresignedUrlOutput } from '@/lib/services/medias/types'
+import type {
+  MediaStorageSaveFileOutput,
+  PresignedUrlOutput
+} from '@/lib/services/medias/types'
+import type {
+  MediaPlacePrecision,
+  MediaSubjectCategory
+} from '@/lib/types/database/gallery'
 import type {
   Attachment,
   UploadedAttachment
@@ -6,6 +13,8 @@ import type {
 import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 import { waitFor } from '@/lib/utils/waitFor'
+
+import { parseApiError } from './http'
 
 export interface UploadMediaParams {
   media: File
@@ -302,4 +311,79 @@ export const getActorMedia = async ({
   })
   if (response.status !== 200) return []
   return response.json()
+}
+
+/**
+ * The fields `PUT /api/v1/media/:id` accepts beyond Mastodon's `description`
+ * and `focus`. A key that is absent is left alone; `null` clears the value.
+ * Wire names are snake_case, as the Mastodon-style API expects.
+ */
+export interface UpdateMediaDetailsFields {
+  description?: string | null
+  subject_name?: string | null
+  subject_scientific_name?: string | null
+  subject_category?: MediaSubjectCategory | null
+  camera_gear_id?: string | null
+  lens_gear_id?: string | null
+  place_name?: string | null
+  place_latitude?: number | null
+  place_longitude?: number | null
+  place_precision?: MediaPlacePrecision | null
+  in_gallery?: boolean
+}
+
+/** Owner's own media entity (Mastodon `MediaAttachment` plus `details`). */
+export const getMedia = async (
+  mediaId: string
+): Promise<MediaStorageSaveFileOutput> => {
+  const response = await fetch(`/api/v1/media/${encodeURIComponent(mediaId)}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to load media.'))
+  }
+  return response.json()
+}
+
+/**
+ * Saves the details of an uploaded media: description, subject, gear, place,
+ * gallery membership. Sends only the keys given, so a caller changing one field
+ * never rewrites the rest. Resolves to the updated entity, `details` included.
+ */
+export const updateMediaDetails = async (
+  mediaId: string,
+  fields: UpdateMediaDetailsFields
+): Promise<MediaStorageSaveFileOutput> => {
+  const response = await fetch(`/api/v1/media/${encodeURIComponent(mediaId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(fields)
+  })
+  if (!response.ok) {
+    throw new Error(
+      await parseApiError(response, 'Failed to save media details.')
+    )
+  }
+  return response.json()
+}
+
+/**
+ * Asks the instance's alt text service to describe a stored media. Returns the
+ * text WITHOUT saving it — show it to the author and save it with
+ * `updateMediaDetails`. Rejects with the server's message when alt text is not
+ * configured or generation failed.
+ */
+export const describeMedia = async (mediaId: string): Promise<string> => {
+  const response = await fetch(
+    `/api/v1/media/${encodeURIComponent(mediaId)}/describe`,
+    { method: 'POST', headers: { Accept: 'application/json' } }
+  )
+  if (!response.ok) {
+    throw new Error(
+      await parseApiError(response, 'Failed to generate a description.')
+    )
+  }
+  const data = (await response.json()) as { description: string }
+  return data.description
 }

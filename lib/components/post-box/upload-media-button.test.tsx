@@ -226,6 +226,42 @@ describe('UploadMediaButton', () => {
       })
     })
 
+    it('matches an uploaded attachment by the file name it was picked with', async () => {
+      // After the upload finishes the attachment has no file and its name is
+      // the alt text, so only the known file names can identify it.
+      const uploaded: PostBoxAttachment[] = [
+        {
+          type: 'upload',
+          id: 'media-1',
+          mediaType: 'image/jpeg',
+          url: 'https://example.com/heron.jpg',
+          width: 100,
+          height: 100,
+          name: 'A heron on a reed'
+        }
+      ]
+
+      render(
+        <UploadMediaButton
+          isMediaUploadEnabled={true}
+          attachments={uploaded}
+          fileNames={{ 'media-1': 'heron.jpg' }}
+          onAddAttachment={mockOnAddAttachment}
+          onDuplicateError={mockOnDuplicateError}
+          onUploadStart={mockOnUploadStart}
+        />
+      )
+
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      fireEvent.change(input, {
+        target: { files: [createMockFile('heron.jpg')] }
+      })
+
+      await waitFor(() => expect(mockOnDuplicateError).toHaveBeenCalledTimes(1))
+      expect(mockOnAddAttachment).not.toHaveBeenCalled()
+    })
+
     it('does not call onDuplicateError when no duplicates exist', async () => {
       render(
         <UploadMediaButton
@@ -529,6 +565,50 @@ describe('UploadMediaButton', () => {
           name: `Add media (2/${DEFAULT_INSTANCE_LIMITS.maxMediaAttachments})`
         })
       ).toBeInTheDocument()
+    })
+  })
+
+  describe('file input reset', () => {
+    const watchValue = (input: HTMLInputElement) => {
+      const setValue = vi.fn()
+      Object.defineProperty(input, 'value', {
+        configurable: true,
+        get: () => '',
+        set: setValue
+      })
+      return setValue
+    }
+
+    it('clears the input after selecting so the same file can be picked again', async () => {
+      renderButton({ attachments: [] })
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const setValue = watchValue(input)
+
+      fireEvent.change(input, { target: { files: [createMockFile('a.jpg')] } })
+
+      await waitFor(() => {
+        expect(mockOnAddAttachment).toHaveBeenCalledTimes(1)
+      })
+      expect(setValue).toHaveBeenCalledWith('')
+    })
+
+    it('clears the input even when the attachment limit returns early', async () => {
+      renderButton({
+        attachments: existingAttachments(
+          DEFAULT_INSTANCE_LIMITS.maxMediaAttachments
+        )
+      })
+      const input =
+        document.querySelector<HTMLInputElement>('input[type="file"]')!
+      const setValue = watchValue(input)
+
+      fireEvent.change(input, { target: { files: [createMockFile('a.jpg')] } })
+
+      await waitFor(() => {
+        expect(setValue).toHaveBeenCalledWith('')
+      })
+      expect(mockOnAddAttachment).not.toHaveBeenCalled()
     })
   })
 })

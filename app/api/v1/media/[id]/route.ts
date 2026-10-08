@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { Database } from '@/lib/database/types'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
@@ -8,10 +9,18 @@ import { headerHost } from '@/lib/services/guards/headerHost'
 import { AuthenticatedApiHandle } from '@/lib/services/guards/types'
 import { deleteMediaFile, saveMediaThumbnail } from '@/lib/services/medias'
 import { MediaValidationError } from '@/lib/services/medias/errors'
-import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
+import { getOwnerMediaAttachment } from '@/lib/services/medias/mediaDetails'
+import {
+  MEDIA_DETAILS_REQUEST_KEYS,
+  MediaDetailsRequest
+} from '@/lib/services/medias/mediaDetailsRequest'
 import { FileSchema, MediaSchema } from '@/lib/services/medias/types'
 import { exceedsMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
-import { Scope } from '@/lib/types/database/operations'
+import {
+  Media,
+  Scope,
+  UpdateMediaDetailsParams
+} from '@/lib/types/database/operations'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -41,6 +50,9 @@ interface Params {
   id: string
 }
 
+// Beyond Mastodon's fields this route also takes the non-Mastodon media details
+// (subject, gear, place, `in_gallery`); see MediaDetailsRequest.
+//
 // Reuse MediaSchema's `description` + `focus` validation so the update path can
 // never drift from the upload path (same 1500-char cap, same empty/whitespace/
 // null -> null normalization, same focus "x,y" parsing that yields a 422 on
@@ -50,7 +62,7 @@ interface Params {
 const UpdateMediaRequest = MediaSchema.pick({
   description: true,
   focus: true
-})
+}).extend(MediaDetailsRequest.shape)
 
 const readPayload = async (
   req: Request
@@ -115,12 +127,106 @@ export const GET = traceApiRoute(
       return apiResponse({
         req,
         allowedMethods: CORS_HEADERS,
-        data: getMediaAttachment(media, headerHost(req.headers))
+        data: await getOwnerMediaAttachment(
+          database,
+          media,
+          headerHost(req.headers)
+        )
       })
     },
     guardOptions
   )
 )
+
+type DetailsUpdate = { details: UpdateMediaDetailsParams } | { error: string }
+
+// Turns the validated request into the column patch, enforcing what a schema
+// cannot: the gear must be the media owner's (and of the right kind), a place
+// needs both coordinates or neither, and setting a subject on a photo that had
+// none puts it in the gallery when the owner's default is "once it has a
+// subject" and the request did not say otherwise.
+const resolveDetailsUpdate = async ({
+  database,
+  existing,
+  parsed,
+  providedKeys
+}: {
+  database: Database
+  existing: Media
+  parsed: MediaDetailsRequest
+  providedKeys: (keyof MediaDetailsRequest)[]
+}): Promise<DetailsUpdate> => {
+  const provided = new Set<string>(providedKeys)
+  const current = existing.details
+  const details: UpdateMediaDetailsParams = {}
+
+  if (provided.has('subject_name')) {
+    details.subjectName = parsed.subject_name ?? null
+  }
+  if (provided.has('subject_scientific_name')) {
+    details.subjectScientificName = parsed.subject_scientific_name ?? null
+  }
+  if (provided.has('subject_category')) {
+    details.subjectCategory = parsed.subject_category ?? null
+  }
+  if (provided.has('place_name')) details.placeName = parsed.place_name ?? null
+  if (provided.has('place_precision')) {
+    details.placePrecision = parsed.place_precision ?? null
+  }
+  if (provided.has('place_latitude')) {
+    details.placeLatitude = parsed.place_latitude ?? null
+  }
+  if (provided.has('place_longitude')) {
+    details.placeLongitude = parsed.place_longitude ?? null
+  }
+  if (provided.has('in_gallery')) details.inGallery = parsed.in_gallery
+
+  if (provided.has('place_latitude') || provided.has('place_longitude')) {
+    const latitude =
+      'placeLatitude' in details
+        ? details.placeLatitude
+        : (current?.placeLatitude ?? null)
+    const longitude =
+      'placeLongitude' in details
+        ? details.placeLongitude
+        : (current?.placeLongitude ?? null)
+    if ((latitude === null) !== (longitude === null)) {
+      return { error: 'A place needs both a latitude and a longitude' }
+    }
+  }
+
+  const gearFields = [
+    ['camera_gear_id', 'camera', 'cameraGearId'],
+    ['lens_gear_id', 'lens', 'lensGearId']
+  ] as const
+  for (const [key, kind, column] of gearFields) {
+    if (!provided.has(key)) continue
+    const gearId = parsed[key] ?? null
+    if (gearId !== null) {
+      const gear = await database.getGalleryGear({
+        id: gearId,
+        actorId: existing.actorId
+      })
+      if (!gear || gear.kind !== kind) {
+        return { error: `Unknown ${kind} gear` }
+      }
+    }
+    details[column] = gearId
+  }
+
+  if (
+    details.subjectName &&
+    !current?.subjectName &&
+    details.inGallery === undefined
+  ) {
+    const settings = await database.getGallerySettings({
+      actorId: existing.actorId
+    })
+    if (settings.galleryDefault === 'subject') details.inGallery = true
+  }
+
+  return { details }
+}
 
 // PUT and PATCH both map to Mastodon's `update` action (Rails `resources :media`
 // exposes both verbs); they share one handler. write/write:media scope.
@@ -173,6 +279,10 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
   // Zod fills omitted optionals) so a partial update only mutates those fields.
   const descriptionProvided = 'description' in payload
   const focusProvided = 'focus' in payload
+  const providedDetailsKeys = MEDIA_DETAILS_REQUEST_KEYS.filter(
+    (key) => key in payload
+  )
+  const detailsProvided = providedDetailsKeys.length > 0
 
   // A `thumbnail` field carries content when it is a non-empty File or a
   // non-blank value. An absent field, empty string, or 0-byte file is treated
@@ -205,7 +315,12 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
   const thumbnailProvided = thumbnailFieldHasContent
 
   // Nothing to change — return the current attachment (404 if not owned).
-  if (!descriptionProvided && !focusProvided && !thumbnailProvided) {
+  if (
+    !descriptionProvided &&
+    !focusProvided &&
+    !thumbnailProvided &&
+    !detailsProvided
+  ) {
     const media = await database.getMediaByIdForAccount({
       mediaId: id,
       accountId: account.id
@@ -221,8 +336,44 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
     return apiResponse({
       req,
       allowedMethods: CORS_HEADERS,
-      data: getMediaAttachment(media, headerHost(req.headers))
+      data: await getOwnerMediaAttachment(
+        database,
+        media,
+        headerHost(req.headers)
+      )
     })
+  }
+
+  let details: UpdateMediaDetailsParams | undefined
+  if (detailsProvided) {
+    const existing = await database.getMediaByIdForAccount({
+      mediaId: id,
+      accountId: account.id
+    })
+    if (!existing) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_404,
+        responseStatusCode: 404
+      })
+    }
+
+    const resolved = await resolveDetailsUpdate({
+      database,
+      existing,
+      parsed: parsed.data,
+      providedKeys: providedDetailsKeys
+    })
+    if ('error' in resolved) {
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: { error: resolved.error },
+        responseStatusCode: 422
+      })
+    }
+    details = resolved.details
   }
 
   // Produce the new stored thumbnail (if any) before touching the DB. The
@@ -279,6 +430,7 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
       accountId: account.id,
       ...(descriptionProvided ? { description: parsed.data.description } : {}),
       ...(focusProvided ? { focus: parsed.data.focus } : {}),
+      ...(details ? { details } : {}),
       ...(thumbnail
         ? {
             thumbnail,
@@ -347,7 +499,11 @@ const updateMediaHandler: AuthenticatedApiHandle<Params> = async (
   return apiResponse({
     req,
     allowedMethods: CORS_HEADERS,
-    data: getMediaAttachment(result.media, headerHost(req.headers))
+    data: await getOwnerMediaAttachment(
+      database,
+      result.media,
+      headerHost(req.headers)
+    )
   })
 }
 

@@ -503,6 +503,15 @@ const EXPECTED: Array<{
   // media
   { module: '@/app/api/v1/media/route', scopes: ['write', 'write:media'] },
   { module: '@/app/api/v1/media/[id]/route', scopes: ['write', 'write:media'] },
+  {
+    module: '@/app/api/v1/media/[id]/describe/route',
+    scopes: ['write', 'write:media']
+  },
+  {
+    module: '@/app/api/v1/gallery/media/[mediaId]/details/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
   { module: '@/app/api/v2/media/route', scopes: ['write', 'write:media'] },
   // announcements and suggestions lists
   {

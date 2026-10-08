@@ -1210,31 +1210,272 @@ describe('Attachments', () => {
     })
 
     it.each([
-      { scrollLeft: 0, disabledName: 'Previous media' },
-      { scrollLeft: 500, disabledName: 'Next media' }
+      { scrollLeft: 0, disabled: 'Previous media' },
+      { scrollLeft: 250, disabled: undefined },
+      { scrollLeft: 500, disabled: 'Next media' }
     ])(
-      'keeps both arrows mounted and guards $disabledName at a boundary',
-      ({ scrollLeft, disabledName }) => {
-        const strip = renderScrolledStrip({ scrollLeft })
-        const scrollBy = vi.fn()
-        Object.defineProperty(strip, 'scrollBy', {
-          configurable: true,
-          value: scrollBy
-        })
+      'keeps both arrows mounted and disables only the one at an edge at scrollLeft $scrollLeft',
+      ({ scrollLeft, disabled }) => {
+        renderScrolledStrip({ scrollLeft })
 
-        const previous = screen.getByRole('button', { name: 'Previous media' })
-        const next = screen.getByRole('button', { name: 'Next media' })
-        const disabled = screen.getByRole('button', { name: disabledName })
-        expect(previous).toBeInTheDocument()
-        expect(next).toBeInTheDocument()
-        expect(disabled).toHaveAttribute('aria-disabled', 'true')
-
-        disabled.focus()
-        fireEvent.click(disabled)
-        expect(disabled).toHaveFocus()
-        expect(scrollBy).not.toHaveBeenCalled()
+        for (const name of ['Previous media', 'Next media']) {
+          const arrow = screen.getByRole('button', { name })
+          if (name === disabled) {
+            expect(arrow).toHaveAttribute('aria-disabled', 'true')
+            expect(arrow).toHaveAttribute('tabindex', '-1')
+            expect(arrow).toHaveClass('pointer-events-none', 'opacity-0')
+          } else {
+            expect(arrow).toHaveAttribute('aria-disabled', 'false')
+            expect(arrow).not.toHaveAttribute('tabindex')
+            expect(arrow).not.toHaveClass('opacity-0')
+          }
+        }
       }
     )
+
+    it('does not scroll when an edge arrow is clicked', () => {
+      const strip = renderScrolledStrip({ scrollLeft: 0 })
+      const scrollBy = vi.fn()
+      Object.defineProperty(strip, 'scrollBy', {
+        configurable: true,
+        value: scrollBy
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Previous media' }))
+
+      expect(scrollBy).not.toHaveBeenCalled()
+    })
+
+    it('keeps keyboard focus on the forward arrow when it moves to the end', () => {
+      // Focus on a button that unmounts drops to <body>, which would send the
+      // next Tab back to the top of the page. The arrow stays in place and
+      // focus moves to the back arrow, which now has somewhere to go.
+      const strip = renderScrolledStrip({ scrollLeft: 250 })
+      const next = screen.getByRole('button', { name: 'Next media' })
+      next.focus()
+      expect(document.activeElement).toBe(next)
+
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 500
+      })
+      fireEvent.scroll(strip)
+
+      expect(next).toHaveAttribute('aria-disabled', 'true')
+      expect(document.activeElement).not.toBe(document.body)
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Previous media' })
+      )
+    })
+
+    it('keeps keyboard focus on the back arrow when it moves to the start', () => {
+      const strip = renderScrolledStrip({ scrollLeft: 250 })
+      const previous = screen.getByRole('button', { name: 'Previous media' })
+      previous.focus()
+
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 0
+      })
+      fireEvent.scroll(strip)
+
+      expect(previous).toHaveAttribute('aria-disabled', 'true')
+      expect(document.activeElement).not.toBe(document.body)
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Next media' })
+      )
+    })
+
+    it('renders no button row below the strip', () => {
+      renderScrolledStrip({ scrollLeft: 250 })
+
+      const strip = screen.getByRole('group')
+      const overlayContainer = strip.parentElement
+      expect(overlayContainer).toHaveClass('relative')
+      // The strip is the only child of the bleed wrapper: arrows float over
+      // it instead of sitting in a row beneath.
+      expect(overlayContainer?.parentElement?.children).toHaveLength(1)
+      expect(
+        screen.getByRole('button', { name: 'Next media' }).parentElement
+      ).toBe(overlayContainer)
+    })
+
+    it('shows a position counter that follows the scroll position', () => {
+      render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({ width: 800, height: 600 }),
+            buildAttachment({ width: 800, height: 600 }),
+            buildAttachment({ width: 800, height: 600 })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+      const strip = screen.getByRole('group')
+      Object.defineProperty(strip, 'scrollWidth', {
+        configurable: true,
+        value: 1000
+      })
+      Object.defineProperty(strip, 'clientWidth', {
+        configurable: true,
+        value: 500
+      })
+      // Three 500px cards laid end to end, so the midpoints sit at 250, 750, 1250.
+      Array.from(strip.children).forEach((child, index) => {
+        Object.defineProperty(child, 'offsetLeft', {
+          configurable: true,
+          value: index * 500
+        })
+        Object.defineProperty(child, 'offsetWidth', {
+          configurable: true,
+          value: 500
+        })
+      })
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 0
+      })
+      fireEvent.scroll(strip)
+
+      const counter = screen.getByText('1 / 3')
+      expect(counter).toHaveAttribute('aria-hidden', 'true')
+      expect(counter).toHaveClass('tabular-nums', 'rounded-full')
+
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 250
+      })
+      fireEvent.scroll(strip)
+      expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    })
+
+    // Lays out `count` cards of `cardWidth` end to end inside a strip whose
+    // viewport is 500px and whose content is `count * cardWidth` wide.
+    const renderLaidOutStrip = ({
+      count,
+      cardWidth,
+      scrollLeft
+    }: {
+      count: number
+      cardWidth: number
+      scrollLeft: number
+    }) => {
+      render(
+        <Attachments
+          status={buildNoteStatus(
+            Array.from({ length: count }, () =>
+              buildAttachment({ width: 800, height: 600 })
+            )
+          )}
+          onMediaSelected={vi.fn()}
+        />
+      )
+      const strip = screen.getByRole('group')
+      Object.defineProperty(strip, 'scrollWidth', {
+        configurable: true,
+        value: count * cardWidth
+      })
+      Object.defineProperty(strip, 'clientWidth', {
+        configurable: true,
+        value: 500
+      })
+      Array.from(strip.children).forEach((child, index) => {
+        Object.defineProperty(child, 'offsetLeft', {
+          configurable: true,
+          value: index * cardWidth
+        })
+        Object.defineProperty(child, 'offsetWidth', {
+          configurable: true,
+          value: cardWidth
+        })
+      })
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: scrollLeft
+      })
+      fireEvent.scroll(strip)
+      return strip
+    }
+
+    it('reads the last position once the strip is scrolled to its end', () => {
+      renderLaidOutStrip({ count: 3, cardWidth: 500, scrollLeft: 1000 })
+
+      expect(screen.getByText('3 / 3')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Next media' })
+      ).toHaveAttribute('aria-disabled', 'true')
+    })
+
+    it('reads the last position at the end even when the last card is narrow', () => {
+      // Five 200px cards: the Next arrow is disabled at scrollLeft 500, yet the
+      // first card whose midpoint is past the edge would be card 3.
+      renderLaidOutStrip({ count: 5, cardWidth: 200, scrollLeft: 500 })
+
+      expect(screen.getByText('5 / 5')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Next media' })
+      ).toHaveAttribute('aria-disabled', 'true')
+    })
+
+    it('counts a card as reached once its left edge is within sub-pixel slack of the viewport', () => {
+      renderLaidOutStrip({ count: 3, cardWidth: 500, scrollLeft: 502 })
+
+      expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    })
+
+    it('does not count a card still partly scrolled off to the left', () => {
+      renderLaidOutStrip({ count: 3, cardWidth: 500, scrollLeft: 100 })
+
+      expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    })
+
+    it('re-reads the position when the viewport resizes without a scroll event', () => {
+      const strip = renderLaidOutStrip({
+        count: 3,
+        cardWidth: 500,
+        scrollLeft: 0
+      })
+      expect(screen.getByText('1 / 3')).toBeInTheDocument()
+
+      Object.defineProperty(strip, 'scrollLeft', {
+        configurable: true,
+        value: 1000
+      })
+      act(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+
+      expect(screen.getByText('3 / 3')).toBeInTheDocument()
+    })
+
+    it('gives each arrow a 44px hit area around a 40px visual disc', () => {
+      renderScrolledStrip({ scrollLeft: 250 })
+
+      for (const name of ['Previous media', 'Next media']) {
+        const arrow = screen.getByRole('button', { name })
+        expect(arrow).toHaveClass('size-11')
+        const disc = arrow.firstElementChild as HTMLElement
+        expect(disc).toHaveClass('size-10', 'rounded-full')
+        expect(disc).toHaveAttribute('aria-hidden', 'true')
+      }
+    })
+
+    it('hides the counter and arrows when the strip does not overflow', () => {
+      render(
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({ width: 800, height: 600 }),
+            buildAttachment({ width: 800, height: 600 })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      expect(screen.queryByText(/^\d+ \/ \d+$/)).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Next media' })
+      ).not.toBeInTheDocument()
+    })
 
     it('re-measures when an edit changes item widths but not their count', () => {
       // The hook is keyed on the laid-out WIDTHS for exactly this case: the
@@ -1281,6 +1522,7 @@ describe('Attachments', () => {
         />
       )
 
+      // Nothing overflows any more, so the chrome itself is gone.
       expect(
         screen.queryByRole('button', { name: 'Next media' })
       ).not.toBeInTheDocument()
@@ -1620,7 +1862,7 @@ describe('Attachments', () => {
       )
     })
 
-    it('bleeds a picture strip to the frame edges, aligns items to the post text line, and insets the pager', () => {
+    it('bleeds a picture strip to the frame edges, aligns items to the post text line, and overlays the arrow', () => {
       render(
         <Attachments
           status={buildNoteStatus([
@@ -1632,7 +1874,7 @@ describe('Attachments', () => {
       )
 
       const strip = screen.getByRole('group')
-      expect(strip.parentElement).toHaveClass(
+      expect(strip.parentElement?.parentElement).toHaveClass(
         MEDIA_BLEED_LEFT,
         MEDIA_BLEED_RIGHT
       )
@@ -1661,9 +1903,12 @@ describe('Attachments', () => {
       })
       fireEvent.scroll(strip)
 
-      expect(
-        screen.getByRole('button', { name: 'Next media' }).parentElement
-      ).toHaveClass('pr-[var(--post-media-bleed-right,1rem)]')
+      expect(screen.getByRole('button', { name: 'Next media' })).toHaveClass(
+        'absolute',
+        'right-1.5',
+        'top-1/2',
+        'size-11'
+      )
     })
   })
 
@@ -1981,7 +2226,7 @@ describe('Attachments', () => {
         expect(card).toHaveClass('[--post-media-bleed-right:0.75rem]')
 
         const strip = screen.getByRole('group')
-        expect(strip.parentElement).toHaveClass(
+        expect(strip.parentElement?.parentElement).toHaveClass(
           '-ml-[var(--post-media-bleed-left,4.25rem)]',
           '-mr-[var(--post-media-bleed-right,1rem)]'
         )

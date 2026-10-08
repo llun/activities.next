@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+import {
+  MEDIA_PLACE_PRECISIONS,
+  MEDIA_SUBJECT_CATEGORIES
+} from '@/lib/types/database/gallery'
 import { Actor } from '@/lib/types/domain/actor'
 
 import { ACCEPTED_FILE_TYPES, MAX_MEDIA_DESCRIPTION_LENGTH } from './constants'
@@ -78,6 +82,43 @@ type MediaMeta = z.infer<typeof MediaMeta>
 export const MediaType = z.enum(['image', 'gifv', 'video', 'audio', 'unknown'])
 export type MediaType = z.infer<typeof MediaType>
 
+const MediaGearEntity = z.object({ id: z.string(), name: z.string() })
+
+// The non-Mastodon `details` extension on the owner's own media entity. It
+// carries the stored coordinates exactly as saved, so it is only ever built for
+// the media's owner — `GET /api/v1/gallery/media/:mediaId/details` is the
+// public-safe projection and never returns this shape.
+export const MediaDetailsEntity = z.object({
+  subject: z
+    .object({
+      name: z.string().nullable(),
+      scientificName: z.string().nullable(),
+      category: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable()
+    })
+    .nullable(),
+  takenAt: z.string().nullable(),
+  camera: MediaGearEntity.nullable(),
+  lens: MediaGearEntity.nullable(),
+  exposure: z
+    .object({
+      focalLengthMm: z.number().nullable(),
+      aperture: z.number().nullable(),
+      exposureTime: z.string().nullable(),
+      iso: z.number().nullable()
+    })
+    .nullable(),
+  place: z
+    .object({
+      name: z.string().nullable(),
+      latitude: z.number().nullable(),
+      longitude: z.number().nullable(),
+      precision: z.enum(MEDIA_PLACE_PRECISIONS).nullable()
+    })
+    .nullable(),
+  inGallery: z.boolean()
+})
+export type MediaDetailsEntity = z.infer<typeof MediaDetailsEntity>
+
 export const MediaStorageSaveFileOutput = z.object({
   id: z.string(),
   type: MediaType,
@@ -95,7 +136,9 @@ export const MediaStorageSaveFileOutput = z.object({
   // Alt text. Mastodon serialises "no description" as null, never ''.
   description: z.string().nullable(),
   // BlurHash placeholder for image and video preview frames.
-  blurhash: z.string().nullable()
+  blurhash: z.string().nullable(),
+  // Owner-only extension; see MediaDetailsEntity.
+  details: MediaDetailsEntity.optional()
 })
 export type MediaStorageSaveFileOutput = z.infer<
   typeof MediaStorageSaveFileOutput
@@ -174,11 +217,18 @@ export interface ImageRenditionOutput {
   metaData: { width: number; height: number }
 }
 
+export interface SaveFileOptions {
+  // Build gallery details (EXIF, gear, place, inGallery). Only the user media
+  // upload path sets this.
+  withGalleryDetails?: boolean
+}
+
 export interface MediaStorage {
   isPresigedSupported(): boolean
   saveFile(
     actor: Actor,
-    media: MediaSchema
+    media: MediaSchema,
+    options?: SaveFileOptions
   ): Promise<MediaStorageSaveFileOutput | null>
   // Processes and stores a standalone thumbnail image (used by PUT/PATCH
   // /api/v1/media/:id to replace a custom thumbnail). Enforces the account

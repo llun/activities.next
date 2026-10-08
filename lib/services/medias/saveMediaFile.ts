@@ -1,7 +1,8 @@
 import { Database } from '@/lib/database/types'
+import { buildUploadMediaDetails } from '@/lib/services/gallery/uploadMediaDetails'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { sanitizeStoredFileName } from '@/lib/services/medias/fileName'
-import { getMediaAttachment } from '@/lib/services/medias/getMediaAttachment'
+import { getOwnerMediaAttachment } from '@/lib/services/medias/mediaDetails'
 import {
   checkQuotaAvailable,
   getUploadQuotaReservation
@@ -54,6 +55,10 @@ export interface SaveMediaFileParams {
   actor: Actor
   media: MediaSchema
   driver: MediaSaveDriver
+  // Gallery details (EXIF date, gear, place, `inGallery`) are only built for
+  // a user's own media upload. Avatars, headers, emoji and fitness maps skip
+  // them, so they never join the gallery or create gear.
+  withGalleryDetails?: boolean
 }
 
 export const reclaimStoredMedia = async (
@@ -73,7 +78,8 @@ export const saveMediaFile = async ({
   host,
   actor,
   media,
-  driver
+  driver,
+  withGalleryDetails = false
 }: SaveMediaFileParams): Promise<MediaStorageSaveFileOutput | null> => {
   const { file } = media
   if (!file.type.startsWith('image') && !file.type.startsWith('video')) {
@@ -130,6 +136,19 @@ export const saveMediaFile = async ({
     throw error
   }
 
+  // Read from the ORIGINAL bytes: the stored image is re-encoded without EXIF.
+  // Videos carry no readable EXIF here, but still get `inGallery` from the
+  // owner's gallery default.
+  const details = withGalleryDetails
+    ? await buildUploadMediaDetails({
+        database,
+        actorId: actor.id,
+        original: file.type.startsWith('image')
+          ? Buffer.from(await file.arrayBuffer())
+          : null
+      })
+    : undefined
+
   let storedMedia
   try {
     storedMedia = await database.createMedia({
@@ -161,7 +180,8 @@ export const saveMediaFile = async ({
         : null),
       ...(media.description ? { description: media.description } : null),
       ...(focus ? { focus } : null),
-      ...(blurhash ? { blurhash } : null)
+      ...(blurhash ? { blurhash } : null),
+      ...(details ? { details } : null)
     })
   } catch (error) {
     await reclaim(path, thumbnail?.path)
@@ -173,5 +193,5 @@ export const saveMediaFile = async ({
     throw new Error('Fail to store media')
   }
 
-  return getMediaAttachment(storedMedia, host)
+  return getOwnerMediaAttachment(database, storedMedia, host)
 }

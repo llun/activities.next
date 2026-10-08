@@ -897,9 +897,13 @@ system's `Attachments` component.
     `padding-right` shares the right bleed so the scroll end brings the last
     card's right edge onto the post text's right edge. Cards can still travel
     out to the frame edge while the reader is dragging.
-  - Paired circular arrow controls remain mounted while the strip overflows,
-    sit below the captions, and expose guarded `aria-disabled` states at each
-    boundary. Each press advances exactly one adjacent card and lands it on the
+  - Paired circular arrow controls are overlay chrome over the media row, not
+    a row beneath the captions: a 40px disc inside a 44px hit area at each
+    edge (`Previous media` left, `Next media` right). Both stay mounted while
+    the strip overflows; an arrow at its boundary is `aria-disabled`,
+    invisible (`opacity-0`, `pointer-events-none`) and out of the tab order
+    (`tabIndex={-1}`), and its click is a no-op. Each press advances exactly
+    one adjacent card and lands it on the
     text's left line — `useMediaStripScroll` subtracts the scroller's
     `scroll-padding-left` from the card boundary, and the last card clamps to
     the scroll end so its right edge meets the text's right edge — with reduced
@@ -918,8 +922,12 @@ system's `Attachments` component.
   decode, so deferring one leaves a blank frame behind the player's controls.
   Federated video always lands there: `thumbnailUrl` is written on the
   local-upload path alone.
-- **There are no edge fades or overlaid arrows.** The paired arrows sit below
-  captions so they never obscure a card or interfere with touch.
+- **Edge scrims and a counter accompany the overlaid arrows.** Each arrow sits
+  over a 64px gradient scrim that fades the media beneath it, drawn only on a
+  side that has more content (no scrim at a boundary). A top-right `N / M`
+  counter is `aria-hidden` because the strip's group label already names the
+  count. The overlay never takes layout space, so captions stay directly under
+  their images.
 - **Every media button's focus indicator is an `outline` with a NEGATIVE
   offset, not a ring.** For a strip item, its border box is exactly the strip's
   height and `overflow-x-auto` forces `overflow-y` to compute to `auto`, so an
@@ -936,9 +944,9 @@ system's `Attachments` component.
   `MessageBubble`'s media cells carry `focus-visible:ring-inset` over the same
   full-bleed image shape, so their indicator is invisible too — a pre-existing
   bug, not a precedent to copy.)
-- **Arrow controls remain focusable at boundaries.** Their `aria-disabled` state
-  guards activation while preserving focus, which lets keyboard users discover
-  and retain their position at either end.
+- **Edge arrows stay mounted but leave the tab order.** At a boundary the arrow
+  is `aria-disabled`, invisible and `tabIndex={-1}`; if it held focus, focus
+  moves to the opposite arrow so it is never dropped to `<body>`.
 - **Every picture button carries an explicit `aria-label`.** `Media` names an
   image from its `alt`, but `attachment.name` is a required string that
   federation writes as `attachment.name || ''`, so an undescribed photo left the

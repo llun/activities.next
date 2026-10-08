@@ -185,3 +185,23 @@ export const getStatusAttachmentsFromUpdateResponse = ({
 
   return [...updatedMediaAttachments, ...preservedAttachments]
 }
+
+/**
+ * Attachments kept from the original status whose description (alt text) was
+ * edited since; sent as Mastodon `media_attributes` on Update. Unchanged items
+ * and items new to the edit (already saved on their media row) are skipped.
+ */
+export const getChangedAttachmentDescriptions = (
+  current: Pick<PostBoxAttachment, 'id' | 'name'>[],
+  baseline: Pick<PostBoxAttachment, 'id' | 'name'>[]
+): { id: string; description: string }[] => {
+  const baselineById = new Map(baseline.map((item) => [item.id, item]))
+  return current.flatMap((item) => {
+    const original = baselineById.get(item.id)
+    if (!original) return []
+    const next = (item.name ?? '').trim()
+    return next === (original.name ?? '').trim()
+      ? []
+      : [{ id: item.id, description: next }]
+  })
+}

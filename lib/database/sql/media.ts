@@ -10,6 +10,15 @@ import {
 } from '@/lib/database/sql/utils/counter'
 import { incrementBucket } from '@/lib/database/sql/utils/counterBucket'
 import {
+  EMPTY_MEDIA_DETAILS,
+  MEDIA_PLACE_PRECISIONS,
+  MEDIA_SUBJECT_CATEGORIES,
+  MediaDetailsRecord,
+  MediaExposure,
+  MediaPlacePrecision,
+  MediaSubjectCategory
+} from '@/lib/types/database/gallery'
+import {
   AttachmentWithMedia,
   CreateAttachmentParams,
   CreateMediaParams,
@@ -23,13 +32,17 @@ import {
   GetAttachmentsWithMediaParams,
   GetMediaByIdParams,
   GetMediaByIdsForAccountParams,
+  GetMediaWithAttachedStatusIdsParams,
   GetMediasForAccountParams,
   GetStorageUsageForAccountParams,
   MarkMediaUploadVerifiedParams,
+  MarkMediaUploadVerifiedResult,
   Media,
   MediaDatabase,
+  MediaWithAttachedStatusIds,
   PaginatedMediaWithStatus,
   UpdateAttachmentPlaybackParams,
+  UpdateMediaDetailsParams,
   UpdateMediaParams,
   UpdateMediaResult
 } from '@/lib/types/database/operations'
@@ -37,7 +50,7 @@ import { Attachment } from '@/lib/types/domain/attachment'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
-import { chunkArray, getWhereInBatchSize } from './utils/knex'
+import { chunkArray, getWhereInBatchSize, isPostgresClient } from './utils/knex'
 
 // PostgreSQL `integer` upper bound. An id above it does not merely miss: the
 // driver sends it as a parameter to an integer column and PostgreSQL answers
@@ -160,6 +173,18 @@ type MediaRow = {
   focusX?: number | string | null
   focusY?: number | string | null
   blurhash?: string | null
+  subjectName?: string | null
+  subjectScientificName?: string | null
+  subjectCategory?: string | null
+  takenAt?: number | string | Date | null
+  cameraGearId?: string | null
+  lensGearId?: string | null
+  exposure?: string | MediaExposure | null
+  placeName?: string | null
+  placeLatitude?: number | string | null
+  placeLongitude?: number | string | null
+  placePrecision?: string | null
+  inGallery?: boolean | number | null
 }
 
 type MediaMetaData = Media['original']['metaData']
@@ -168,6 +193,67 @@ const parseMediaMetaData = (
   input?: string | MediaMetaData | null
 ): MediaMetaData =>
   getCompatibleJSON<MediaMetaData>(input ?? ({} as MediaMetaData))
+
+const parseNullableNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const parseMediaExposure = (
+  input: string | MediaExposure | null | undefined
+): MediaExposure | null => {
+  if (!input) return null
+  let value: unknown = input
+  if (typeof input === 'string') {
+    try {
+      value = JSON.parse(input)
+    } catch {
+      // A corrupt blob is treated as "no exposure": the column is display-only.
+      return null
+    }
+  }
+  if (!value || typeof value !== 'object') return null
+
+  const { focalLengthMm, aperture, exposureTime, iso } = value as Record<
+    string,
+    unknown
+  >
+  const exposure: MediaExposure = {
+    ...(typeof focalLengthMm === 'number' ? { focalLengthMm } : {}),
+    ...(typeof aperture === 'number' ? { aperture } : {}),
+    ...(typeof exposureTime === 'string' && exposureTime
+      ? { exposureTime }
+      : {}),
+    ...(typeof iso === 'number' ? { iso } : {})
+  }
+  return Object.keys(exposure).length > 0 ? exposure : null
+}
+
+const parseMediaDetails = (data: MediaRow): MediaDetailsRecord => ({
+  ...EMPTY_MEDIA_DETAILS,
+  subjectName: data.subjectName ?? null,
+  subjectScientificName: data.subjectScientificName ?? null,
+  subjectCategory: (MEDIA_SUBJECT_CATEGORIES as readonly string[]).includes(
+    data.subjectCategory ?? ''
+  )
+    ? (data.subjectCategory as MediaSubjectCategory)
+    : null,
+  takenAt: data.takenAt ? getCompatibleTime(data.takenAt) : null,
+  cameraGearId: data.cameraGearId ?? null,
+  lensGearId: data.lensGearId ?? null,
+  exposure: parseMediaExposure(data.exposure),
+  placeName: data.placeName ?? null,
+  placeLatitude: parseNullableNumber(data.placeLatitude),
+  placeLongitude: parseNullableNumber(data.placeLongitude),
+  placePrecision: (MEDIA_PLACE_PRECISIONS as readonly string[]).includes(
+    data.placePrecision ?? ''
+  )
+    ? (data.placePrecision as MediaPlacePrecision)
+    : null,
+  // SQLite hands the boolean back as 0/1.
+  inGallery: Boolean(data.inGallery)
+})
 
 const parseMediaRow = (data: MediaRow): Media => ({
   id: String(data.id),
@@ -196,8 +282,54 @@ const parseMediaRow = (data: MediaRow): Media => ({
   data.focusY !== undefined
     ? { focus: { x: Number(data.focusX), y: Number(data.focusY) } }
     : {}),
-  ...(data.blurhash ? { blurhash: data.blurhash } : {})
+  ...(data.blurhash ? { blurhash: data.blurhash } : {}),
+  details: parseMediaDetails(data)
 })
+
+// Maps the details an update or create may write to `medias` columns. Presence
+// semantics: only keys present in `details` produce a column, so a partial
+// update never blanks a column the caller did not mention.
+const getDetailsColumns = (
+  details: UpdateMediaDetailsParams | undefined
+): Record<string, unknown> => {
+  if (!details) return {}
+  const columns: Record<string, unknown> = {}
+  if ('subjectName' in details)
+    columns.subjectName = details.subjectName ?? null
+  if ('subjectScientificName' in details) {
+    columns.subjectScientificName = details.subjectScientificName ?? null
+  }
+  if ('subjectCategory' in details) {
+    columns.subjectCategory = details.subjectCategory ?? null
+  }
+  if ('takenAt' in details) {
+    columns.takenAt =
+      details.takenAt === null || details.takenAt === undefined
+        ? null
+        : new Date(details.takenAt)
+  }
+  if ('cameraGearId' in details) {
+    columns.cameraGearId = details.cameraGearId ?? null
+  }
+  if ('lensGearId' in details) columns.lensGearId = details.lensGearId ?? null
+  if ('exposure' in details) {
+    columns.exposure = details.exposure
+      ? JSON.stringify(details.exposure)
+      : null
+  }
+  if ('placeName' in details) columns.placeName = details.placeName ?? null
+  if ('placeLatitude' in details) {
+    columns.placeLatitude = details.placeLatitude ?? null
+  }
+  if ('placeLongitude' in details) {
+    columns.placeLongitude = details.placeLongitude ?? null
+  }
+  if ('placePrecision' in details) {
+    columns.placePrecision = details.placePrecision ?? null
+  }
+  if (details.inGallery !== undefined) columns.inGallery = details.inGallery
+  return columns
+}
 
 // `medias` columns needed to rebuild a full Media row (used by every read).
 const MEDIA_COLUMNS = [
@@ -215,7 +347,19 @@ const MEDIA_COLUMNS = [
   'description',
   'focusX',
   'focusY',
-  'blurhash'
+  'blurhash',
+  'subjectName',
+  'subjectScientificName',
+  'subjectCategory',
+  'takenAt',
+  'cameraGearId',
+  'lensGearId',
+  'exposure',
+  'placeName',
+  'placeLatitude',
+  'placeLongitude',
+  'placePrecision',
+  'inGallery'
 ] as const
 
 export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
@@ -225,7 +369,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     thumbnail,
     description,
     focus,
-    blurhash
+    blurhash,
+    details
   }: CreateMediaParams) {
     if (!actorId) return null
 
@@ -252,7 +397,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
           : null),
         ...(description ? { description } : null),
         ...(focus ? { focusX: focus.x, focusY: focus.y } : null),
-        ...(blurhash ? { blurhash } : null)
+        ...(blurhash ? { blurhash } : null),
+        ...getDetailsColumns(details)
       }
 
       const ids = await trx('medias').insert(content, ['id'])
@@ -290,7 +436,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         ...(thumbnail ? { thumbnail } : null),
         ...(description ? { description } : null),
         ...(focus ? { focus } : null),
-        ...(blurhash ? { blurhash } : null)
+        ...(blurhash ? { blurhash } : null),
+        details: { ...EMPTY_MEDIA_DETAILS, ...details }
       } as Media
     })
   },
@@ -298,60 +445,119 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     mediaId,
     accountId,
     verifiedAt,
-    dimensions
-  }: MarkMediaUploadVerifiedParams): Promise<Media | null> {
+    dimensions,
+    originalBytes,
+    originalPath,
+    clientPath,
+    details
+  }: MarkMediaUploadVerifiedParams): Promise<MarkMediaUploadVerifiedResult | null> {
     const id = toMediaRowId(mediaId)
     if (id === null) return null
 
-    const data = await database('medias')
-      .join('actors', 'medias.actorId', 'actors.id')
-      .where('medias.id', id)
-      .where('actors.accountId', accountId)
-      .select(
-        'medias.id',
-        'medias.actorId',
-        'medias.original',
-        'medias.originalBytes',
-        'medias.originalMimeType',
-        'medias.originalMetaData',
-        'medias.originalFileName',
-        'medias.thumbnail',
-        'medias.thumbnailBytes',
-        'medias.thumbnailMimeType',
-        'medias.thumbnailMetaData',
-        'medias.description',
-        'medias.focusX',
-        'medias.focusY',
-        'medias.blurhash'
-      )
-      .first<MediaRow>()
+    // A read-check-write inside one transaction, with the row locked on
+    // PostgreSQL (SQLite serialises transactions on its single connection), so
+    // two completions of the same upload cannot both see `pending`: the second
+    // waits, then reads the first one's `verified` row and changes nothing. The
+    // usage delta is computed from the row read under that lock and applied
+    // only by the call that made the transition.
+    return database.transaction(async (trx) => {
+      const query = trx('medias')
+        .join('actors', 'medias.actorId', 'actors.id')
+        .where('medias.id', id)
+        .where('actors.accountId', accountId)
+        .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
+        .first<MediaRow>()
+      if (isPostgresClient(database)) query.forUpdate('medias')
+      const data = await query
+      if (!data) return null
 
-    if (!data) return null
-
-    const media = parseMediaRow(data)
-    const metaData = {
-      ...media.original.metaData,
-      ...(dimensions
-        ? { width: dimensions.width, height: dimensions.height }
-        : {}),
-      upload: {
-        ...media.original.metaData.upload,
-        state: 'verified' as const,
-        verifiedAt
+      const media = parseMediaRow(data)
+      if (media.original.metaData.upload?.state !== 'pending') {
+        return { media, transitioned: false }
       }
-    }
 
-    await database('medias')
-      .where('id', media.id)
-      .update({ originalMetaData: JSON.stringify(metaData) })
-
-    return {
-      ...media,
-      original: {
-        ...media.original,
-        metaData
+      const metaData = {
+        ...media.original.metaData,
+        ...(dimensions
+          ? { width: dimensions.width, height: dimensions.height }
+          : {}),
+        upload: {
+          ...media.original.metaData.upload,
+          state: 'verified' as const,
+          verifiedAt,
+          ...(clientPath === undefined ? null : { clientPath })
+        }
       }
-    }
+
+      const bytesDelta =
+        originalBytes === undefined ? 0 : originalBytes - media.original.bytes
+      // The update is itself conditional on `pending` and the side effects
+      // below run only when it changed the row, so the counter moves once
+      // even if the lock above were ever bypassed.
+      const changed = await trx('medias')
+        .where('id', id)
+        .whereRaw(
+          isPostgresClient(database)
+            ? `??->'upload'->>'state' = ?`
+            : `json_extract(??, '$.upload.state') = ?`,
+          ['originalMetaData', 'pending']
+        )
+        .update({
+          originalMetaData: JSON.stringify(metaData),
+          ...(originalBytes === undefined ? null : { originalBytes }),
+          ...(originalPath === undefined ? null : { original: originalPath }),
+          ...getDetailsColumns(details)
+        })
+      if (changed === 0) {
+        const current = await trx('medias')
+          .where('id', id)
+          .select(MEDIA_COLUMNS)
+          .first<MediaRow>()
+        return current
+          ? { media: parseMediaRow(current), transitioned: false }
+          : null
+      }
+      // Keep the per-account usage counter in step with the rewritten object.
+      if (bytesDelta > 0) {
+        await increaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(accountId),
+          bytesDelta
+        )
+      } else if (bytesDelta < 0) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.mediaUsage(accountId),
+          -bytesDelta
+        )
+      }
+
+      // Details go through column coercion (dates, JSON), so read them back
+      // rather than echoing the input.
+      const writtenDetails =
+        details && Object.keys(getDetailsColumns(details)).length > 0
+          ? parseMediaDetails(
+              await trx('medias')
+                .where('id', id)
+                .select(MEDIA_COLUMNS)
+                .first<MediaRow>()
+            )
+          : media.details
+
+      return {
+        media: {
+          ...media,
+          details: writtenDetails,
+          original: {
+            ...media.original,
+            ...(originalBytes === undefined ? null : { bytes: originalBytes }),
+            ...(originalPath === undefined ? null : { path: originalPath }),
+            metaData
+          }
+        },
+        transitioned: true
+      }
+    })
   },
   // NOTE: `mediaId` is WRITTEN here, not compared, so it does not go through
   // `toMediaRowId` — coercing would silently drop the link rather than surface
@@ -734,7 +940,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     description,
     focus,
     blurhash,
-    thumbnail
+    thumbnail,
+    details
   }: UpdateMediaParams): Promise<UpdateMediaResult | null> {
     const id = toMediaRowId(mediaId)
     if (id === null) return null
@@ -768,7 +975,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         thumbnailBytes?: number
         thumbnailMimeType?: string
         thumbnailMetaData?: string
-      } = { updatedAt: new Date() }
+      } & Record<string, unknown> = { updatedAt: new Date() }
 
       if (description !== undefined) {
         updates.description = description
@@ -780,6 +987,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       if (blurhash !== undefined) {
         updates.blurhash = blurhash
       }
+
+      Object.assign(updates, getDetailsColumns(details))
 
       let thumbnailUsageDelta = 0
       let replacedThumbnailPath: string | null = null
@@ -826,6 +1035,61 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     })
   },
 
+  async getMediaWithAttachedStatusIds({
+    mediaId
+  }: GetMediaWithAttachedStatusIdsParams): Promise<MediaWithAttachedStatusIds | null> {
+    const id = toMediaRowId(mediaId)
+    if (id === null) return null
+
+    const data = await database('medias')
+      .where('medias.id', id)
+      .select(MEDIA_COLUMNS.map((column) => `medias.${column}`))
+      .first<MediaRow>()
+    if (!data) return null
+
+    // `attachments.mediaId` is `varchar` on SQLite and `integer` on PostgreSQL;
+    // joining on `medias.id` lets each backend compare it its own way, as
+    // `getMediasWithStatusForAccount` does.
+    //
+    // Only an attachment written by the media's OWNER counts as evidence the
+    // owner published it. `attachments.mediaId` is a bare pointer, and any
+    // actor can write one (the outbox takes attachment objects from the
+    // client), so without this an attacker's public post pointing at someone
+    // else's media id would unlock that media's private details. Ownership is
+    // account-wide, matching the upload and attach routes: a second persona on
+    // the owner's account attaching the media still counts.
+    const rows = await database('attachments')
+      .join('medias', 'medias.id', 'attachments.mediaId')
+      .join(
+        'actors as attachmentActors',
+        'attachmentActors.id',
+        'attachments.actorId'
+      )
+      .join('actors as mediaActors', 'mediaActors.id', 'medias.actorId')
+      .where('medias.id', id)
+      .where((builder) =>
+        builder
+          .where('attachments.actorId', database.ref('medias.actorId'))
+          .orWhere((sameAccount) =>
+            sameAccount
+              .whereNotNull('mediaActors.accountId')
+              .where(
+                'attachmentActors.accountId',
+                database.ref('mediaActors.accountId')
+              )
+          )
+      )
+      .whereNotNull('attachments.statusId')
+      .where('attachments.statusId', '<>', '')
+      .distinct('attachments.statusId')
+      .select<{ statusId: string }[]>('attachments.statusId')
+
+    return {
+      media: parseMediaRow(data),
+      statusIds: rows.map((row) => row.statusId)
+    }
+  },
+
   async getStorageUsageForAccount({
     accountId
   }: GetStorageUsageForAccountParams): Promise<number> {
@@ -863,6 +1127,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .select(
           'medias.id',
           'medias.original',
+          'medias.originalMetaData',
           'medias.thumbnail',
           'medias.originalBytes',
           'medias.thumbnailBytes'
@@ -870,6 +1135,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .first<{
           id: string | number
           original: string
+          originalMetaData: string | MediaMetaData | null
           thumbnail: string | null
           originalBytes: number | string | bigint | null
           thumbnailBytes: number | string | bigint | null
@@ -905,8 +1171,13 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
 
       // Return the paths captured inside the transaction so the caller deletes
       // exactly the files that belonged to this row (no racy prefetch).
+      // The presigned URL outlives the key swap, so a re-PUT may have
+      // recreated an object at the client's original key: delete it as well.
+      const clientPath = parseMediaMetaData(media.originalMetaData).upload
+        ?.clientPath
       const files = [
         media.original,
+        ...(clientPath && clientPath !== media.original ? [clientPath] : []),
         ...(media.thumbnail ? [media.thumbnail] : [])
       ]
       return { status: 'deleted', files }

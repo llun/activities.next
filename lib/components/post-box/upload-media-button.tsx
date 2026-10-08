@@ -17,7 +17,15 @@ const MEDIA_TYPE = 'upload'
 
 interface Props {
   isMediaUploadEnabled?: boolean
+  /** Disables picking, e.g. while the post is submitting. */
+  disabled?: boolean
   attachments?: PostBoxAttachment[]
+  /**
+   * Original file names by attachment id. Once an upload finishes the
+   * attachment drops its `file` and its `name` becomes the alt text, so the
+   * names of files already picked can only be matched from here.
+   */
+  fileNames?: Record<string, string>
   onAddAttachment: (attachment: PostBoxAttachment) => void
   onDuplicateError: () => void
   /** Reports every file rejected before upload (currently: over the size cap). */
@@ -28,7 +36,9 @@ interface Props {
 
 export const UploadMediaButton: FC<Props> = ({
   isMediaUploadEnabled,
+  disabled = false,
   attachments = [],
+  fileNames = {},
   onAddAttachment,
   onDuplicateError,
   onFilesRejected,
@@ -39,16 +49,21 @@ export const UploadMediaButton: FC<Props> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onOpenFile = () => {
     const input = fileInputRef.current
-    if (!input) return
+    if (!input || disabled) return
     input.click()
   }
   const onSelectFile = async (
     event: SyntheticEvent<HTMLInputElement, Event>
   ) => {
-    if (!event.currentTarget.files) return
-    if (!event.currentTarget.files.length) return
+    // Copy the (live) FileList first, then clear the input so picking the same
+    // file again still fires `change` — including after an early return below.
+    const input = event.currentTarget
+    const selectedFiles = input.files ? Array.from(input.files) : []
+    input.value = ''
 
-    const selectedFiles = Array.from(event.currentTarget.files)
+    if (disabled) return
+    if (!selectedFiles.length) return
+
     onUploadStart()
 
     // The instance's resolved posts.maxMediaAttachments, not a build-time
@@ -58,7 +73,10 @@ export const UploadMediaButton: FC<Props> = ({
 
     const filteredFiles = selectedFiles.filter((file) => {
       return !attachments.some(
-        (attachment) => (attachment.file?.name ?? attachment.name) === file.name
+        (attachment) =>
+          (attachment.file?.name ??
+            fileNames[attachment.id] ??
+            attachment.name) === file.name
       )
     })
 
@@ -164,6 +182,7 @@ export const UploadMediaButton: FC<Props> = ({
         multiple
         accept={ACCEPTED_FILE_TYPES.join(',')}
         className="hidden"
+        disabled={disabled}
         onChange={onSelectFile}
       />
       <Button
@@ -171,7 +190,7 @@ export const UploadMediaButton: FC<Props> = ({
         variant="ghost"
         size="icon-sm"
         onClick={onOpenFile}
-        disabled={attachments.length >= maxMediaAttachments}
+        disabled={disabled || attachments.length >= maxMediaAttachments}
         className="text-muted-foreground hover:text-foreground"
         aria-label={`Add media (${attachments.length}/${maxMediaAttachments})`}
         title={`Add media (${attachments.length}/${maxMediaAttachments})`}

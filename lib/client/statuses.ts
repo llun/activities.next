@@ -80,6 +80,8 @@ export interface UpdateNoteParams {
   message?: string
   contentWarning?: string
   attachments?: PostBoxAttachment[]
+  /** Description (alt text) edits for attached media (Mastodon `media_attributes`). */
+  mediaAttributes?: { id: string; description: string }[]
 }
 
 export interface UpdateNoteResult {
@@ -105,15 +107,18 @@ export const updateNote = async ({
   statusId,
   message,
   contentWarning,
-  attachments
+  attachments,
+  mediaAttributes
 }: UpdateNoteParams): Promise<UpdateNoteResult> => {
   const hasMessageChange = message !== undefined
   const hasAttachmentChanges = attachments !== undefined
+  const hasMediaAttributes = mediaAttributes !== undefined
 
   if (
     !hasMessageChange &&
     contentWarning === undefined &&
-    !hasAttachmentChanges
+    !hasAttachmentChanges &&
+    !hasMediaAttributes
   ) {
     throw new Error('Message, content warning, or attachments must be provided')
   }
@@ -132,6 +137,14 @@ export const updateNote = async ({
           : {}),
         ...(attachments !== undefined
           ? { media_ids: attachments.map((attachment) => attachment.id) }
+          : {}),
+        ...(mediaAttributes !== undefined
+          ? {
+              media_attributes: mediaAttributes.map((attribute) => ({
+                id: attribute.id,
+                description: attribute.description
+              }))
+            }
           : {})
       })
     }

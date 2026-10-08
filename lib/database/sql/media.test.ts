@@ -1341,7 +1341,7 @@ describe('MediaDatabase', () => {
           verifiedAt
         })
 
-        expect(verified?.original.metaData.upload).toMatchObject({
+        expect(verified?.media.original.metaData.upload).toMatchObject({
           state: 'verified',
           verifiedAt,
           // The rest of the upload metadata survives the rewrite.
@@ -1382,6 +1382,163 @@ describe('MediaDatabase', () => {
           width: 640,
           height: 480,
           upload: { state: 'verified', checksumSha1: 'abc123' }
+        })
+      })
+
+      // Completion rewrites the object without its metadata, so the stored
+      // size and the account's usage move together.
+      it('records the rewritten size and moves the usage counter by the difference', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-rewritten.jpg')
+        const before = await database.getStorageUsageForAccount({ accountId })
+
+        const verified = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          originalBytes: 700
+        })
+
+        expect(verified?.media.original.bytes).toBe(700)
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original.bytes).toBe(700)
+        expect(await database.getStorageUsageForAccount({ accountId })).toBe(
+          before - 300
+        )
+      })
+
+      it('swaps in the stripped original path with the verification', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-swap.jpg')
+
+        const verified = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          originalBytes: 800,
+          originalPath: '/test/verify-swap-stripped.jpg'
+        })
+
+        expect(verified).toMatchObject({
+          transitioned: true,
+          media: { original: { path: '/test/verify-swap-stripped.jpg' } }
+        })
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original).toMatchObject({
+          path: '/test/verify-swap-stripped.jpg',
+          bytes: 800
+        })
+      })
+
+      // A retried or concurrent completion must not move the usage counter a
+      // second time, nor overwrite the first call's path and size.
+      it('transitions once and adjusts usage once under repeated and concurrent calls', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-once.jpg')
+        const before = await database.getStorageUsageForAccount({ accountId })
+
+        const results = await Promise.all(
+          [600, 650].map((bytes) =>
+            database.markMediaUploadVerified({
+              mediaId: media!.id,
+              accountId,
+              verifiedAt: Date.now(),
+              originalBytes: bytes,
+              originalPath: `/test/verify-once-${bytes}.jpg`
+            })
+          )
+        )
+        const repeated = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          originalBytes: 100,
+          originalPath: '/test/verify-once-late.jpg'
+        })
+
+        const winners = results.filter((result) => result?.transitioned)
+        expect(winners).toHaveLength(1)
+        expect(repeated?.transitioned).toBe(false)
+        const winningBytes = winners[0]!.media.original.bytes
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original).toMatchObject({
+          bytes: winningBytes,
+          path: `/test/verify-once-${winningBytes}.jpg`
+        })
+        expect(repeated?.media.original.bytes).toBe(winningBytes)
+        expect(await database.getStorageUsageForAccount({ accountId })).toBe(
+          before - (1000 - winningBytes)
+        )
+      })
+
+      // The details are built from bytes whose original is deleted right after
+      // the swap, so they must commit with it — and only with it.
+      it('writes the details with the verification and not on a repeat', async () => {
+        const actor = await database.getActorFromId({ id: actors.primary.id })
+        const accountId = actor!.account!.id
+        const media = await createPendingMedia('/test/verify-details.jpg')
+        const takenAt = Date.UTC(2024, 4, 6, 7, 8, 9)
+
+        const verified = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          originalBytes: 600,
+          originalPath: '/test/verify-details-stripped.jpg',
+          details: {
+            inGallery: true,
+            takenAt,
+            placeName: 'Somewhere',
+            placeLatitude: 51.5,
+            placeLongitude: -0.125
+          }
+        })
+
+        expect(verified?.transitioned).toBe(true)
+        expect(verified?.media.details).toMatchObject({
+          inGallery: true,
+          takenAt,
+          placeName: 'Somewhere'
+        })
+        const reread = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(reread?.original.path).toBe('/test/verify-details-stripped.jpg')
+        expect(reread?.details).toMatchObject({
+          inGallery: true,
+          takenAt,
+          placeName: 'Somewhere',
+          placeLatitude: 51.5,
+          placeLongitude: -0.125
+        })
+
+        const repeated = await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          details: { inGallery: false, placeName: 'Elsewhere' }
+        })
+        expect(repeated?.transitioned).toBe(false)
+        const after = await database.getMediaByIdForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+        expect(after?.details).toMatchObject({
+          inGallery: true,
+          placeName: 'Somewhere'
         })
       })
 
@@ -2014,6 +2171,45 @@ describe('MediaDatabase', () => {
           accountId
         })
         expect(retrieved).toBeNull()
+      })
+
+      it('also returns the presign key recorded as upload.clientPath', async () => {
+        const actor = await database.getActorFromId({ id: actors.empty.id })
+        const accountId = actor!.account!.id
+        const media = await database.createMedia({
+          actorId: actors.empty.id,
+          original: {
+            path: '/test/del-client-path-client.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: {
+              width: 100,
+              height: 100,
+              upload: { state: 'pending', checksumSha1: 'abc', size: 1000 }
+            }
+          }
+        })
+        await database.markMediaUploadVerified({
+          mediaId: media!.id,
+          accountId,
+          verifiedAt: Date.now(),
+          originalPath: '/test/del-client-path-stripped.jpg',
+          originalBytes: 900,
+          clientPath: '/test/del-client-path-client.jpg'
+        })
+
+        const result = await database.deleteMediaForAccount({
+          mediaId: media!.id,
+          accountId
+        })
+
+        expect(result).toEqual({
+          status: 'deleted',
+          files: [
+            '/test/del-client-path-stripped.jpg',
+            '/test/del-client-path-client.jpg'
+          ]
+        })
       })
 
       it('returns not-found for a nonexistent media id', async () => {

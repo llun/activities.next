@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 
 import { deleteAccountMedia } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
@@ -49,6 +49,8 @@ interface Props {
   currentPage: number
   itemsPerPage: number
   totalItems: number
+  /** Media preferences shown between the page header and the storage card. */
+  settings?: ReactNode
 }
 
 export function MediaManagement({
@@ -57,7 +59,8 @@ export function MediaManagement({
   medias: initialMedias,
   currentPage,
   itemsPerPage,
-  totalItems
+  totalItems,
+  settings
 }: Props) {
   const router = useRouter()
   const [medias, setMedias] = useState(initialMedias)
@@ -108,9 +111,11 @@ export function MediaManagement({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Media Storage"
-        description="Manage your media uploads and storage quota."
+        title="Media"
+        description="Describe and tag new media, and manage your uploads and storage quota."
       />
+
+      {settings}
 
       <Card>
         <CardHeader>

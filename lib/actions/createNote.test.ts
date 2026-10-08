@@ -9,6 +9,7 @@ import {
 import { MAX_FEDERATION_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
 import { getQueue } from '@/lib/services/queue'
+import { updateServerSettings } from '@/lib/services/serverSettings'
 import * as timelinesService from '@/lib/services/timelines'
 import { mockRequests } from '@/lib/stub/activities'
 import { TEST_DOMAIN } from '@/lib/stub/const'
@@ -696,6 +697,72 @@ How are you?
           actorId: actor1.id,
           statusId: status.id
         }
+      })
+    })
+
+    describe('subject hashtags', () => {
+      const createSubjectMedia = async () => {
+        const media = await database.createMedia({
+          actorId: actor1.id,
+          original: {
+            path: `/test/subject-${Math.random()}.jpg`,
+            bytes: 100,
+            mimeType: 'image/jpeg',
+            metaData: { width: 10, height: 10 }
+          },
+          details: { subjectName: 'Common Kingfisher' }
+        })
+        return media!.id
+      }
+
+      const postWith = async (mediaId: string) =>
+        (await createNoteFromUserInput({
+          text: 'Morning walk',
+          currentActor: actor1,
+          attachments: [
+            {
+              type: 'upload',
+              id: mediaId,
+              mediaType: 'image/jpeg',
+              url: 'https://example.com/media/bird.jpg',
+              width: 10,
+              height: 10,
+              name: 'bird.jpg'
+            }
+          ],
+          database
+        })) as StatusNote
+
+      it('appends the subject as a hashtag when the setting is on', async () => {
+        await database.updateGallerySettings({
+          actorId: actor1.id,
+          subjectHashtags: true
+        })
+        const status = await postWith(await createSubjectMedia())
+        expect(status.text).toContain('#CommonKingfisher')
+      })
+
+      it('does not append a subject hashtag past posts.maxCharacters', async () => {
+        await database.updateGallerySettings({
+          actorId: actor1.id,
+          subjectHashtags: true
+        })
+        await updateServerSettings(database, { 'posts.maxCharacters': 12 })
+        try {
+          const status = await postWith(await createSubjectMedia())
+          expect(status.text).toBe('Morning walk')
+        } finally {
+          await updateServerSettings(database, { 'posts.maxCharacters': 500 })
+        }
+      })
+
+      it('leaves the text alone when the setting is off', async () => {
+        await database.updateGallerySettings({
+          actorId: actor1.id,
+          subjectHashtags: false
+        })
+        const status = await postWith(await createSubjectMedia())
+        expect(status.text).not.toContain('#CommonKingfisher')
       })
     })
 

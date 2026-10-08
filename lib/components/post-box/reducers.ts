@@ -234,16 +234,16 @@ export const statusExtensionReducer: Reducer<StatusExtension, Actions> = (
       }
     }
     case 'setPollVisibility': {
-      if (action.visible) {
-        state.attachments.forEach((attachment) => {
-          if (attachment.url.startsWith('blob:')) {
-            URL.revokeObjectURL(attachment.url)
-          }
-          if (attachment.posterUrl?.startsWith('blob:')) {
-            URL.revokeObjectURL(attachment.posterUrl)
-          }
-        })
-      }
+      // Either direction drops the attachments below, so release their
+      // previews both when a poll replaces them and when it is removed.
+      state.attachments.forEach((attachment) => {
+        if (attachment.url.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.url)
+        }
+        if (attachment.posterUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.posterUrl)
+        }
+      })
       const duration = state.attachments.length
         ? DEFAULT_DURATION
         : state.poll.durationInSeconds
