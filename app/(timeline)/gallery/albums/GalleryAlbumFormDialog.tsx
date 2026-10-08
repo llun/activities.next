@@ -20,6 +20,7 @@ import {
 } from '@/lib/components/ui/dialog'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
 import { Textarea } from '@/lib/components/ui/textarea'
 import type { GalleryAlbumCardEntity } from '@/lib/services/gallery/galleryAlbumEntities'
 import {
@@ -47,6 +48,8 @@ interface Props {
   intent: GalleryAlbumFormIntent
   /** The album being edited or added to; absent when creating. */
   album?: GalleryAlbumCardEntity | null
+  /** Media ids already in the album, shown as such (and not pickable) in the picker. */
+  existingMediaIds?: string[]
   onOpenChange: (open: boolean) => void
   /** Called with the album id once everything asked for is saved. */
   onSaved: (albumId: string) => void
@@ -54,10 +57,14 @@ interface Props {
 
 const VISIBILITY_COPY: Record<
   GalleryAlbumVisibility,
-  { label: string; icon: typeof Globe }
+  { label: string; hint: string; icon: typeof Globe }
 > = {
-  public: { label: 'Public', icon: Globe },
-  private: { label: 'Private', icon: Lock }
+  public: {
+    label: 'Public',
+    hint: 'Can be shared once public album pages arrive.',
+    icon: Globe
+  },
+  private: { label: 'Private', hint: 'Only you can see it.', icon: Lock }
 }
 
 const TITLES: Record<GalleryAlbumFormIntent, string> = {
@@ -79,6 +86,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   ownerId,
   intent,
   album = null,
+  existingMediaIds,
   onOpenChange,
   onSaved
 }) => {
@@ -109,6 +117,9 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
     setCoverItem(null)
   }, [open, album])
 
+  // Once the album exists the form is only a way to open it: edits made after
+  // that point would be dropped, so the fields stop taking them.
+  const isLocked = isSaving || createdId !== null
   const showFields = intent !== 'add'
   const showPicker = intent !== 'edit'
   const capacity =
@@ -190,7 +201,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
-          'flex max-h-[90vh] flex-col gap-4 overflow-hidden p-4 sm:p-6',
+          'flex max-h-[90dvh] flex-col gap-4 overflow-hidden p-4 sm:p-6',
           showFields && showPicker ? 'sm:max-w-4xl' : 'sm:max-w-xl'
         )}
         showCloseButton={!isSaving}
@@ -227,7 +238,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                     value={title}
                     maxLength={MAX_GALLERY_ALBUM_TITLE_LENGTH}
                     onChange={(event) => setTitle(event.target.value)}
-                    disabled={isSaving}
+                    disabled={isLocked}
                     autoComplete="off"
                   />
                 </div>
@@ -244,47 +255,62 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                     maxLength={MAX_GALLERY_ALBUM_DESCRIPTION_LENGTH}
                     rows={3}
                     onChange={(event) => setDescription(event.target.value)}
-                    disabled={isSaving}
+                    disabled={isLocked}
                   />
                 </div>
-                <fieldset className="space-y-1.5">
-                  <legend className="text-sm leading-5 font-medium">
+                <div className="space-y-1.5">
+                  <p
+                    id="gallery-album-visibility-label"
+                    className="text-sm leading-5 font-medium"
+                  >
                     Visibility
-                  </legend>
-                  <div
-                    role="radiogroup"
-                    aria-label="Visibility"
-                    className="bg-muted/60 grid grid-cols-2 gap-1 rounded-lg border p-1"
+                  </p>
+                  <RadioGroup
+                    aria-labelledby="gallery-album-visibility-label"
+                    value={visibility}
+                    onValueChange={(value) =>
+                      setVisibility(value as GalleryAlbumVisibility)
+                    }
+                    disabled={isLocked}
+                    className="gap-1.5"
                   >
                     {GALLERY_ALBUM_VISIBILITIES.map((value) => {
-                      const { label, icon: Icon } = VISIBILITY_COPY[value]
-                      const isActive = visibility === value
+                      const { label, hint, icon: Icon } = VISIBILITY_COPY[value]
+                      const id = `gallery-album-visibility-${value}`
                       return (
-                        <button
+                        <div
                           key={value}
-                          type="button"
-                          role="radio"
-                          aria-checked={isActive}
-                          disabled={isSaving}
-                          onClick={() => setVisibility(value)}
                           className={cn(
-                            'focus-visible:ring-ring/50 flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed',
-                            isActive
-                              ? 'bg-background text-foreground shadow-xs'
-                              : 'text-muted-foreground hover:text-foreground'
+                            'flex items-start gap-3 rounded-lg border p-3',
+                            visibility === value &&
+                              'border-primary bg-primary/5'
                           )}
                         >
-                          <Icon className="size-3.5" aria-hidden="true" />
-                          {label}
-                        </button>
+                          <RadioGroupItem
+                            value={value}
+                            id={id}
+                            className="mt-0.5 shrink-0"
+                          />
+                          <div className="min-w-0 space-y-0.5">
+                            <Label
+                              htmlFor={id}
+                              className="cursor-pointer gap-1.5 font-medium"
+                            >
+                              <Icon className="size-3.5" aria-hidden="true" />
+                              {label}
+                            </Label>
+                            <p className="text-muted-foreground text-xs">
+                              {hint}
+                            </p>
+                          </div>
+                        </div>
                       )
                     })}
-                  </div>
+                  </RadioGroup>
                   <p className="text-muted-foreground text-xs">
-                    Visitors only ever see photos from posts they could already
-                    see.
+                    A photo is only ever as visible as the post it came from.
                   </p>
-                </fieldset>
+                </div>
                 {intent === 'create' ? (
                   <div className="space-y-1.5">
                     <p className="text-sm leading-5 font-medium">Cover</p>
@@ -319,7 +345,8 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                   onChange={setSelected}
                   onFirstItemChange={setCoverItem}
                   capacity={capacity}
-                  disabled={isSaving}
+                  existingIds={existingMediaIds}
+                  disabled={isLocked}
                 />
               </div>
             ) : null}
@@ -338,27 +365,28 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                 aria-live="polite"
                 data-testid="album-selection-count"
               >
-                {formatCount(selected.length)} selected · max{' '}
-                {formatCount(capacity)} per album
+                {intent === 'add'
+                  ? `${formatCount(selected.length)} selected · can add up to ${formatCount(Math.max(capacity - selected.length, 0))} more`
+                  : `${formatCount(selected.length)} selected · max ${formatCount(capacity)} per album`}
               </p>
             ) : (
               <span />
             )}
-            <div className="flex flex-col gap-2 sm:flex-row-reverse">
-              <Button type="submit" disabled={isSaving}>
-                {createdId
-                  ? 'Open album'
-                  : isSaving
-                    ? 'Saving…'
-                    : SUBMIT_LABELS[intent]}
-              </Button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => handleOpenChange(false)}
                 disabled={isSaving}
               >
-                Cancel
+                {createdId ? 'Close' : 'Cancel'}
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {createdId
+                  ? 'Open album'
+                  : isSaving
+                    ? 'Saving…'
+                    : SUBMIT_LABELS[intent]}
               </Button>
             </div>
           </DialogFooter>

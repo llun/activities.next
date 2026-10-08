@@ -2,10 +2,11 @@ import {
   formatAlbumDateRange,
   getAlbumCardMeta,
   getAlbumFactsParts,
-  getAlbumShareUrl,
+  getAlbumTileLabel,
   getHiddenPlacesLabel
 } from '@/app/(timeline)/gallery/albums/galleryAlbumsUi'
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
+import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 
 describe('formatAlbumDateRange', () => {
   it.each([
@@ -96,10 +97,23 @@ describe('getHiddenPlacesLabel', () => {
   })
 })
 
-describe('getAlbumShareUrl', () => {
-  it('addresses the album under the profile', () => {
-    expect(getAlbumShareUrl('https://example.com/@llun', 'a b')).toBe(
-      'https://example.com/@llun/albums/a%20b'
+describe('getAlbumTileLabel', () => {
+  const item = (name: string, subject: string | null) =>
+    buildGalleryItem('m', {
+      attachment: { ...buildGalleryItem('m').attachment, name },
+      subject: subject ? ({ name: subject } as never) : null
+    })
+
+  it('names the photo and its place in the list', () => {
+    expect(getAlbumTileLabel(item('', 'Common kingfisher'), 2)).toBe(
+      'Common kingfisher, photo 3'
     )
+    expect(getAlbumTileLabel(item(' Dawn ', 'Common kingfisher'), 0)).toBe(
+      'Dawn, photo 1'
+    )
+  })
+
+  it('falls back to the position alone', () => {
+    expect(getAlbumTileLabel(item('', null), 4)).toBe('Photo 5')
   })
 })

@@ -29,15 +29,21 @@ vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumPicker', () => ({
     selected,
     onChange,
     onFirstItemChange,
-    capacity
+    capacity,
+    existingIds,
+    disabled
   }: {
     selected: string[]
     onChange: (ids: string[]) => void
     onFirstItemChange?: (item: unknown) => void
     capacity: number
+    existingIds?: string[]
+    disabled?: boolean
   }) => (
     <div>
       <span data-testid="capacity">{capacity}</span>
+      <span data-testid="existing">{existingIds?.join(',')}</span>
+      <span data-testid="picker-disabled">{String(Boolean(disabled))}</span>
       <button
         type="button"
         onClick={() => {
@@ -59,8 +65,16 @@ const update = vi.mocked(updateGalleryAlbum)
 const result = (id: string) =>
   ({ added: [], existing: [], skipped: [], album: buildAlbumCard(id) }) as never
 
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
 describe('GalleryAlbumFormDialog', () => {
   beforeEach(() => {
+    // Radix radio buttons measure themselves.
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub)
     create.mockReset()
     add.mockReset()
     update.mockReset()
@@ -177,6 +191,62 @@ describe('GalleryAlbumFormDialog', () => {
     expect(create).toHaveBeenCalledTimes(1)
   })
 
+  it('calls the secondary button Close and locks the fields once the album exists', async () => {
+    create.mockResolvedValue(result('new'))
+    add.mockRejectedValue(new Error('Album is full.'))
+    renderDialog()
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'One' }
+    })
+    fireEvent.click(screen.getByText('pick three'))
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    expect(screen.getByTestId('picker-disabled')).toHaveTextContent('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create album' }))
+    await screen.findByRole('alert')
+
+    // The dialog's own X is also named Close; the footer button joins it.
+    expect(screen.getAllByRole('button', { name: 'Close' })).toHaveLength(2)
+    expect(
+      screen.queryByRole('button', { name: 'Cancel' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).toBeDisabled()
+    expect(screen.getByLabelText(/Description/)).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Private' })).toBeDisabled()
+    expect(screen.getByTestId('picker-disabled')).toHaveTextContent('true')
+  })
+
+  it('moves between the visibility choices with the arrow keys', async () => {
+    renderDialog()
+    const group = screen.getByRole('radiogroup', { name: 'Visibility' })
+    expect(group).toBeInTheDocument()
+    const publicRadio = screen.getByRole('radio', { name: 'Public' })
+    expect(publicRadio).toHaveAttribute('aria-checked', 'true')
+
+    publicRadio.focus()
+    fireEvent.keyDown(publicRadio, { key: 'ArrowDown' })
+
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: 'Private' })).toHaveAttribute(
+        'aria-checked',
+        'true'
+      )
+    )
+  })
+
+  it('puts Cancel before the primary button, as it reads', () => {
+    renderDialog()
+    const buttons = screen.getAllByRole('button')
+    const cancel = buttons.findIndex(
+      (button) => button.textContent === 'Cancel'
+    )
+    const create = buttons.findIndex(
+      (button) => button.textContent === 'Create album'
+    )
+    expect(cancel).toBeGreaterThan(-1)
+    expect(cancel).toBeLessThan(create)
+  })
+
   it('edits the details only, from the album', async () => {
     update.mockResolvedValue(buildAlbumCard('a1'))
     const album = buildAlbumCard('a1', {
@@ -218,6 +288,9 @@ describe('GalleryAlbumFormDialog', () => {
 
     expect(screen.queryByLabelText('Title')).not.toBeInTheDocument()
     expect(screen.getByTestId('capacity')).toHaveTextContent('10')
+    expect(screen.getByTestId('album-selection-count')).toHaveTextContent(
+      '0 selected · can add up to 10 more'
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Add to album' }))
     expect(screen.getByRole('alert')).toHaveTextContent(
@@ -225,9 +298,26 @@ describe('GalleryAlbumFormDialog', () => {
     )
 
     fireEvent.click(screen.getByText('pick three'))
+    expect(screen.getByTestId('album-selection-count')).toHaveTextContent(
+      '3 selected · can add up to 7 more'
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Add to album' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('a1'))
     expect(add).toHaveBeenCalledWith('a1', ['m1', 'm2', 'm3'])
+  })
+
+  it('passes the photos already in the album to the picker', () => {
+    renderDialog({
+      intent: 'add',
+      album: buildAlbumCard('a1', { itemCount: 2 }),
+      existingMediaIds: ['x1', 'x2']
+    })
+    expect(screen.getByTestId('existing')).toHaveTextContent('x1,x2')
+  })
+
+  it('says nothing about a visitor page that does not exist yet', () => {
+    renderDialog()
+    expect(screen.queryByText(/visitors only ever/i)).not.toBeInTheDocument()
   })
 
   it('closes on Cancel without saving', () => {

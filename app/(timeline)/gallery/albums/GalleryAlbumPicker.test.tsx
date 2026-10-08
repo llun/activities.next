@@ -47,7 +47,13 @@ const named = (
     ...overrides
   })
 
-const Harness = ({ capacity = 2000 }: { capacity?: number }) => {
+const Harness = ({
+  capacity = 2000,
+  existingIds
+}: {
+  capacity?: number
+  existingIds?: string[]
+}) => {
   const [selected, setSelected] = useState<string[]>([])
   return (
     <>
@@ -56,6 +62,7 @@ const Harness = ({ capacity = 2000 }: { capacity?: number }) => {
         selected={selected}
         onChange={setSelected}
         capacity={capacity}
+        existingIds={existingIds}
       />
       <output data-testid="selected">{selected.join(',')}</output>
     </>
@@ -85,9 +92,13 @@ describe('GalleryAlbumPicker', () => {
     })
     render(<Harness />)
 
-    const robin = await screen.findByRole('button', { name: 'Select Robin' })
+    const robin = await screen.findByRole('button', {
+      name: 'Select Robin, photo 2'
+    })
     fireEvent.click(robin)
-    fireEvent.click(screen.getByRole('button', { name: 'Select Heron' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Select Heron, photo 1' })
+    )
     expect(screen.getByTestId('selected')).toHaveTextContent('2,1')
     expect(robin).toHaveAttribute('aria-pressed', 'true')
 
@@ -108,7 +119,9 @@ describe('GalleryAlbumPicker', () => {
       await screen.findByRole('button', { name: 'Select all shown' })
     )
     expect(screen.getByTestId('selected')).toHaveTextContent('1,2')
-    expect(screen.getByRole('button', { name: 'Select Fox' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Select Fox, photo 3' })
+    ).toBeDisabled()
   })
 
   it('asks the server for a species and filters place and dates over what is loaded', async () => {
@@ -126,16 +139,16 @@ describe('GalleryAlbumPicker', () => {
       nextMaxId: null
     })
     render(<Harness />)
-    await screen.findByRole('button', { name: 'Select Heron' })
+    await screen.findByRole('button', { name: 'Select Heron, photo 1' })
 
     fireEvent.change(screen.getByLabelText('Place'), {
       target: { value: 'Hyde Park' }
     })
     expect(
-      screen.queryByRole('button', { name: 'Select Heron' })
+      screen.queryByRole('button', { name: /^Select Heron/ })
     ).not.toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Select Robin' })
+      screen.getByRole('button', { name: 'Select Robin, photo 1' })
     ).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Taken from'), {
@@ -147,7 +160,7 @@ describe('GalleryAlbumPicker', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
     expect(
-      screen.getByRole('button', { name: 'Select Heron' })
+      screen.getByRole('button', { name: 'Select Heron, photo 1' })
     ).toBeInTheDocument()
 
     fireEvent.change(await screen.findByLabelText('Species'), {
@@ -167,10 +180,12 @@ describe('GalleryAlbumPicker', () => {
       .mockResolvedValueOnce({ items: [named('0', 'Robin')], nextMaxId: null })
     render(<Harness />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Select Heron' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Select Heron, photo 1' })
+    )
     fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
     expect(
-      await screen.findByRole('button', { name: 'Select Robin' })
+      await screen.findByRole('button', { name: 'Select Robin, photo 2' })
     ).toBeInTheDocument()
     expect(media).toHaveBeenLastCalledWith(
       'owner',
@@ -197,7 +212,59 @@ describe('GalleryAlbumPicker', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('boom')
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(
-      await screen.findByRole('button', { name: 'Select Heron' })
+      await screen.findByRole('button', { name: 'Select Heron, photo 1' })
     ).toBeInTheDocument()
+  })
+
+  it('names photos of one species apart', async () => {
+    media.mockResolvedValue({
+      items: ['1', '2', '3'].map((id) => named(id, 'Common kingfisher')),
+      nextMaxId: null
+    })
+    render(<Harness />)
+
+    await screen.findByRole('button', {
+      name: 'Select Common kingfisher, photo 3'
+    })
+    const names = screen
+      .getAllByRole('button', { name: /^Select / })
+      .map((button) => button.getAttribute('aria-label'))
+      .filter(Boolean)
+    expect(names).toEqual([
+      'Select Common kingfisher, photo 1',
+      'Select Common kingfisher, photo 2',
+      'Select Common kingfisher, photo 3'
+    ])
+  })
+
+  it('shows photos already in the album as such and never picks them', async () => {
+    media.mockResolvedValue({
+      items: [named('1', 'Heron'), named('2', 'Robin'), named('3', 'Fox')],
+      nextMaxId: null
+    })
+    render(<Harness existingIds={['2']} />)
+
+    const member = await screen.findByRole('button', {
+      name: 'Robin, photo 2, already in the album'
+    })
+    expect(member).toBeDisabled()
+    expect(member).toHaveTextContent('In album')
+    expect(member).not.toHaveAttribute('aria-pressed')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select all shown' }))
+    expect(screen.getByTestId('selected')).toHaveTextContent('1,3')
+  })
+
+  it('does not submit the dialog form when Enter is pressed in a date field', async () => {
+    media.mockResolvedValue({ items: [named('1', 'Heron')], nextMaxId: null })
+    render(<Harness />)
+    await screen.findByRole('button', { name: 'Select Heron, photo 1' })
+
+    for (const label of ['Taken from', 'Taken to']) {
+      // fireEvent returns false when the default action was prevented.
+      expect(
+        fireEvent.keyDown(screen.getByLabelText(label), { key: 'Enter' })
+      ).toBe(false)
+    }
   })
 })

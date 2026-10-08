@@ -15,10 +15,10 @@ import { Button } from '@/lib/components/ui/button'
 import { formatInteger } from '@/lib/fitness/calendar/format'
 import type { GalleryAlbumListResponse } from '@/lib/services/gallery/galleryAlbumEntities'
 import { MAX_GALLERY_ALBUMS_PER_ACTOR } from '@/lib/types/database/galleryAlbums'
-import { cn } from '@/lib/utils'
 
 import { GalleryAlbumCard } from './GalleryAlbumCard'
 import { GalleryAlbumFormDialog } from './GalleryAlbumFormDialog'
+import { getAlbumChipClassName } from './galleryAlbumsUi'
 
 interface Props {
   ownerId: string
@@ -58,7 +58,7 @@ export const GalleryAlbumsView: FC<Props> = ({ ownerId, data }) => {
     <div className="space-y-6">
       <PageHeader
         title="Albums"
-        description="Group photos that belong together, and share them"
+        description="Group photos that belong together"
         actions={
           <Button
             onClick={openCreate}
@@ -88,8 +88,7 @@ export const GalleryAlbumsView: FC<Props> = ({ ownerId, data }) => {
             </Button>
           }
         >
-          A trip, a species, a day out. An album shows each visitor only the
-          photos they could already see, so nothing in it is ever more public
+          A trip, a species, a day out. An album never makes a photo more public
           than the post it came from.
         </FitnessEmptyState>
       ) : (
@@ -124,12 +123,7 @@ export const GalleryAlbumsView: FC<Props> = ({ ownerId, data }) => {
                   type="button"
                   aria-pressed={isActive}
                   onClick={() => setFilter(value)}
-                  className={cn(
-                    'focus-visible:ring-ring/50 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-sm font-medium outline-none focus-visible:ring-[3px]',
-                    isActive
-                      ? 'border-primary bg-primary/10 text-primary-text'
-                      : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
+                  className={getAlbumChipClassName(isActive)}
                 >
                   {value === 'private' ? (
                     <Lock className="size-3" aria-hidden="true" />

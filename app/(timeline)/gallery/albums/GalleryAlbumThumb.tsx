@@ -10,17 +10,27 @@ interface Props {
   item: GalleryItemEntity
   className?: string
   loading?: 'lazy' | 'eager'
+  /**
+   * `full` shows the full-size picture of a still image, for a large cover (the
+   * stored thumbnail is small and goes soft when stretched). A video, an
+   * animation or a media with no still keeps its thumbnail.
+   */
+  quality?: 'thumbnail' | 'full'
 }
+
+const FULL_SIZE_TYPES = /^image\/(?!gif$)/
 
 /** A gallery item as a cover-fitted square thumbnail (the still of a video). */
 export const GalleryAlbumThumb: FC<Props> = ({
   item,
   className,
-  loading = 'lazy'
+  loading = 'lazy',
+  quality = 'thumbnail'
 }) => (
   <Media
     attachment={
-      item.attachment.thumbnailUrl
+      item.attachment.thumbnailUrl &&
+      !(quality === 'full' && FULL_SIZE_TYPES.test(item.attachment.mediaType))
         ? {
             ...item.attachment,
             mediaType: 'image/jpeg',

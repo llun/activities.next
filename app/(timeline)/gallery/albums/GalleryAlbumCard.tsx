@@ -1,6 +1,6 @@
 'use client'
 
-import { Folder, Lock } from 'lucide-react'
+import { Folder, Lock, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
@@ -75,6 +75,12 @@ export const GalleryAlbumCard: FC<Props> = ({ album }) => {
         <p className="text-muted-foreground truncate text-xs">
           {getAlbumCardMeta(album)}
         </p>
+        {album.hiddenPlaceCount > 0 ? (
+          <Badge tone="success" className="mt-1 max-w-full">
+            <ShieldCheck className="size-3 shrink-0" aria-hidden="true" />
+            <span className="truncate">Places hidden from visitors</span>
+          </Badge>
+        ) : null}
       </div>
     </Link>
   )

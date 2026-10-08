@@ -50,12 +50,15 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
 vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog', () => ({
   GalleryAlbumFormDialog: ({
     intent,
+    existingMediaIds,
     onSaved
   }: {
     intent: string
+    existingMediaIds?: string[]
     onSaved: (id: string) => void
   }) => (
     <div role="dialog" aria-label={`dialog ${intent}`}>
+      <span data-testid="existing">{existingMediaIds?.join(',')}</span>
       <button onClick={() => onSaved('a1')}>finish</button>
     </div>
   )
@@ -66,17 +69,9 @@ const remove = vi.mocked(removeGalleryAlbumItems)
 const update = vi.mocked(updateGalleryAlbum)
 const del = vi.mocked(deleteGalleryAlbum)
 
-const renderView = (
-  detail = buildAlbumDetail(),
-  shareUrl = 'https://activities.local/@llun/albums/a1'
-) =>
+const renderView = (detail = buildAlbumDetail()) =>
   render(
-    <GalleryAlbumDetailView
-      ownerId="owner"
-      shareUrl={shareUrl}
-      detail={detail}
-      pageSize={30}
-    />
+    <GalleryAlbumDetailView ownerId="owner" detail={detail} pageSize={30} />
   )
 
 describe('GalleryAlbumDetailView', () => {
@@ -122,30 +117,36 @@ describe('GalleryAlbumDetailView', () => {
     expect(screen.getByText(/Only you see these places/)).toBeInTheDocument()
   })
 
-  it('shows a private album as private and cannot share it', () => {
+  it('shows a private album as private, with the same public-safe note', () => {
     renderView(
       buildAlbumDetail({
         album: buildAlbumCard('a1', { visibility: 'private' })
       })
     )
     expect(screen.getByText('Private')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Share link' })).toBeDisabled()
+    expect(
+      screen.getByText(/Counts include only photos from public posts/)
+    ).toBeInTheDocument()
   })
 
-  it('copies the share link', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText },
-      configurable: true
-    })
+  it('has no share link and promises no visitor page yet', () => {
     renderView()
-    fireEvent.click(screen.getByRole('button', { name: 'Share link' }))
-    await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith(
-        'https://activities.local/@llun/albums/a1'
-      )
+    expect(
+      screen.queryByRole('button', { name: /share/i })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/what a visitor sees/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByText(/Counts include only photos from public posts/)
+    ).toBeInTheDocument()
+  })
+
+  it('shows the cover at full size, not as its small thumbnail', () => {
+    const { container } = renderView()
+    const hero = container.querySelector('img')
+    expect(hero).toHaveAttribute(
+      'src',
+      'https://activities.local/media/a1-1.jpg'
     )
-    expect(await screen.findByText('Link copied')).toBeInTheDocument()
   })
 
   it('refetches the first page for a species chip and for a sort', async () => {
@@ -180,6 +181,48 @@ describe('GalleryAlbumDetailView', () => {
         maxId: undefined
       })
     )
+  })
+
+  it('drops a species filter whose last photo was removed, even with no chips left', async () => {
+    items.mockResolvedValue({
+      items: [buildGalleryItem('lion-1')],
+      nextMaxId: null
+    })
+    const withLion = buildAlbumDetail({
+      species: [{ key: 'sci:panthera leo', name: 'African Lion', count: 1 }]
+    })
+    const { rerender } = renderView(withLion)
+    fireEvent.click(screen.getByRole('button', { name: /African Lion\s*1/ }))
+    await waitFor(() =>
+      expect(items).toHaveBeenLastCalledWith(
+        'a1',
+        expect.objectContaining({ subject: 'sci:panthera leo' })
+      )
+    )
+
+    // The lion photo was removed: the refreshed page has no species at all.
+    items.mockResolvedValue({
+      items: [buildGalleryItem('a1-2')],
+      nextMaxId: null
+    })
+    rerender(
+      <GalleryAlbumDetailView
+        ownerId="owner"
+        detail={buildAlbumDetail({ species: [] })}
+        pageSize={30}
+      />
+    )
+
+    await waitFor(() =>
+      expect(items).toHaveBeenLastCalledWith(
+        'a1',
+        expect.objectContaining({ subject: undefined })
+      )
+    )
+    expect(await screen.findByTestId('grid')).toHaveTextContent('a1-2')
+    expect(
+      screen.queryByText('No photos in this view.')
+    ).not.toBeInTheDocument()
   })
 
   it('loads more with the cursor and does not repeat a photo', async () => {
@@ -248,6 +291,77 @@ describe('GalleryAlbumDetailView', () => {
       expect(mockRefresh).toHaveBeenCalled()
     })
 
+    it('gives photos with the same name different button names', () => {
+      const same = ['x1', 'x2', 'x3'].map((id) =>
+        buildGalleryItem(id, {
+          subject: {
+            name: 'Common kingfisher'
+          } as never
+        })
+      )
+      renderView(
+        buildAlbumDetail({
+          album: buildAlbumCard('a1', { previews: same, cover: same[0] }),
+          page: { items: same, nextMaxId: null }
+        })
+      )
+      enterEdit()
+
+      const names = screen
+        .getAllByRole('button', { name: /^Remove / })
+        .map((button) => button.getAttribute('aria-label'))
+      expect(new Set(names).size).toBe(3)
+      expect(names[1]).toBe('Remove Common kingfisher, photo 2 from album')
+      const covers = screen
+        .getAllByRole('button', { name: /^Set .* as cover$/ })
+        .map((button) => button.getAttribute('aria-label'))
+      expect(new Set(covers).size).toBe(3)
+    })
+
+    it('moves focus to the next photo and announces the removal', async () => {
+      remove.mockResolvedValue({
+        removed: ['a1-2'],
+        album: buildAlbumCard('a1')
+      })
+      renderView()
+      enterEdit()
+
+      fireEvent.click(
+        screen.getAllByRole('button', { name: /^Remove .* from album$/ })[1]
+      )
+
+      await waitFor(() =>
+        expect(screen.getAllByRole('listitem')).toHaveLength(2)
+      )
+      const remaining = screen.getAllByRole('button', { name: /^Remove / })
+      await waitFor(() => expect(remaining[1]).toHaveFocus())
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Removed Photo 2 from the album.'
+      )
+    })
+
+    it('moves focus to the previous photo after removing the last one', async () => {
+      remove.mockResolvedValue({
+        removed: ['a1-3'],
+        album: buildAlbumCard('a1')
+      })
+      renderView()
+      enterEdit()
+
+      fireEvent.click(
+        screen.getAllByRole('button', { name: /^Remove .* from album$/ })[2]
+      )
+
+      await waitFor(() =>
+        expect(screen.getAllByRole('listitem')).toHaveLength(2)
+      )
+      await waitFor(() =>
+        expect(
+          screen.getAllByRole('button', { name: /^Remove / })[1]
+        ).toHaveFocus()
+      )
+    })
+
     it('sets a photo as the cover', async () => {
       update.mockResolvedValue(buildAlbumCard('a1'))
       renderView()
@@ -270,6 +384,16 @@ describe('GalleryAlbumDetailView', () => {
       expect(screen.getAllByRole('listitem')).toHaveLength(3)
     })
 
+    it('names the toggle Edit or Done without also saying pressed', () => {
+      renderView()
+      const toggle = screen.getByRole('button', { name: 'Edit' })
+      expect(toggle).not.toHaveAttribute('aria-pressed')
+      fireEvent.click(toggle)
+      expect(screen.getByRole('button', { name: 'Done' })).not.toHaveAttribute(
+        'aria-pressed'
+      )
+    })
+
     it('leaves edit mode with Done and edits the details from a dialog', () => {
       renderView()
       enterEdit()
@@ -287,12 +411,13 @@ describe('GalleryAlbumDetailView', () => {
     })
   })
 
-  it('opens the add photos dialog', () => {
-    renderView()
+  it('opens the add photos dialog with the photos already in the album', () => {
+    renderView(buildAlbumDetail({ mediaIds: ['a1-1', 'a1-2', 'a1-3'] }))
     fireEvent.click(screen.getByRole('button', { name: 'Add photos' }))
     expect(
       screen.getByRole('dialog', { name: 'dialog add' })
     ).toBeInTheDocument()
+    expect(screen.getByTestId('existing')).toHaveTextContent('a1-1,a1-2,a1-3')
   })
 
   it('shows the empty state of an empty album', () => {
@@ -325,6 +450,7 @@ describe('GalleryAlbumDetailView', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
       expect(del).not.toHaveBeenCalled()
       expect(screen.getByText('Delete Kruger?')).toBeInTheDocument()
+      expect(screen.queryByText(/its link/)).not.toBeInTheDocument()
 
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: 'Delete album' }))

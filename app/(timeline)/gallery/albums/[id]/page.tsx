@@ -1,11 +1,9 @@
 import { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 
-import { getAlbumShareUrl } from '@/app/(timeline)/gallery/albums/galleryAlbumsUi'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getGalleryAlbumDetail } from '@/lib/services/gallery/galleryAlbumQueries'
-import { getActorURL } from '@/lib/types/domain/actor'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { GalleryAlbumDetailView } from './GalleryAlbumDetailView'
@@ -50,7 +48,6 @@ const Page = async ({ params }: PageProps) => {
   return (
     <GalleryAlbumDetailView
       ownerId={actor.id}
-      shareUrl={getAlbumShareUrl(getActorURL(actor), detail.album.id)}
       detail={detail}
       pageSize={PAGE_SIZE}
     />

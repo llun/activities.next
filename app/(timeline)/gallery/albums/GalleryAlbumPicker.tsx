@@ -2,7 +2,15 @@
 
 import { Check, Images } from 'lucide-react'
 import Link from 'next/link'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  FC,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { getGalleryMedia, getGallerySubjects } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
@@ -15,6 +23,7 @@ import { cn } from '@/lib/utils'
 
 import { GalleryAlbumThumb } from './GalleryAlbumThumb'
 import { filterPickerItems, getPickerPlaceNames } from './galleryAlbumPickerUi'
+import { getAlbumTileLabel } from './galleryAlbumsUi'
 
 interface Props {
   ownerId: string
@@ -25,6 +34,8 @@ interface Props {
   onFirstItemChange?: (item: GalleryItemEntity | null) => void
   /** How many more photos the album can take. */
   capacity: number
+  /** Media ids already in the album: shown as such and not pickable. */
+  existingIds?: readonly string[]
   disabled?: boolean
 }
 
@@ -39,11 +50,10 @@ interface SubjectOption {
   label: string
 }
 
-const getItemLabel = (item: GalleryItemEntity, index: number) => {
-  const alt = item.attachment.name?.trim()
-  if (alt) return alt
-  if (item.subject?.name) return item.subject.name
-  return `photo ${index + 1}`
+// A date field submits its form on Enter; here Enter must not save an album
+// the owner has not finished picking for.
+const ignoreEnter = (event: KeyboardEvent) => {
+  if (event.key === 'Enter') event.preventDefault()
 }
 
 /**
@@ -57,6 +67,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
   onChange,
   onFirstItemChange,
   capacity,
+  existingIds,
   disabled = false
 }) => {
   const [items, setItems] = useState<GalleryItemEntity[]>([])
@@ -172,6 +183,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
   }, [firstSelected, onFirstItemChange])
 
   const selectedSet = useMemo(() => new Set(selected), [selected])
+  const existingSet = useMemo(() => new Set(existingIds), [existingIds])
   const isFull = selected.length >= capacity
 
   const toggle = (mediaId: string) => {
@@ -187,7 +199,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
     const room = capacity - selected.length
     const additions = visible
       .map((item) => item.mediaId)
-      .filter((id) => !selectedSet.has(id))
+      .filter((id) => !selectedSet.has(id) && !existingSet.has(id))
       .slice(0, Math.max(room, 0))
     if (additions.length > 0) onChange([...selected, ...additions])
   }
@@ -277,6 +289,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
             value={from}
             max={to || undefined}
             onChange={(event) => setFrom(event.target.value)}
+            onKeyDown={ignoreEnter}
             disabled={disabled}
           />
         </div>
@@ -290,6 +303,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
             value={to}
             min={from || undefined}
             onChange={(event) => setTo(event.target.value)}
+            onKeyDown={ignoreEnter}
             disabled={disabled}
           />
         </div>
@@ -301,7 +315,12 @@ export const GalleryAlbumPicker: FC<Props> = ({
           variant="outline"
           size="sm"
           onClick={selectAllShown}
-          disabled={disabled || visible.length === 0 || isFull}
+          className="pointer-coarse:h-10"
+          disabled={
+            disabled ||
+            isFull ||
+            visible.every((item) => existingSet.has(item.mediaId))
+          }
         >
           Select all shown
         </Button>
@@ -309,6 +328,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
           type="button"
           variant="ghost"
           size="sm"
+          className="pointer-coarse:h-10"
           onClick={() => onChange([])}
           disabled={disabled || selected.length === 0}
         >
@@ -319,6 +339,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
             type="button"
             variant="ghost"
             size="sm"
+            className="pointer-coarse:h-10"
             onClick={clearFilters}
             disabled={disabled}
           >
@@ -345,30 +366,46 @@ export const GalleryAlbumPicker: FC<Props> = ({
         >
           {visible.map((item, index) => {
             const isSelected = selectedSet.has(item.mediaId)
+            const isMember = existingSet.has(item.mediaId)
             const blocked = !isSelected && isFull
             return (
               <li key={item.mediaId} className="min-w-0">
                 <button
                   type="button"
-                  aria-pressed={isSelected}
-                  aria-label={`Select ${getItemLabel(item, index)}`}
-                  disabled={disabled || blocked}
+                  aria-pressed={isMember ? undefined : isSelected}
+                  aria-label={
+                    isMember
+                      ? `${getAlbumTileLabel(item, index)}, already in the album`
+                      : `Select ${getAlbumTileLabel(item, index)}`
+                  }
+                  disabled={disabled || isMember || blocked}
                   onClick={() => toggle(item.mediaId)}
                   className={cn(
-                    'focus-visible:outline-primary bg-muted/20 relative block aspect-square w-full overflow-hidden rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 disabled:cursor-not-allowed disabled:opacity-40',
+                    'focus-visible:outline-primary bg-muted/20 relative block aspect-square w-full overflow-hidden rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2 disabled:cursor-not-allowed',
+                    isMember ? 'disabled:opacity-60' : 'disabled:opacity-40',
                     isSelected && 'ring-primary ring-2 ring-inset'
                   )}
                 >
                   <GalleryAlbumThumb item={item} />
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      'absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded-full border border-white/80 bg-black/30 text-white',
-                      isSelected && 'bg-primary border-primary'
-                    )}
-                  >
-                    {isSelected ? <Check className="size-3.5" /> : null}
-                  </span>
+                  {isMember ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute right-1 bottom-1 left-1 flex items-center justify-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-xs font-medium text-white"
+                    >
+                      <Check className="size-3 shrink-0" />
+                      <span className="truncate">In album</span>
+                    </span>
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded-full border border-white/80 bg-black/30 text-white',
+                        isSelected && 'bg-primary border-primary'
+                      )}
+                    >
+                      {isSelected ? <Check className="size-3.5" /> : null}
+                    </span>
+                  )}
                 </button>
               </li>
             )

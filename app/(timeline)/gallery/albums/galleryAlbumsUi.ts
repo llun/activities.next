@@ -4,7 +4,9 @@ import type {
   GalleryAlbumCardEntity,
   GalleryAlbumFacts
 } from '@/lib/services/gallery/galleryAlbumEntities'
+import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 import type { GalleryAlbumSort } from '@/lib/types/database/galleryAlbums'
+import { cn } from '@/lib/utils'
 
 const MONTHS = [
   'Jan',
@@ -101,6 +103,38 @@ export const ALBUM_SORT_LABELS: Record<GalleryAlbumSort, string> = {
   added_desc: 'Recently added'
 }
 
-/** The public page of an album; the page itself arrives with the visitor view. */
-export const getAlbumShareUrl = (actorUrl: string, albumId: string): string =>
-  `${actorUrl}/albums/${encodeURIComponent(albumId)}`
+/**
+ * Widens a small control's touch target to 40px without changing how big it
+ * looks: an invisible band above and below a 32px bordered chip. An absolute
+ * pseudo-element is placed from the padding edge, 1px inside the border, so 5px
+ * (not 4px) makes up the 4px each side.
+ */
+export const TOUCH_BAND_CLASS =
+  "relative before:absolute before:inset-x-0 before:-inset-y-1.25 before:content-['']"
+
+/** The same for a 28px round or pill button that sits over a photo (6px each side). */
+export const TOUCH_BUTTON_CLASS =
+  "before:absolute before:-inset-1.5 before:content-['']"
+
+/** A filter chip: a pill with a count, active when it is the current filter. */
+export const getAlbumChipClassName = (isActive: boolean): string =>
+  cn(
+    'focus-visible:ring-ring/50 inline-flex h-8 min-w-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-sm font-medium outline-none focus-visible:ring-[3px]',
+    TOUCH_BAND_CLASS,
+    isActive
+      ? 'border-primary bg-primary/10 text-primary-text'
+      : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+  )
+
+/**
+ * The accessible name of one photo in a grid: its name, then its place in the
+ * list, so photos of the same species or with the same alt text still read
+ * differently ("Common kingfisher, photo 3").
+ */
+export const getAlbumTileLabel = (
+  item: Pick<GalleryItemEntity, 'attachment' | 'subject'>,
+  index: number
+): string => {
+  const name = item.attachment.name?.trim() || item.subject?.name
+  return name ? `${name}, photo ${index + 1}` : `Photo ${index + 1}`
+}
