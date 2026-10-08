@@ -441,5 +441,40 @@ describe('replyDraft', () => {
       expect(snippet.includes('<p>')).toBe(false)
       expect(snippet.endsWith('…')).toBe(true)
     })
+
+    it.each([
+      {
+        description: 'keeps a Mastodon mention link as one word',
+        html: '<p><span class="h-card" translate="no"><a href="https://mastodon.in.th/@null" class="u-url mention">@<span>null</span></a></span> isn&#39;t it supposed to degrade enamel?</p>',
+        expected: "@null isn't it supposed to degrade enamel?"
+      },
+      {
+        description: 'decodes named, decimal and hex entities',
+        html: '<p>Tom &amp; Jerry &quot;run&quot; &#39;fast&#39; &#x41;&nbsp;B</p>',
+        expected: 'Tom & Jerry "run" \'fast\' A B'
+      },
+      {
+        description: 'decodes entities exactly once',
+        html: '<p>&amp;lt;b&amp;gt;</p>',
+        expected: '&lt;b&gt;'
+      },
+      {
+        description: 'separates paragraphs and line breaks',
+        html: '<p>one</p><p>two<br>three</p>',
+        expected: 'one two three'
+      },
+      {
+        description: 'does not join adjacent inline elements with spaces',
+        html: '<b>foo</b><i>bar</i>',
+        expected: 'foobar'
+      },
+      {
+        description: 'collapses whitespace',
+        html: '<p>  a \n\t b  </p>',
+        expected: 'a b'
+      }
+    ])('$description', ({ html, expected }) => {
+      expect(createTextSnippet(html)).toBe(expected)
+    })
   })
 })

@@ -9,6 +9,7 @@ import {
   getOriginalStatus
 } from '@/lib/types/domain/status'
 import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
+import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 export type ReplyMentionMode = 'all' | 'author-first' | 'author-only'
 
@@ -53,14 +54,8 @@ export interface ViewerIdentity {
   domain: string
 }
 
-const stripHtml = (text: string): string =>
-  text
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
 export const createTextSnippet = (text: string, maxLength = 140): string => {
-  const clean = stripHtml(text)
+  const clean = htmlToPlainText(text)
   if (clean.length <= maxLength) return clean
   return `${clean.slice(0, maxLength - 1).trimEnd()}…`
 }
