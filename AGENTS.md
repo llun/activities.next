@@ -57,7 +57,7 @@ diff --stat`, or spot-checking a `file:line` a sub-agent cited), and git/PR
 - **Verify before trusting.** Check a sub-agent's claims (diffs, test output,
   `file:line` references) before building on them or reporting them: spot-check
   them yourself within the limits above, and send anything bigger (re-running
-  tests, reading a large diff) to a `haiku`/`low` sub-agent. If a result is
+  tests, reading a large diff) to a `fast`/`low` sub-agent. If a result is
   wrong or shallow because the brief left something out, fix the brief and
   re-run at the same tier; otherwise re-run that task one step up the escalation
   ladder below rather than patching around it.
@@ -70,45 +70,67 @@ diff --stat`, or spot-checking a `file:line` a sub-agent cited), and git/PR
 ### Choosing model and effort
 
 Match the tier to how much judgment the task needs, not to how important the
-overall change is. The models, cheapest to strongest, are `haiku`, `sonnet` and
-`opus`; effort levels, lowest to highest, are `low`, `medium`, `high`, `xhigh`
-and `max`.
+overall change is. This policy works with any agent tool and any model, not only
+Claude: it is written in three model tiers (`fast`, `balanced`, `strongest`) and
+five effort steps (`low`, `medium`, `high`, `xhigh`, `max`), and the two tables
+after the task table map them onto each tool's own settings.
 
-| Task                                                                                                                                                                                                                                                                         | Model    | Effort   |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- |
-| Finding files, grepping, listing usages, reading logs, summarizing docs                                                                                                                                                                                                      | `haiku`  | `low`    |
-| Mechanical edit of exact text in one or two files (rename, formatting, applying a fix that is already decided)                                                                                                                                                               | `haiku`  | `low`    |
-| Mechanical edit that spans several files or needs surrounding code read (including updating docs to match code)                                                                                                                                                              | `sonnet` | `low`    |
-| Running builds, tests and linters and reporting failures                                                                                                                                                                                                                     | `haiku`  | `low`    |
-| Implementing a well-specified feature or fix, writing tests                                                                                                                                                                                                                  | `sonnet` | `medium` |
-| Root-causing a CI failure or a bug with a clear reproduction                                                                                                                                                                                                                 | `sonnet` | `medium` |
-| Implementing, root-causing or planning changes in high-risk areas: ActivityPub federation (signatures, JSON-LD, inbox/outbox, deletes), auth/OAuth/better-auth, actor and status visibility, Knex migrations and schema dumps, storage-root and outbound-HTTP security rules | `opus`   | `high`   |
-| Architecture and design decisions, plans that touch several subsystems                                                                                                                                                                                                       | `opus`   | `high`   |
-| Hard debugging (concurrency, data loss, security, flaky behavior with no clear cause)                                                                                                                                                                                        | `opus`   | `high`   |
-| Code review of a change before it is pushed or merged                                                                                                                                                                                                                        | `opus`   | `high`   |
+| Task                                                                                                                                                                                                                                                                         | Tier        | Effort   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------- |
+| Finding files, grepping, listing usages, reading logs, summarizing docs                                                                                                                                                                                                      | `fast`      | `low`    |
+| Mechanical edit of exact text in one or two files (rename, formatting, applying a fix that is already decided)                                                                                                                                                               | `fast`      | `low`    |
+| Mechanical edit that spans several files or needs surrounding code read (including updating docs to match code)                                                                                                                                                              | `balanced`  | `low`    |
+| Running builds, tests and linters and reporting failures                                                                                                                                                                                                                     | `fast`      | `low`    |
+| Implementing a well-specified feature or fix, writing tests                                                                                                                                                                                                                  | `balanced`  | `medium` |
+| Root-causing a CI failure or a bug with a clear reproduction                                                                                                                                                                                                                 | `balanced`  | `medium` |
+| Implementing, root-causing or planning changes in high-risk areas: ActivityPub federation (signatures, JSON-LD, inbox/outbox, deletes), auth/OAuth/better-auth, actor and status visibility, Knex migrations and schema dumps, storage-root and outbound-HTTP security rules | `strongest` | `high`   |
+| Architecture and design decisions, plans that touch several subsystems                                                                                                                                                                                                       | `strongest` | `high`   |
+| Hard debugging (concurrency, data loss, security, flaky behavior with no clear cause)                                                                                                                                                                                        | `strongest` | `high`   |
+| Code review of a change before it is pushed or merged                                                                                                                                                                                                                        | `strongest` | `high`   |
+
+Example models per tier. Model names change every few months, so check the
+tool's current model list and use its newest model in the same tier; any model
+not listed here (another vendor, a local model, a new release) goes in the tier
+that matches its capability and cost.
+
+| Tier                                                             | Claude Code (Agent tool `model`) | OpenAI Codex                                             | Google Antigravity        | Open-weight (Qwen, DeepSeek, GLM, Kimi, gpt-oss, …)                                                      |
+| ---------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `fast`: cheapest and quickest, for retrieval and mechanical work | `haiku`                          | the smallest current GPT model (for example GPT-6 Luna)  | a Gemini Flash model      | a small model, such as Qwen3-Coder-30B-A3B or gpt-oss-20b                                                |
+| `balanced`: most implementation work                             | `sonnet`                         | the mid-tier current GPT model (for example GPT-6.1 Sol) | Claude Sonnet             | a mid-size coding model, such as Qwen3-Coder-Next, DeepSeek V4 Flash or gpt-oss-120b                     |
+| `strongest`: design, hard debugging, high-risk code and review   | `opus`                           | the top current GPT model (for example GPT-6 Astra)      | Claude Opus or Gemini Pro | the largest current release of a frontier family, such as Qwen3.8, DeepSeek V4 Pro, GLM-5.2 or Kimi K2.6 |
+
+How each tool sets the effort step:
+
+| Tool               | How to set effort                                                                                                                                                                                                                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code        | The Agent tool's `effort` takes the five steps as written.                                                                                                                                                                                                                                                                                                    |
+| OpenAI Codex       | `model_reasoning_effort` in the config or in a custom agent's TOML file (`.codex/agents/`); use the config value Codex documents for each step (for example `low`, `medium`, `high`, `xhigh`), and map `max` to its highest value below Ultra.                                                                                                                |
+| Google Antigravity | There is no separate effort control: pick the model variant in the model picker, the plain variant for `low` and `medium`, the thinking variant for `high` and above.                                                                                                                                                                                         |
+| Open-weight models | Use the serving stack's reasoning setting where it has one (`reasoning_effort`, a thinking on/off switch, or a thinking-token budget): thinking off for `low`, on with the default budget for `medium`, a larger budget for `high`, and the largest budget the stack allows for `xhigh` and `max`. If it has none, skip the effort steps, as the ladder says. |
 
 Guidelines:
 
-- When the table does not cover a task and you are unsure, use `sonnet` at
+- When the table does not cover a task and you are unsure, use `balanced` at
   `medium`, a good balance of quality and cost for most coding work.
-- Use `haiku` freely for retrieval and mechanical changes. It is the cheapest
-  and fastest, and a wrong search result is cheap to redo.
-- Start at `opus` or `high` effort only where a mistake is expensive: design,
-  the high-risk areas in the table, subtle bugs, and review. When a task matches
-  both a cheaper row and the high-risk row, the high-risk row wins. Reaching
-  them by escalation is fine.
+- Use `fast` freely for retrieval and mechanical changes. It is the cheapest and
+  quickest, and a wrong search result is cheap to redo.
+- Start at `strongest` or `high` effort only where a mistake is expensive:
+  design, the high-risk areas in the table, subtle bugs, and review. When a task
+  matches both a cheaper row and the high-risk row, the high-risk row wins.
+  Reaching them by escalation is fine.
 - Escalate one step at a time, starting from the task's row in the table. The
-  ladder is `haiku`/`low` → `haiku`/`medium` → `sonnet`/`medium` →
-  `sonnet`/`high` → `opus`/`high` → `opus`/`xhigh` → `opus`/`max`; a task that
-  starts at `sonnet`/`low` steps to `sonnet`/`medium`. Never set `haiku` above
-  `medium`, and use `max` only on `opus` after `xhigh` has fallen short.
-- Do not pick other model values (for example `fable`) unless the user asks for
-  them. When the available models change, map them onto the same three tiers
-  (cheapest, balanced, strongest) rather than pinning these names.
-- These are the Claude Code values for the Agent tool's `model` and `effort`.
-  Agents with other tooling follow the same split as closely as it allows
-  (separate sub-agent or pass for review, cheapest adequate model per task)
-  rather than skipping it.
+  ladder is `fast`/`low` → `fast`/`medium` → `balanced`/`medium` →
+  `balanced`/`high` → `strongest`/`high` → `strongest`/`xhigh` →
+  `strongest`/`max`; a task that starts at `balanced`/`low` steps to
+  `balanced`/`medium`. Never set `fast` above `medium`, and use `max` only on
+  `strongest` after `xhigh` has fallen short. Where a tool has fewer effort
+  steps than this ladder, skip the steps it lacks.
+- Do not go beyond these tiers and steps (for example Claude Code's `fable`
+  model, or an effort above `max` such as Codex's Ultra) unless the user asks
+  for it.
+- Tools without a sub-agent feature still follow the same split as closely as
+  they allow (a separate session or pass for review, the cheapest adequate model
+  per task) rather than skipping it.
 
 ## Project Structure & Module Organization
 
