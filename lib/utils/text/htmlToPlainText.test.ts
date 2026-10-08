@@ -100,6 +100,12 @@ describe('htmlToPlainText statusBody', () => {
       html: '<a class="ellipsis" href="https://example.com">cut</a> after',
       options: { statusBody: { hideQuoteInline: false } },
       expected: 'cut after'
+    },
+    {
+      description: 'honours invisible only on span',
+      html: '<a class="invisible" href="https://example.com">kept</a> after',
+      options: { statusBody: { hideQuoteInline: false } },
+      expected: 'kept after'
     }
   ])('$description', ({ html, options, expected }) => {
     expect(htmlToPlainText(html, options)).toBe(expected)
