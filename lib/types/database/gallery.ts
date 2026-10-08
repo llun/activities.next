@@ -3,6 +3,7 @@
 // settings. This module is deliberately free of server-only imports — the
 // composer and the viewer import these types too (see AGENTS.md → Server/Client
 // Module Boundary).
+import type { FitnessPrivacyRadiusMeters } from '@/lib/services/fitness-files/privacy'
 
 export const MEDIA_SUBJECT_CATEGORIES = [
   'bird',
@@ -114,6 +115,16 @@ export interface GalleryGear {
   deletedAt?: number
 }
 
+// A circle around a place the owner never wants a photo's location disclosed
+// near. The same shape and radius options as Fitness privacy locations, so the
+// two share an editor. Parsed through `parseGalleryHiddenLocations`
+// (`lib/services/gallery/hiddenLocations.ts`) on every read and write.
+export interface GalleryHiddenLocation {
+  latitude: number
+  longitude: number
+  hideRadiusMeters: FitnessPrivacyRadiusMeters
+}
+
 // One row per actor in `gallery_settings`; an actor without a row has every
 // default below.
 export interface GallerySettings {
@@ -125,8 +136,10 @@ export interface GallerySettings {
   showGear: boolean
   mapPublic: boolean
   lifeListPublic: boolean
-  // JSON array, read by the gallery map in a later change.
-  hiddenLocations: unknown[]
+  // For every viewer but the owner, a photo whose place falls inside one of
+  // these has no place at all: not on the map, not on an item, not in the
+  // details endpoint.
+  hiddenLocations: GalleryHiddenLocation[]
 }
 
 export const DEFAULT_GALLERY_SETTINGS: GallerySettings = {

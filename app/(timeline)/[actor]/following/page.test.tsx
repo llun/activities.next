@@ -172,6 +172,8 @@ describe('[actor] following page', () => {
       attachments: [],
       isInternalAccount: true,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       statuses: [],
       statusPagination: { nextPageUrl: null, prevPageUrl: null }
     })
@@ -265,7 +267,9 @@ describe('[actor] following page', () => {
       followingCount: 0,
       followersCount: 0,
       isInternalAccount: true,
-      hasFitnessData: false
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
     })
     mockDatabase.getFollowing.mockResolvedValue([])
 
@@ -307,7 +311,9 @@ describe('[actor] following page', () => {
       followingCount: 42,
       followersCount: 0,
       isInternalAccount: true,
-      hasFitnessData: false
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
     })
     mockDatabase.getFollowing.mockResolvedValue([])
 
@@ -345,7 +351,9 @@ describe('[actor] following page', () => {
       followingCount: 42,
       followersCount: 0,
       isInternalAccount: true,
-      hasFitnessData: false
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
     })
     mockDatabase.getFollowing.mockResolvedValue([])
 
@@ -383,6 +391,8 @@ describe('[actor] following page', () => {
       attachments: [],
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       statuses: [],
       statusPagination: { nextPageUrl: null, prevPageUrl: null }
     })
@@ -411,6 +421,8 @@ describe('[actor] following page', () => {
       attachments: [],
       isInternalAccount: true,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       statuses: [],
       statusPagination: { nextPageUrl: null, prevPageUrl: null }
     })

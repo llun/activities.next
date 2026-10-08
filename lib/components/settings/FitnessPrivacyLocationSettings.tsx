@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, useState } from 'react'
 
 import {
   FitnessGeneralSettingsResponse,
@@ -10,213 +10,33 @@ import {
 } from '@/lib/client'
 import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
 import {
-  PrivacyZoneMapKit,
-  ZONE_COLOR,
-  ZONE_FILL_OPACITY,
-  ZONE_OUTLINE_WIDTH_PX
-} from '@/lib/components/fitness/PrivacyZoneMapKit'
-import { circleToPolygon } from '@/lib/components/fitness/mapGeometry'
+  PrivacyLocationInput,
+  PrivacyLocationsCopy,
+  PrivacyLocationsEditor,
+  PrivacyLocationsFooterContext,
+  PrivacyLocationsSaveError
+} from '@/lib/components/privacy-locations/PrivacyLocationsEditor'
 import { Button } from '@/lib/components/ui/button'
-import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
-import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import {
-  FITNESS_PRIVACY_RADIUS_OPTIONS,
-  FitnessPrivacyRadiusMeters,
   sanitizePrivacyLocationSettings,
   sanitizePrivacyRadiusMeters
 } from '@/lib/services/fitness-files/privacy'
-import {
-  type PublicMapProvider,
-  buildGlProviderOptions
-} from '@/lib/utils/mapProvider'
+import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 interface Props {
   /** Which map backend renders the location picker. */
   mapProvider: PublicMapProvider
 }
 
-interface PrivacyLocationInput {
-  latitude: number
-  longitude: number
-  hideRadiusMeters: FitnessPrivacyRadiusMeters
-}
-
-interface MapPointGeometry {
-  type: 'Point'
-  coordinates: [number, number]
-}
-
-interface MapFeatureCollection {
-  type: 'FeatureCollection'
-  features: Array<{
-    type: 'Feature'
-    geometry: MapPointGeometry
-    properties: Record<string, never>
-  }>
-}
-
-interface MapPolygonGeometry {
-  type: 'Polygon'
-  coordinates: [number, number][][]
-}
-
-interface MapZoneFeatureCollection {
-  type: 'FeatureCollection'
-  features: Array<{
-    type: 'Feature'
-    geometry: MapPolygonGeometry
-    properties: Record<string, never>
-  }>
-}
-
-interface MapboxGeoJSONSource {
-  setData: (data: MapFeatureCollection | MapZoneFeatureCollection) => void
-}
-
-interface MapboxMap {
-  addSource: (id: string, source: Record<string, unknown>) => void
-  addLayer: (layer: Record<string, unknown>) => void
-  getSource: (id: string) => unknown
-  once: (event: 'load', listener: () => void) => void
-  on: (
-    event: 'click',
-    listener: (event: {
-      lngLat: {
-        lng: number
-        lat: number
-      }
-    }) => void
-  ) => void
-  flyTo: (options: {
-    center: [number, number]
-    zoom?: number
-    duration?: number
-  }) => void
-  remove: () => void
-}
-
-// The Mapbox GL / MapLibre GL surface this picker drives — both libraries share
-// the `Map` constructor subset used here, so one code path renders either.
-interface MapboxModule {
-  Map: new (options: Record<string, unknown>) => MapboxMap
-}
-
-const MAPBOX_MARKER_SOURCE_ID = 'fitness-privacy-home-marker'
-const MAPBOX_ZONE_SOURCE_ID = 'fitness-privacy-zones'
-const DEFAULT_MAP_CENTER: [number, number] = [5.2913, 52.1326]
-const DEFAULT_MAP_ZOOM = 6
-const CURRENT_LOCATION_ZOOM = 13
-const HOME_MARKER_ZOOM = 13
-const CURRENT_LOCATION_TIMEOUT_MS = 10000
-const CURRENT_LOCATION_MAX_AGE_MS = 0
-const FALLBACK_LOCATION_TIMEOUT_MS = 15000
-const FALLBACK_LOCATION_MAX_AGE_MS = 3600000
-const NON_ZERO_RADIUS_OPTIONS = FITNESS_PRIVACY_RADIUS_OPTIONS.filter(
-  (radius) => radius > 0
-) as FitnessPrivacyRadiusMeters[]
-const DEFAULT_DRAFT_RADIUS = sanitizePrivacyRadiusMeters(
-  NON_ZERO_RADIUS_OPTIONS[0] ?? 0
-)
-
-const formatRadiusLabel = (radiusMeters: number) =>
-  radiusMeters >= 1000 ? `${radiusMeters / 1000}km` : `${radiusMeters}m`
-
-const parseCoordinateInput = (value: string): number | null => {
-  if (value.trim().length === 0) {
-    return null
-  }
-
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-const isLatitudeValid = (value: number) => value >= -90 && value <= 90
-const isLongitudeValid = (value: number) => value >= -180 && value <= 180
-
-const toMarkerFeatureCollection = (
-  markerCoordinates: [number, number] | null
-): MapFeatureCollection => {
-  if (!markerCoordinates) {
-    return {
-      type: 'FeatureCollection',
-      features: []
-    }
-  }
-
-  return {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'Point',
-          coordinates: markerCoordinates
-        }
-      }
-    ]
-  }
-}
-
-// A saved zone and the draft marker are the same circle when the draft was
-// prefilled from it (or just added it to the list); drawing both would stack two
-// 20% fills into a visibly darker one. Coordinates compare to the 6 decimals the
-// fields carry, so a stored value with extra digits still counts as the same.
-const COORDINATE_TOLERANCE_DEG = 1e-6
-
-/**
- * Every hide radius the picker should show, as polygons the GL engine can fill:
- * one circle per saved zone, plus one at the draft marker at the radius
- * currently selected — so the radius select visibly resizes what the click will
- * hide, instead of the marker staying a fixed-size dot whatever is chosen.
- */
-const toZoneFeatureCollection = (
-  draftCoordinates: [number, number] | null,
-  draftRadiusMeters: number,
-  savedZones: PrivacyLocationInput[]
-): MapZoneFeatureCollection => {
-  const zones: Array<{
-    center: { lat: number; lng: number }
-    radiusMeters: number
-  }> = savedZones.map((zone) => ({
-    center: { lat: zone.latitude, lng: zone.longitude },
-    radiusMeters: zone.hideRadiusMeters
-  }))
-
-  if (draftCoordinates && draftRadiusMeters > 0) {
-    const [draftLongitude, draftLatitude] = draftCoordinates
-    const isSavedAlready = savedZones.some(
-      (zone) =>
-        zone.hideRadiusMeters === draftRadiusMeters &&
-        Math.abs(zone.latitude - draftLatitude) < COORDINATE_TOLERANCE_DEG &&
-        Math.abs(zone.longitude - draftLongitude) < COORDINATE_TOLERANCE_DEG
-    )
-    if (!isSavedAlready) {
-      zones.push({
-        center: { lat: draftLatitude, lng: draftLongitude },
-        radiusMeters: draftRadiusMeters
-      })
-    }
-  }
-
-  return {
-    type: 'FeatureCollection',
-    features: zones.map((zone) => ({
-      type: 'Feature',
-      properties: {},
-      geometry: circleToPolygon(zone.center, zone.radiusMeters)
-    }))
-  }
-}
-
-const formatCoordinate = (value: number | null): string => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return ''
-  }
-
-  return value.toFixed(6)
+const FITNESS_COPY: PrivacyLocationsCopy = {
+  saved: 'Fitness privacy location settings saved.',
+  cleared: 'Fitness privacy location settings cleared.',
+  saveFailed: 'Failed to save fitness privacy location settings',
+  saveButton: 'Save privacy locations',
+  hideRadiusHelp:
+    'When a route starts or finishes here, that end is hidden from other viewers until it leaves the area and has covered this distance. The middle of a route is never cut, so a route that later passes back through the area stays visible.'
 }
 
 const toResponsePrivacyLocations = (
@@ -251,168 +71,21 @@ const toResponsePrivacyLocations = (
   return []
 }
 
-const sanitizeDraftRadius = (value: unknown): FitnessPrivacyRadiusMeters => {
-  const radius = sanitizePrivacyRadiusMeters(value)
-  return radius > 0 ? radius : DEFAULT_DRAFT_RADIUS
-}
-
-interface BrowserCurrentLocationError {
-  code: number | 'unavailable'
-  message: string
-}
-
-interface BrowserCurrentLocationResult {
-  coordinates: [number, number] | null
-  error?: BrowserCurrentLocationError
-}
-
-interface BrowserCurrentLocationOptions {
-  enableHighAccuracy?: boolean
-  timeout?: number
-  maximumAge?: number
-}
-
-const requestBrowserCurrentLocation = (
-  options: BrowserCurrentLocationOptions
-): Promise<BrowserCurrentLocationResult> => {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    return Promise.resolve({
-      coordinates: null,
-      error: {
-        code: 'unavailable',
-        message: 'Geolocation API is not available in this browser.'
-      }
-    })
-  }
-
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          coordinates: [position.coords.longitude, position.coords.latitude]
-        })
-      },
-      (error) => {
-        resolve({
-          coordinates: null,
-          error: {
-            code: error.code,
-            message: error.message
-          }
-        })
-      },
-      options
-    )
-  })
-}
-
-const getCurrentLocationErrorMessage = (
-  error?: BrowserCurrentLocationError
-): string => {
-  if (!error) {
-    return 'Unable to detect your current browser location. Please allow location access and try again.'
-  }
-
-  if (error.code === 1) {
-    return 'Location permission is denied. Please allow location access in your browser/site settings and try again.'
-  }
-
-  if (error.code === 2) {
-    const providerMessage =
-      error.message && error.message.length > 0 ? ` (${error.message})` : ''
-    return `Location provider is unavailable in this browser process.${providerMessage} Check OS location services for this app/browser and try again.`
-  }
-
-  if (error.code === 3) {
-    return 'Location request timed out. Please try again or move to an area with better location signal.'
-  }
-
-  if (error.code === 'unavailable') {
-    return 'Geolocation is unavailable in this browser context.'
-  }
-
-  return error.message || 'Unable to detect your current browser location.'
-}
-
-const getBrowserCurrentLocation =
-  async (): Promise<BrowserCurrentLocationResult> => {
-    const primaryAttempt = await requestBrowserCurrentLocation({
-      enableHighAccuracy: true,
-      timeout: CURRENT_LOCATION_TIMEOUT_MS,
-      maximumAge: CURRENT_LOCATION_MAX_AGE_MS
-    })
-    if (primaryAttempt.coordinates) {
-      return primaryAttempt
-    }
-
-    const fallbackAttempt = await requestBrowserCurrentLocation({
-      enableHighAccuracy: false,
-      timeout: FALLBACK_LOCATION_TIMEOUT_MS,
-      maximumAge: FALLBACK_LOCATION_MAX_AGE_MS
-    })
-
-    if (fallbackAttempt.coordinates) {
-      return fallbackAttempt
-    }
-
-    return fallbackAttempt.error ? fallbackAttempt : primaryAttempt
-  }
-
-const getInitialMapView = async (): Promise<{
-  center: [number, number]
-  zoom: number
-}> => {
-  const currentLocation = (await getBrowserCurrentLocation()).coordinates
-  if (currentLocation) {
-    return {
-      center: currentLocation,
-      zoom: CURRENT_LOCATION_ZOOM
-    }
-  }
-
-  return {
-    center: DEFAULT_MAP_CENTER,
-    zoom: DEFAULT_MAP_ZOOM
-  }
-}
-
+/**
+ * The Fitness privacy page: the shared locations editor wired to the fitness
+ * general settings, plus the regenerate-maps footer and the route description
+ * switch, which only Fitness has.
+ */
 export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
-  const mapContainerRef = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<MapboxMap | null>(null)
-  const markerCoordinatesRef = useRef<[number, number] | null>(null)
-  const isHydratingSettingsRef = useRef(true)
-
-  const [latitudeInput, setLatitudeInput] = useState('')
-  const [longitudeInput, setLongitudeInput] = useState('')
-  const [draftRadiusMeters, setDraftRadiusMeters] =
-    useState<FitnessPrivacyRadiusMeters>(DEFAULT_DRAFT_RADIUS)
-  const [privacyLocations, setPrivacyLocations] = useState<
-    PrivacyLocationInput[]
-  >([])
-
-  const [isLoading, setIsLoading] = useState(true)
-  // Only true once the existing settings have actually been read back. Saving
-  // builds the payload from `privacyLocations`, and a save REPLACES the whole
-  // stored list — so saving before a successful load would destroy every zone
-  // the actor has configured.
-  const [hasLoadedSettings, setHasLoadedSettings] = useState(false)
-  const [settingsReloadToken, setSettingsReloadToken] = useState(0)
-  // The map's click handler is registered once, inside the init effect, so it
-  // cannot read `hasLoadedSettings` directly without going stale.
-  const hasLoadedSettingsRef = useRef(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isRegeneratingMaps, setIsRegeneratingMaps] = useState(false)
-  const [isLocatingCurrentPosition, setIsLocatingCurrentPosition] =
-    useState(false)
-  const [isMapReady, setIsMapReady] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
-  const [mapLoadError, setMapLoadError] = useState<string | null>(null)
-
+  const [isEditingDisabled, setIsEditingDisabled] = useState(true)
   const [generateRouteDescription, setGenerateRouteDescription] =
     useState(false)
   const [isSavingRouteDescription, setIsSavingRouteDescription] =
     useState(false)
+  // The regenerate button's busy state lives in the editor's footer context;
+  // the route description switch is outside it, so the handler mirrors it here
+  // to keep that switch locked while the maps are being queued.
+  const [isRegeneratingMaps, setIsRegeneratingMaps] = useState(false)
   const [routeDescriptionMessage, setRouteDescriptionMessage] = useState<
     string | null
   >(null)
@@ -420,548 +93,65 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
     string | null
   >(null)
 
-  // Keyed on the descriptor's fields (not its object identity) so an inline prop
-  // literal doesn't recreate the map on every parent render. Apple renders
-  // through MapKit JS, not a GL engine, so it has no GL provider descriptor.
-  const providerType = mapProvider.type
-  const providerAccessToken =
-    mapProvider.type === 'mapbox' ? mapProvider.accessToken : undefined
-  const glProvider = useMemo(
-    () =>
-      mapProvider.type === 'apple'
-        ? null
-        : buildGlProviderOptions(mapProvider, 'outdoors'),
-    [providerType, providerAccessToken]
-  )
-
-  const markerCoordinates = useMemo<[number, number] | null>(() => {
-    const latitude = parseCoordinateInput(latitudeInput)
-    const longitude = parseCoordinateInput(longitudeInput)
-
-    if (latitude === null || longitude === null) {
-      return null
-    }
-
-    if (!isLatitudeValid(latitude) || !isLongitudeValid(longitude)) {
-      return null
-    }
-
-    return [longitude, latitude]
-  }, [latitudeInput, longitudeInput])
-  markerCoordinatesRef.current = markerCoordinates
-
-  const zoneFeatureCollection = useMemo(
-    () =>
-      toZoneFeatureCollection(
-        markerCoordinates,
-        draftRadiusMeters,
-        privacyLocations
-      ),
-    [markerCoordinates, draftRadiusMeters, privacyLocations]
-  )
-  const zoneFeatureCollectionRef = useRef(zoneFeatureCollection)
-  zoneFeatureCollectionRef.current = zoneFeatureCollection
-
-  const flyToMarker = useCallback(() => {
-    const map = mapRef.current
-    if (!map) {
-      return
-    }
-
-    const nextMarkerCoordinates = markerCoordinatesRef.current
-    if (!nextMarkerCoordinates) {
-      return
-    }
-
-    map.flyTo({
-      center: nextMarkerCoordinates,
-      zoom: HOME_MARKER_ZOOM,
-      duration: 500
-    })
-  }, [])
-
-  const syncWithCurrentLocation = useCallback(
-    async ({
-      showSuccessMessage,
-      showFailureMessage
-    }: {
-      showSuccessMessage?: boolean
-      showFailureMessage?: boolean
-    } = {}): Promise<boolean> => {
-      const { coordinates: currentLocation, error: locationError } =
-        await getBrowserCurrentLocation()
-      if (!currentLocation) {
-        if (showFailureMessage) {
-          setError(getCurrentLocationErrorMessage(locationError))
-        }
-        return false
-      }
-
-      const [longitude, latitude] = currentLocation
-      setLatitudeInput(latitude.toFixed(6))
-      setLongitudeInput(longitude.toFixed(6))
-
-      const map = mapRef.current
-      if (map) {
-        map.flyTo({
-          center: currentLocation,
-          zoom: CURRENT_LOCATION_ZOOM,
-          duration: 500
-        })
-      }
-
-      if (showSuccessMessage) {
-        setMessage('Location updated from your browser.')
-      }
-      return true
-    },
-    []
-  )
-
-  useEffect(() => {
-    let cancelled = false
-
-    const fetchSettings = async () => {
-      try {
-        isHydratingSettingsRef.current = true
-        setIsLoading(true)
-        setError(null)
-
-        const data = await getFitnessGeneralSettings()
-
-        if (cancelled) {
-          return
-        }
-
-        const locations = toResponsePrivacyLocations(data)
-        const firstLocation = locations[0]
-
-        setPrivacyLocations(locations)
-        setLatitudeInput(formatCoordinate(firstLocation?.latitude ?? null))
-        setLongitudeInput(formatCoordinate(firstLocation?.longitude ?? null))
-        setDraftRadiusMeters(
-          sanitizeDraftRadius(firstLocation?.hideRadiusMeters)
-        )
-        setGenerateRouteDescription(Boolean(data.generateRouteDescription))
-        hasLoadedSettingsRef.current = true
-        setHasLoadedSettings(true)
-      } catch {
-        if (cancelled) {
-          return
-        }
-
-        hasLoadedSettingsRef.current = false
-        setHasLoadedSettings(false)
-      } finally {
-        isHydratingSettingsRef.current = false
-        if (!cancelled) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    void fetchSettings()
-
-    return () => {
-      cancelled = true
-    }
-  }, [settingsReloadToken])
-
-  useEffect(() => {
-    // Never prefill from the browser before the settings have loaded: on a load
-    // failure it would dress an empty form up as a configured one.
-    if (!isMapReady || isLoading || !hasLoadedSettings) {
-      return
-    }
-
-    if (
-      privacyLocations.length > 0 ||
-      latitudeInput.trim().length > 0 ||
-      longitudeInput.trim().length > 0
-    ) {
-      return
-    }
-
-    void syncWithCurrentLocation()
-  }, [
-    hasLoadedSettings,
-    isLoading,
-    isMapReady,
-    latitudeInput,
-    longitudeInput,
-    privacyLocations.length,
-    syncWithCurrentLocation
-  ])
-
-  useEffect(() => {
-    if (!glProvider || !mapContainerRef.current) {
-      mapRef.current?.remove()
-      mapRef.current = null
-      setIsMapReady(false)
-      return
-    }
-
-    let cancelled = false
-
-    const initializeMap = async () => {
-      try {
-        const mapbox = (await glProvider.loadModule()) as MapboxModule
-        if (cancelled || !mapContainerRef.current) {
-          return
-        }
-
-        const initialView = await getInitialMapView()
-
-        const map = new mapbox.Map({
-          container: mapContainerRef.current,
-          attributionControl: false,
-          center: initialView.center,
-          zoom: initialView.zoom,
-          // style (and, for Mapbox, accessToken) come from the resolved provider.
-          ...glProvider.mapOptions
-        })
-
-        mapRef.current = map
-        setIsMapReady(false)
-
-        map.once('load', () => {
-          if (cancelled || !mapRef.current) {
-            return
-          }
-
-          map.addSource(MAPBOX_MARKER_SOURCE_ID, {
-            type: 'geojson',
-            data: toMarkerFeatureCollection(markerCoordinatesRef.current)
-          })
-
-          // The hide radius, drawn at its real size on the ground: a polygon per
-          // zone, because a GL `circle` layer is sized in pixels, not metres.
-          // Added before the marker so the point you clicked sits on top.
-          map.addSource(MAPBOX_ZONE_SOURCE_ID, {
-            type: 'geojson',
-            data: zoneFeatureCollectionRef.current
-          })
-
-          map.addLayer({
-            id: 'fitness-privacy-zone-fill',
-            type: 'fill',
-            source: MAPBOX_ZONE_SOURCE_ID,
-            paint: {
-              'fill-color': ZONE_COLOR,
-              'fill-opacity': ZONE_FILL_OPACITY
-            }
-          })
-
-          map.addLayer({
-            id: 'fitness-privacy-zone-outline',
-            type: 'line',
-            source: MAPBOX_ZONE_SOURCE_ID,
-            paint: {
-              'line-color': ZONE_COLOR,
-              'line-width': ZONE_OUTLINE_WIDTH_PX
-            }
-          })
-
-          map.addLayer({
-            id: 'fitness-privacy-home-marker-core',
-            type: 'circle',
-            source: MAPBOX_MARKER_SOURCE_ID,
-            paint: {
-              'circle-radius': 7,
-              'circle-color': ZONE_COLOR,
-              'circle-stroke-color': '#ffffff',
-              'circle-stroke-width': 2
-            }
-          })
-
-          const initialMarkerCoordinates = markerCoordinatesRef.current
-          if (initialMarkerCoordinates) {
-            map.flyTo({
-              center: initialMarkerCoordinates,
-              zoom: HOME_MARKER_ZOOM,
-              duration: 0
-            })
-          }
-
-          setIsMapReady(true)
-        })
-
-        map.on('click', ({ lngLat }) => {
-          // Writing into greyed-out fields would contradict the disabled
-          // editing surface after a failed load.
-          if (!hasLoadedSettingsRef.current) {
-            return
-          }
-
-          setLatitudeInput(lngLat.lat.toFixed(6))
-          setLongitudeInput(lngLat.lng.toFixed(6))
-          setError(null)
-          setMessage(null)
-        })
-
-        setMapLoadError(null)
-      } catch {
-        if (cancelled) {
-          return
-        }
-
-        setMapLoadError('Map picker unavailable. Use manual coordinates below.')
-      }
-    }
-
-    void initializeMap()
-
-    return () => {
-      cancelled = true
-      mapRef.current?.remove()
-      mapRef.current = null
-      setIsMapReady(false)
-    }
-  }, [glProvider])
-
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) {
-      return
-    }
-
-    const source = map.getSource(MAPBOX_MARKER_SOURCE_ID) as
-      MapboxGeoJSONSource | undefined
-
-    if (!source) {
-      return
-    }
-
-    source.setData(toMarkerFeatureCollection(markerCoordinates))
-
-    const activeElementId =
-      typeof document !== 'undefined' ? document.activeElement?.id : undefined
-    const isCoordinateInputFocused =
-      activeElementId === 'privacyHomeLatitude' ||
-      activeElementId === 'privacyHomeLongitude'
-
-    if (
-      markerCoordinates &&
-      !isHydratingSettingsRef.current &&
-      !isCoordinateInputFocused
-    ) {
-      flyToMarker()
-    }
-  }, [flyToMarker, markerCoordinates])
-
-  useEffect(() => {
-    // `isMapReady` re-runs this once the source exists; before that the load
-    // handler seeds it from the ref.
-    const source = mapRef.current?.getSource(MAPBOX_ZONE_SOURCE_ID) as
-      MapboxGeoJSONSource | undefined
-
-    source?.setData(zoneFeatureCollection)
-  }, [isMapReady, zoneFeatureCollection])
-
-  const buildDraftLocation = (): {
-    location: PrivacyLocationInput | null
-    error: string | null
-  } => {
-    const hasLatitude = latitudeInput.trim().length > 0
-    const hasLongitude = longitudeInput.trim().length > 0
-
-    if (!hasLatitude && !hasLongitude) {
-      return {
-        location: null,
-        error: null
-      }
-    }
-
-    if (hasLatitude !== hasLongitude) {
-      return {
-        location: null,
-        error: 'Latitude and longitude must be provided together.'
-      }
-    }
-
-    const latitude = parseCoordinateInput(latitudeInput)
-    const longitude = parseCoordinateInput(longitudeInput)
-
-    if (latitude === null || !isLatitudeValid(latitude)) {
-      return {
-        location: null,
-        error: 'Latitude must be between -90 and 90.'
-      }
-    }
-
-    if (longitude === null || !isLongitudeValid(longitude)) {
-      return {
-        location: null,
-        error: 'Longitude must be between -180 and 180.'
-      }
-    }
-
-    if (draftRadiusMeters <= 0) {
-      return {
-        location: null,
-        error: 'Hide radius must be greater than 0.'
-      }
-    }
-
-    return {
-      location: {
-        latitude,
-        longitude,
-        hideRadiusMeters: draftRadiusMeters
-      },
-      error: null
-    }
+  const load = async (): Promise<PrivacyLocationInput[]> => {
+    const data = await getFitnessGeneralSettings()
+    setGenerateRouteDescription(Boolean(data.generateRouteDescription))
+    return toResponsePrivacyLocations(data)
   }
 
-  const hasSamePrivacyLocation = (
-    left: PrivacyLocationInput,
-    right: PrivacyLocationInput
-  ) => {
-    return (
-      left.latitude === right.latitude &&
-      left.longitude === right.longitude &&
-      left.hideRadiusMeters === right.hideRadiusMeters
-    )
-  }
-
-  const saveSettings = async (
+  const save = async (
     locations: PrivacyLocationInput[]
-  ): Promise<boolean> => {
-    try {
-      setIsSaving(true)
+  ): Promise<PrivacyLocationInput[]> => {
+    const { ok, data } = await updateFitnessGeneralSettings({
+      privacyLocations: locations
+    })
 
-      const { ok, data } = await updateFitnessGeneralSettings({
-        privacyLocations: locations
-      })
+    if (!ok) {
+      throw new PrivacyLocationsSaveError(
+        data?.error || FITNESS_COPY.saveFailed
+      )
+    }
+
+    if (data.generateRouteDescription !== undefined) {
+      setGenerateRouteDescription(Boolean(data.generateRouteDescription))
+    }
+    return toResponsePrivacyLocations(data)
+  }
+
+  const handleRegenerateOldStatusMaps = async ({
+    setBusy,
+    setError,
+    setMessage
+  }: PrivacyLocationsFooterContext) => {
+    setError(null)
+    setMessage(null)
+    setBusy(true)
+    setIsRegeneratingMaps(true)
+
+    try {
+      const { ok, data } = await regenerateFitnessMaps()
 
       if (!ok) {
-        setError(
-          data?.error || 'Failed to save fitness privacy location settings'
+        setError(data.error || 'Failed to queue map regeneration job.')
+        return
+      }
+
+      const queuedCount =
+        typeof data.queuedCount === 'number' ? data.queuedCount : 0
+      if (queuedCount === 0) {
+        setMessage('No old statuses are pending map regeneration.')
+      } else {
+        setMessage(
+          `Queued map regeneration for ${queuedCount} old status${queuedCount > 1 ? 'es' : ''}.`
         )
-        return false
       }
-
-      const savedLocations = toResponsePrivacyLocations(data)
-      const firstLocation = savedLocations[0]
-
-      setPrivacyLocations(savedLocations)
-      setLatitudeInput(formatCoordinate(firstLocation?.latitude ?? null))
-      setLongitudeInput(formatCoordinate(firstLocation?.longitude ?? null))
-      setDraftRadiusMeters(sanitizeDraftRadius(firstLocation?.hideRadiusMeters))
-      if (data.generateRouteDescription !== undefined) {
-        setGenerateRouteDescription(Boolean(data.generateRouteDescription))
-      }
-      return true
     } catch {
-      setError('Failed to save fitness privacy location settings')
-      return false
+      setError('Failed to queue map regeneration job.')
     } finally {
-      setIsSaving(false)
+      setBusy(false)
+      setIsRegeneratingMaps(false)
     }
   }
-
-  const handleAddLocation = () => {
-    setError(null)
-    setMessage(null)
-
-    const { location, error: locationError } = buildDraftLocation()
-
-    if (locationError) {
-      setError(locationError)
-      return
-    }
-
-    if (!location) {
-      setError('Set latitude and longitude before adding a privacy location.')
-      return
-    }
-
-    if (
-      privacyLocations.some((item) => hasSamePrivacyLocation(item, location))
-    ) {
-      setMessage('This privacy location is already in the list.')
-      return
-    }
-
-    setPrivacyLocations((current) => [...current, location])
-    setMessage('Privacy location added to list. Save settings to apply.')
-  }
-
-  const handleUseCurrentLocation = async () => {
-    setError(null)
-    setMessage(null)
-    setIsLocatingCurrentPosition(true)
-
-    try {
-      await syncWithCurrentLocation({
-        showSuccessMessage: true,
-        showFailureMessage: true
-      })
-    } finally {
-      setIsLocatingCurrentPosition(false)
-    }
-  }
-
-  const handleRemoveLocation = (index: number) => {
-    setError(null)
-    setMessage(null)
-
-    setPrivacyLocations((current) => {
-      const next = current.filter((_, currentIndex) => currentIndex !== index)
-      return next
-    })
-    setLatitudeInput('')
-    setLongitudeInput('')
-    setDraftRadiusMeters(DEFAULT_DRAFT_RADIUS)
-
-    setMessage('Privacy location removed from list. Save settings to apply.')
-  }
-
-  const handleSave = async () => {
-    setError(null)
-    setMessage(null)
-
-    const { location, error: locationError } = buildDraftLocation()
-    if (locationError) {
-      setError(locationError)
-      return
-    }
-
-    const locationsToSave = [...privacyLocations]
-    if (
-      location &&
-      !locationsToSave.some((item) => hasSamePrivacyLocation(item, location))
-    ) {
-      locationsToSave.push(location)
-    }
-
-    const saved = await saveSettings(locationsToSave)
-
-    if (saved) {
-      setMessage('Fitness privacy location settings saved.')
-    }
-  }
-
-  const handleClear = async () => {
-    setError(null)
-    setMessage(null)
-
-    const saved = await saveSettings([])
-
-    if (saved) {
-      setPrivacyLocations([])
-      setLatitudeInput('')
-      setLongitudeInput('')
-      setDraftRadiusMeters(DEFAULT_DRAFT_RADIUS)
-      setMessage('Fitness privacy location settings cleared.')
-      void syncWithCurrentLocation()
-    }
-  }
-
-  // Everything that edits the draft or the list is disabled until the existing
-  // settings are known. Otherwise the user builds a list against an empty form
-  // and is told to "save settings to apply" against a disabled Save button.
-  const isEditingDisabled = isLoading || !hasLoadedSettings || isSaving
 
   const handleToggleRouteDescription = async (checked: boolean) => {
     setRouteDescriptionError(null)
@@ -996,273 +186,31 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
     }
   }
 
-  const handleRegenerateOldStatusMaps = async () => {
-    setError(null)
-    setMessage(null)
-    setIsRegeneratingMaps(true)
-
-    try {
-      const { ok, data } = await regenerateFitnessMaps()
-
-      if (!ok) {
-        setError(data.error || 'Failed to queue map regeneration job.')
-        return
-      }
-
-      const queuedCount =
-        typeof data.queuedCount === 'number' ? data.queuedCount : 0
-      if (queuedCount === 0) {
-        setMessage('No old statuses are pending map regeneration.')
-      } else {
-        setMessage(
-          `Queued map regeneration for ${queuedCount} old status${queuedCount > 1 ? 'es' : ''}.`
-        )
-      }
-    } catch {
-      setError('Failed to queue map regeneration job.')
-    } finally {
-      setIsRegeneratingMaps(false)
-    }
-  }
-
   return (
     <div className="space-y-6">
       <FitnessSection
         title="Privacy location"
         description="Trim the start and finish of your routes around your saved privacy locations, on your activity maps and generated route images. Route heatmaps are not trimmed: hiding the ends there would leave a gap that points at the location just as clearly."
       >
-        <div className="space-y-4 rounded-lg border p-4">
-          {/* Every provider renders an interactive picker; the manual latitude /
-            longitude fields below stay as the fallback when it fails to load. */}
-          <div className="space-y-2">
-            <Label>Location Marker</Label>
-            <div className="relative h-64 overflow-hidden rounded-md border">
-              {glProvider ? (
-                <div ref={mapContainerRef} className="h-full w-full" />
-              ) : (
-                <PrivacyZoneMapKit
-                  marker={
-                    markerCoordinates
-                      ? {
-                          latitude: markerCoordinates[1],
-                          longitude: markerCoordinates[0]
-                        }
-                      : null
-                  }
-                  zones={privacyLocations}
-                  onPick={({ latitude, longitude }) => {
-                    setLatitudeInput(latitude.toFixed(6))
-                    setLongitudeInput(longitude.toFixed(6))
-                    setError(null)
-                    setMessage(null)
-                  }}
-                  onReady={() => setIsMapReady(true)}
-                  onUnavailable={() =>
-                    setMapLoadError(
-                      'Map picker unavailable. Use manual coordinates below.'
-                    )
-                  }
-                />
-              )}
-              {mapLoadError ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-background/95 px-4 text-sm text-muted-foreground">
-                  {mapLoadError}
-                </div>
-              ) : null}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Click the map to set coordinates for a location you want to add.
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="privacyHomeLatitude">Latitude</Label>
-              <Input
-                id="privacyHomeLatitude"
-                type="text"
-                inputMode="decimal"
-                placeholder="e.g. 37.774900"
-                value={latitudeInput}
-                onChange={(event) => setLatitudeInput(event.target.value)}
-                onBlur={() => {
-                  if (!isHydratingSettingsRef.current) {
-                    flyToMarker()
-                  }
-                }}
-                disabled={isEditingDisabled}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="privacyHomeLongitude">Longitude</Label>
-              <Input
-                id="privacyHomeLongitude"
-                type="text"
-                inputMode="decimal"
-                placeholder="e.g. -122.419400"
-                value={longitudeInput}
-                onChange={(event) => setLongitudeInput(event.target.value)}
-                onBlur={() => {
-                  if (!isHydratingSettingsRef.current) {
-                    flyToMarker()
-                  }
-                }}
-                disabled={isEditingDisabled}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="privacyHideRadiusMeters">Hide Radius</Label>
-            <Select
-              id="privacyHideRadiusMeters"
-              className="h-10"
-              value={String(draftRadiusMeters)}
-              onChange={(event) => {
-                setDraftRadiusMeters(
-                  sanitizeDraftRadius(Number(event.target.value))
-                )
-              }}
-              disabled={isEditingDisabled}
-            >
-              {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
-                <option key={radius} value={radius}>
-                  {formatRadiusLabel(radius)}
-                </option>
-              ))}
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              When a route starts or finishes here, that end is hidden from
-              other viewers until it leaves the area and has covered this
-              distance. The middle of a route is never cut, so a route that
-              later passes back through the area stays visible.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
+        <PrivacyLocationsEditor
+          mapProvider={mapProvider}
+          load={load}
+          save={save}
+          copy={FITNESS_COPY}
+          mapIdPrefix="fitness-privacy"
+          onEditingDisabledChange={setIsEditingDisabled}
+          footer={(context) => (
             <Button
               variant="outline"
-              onClick={handleUseCurrentLocation}
-              disabled={
-                isEditingDisabled ||
-                isRegeneratingMaps ||
-                isLocatingCurrentPosition
-              }
+              onClick={() => handleRegenerateOldStatusMaps(context)}
+              disabled={context.disabled || context.busy}
             >
-              {isLocatingCurrentPosition
-                ? 'Locating...'
-                : 'Use current location'}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleAddLocation}
-              disabled={
-                isEditingDisabled ||
-                isRegeneratingMaps ||
-                isLocatingCurrentPosition
-              }
-            >
-              Add location to list
-            </Button>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Saved Privacy Locations</Label>
-            {privacyLocations.length > 0 ? (
-              <div className="space-y-2">
-                {privacyLocations.map((location, index) => (
-                  <div
-                    key={`${location.latitude}-${location.longitude}-${location.hideRadiusMeters}-${index}`}
-                    className="flex items-center justify-between rounded-md border px-3 py-2"
-                  >
-                    <div className="pr-3">
-                      <p className="text-sm font-medium">
-                        {location.latitude.toFixed(6)},{' '}
-                        {location.longitude.toFixed(6)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Hide radius:{' '}
-                        {formatRadiusLabel(location.hideRadiusMeters)}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRemoveLocation(index)}
-                      disabled={isEditingDisabled || isRegeneratingMaps}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No privacy locations added yet.
-              </p>
-            )}
-          </div>
-
-          {!isLoading && !hasLoadedSettings ? (
-            // Derived from the condition, not stored in `error`, which every
-            // action handler clears — the guard below must never be left
-            // unexplained.
-            <p className="text-sm text-destructive">
-              Failed to load your saved privacy locations. Editing and saving
-              are disabled so the locations you already have are not
-              overwritten.
-            </p>
-          ) : null}
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          {message ? <p className="text-sm text-green-600">{message}</p> : null}
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={handleSave}
-              disabled={
-                isEditingDisabled ||
-                isRegeneratingMaps ||
-                isLocatingCurrentPosition
-              }
-            >
-              {isSaving ? 'Saving...' : 'Save privacy locations'}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleClear}
-              disabled={
-                isEditingDisabled ||
-                isRegeneratingMaps ||
-                isLocatingCurrentPosition
-              }
-            >
-              Clear all
-            </Button>
-            {!isLoading && !hasLoadedSettings ? (
-              <Button
-                variant="outline"
-                onClick={() => setSettingsReloadToken((token) => token + 1)}
-              >
-                Retry loading
-              </Button>
-            ) : null}
-            <Button
-              variant="outline"
-              onClick={handleRegenerateOldStatusMaps}
-              disabled={
-                isLoading ||
-                isSaving ||
-                isRegeneratingMaps ||
-                isLocatingCurrentPosition
-              }
-            >
-              {isRegeneratingMaps
+              {context.busy
                 ? 'Queueing regeneration...'
                 : 'Regenerate maps for old statuses'}
             </Button>
-          </div>
-        </div>
+          )}
+        />
       </FitnessSection>
 
       <FitnessSection
@@ -1288,7 +236,11 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
               id="generate-route-description"
               checked={generateRouteDescription}
               onCheckedChange={handleToggleRouteDescription}
-              disabled={isEditingDisabled || isSavingRouteDescription}
+              disabled={
+                isEditingDisabled ||
+                isSavingRouteDescription ||
+                isRegeneratingMaps
+              }
             />
           </div>
 

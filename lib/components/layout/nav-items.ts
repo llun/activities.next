@@ -5,6 +5,7 @@ import {
   Compass,
   Heart,
   Home,
+  Images,
   List,
   Mail,
   Search,
@@ -103,6 +104,13 @@ const NAV_ITEM_DEFINITIONS: Record<NavItemId, NavItemDefinition> = {
     icon: Activity,
     blurb: 'Activity dashboard, files, heatmaps'
   },
+  gallery: {
+    // Overridden by `galleryUrl`; like Fitness it needs a local account.
+    href: '/gallery',
+    label: 'Gallery',
+    icon: Images,
+    blurb: 'Photos, subjects, places and gear'
+  },
   notifications: {
     href: '/notifications',
     label: 'Notifications',
@@ -132,6 +140,7 @@ const NAV_ITEM_DEFINITIONS: Record<NavItemId, NavItemDefinition> = {
 
 export interface BuildNavItemsParams {
   fitnessUrl?: string
+  galleryUrl?: string
   isAdmin?: boolean
   // Instance features an admin can switch off. Missing keys default to on.
   features?: Partial<NavFeatureFlags>
@@ -152,6 +161,7 @@ const isFeatureEnabled = (
  */
 export const availableNavIds = ({
   fitnessUrl,
+  galleryUrl,
   isAdmin = false,
   features
 }: BuildNavItemsParams): Set<NavItemId> =>
@@ -159,6 +169,7 @@ export const availableNavIds = ({
     DEFAULT_NAV_ORDER.filter((id) => {
       if (!isFeatureEnabled(id, features)) return false
       if (id === 'fitness') return Boolean(fitnessUrl)
+      if (id === 'gallery') return Boolean(galleryUrl)
       if (id === 'admin') return isAdmin
       return true
     })
@@ -166,13 +177,18 @@ export const availableNavIds = ({
 
 export const getNavItem = (
   id: NavItemId,
-  { fitnessUrl }: BuildNavItemsParams = {}
+  { fitnessUrl, galleryUrl }: BuildNavItemsParams = {}
 ): NavItem => {
   const definition = NAV_ITEM_DEFINITIONS[id]
   return {
     ...definition,
     id,
-    href: id === 'fitness' && fitnessUrl ? fitnessUrl : definition.href,
+    href:
+      id === 'fitness' && fitnessUrl
+        ? fitnessUrl
+        : id === 'gallery' && galleryUrl
+          ? galleryUrl
+          : definition.href,
     locked: isNavItemLocked(id),
     feature: NAV_FEATURE_BY_ID[id]
   }

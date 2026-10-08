@@ -294,6 +294,13 @@ TEST_DATABASE_USERNAME=activities \
 TEST_DATABASE_PASSWORD=activities \
 yarn test --maxWorkers=2 \
   lib/database/sql/media.test.ts \
+  lib/database/sql/mediaDetails.test.ts \
+  lib/database/sql/gallery.test.ts \
+  lib/database/sql/galleryMedia.test.ts \
+  lib/services/gallery/galleryQueries.test.ts \
+  lib/services/gallery/galleryGear.test.ts \
+  lib/services/gallery/subjectHashtags.test.ts \
+  lib/services/gallery/uploadMediaDetails.test.ts \
   lib/database/sql/fitnessFile.test.ts \
   lib/database/sql/fitnessGear.test.ts \
   lib/database/sql/fitnessGearComponentPeriods.test.ts \

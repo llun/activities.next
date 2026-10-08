@@ -4,6 +4,10 @@ import { getActorCollectionCounts } from '@/lib/activities/getActorCollectionCou
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getActorPosts } from '@/lib/activities/getActorPosts'
 import { getWebfingerSelf } from '@/lib/activities/getWebfingerSelf'
+import {
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { canFederateWithDomain } from '@/lib/services/federation/domainPolicy'
 import { getFederationSigningActorSafe } from '@/lib/services/federation/getFederationSigningActor'
@@ -13,11 +17,16 @@ import {
   isPixelfedActor
 } from '@/lib/services/federation/serverSoftware'
 import { mockRequests } from '@/lib/stub/activities'
+import { TEST_DOMAIN } from '@/lib/stub/const'
+import { seedDatabase } from '@/lib/stub/database'
+import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { Actor } from '@/lib/types/activitypub'
+import { DEFAULT_GALLERY_SETTINGS } from '@/lib/types/database/gallery'
 import { Actor as DomainActor } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { Status, StatusType } from '@/lib/types/domain/status'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getPersonFromActor } from '@/lib/utils/getPersonFromActor'
 
 import { getProfileData } from './getProfileData'
@@ -52,6 +61,8 @@ describe('getProfileData', () => {
     getActorFollowingCount: vi.fn(),
     getActorFollowersCount: vi.fn(),
     getActorHasFitnessData: vi.fn(),
+    getActorHasGalleryMedia: vi.fn(),
+    getGallerySettings: vi.fn(),
     getAcceptedOrRequestedFollow: vi.fn(),
     setActorCounters: vi.fn(),
     getActorFromId: vi.fn(),
@@ -139,6 +150,12 @@ describe('getProfileData', () => {
     ;(mockDatabase.getActorFollowingCount as jest.Mock).mockResolvedValue(10)
     ;(mockDatabase.getActorFollowersCount as jest.Mock).mockResolvedValue(20)
     ;(mockDatabase.getActorHasFitnessData as jest.Mock).mockResolvedValue(false)
+    vi.mocked(mockDatabase.getActorHasGalleryMedia).mockReset()
+    vi.mocked(mockDatabase.getActorHasGalleryMedia).mockResolvedValue(false)
+    vi.mocked(mockDatabase.getGallerySettings).mockReset()
+    vi.mocked(mockDatabase.getGallerySettings).mockResolvedValue({
+      ...DEFAULT_GALLERY_SETTINGS
+    })
     ;(mockDatabase.setActorCounters as jest.Mock).mockResolvedValue(undefined)
     ;(mockDatabase.getAcceptedOrRequestedFollow as jest.Mock).mockResolvedValue(
       null
@@ -451,6 +468,120 @@ describe('getProfileData', () => {
         })
       })
 
+      // The Gallery tab is a disclosure too: it is offered off a check run for
+      // the viewer's own audience, never the owner's.
+      it.each([
+        {
+          description: 'a logged-out visitor',
+          isLoggedIn: false,
+          currentActor: null,
+          following: false,
+          expected: {
+            kind: 'viewer',
+            publicOnly: true,
+            visibleToActorId: null,
+            includeFollowersOnly: false,
+            followersAudience: followersUrl
+          }
+        },
+        {
+          description: 'a signed-in follower',
+          isLoggedIn: true,
+          currentActor: viewer,
+          following: true,
+          expected: {
+            kind: 'viewer',
+            publicOnly: false,
+            visibleToActorId: viewer.id,
+            includeFollowersOnly: true,
+            followersAudience: followersUrl
+          }
+        },
+        {
+          description: 'the owner',
+          isLoggedIn: true,
+          currentActor: owner,
+          following: false,
+          expected: { kind: 'owner' }
+        }
+      ])(
+        'asks whether gallery media exists for $description',
+        async ({ isLoggedIn, currentActor, following, expected }) => {
+          if (following) {
+            ;(
+              mockDatabase.getAcceptedOrRequestedFollow as jest.Mock
+            ).mockResolvedValue({ status: FollowStatus.enum.Accepted })
+          }
+
+          await getProfileData(
+            mockDatabase,
+            '@localuser@example.com',
+            isLoggedIn,
+            { currentActor }
+          )
+
+          expect(mockDatabase.getActorHasGalleryMedia).toHaveBeenCalledWith({
+            actorId: mockLocalActor.id,
+            audience: expected
+          })
+        }
+      )
+
+      it('offers no gallery and reads no gallery settings without gallery media', async () => {
+        const result = await getProfileData(
+          mockDatabase,
+          '@localuser@example.com',
+          false,
+          { currentActor: null }
+        )
+
+        expect(result?.hasGalleryMedia).toBeFalse()
+        expect(result?.gallerySubviews).toEqual([])
+        expect(mockDatabase.getGallerySettings).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        {
+          description: 'a visitor with the map and life list private',
+          currentActor: null,
+          settings: { mapPublic: false, lifeListPublic: false },
+          expected: ['subjects', 'recent']
+        },
+        {
+          description: 'a visitor with the map and life list public',
+          currentActor: null,
+          settings: { mapPublic: true, lifeListPublic: true },
+          expected: ['subjects', 'recent', 'map', 'life-list']
+        },
+        {
+          description: 'the owner with both private',
+          currentActor: owner,
+          settings: { mapPublic: false, lifeListPublic: false },
+          expected: ['subjects', 'recent', 'map', 'life-list']
+        }
+      ])(
+        'offers the gallery subviews to $description',
+        async ({ currentActor, settings, expected }) => {
+          vi.mocked(mockDatabase.getActorHasGalleryMedia).mockResolvedValue(
+            true
+          )
+          vi.mocked(mockDatabase.getGallerySettings).mockResolvedValue({
+            ...DEFAULT_GALLERY_SETTINGS,
+            ...settings
+          })
+
+          const result = await getProfileData(
+            mockDatabase,
+            '@localuser@example.com',
+            true,
+            { currentActor }
+          )
+
+          expect(result?.hasGalleryMedia).toBeTrue()
+          expect(result?.gallerySubviews).toEqual(expected)
+        }
+      )
+
       it('still hydrates viewer interaction state from the signed-in actor', async () => {
         await getProfileData(mockDatabase, '@localuser@example.com', true, {
           currentActor: viewer
@@ -739,6 +870,19 @@ describe('getProfileData', () => {
           includeFollowersOnly: false
         })
       )
+    })
+
+    it('offers no gallery for remote actors', async () => {
+      const result = await getProfileData(
+        mockDatabase,
+        '@remoteuser@remote.com',
+        true,
+        { currentActor: null }
+      )
+
+      expect(result?.hasGalleryMedia).toBeFalse()
+      expect(result?.gallerySubviews).toEqual([])
+      expect(mockDatabase.getActorHasGalleryMedia).not.toHaveBeenCalled()
     })
 
     it('should return hasFitnessData as false for remote actors', async () => {
@@ -1252,6 +1396,119 @@ describe('getProfileData', () => {
       expect(result).not.toBeNull()
       // Should have called remote APIs since default is true
       expect(getWebfingerSelf).toHaveBeenCalled()
+    })
+  })
+})
+
+// The argument tests above pin what is asked; this pins what the answer is,
+// end to end on a real database: the tab's presence must not tell a stranger
+// that a followers-only gallery photo exists.
+describe('getProfileData gallery presence', () => {
+  const { actors } = DatabaseSeed
+  const table = getTestDatabaseTable()
+
+  beforeAll(async () => {
+    await databaseBeforeAll(table)
+  })
+
+  describe.each(table)('%s', (_, database) => {
+    const ownerId = actors.empty.id
+    const handle = '@test6@llun.test'
+
+    beforeAll(async () => {
+      await seedDatabase(database)
+      await database.createFollow({
+        actorId: actors.extra.id,
+        targetActorId: ownerId,
+        inbox: `${ownerId}/inbox`,
+        sharedInbox: `https://${TEST_DOMAIN}/inbox`,
+        status: FollowStatus.enum.Accepted
+      })
+
+      const statusId = `${ownerId}/statuses/profile-gallery-followers`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ownerId,
+        to: [`${ownerId}/followers`],
+        cc: [],
+        text: 'followers only'
+      })
+      const media = await database.createMedia({
+        actorId: ownerId,
+        original: {
+          path: '/test/profile-gallery.jpg',
+          bytes: 10,
+          mimeType: 'image/jpeg',
+          metaData: { width: 10, height: 10 }
+        },
+        details: { inGallery: true, subjectName: 'Red Fox' }
+      })
+      await database.createAttachment({
+        actorId: ownerId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: '/test/profile-gallery.jpg',
+        mediaId: media!.id
+      })
+      // A public post with no gallery media must not make the tab appear.
+      await database.createNote({
+        id: `${ownerId}/statuses/profile-gallery-public`,
+        url: `${ownerId}/statuses/profile-gallery-public`,
+        actorId: ownerId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'public'
+      })
+    })
+
+    afterAll(async () => {
+      await database.destroy()
+    })
+
+    const presenceFor = async (viewerId: string | null) => {
+      const currentActor = viewerId
+        ? await database.getActorFromId({ id: viewerId })
+        : null
+      const result = await getProfileData(database, handle, true, {
+        currentActor
+      })
+      return {
+        hasGalleryMedia: result?.hasGalleryMedia,
+        gallerySubviews: result?.gallerySubviews
+      }
+    }
+
+    it.each([
+      {
+        description: 'a logged-out visitor',
+        viewerId: null,
+        expected: { hasGalleryMedia: false, gallerySubviews: [] }
+      },
+      {
+        description: 'a signed-in stranger',
+        viewerId: actors.replyAuthor.id,
+        expected: { hasGalleryMedia: false, gallerySubviews: [] }
+      },
+      {
+        description: 'a follower',
+        viewerId: actors.extra.id,
+        // `mapPublic` is on by default, `lifeListPublic` off.
+        expected: {
+          hasGalleryMedia: true,
+          gallerySubviews: ['subjects', 'recent', 'map']
+        }
+      },
+      {
+        description: 'the owner',
+        viewerId: ownerId,
+        expected: {
+          hasGalleryMedia: true,
+          gallerySubviews: ['subjects', 'recent', 'map', 'life-list']
+        }
+      }
+    ])('answers $description', async ({ viewerId, expected }) => {
+      expect(await presenceFor(viewerId)).toEqual(expected)
     })
   })
 })

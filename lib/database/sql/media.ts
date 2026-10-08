@@ -104,6 +104,20 @@ export const toMediaRowId = (mediaId: string): number | null => {
   return id > 0 && id <= MAX_MEDIA_ROW_ID ? id : null
 }
 
+// Gallery reads compare `attachments.mediaId` with the TEXT form of
+// `medias.id` on SQLite so `attachments_mediaId_idx` stays usable, so what is
+// written must be the plain `String(id)`. `toMediaRowId` also admits '12.0' and
+// '012' (the outbox route only shape-checks), which would otherwise be stored
+// verbatim and vanish from the gallery. Anything it rejects is left untouched so
+// a bad id still surfaces instead of silently dropping the link.
+const toCanonicalMediaId = <T extends string | null | undefined>(
+  mediaId: T
+): T | string => {
+  if (typeof mediaId !== 'string') return mediaId
+  const id = toMediaRowId(mediaId)
+  return id === null ? mediaId : String(id)
+}
+
 const deleteMediaByConditions = async (
   database: Knex,
   conditions: Record<string, string | number>
@@ -157,7 +171,7 @@ const deleteMediaById = async (
   return deleteMediaByConditions(database, { id })
 }
 
-type MediaRow = {
+export type MediaRow = {
   id: string | number
   actorId: string
   original: string
@@ -255,7 +269,7 @@ const parseMediaDetails = (data: MediaRow): MediaDetailsRecord => ({
   inGallery: Boolean(data.inGallery)
 })
 
-const parseMediaRow = (data: MediaRow): Media => ({
+export const parseMediaRow = (data: MediaRow): Media => ({
   id: String(data.id),
   actorId: data.actorId,
   original: {
@@ -332,7 +346,7 @@ const getDetailsColumns = (
 }
 
 // `medias` columns needed to rebuild a full Media row (used by every read).
-const MEDIA_COLUMNS = [
+export const MEDIA_COLUMNS = [
   'id',
   'actorId',
   'original',
@@ -614,7 +628,7 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       width: data.width,
       height: data.height,
       name: data.name,
-      mediaId,
+      mediaId: toCanonicalMediaId(mediaId),
       blurhash: blurhash ?? null,
       focusX: focus?.x ?? null,
       focusY: focus?.y ?? null,

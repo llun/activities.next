@@ -1,4 +1,7 @@
+import { z } from 'zod'
+
 import { toGalleryGearEntity } from '@/lib/services/gallery/galleryEntities'
+import { getGalleryGearUsage } from '@/lib/services/gallery/galleryGearUsage'
 import {
   CreateGalleryGearRequest,
   MAX_GALLERY_GEAR_PER_ACTOR
@@ -11,17 +14,46 @@ import {
 } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
-// The actor's camera and lens gear. Full CRUD (edit, retire, delete) arrives
-// with the gallery's Gear section; uploads create rows here on their own, keyed
-// on the EXIF identity, via `resolveGalleryGear`.
+const ListQuery = z.object({ include: z.enum(['usage']).optional() })
+
+// The actor's camera and lens gear. Edit, retire and delete are on `[id]`;
+// uploads create rows here on their own, keyed on the EXIF identity, via
+// `resolveGalleryGear`. `?include=usage` adds each gear's photo count and the
+// first and last time it was used, from one read of the actor's media.
 export const GET = traceApiRoute(
   'listGalleryGears',
   AuthenticatedGuard(async (req, context) => {
     const { currentActor, database } = context
 
+    const query = ListQuery.safeParse(
+      Object.fromEntries(new URL(req.url).searchParams)
+    )
+    if (!query.success) {
+      return apiErrorResponse(HTTP_STATUS.UNPROCESSABLE_ENTITY)
+    }
+
     const gears = await database.getGalleryGearsByActor({
       actorId: currentActor.id
     })
+
+    if (query.data.include === 'usage') {
+      const usage = await getGalleryGearUsage({
+        database,
+        actorId: currentActor.id,
+        gearIds: gears.map((gear) => gear.id)
+      })
+      return apiResponse({
+        req,
+        allowedMethods: [],
+        data: {
+          gears: gears.map((gear) => ({
+            ...toGalleryGearEntity(gear),
+            ...usage.get(gear.id)
+          }))
+        },
+        responseStatusCode: 200
+      })
+    }
 
     return apiResponse({
       req,

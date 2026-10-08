@@ -33,6 +33,7 @@ const Page = async () => {
   return (
     <NavigationSettings
       fitnessUrl="/fitness"
+      galleryUrl="/gallery"
       isAdmin={actor.account.role === 'admin'}
       features={features}
     />

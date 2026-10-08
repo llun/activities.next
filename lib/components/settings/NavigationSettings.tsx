@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   fitnessUrl?: string
+  galleryUrl?: string
   isAdmin?: boolean
   features?: Partial<NavFeatureFlags>
 }
@@ -45,6 +46,7 @@ const StatusCaption: FC<{ children: React.ReactNode }> = ({ children }) => (
 
 export const NavigationSettings: FC<Props> = ({
   fitnessUrl,
+  galleryUrl,
   isAdmin = false,
   features
 }) => {
@@ -86,9 +88,18 @@ export const NavigationSettings: FC<Props> = ({
   // does not have (Admin for a regular user) are a permission rather than a
   // preference, so they are left out entirely.
   const rows = useMemo(() => {
-    const navParams: BuildNavItemsParams = { fitnessUrl, isAdmin, features }
+    const navParams: BuildNavItemsParams = {
+      fitnessUrl,
+      galleryUrl,
+      isAdmin,
+      features
+    }
     const available = availableNavIds(navParams)
-    const thisAccountsItems = availableNavIds({ fitnessUrl, isAdmin })
+    const thisAccountsItems = availableNavIds({
+      fitnessUrl,
+      galleryUrl,
+      isAdmin
+    })
     return order
       .filter((id) => thisAccountsItems.has(id))
       .map((id) => ({
@@ -96,7 +107,7 @@ export const NavigationSettings: FC<Props> = ({
         isHidden: hidden.includes(id),
         isFeatureOff: !available.has(id)
       }))
-  }, [features, fitnessUrl, hidden, isAdmin, order])
+  }, [features, fitnessUrl, galleryUrl, hidden, isAdmin, order])
 
   // Moves a row to the next position *in this list*, which is what dragging
   // does — the sidebar's ⋯ menu skips over hidden items instead, because there

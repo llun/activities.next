@@ -18,6 +18,7 @@ import {
   TabsList,
   TabsTrigger
 } from '@/lib/components/ui/tabs'
+import type { GallerySubview } from '@/lib/services/gallery/galleryEntities'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
@@ -28,8 +29,11 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
+import { cn } from '@/lib/utils'
+import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 import { ActorMediaGallery } from './ActorMediaGallery'
+import { ProfileGalleryTab } from './ProfileGalleryTab'
 
 interface Props {
   host: string
@@ -55,6 +59,16 @@ interface Props {
    * tab is offered at all (it lists the actor's public fitness posts).
    */
   hasFitnessData?: boolean
+  /**
+   * Whether the viewer may see any of this actor's gallery photos. Drives
+   * whether the Gallery tab is offered; `gallerySubviews` lists the views the
+   * viewer may open in it.
+   */
+  hasGalleryMedia?: boolean
+  gallerySubviews?: GallerySubview[]
+  /** `@user@domain`, for links to the posts behind gallery map points. */
+  handle?: string
+  mapProvider?: PublicMapProvider
   isMediaUploadEnabled?: boolean
   isPixelfed?: boolean
   isMediaService?: boolean
@@ -65,7 +79,7 @@ interface Props {
 const LOAD_MORE_PAGE_LIMIT = 5
 const LOAD_MORE_ERROR_MESSAGE = 'Failed to load more posts. Please try again.'
 
-type ProfileTab = 'posts' | 'replies' | 'media' | 'fitness'
+type ProfileTab = 'posts' | 'replies' | 'media' | 'gallery' | 'fitness'
 
 const isReply = (status: Status) => {
   switch (status.type) {
@@ -103,6 +117,16 @@ const appendUniqueStatuses = (
 // to the card (`sm`), then the shared 16px.
 const PROFILE_TAB_TRIGGER_CLASS = 'flex-1 px-2 sm:flex-none sm:px-4'
 
+// With the Gallery tab there can be five triggers (Posts, Replies, Media,
+// Gallery, Fitness): no padding fits them in 282px. Below `sm` the list then
+// scrolls sideways (`overflow-x-auto`, left-aligned so the first trigger is
+// reachable, triggers `flex-none` so none is squeezed); from `sm` up it is as
+// wide as its triggers again, as before.
+const CROWDED_TAB_COUNT = 5
+const CROWDED_TAB_TRIGGER_CLASS = 'flex-none px-2 sm:px-4'
+const CROWDED_TAB_LIST_CLASS =
+  'justify-start overflow-x-auto sm:justify-center sm:overflow-visible'
+
 const EmptyState: FC<{ children: string }> = ({ children }) => (
   <p className="py-10 text-center text-sm text-muted-foreground">{children}</p>
 )
@@ -118,6 +142,10 @@ export const ActorTimelines: FC<Props> = ({
   currentActor,
   isCurrentUser = false,
   hasFitnessData = false,
+  hasGalleryMedia = false,
+  gallerySubviews = [],
+  handle,
+  mapProvider = { type: 'osm' },
   isMediaUploadEnabled,
   isPixelfed = false,
   isMediaService = false,
@@ -140,6 +168,7 @@ export const ActorTimelines: FC<Props> = ({
 
   const showActions = Boolean(currentActor)
   const showFitnessTab = Boolean(hasFitnessData)
+  const showGalleryTab = Boolean(hasGalleryMedia) && gallerySubviews.length > 0
   const showRepliesTab = Boolean(isInternalAccount)
 
   const mediaAttachments = useMemo(() => {
@@ -174,11 +203,19 @@ export const ActorTimelines: FC<Props> = ({
     if (hasMedia) {
       tabs.push('media')
     }
+    if (showGalleryTab) {
+      tabs.push('gallery')
+    }
     if (showFitnessTab) {
       tabs.push('fitness')
     }
     return tabs
-  }, [showRepliesTab, hasMedia, showFitnessTab])
+  }, [showRepliesTab, hasMedia, showGalleryTab, showFitnessTab])
+
+  const isCrowded = availableTabs.length >= CROWDED_TAB_COUNT
+  const tabTriggerClass = isCrowded
+    ? CROWDED_TAB_TRIGGER_CLASS
+    : PROFILE_TAB_TRIGGER_CLASS
 
   const [activeTab, setActiveTab] = useState<ProfileTab>(
     isMediaOnly ? 'media' : 'posts'
@@ -480,22 +517,30 @@ export const ActorTimelines: FC<Props> = ({
         onValueChange={(value) => setActiveTab(value as ProfileTab)}
         className="w-full gap-4"
       >
-        <TabsList className="w-full sm:w-fit" aria-label="Profile sections">
-          <TabsTrigger value="posts" className={PROFILE_TAB_TRIGGER_CLASS}>
+        <TabsList
+          className={cn('w-full sm:w-fit', isCrowded && CROWDED_TAB_LIST_CLASS)}
+          aria-label="Profile sections"
+        >
+          <TabsTrigger value="posts" className={tabTriggerClass}>
             Posts
           </TabsTrigger>
           {showRepliesTab && (
-            <TabsTrigger value="replies" className={PROFILE_TAB_TRIGGER_CLASS}>
+            <TabsTrigger value="replies" className={tabTriggerClass}>
               Replies
             </TabsTrigger>
           )}
           {hasMedia && (
-            <TabsTrigger value="media" className={PROFILE_TAB_TRIGGER_CLASS}>
+            <TabsTrigger value="media" className={tabTriggerClass}>
               Media
             </TabsTrigger>
           )}
+          {showGalleryTab && (
+            <TabsTrigger value="gallery" className={tabTriggerClass}>
+              Gallery
+            </TabsTrigger>
+          )}
           {showFitnessTab && (
-            <TabsTrigger value="fitness" className={PROFILE_TAB_TRIGGER_CLASS}>
+            <TabsTrigger value="fitness" className={tabTriggerClass}>
               Fitness
             </TabsTrigger>
           )}
@@ -518,6 +563,18 @@ export const ActorTimelines: FC<Props> = ({
               initialAttachments={mediaAttachments}
               statuses={currentStatuses}
               isPixelfed={false}
+            />
+          </TabsContent>
+        )}
+
+        {showGalleryTab && (
+          <TabsContent value="gallery" className="mt-0">
+            <ProfileGalleryTab
+              actorId={actorId}
+              handle={handle}
+              subviews={gallerySubviews}
+              isCurrentUser={isCurrentUser}
+              mapProvider={mapProvider}
             />
           </TabsContent>
         )}

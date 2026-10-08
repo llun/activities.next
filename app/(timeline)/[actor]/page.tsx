@@ -13,6 +13,7 @@ import { FeaturedTagsBlock } from '@/lib/components/profile/FeaturedTagsBlock'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
+import { getPublicMapProvider } from '@/lib/config/mapProvider'
 import { getDatabase } from '@/lib/database'
 import { getRelationship } from '@/lib/services/accounts/relationship'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -152,6 +153,8 @@ const Page: FC<Props> = async ({ params }) => {
     followingCount,
     followersCount,
     hasFitnessData,
+    hasGalleryMedia,
+    gallerySubviews,
     isPixelfed,
     isMediaService,
     isInternalAccount,
@@ -395,6 +398,10 @@ const Page: FC<Props> = async ({ params }) => {
         isMediaService={Boolean(isMediaService ?? isMediaOnly)}
         isMediaOnly={Boolean(isMediaOnly ?? isMediaService)}
         hasFitnessData={hasFitnessData}
+        hasGalleryMedia={hasGalleryMedia}
+        gallerySubviews={gallerySubviews}
+        handle={profileHandle}
+        mapProvider={getPublicMapProvider()}
         isMediaUploadEnabled={Boolean(mediaStorage)}
         isInternalAccount={isInternalAccount}
       />

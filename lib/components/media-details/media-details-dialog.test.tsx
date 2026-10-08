@@ -295,6 +295,38 @@ describe('MediaDetailsDialog', () => {
     expect(screen.getByLabelText('Lens')).toHaveTextContent('400mm f/2.8')
   })
 
+  it('keeps the retired gear the media already carries in its picker', async () => {
+    renderDialog([
+      makeItem('a', {
+        details: {
+          ...emptyDetails,
+          camera: { id: 'cam-old', name: 'Retired body' }
+        }
+      })
+    ])
+
+    expect(
+      await screen.findByRole('option', { name: 'Retired body' })
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Camera')).toHaveValue('cam-old')
+    // Other retired gear stays out, and so does the retired body for a media
+    // that does not carry it.
+    expect(
+      screen.getAllByRole('option', { name: 'Retired body' })
+    ).toHaveLength(1)
+  })
+
+  it('opens the gear page in a new tab so the composer is kept', async () => {
+    renderDialog([makeItem('a')])
+    await screen.findByRole('option', { name: 'Nikon Z9' })
+
+    const link = screen.getByRole('link', { name: /Manage gear/ })
+    expect(link).toHaveAttribute('href', '/gallery/gear')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener')
+    expect(link).toHaveAccessibleName('Manage gear (opens in a new tab)')
+  })
+
   it('adds new gear inline and selects it', async () => {
     createGalleryGearMock.mockResolvedValue({
       ...gears[0],

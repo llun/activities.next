@@ -51,8 +51,13 @@ describe('/api/v1/gallery/settings', () => {
     await database.destroy()
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    // Every test starts from the defaults, whatever ran before it.
+    await database.updateGallerySettings({
+      actorId: ACTOR1_ID,
+      ...DEFAULT_GALLERY_SETTINGS
+    })
     vi.mocked(getConfig).mockReturnValue(configWith() as never)
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
@@ -119,7 +124,9 @@ describe('/api/v1/gallery/settings', () => {
           autoDescribe: false,
           galleryDefault: 'always',
           defaultPlacePrecision: 'country',
-          hiddenLocations: [{ name: 'Home', radius: 500 }]
+          hiddenLocations: [
+            { latitude: 51.5, longitude: -0.1, hideRadiusMeters: 500 }
+          ]
         }),
         context
       )
@@ -130,7 +137,9 @@ describe('/api/v1/gallery/settings', () => {
         autoDescribe: false,
         galleryDefault: 'always',
         defaultPlacePrecision: 'country',
-        hiddenLocations: [{ name: 'Home', radius: 500 }],
+        hiddenLocations: [
+          { latitude: 51.5, longitude: -0.1, hideRadiusMeters: 500 }
+        ],
         altTextAvailable: false
       })
       expect(
@@ -159,18 +168,131 @@ describe('/api/v1/gallery/settings', () => {
       ],
       [
         'too many hiddenLocations',
-        { hiddenLocations: Array.from({ length: 201 }, () => ({})) }
+        {
+          hiddenLocations: Array.from({ length: 51 }, (_, index) => ({
+            latitude: index,
+            longitude: 0,
+            hideRadiusMeters: 100
+          }))
+        }
       ],
       [
-        'oversized hiddenLocations',
-        { hiddenLocations: [{ blob: 'x'.repeat(70_000) }] }
+        'a hidden location with an unknown key',
+        {
+          hiddenLocations: [
+            { latitude: 1, longitude: 2, hideRadiusMeters: 100, name: 'Home' }
+          ]
+        }
       ],
-      ['a non-object body', []]
+      ['a non-object body', []],
+      [
+        'a hidden location missing its radius',
+        { hiddenLocations: [{ latitude: 1, longitude: 2 }] }
+      ],
+      [
+        'a latitude out of range',
+        {
+          hiddenLocations: [
+            { latitude: 91, longitude: 2, hideRadiusMeters: 100 }
+          ]
+        }
+      ],
+      [
+        'a longitude out of range',
+        {
+          hiddenLocations: [
+            { latitude: 1, longitude: -181, hideRadiusMeters: 100 }
+          ]
+        }
+      ],
+      [
+        'a hidden location coordinate that is a string',
+        {
+          hiddenLocations: [
+            { latitude: '1', longitude: 2, hideRadiusMeters: 100 }
+          ]
+        }
+      ],
+      [
+        'a zero radius',
+        {
+          hiddenLocations: [{ latitude: 1, longitude: 2, hideRadiusMeters: 0 }]
+        }
+      ],
+      [
+        'a negative radius',
+        {
+          hiddenLocations: [{ latitude: 1, longitude: 2, hideRadiusMeters: -5 }]
+        }
+      ],
+      [
+        'a radius above the largest option',
+        {
+          hiddenLocations: [
+            { latitude: 1, longitude: 2, hideRadiusMeters: 1001 }
+          ]
+        }
+      ]
     ])('answers 422 for %s', async (_, body) => {
       const response = await PUT(putRequest(body), context)
 
       expect(response.status).toBe(422)
       expect(await response.json()).toEqual({ error: 'Unprocessable entity' })
+    })
+
+    it('keeps the stored hidden locations when a 422 rejects the update', async () => {
+      await PUT(
+        putRequest({
+          hiddenLocations: [
+            { latitude: 51.5, longitude: -0.1, hideRadiusMeters: 500 }
+          ]
+        }),
+        context
+      )
+
+      const response = await PUT(
+        putRequest({
+          hiddenLocations: [
+            { latitude: 1, longitude: 2, hideRadiusMeters: 100, name: 'x' }
+          ]
+        }),
+        context
+      )
+
+      expect(response.status).toBe(422)
+      expect(
+        (await database.getGallerySettings({ actorId: ACTOR1_ID }))
+          .hiddenLocations
+      ).toEqual([{ latitude: 51.5, longitude: -0.1, hideRadiusMeters: 500 }])
+    })
+
+    it.each([
+      [1, 50],
+      [50, 50],
+      [51, 100],
+      [150, 200],
+      [201, 500],
+      [501, 1000],
+      [1000, 1000]
+    ])('snaps a %sm radius up to %sm', async (radius, snapped) => {
+      const response = await PUT(
+        putRequest({
+          hiddenLocations: [
+            { latitude: 51.5, longitude: -0.1, hideRadiusMeters: radius }
+          ]
+        }),
+        context
+      )
+
+      expect(response.status).toBe(200)
+      const expected = [
+        { latitude: 51.5, longitude: -0.1, hideRadiusMeters: snapped }
+      ]
+      expect((await response.json()).hiddenLocations).toEqual(expected)
+      expect(
+        (await database.getGallerySettings({ actorId: ACTOR1_ID }))
+          .hiddenLocations
+      ).toEqual(expected)
     })
 
     it('answers 400 for a body that is not JSON', async () => {

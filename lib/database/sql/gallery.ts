@@ -7,12 +7,14 @@ import {
   getWhereInBatchSize,
   isPostgresClient
 } from '@/lib/database/sql/utils/knex'
+import { parseGalleryHiddenLocations } from '@/lib/services/gallery/hiddenLocations'
 import {
   DEFAULT_GALLERY_SETTINGS,
   GALLERY_DEFAULTS,
   GalleryDefault,
   GalleryGear,
   GalleryGearKind,
+  GalleryHiddenLocation,
   GallerySettings,
   MEDIA_PLACE_PRECISIONS,
   MediaPlacePrecision,
@@ -64,6 +66,28 @@ export interface GetGalleryGearNamesByIdsParams {
   ids: string[]
 }
 
+// Presence semantics: an omitted key is left alone; `null` clears the optional
+// ones. `kind` and `deviceKey` are never editable.
+export interface UpdateGalleryGearParams {
+  id: string
+  actorId: string
+  name?: string
+  brand?: string | null
+  model?: string | null
+  productUrl?: string | null
+}
+
+export interface SetGalleryGearRetiredParams {
+  id: string
+  actorId: string
+  retired: boolean
+}
+
+export interface DeleteGalleryGearParams {
+  id: string
+  actorId: string
+}
+
 export interface GetGallerySettingsParams {
   actorId: string
 }
@@ -79,7 +103,7 @@ export interface UpdateGallerySettingsParams {
   showGear?: boolean
   mapPublic?: boolean
   lifeListPublic?: boolean
-  hiddenLocations?: unknown[]
+  hiddenLocations?: GalleryHiddenLocation[]
 }
 
 export interface GalleryDatabase {
@@ -107,6 +131,18 @@ export interface GalleryDatabase {
   getGalleryGearNamesByIds(
     params: GetGalleryGearNamesByIdsParams
   ): Promise<Record<string, string>>
+  // The owner's own non-deleted gear only; null for a missing or foreign id.
+  updateGalleryGear(
+    params: UpdateGalleryGearParams
+  ): Promise<GalleryGear | null>
+  // Idempotent: a repeat does not move `retiredAt`. Null for a missing or
+  // foreign id.
+  setGalleryGearRetired(
+    params: SetGalleryGearRetiredParams
+  ): Promise<GalleryGear | null>
+  // Soft-deletes, releases the `deviceKey` and detaches the actor's media from
+  // the gear. False for a missing or foreign id.
+  deleteGalleryGear(params: DeleteGalleryGearParams): Promise<boolean>
   // Always resolves: an actor with no row gets the defaults.
   getGallerySettings(params: GetGallerySettingsParams): Promise<GallerySettings>
   updateGallerySettings(
@@ -129,11 +165,15 @@ const parseSQLGalleryGear = (row: SQLGalleryGear): GalleryGear => ({
   deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
 })
 
-const parseHiddenLocations = (value: string | null | undefined): unknown[] => {
+// A missing, corrupt or hand-edited column reads as the zones that survive
+// `parseGalleryHiddenLocations`, never as a raw blob: every public projection
+// trusts this shape.
+const parseHiddenLocations = (
+  value: string | null | undefined
+): GalleryHiddenLocation[] => {
   if (!value) return []
   try {
-    const parsed: unknown = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : []
+    return parseGalleryHiddenLocations(JSON.parse(value))
   } catch {
     return []
   }
@@ -283,6 +323,89 @@ export const GallerySQLDatabaseMixin = (database: Knex): GalleryDatabase => {
       }
 
       return names
+    },
+
+    async updateGalleryGear({ id, actorId, ...fields }) {
+      const patch: Record<string, unknown> = {}
+      if (fields.name !== undefined) patch.name = fields.name
+      for (const key of ['brand', 'model', 'productUrl'] as const) {
+        if (fields[key] !== undefined) patch[key] = fields[key]
+      }
+
+      await database('gallery_gears')
+        .where('id', id)
+        .where('actorId', actorId)
+        .whereNull('deletedAt')
+        .update({ ...patch, updatedAt: new Date() })
+
+      // Zero affected rows means "no such gear of yours" as well as "nothing
+      // changed", and the re-read tells them apart.
+      const row = await database<SQLGalleryGear>('gallery_gears')
+        .where('id', id)
+        .where('actorId', actorId)
+        .whereNull('deletedAt')
+        .first()
+      return row ? parseSQLGalleryGear(row) : null
+    },
+
+    async setGalleryGearRetired({ id, actorId, retired }) {
+      const currentTime = new Date()
+
+      // The transition is a predicate on the UPDATE, not a decision taken from
+      // a read in front of it: re-sending `{retired: true}` must not move the
+      // date the owner put the gear away on, and two concurrent requests must
+      // not both write.
+      const query = database('gallery_gears')
+        .where('id', id)
+        .where('actorId', actorId)
+        .whereNull('deletedAt')
+      if (retired) {
+        query.whereNull('retiredAt')
+      } else {
+        query.whereNotNull('retiredAt')
+      }
+      await query.update({
+        retiredAt: retired ? currentTime : null,
+        updatedAt: currentTime
+      })
+
+      const row = await database<SQLGalleryGear>('gallery_gears')
+        .where('id', id)
+        .where('actorId', actorId)
+        .whereNull('deletedAt')
+        .first()
+      return row ? parseSQLGalleryGear(row) : null
+    },
+
+    async deleteGalleryGear({ id, actorId }) {
+      return database.transaction(async (trx) => {
+        const currentTime = new Date()
+        const deleted = await trx('gallery_gears')
+          .where('id', id)
+          .where('actorId', actorId)
+          .whereNull('deletedAt')
+          .update({
+            deletedAt: currentTime,
+            updatedAt: currentTime,
+            // The `(actorId, deviceKey)` unique index covers soft-deleted rows,
+            // so the key is released here or the next upload from this camera
+            // could neither find nor re-create its gear.
+            deviceKey: null
+          })
+        if (deleted === 0) return false
+
+        // Media outlives its gear. Scoped to the actor as well, so a stale
+        // reference on somebody else's row is never rewritten.
+        await trx('medias')
+          .where('cameraGearId', id)
+          .where('actorId', actorId)
+          .update({ cameraGearId: null })
+        await trx('medias')
+          .where('lensGearId', id)
+          .where('actorId', actorId)
+          .update({ lensGearId: null })
+        return true
+      })
     },
 
     async getGallerySettings({ actorId }) {

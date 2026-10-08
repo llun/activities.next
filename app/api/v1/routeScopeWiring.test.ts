@@ -512,6 +512,26 @@ const EXPECTED: Array<{
     scopes: ['read', 'read:statuses'],
     guard: 'OptionalOAuthGuard:any'
   },
+  {
+    module: '@/app/api/v1/accounts/[id]/gallery/media/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/gallery/subjects/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/gallery/life-list/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/gallery/map/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
   { module: '@/app/api/v2/media/route', scopes: ['write', 'write:media'] },
   // announcements and suggestions lists
   {
