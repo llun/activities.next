@@ -25,7 +25,7 @@ answer. It does not do the bulk reading, searching, editing or reviewing itself.
 Sub-agents do their assigned task directly and do not spawn further sub-agents
 unless their brief says to. The only exception is a session that cannot spawn
 sub-agents at all; see [When sub-agents are
-unavailable](CONTRIBUTING.md#agents-code-review-loop-sub-agents). The review
+unavailable](CONTRIBUTING.md#when-sub-agents-are-unavailable). The review
 loop itself is specified in [Code Review Loop
 (Sub-Agents)](CONTRIBUTING.md#agents-code-review-loop-sub-agents).
 
@@ -35,7 +35,7 @@ loop itself is specified in [Code Review Loop
   files or logs, implementation, test runs, and code review each go to a
   sub-agent. The main thread keeps the conclusions and the evidence it needs to
   verify them, not the raw output. The main thread may still do directly:
-  reading the parts of this file it needs to brief sub-agents, one short command
+  reading the parts of this file and the rule sections it links to (Mandatory workflow, Required subsystem reading map) that it needs to brief sub-agents, one short command
   or one small file whose output it needs anyway (for example `git status`, `git
 diff --stat`, or spot-checking a `file:line` a sub-agent cited), and git/PR
   bookkeeping (commits, pushes, PR descriptions, replying to and resolving
@@ -51,13 +51,13 @@ diff --stat`, or spot-checking a `file:line` a sub-agent cited), and git/PR
   separate worktrees or non-overlapping files so they do not overwrite each
   other.
 - **Brief each sub-agent completely.** A sub-agent starts with no context: give
-  it the goal, the relevant paths, the constraints from this file, whether it
+  it the goal, the relevant paths, the constraints from this file, the required-reading sections for the subsystems it touches (see Required subsystem reading map), whether it
   may edit files, commit or push, and the exact shape of the result you want
   back.
 - **Verify before trusting.** Check a sub-agent's claims (diffs, test output,
   `file:line` references) before building on them or reporting them. If a cheap
-  sub-agent's result is wrong or shallow, re-run that task one step up (next
-  effort level, or next model tier) rather than patching around it.
+  sub-agent's result is wrong or shallow, re-run that task one step up the
+  escalation ladder below rather than patching around it.
 - **Review with a fresh sub-agent.** The code review loop always uses a separate
   reviewer sub-agent that did not write the change, and a new reviewer for each
   round; fixes go to an implementer sub-agent. Repeat until the reviewer comes
@@ -71,17 +71,18 @@ overall change is. The models, cheapest to strongest, are `haiku`, `sonnet` and
 `opus`; effort levels, lowest to highest, are `low`, `medium`, `high`, `xhigh`
 and `max`.
 
-| Task                                                                                                            | Model    | Effort   |
-| --------------------------------------------------------------------------------------------------------------- | -------- | -------- |
-| Finding files, grepping, listing usages, reading logs, summarizing docs                                         | `haiku`  | `low`    |
-| Mechanical edit of exact text in one or two files (rename, formatting, applying a fix that is already decided)  | `haiku`  | `low`    |
-| Mechanical edit that spans several files or needs surrounding code read (including updating docs to match code) | `sonnet` | `low`    |
-| Running builds, tests and linters and reporting failures                                                        | `haiku`  | `low`    |
-| Implementing a well-specified feature or fix, writing tests                                                     | `sonnet` | `medium` |
-| Root-causing a CI failure or a bug with a clear reproduction                                                    | `sonnet` | `medium` |
-| Architecture and design decisions, plans that touch several subsystems                                          | `opus`   | `high`   |
-| Hard debugging (concurrency, data loss, security, flaky behavior with no clear cause)                           | `opus`   | `high`   |
-| Code review of a change before it is pushed or merged                                                           | `opus`   | `high`   |
+| Task                                                                                                                                                                                                                                                                         | Model    | Effort   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- |
+| Finding files, grepping, listing usages, reading logs, summarizing docs                                                                                                                                                                                                      | `haiku`  | `low`    |
+| Mechanical edit of exact text in one or two files (rename, formatting, applying a fix that is already decided)                                                                                                                                                               | `haiku`  | `low`    |
+| Mechanical edit that spans several files or needs surrounding code read (including updating docs to match code)                                                                                                                                                              | `sonnet` | `low`    |
+| Running builds, tests and linters and reporting failures                                                                                                                                                                                                                     | `haiku`  | `low`    |
+| Implementing a well-specified feature or fix, writing tests                                                                                                                                                                                                                  | `sonnet` | `medium` |
+| Root-causing a CI failure or a bug with a clear reproduction                                                                                                                                                                                                                 | `sonnet` | `medium` |
+| Implementing, root-causing or planning changes in high-risk areas: ActivityPub federation (signatures, JSON-LD, inbox/outbox, deletes), auth/OAuth/better-auth, actor and status visibility, Knex migrations and schema dumps, storage-root and outbound-HTTP security rules | `opus`   | `high`   |
+| Architecture and design decisions, plans that touch several subsystems                                                                                                                                                                                                       | `opus`   | `high`   |
+| Hard debugging (concurrency, data loss, security, flaky behavior with no clear cause)                                                                                                                                                                                        | `opus`   | `high`   |
+| Code review of a change before it is pushed or merged                                                                                                                                                                                                                        | `opus`   | `high`   |
 
 Guidelines:
 
@@ -90,11 +91,9 @@ Guidelines:
 - Use `haiku` freely for retrieval and mechanical changes. It is the cheapest
   and fastest, and a wrong search result is cheap to redo.
 - Reserve `opus` and `high` effort for work where a mistake is expensive:
-  design, security-sensitive code, subtle bugs, and review.
-- Escalate one step at a time: raise effort first (`medium` → `high` → `xhigh` →
-  `max`), and move up a model tier when a higher effort on the same model still
-  falls short. Use `max` only when `xhigh` has failed or the problem is
-  unusually hard.
+  design, the high-risk areas in the table, subtle bugs, and review. When a
+  task matches both a cheaper row and the high-risk row, the high-risk row wins.
+- Escalate one step at a time. A `haiku` task that falls short moves to `sonnet` at the table's effort for that kind of task (or `medium`); do not raise `haiku` past `medium`. On `sonnet`, raise effort to `high`, then move to `opus` at `high`. On `opus`, raise effort `high` → `xhigh` → `max`. Use `max` only on `opus`, when `xhigh` has failed or the problem is unusually hard.
 - Do not pick other model values (for example `fable`) unless the user asks for
   them. When the available models change, map them onto the same three tiers
   (cheapest, balanced, strongest) rather than pinning these names.
