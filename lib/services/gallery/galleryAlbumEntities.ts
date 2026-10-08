@@ -37,6 +37,10 @@ export interface GalleryAlbumCardEntity extends GalleryAlbumEntity {
   // when none was chosen. It can name an item the audience cannot see, so it
   // never goes to a visitor.
   coverMediaId: string | null
+  // Owner only (0 for anyone else, and never computed for them): how many
+  // distinct places of the album's photos a visitor is not shown because the
+  // photo is of a threatened species or its check has not finished.
+  hiddenPlaceCount: number
 }
 
 export interface GalleryAlbumListResponse {
@@ -77,13 +81,17 @@ export interface GalleryAlbumMediaPage {
 export interface GalleryAlbumDetailResponse {
   album: GalleryAlbumCardEntity
   // Computed from what a visitor would be shown (the logged-out audience), so
-  // the owner previews the real public numbers.
+  // the owner previews the real public numbers, whether or not the album is
+  // public yet.
   facts: GalleryAlbumFacts
   // Owner only: how many distinct places the facts leave out because their
   // photo is of a threatened species (or its check has not finished).
   hiddenPlaceCount: number
   // The owner's own view of the species in the album, most photos first.
   species: GalleryAlbumSpeciesChip[]
+  // Every photo in the album that the owner can see (media ids), so the add
+  // dialog can show which of their photos are already in it.
+  mediaIds: string[]
   page: GalleryAlbumMediaPage
 }
 

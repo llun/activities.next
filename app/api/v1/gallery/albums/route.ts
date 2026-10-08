@@ -80,13 +80,17 @@ export const POST = traceApiRoute(
 
       const { title, description, visibility, sort_order, media_ids } =
         parsed.data
+      // The album and its first photos are written in one transaction: if
+      // the add fails, no empty album is left behind.
       const created = await database.createGalleryAlbumWithinLimit({
         actorId: currentActor.id,
         title,
         description,
         visibility,
         sortOrder: sort_order,
-        limit: MAX_GALLERY_ALBUMS_PER_ACTOR
+        limit: MAX_GALLERY_ALBUMS_PER_ACTOR,
+        mediaIds: media_ids,
+        itemLimit: MAX_GALLERY_ALBUM_ITEMS
       })
       if (created.status === 'limit-reached') {
         return apiResponse({
@@ -96,21 +100,7 @@ export const POST = traceApiRoute(
           responseStatusCode: 422
         })
       }
-
-      let added: string[] = []
-      let existing: string[] = []
-      let skipped: string[] = []
-      if (media_ids) {
-        const result = await database.addGalleryAlbumItems({
-          albumId: created.album.id,
-          actorId: currentActor.id,
-          mediaIds: media_ids,
-          limit: MAX_GALLERY_ALBUM_ITEMS
-        })
-        if (result.status === 'added') {
-          ;({ added, existing, skipped } = result)
-        }
-      }
+      const { added, existing, skipped } = created
 
       const album = await getGalleryAlbumCard({
         database,

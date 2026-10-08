@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { Knex } from 'knex'
 
+import { lockGalleryAlbumActor } from '@/lib/database/sql/galleryAlbumCleanup'
 import {
   GALLERY_INDEX_COLUMNS,
   GalleryIndexRow,
@@ -16,8 +17,7 @@ import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   chunkArray,
   getInsertBatchSize,
-  getWhereInBatchSize,
-  isPostgresClient
+  getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
 import {
   type GalleryAudience,
@@ -31,6 +31,7 @@ import {
   GalleryAlbum,
   GalleryAlbumSort,
   GalleryAlbumVisibility,
+  MAX_GALLERY_ALBUM_ITEMS,
   SQLGalleryAlbum
 } from '@/lib/types/database/galleryAlbums'
 
@@ -56,6 +57,24 @@ const ITEMS = 'gallery_album_items'
 // `galleryMedia.ts`: generous, so SQLite's 999-variable cap is never hit.
 const RESERVED_BINDINGS = 64
 
+// The columns the "places hidden" count reads: the subject (for the
+// threatened-species rule) and the place.
+const PLACE_INDEX_COLUMNS = [
+  'id',
+  'subjectName',
+  'subjectScientificName',
+  'subjectCategory',
+  'subjectTaxonKey',
+  'subjectIucnCategory',
+  'subjectLookupStatus',
+  'placeName',
+  'placePrecision',
+  'placeLatitude',
+  'placeLongitude',
+  'takenAt',
+  'createdAt'
+] as const
+
 // How many cover candidates an album card shows: the cover and two more.
 const PREVIEW_COUNT = 3
 
@@ -77,10 +96,24 @@ export interface CreateGalleryAlbumWithinLimitParams {
   sortOrder?: GalleryAlbumSort
   // The most albums the actor may hold; at or past it nothing is inserted.
   limit: number
+  // The first photos, added in the same transaction as the album: either both
+  // are written or neither is, so a failed add never leaves an empty album.
+  mediaIds?: string[]
+  // The most items an album may hold, for `mediaIds`.
+  itemLimit?: number
 }
 
 export type CreateGalleryAlbumWithinLimitResult =
-  { status: 'created'; album: GalleryAlbum } | { status: 'limit-reached' }
+  | {
+      status: 'created'
+      album: GalleryAlbum
+      // What became of `mediaIds`, as `addGalleryAlbumItems` reports it (all
+      // empty without `mediaIds`).
+      added: string[]
+      existing: string[]
+      skipped: string[]
+    }
+  | { status: 'limit-reached' }
 
 export interface GetGalleryAlbumParams {
   id: string
@@ -194,6 +227,18 @@ export interface GetGalleryAlbumIndexParams {
   albumId: string
   actorId: string
   audience: GalleryAudience
+  // Read the audience's rows even when the audience may not open the album
+  // itself (a private album read as the public). For the owner's own preview of
+  // what a visitor would see, once the caller has checked ownership; the
+  // photos are still scoped to the audience.
+  ignoreAlbumVisibility?: boolean
+}
+
+export interface GetGalleryAlbumPlaceIndexesParams {
+  actorId: string
+  audience: GalleryAudience
+  // Only this album.
+  albumId?: string
 }
 
 export interface CountGalleryAlbumMediaParams {
@@ -208,8 +253,9 @@ export interface GetAlbumsForMediaParams {
 }
 
 export interface GalleryAlbumDatabase {
-  // The album, the cap and the insert are decided in one transaction
-  // serialised on the actor row, so concurrent creates cannot overshoot it.
+  // The album, the cap, the insert and the first photos are decided in one
+  // transaction serialised on the actor row, so concurrent creates cannot
+  // overshoot the cap and a failed add leaves no album behind.
   createGalleryAlbumWithinLimit(
     params: CreateGalleryAlbumWithinLimitParams
   ): Promise<CreateGalleryAlbumWithinLimitResult>
@@ -247,6 +293,14 @@ export interface GalleryAlbumDatabase {
   getGalleryAlbumIndex(
     params: GetGalleryAlbumIndexParams
   ): Promise<GalleryAlbumIndexRow[]>
+  // The visible items that carry a place, grouped by album, for the owner's
+  // "places hidden" count on the album cards: one read for every album (or
+  // just `albumId`), with only the subject and place columns. Albums the
+  // audience may not open are left out; albums with nothing to report may be
+  // too.
+  getGalleryAlbumPlaceIndexes(
+    params: GetGalleryAlbumPlaceIndexesParams
+  ): Promise<{ albumId: string; rows: GalleryAlbumIndexRow[] }[]>
   // How many distinct media the audience can see across the actor's albums
   // (public albums only, for anyone but the owner). A photo in several albums
   // counts once.
@@ -417,9 +471,13 @@ export const GalleryAlbumSQLDatabaseMixin = (
   const readIndex = async (
     albumId: string,
     actorId: string,
-    audience: GalleryAudience
+    audience: GalleryAudience,
+    ignoreAlbumVisibility = false
   ): Promise<GalleryAlbumIndexRow[]> => {
-    if (!(await readOpenableAlbum(albumId, actorId, audience))) return []
+    const album = ignoreAlbumVisibility
+      ? await readAlbum(albumId, actorId)
+      : await readOpenableAlbum(albumId, actorId, audience)
+    if (!album) return []
 
     const rows: Array<Record<string, unknown>> = await visibleItemsQuery(
       [albumId],
@@ -468,13 +526,87 @@ export const GalleryAlbumSQLDatabaseMixin = (
     }
   }
 
-  const lockActor = async (trx: Knex.Transaction, actorId: string) => {
-    // Serialise one actor's album writes on their actor row, as the gear
-    // creates do. SQLite's single writer connection already serialises
-    // transactions, so the lock is PostgreSQL-only.
-    const lock = trx('actors').where({ id: actorId }).select('id')
-    if (isPostgresClient(database)) lock.forUpdate()
-    await lock
+  const lockActor = lockGalleryAlbumActor
+
+  // Adds the actor's own gallery media to the album inside the caller's
+  // transaction, which holds the actor lock. All or nothing against `limit`.
+  const addItems = async (
+    trx: Knex.Transaction,
+    {
+      albumId,
+      actorId,
+      mediaIds,
+      limit
+    }: { albumId: string; actorId: string; mediaIds: string[]; limit: number }
+  ): Promise<AddGalleryAlbumItemsResult> => {
+    const album = await readAlbum(albumId, actorId, trx)
+    if (!album) return { status: 'not-found' }
+
+    const requested = toRowIds(mediaIds)
+    // Anything that is not a media id at all is skipped too.
+    const invalid = [...new Set(mediaIds.map(String))].filter(
+      (id) => toMediaRowId(id) === null
+    )
+
+    // Only the actor's own gallery media: the same scope the owner's gallery
+    // reads through, so a foreign id, a missing one, an unposted upload and a
+    // photo outside the gallery are all skipped.
+    const usable = new Set<number>()
+    for (const chunk of chunkArray(
+      requested,
+      getWhereInBatchSize(trx, RESERVED_BINDINGS)
+    )) {
+      const query = trx('medias').whereIn('medias.id', chunk)
+      buildGalleryMediaScope(trx, actorId, { kind: 'owner' })(query)
+      const rows: Array<{ id: number | string }> =
+        await query.select('medias.id')
+      for (const row of rows) usable.add(Number(row.id))
+    }
+
+    const present = new Set<number>()
+    for (const chunk of chunkArray(
+      [...usable],
+      getWhereInBatchSize(trx, RESERVED_BINDINGS)
+    )) {
+      const rows: Array<{ mediaId: number | string }> = await trx(ITEMS)
+        .where('albumId', albumId)
+        .whereIn('mediaId', chunk)
+        .select('mediaId')
+      for (const row of rows) present.add(Number(row.mediaId))
+    }
+
+    const fresh = [...usable].filter((id) => !present.has(id))
+    const count = await trx(ITEMS)
+      .where('albumId', albumId)
+      .count<{ total: number | string }[]>({ total: '*' })
+      .first()
+    if (Number(count?.total ?? 0) + fresh.length > limit) {
+      return { status: 'limit-reached' }
+    }
+
+    if (fresh.length > 0) {
+      const currentTime = new Date()
+      const rows = fresh.map((mediaId) => ({
+        albumId,
+        mediaId,
+        actorId,
+        createdAt: currentTime
+      }))
+      for (const chunk of chunkArray(rows, getInsertBatchSize(trx, rows[0]))) {
+        await trx(ITEMS).insert(chunk)
+      }
+      await trx(ALBUMS).where('id', albumId).update({ updatedAt: currentTime })
+    }
+
+    return {
+      status: 'added',
+      added: fresh.map(String),
+      existing: requested.filter((id) => present.has(id)).map(String),
+      skipped: [
+        ...requested.filter((id) => !usable.has(id)).map(String),
+        ...invalid
+      ]
+    }
   }
 
   return {
@@ -484,7 +616,9 @@ export const GalleryAlbumSQLDatabaseMixin = (
       description,
       visibility,
       sortOrder,
-      limit
+      limit,
+      mediaIds,
+      itemLimit
     }) {
       return database.transaction(
         async (trx): Promise<CreateGalleryAlbumWithinLimitResult> => {
@@ -511,7 +645,33 @@ export const GalleryAlbumSQLDatabaseMixin = (
             updatedAt: currentTime
           }
           await trx(ALBUMS).insert(row)
-          return { status: 'created', album: parseAlbum(row) }
+
+          let added: string[] = []
+          let existing: string[] = []
+          let skipped: string[] = []
+          if (mediaIds && mediaIds.length > 0) {
+            const result = await addItems(trx, {
+              albumId: row.id,
+              actorId,
+              mediaIds,
+              limit: itemLimit ?? MAX_GALLERY_ALBUM_ITEMS
+            })
+            // A fresh album can only take the ids when they fit; anything
+            // else rolls the album back with them.
+            if (result.status !== 'added') {
+              throw new Error(
+                `Could not add the first photos to the new album: ${result.status}`
+              )
+            }
+            ;({ added, existing, skipped } = result)
+          }
+          return {
+            status: 'created',
+            album: parseAlbum(row),
+            added,
+            existing,
+            skipped
+          }
         }
       )
     },
@@ -560,6 +720,9 @@ export const GalleryAlbumSQLDatabaseMixin = (
     async updateGalleryAlbum({ id, actorId, ...patch }) {
       return database.transaction(
         async (trx): Promise<UpdateGalleryAlbumResult> => {
+          // Under the actor lock, so the cover check below and a concurrent
+          // remove cannot interleave; the album is read after taking it.
+          await lockActor(trx, actorId)
           const album = await readAlbum(id, actorId, trx)
           if (!album) return { status: 'not-found' }
 
@@ -604,6 +767,7 @@ export const GalleryAlbumSQLDatabaseMixin = (
 
     async deleteGalleryAlbum({ id, actorId }) {
       return database.transaction(async (trx) => {
+        await lockActor(trx, actorId)
         const album = await readAlbum(id, actorId, trx)
         if (!album) return false
         // The items go with the album (SQLite has no foreign keys to do it);
@@ -621,80 +785,7 @@ export const GalleryAlbumSQLDatabaseMixin = (
       return database.transaction(
         async (trx): Promise<AddGalleryAlbumItemsResult> => {
           await lockActor(trx, actorId)
-
-          const album = await readAlbum(albumId, actorId, trx)
-          if (!album) return { status: 'not-found' }
-
-          const requested = toRowIds(mediaIds)
-          // Anything that is not a media id at all is skipped too.
-          const invalid = [...new Set(mediaIds.map(String))].filter(
-            (id) => toMediaRowId(id) === null
-          )
-
-          // Only the actor's own gallery media: the same scope the owner's
-          // gallery reads through, so a foreign id, a missing one, an unposted
-          // upload and a photo outside the gallery are all skipped.
-          const usable = new Set<number>()
-          for (const chunk of chunkArray(
-            requested,
-            getWhereInBatchSize(trx, RESERVED_BINDINGS)
-          )) {
-            const query = trx('medias').whereIn('medias.id', chunk)
-            buildGalleryMediaScope(trx, actorId, { kind: 'owner' })(query)
-            const rows: Array<{ id: number | string }> =
-              await query.select('medias.id')
-            for (const row of rows) usable.add(Number(row.id))
-          }
-
-          const present = new Set<number>()
-          for (const chunk of chunkArray(
-            [...usable],
-            getWhereInBatchSize(trx, RESERVED_BINDINGS)
-          )) {
-            const rows: Array<{ mediaId: number | string }> = await trx(ITEMS)
-              .where('albumId', albumId)
-              .whereIn('mediaId', chunk)
-              .select('mediaId')
-            for (const row of rows) present.add(Number(row.mediaId))
-          }
-
-          const fresh = [...usable].filter((id) => !present.has(id))
-          const count = await trx(ITEMS)
-            .where('albumId', albumId)
-            .count<{ total: number | string }[]>({ total: '*' })
-            .first()
-          if (Number(count?.total ?? 0) + fresh.length > limit) {
-            return { status: 'limit-reached' }
-          }
-
-          if (fresh.length > 0) {
-            const currentTime = new Date()
-            const rows = fresh.map((mediaId) => ({
-              albumId,
-              mediaId,
-              actorId,
-              createdAt: currentTime
-            }))
-            for (const chunk of chunkArray(
-              rows,
-              getInsertBatchSize(trx, rows[0])
-            )) {
-              await trx(ITEMS).insert(chunk)
-            }
-            await trx(ALBUMS)
-              .where('id', albumId)
-              .update({ updatedAt: currentTime })
-          }
-
-          return {
-            status: 'added',
-            added: fresh.map(String),
-            existing: requested.filter((id) => present.has(id)).map(String),
-            skipped: [
-              ...requested.filter((id) => !usable.has(id)).map(String),
-              ...invalid
-            ]
-          }
+          return addItems(trx, { albumId, actorId, mediaIds, limit })
         }
       )
     },
@@ -702,6 +793,9 @@ export const GalleryAlbumSQLDatabaseMixin = (
     async removeGalleryAlbumItems({ albumId, actorId, mediaIds }) {
       return database.transaction(
         async (trx): Promise<RemoveGalleryAlbumItemsResult> => {
+          // Under the actor lock, and the album (with its cover) is read after
+          // taking it, so a cover set a moment ago is seen here.
+          await lockActor(trx, actorId)
           const album = await readAlbum(albumId, actorId, trx)
           if (!album) return { status: 'not-found' }
 
@@ -792,8 +886,52 @@ export const GalleryAlbumSQLDatabaseMixin = (
       })
     },
 
-    getGalleryAlbumIndex({ albumId, actorId, audience }) {
-      return readIndex(albumId, actorId, audience)
+    getGalleryAlbumIndex({
+      albumId,
+      actorId,
+      audience,
+      ignoreAlbumVisibility
+    }) {
+      return readIndex(albumId, actorId, audience, ignoreAlbumVisibility)
+    },
+
+    async getGalleryAlbumPlaceIndexes({ actorId, audience, albumId }) {
+      const albumQuery = database<SQLGalleryAlbum>(ALBUMS)
+        .where('actorId', actorId)
+        .select('id')
+      if (albumId !== undefined) albumQuery.where('id', albumId)
+      if (!isOwnerGalleryAudience(audience)) {
+        albumQuery.where('visibility', 'public')
+      }
+      const albumIds = (await albumQuery).map((row) => row.id)
+
+      const groups = new Map<string, GalleryAlbumIndexRow[]>()
+      for (const chunk of chunkArray(
+        albumIds,
+        getWhereInBatchSize(database, RESERVED_BINDINGS)
+      )) {
+        const rows: Array<Record<string, unknown>> = await visibleItemsQuery(
+          chunk,
+          actorId,
+          audience
+        )
+          .where((place) =>
+            place
+              .whereNotNull('medias.placeName')
+              .orWhereNotNull('medias.placeLatitude')
+          )
+          .select(
+            'album_items.albumId as albumId',
+            ...PLACE_INDEX_COLUMNS.map((column) => `medias.${column}`)
+          )
+        for (const row of rows) {
+          const key = String(row.albumId)
+          const list = groups.get(key) ?? []
+          list.push({ ...toGalleryIndexRow(row), addedAt: 0 })
+          groups.set(key, list)
+        }
+      }
+      return [...groups].map(([id, rows]) => ({ albumId: id, rows }))
     },
 
     async countGalleryAlbumMedia({ actorId, audience }) {

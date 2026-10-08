@@ -1,13 +1,15 @@
 import type { GalleryAlbumCursor } from '@/lib/database/sql/galleryAlbums'
 import {
   databaseBeforeAll,
-  getTestDatabaseTable
+  getTestDatabaseTable,
+  getTestDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import {
   GalleryAudience,
   OWNER_GALLERY_AUDIENCE,
   PUBLIC_GALLERY_AUDIENCE
 } from '@/lib/services/gallery/galleryAudience'
+import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { MediaDetailsRecord } from '@/lib/types/database/gallery'
@@ -276,8 +278,11 @@ describe('GalleryAlbumDatabase', () => {
         expect(album.id).toBeString()
       })
 
-      it('refuses past the per-actor cap and inserts nothing', async () => {
-        const actorId = actors.followRequester.id
+      it('refuses past the per-actor cap, counting only the actor own albums', async () => {
+        // Its own actor, so no other test's albums count toward the cap.
+        const actorId = actors.primary.id
+        // Another actor's album must not count toward this one's cap.
+        await createAlbum(uniqueTitle())
         const make = (title: string) =>
           database.createGalleryAlbumWithinLimit({
             actorId,
@@ -299,13 +304,76 @@ describe('GalleryAlbumDatabase', () => {
         ])
       })
 
-      it('counts only the actor own albums toward the cap', async () => {
+      it('holds the cap under concurrent creates', async () => {
+        // Its own actor: three creates race for two places.
+        const actorId = actors.pollAuthor.id
+
+        const results = await Promise.all(
+          ['A', 'B', 'C'].map((title) =>
+            database.createGalleryAlbumWithinLimit({
+              actorId,
+              title,
+              limit: 2
+            })
+          )
+        )
+
+        expect(results.filter((r) => r.status === 'created')).toHaveLength(2)
+        expect(
+          results.filter((r) => r.status === 'limit-reached')
+        ).toHaveLength(1)
+        expect(
+          await database.getGalleryAlbumSummaries({
+            actorId,
+            audience: OWNER_GALLERY_AUDIENCE
+          })
+        ).toHaveLength(2)
+      })
+
+      it('creates the album and its first photos together', async () => {
         const result = await database.createGalleryAlbumWithinLimit({
-          actorId: actors.followRequester.id,
-          title: 'Other',
-          limit: 3
+          actorId: ownerId,
+          title: uniqueTitle(),
+          limit: MAX_GALLERY_ALBUMS_PER_ACTOR,
+          mediaIds: [ids.public, ids.foreign, ids.hidden, ids.public],
+          itemLimit: MAX_GALLERY_ALBUM_ITEMS
         })
-        expect(result.status).toBe('created')
+
+        if (result.status !== 'created') throw new Error('not created')
+        expect(result.added).toEqual([ids.public])
+        expect(result.existing).toEqual([])
+        expect(result.skipped).toEqual(
+          expect.arrayContaining([ids.foreign, ids.hidden])
+        )
+        expect(await namesIn(result.album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
+          'public'
+        ])
+      })
+
+      it('creates nothing when the first photos cannot be added', async () => {
+        const titles = async () =>
+          (
+            await database.getGalleryAlbumSummaries({
+              actorId: ownerId,
+              audience: OWNER_GALLERY_AUDIENCE
+            })
+          ).map((summary) => summary.album.title)
+        const title = uniqueTitle()
+        expect(await titles()).not.toContain(title)
+
+        // Two photos against an item cap of one: the add cannot be made, so
+        // the album is rolled back with it.
+        await expect(
+          database.createGalleryAlbumWithinLimit({
+            actorId: ownerId,
+            title,
+            limit: MAX_GALLERY_ALBUMS_PER_ACTOR,
+            mediaIds: [ids.public, ids.public2],
+            itemLimit: 1
+          })
+        ).rejects.toThrow()
+
+        expect(await titles()).not.toContain(title)
       })
     })
 
@@ -406,6 +474,23 @@ describe('GalleryAlbumDatabase', () => {
           added: [],
           existing: [ids.public]
         })
+      })
+
+      it('holds the item cap under concurrent adds', async () => {
+        const album = await createAlbum(uniqueTitle())
+        await addItems(album.id, ['public'], 2)
+
+        // Each fits alone (one item left), both do not.
+        const results = await Promise.all([
+          addItems(album.id, ['public2'], 2),
+          addItems(album.id, ['followers'], 2)
+        ])
+
+        expect(results.filter((r) => r.status === 'added')).toHaveLength(1)
+        expect(
+          results.filter((r) => r.status === 'limit-reached')
+        ).toHaveLength(1)
+        expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toHaveLength(2)
       })
     })
 
@@ -585,24 +670,123 @@ describe('GalleryAlbumDatabase', () => {
         ).toEqual([])
       })
 
+      it('reads the public rows of a private album when asked, for its owner preview', async () => {
+        const secret = await createAlbum(uniqueTitle(), {
+          visibility: 'private'
+        })
+        await addItems(secret.id, ['public', 'followers'])
+        const read = (actorId: string, ignoreAlbumVisibility?: boolean) =>
+          database.getGalleryAlbumIndex({
+            albumId: secret.id,
+            actorId,
+            audience: PUBLIC_GALLERY_AUDIENCE,
+            ignoreAlbumVisibility
+          })
+
+        // Closed to a visitor by default.
+        expect(await read(ownerId)).toEqual([])
+        // Asked to ignore the album's own gate: still only the photos the
+        // public audience may see, never the followers-only one.
+        expect(
+          namesOf((await read(ownerId, true)).map((row) => row.id))
+        ).toEqual(['public'])
+        // And never another account's album.
+        expect(await read(otherActorId, true)).toEqual([])
+      })
+
       it('lists only public albums with something visible to a visitor', async () => {
+        // Its own account with its own photos and albums, so the exact titles
+        // below do not depend on any other test.
         const actorId = actors.followRequester.id
-        await createAlbum('Visitor public', { actorId })
-        const summariesFor = (audience: GalleryAudience) =>
-          database.getGalleryAlbumSummaries({ actorId: ownerId, audience })
-
-        const owner = await summariesFor(OWNER_GALLERY_AUDIENCE)
-        const stranger = await summariesFor(audiences.stranger)
-
-        expect(stranger.length).toBeGreaterThan(0)
-        expect(owner.length).toBeGreaterThan(stranger.length)
-        for (const summary of stranger) {
-          expect(summary.album.visibility).toBe('public')
-          expect(summary.itemCount).toBeGreaterThan(0)
+        const stranger: GalleryAudience = {
+          kind: 'viewer',
+          publicOnly: false,
+          visibleToActorId: strangerId,
+          includeFollowersOnly: false,
+          followersAudience: `${actorId}/followers`
         }
-        // Last updated first.
-        const updated = owner.map((summary) => summary.album.updatedAt)
-        expect(updated).toEqual([...updated].sort((a, b) => b - a))
+        for (const [name, to] of [
+          ['list-open', [ACTIVITY_STREAM_PUBLIC]],
+          ['list-followers', [`${actorId}/followers`]]
+        ] as const) {
+          await createMedia(name, {}, actorId)
+          await post(name, name, [...to], [], actorId)
+        }
+        const add = (albumId: string, name: string) =>
+          database.addGalleryAlbumItems({
+            albumId,
+            actorId,
+            mediaIds: [ids[name]],
+            limit: MAX_GALLERY_ALBUM_ITEMS
+          })
+
+        const open = await createAlbum('List open', { actorId })
+        await add(open.id, 'list-open')
+        const secret = await createAlbum('List private', {
+          actorId,
+          visibility: 'private'
+        })
+        await add(secret.id, 'list-open')
+        const followersOnly = await createAlbum('List followers', { actorId })
+        await add(followersOnly.id, 'list-followers')
+        await createAlbum('List empty', { actorId })
+
+        const titlesFor = async (audience: GalleryAudience) =>
+          (await database.getGalleryAlbumSummaries({ actorId, audience })).map(
+            (summary) => summary.album.title
+          )
+
+        const owner = await titlesFor(OWNER_GALLERY_AUDIENCE)
+        expect([...owner].sort()).toEqual([
+          'List empty',
+          'List followers',
+          'List open',
+          'List private'
+        ])
+        // A visitor: public, with a photo they may see. Not the private
+        // album, not the empty one, not the one holding only a followers-only
+        // post.
+        expect(await titlesFor(stranger)).toEqual(['List open'])
+        expect(await titlesFor(PUBLIC_GALLERY_AUDIENCE)).toEqual(['List open'])
+      })
+
+      it('moves an album to the top when photos are added to or removed from it', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(Date.UTC(2027, 0, 1))
+          const older = await createAlbum(uniqueTitle())
+          vi.setSystemTime(Date.UTC(2027, 0, 2))
+          const newer = await createAlbum(uniqueTitle())
+          const order = async () =>
+            (
+              await database.getGalleryAlbumSummaries({
+                actorId: ownerId,
+                audience: OWNER_GALLERY_AUDIENCE
+              })
+            )
+              .map((summary) => summary.album.id)
+              .filter((id) => id === older.id || id === newer.id)
+
+          expect(await order()).toEqual([newer.id, older.id])
+
+          vi.setSystemTime(Date.UTC(2027, 0, 3))
+          await addItems(older.id, ['public'])
+          expect(await order()).toEqual([older.id, newer.id])
+
+          vi.setSystemTime(Date.UTC(2027, 0, 4))
+          await addItems(newer.id, ['public'])
+          expect(await order()).toEqual([newer.id, older.id])
+
+          vi.setSystemTime(Date.UTC(2027, 0, 5))
+          await database.removeGalleryAlbumItems({
+            albumId: older.id,
+            actorId: ownerId,
+            mediaIds: [ids.public]
+          })
+          expect(await order()).toEqual([older.id, newer.id])
+        } finally {
+          vi.useRealTimers()
+        }
       })
     })
 
@@ -786,6 +970,39 @@ describe('GalleryAlbumDatabase', () => {
         })
         expect(namesOf([summary.coverMediaId!])).toEqual(['unlisted'])
       })
+
+      it('never leaves a cover that is not an item when a cover is set while the photo is removed', async () => {
+        for (let round = 0; round < 5; round += 1) {
+          const album = await createAlbum(uniqueTitle())
+          await addItems(album.id, ['public', 'public2'])
+
+          const [patched] = await Promise.all([
+            database.updateGalleryAlbum({
+              id: album.id,
+              actorId: ownerId,
+              coverMediaId: ids.public
+            }),
+            database.removeGalleryAlbumItems({
+              albumId: album.id,
+              actorId: ownerId,
+              mediaIds: [ids.public]
+            })
+          ])
+
+          const after = await database.getGalleryAlbum({
+            id: album.id,
+            actorId: ownerId,
+            audience: OWNER_GALLERY_AUDIENCE
+          })
+          // Either the cover was set first and the removal cleared it, or the
+          // removal came first and the cover was refused.
+          expect(after!.coverMediaId).toBeNull()
+          expect(['updated', 'invalid-cover']).toContain(patched.status)
+          expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
+            'public2'
+          ])
+        }
+      })
     })
 
     describe('removeGalleryAlbumItems', () => {
@@ -890,7 +1107,8 @@ describe('GalleryAlbumDatabase', () => {
 
     describe('countGalleryAlbumMedia', () => {
       it('counts distinct visible media across albums, public albums only for a visitor', async () => {
-        const actorId = actors.followRequester.id
+        // Its own account, so the count starts from nothing.
+        const actorId = actors.extra.id
         const make = async (name: string, visibility: 'public' | 'private') => {
           await createMedia(name, {}, actorId)
           await post(name, name, [ACTIVITY_STREAM_PUBLIC], [], actorId)
@@ -972,6 +1190,37 @@ describe('GalleryAlbumDatabase', () => {
     })
 
     describe('when a media is deleted', () => {
+      it('never leaves a cover on a media deleted while the cover is set', async () => {
+        for (let round = 0; round < 3; round += 1) {
+          const name = `race-${round}`
+          await addPhoto(name, [ACTIVITY_STREAM_PUBLIC])
+          const album = await createAlbum(uniqueTitle())
+          await addItems(album.id, [name, 'public'])
+
+          const [deleted, patched] = await Promise.all([
+            database.deleteMedia({ mediaId: ids[name] }),
+            database.updateGalleryAlbum({
+              id: album.id,
+              actorId: ownerId,
+              coverMediaId: ids[name]
+            })
+          ])
+
+          expect(deleted).toBeTrue()
+          expect(['updated', 'invalid-cover']).toContain(patched.status)
+          expect(
+            await database.getGalleryAlbum({
+              id: album.id,
+              actorId: ownerId,
+              audience: OWNER_GALLERY_AUDIENCE
+            })
+          ).toMatchObject({ coverMediaId: null })
+          expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
+            'public'
+          ])
+        }
+      })
+
       it('removes its album items and clears covers (deleteMedia)', async () => {
         await addPhoto('cascade', [ACTIVITY_STREAM_PUBLIC])
         const album = await createAlbum(uniqueTitle())
@@ -1041,5 +1290,107 @@ describe('GalleryAlbumDatabase', () => {
         ])
       })
     })
+  })
+})
+
+describe('gallery albums when an account is deleted', () => {
+  // Its own database: the account is really removed, which no other test in
+  // this file may see.
+  const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+
+  beforeAll(async () => {
+    await prepare()
+    await database.migrate()
+    // SQLite may run without foreign keys, so nothing cascades there: the
+    // delete itself has to remove the rows. (PostgreSQL always cascades, so
+    // this proves the explicit deletes on SQLite only.)
+    if (instance.client.config.client === 'better-sqlite3') {
+      await instance.raw('PRAGMA foreign_keys = OFF')
+    }
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  const countRows = async (table: string, actorId: string) => {
+    const row = await instance(table)
+      .where('actorId', actorId)
+      .count<{ total: number | string }[]>({ total: '*' })
+      .first()
+    return Number(row?.total ?? 0)
+  }
+
+  it('removes the albums, their items and covers of the deleted actor', async () => {
+    const username = `album-delete-${crypto.randomUUID().slice(0, 8)}`
+    const actorId = `https://${TEST_DOMAIN}/users/${username}`
+    await database.createAccount({
+      email: `${username}@${TEST_DOMAIN}`,
+      username,
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: `privateKey-${username}`,
+      publicKey: `publicKey-${username}`
+    })
+    const statusId = `${actorId}/statuses/album-delete`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: 'album delete'
+    })
+    const mediaIds: string[] = []
+    for (const name of ['one', 'two']) {
+      const media = await database.createMedia({
+        actorId,
+        original: {
+          path: `/test/album-delete-${name}.jpg`,
+          bytes: 1000,
+          mimeType: 'image/jpeg',
+          metaData: { width: 100, height: 100 }
+        },
+        details: { inGallery: true }
+      })
+      mediaIds.push(media!.id)
+      await database.createAttachment({
+        actorId,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: `https://media.test/album-delete-${name}.jpg`,
+        width: 100,
+        height: 100,
+        mediaId: media!.id
+      })
+    }
+    const created = await database.createGalleryAlbumWithinLimit({
+      actorId,
+      title: 'Doomed',
+      limit: MAX_GALLERY_ALBUMS_PER_ACTOR
+    })
+    if (created.status !== 'created') throw new Error('not created')
+    const added = await database.addGalleryAlbumItems({
+      albumId: created.album.id,
+      actorId,
+      mediaIds,
+      limit: MAX_GALLERY_ALBUM_ITEMS
+    })
+    expect(added).toMatchObject({ status: 'added', added: mediaIds })
+    await database.updateGalleryAlbum({
+      id: created.album.id,
+      actorId,
+      coverMediaId: mediaIds[0]
+    })
+    expect(await countRows('gallery_albums', actorId)).toBe(1)
+    expect(await countRows('gallery_album_items', actorId)).toBe(2)
+
+    await database.deleteActorData({ actorId })
+
+    expect(await countRows('gallery_albums', actorId)).toBe(0)
+    expect(await countRows('gallery_album_items', actorId)).toBe(0)
+    expect(
+      await instance('gallery_album_items').whereIn('mediaId', mediaIds)
+    ).toEqual([])
   })
 })

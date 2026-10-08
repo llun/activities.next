@@ -5,8 +5,9 @@ import { seedGalleryRouteFixtures } from '@/lib/services/gallery/galleryRouteFix
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { ERROR_429 } from '@/lib/utils/response'
 
-import { DELETE, GET, POST } from './route'
+import { DELETE, GET, OPTIONS, POST } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -115,6 +116,39 @@ describe('/api/v1/gallery/albums/[id]/items', () => {
     takeMock.mockReturnValue(true)
   })
 
+  const allowsMethod = (response: Response, method: string) =>
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+      method
+    )
+
+  describe('OPTIONS', () => {
+    it('advertises GET, POST, DELETE and OPTIONS', async () => {
+      const response = await OPTIONS(
+        new NextRequest(url('any'), { method: 'OPTIONS' })
+      )
+
+      for (const method of ['GET', 'POST', 'DELETE', 'OPTIONS']) {
+        allowsMethod(response, method)
+      }
+    })
+  })
+
+  describe('without a session', () => {
+    it.each([
+      ['GET', () => get('any')],
+      ['POST', () => write('POST', 'any', { media_ids: ['1'] })],
+      ['DELETE', () => write('DELETE', 'any', { media_ids: ['1'] })]
+    ])('answers 401 with CORS headers for %s', async (method, call) => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const response = await call()
+
+      expect(response.status).toBe(401)
+      expect(await response.json()).toEqual({ error: expect.any(String) })
+      allowsMethod(response, method)
+    })
+  })
+
   describe('POST', () => {
     it('adds the owner own photos, reports repeats and skips the rest', async () => {
       const id = await createAlbum('Add')
@@ -194,6 +228,7 @@ describe('/api/v1/gallery/albums/[id]/items', () => {
       const response = await write('POST', id, body)
       expect(response.status).toBe(422)
       expect(await response.json()).toEqual({ error: expect.any(String) })
+      allowsMethod(response, 'POST')
     })
 
     it('answers 404 for a missing and for another account album alike', async () => {
@@ -207,6 +242,7 @@ describe('/api/v1/gallery/albums/[id]/items', () => {
       expect(missing.status).toBe(404)
       expect(foreign.status).toBe(404)
       expect(await foreign.json()).toEqual(await missing.json())
+      allowsMethod(missing, 'POST')
       signIn(seedActor1.email)
       expect(await mediaIdsOf(id)).toEqual([])
     })
@@ -218,7 +254,8 @@ describe('/api/v1/gallery/albums/[id]/items', () => {
       const response = await write('POST', id, { media_ids: [ids.kingfisher] })
 
       expect(response.status).toBe(429)
-      expect(await response.json()).toEqual({ error: 'Too many requests' })
+      expect(await response.json()).toEqual(ERROR_429)
+      allowsMethod(response, 'POST')
       takeMock.mockReturnValue(true)
       expect(await mediaIdsOf(id)).toEqual([])
     })

@@ -23,6 +23,7 @@ export const buildAlbumCard = (
     cover,
     previews: [cover, buildGalleryItem(`${id}-2`), buildGalleryItem(`${id}-3`)],
     coverMediaId: null,
+    hiddenPlaceCount: 0,
     ...overrides
   }
 }
@@ -49,6 +50,7 @@ export const buildAlbumDetail = (
       { key: 'sci:panthera leo', name: 'African Lion', count: 2 },
       { key: 'sci:loxodonta africana', name: 'African Elephant', count: 1 }
     ],
+    mediaIds: album.previews.map((item) => item.mediaId),
     page: {
       items: album.previews,
       nextMaxId: null

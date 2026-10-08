@@ -5,8 +5,9 @@ import { seedGalleryRouteFixtures } from '@/lib/services/gallery/galleryRouteFix
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { ERROR_429 } from '@/lib/utils/response'
 
-import { DELETE, GET, PATCH } from './route'
+import { DELETE, GET, OPTIONS, PATCH } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -111,6 +112,39 @@ describe('/api/v1/gallery/albums/[id]', () => {
     takeMock.mockReturnValue(true)
   })
 
+  const allowsMethod = (response: Response, method: string) =>
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+      method
+    )
+
+  describe('OPTIONS', () => {
+    it('advertises GET, PATCH, DELETE and OPTIONS', async () => {
+      const response = await OPTIONS(
+        new NextRequest(url(albumId), { method: 'OPTIONS' })
+      )
+
+      for (const method of ['GET', 'PATCH', 'DELETE', 'OPTIONS']) {
+        allowsMethod(response, method)
+      }
+    })
+  })
+
+  describe('without a session', () => {
+    it.each([
+      ['GET', () => get(albumId)],
+      ['PATCH', () => write('PATCH', albumId, { title: 'x' })],
+      ['DELETE', () => write('DELETE', albumId)]
+    ])('answers 401 with CORS headers for %s', async (method, call) => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const response = await call()
+
+      expect(response.status).toBe(401)
+      expect(await response.json()).toEqual({ error: expect.any(String) })
+      allowsMethod(response, method)
+    })
+  })
+
   describe('GET', () => {
     it('answers the album, its public facts, species chips and the first page', async () => {
       const response = await get(albumId)
@@ -151,11 +185,23 @@ describe('/api/v1/gallery/albums/[id]', () => {
       expect(missing.status).toBe(404)
       expect(foreign.status).toBe(404)
       expect(await foreign.json()).toEqual(await missing.json())
+      allowsMethod(missing, 'GET')
     })
 
     it('answers 422 for a bad sort', async () => {
       const response = await get(albumId, '?sort=random')
       expect(response.status).toBe(422)
+      allowsMethod(response, 'GET')
+    })
+
+    it('shows the owner of a private album the numbers a visitor would see', async () => {
+      const id = await createAlbum('Private facts', ['kingfisher', 'fox'])
+      await write('PATCH', id, { visibility: 'private' })
+
+      const body = await (await get(id)).json()
+
+      expect(body.album).toMatchObject({ visibility: 'private', itemCount: 2 })
+      expect(body.facts).toMatchObject({ photoCount: 2, speciesCount: 2 })
     })
   })
 
@@ -214,6 +260,7 @@ describe('/api/v1/gallery/albums/[id]', () => {
       const response = await write('PATCH', albumId, body)
       expect(response.status).toBe(422)
       expect(await response.json()).toEqual({ error: expect.any(String) })
+      allowsMethod(response, 'PATCH')
     })
 
     it('answers 404 for a missing and for another account album alike, even with a bad body', async () => {
@@ -225,6 +272,7 @@ describe('/api/v1/gallery/albums/[id]', () => {
       expect(missing.status).toBe(404)
       expect(foreign.status).toBe(404)
       expect(foreignBad.status).toBe(404)
+      allowsMethod(missing, 'PATCH')
       expect(await foreign.json()).toEqual(await missing.json())
       signIn(seedActor1.email)
       expect((await (await get(albumId)).json()).album.title).toBe('Detail')
@@ -236,7 +284,8 @@ describe('/api/v1/gallery/albums/[id]', () => {
       const response = await write('PATCH', albumId, { title: 'Changed' })
 
       expect(response.status).toBe(429)
-      expect(await response.json()).toEqual({ error: 'Too many requests' })
+      expect(await response.json()).toEqual(ERROR_429)
+      allowsMethod(response, 'PATCH')
       takeMock.mockReturnValue(true)
       expect((await (await get(albumId)).json()).album.title).toBe('Detail')
     })

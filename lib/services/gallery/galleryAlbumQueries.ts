@@ -16,7 +16,8 @@ import {
 import {
   type GalleryAudience,
   OWNER_GALLERY_AUDIENCE,
-  PUBLIC_GALLERY_AUDIENCE
+  PUBLIC_GALLERY_AUDIENCE,
+  isOwnerGalleryAudience
 } from '@/lib/services/gallery/galleryAudience'
 import {
   GalleryItemEntity,
@@ -50,6 +51,7 @@ type AlbumQueryDatabase = Pick<
   | 'getGalleryAlbumSummaries'
   | 'getGalleryAlbumMedia'
   | 'getGalleryAlbumIndex'
+  | 'getGalleryAlbumPlaceIndexes'
   | 'countGalleryAlbumMedia'
 >
 
@@ -96,7 +98,8 @@ export const toGalleryAlbumEntity = (
 const toCard = (
   summary: GalleryAlbumSummary,
   items: Map<string, GalleryItemEntity>,
-  viewerIsOwner: boolean
+  viewerIsOwner: boolean,
+  hiddenPlaceCount: number
 ): GalleryAlbumCardEntity => {
   const previews = summary.previewMediaIds.flatMap((id) => {
     const item = items.get(id)
@@ -112,8 +115,35 @@ const toCard = (
         ? null
         : (items.get(summary.coverMediaId) ?? null),
     previews,
-    coverMediaId: viewerIsOwner ? summary.album.coverMediaId : null
+    coverMediaId: viewerIsOwner ? summary.album.coverMediaId : null,
+    hiddenPlaceCount: viewerIsOwner ? hiddenPlaceCount : 0
   }
+}
+
+/**
+ * How many places each album's photos leave out for a visitor, for the owner
+ * only: nothing is read for anyone else, so a visitor's response never carries
+ * a hint that a threatened species' place exists.
+ */
+const getHiddenPlaceCounts = async (
+  database: AlbumQueryDatabase,
+  owner: { id: string },
+  audience: GalleryAudience,
+  settings: GallerySettings,
+  albumId?: string
+): Promise<Map<string, number>> => {
+  if (!isOwnerGalleryAudience(audience)) return new Map()
+  const groups = await database.getGalleryAlbumPlaceIndexes({
+    actorId: owner.id,
+    audience,
+    albumId
+  })
+  return new Map(
+    groups.map(({ albumId: id, rows }) => [
+      id,
+      countHiddenThreatenedPlaces(rows, settings)
+    ])
+  )
 }
 
 /** Projects the media behind a set of summaries (covers and collages). */
@@ -152,14 +182,16 @@ export const getGalleryAlbumCard = async ({
   })
   if (!summary) return null
   const settings = await database.getGallerySettings({ actorId: owner.id })
-  const items = await projectPreviews(
-    database,
-    owner,
-    audience,
-    [summary],
-    settings
+  const [items, hidden] = await Promise.all([
+    projectPreviews(database, owner, audience, [summary], settings),
+    getHiddenPlaceCounts(database, owner, audience, settings, albumId)
+  ])
+  return toCard(
+    summary,
+    items,
+    isOwnerGalleryAudience(audience),
+    hidden.get(summary.album.id) ?? 0
   )
-  return toCard(summary, items, audience.kind === 'owner')
 }
 
 /** The actor's albums, last updated first. */
@@ -173,16 +205,15 @@ export const getGalleryAlbumList = async ({
     database.countGalleryAlbumMedia({ actorId: owner.id, audience }),
     database.getGallerySettings({ actorId: owner.id })
   ])
-  const items = await projectPreviews(
-    database,
-    owner,
-    audience,
-    summaries,
-    settings
-  )
-  const isOwner = audience.kind === 'owner'
+  const [items, hidden] = await Promise.all([
+    projectPreviews(database, owner, audience, summaries, settings),
+    getHiddenPlaceCounts(database, owner, audience, settings)
+  ])
+  const isOwner = isOwnerGalleryAudience(audience)
   return {
-    albums: summaries.map((summary) => toCard(summary, items, isOwner)),
+    albums: summaries.map((summary) =>
+      toCard(summary, items, isOwner, hidden.get(summary.album.id) ?? 0)
+    ),
     photoCount
   }
 }
@@ -416,7 +447,11 @@ export const getGalleryAlbumDetail = async ({
     database.getGalleryAlbumIndex({
       albumId,
       actorId: owner.id,
-      audience: PUBLIC_GALLERY_AUDIENCE
+      audience: PUBLIC_GALLERY_AUDIENCE,
+      // The route has already checked the album is the owner's. A private
+      // album is not open to a visitor, but its owner is still shown what its
+      // public-safe numbers would be.
+      ignoreAlbumVisibility: true
     }),
     getGalleryAlbumPage({
       database,
@@ -433,6 +468,7 @@ export const getGalleryAlbumDetail = async ({
     facts: computeGalleryAlbumFacts(publicRows, settings),
     hiddenPlaceCount: countHiddenThreatenedPlaces(ownerRows, settings),
     species: toSpeciesChips(ownerRows),
+    mediaIds: ownerRows.map((row) => row.id),
     page: page ?? { items: [], nextMaxId: null }
   }
 }

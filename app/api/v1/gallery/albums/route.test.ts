@@ -5,9 +5,11 @@ import { seedGalleryRouteFixtures } from '@/lib/services/gallery/galleryRouteFix
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { seedActor3 } from '@/lib/stub/seed/actor3'
 import { MAX_GALLERY_ALBUMS_PER_ACTOR } from '@/lib/types/database/galleryAlbums'
+import { ERROR_429 } from '@/lib/utils/response'
 
-import { GET, POST } from './route'
+import { GET, OPTIONS, POST } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -90,6 +92,21 @@ describe('/api/v1/gallery/albums', () => {
     takeMock.mockReturnValue(true)
   })
 
+  describe('OPTIONS', () => {
+    it('advertises GET, POST and OPTIONS', async () => {
+      const response = await OPTIONS(
+        new NextRequest('https://llun.test/api/v1/gallery/albums', {
+          method: 'OPTIONS'
+        })
+      )
+
+      const methods = response.headers.get('Access-Control-Allow-Methods')
+      expect(methods).toContain('GET')
+      expect(methods).toContain('POST')
+      expect(methods).toContain('OPTIONS')
+    })
+  })
+
   describe('POST', () => {
     it('creates a public album with defaults', async () => {
       const response = await create({ title: '  Kruger, September  ' })
@@ -109,6 +126,38 @@ describe('/api/v1/gallery/albums', () => {
         added: [],
         skipped: []
       })
+    })
+
+    it('answers 401 with CORS headers when nobody is signed in', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const response = await create({ title: 'Nobody' })
+
+      expect(response.status).toBe(401)
+      expect(await response.json()).toEqual({ error: expect.any(String) })
+      expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+        'POST'
+      )
+    })
+
+    it('creates the album and its first photos in one write', async () => {
+      const addSpy = vi.spyOn(database, 'addGalleryAlbumItems')
+      const createSpy = vi.spyOn(database, 'createGalleryAlbumWithinLimit')
+      try {
+        const response = await create({
+          title: 'One write',
+          media_ids: [ids.kingfisher]
+        })
+
+        expect(response.status).toBe(200)
+        expect(createSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ mediaIds: [ids.kingfisher] })
+        )
+        expect(addSpy).not.toHaveBeenCalled()
+      } finally {
+        addSpy.mockRestore()
+        createSpy.mockRestore()
+      }
     })
 
     it('creates an album with its first photos and skips ids that are not the owner own', async () => {
@@ -175,6 +224,9 @@ describe('/api/v1/gallery/albums', () => {
 
       expect(response.status).toBe(422)
       expect(await response.json()).toEqual({ error: expect.any(String) })
+      expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+        'POST'
+      )
       expect((await (await list()).json()).albums).toHaveLength(before)
     })
 
@@ -185,13 +237,17 @@ describe('/api/v1/gallery/albums', () => {
       const response = await create({ title: 'Too fast' })
 
       expect(response.status).toBe(429)
-      expect(await response.json()).toEqual({ error: 'Too many requests' })
+      expect(await response.json()).toEqual(ERROR_429)
+      expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+        'POST'
+      )
       expect((await (await list()).json()).albums).toHaveLength(before)
     })
 
     it('answers 422 at the album cap', async () => {
+      // Its own account, so the albums it fills never reach another test.
       const actorId = (await database.getActorFromEmail({
-        email: seedActor2.email
+        email: seedActor3.email
       }))!.id
       for (let index = 0; index < MAX_GALLERY_ALBUMS_PER_ACTOR; index += 1) {
         const result = await database.createGalleryAlbumWithinLimit({
@@ -201,16 +257,31 @@ describe('/api/v1/gallery/albums', () => {
         })
         if (result.status === 'limit-reached') break
       }
-      signIn(seedActor2.email)
+      signIn(seedActor3.email)
 
       const response = await create({ title: 'One too many' })
 
       expect(response.status).toBe(422)
       expect(await response.json()).toEqual({ error: 'Too many albums' })
+      expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+        'POST'
+      )
     })
   })
 
   describe('GET', () => {
+    it('answers 401 with CORS headers when nobody is signed in', async () => {
+      mockGetServerSession.mockResolvedValue(null)
+
+      const response = await list()
+
+      expect(response.status).toBe(401)
+      expect(await response.json()).toEqual({ error: expect.any(String) })
+      expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+        'GET'
+      )
+    })
+
     it('lists only the signed-in owner albums, last updated first', async () => {
       signIn(seedActor1.email)
       const first = await (await create({ title: 'List first' })).json()

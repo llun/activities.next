@@ -488,6 +488,61 @@ describe('gallery album queries', () => {
         countryName: 'Thailand'
       })
       expect(detail!.album.itemCount).toBe(7)
+      expect(detail!.album.hiddenPlaceCount).toBe(2)
+      // Every photo the owner can see, for the add dialog's "already in".
+      expect([...detail!.mediaIds].sort()).toEqual(Object.values(ids).sort())
+    })
+
+    it('gives the owner of a private album the same public-safe numbers', async () => {
+      // The public audience may not open a private album, but its owner is
+      // shown what the numbers would be, not "0 photos".
+      const created = await database.createGalleryAlbumWithinLimit({
+        actorId: ownerId,
+        title: 'Private everything',
+        visibility: 'private',
+        limit: 200
+      })
+      if (created.status !== 'created') throw new Error('not created')
+      try {
+        await database.addGalleryAlbumItems({
+          albumId: created.album.id,
+          actorId: ownerId,
+          mediaIds: Object.values(ids),
+          limit: 2000
+        })
+        expect(
+          await database.getGalleryAlbum({
+            id: created.album.id,
+            actorId: ownerId,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          })
+        ).toBeNull()
+
+        const detail = await getGalleryAlbumDetail({
+          database,
+          owner: { id: ownerId },
+          albumId: created.album.id,
+          limit: 50
+        })
+
+        expect(detail!.album.visibility).toBe('private')
+        expect(detail!.album.itemCount).toBe(7)
+        expect(detail!.facts).toMatchObject({
+          photoCount: 6,
+          speciesCount: 6,
+          placeCount: 2,
+          countryCount: 1,
+          countryCodes: ['TH'],
+          countryName: 'Thailand'
+        })
+        expect(detail!.hiddenPlaceCount).toBe(2)
+        expect(detail!.species.length).toBeGreaterThan(0)
+      } finally {
+        await database.deleteGalleryAlbum({
+          id: created.album.id,
+          actorId: ownerId
+        })
+      }
     })
 
     it('tells the owner how many places the public numbers leave out for threatened species', async () => {
@@ -615,6 +670,12 @@ describe('gallery album queries', () => {
       expect(everything.previews).toHaveLength(3)
       expect(everything.cover?.mediaId).toBe(everything.previews[0].mediaId)
       expect(everything.coverMediaId).toBeNull()
+      // The snow leopard (CR) and the pangolin (check failed) are in it; the
+      // kingfisher and heron are Least Concern.
+      expect(everything.hiddenPlaceCount).toBe(2)
+      expect(
+        owner.albums.find((album) => album.title === 'Birds')!.hiddenPlaceCount
+      ).toBe(0)
 
       const visitor = await getGalleryAlbumList({
         database,
@@ -629,6 +690,10 @@ describe('gallery album queries', () => {
         ids.kingfisher
       ])
       expect(birds.coverMediaId).toBeNull()
+      // A visitor is never told a hidden place exists.
+      expect(
+        visitor.albums.every((album) => album.hiddenPlaceCount === 0)
+      ).toBeTrue()
     })
   })
 })
