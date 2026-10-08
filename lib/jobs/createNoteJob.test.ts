@@ -184,6 +184,28 @@ describe('createNoteJob', () => {
     expect(status.createdAt).toEqual(new Date(note.published).getTime())
   })
 
+  it('keeps the remote Note attachment order for many attachments', async () => {
+    const urls = Array.from(
+      { length: 6 },
+      (_, i) => `https://llun.dev/images/ordered-${i}.jpg`
+    )
+    const note = MockMastodonActivityPubNote({
+      id: 'ordered-attachments-note',
+      content: 'Ordered',
+      documents: urls.map((url) => MockImageDocument({ url }))
+    })
+    await createNoteJob(database, {
+      id: 'id',
+      name: CREATE_NOTE_JOB_NAME,
+      data: note
+    })
+    const status = (await database.getStatus({ statusId: note.id })) as Status
+    if (status.type !== StatusType.enum.Note) {
+      fail('Stauts type must be note')
+    }
+    expect(status.attachments.map((a) => a.url)).toEqual(urls)
+  })
+
   it('add status and attachments with status id into database', async () => {
     const note = MockMastodonActivityPubNote({
       content: 'Hello',
