@@ -371,6 +371,11 @@ describe('/api/v1/gallery/gears', () => {
     })
 
     it('leaves the usage fields out without the option', async () => {
+      const created = await database.createGalleryGear({
+        actorId: ACTOR1_ID,
+        kind: 'camera',
+        name: 'Plain camera'
+      })
       const response = await GET(getRequest(), {
         params: Promise.resolve({})
       })
@@ -378,7 +383,7 @@ describe('/api/v1/gallery/gears', () => {
       const { gears } = (await response.json()) as {
         gears: Record<string, unknown>[]
       }
-      expect(gears.length).toBeGreaterThan(0)
+      expect(gears.map((gear) => gear.id)).toContain(created.id)
       for (const gear of gears) expect(gear).not.toHaveProperty('photoCount')
     })
 

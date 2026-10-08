@@ -37,7 +37,18 @@ interface GalleryGlMap {
   resize: () => void
   addSource: (id: string, source: unknown) => void
   addLayer: (layer: unknown) => void
-  getSource: (id: string) => { setData: (data: unknown) => void } | undefined
+  getSource: (id: string) =>
+    | {
+        setData: (data: unknown) => void
+        // Mapbox takes a callback, MapLibre returns a promise.
+        getClusterLeaves?: (
+          clusterId: number,
+          limit: number,
+          offset: number,
+          callback?: (error: unknown, features?: GlFeature[]) => void
+        ) => Promise<GlFeature[]> | void
+      }
+    | undefined
   querySourceFeatures: (sourceId: string) => GlFeature[]
   isSourceLoaded: (sourceId: string) => boolean
   getZoom: () => number
@@ -59,6 +70,7 @@ const CLUSTER_RADIUS_PX = 56
 const CLUSTER_MAX_ZOOM = 16
 const CLUSTER_ZOOM_STEP = 2
 const FIT_PADDING_PX = 56
+const MAX_GROUP_MEMBERS = 50
 const FIT_MAX_ZOOM = 12
 // Fall back to the "Map unavailable" message if the GL map never reaches 'load'
 // (the style or tiles fail to fetch), instead of spinning forever. Mirrors
@@ -86,10 +98,44 @@ const isLngLat = (value: unknown): value is [number, number] =>
   typeof value[0] === 'number' &&
   typeof value[1] === 'number'
 
+// The members of a cluster, newest first. Empty when the source cannot say.
+const readClusterMembers = (
+  map: GalleryGlMap,
+  clusterId: number,
+  count: number
+): Promise<number[]> =>
+  new Promise((resolve) => {
+    const toIndexes = (features?: GlFeature[]) =>
+      (features ?? [])
+        .map((feature) => Number(feature.properties?.idx))
+        .filter((index) => Number.isInteger(index))
+        .sort((left, right) => left - right)
+    try {
+      const source = map.getSource(SOURCE_ID)
+      const pending = source?.getClusterLeaves?.(
+        clusterId,
+        Math.min(count, MAX_GROUP_MEMBERS),
+        0,
+        (error, features) => resolve(error ? [] : toIndexes(features))
+      )
+      if (pending && typeof pending.then === 'function') {
+        pending.then(
+          (features) => resolve(toIndexes(features)),
+          () => resolve([])
+        )
+      } else if (!source?.getClusterLeaves) {
+        resolve([])
+      }
+    } catch {
+      resolve([])
+    }
+  })
+
 interface GalleryGlMapProps {
   points: GalleryMapPoint[]
   mapProvider: Exclude<PublicMapProvider, { type: 'apple' }>
   onPick: (mediaId: string) => void
+  onPickGroup: (mediaIds: string[]) => void
   onUnavailable: (reason: FallbackReason) => void
 }
 
@@ -97,6 +143,7 @@ const GalleryGlMapSurface: FC<GalleryGlMapProps> = ({
   points,
   mapProvider,
   onPick,
+  onPickGroup,
   onUnavailable
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -106,14 +153,16 @@ const GalleryGlMapSurface: FC<GalleryGlMapProps> = ({
   const appliedPointsRef = useRef<GalleryMapPoint[] | null>(null)
   const pointsRef = useRef(points)
   const onPickRef = useRef(onPick)
+  const onPickGroupRef = useRef(onPickGroup)
   const onUnavailableRef = useRef(onUnavailable)
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
     pointsRef.current = points
     onPickRef.current = onPick
+    onPickGroupRef.current = onPickGroup
     onUnavailableRef.current = onUnavailable
-  }, [points, onPick, onUnavailable])
+  }, [points, onPick, onPickGroup, onUnavailable])
 
   // Keyed on the descriptor's fields, not its identity, so an inline prop
   // literal doesn't tear the map down on every parent render.
@@ -208,9 +257,19 @@ const GalleryGlMapSurface: FC<GalleryGlMapProps> = ({
                 }
                 const zoom = map.getZoom()
                 // Past the clustering zoom a cluster is photos at one spot, and
-                // zooming further would show nothing new: pick the newest.
+                // zooming further would show nothing new: list its members.
                 if (zoom >= CLUSTER_MAX_ZOOM) {
-                  onPickRef.current(point.mediaId)
+                  void readClusterMembers(
+                    map,
+                    Number(properties.cluster_id),
+                    count
+                  ).then((indexes) => {
+                    const ids = indexes.flatMap((member) =>
+                      current[member] ? [current[member].mediaId] : []
+                    )
+                    if (ids.length > 1) onPickGroupRef.current(ids)
+                    else onPickRef.current(point.mediaId)
+                  })
                   return
                 }
                 map.easeTo({
@@ -334,16 +393,38 @@ interface SelectionCardProps {
   onOpen?: (mediaId: string) => void
 }
 
+const describePoint = (point: GalleryMapPoint) =>
+  [formatGalleryDate(point.takenAt), point.placeName]
+    .filter(Boolean)
+    .join(' · ')
+
+// `bottom-9` keeps the card above the map's attribution line (Mapbox, OSM,
+// MapLibre, Apple legal), which must stay visible.
+const CARD_CLASS =
+  'bg-background absolute right-3 bottom-9 left-3 rounded-lg border shadow-md sm:right-auto sm:max-w-sm'
+
+const CloseButton: FC<{ label: string; onClose: () => void }> = ({
+  label,
+  onClose
+}) => (
+  <Button
+    type="button"
+    variant="ghost"
+    size="icon"
+    aria-label={label}
+    onClick={onClose}
+  >
+    <X aria-hidden="true" className="size-4" />
+  </Button>
+)
+
 const SelectionCard: FC<SelectionCardProps> = ({ point, onClose, onOpen }) => {
-  const date = formatGalleryDate(point.takenAt)
-  const meta = [date, point.placeName].filter(Boolean).join(' · ')
-  // `bottom-9` keeps the card above the map's attribution line (Mapbox, OSM,
-  // MapLibre, Apple legal), which must stay visible.
+  const meta = describePoint(point)
   return (
     <div
       role="group"
       aria-label="Selected photo"
-      className="bg-background absolute right-3 bottom-9 left-3 flex items-center gap-3 rounded-lg border p-2 shadow-md sm:right-auto sm:max-w-sm"
+      className={cn(CARD_CLASS, 'flex items-center gap-3 p-2')}
     >
       {point.thumbnailUrl ? (
         <img
@@ -371,18 +452,69 @@ const SelectionCard: FC<SelectionCardProps> = ({ point, onClose, onOpen }) => {
           </Button>
         ) : null}
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label="Close selected photo"
-        onClick={onClose}
-      >
-        <X aria-hidden="true" className="size-4" />
-      </Button>
+      <CloseButton label="Close selected photo" onClose={onClose} />
     </div>
   )
 }
+
+interface SelectionListCardProps {
+  points: GalleryMapPoint[]
+  onClose: () => void
+  onOpen?: (mediaId: string) => void
+  onFocusPoint: (mediaId: string) => void
+}
+
+/**
+ * A cluster that cannot be split (photos at one spot) lists its members, so
+ * each one is reachable. A row opens the photo when the caller allows it, and
+ * otherwise shows that photo's own card.
+ */
+const SelectionListCard: FC<SelectionListCardProps> = ({
+  points,
+  onClose,
+  onOpen,
+  onFocusPoint
+}) => (
+  <div
+    role="group"
+    aria-label="Selected photos"
+    className={cn(CARD_CLASS, 'flex items-start gap-1 p-2')}
+  >
+    <div className="min-w-0 flex-1 text-sm">
+      <p className="px-1 pb-1 font-medium">{points.length} photos here</p>
+      <ul className="max-h-48 overflow-y-auto">
+        {points.map((point) => (
+          <li key={point.mediaId}>
+            <button
+              type="button"
+              className="hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2 rounded-md p-1 text-left focus-visible:ring-2 focus-visible:outline-none"
+              onClick={() =>
+                onOpen ? onOpen(point.mediaId) : onFocusPoint(point.mediaId)
+              }
+            >
+              {point.thumbnailUrl ? (
+                <img
+                  src={point.thumbnailUrl}
+                  alt=""
+                  className="size-10 shrink-0 rounded-md object-cover"
+                />
+              ) : null}
+              <span className="min-w-0">
+                <span className="block truncate">
+                  {point.subjectName ?? 'Photo or video'}
+                </span>
+                <span className="text-muted-foreground block truncate text-xs">
+                  {describePoint(point)}
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+    <CloseButton label="Close selected photos" onClose={onClose} />
+  </div>
+)
 
 export interface GalleryMapProps {
   points: GalleryMapPoint[]
@@ -409,7 +541,7 @@ export const GalleryMap: FC<GalleryMapProps> = ({
   mapProvider,
   onSelect
 }) => {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [fallbackReason, setFallbackReason] = useState<FallbackReason | null>(
     null
   )
@@ -423,7 +555,11 @@ export const GalleryMap: FC<GalleryMapProps> = ({
     setFallbackReason(null)
   }, [providerType, providerAccessToken])
 
-  const selected = points.find((point) => point.mediaId === selectedId) ?? null
+  const selectedPoints = selectedIds.flatMap((id) => {
+    const found = points.find((point) => point.mediaId === id)
+    return found ? [found] : []
+  })
+  const pickOne = (mediaId: string) => setSelectedIds([mediaId])
   const hasAreaPoints = points.some((point) => point.precision === 'area')
 
   if (points.length === 0) {
@@ -468,22 +604,31 @@ export const GalleryMap: FC<GalleryMapProps> = ({
           {mapProvider.type === 'apple' ? (
             <GalleryMapKit
               points={points}
-              onPick={setSelectedId}
+              onPick={pickOne}
+              onPickGroup={setSelectedIds}
               onUnavailable={() => setFallbackReason('render-failed')}
             />
           ) : (
             <GalleryGlMapSurface
               points={points}
               mapProvider={mapProvider}
-              onPick={setSelectedId}
+              onPick={pickOne}
+              onPickGroup={setSelectedIds}
               onUnavailable={setFallbackReason}
             />
           )}
-          {selected ? (
+          {selectedPoints.length === 1 ? (
             <SelectionCard
-              point={selected}
-              onClose={() => setSelectedId(null)}
+              point={selectedPoints[0]}
+              onClose={() => setSelectedIds([])}
               onOpen={onSelect}
+            />
+          ) : selectedPoints.length > 1 ? (
+            <SelectionListCard
+              points={selectedPoints}
+              onClose={() => setSelectedIds([])}
+              onOpen={onSelect}
+              onFocusPoint={pickOne}
             />
           ) : null}
           {hasAreaPoints ? (
@@ -494,7 +639,7 @@ export const GalleryMap: FC<GalleryMapProps> = ({
         </div>
       )}
 
-      <GalleryPlacesList points={points} />
+      <GalleryPlacesList points={points} onOpen={onSelect} />
     </div>
   )
 }

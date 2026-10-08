@@ -50,6 +50,11 @@ export interface GalleryMapKitProps {
   points: GalleryMapPoint[]
   /** A single photo's marker was tapped. */
   onPick: (mediaId: string) => void
+  /**
+   * A cluster that cannot be split further was tapped: every member's id,
+   * newest first. Without it the newest member is picked.
+   */
+  onPickGroup?: (mediaIds: string[]) => void
   /** MapKit can't load or render, so the caller can show its fallback. */
   onUnavailable: () => void
 }
@@ -63,6 +68,7 @@ export interface GalleryMapKitProps {
 export const GalleryMapKit: FC<GalleryMapKitProps> = ({
   points,
   onPick,
+  onPickGroup,
   onUnavailable
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -72,12 +78,14 @@ export const GalleryMapKit: FC<GalleryMapKitProps> = ({
   const [isReady, setIsReady] = useState(false)
   const pointsRef = useRef(points)
   const onPickRef = useRef(onPick)
+  const onPickGroupRef = useRef(onPickGroup)
   const onUnavailableRef = useRef(onUnavailable)
   useEffect(() => {
     pointsRef.current = points
     onPickRef.current = onPick
+    onPickGroupRef.current = onPickGroup
     onUnavailableRef.current = onUnavailable
-  }, [points, onPick, onUnavailable])
+  }, [points, onPick, onPickGroup, onUnavailable])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -123,7 +131,15 @@ export const GalleryMapKit: FC<GalleryMapKitProps> = ({
                       span.latitudeDelta < CLUSTER_PICK_SPAN_DEG &&
                       representative?.data
                     ) {
-                      onPickRef.current(representative.data.mediaId)
+                      if (onPickGroupRef.current) {
+                        onPickGroupRef.current(
+                          byNewest.flatMap((member) =>
+                            member.data ? [member.data.mediaId] : []
+                          )
+                        )
+                      } else {
+                        onPickRef.current(representative.data.mediaId)
+                      }
                       return
                     }
                     map.setRegionAnimated(

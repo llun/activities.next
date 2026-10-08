@@ -10,6 +10,7 @@ import {
 } from '@/lib/services/gallery/galleryAudience'
 import {
   GALLERY_INDEX_CAP,
+  MAX_INDEX_WINDOWS,
   getGalleryLifeList,
   getGalleryMapPoints,
   getGalleryMediaPage,
@@ -546,5 +547,95 @@ describe('gallery queries at the index cap', () => {
 
     expect(database.getGalleryMediaIndex).toHaveBeenCalledTimes(1)
     expect(page.nextMaxId).not.toBeNull()
+  })
+
+  const byIds = (dropped: string[] = []) =>
+    (async ({ mediaIds }: { mediaIds: string[] }) =>
+      mediaIds
+        .filter((id) => !dropped.includes(id))
+        .map((id) => ({ media: { id } }))) as never
+
+  it('requests the next matching ids when a by-ids read comes back short', async () => {
+    const database = fakeDatabase(indexRows(10))
+    // Even ids are birds (10, 8, 6, 4, 2); the read drops id 8.
+    database.getGalleryMediaByIds.mockImplementation(byIds(['8']))
+
+    const page = await getGalleryMediaPage({
+      database,
+      owner: { id: 'owner' },
+      audience: OWNER_GALLERY_AUDIENCE,
+      limit: 2,
+      category: 'bird'
+    })
+
+    expect(page.items.map((item) => item.mediaId)).toEqual(['10', '6'])
+    // 6 is the look-ahead row for a page of two, so 4 is for the next page.
+    expect(page.nextMaxId).toBe('6')
+    expect(database.getGalleryMediaByIds).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps reading the recent grid when a row is dropped after the SQL limit', async () => {
+    const database = fakeDatabase([])
+    const all = ['9', '8', '7', '6', '5', '4']
+    database.getGalleryMedia.mockImplementation((async ({
+      maxId,
+      limit
+    }: {
+      maxId?: string
+      limit: number
+    }) =>
+      all
+        .filter((id) => maxId === undefined || Number(id) < Number(maxId))
+        .slice(0, limit)
+        // The read drops id 8 after the limit was applied.
+        .filter((id) => id !== '8')
+        .map((id) => ({ media: { id } }))) as never)
+
+    const page = await getGalleryMediaPage({
+      database,
+      owner: { id: 'owner' },
+      audience: OWNER_GALLERY_AUDIENCE,
+      limit: 2
+    })
+
+    expect(page.items.map((item) => item.mediaId)).toEqual(['9', '7'])
+    expect(page.nextMaxId).toBe('7')
+  })
+
+  it('stops after the window cap and hands back the last scanned id', async () => {
+    const count = GALLERY_INDEX_CAP * (MAX_INDEX_WINDOWS + 2)
+    const rows = indexRows(count).map((row) => ({
+      ...row,
+      subjectName: null,
+      subjectCategory: null
+    }))
+    const database = fakeDatabase(rows)
+
+    const page = await getGalleryMediaPage({
+      database,
+      owner: { id: 'owner' },
+      audience: PUBLIC_GALLERY_AUDIENCE,
+      limit: 30,
+      subjectKey: 'name:zzz'
+    })
+
+    expect(database.getGalleryMediaIndex).toHaveBeenCalledTimes(
+      MAX_INDEX_WINDOWS
+    )
+    expect(page.items).toEqual([])
+    expect(page.nextMaxId).toBe(
+      String(count - MAX_INDEX_WINDOWS * GALLERY_INDEX_CAP + 1)
+    )
+
+    const next = await getGalleryMediaPage({
+      database,
+      owner: { id: 'owner' },
+      audience: PUBLIC_GALLERY_AUDIENCE,
+      limit: 30,
+      subjectKey: 'name:zzz',
+      maxId: page.nextMaxId!
+    })
+    // Two windows remain, so the index ends before the cap and paging stops.
+    expect(next.nextMaxId).toBeNull()
   })
 })

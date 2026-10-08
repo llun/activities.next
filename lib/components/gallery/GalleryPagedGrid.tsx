@@ -27,6 +27,10 @@ interface Props {
 }
 
 const PAGE_SIZE = 30
+// The server caps how much it scans per request, so a rare subject can come
+// back as an empty page that still carries `nextMaxId`. Follow such a cursor
+// this many more times on its own, then leave "Load more" to the reader.
+const MAX_AUTO_CONTINUES = 2
 
 const appendUnique = (
   current: GalleryItemEntity[],
@@ -65,18 +69,32 @@ export const GalleryPagedGrid: FC<Props> = ({
       setIsLoading(true)
       setError(null)
       try {
-        const page = await getGalleryMedia(actorId, {
-          limit: PAGE_SIZE,
-          maxId,
-          subject,
-          category,
-          gearId
-        })
-        if (!isMounted.current) return
-        setItems((current) =>
-          maxId ? appendUnique(current, page.items) : page.items
-        )
-        setNextMaxId(page.nextMaxId)
+        let cursor = maxId
+        let replace = !maxId
+        for (let attempt = 0; ; attempt += 1) {
+          const page = await getGalleryMedia(actorId, {
+            limit: PAGE_SIZE,
+            maxId: cursor,
+            subject,
+            category,
+            gearId
+          })
+          if (!isMounted.current) return
+          const append = !replace
+          setItems((current) =>
+            append ? appendUnique(current, page.items) : page.items
+          )
+          setNextMaxId(page.nextMaxId)
+          if (
+            page.items.length > 0 ||
+            !page.nextMaxId ||
+            attempt >= MAX_AUTO_CONTINUES
+          ) {
+            break
+          }
+          cursor = page.nextMaxId
+          replace = false
+        }
       } catch (loadError) {
         if (!isMounted.current) return
         setError(
@@ -122,7 +140,7 @@ export const GalleryPagedGrid: FC<Props> = ({
     <div className="space-y-4">
       {items.length > 0 ? (
         <GalleryGrid items={items} showCaption={showCaption} />
-      ) : error ? null : (
+      ) : error || nextMaxId ? null : (
         <FitnessEmptyState icon={Images} title={emptyTitle} />
       )}
       {error ? (

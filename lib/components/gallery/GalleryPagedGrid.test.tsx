@@ -107,4 +107,40 @@ describe('GalleryPagedGrid', () => {
     )
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
+
+  it('keeps following nextMaxId past an empty page, then finds photos', async () => {
+    getGalleryMediaMock
+      .mockResolvedValueOnce({ items: [], nextMaxId: '90' })
+      .mockResolvedValueOnce({
+        items: [buildGalleryItem('5')],
+        nextMaxId: null
+      })
+    render(<GalleryPagedGrid actorId="actor-1" subject="name:rare" />)
+
+    await waitFor(() =>
+      expect(screen.getByTestId('grid')).toHaveTextContent('5')
+    )
+    expect(getGalleryMediaMock).toHaveBeenCalledTimes(2)
+    expect(getGalleryMediaMock).toHaveBeenLastCalledWith(
+      'actor-1',
+      expect.objectContaining({ maxId: '90' })
+    )
+  })
+
+  it('stops auto-continuing after a few empty pages and offers Load more', async () => {
+    getGalleryMediaMock.mockImplementation(async (_: string, { maxId }) => ({
+      items: [],
+      nextMaxId: String(Number(maxId ?? 100) - 1)
+    }))
+    render(<GalleryPagedGrid actorId="actor-1" subject="name:rare" />)
+
+    expect(
+      await screen.findByRole('button', { name: 'Load more' })
+    ).toBeInTheDocument()
+    expect(getGalleryMediaMock).toHaveBeenCalledTimes(3)
+    expect(screen.queryByText(/No photos/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(6))
+  })
 })

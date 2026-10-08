@@ -23,7 +23,7 @@ const Page: FC = async () => {
 
   const session = await getServerAuthSession()
   const actor = await getActorFromSession(database, session)
-  if (!actor) {
+  if (!actor || !actor.account) {
     return redirect('/auth/signin')
   }
 

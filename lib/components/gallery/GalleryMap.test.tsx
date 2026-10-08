@@ -270,7 +270,7 @@ describe('GalleryMap', () => {
       expect(screen.queryByRole('button', { name: 'Open photo' })).toBeNull()
     })
 
-    it('zooms into a cluster, and picks its newest photo once it cannot split', async () => {
+    it('zooms into a cluster, and falls back to its newest photo once it cannot split and the source lists no members', async () => {
       const points = [makePoint(0), makePoint(1)]
       const fake = createFakeGl([
         {
@@ -295,8 +295,58 @@ describe('GalleryMap', () => {
       fake.state.zoom = 16
       fireEvent.click(button)
       expect(
-        screen.getByRole('group', { name: 'Selected photo' })
+        await screen.findByRole('group', { name: 'Selected photo' })
       ).toBeInTheDocument()
+    })
+
+    it('lists the members of a cluster that cannot split, each one reachable', async () => {
+      const onSelect = vi.fn()
+      const points = [makePoint(0), makePoint(1), makePoint(2)]
+      const fake = createFakeGl([
+        {
+          properties: { cluster: true, cluster_id: 3, point_count: 3, rep: 0 },
+          geometry: { coordinates: [101.45, 14.45] }
+        }
+      ])
+      fake.map.getSource.mockReturnValue({
+        setData: fake.sourceData.setData,
+        getClusterLeaves: vi.fn(async () =>
+          [2, 0, 1].map((idx) => ({ properties: { idx } }))
+        )
+      } as never)
+      vi.mocked(loadMaplibreModule).mockResolvedValue(fake.gl as never)
+
+      render(
+        <GalleryMap
+          points={points}
+          mapProvider={{ type: 'osm' }}
+          onSelect={onSelect}
+        />
+      )
+      await screen.findByText('OpenFreeMap')
+      act(() => fake.handlers.render())
+      fake.state.zoom = 16
+      fireEvent.click(within(fake.markers[0].element).getByRole('button'))
+
+      const list = await screen.findByRole('group', {
+        name: 'Selected photos'
+      })
+      const rows = within(list).getAllByRole('button', { name: /Subject/ })
+      expect(rows.map((row) => row.textContent)).toEqual([
+        expect.stringContaining('Subject 0'),
+        expect.stringContaining('Subject 1'),
+        expect.stringContaining('Subject 2')
+      ])
+
+      fireEvent.click(rows[1])
+      expect(onSelect).toHaveBeenCalledWith('media-1')
+
+      fireEvent.click(
+        within(list).getByRole('button', { name: 'Close selected photos' })
+      )
+      expect(
+        screen.queryByRole('group', { name: 'Selected photos' })
+      ).toBeNull()
     })
 
     it('replaces the source data and reframes when the points change', async () => {
@@ -400,6 +450,26 @@ describe('GalleryMap', () => {
       'Hakone, Japan1 subject · last 1 Oct 20261 photo or video',
       'Unnamed place1 subject · last 4 Oct 20261 photo or video'
     ])
+  })
+
+  it('expands a place into its photos and opens one through onSelect', () => {
+    vi.mocked(loadMaplibreModule).mockReturnValue(new Promise(() => {}))
+    const onSelect = vi.fn()
+    render(
+      <GalleryMap
+        points={[makePoint(0), makePoint(1)]}
+        mapProvider={{ type: 'osm' }}
+        onSelect={onSelect}
+      />
+    )
+
+    const place = screen.getByRole('button', { name: /Khao Yai, Thailand/ })
+    expect(place).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(place)
+    expect(place).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: /Subject 1/ }))
+    expect(onSelect).toHaveBeenCalledWith('media-1')
   })
 
   describe('with Apple Maps', () => {

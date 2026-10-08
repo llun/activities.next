@@ -11,6 +11,8 @@ export interface GalleryPlaceGroup {
   subjectCount: number
   /** ISO timestamp of the newest capture date at the place, if any is known. */
   lastTakenAt: string | null
+  /** The place's points, in the order given (newest first). */
+  points: GalleryMapPoint[]
 }
 
 const compareIso = (left: string, right: string): number =>
@@ -40,11 +42,13 @@ export const groupPointsByPlace = (
         thumbnails: [],
         subjectCount: 0,
         lastTakenAt: null,
+        points: [],
         subjects: new Set()
       }
       groups.set(name, group)
     }
     group.count += 1
+    group.points.push(point)
     if (
       point.thumbnailUrl &&
       group.thumbnails.length < MAX_PLACE_THUMBNAILS &&

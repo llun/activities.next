@@ -44,6 +44,9 @@ import {
 // every photo and needs no `truncated` flag.
 
 export const GALLERY_INDEX_CAP = 5000
+// Index windows (or short reads) one page request may scan before it answers
+// with what it has and a cursor to continue from.
+export const MAX_INDEX_WINDOWS = 3
 
 type GalleryQueryDatabase = Pick<
   Database,
@@ -113,6 +116,7 @@ export const getGalleryMediaPage = async ({
   const settings = await database.getGallerySettings({ actorId: owner.id })
 
   let rows: GalleryMediaRow[]
+  let resumeAfter: string | null = null
   if (subjectKey !== undefined || category !== undefined) {
     if (maxId !== undefined && toMediaRowId(maxId) === null) return empty
 
@@ -131,6 +135,7 @@ export const getGalleryMediaPage = async ({
 
     rows = []
     let cursor = maxId
+    let windows = 0
     for (;;) {
       const index = await database.getGalleryMediaIndex({
         actorId: owner.id,
@@ -138,39 +143,66 @@ export const getGalleryMediaPage = async ({
         limit: GALLERY_INDEX_CAP,
         ...(cursor === undefined ? null : { maxId: cursor })
       })
-      const needed = pageSize + 1 - rows.length
+      windows += 1
       const ids = index.filter(matches).map((row) => row.id)
 
-      // Gear is not in the index, so a gear filter on top of a subject filter
-      // is applied after the rows are read, over every matching id.
-      let windowRows =
-        ids.length === 0
-          ? []
-          : await database.getGalleryMediaByIds({
-              actorId: owner.id,
-              audience,
-              mediaIds: gearId === undefined ? ids.slice(0, needed) : ids
-            })
-      if (gearId !== undefined) {
-        windowRows = windowRows.filter(
-          ({ media }) =>
-            media.details?.cameraGearId === gearId ||
-            media.details?.lensGearId === gearId
-        )
+      // Ids are requested in slices so a short read (a row dropped between the
+      // index read and the by-ids read) pulls the next matching ids of this
+      // window instead of skipping them. Gear is not in the index, so a gear
+      // filter on top of a subject filter is applied after the rows are read,
+      // over every matching id.
+      let offset = 0
+      while (rows.length <= pageSize && offset < ids.length) {
+        const needed = pageSize + 1 - rows.length
+        const slice =
+          gearId === undefined ? ids.slice(offset, offset + needed) : ids
+        offset = gearId === undefined ? offset + slice.length : ids.length
+        let windowRows = await database.getGalleryMediaByIds({
+          actorId: owner.id,
+          audience,
+          mediaIds: slice
+        })
+        if (gearId !== undefined) {
+          windowRows = windowRows.filter(
+            ({ media }) =>
+              media.details?.cameraGearId === gearId ||
+              media.details?.lensGearId === gearId
+          )
+        }
+        rows.push(...windowRows.slice(0, needed))
       }
-      rows.push(...windowRows.slice(0, needed))
 
       if (rows.length > pageSize || index.length < GALLERY_INDEX_CAP) break
       cursor = index[index.length - 1].id
+      if (windows >= MAX_INDEX_WINDOWS) {
+        // A filter that matches little must not make one anonymous request
+        // scan the whole gallery: hand back what was found and let the client
+        // continue from the last scanned id.
+        resumeAfter = cursor
+        break
+      }
     }
   } else {
-    rows = await database.getGalleryMedia({
-      actorId: owner.id,
-      audience,
-      maxId,
-      limit: pageSize + 1,
-      gearId
-    })
+    // Rows can be dropped after the SQL limit (a post that went away), so a
+    // short read is not proof of the end: keep reading from the last row
+    // returned until the look-ahead row shows up, a read comes back empty, or
+    // the read cap is reached.
+    rows = []
+    let cursor = maxId
+    for (let reads = 0; reads < MAX_INDEX_WINDOWS; reads += 1) {
+      const batch = await database.getGalleryMedia({
+        actorId: owner.id,
+        audience,
+        maxId: cursor,
+        limit: pageSize + 1 - rows.length,
+        gearId
+      })
+      if (batch.length === 0) break
+      rows.push(...batch)
+      if (rows.length > pageSize) break
+      cursor = batch[batch.length - 1].media.id
+      if (reads === MAX_INDEX_WINDOWS - 1) resumeAfter = cursor
+    }
   }
 
   const hasMore = rows.length > pageSize
@@ -182,7 +214,7 @@ export const getGalleryMediaPage = async ({
       const item = items.get(row.media.id)
       return item ? [item] : []
     }),
-    nextMaxId: hasMore ? pageRows[pageRows.length - 1].media.id : null
+    nextMaxId: hasMore ? pageRows[pageRows.length - 1].media.id : resumeAfter
   }
 }
 

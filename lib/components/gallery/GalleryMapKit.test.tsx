@@ -171,6 +171,43 @@ describe('GalleryMapKit', () => {
     expect(map.animatedRegions[0].span.latitudeDelta).toBeCloseTo(before / 3)
   })
 
+  it('hands a cluster that cannot split to onPickGroup with every member, newest first', async () => {
+    const double = createMapKitTestDouble()
+    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
+    const onPick = vi.fn()
+    const onPickGroup = vi.fn()
+    render(
+      <GalleryMapKit
+        points={[makePoint(0)]}
+        onPick={onPick}
+        onPickGroup={onPickGroup}
+        onUnavailable={vi.fn()}
+      />
+    )
+    await waitFor(() => expect(double.annotations).toHaveLength(1))
+    const map = double.getMap()!
+    const hook = (map as unknown as { annotationForCluster: ClusterHook })
+      .annotationForCluster
+    map.region.span.latitudeDelta = 0.001
+
+    const annotation = hook({
+      coordinate: { latitude: 12, longitude: 22 },
+      memberAnnotations: [
+        { data: { mediaId: 'c', thumbnailUrl: null, order: 2 } },
+        { data: { mediaId: 'a', thumbnailUrl: null, order: 0 } },
+        { data: { mediaId: 'b', thumbnailUrl: null, order: 1 } }
+      ]
+    })
+    fireEvent.click(
+      (annotation as unknown as { element: HTMLElement }).element.querySelector(
+        'button'
+      ) as HTMLElement
+    )
+
+    expect(onPickGroup).toHaveBeenCalledWith(['a', 'b', 'c'])
+    expect(onPick).not.toHaveBeenCalled()
+  })
+
   it('swaps the annotations when the points change', async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
