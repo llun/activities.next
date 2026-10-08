@@ -58,6 +58,33 @@ describe('Create note action with attachments', () => {
   })
 
   describe('createNoteFromUserInput with attachments', () => {
+    it('keeps the author attachment order for many attachments', async () => {
+      const attachments: PostBoxAttachment[] = Array.from(
+        { length: 6 },
+        (_, i) => ({
+          type: 'upload',
+          id: `ordered-media-${i}`,
+          mediaType: 'image/png',
+          url: `https://example.com/ordered-${i}.png`,
+          width: 800,
+          height: 600,
+          name: `ordered-${i}`
+        })
+      )
+
+      const status = (await createNoteFromUserInput({
+        text: 'Ordered attachments',
+        currentActor: actor1,
+        attachments,
+        database
+      })) as StatusNote
+
+      const urls = attachments.map((a) => a.url)
+      expect(status.attachments.map((a) => a.url)).toEqual(urls)
+      const stored = await database.getAttachments({ statusId: status.id })
+      expect(stored.map((a) => a.url)).toEqual(urls)
+    })
+
     it('creates note with attachments', async () => {
       const attachments: PostBoxAttachment[] = [
         {

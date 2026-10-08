@@ -621,9 +621,10 @@ export const createNoteFromUserInput = async ({
       mediaIds
     })
 
+    const attachmentsCreatedAt = Date.now()
     await Promise.all([
       addStatusToTimelines(database, createdStatus),
-      ...attachments.map((attachment) => {
+      ...attachments.map((attachment, index) => {
         // Link the attachment to a media row only when that row belongs to
         // the author's account. The outbox takes attachment ids from the
         // client, and `attachments.mediaId` is read as proof the media's owner
@@ -633,6 +634,11 @@ export const createNoteFromUserInput = async ({
           ? mediaMetadataById.get(String(attachment.id))
           : undefined
         return database.createAttachment({
+          // The inserts run in parallel, so without a distinct, increasing
+          // createdAt every attachment of the status would share one
+          // timestamp and reads (createdAt, then random id) would shuffle
+          // them. base + index ms preserves the author's order.
+          createdAt: attachmentsCreatedAt + index,
           actorId: currentActor.id,
           statusId,
           mediaType: attachment.mediaType,
