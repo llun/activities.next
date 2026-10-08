@@ -36,8 +36,24 @@ export const toSubjectHashtag = (subjectName: string): string | null => {
 }
 
 /**
+ * "Alcedo atthis" -> "AlcedoAtthis". Only a binomial gets a tag: the first two
+ * words of the scientific name (so "Alcedo atthis bengalensis" and "Alcedo
+ * atthis (Linnaeus, 1758)" both tag the species) must each be plain letters.
+ * A genus alone, a hybrid mark ("Quercus × rosacea") or "sp." gets none.
+ */
+export const toScientificHashtag = (scientificName: string): string | null => {
+  const words = scientificName.trim().split(/\s+/)
+  if (words.length < 2) return null
+  const [genus, epithet] = words
+  if (!/^[A-Z][a-z]+$/.test(genus)) return null
+  if (!/^[a-z][a-z-]*$/.test(epithet) || epithet === 'sp') return null
+  return toSubjectHashtag(`${genus} ${epithet}`)
+}
+
+/**
  * Appends a `#PascalCase` hashtag to a post's text for each attached media that
- * has a subject name, when the author's `subjectHashtags` setting is on and the
+ * has a subject name, and a `#GenusSpecies` one beside it when the subject has a
+ * scientific name (`#CommonKingfisher #AlcedoAtthis`), when the author's `subjectHashtags` setting is on and the
  * text does not already carry that tag (compared case-insensitively, the way
  * hashtags are everywhere else).
  *
@@ -81,7 +97,9 @@ export const appendSubjectHashtags = async ({
       accountId
     })
     const subjectMedias = medias.filter((media) =>
-      Boolean(media.details?.subjectName)
+      Boolean(
+        media.details?.subjectName || media.details?.subjectScientificName
+      )
     )
     if (subjectMedias.length === 0) return text
 
@@ -103,8 +121,12 @@ export const appendSubjectHashtags = async ({
     // Joiner before the first tag: a blank line after text, nothing otherwise.
     const separator = trimmed ? '\n\n' : ''
     let length = trimmed.length
-    for (const media of orderedMedias) {
-      const tag = toSubjectHashtag(media.details?.subjectName ?? '')
+    // The common-name tag first, then the scientific one, per photo.
+    const tags = orderedMedias.flatMap((media) => [
+      toSubjectHashtag(media.details?.subjectName ?? ''),
+      toScientificHashtag(media.details?.subjectScientificName ?? '')
+    ])
+    for (const tag of tags) {
       if (!tag || present.has(tag.toLowerCase())) continue
       const addition = `#${tag}`
       if (maxCharacters !== undefined) {

@@ -8,12 +8,34 @@ import {
   ToggleRow,
   useGallerySettingsForm
 } from '@/lib/components/settings/gallerySettingsForm'
+import { Label } from '@/lib/components/ui/label'
+import { Select } from '@/lib/components/ui/select'
 import type { GallerySettings } from '@/lib/types/database/gallery'
+import {
+  MAX_SUBJECT_CONFIDENCE_THRESHOLD,
+  MIN_SUBJECT_CONFIDENCE_THRESHOLD,
+  SUBJECT_CONFIDENCE_THRESHOLD_STEP
+} from '@/lib/types/database/gallery'
 
 type ToggleKey = keyof Pick<
   GallerySettings,
-  'autoDescribe' | 'allowEmptyDescription' | 'subjectHashtags'
+  | 'autoDescribe'
+  | 'allowEmptyDescription'
+  | 'subjectHashtags'
+  | 'subjectSuggestionMode'
+  | 'subjectConfidenceThreshold'
 >
+
+const THRESHOLDS = Array.from(
+  {
+    length:
+      (MAX_SUBJECT_CONFIDENCE_THRESHOLD - MIN_SUBJECT_CONFIDENCE_THRESHOLD) /
+        SUBJECT_CONFIDENCE_THRESHOLD_STEP +
+      1
+  },
+  (_, index) =>
+    MIN_SUBJECT_CONFIDENCE_THRESHOLD + index * SUBJECT_CONFIDENCE_THRESHOLD_STEP
+)
 
 export const MediaDetailsSettings: FC = () => {
   const {
@@ -28,6 +50,11 @@ export const MediaDetailsSettings: FC = () => {
   } = useGallerySettingsForm<ToggleKey>()
 
   const altTextAvailable = settings?.altTextAvailable ?? false
+  const suggestionsAvailable = settings?.subjectSuggestionsAvailable ?? false
+  // `classifier` is reserved and never offered: it reads as "model" here.
+  const suggesting =
+    suggestionsAvailable && settings?.subjectSuggestionMode === 'model'
+  const modeBusy = savingKeys.has('subjectSuggestionMode')
 
   return (
     <div className="space-y-6">
@@ -82,10 +109,82 @@ export const MediaDetailsSettings: FC = () => {
           </p>
         </div>
 
+        <fieldset
+          className="m-0 space-y-2 border-0 p-0"
+          aria-busy={modeBusy}
+          disabled={!loaded}
+        >
+          <legend className="pb-1 text-sm font-medium">
+            Suggest subjects with
+          </legend>
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="radio"
+              name="media-subject-mode"
+              className="mt-0.5 size-4 accent-primary"
+              checked={suggesting}
+              disabled={!loaded || !suggestionsAvailable}
+              onChange={() => handleSave('subjectSuggestionMode', 'model')}
+            />
+            <span className="space-y-0.5">
+              <span className="block">
+                Server image model
+                {settings?.subjectModel ? ` · ${settings.subjectModel}` : ''}
+              </span>
+              {loaded && !suggestionsAvailable ? (
+                <span className="block text-[0.8rem] text-muted-foreground">
+                  Your server has no image model set up.
+                </span>
+              ) : null}
+            </span>
+          </label>
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="radio"
+              name="media-subject-mode"
+              className="mt-0.5 size-4 accent-primary"
+              checked={loaded && !suggesting}
+              disabled={!loaded}
+              onChange={() => handleSave('subjectSuggestionMode', 'off')}
+            />
+            <span>Don’t suggest</span>
+          </label>
+        </fieldset>
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0 space-y-0.5">
+            <Label htmlFor="media-subject-threshold">
+              Name a species only when at least
+            </Label>
+            <p className="text-[0.8rem] text-muted-foreground">
+              Below this, the suggestion is the group, like “Bird?”.
+            </p>
+          </div>
+          <Select
+            id="media-subject-threshold"
+            className="w-24 shrink-0"
+            aria-busy={savingKeys.has('subjectConfidenceThreshold')}
+            value={settings?.subjectConfidenceThreshold ?? 70}
+            disabled={!loaded || !suggesting}
+            onChange={(event) =>
+              handleSave(
+                'subjectConfidenceThreshold',
+                Number(event.target.value)
+              )
+            }
+          >
+            {THRESHOLDS.map((value) => (
+              <option key={value} value={value}>
+                {value}%
+              </option>
+            ))}
+          </Select>
+        </div>
+
         <ToggleRow
           id="media-subject-hashtags"
           label="Add subjects as hashtags"
-          description="Adds a hashtag such as #CommonKingfisher to the post for each subject."
+          description="Adds hashtags such as #CommonKingfisher #AlcedoAtthis to the post for each subject."
           checked={settings?.subjectHashtags ?? false}
           disabled={!loaded}
           busy={savingKeys.has('subjectHashtags')}

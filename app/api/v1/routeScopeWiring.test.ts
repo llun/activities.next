@@ -512,6 +512,10 @@ const EXPECTED: Array<{
     scopes: ['write', 'write:media']
   },
   {
+    module: '@/app/api/v1/media/[id]/subject-suggestions/route',
+    scopes: ['write', 'write:media']
+  },
+  {
     module: '@/app/api/v1/gallery/media/[mediaId]/details/route',
     scopes: ['read', 'read:statuses'],
     guard: 'OptionalOAuthGuard:any'

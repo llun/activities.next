@@ -100,7 +100,8 @@ describe('MediaDetailsSettings', () => {
     render(<MediaDetailsSettings />)
 
     await screen.findByRole('switch', { name: AUTO_DESCRIBE })
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    // The only select is the subject confidence threshold.
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
     expect(
       screen.queryByRole('heading', { name: 'Location' })
     ).not.toBeInTheDocument()
@@ -286,5 +287,105 @@ describe('MediaDetailsSettings', () => {
     await waitFor(() =>
       expect(allowEmpty).toHaveAttribute('aria-busy', 'false')
     )
+  })
+
+  describe('subject suggestions', () => {
+    const MODEL = /Server image model · test-vision-model/
+    const THRESHOLD = 'Name a species only when at least'
+
+    it('shows the server model as chosen, with a 70% threshold', async () => {
+      render(<MediaDetailsSettings />)
+
+      expect(await screen.findByRole('radio', { name: MODEL })).toBeChecked()
+      expect(
+        screen.getByRole('radio', { name: 'Don’t suggest' })
+      ).not.toBeChecked()
+      expect(screen.getByLabelText(THRESHOLD)).toHaveValue('70')
+      expect(
+        screen.getByText(/Below this, the suggestion is the group/)
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(/#CommonKingfisher #AlcedoAtthis/)
+      ).toBeInTheDocument()
+    })
+
+    it('offers thresholds from 50 to 95 in steps of 5', async () => {
+      render(<MediaDetailsSettings />)
+
+      const select = await screen.findByLabelText(THRESHOLD)
+      const values = Array.from(select.querySelectorAll('option')).map(
+        (option) => option.value
+      )
+      expect(values).toEqual([
+        '50',
+        '55',
+        '60',
+        '65',
+        '70',
+        '75',
+        '80',
+        '85',
+        '90',
+        '95'
+      ])
+    })
+
+    it('saves only the suggestion mode when it changes', async () => {
+      render(<MediaDetailsSettings />)
+
+      fireEvent.click(
+        await screen.findByRole('radio', { name: 'Don’t suggest' })
+      )
+
+      await waitFor(() =>
+        expect(mockUpdateGallerySettings).toHaveBeenCalledWith({
+          subjectSuggestionMode: 'off'
+        })
+      )
+      expect(
+        await screen.findByRole('radio', { name: 'Don’t suggest' })
+      ).toBeChecked()
+      expect(screen.getByLabelText(THRESHOLD)).toBeDisabled()
+    })
+
+    it('saves the threshold as a number', async () => {
+      render(<MediaDetailsSettings />)
+
+      fireEvent.change(await screen.findByLabelText(THRESHOLD), {
+        target: { value: '85' }
+      })
+
+      await waitFor(() =>
+        expect(mockUpdateGallerySettings).toHaveBeenCalledWith({
+          subjectConfidenceThreshold: 85
+        })
+      )
+    })
+
+    it('disables the model option and says why when the server has no model', async () => {
+      mockGetGallerySettings.mockResolvedValue({
+        ...baseSettings,
+        subjectSuggestionsAvailable: false,
+        subjectModel: null
+      })
+
+      render(<MediaDetailsSettings />)
+
+      expect(
+        await screen.findByText('Your server has no image model set up.')
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('radio', { name: /Server image model/ })
+      ).toBeDisabled()
+      expect(screen.getByRole('radio', { name: 'Don’t suggest' })).toBeChecked()
+      expect(screen.getByLabelText(THRESHOLD)).toBeDisabled()
+    })
+
+    it('never offers the reserved classifier', async () => {
+      render(<MediaDetailsSettings />)
+
+      await screen.findByRole('radio', { name: MODEL })
+      expect(screen.queryByText(/classifier/i)).not.toBeInTheDocument()
+    })
   })
 })

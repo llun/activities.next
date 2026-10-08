@@ -32,6 +32,90 @@ export interface GenerateAltTextOptions {
   logMessage?: string
 }
 
+export interface VisionCompletionOptions {
+  systemPrompt: string
+  prompt: string
+  maxTokens?: number
+}
+
+const DEFAULT_MAX_TOKENS = 300
+
+/**
+ * One vision chat completion against an OpenAI-compatible endpoint: the image
+ * is orientation-corrected and downscaled, sent as a data URL, and the first
+ * choice's text comes back trimmed. Returns null when the model answered with
+ * nothing; THROWS on a transport failure or a non-200 answer, so each caller
+ * decides how a failure degrades (alt text swallows it, subject suggestions
+ * report it).
+ */
+export const requestVisionCompletion = async (
+  config: Pick<AltTextConfig, 'endpoint' | 'apiKey' | 'model'>,
+  imageBuffer: Buffer,
+  mimeType: string,
+  {
+    systemPrompt,
+    prompt,
+    maxTokens = DEFAULT_MAX_TOKENS
+  }: VisionCompletionOptions
+): Promise<string | null> => {
+  let processedBuffer = imageBuffer
+  try {
+    processedBuffer = await sharp(imageBuffer)
+      .rotate()
+      .resize(MAX_VISION_IMAGE_DIMENSION, MAX_VISION_IMAGE_DIMENSION, {
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+      .toBuffer()
+  } catch {
+    // If sharp cannot process the buffer, proceed with the original buffer
+  }
+
+  const base64Data = processedBuffer.toString('base64')
+  const dataUrl = `data:${mimeType};base64,${base64Data}`
+
+  const response = await safeRemoteFetch({
+    url: config.endpoint,
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: config.model,
+      temperature: 0.2,
+      max_tokens: maxTokens,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: dataUrl }
+            },
+            {
+              type: 'text',
+              text: prompt
+            }
+          ]
+        }
+      ]
+    }),
+    timeoutInMilliseconds: REQUEST_TIMEOUT_MS,
+    maxBodyBytes: MAX_RESPONSE_BYTES
+  })
+
+  if (response.statusCode !== 200) {
+    throw new AltTextProviderError(
+      `Alt text backend request failed with status ${response.statusCode}`
+    )
+  }
+
+  const data = parseAltTextJson<OpenAIChatResponse>(response.body)
+  return data.choices?.[0]?.message?.content?.trim() || null
+}
+
 /**
  * Generates an alt text description for an image or a video preview frame
  * using an OpenAI-compatible vision chat-completions endpoint. Returns null if
@@ -44,62 +128,15 @@ export const generateAltText = async (
   options?: GenerateAltTextOptions
 ): Promise<string | null> => {
   try {
-    let processedBuffer = imageBuffer
-    try {
-      processedBuffer = await sharp(imageBuffer)
-        .rotate()
-        .resize(MAX_VISION_IMAGE_DIMENSION, MAX_VISION_IMAGE_DIMENSION, {
-          fit: 'inside',
-          withoutEnlargement: true
-        })
-        .toBuffer()
-    } catch {
-      // If sharp cannot process the buffer, proceed with the original buffer
-    }
-
-    const base64Data = processedBuffer.toString('base64')
-    const dataUrl = `data:${mimeType};base64,${base64Data}`
-
-    const response = await safeRemoteFetch({
-      url: config.endpoint,
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: config.model,
-        temperature: 0.2,
-        max_tokens: 300,
-        messages: [
-          { role: 'system', content: options?.systemPrompt ?? SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: { url: dataUrl }
-              },
-              {
-                type: 'text',
-                text: options?.prompt ?? DEFAULT_IMAGE_PROMPT
-              }
-            ]
-          }
-        ]
-      }),
-      timeoutInMilliseconds: REQUEST_TIMEOUT_MS,
-      maxBodyBytes: MAX_RESPONSE_BYTES
-    })
-
-    if (response.statusCode !== 200) {
-      throw new AltTextProviderError(
-        `Alt text backend request failed with status ${response.statusCode}`
-      )
-    }
-
-    const data = parseAltTextJson<OpenAIChatResponse>(response.body)
-    const content = data.choices?.[0]?.message?.content?.trim()
+    const content = await requestVisionCompletion(
+      config,
+      imageBuffer,
+      mimeType,
+      {
+        systemPrompt: options?.systemPrompt ?? SYSTEM_PROMPT,
+        prompt: options?.prompt ?? DEFAULT_IMAGE_PROMPT
+      }
+    )
     if (!content) {
       return null
     }

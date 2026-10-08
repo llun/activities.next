@@ -8,6 +8,8 @@ import {
   createGalleryGear,
   describeMedia,
   getGalleryGears,
+  retryMediaLookups,
+  suggestMediaSubjects,
   updateMediaDetails
 } from '@/lib/client'
 import type { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
@@ -23,13 +25,19 @@ vi.mock('@/lib/client', () => ({
   createGalleryGear: vi.fn(),
   describeMedia: vi.fn(),
   getGalleryGears: vi.fn(),
-  updateMediaDetails: vi.fn()
+  retryMediaLookups: vi.fn(),
+  searchGalleryTaxa: vi.fn(),
+  suggestMediaSubjects: vi.fn(),
+  updateMediaDetails: vi.fn(),
+  TaxaSearchUnavailableError: class extends Error {}
 }))
 
 const describeMediaMock = vi.mocked(describeMedia)
 const updateMediaDetailsMock = vi.mocked(updateMediaDetails)
 const getGalleryGearsMock = vi.mocked(getGalleryGears)
 const createGalleryGearMock = vi.mocked(createGalleryGear)
+const suggestMediaSubjectsMock = vi.mocked(suggestMediaSubjects)
+const retryMediaLookupsMock = vi.mocked(retryMediaLookups)
 
 const emptyDetails: MediaDetailsEntity = {
   subject: null,
@@ -107,10 +115,12 @@ const renderDialog = (
   props: Partial<{
     initialId: string
     settings: GallerySettingsEntity | null
+    suggestionsPending: Record<string, true>
   }> = {}
 ) => {
   const onClose = vi.fn()
   const onSaved = vi.fn()
+  const onDetailsRefreshed = vi.fn()
   render(
     <MediaDetailsDialog
       items={items}
@@ -118,9 +128,11 @@ const renderDialog = (
       settings={props.settings === undefined ? settings() : props.settings}
       onClose={onClose}
       onSaved={onSaved}
+      onDetailsRefreshed={onDetailsRefreshed}
+      suggestionsPending={props.suggestionsPending}
     />
   )
-  return { onClose, onSaved }
+  return { onClose, onSaved, onDetailsRefreshed }
 }
 
 describe('MediaDetailsDialog', () => {
@@ -602,5 +614,486 @@ describe('MediaDetailsDialog', () => {
     expect(screen.getByRole('radio', { name: 'Hidden' })).toHaveFocus()
     fireEvent.keyDown(group, { key: 'End' })
     expect(screen.getByRole('radio', { name: 'Exact' })).toHaveFocus()
+  })
+})
+
+const SUGGESTIONS: NonNullable<MediaDetailsEntity['subjectSuggestions']> = {
+  model: 'test-vision-model',
+  generatedAt: '2026-10-08T10:00:00.000Z',
+  checkedAgainst: 'gbif',
+  candidates: [
+    {
+      name: 'Warbling White-eye',
+      scientificName: 'Zosterops japonicus',
+      category: 'bird',
+      confidence: 0.81,
+      taxonKey: '5232437',
+      rank: 'SPECIES',
+      taxonPath: [
+        'Animalia',
+        'Chordata',
+        'Aves',
+        'Passeriformes',
+        'Zosteropidae'
+      ]
+    },
+    {
+      name: 'Swinhoe’s White-eye',
+      scientificName: 'Zosterops simplex',
+      category: 'bird',
+      confidence: 0.12,
+      taxonKey: '5232440',
+      rank: 'SPECIES',
+      taxonPath: ['Animalia', 'Chordata', 'Aves']
+    }
+  ],
+  group: 'bird'
+}
+
+const withSuggestions = (
+  suggestions: typeof SUGGESTIONS | null = SUGGESTIONS,
+  overrides: Partial<MediaDetailsEntity> = {}
+) =>
+  makeItem('m1', {
+    details: { ...emptyDetails, subjectSuggestions: suggestions, ...overrides }
+  })
+
+describe('MediaDetailsDialog smart subjects', () => {
+  const originalResizeObserver = global.ResizeObserver
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getGalleryGearsMock.mockResolvedValue(gears)
+    updateMediaDetailsMock.mockImplementation(
+      async (id) =>
+        ({ id, description: null }) as unknown as Awaited<
+          ReturnType<typeof updateMediaDetails>
+        >
+    )
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver
+  })
+
+  afterEach(() => {
+    global.ResizeObserver = originalResizeObserver
+  })
+
+  it('offers the candidates at or above the threshold and the group', () => {
+    renderDialog([withSuggestions()])
+
+    expect(
+      screen.getByText('Suggested by test-vision-model · checked against GBIF')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Warbling White-eye 81%' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Swinhoe/)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Just “Bird”' })
+    ).toBeInTheDocument()
+  })
+
+  it('does not claim a GBIF check when the suggestions were not checked', () => {
+    renderDialog([withSuggestions({ ...SUGGESTIONS, checkedAgainst: null })])
+
+    expect(
+      screen.getByText('Suggested by test-vision-model')
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/checked against GBIF/)).not.toBeInTheDocument()
+  })
+
+  it('moves the threshold with the setting', () => {
+    renderDialog([withSuggestions()], {
+      settings: settings({ subjectConfidenceThreshold: 10 })
+    })
+
+    expect(
+      screen.getByRole('button', { name: 'Swinhoe’s White-eye 12%' })
+    ).toBeInTheDocument()
+  })
+
+  it('offers only the group guess when no candidate is confident enough', () => {
+    renderDialog([withSuggestions()], {
+      settings: settings({ subjectConfidenceThreshold: 90 })
+    })
+
+    expect(
+      screen.queryByRole('button', { name: /Warbling White-eye/ })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Bird?' })).toBeInTheDocument()
+  })
+
+  it('fills the draft from a candidate and saves only on Save', async () => {
+    const { onSaved } = renderDialog([withSuggestions()])
+
+    const chip = screen.getByRole('button', { name: 'Warbling White-eye 81%' })
+    expect(chip).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(chip)
+
+    expect(chip).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Name')).toHaveValue('Warbling White-eye')
+    expect(screen.getByLabelText('Scientific name')).toHaveValue(
+      'Zosterops japonicus'
+    )
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === 'P' &&
+          element.textContent ===
+            'Zosterops japonicus · Animalia › Chordata › Aves › Passeriformes › Zosteropidae'
+      )
+    ).toBeInTheDocument()
+    expect(updateMediaDetailsMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(updateMediaDetailsMock).toHaveBeenCalledWith('m1', {
+      subject_name: 'Warbling White-eye',
+      subject_scientific_name: 'Zosterops japonicus',
+      subject_category: 'bird',
+      subject_taxon_key: '5232437'
+    })
+  })
+
+  it('picks the group alone, with no species or taxon', async () => {
+    renderDialog([withSuggestions()])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Just “Bird”' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+
+    await waitFor(() => expect(updateMediaDetailsMock).toHaveBeenCalled())
+    expect(updateMediaDetailsMock).toHaveBeenCalledWith('m1', {
+      subject_name: 'Bird',
+      subject_category: 'bird'
+    })
+  })
+
+  it('drops the matched taxon when the scientific name is edited by hand', async () => {
+    renderDialog([withSuggestions()])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Warbling White-eye 81%' })
+    )
+
+    fireEvent.change(screen.getByLabelText('Scientific name'), {
+      target: { value: 'Zosterops palpebrosus' }
+    })
+
+    expect(screen.queryByText(/Zosteropidae/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    await waitFor(() => expect(updateMediaDetailsMock).toHaveBeenCalled())
+    expect(updateMediaDetailsMock.mock.calls[0][1]).not.toHaveProperty(
+      'subject_taxon_key'
+    )
+  })
+
+  it('keeps the manual inputs under Edit manually', () => {
+    renderDialog([withSuggestions()])
+
+    const toggle = screen.getByRole('button', { name: 'Edit manually' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByLabelText('Name')).not.toBeVisible()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByLabelText('Name')).toBeVisible()
+  })
+
+  it('shows the manual inputs and no suggestion controls when the server offers neither', () => {
+    renderDialog([withSuggestions()], {
+      settings: settings({
+        subjectSuggestionsAvailable: false,
+        speciesLookupsAvailable: false
+      })
+    })
+
+    expect(screen.getByLabelText('Name')).toBeVisible()
+    expect(screen.queryByText(/Suggested by/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Search subjects/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Edit manually' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('hides stored suggestions when the author turned suggestions off', () => {
+    renderDialog([withSuggestions()], {
+      settings: settings({ subjectSuggestionMode: 'off' })
+    })
+
+    expect(screen.queryByText(/Suggested by/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Suggest subjects' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('asks for suggestions on request and shares them with the composer', async () => {
+    suggestMediaSubjectsMock.mockResolvedValue(SUGGESTIONS)
+    const { onDetailsRefreshed } = renderDialog([withSuggestions(null)])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest subjects' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Warbling White-eye 81%' })
+    ).toBeInTheDocument()
+    expect(suggestMediaSubjectsMock).toHaveBeenCalledWith('m1')
+    expect(onDetailsRefreshed).toHaveBeenCalledWith(
+      'm1',
+      expect.objectContaining({ subjectSuggestions: SUGGESTIONS })
+    )
+  })
+
+  it('reports a failed suggestion request', async () => {
+    suggestMediaSubjectsMock.mockRejectedValue(
+      new Error('Subject suggestions are not configured')
+    )
+    renderDialog([withSuggestions(null)])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest subjects' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Subject suggestions are not configured'
+    )
+  })
+
+  it('says it is reading while the composer is still asking', () => {
+    renderDialog([withSuggestions(null)], {
+      suggestionsPending: { m1: true }
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent('Reading details…')
+    expect(
+      screen.queryByRole('button', { name: 'Suggest subjects' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens the species picker from Search subjects', () => {
+    renderDialog([withSuggestions()])
+
+    fireEvent.click(screen.getByRole('button', { name: /Search subjects/ }))
+
+    expect(
+      screen.getByRole('dialog', { name: 'What’s in this photo?' })
+    ).toBeInTheDocument()
+  })
+
+  it('applies the picker’s choice to the draft', async () => {
+    renderDialog([withSuggestions()])
+    fireEvent.click(screen.getByRole('button', { name: /Search subjects/ }))
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Use Warbling White-eye' })
+    )
+
+    expect(
+      screen.queryByRole('dialog', { name: 'What’s in this photo?' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toHaveValue('Warbling White-eye')
+  })
+
+  it('applies the picker’s choice to every item when asked', async () => {
+    renderDialog([withSuggestions(), makeItem('m2')])
+    fireEvent.click(screen.getByRole('button', { name: /Search subjects/ }))
+
+    fireEvent.click(screen.getByRole('switch', { name: /every shot/ }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Use Warbling White-eye' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+
+    await waitFor(() => expect(updateMediaDetailsMock).toHaveBeenCalledTimes(2))
+    expect(updateMediaDetailsMock).toHaveBeenCalledWith(
+      'm2',
+      expect.objectContaining({ subject_name: 'Warbling White-eye' })
+    )
+  })
+
+  describe('lookup status', () => {
+    const subject = (
+      overrides: Partial<NonNullable<MediaDetailsEntity['subject']>>
+    ): MediaDetailsEntity => ({
+      ...emptyDetails,
+      subject: {
+        name: 'Bengal Tiger',
+        scientificName: 'Panthera tigris',
+        category: 'mammal',
+        taxonKey: '5219416',
+        taxonPath: ['Animalia'],
+        iucnCategory: null,
+        threatStatus: 'unchecked',
+        lookupStatus: null,
+        ...overrides
+      }
+    })
+
+    it('shows the IUCN status and that a threatened place is hidden', () => {
+      renderDialog([
+        makeItem('m1', {
+          details: subject({
+            iucnCategory: 'EN',
+            threatStatus: 'threatened',
+            lookupStatus: 'resolved'
+          })
+        })
+      ])
+
+      expect(
+        screen.getByText(/Endangered \(EN\) · IUCN Red List status via GBIF/)
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(/the place is hidden from other people/)
+      ).toBeInTheDocument()
+    })
+
+    it('does not say the place is hidden when the author turned that off', () => {
+      renderDialog(
+        [
+          makeItem('m1', {
+            details: subject({
+              iucnCategory: 'EN',
+              threatStatus: 'threatened',
+              lookupStatus: 'resolved'
+            })
+          })
+        ],
+        { settings: settings({ hideThreatenedPlaces: false }) }
+      )
+
+      expect(screen.queryByText(/place is hidden/)).not.toBeInTheDocument()
+    })
+
+    it('offers Retry when the check failed and shows the refreshed status', async () => {
+      retryMediaLookupsMock.mockResolvedValue(
+        subject({ lookupStatus: 'pending' })
+      )
+      const { onDetailsRefreshed } = renderDialog([
+        makeItem('m1', { details: subject({ lookupStatus: 'failed' }) })
+      ])
+      expect(screen.getByText(/Couldn’t check IUCN status/)).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      expect(
+        await screen.findByText('Checking IUCN status…')
+      ).toBeInTheDocument()
+      expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1')
+      expect(onDetailsRefreshed).toHaveBeenCalled()
+    })
+
+    it('hides the status once the draft no longer holds the saved subject', () => {
+      renderDialog([
+        makeItem('m1', {
+          details: subject({ lookupStatus: 'failed' })
+        })
+      ])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit manually' }))
+      fireEvent.change(screen.getByLabelText('Name'), {
+        target: { value: 'Tiger' }
+      })
+
+      expect(
+        screen.queryByText(/Couldn’t check IUCN status/)
+      ).not.toBeInTheDocument()
+    })
+
+    it('reports a failed retry', async () => {
+      retryMediaLookupsMock.mockRejectedValue(new Error('Too many requests'))
+      renderDialog([
+        makeItem('m1', { details: subject({ lookupStatus: 'failed' }) })
+      ])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Too many requests'
+      )
+    })
+  })
+
+  describe('place lookup', () => {
+    const place = (
+      overrides: Partial<NonNullable<MediaDetailsEntity['place']>>
+    ): MediaDetailsEntity => ({
+      ...emptyDetails,
+      place: {
+        name: 'Khao Yai National Park, Thailand',
+        latitude: 14.4,
+        longitude: 101.4,
+        precision: 'area',
+        countryCode: 'TH',
+        nameSource: 'geocoder',
+        lookupStatus: 'resolved',
+        ...overrides
+      }
+    })
+
+    it('credits OpenStreetMap beside a place from the file', () => {
+      renderDialog([makeItem('m1', { details: place({}) })])
+
+      expect(
+        screen.getByText('Place names © OpenStreetMap contributors')
+      ).toBeInTheDocument()
+      expect(screen.getByLabelText('Place name')).toHaveValue(
+        'Khao Yai National Park, Thailand'
+      )
+      expect(screen.getByText('From file')).toBeInTheDocument()
+    })
+
+    it('leaves the credit out when place lookups are off', () => {
+      renderDialog([makeItem('m1', { details: place({}) })], {
+        settings: settings({ placeLookupsAvailable: false })
+      })
+
+      expect(screen.queryByText(/OpenStreetMap/)).not.toBeInTheDocument()
+    })
+
+    it('offers Retry when the name lookup failed', async () => {
+      retryMediaLookupsMock.mockResolvedValue(
+        place({ lookupStatus: 'resolved' })
+      )
+      renderDialog([
+        makeItem('m1', {
+          details: place({
+            name: null,
+            nameSource: null,
+            lookupStatus: 'failed'
+          })
+        })
+      ])
+      expect(
+        screen.getByText(/Couldn’t look up the place name/)
+      ).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      await waitFor(() =>
+        expect(retryMediaLookupsMock).toHaveBeenCalledWith('m1')
+      )
+      expect(
+        await screen.findByDisplayValue('Khao Yai National Park, Thailand')
+      ).toBeInTheDocument()
+    })
+
+    it('says the name is being looked up', () => {
+      renderDialog([
+        makeItem('m1', {
+          details: place({
+            name: null,
+            nameSource: null,
+            lookupStatus: 'pending'
+          })
+        })
+      ])
+
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Looking up the place name…'
+      )
+    })
   })
 })

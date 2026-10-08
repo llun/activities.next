@@ -19,6 +19,7 @@ import {
   getDefaultQuotePolicy,
   getGallerySettings,
   getMedia,
+  suggestMediaSubjects,
   updateNote,
   uploadAttachment,
   uploadFitnessFile
@@ -107,6 +108,10 @@ import { UploadFitnessFileButton } from './upload-fitness-file-button'
 import { UploadMediaButton } from './upload-media-button'
 import { VisibilitySelector } from './visibility-selector'
 
+// Subject suggestions are model calls: at most this many run at once per
+// composer, the rest wait their turn.
+const MAX_CONCURRENT_SUGGESTIONS = 2
+
 interface Props {
   host: string
   profile: ActorProfile
@@ -184,6 +189,11 @@ export const PostBox: FC<Props> = ({
   const [settingsFailed, setSettingsFailed] = useState(false)
   const [detailsPending, setDetailsPending] = useState<Record<string, true>>({})
   const [activeDetailsId, setActiveDetailsId] = useState<string | null>(null)
+  // Ids whose subject suggestions are queued or being asked for. The tile says
+  // "Reading details…" for them but stays openable.
+  const [suggestionsPending, setSuggestionsPending] = useState<
+    Record<string, true>
+  >({})
   const uploadErrorsRef = useRef<Record<string, string>>({})
   // In-flight uploads by attachment id; submit waits on every one of them.
   const uploadsRef = useRef(new Map<string, Promise<void>>())
@@ -192,6 +202,11 @@ export const PostBox: FC<Props> = ({
   // after awaits and must not read the stale render closure.
   const gallerySettingsRef = useRef<GallerySettingsEntity | null>(null)
   const decorativeIdsRef = useRef<Record<string, true>>({})
+  // Suggestion requests: ids already asked for (once each), the waiting line,
+  // and how many are in flight (at most MAX_CONCURRENT_SUGGESTIONS).
+  const suggestionRequestedRef = useRef<Set<string>>(new Set())
+  const suggestionQueueRef = useRef<string[]>([])
+  const suggestionsActiveRef = useRef(0)
   // Server media id -> the temporary id the tile was first rendered with, so
   // the tile's React key survives the id swap when its upload finishes (a new
   // key would remount the tile and drop focus from its Remove button).
@@ -473,6 +488,78 @@ export const PostBox: FC<Props> = ({
     return promise
   }
 
+  const settleSuggestion = (id: string) => {
+    if (!isMountedRef.current) return
+    setSuggestionsPending((current) => {
+      const { [id]: _done, ...rest } = current
+      return rest
+    })
+  }
+
+  const runSuggestion = async (id: string) => {
+    try {
+      if (!isMountedRef.current || !findAttachment(id)) return
+      const suggestions = await suggestMediaSubjects(id)
+      if (!isMountedRef.current) return
+      // Only the suggestions: anything the author saved meanwhile stays.
+      setDetailsById((current) =>
+        current[id]
+          ? {
+              ...current,
+              [id]: { ...current[id], subjectSuggestions: suggestions }
+            }
+          : current
+      )
+    } catch {
+      // Suggestions are an aid: the tile simply has none, and the dialog can
+      // ask again.
+    } finally {
+      settleSuggestion(id)
+    }
+  }
+
+  const pumpSuggestions = () => {
+    while (
+      suggestionsActiveRef.current < MAX_CONCURRENT_SUGGESTIONS &&
+      suggestionQueueRef.current.length > 0
+    ) {
+      const id = suggestionQueueRef.current.shift()
+      if (!id) break
+      suggestionsActiveRef.current += 1
+      void runSuggestion(id).finally(() => {
+        suggestionsActiveRef.current -= 1
+        pumpSuggestions()
+      })
+    }
+  }
+
+  // After an upload finishes and its details are read: ask the instance's image
+  // model for the subject, if the server and the author's setting allow it.
+  // Never blocks posting; the media of a status being edited is left alone.
+  const requestSuggestions = async (id: string) => {
+    if (
+      suggestionRequestedRef.current.has(id) ||
+      originalMediaIdsRef.current.has(id)
+    ) {
+      return
+    }
+    await ensureGallerySettings()
+    const settings = gallerySettingsRef.current
+    if (
+      !settings?.subjectSuggestionsAvailable ||
+      settings.subjectSuggestionMode !== 'model' ||
+      !isMountedRef.current ||
+      !findAttachment(id) ||
+      suggestionRequestedRef.current.has(id)
+    ) {
+      return
+    }
+    suggestionRequestedRef.current.add(id)
+    setSuggestionsPending((current) => ({ ...current, [id]: true }))
+    suggestionQueueRef.current.push(id)
+    pumpSuggestions()
+  }
+
   // Uploads when the file is attached rather than at Post: the tile shows the
   // progress, the server reads the file's details, and Post only has to wait
   // for whatever is still in flight.
@@ -515,6 +602,7 @@ export const PostBox: FC<Props> = ({
         })
         setFileNames((names) => ({ ...names, [uploaded.id]: file.name }))
         await loadDetails(uploaded.id)
+        void requestSuggestions(uploaded.id)
       } catch (error) {
         const current = findAttachment(tempId)
         // Removed while uploading: nothing to mark as failed.
@@ -631,6 +719,9 @@ export const PostBox: FC<Props> = ({
   }
 
   const resetMediaState = () => {
+    suggestionRequestedRef.current.clear()
+    suggestionQueueRef.current = []
+    setSuggestionsPending({})
     uploadsRef.current.clear()
     fetchedDetailsRef.current.clear()
     detailsInFlightRef.current.clear()
@@ -1588,6 +1679,8 @@ export const PostBox: FC<Props> = ({
           decorativeIds={decorativeIds}
           uploadErrors={uploadErrors}
           detailsPending={detailsPending}
+          suggestionsPending={suggestionsPending}
+          confidenceThreshold={gallerySettings?.subjectConfidenceThreshold}
           disabled={isPosting}
           onOpen={(id) => void openDetails(id)}
           onRemove={onRemoveAttachment}
@@ -1604,6 +1697,10 @@ export const PostBox: FC<Props> = ({
           settings={gallerySettings}
           onClose={closeDetails}
           onSaved={onDetailsSaved}
+          onDetailsRefreshed={(id, details) =>
+            setDetailsById((current) => ({ ...current, [id]: details }))
+          }
+          suggestionsPending={suggestionsPending}
         />
       ) : null}
     </div>
