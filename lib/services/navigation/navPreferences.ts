@@ -17,6 +17,7 @@ export const NAV_ITEM_IDS = [
   'bookmarks',
   'lists',
   'fitness',
+  'gallery',
   'notifications',
   'admin',
   'account',

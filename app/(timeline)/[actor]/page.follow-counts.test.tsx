@@ -92,7 +92,9 @@ describe('[actor] page follow counts display', () => {
       statusPagination: { nextPageUrl: null, prevPageUrl: null },
       attachments: [],
       isInternalAccount: true,
-      hasFitnessData: false
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
     })
 
     const element = await Page({
@@ -122,7 +124,9 @@ describe('[actor] page follow counts display', () => {
       statusPagination: { nextPageUrl: null, prevPageUrl: null },
       attachments: [],
       isInternalAccount: true,
-      hasFitnessData: false
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
     })
 
     const element = await Page({
@@ -151,7 +155,9 @@ describe('[actor] page follow counts display', () => {
       statusPagination: { nextPageUrl: null, prevPageUrl: null },
       attachments: [],
       isInternalAccount: true,
-      hasFitnessData: false
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
     })
 
     const element = await Page({
@@ -180,7 +186,9 @@ describe('[actor] page follow counts display', () => {
       statusPagination: { nextPageUrl: null, prevPageUrl: null },
       attachments: [],
       isInternalAccount: true,
-      hasFitnessData: false
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
     })
 
     const element = await Page({
@@ -208,7 +216,9 @@ describe('[actor] page follow counts display', () => {
       statusPagination: { nextPageUrl: null, prevPageUrl: null },
       attachments: [],
       isInternalAccount: false,
-      hasFitnessData: false
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
     })
 
     const element = await Page({
@@ -237,7 +247,9 @@ describe('[actor] page follow counts display', () => {
       statusPagination: { nextPageUrl: null, prevPageUrl: null },
       attachments: [],
       isInternalAccount: true,
-      hasFitnessData: false
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
     })
 
     const element = await Page({
@@ -263,7 +275,9 @@ describe('[actor] page follow counts display', () => {
       statusPagination: { nextPageUrl: null, prevPageUrl: null },
       attachments: [],
       isInternalAccount: false,
-      hasFitnessData: false
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
     })
 
     const element = await Page({

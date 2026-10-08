@@ -25,7 +25,8 @@ const MAX_STATUSES_CHECKED = 10
 // and 404s otherwise, so an unattached or private upload is indistinguishable
 // from one that does not exist. What it returns is decided by
 // `buildPublicMediaDetails`: coordinates are rounded or withheld by the media's
-// `placePrecision`, and gear is withheld unless the owner shows it.
+// `placePrecision`, a place inside one of the owner's hidden locations is
+// withheld entirely, and gear is withheld unless the owner shows it.
 export const GET = traceApiRoute(
   'getMediaPublicDetails',
   OptionalOAuthGuard<Params>(
@@ -65,6 +66,8 @@ export const GET = traceApiRoute(
         })
       }
 
+      // The whole settings row goes through, `hiddenLocations` included: a
+      // place inside a hidden location comes back as `place: null`.
       const settings = await database.getGallerySettings({
         actorId: found.media.actorId
       })

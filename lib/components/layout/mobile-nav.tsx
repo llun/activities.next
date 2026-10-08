@@ -16,6 +16,7 @@ export interface MobileNavProps {
   actors?: ActorInfo[]
   unreadCount?: number
   fitnessUrl?: string
+  galleryUrl?: string
   isAdmin?: boolean
   lists?: UserList[]
   features?: Partial<NavFeatureFlags>
@@ -33,6 +34,7 @@ export function MobileNav({
   actors,
   unreadCount = 0,
   fitnessUrl,
+  galleryUrl,
   isAdmin = false,
   lists,
   features
@@ -47,6 +49,7 @@ export function MobileNav({
           actors={actors}
           unreadCount={unreadCount}
           fitnessUrl={fitnessUrl}
+          galleryUrl={galleryUrl}
           isAdmin={isAdmin}
           lists={lists}
           features={features}

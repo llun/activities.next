@@ -9,6 +9,7 @@ import {
   Sparkles,
   X
 } from 'lucide-react'
+import Link from 'next/link'
 import {
   FC,
   KeyboardEvent,
@@ -390,8 +391,15 @@ export const MediaDetailsDialog: FC<Props> = ({
     onClose()
   }
 
-  const cameras = gears.filter((g) => g.kind === 'camera' && !g.retiredAt)
-  const lenses = gears.filter((g) => g.kind === 'lens' && !g.retiredAt)
+  // Retired gear is out of the pickers, except the one this media already
+  // carries: hiding it would make the select read as "none" and a save would
+  // silently clear it.
+  const cameras = gears.filter(
+    (g) => g.kind === 'camera' && (!g.retiredAt || g.id === draft.cameraGearId)
+  )
+  const lenses = gears.filter(
+    (g) => g.kind === 'lens' && (!g.retiredAt || g.id === draft.lensGearId)
+  )
   const withCurrent = (
     list: GalleryGearEntity[],
     currentId: string,
@@ -809,6 +817,19 @@ export const MediaDetailsDialog: FC<Props> = ({
                   {gearError}
                 </p>
               ) : null}
+              {/* A new tab: the dialog also opens from the composer's upload
+                  flow, and navigating here would unmount the composer and lose
+                  its unposted text and attachments. */}
+              <Link
+                href="/gallery/gear"
+                target="_blank"
+                rel="noopener"
+                prefetch={false}
+                className="text-xs font-medium text-primary-text hover:underline"
+              >
+                Manage gear{' '}
+                <span className="sr-only">(opens in a new tab)</span>
+              </Link>
               {exposureChips.length > 0 ? (
                 <ul
                   className="flex flex-wrap gap-1.5"

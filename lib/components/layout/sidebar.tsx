@@ -61,6 +61,7 @@ export interface SidebarProps {
   actors?: ActorInfo[]
   unreadCount?: number
   fitnessUrl?: string
+  galleryUrl?: string
   isAdmin?: boolean
   lists?: UserList[]
   features?: Partial<NavFeatureFlags>
@@ -177,6 +178,7 @@ export function Sidebar({
   actors = [],
   unreadCount = 0,
   fitnessUrl,
+  galleryUrl,
   isAdmin = false,
   lists = [],
   features
@@ -188,11 +190,12 @@ export function Sidebar({
     () =>
       buildNavLayout({
         fitnessUrl,
+        galleryUrl,
         isAdmin,
         features,
         prefs: { navOrder: order, navHidden: hidden }
       }),
-    [features, fitnessUrl, hidden, isAdmin, order]
+    [features, fitnessUrl, galleryUrl, hidden, isAdmin, order]
   )
   // Reordering swaps with the nearest neighbour that is actually on screen, so
   // hidden and unavailable items keep their slot.

@@ -134,6 +134,18 @@ describe('buildNavLayout', () => {
     )
   })
 
+  it('offers the gallery item only with a gallery url', () => {
+    expect(buildNavLayout({}).shown.some((item) => item.id === 'gallery')).toBe(
+      false
+    )
+    const { shown } = buildNavLayout({ galleryUrl: '/gallery' })
+    const ids = shown.map((item) => item.id)
+    expect(ids.indexOf('gallery')).toBe(ids.indexOf('notifications') - 1)
+    expect(shown.find((item) => item.id === 'gallery')?.href).toEqual(
+      '/gallery'
+    )
+  })
+
   it('marks pinned items as locked', () => {
     const { shown } = buildNavLayout({})
     const locked = shown.filter((item) => item.locked).map((item) => item.id)

@@ -172,7 +172,9 @@ describe('buildUploadMediaDetails', () => {
       // The coordinates are kept for the owner, but nothing is public.
       expect(details.placeLatitude).toBeCloseTo(51.5, 3)
       expect(details.placePrecision).toBe('hidden')
-      expect(getPublicPlace(details as Media['details'])).toBeNull()
+      expect(
+        getPublicPlace(details as Media['details'], { hiddenLocations: [] })
+      ).toBeNull()
     })
 
     it.each(['hidden', 'country', 'area', 'exact'] as const)(

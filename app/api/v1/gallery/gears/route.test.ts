@@ -137,12 +137,16 @@ describe('/api/v1/gallery/gears', () => {
       expect((await lens.json()).gear.id).not.toBe(gear.id)
     })
 
-    // Fills ACTOR3's gear to `count` rows, so the cap tests do not crowd the
-    // signed-in ACTOR1 used everywhere else.
-    const fillActor3Gear = async (count: number) => {
+    // Brings ACTOR3's gear to exactly `count` rows, adding or deleting as
+    // needed, so each cap test sets up its own state and none depends on what
+    // an earlier one left behind (or on running in file order at all).
+    const setActor3GearCount = async (count: number) => {
       const existing = await database.getGalleryGearsByActor({
         actorId: ACTOR3_ID
       })
+      for (const gear of existing.slice(count)) {
+        await database.deleteGalleryGear({ id: gear.id, actorId: ACTOR3_ID })
+      }
       for (let index = existing.length; index < count; index += 1) {
         await database.createGalleryGear({
           actorId: ACTOR3_ID,
@@ -178,16 +182,14 @@ describe('/api/v1/gallery/gears', () => {
       ).toHaveLength(1)
     })
 
-    // Runs before the 422 test below, which relies on the cap it leaves full.
     it('does not overshoot the cap under concurrent creates', async () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor3.email }
       })
-      await fillActor3Gear(MAX_GALLERY_GEAR_PER_ACTOR - 1)
-      const count = (
+      await setActor3GearCount(MAX_GALLERY_GEAR_PER_ACTOR - 1)
+      expect(
         await database.getGalleryGearsByActor({ actorId: ACTOR3_ID })
-      ).length
-      expect(count).toBe(MAX_GALLERY_GEAR_PER_ACTOR - 1)
+      ).toHaveLength(MAX_GALLERY_GEAR_PER_ACTOR - 1)
 
       const responses = await Promise.all(
         ['Racing A', 'Racing B', 'Racing C'].map((name) =>
@@ -209,7 +211,7 @@ describe('/api/v1/gallery/gears', () => {
       mockGetServerSession.mockResolvedValue({
         user: { email: seedActor3.email }
       })
-      await fillActor3Gear(MAX_GALLERY_GEAR_PER_ACTOR)
+      await setActor3GearCount(MAX_GALLERY_GEAR_PER_ACTOR)
 
       const response = await POST(
         postRequest({ kind: 'camera', name: 'One camera too many' }),
@@ -305,6 +307,88 @@ describe('/api/v1/gallery/gears', () => {
       expect(gears.map((gear) => gear.name)).not.toContain(
         'Somebody else’s camera'
       )
+    })
+
+    it('adds each gear’s usage with ?include=usage', async () => {
+      const used = await database.createGalleryGear({
+        actorId: ACTOR1_ID,
+        kind: 'camera',
+        name: 'Used camera'
+      })
+      const unused = await database.createGalleryGear({
+        actorId: ACTOR1_ID,
+        kind: 'lens',
+        name: 'Unused lens'
+      })
+      const takenAt = Date.UTC(2024, 2, 14)
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: '/test/gear-usage.jpg',
+          bytes: 1000,
+          mimeType: 'image/jpeg',
+          metaData: { width: 100, height: 100 }
+        },
+        details: { inGallery: true, cameraGearId: used.id, takenAt }
+      })
+      await database.createNote({
+        id: `${ACTOR1_ID}/statuses/gear-usage`,
+        url: `${ACTOR1_ID}/statuses/gear-usage`,
+        actorId: ACTOR1_ID,
+        to: ['https://www.w3.org/ns/activitystreams#Public'],
+        cc: [],
+        text: 'usage'
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId: `${ACTOR1_ID}/statuses/gear-usage`,
+        mediaType: 'image/jpeg',
+        url: 'https://media.test/gear-usage.jpg',
+        width: 100,
+        height: 100,
+        mediaId: media!.id
+      })
+
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/gallery/gears?include=usage'),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      const { gears } = (await response.json()) as {
+        gears: { id: string; photoCount: number }[]
+      }
+      expect(gears.find((gear) => gear.id === used.id)).toMatchObject({
+        photoCount: 1,
+        firstUsedAt: takenAt,
+        lastUsedAt: takenAt
+      })
+      expect(gears.find((gear) => gear.id === unused.id)).toMatchObject({
+        photoCount: 0,
+        firstUsedAt: null,
+        lastUsedAt: null
+      })
+    })
+
+    it('leaves the usage fields out without the option', async () => {
+      const response = await GET(getRequest(), {
+        params: Promise.resolve({})
+      })
+
+      const { gears } = (await response.json()) as {
+        gears: Record<string, unknown>[]
+      }
+      expect(gears.length).toBeGreaterThan(0)
+      for (const gear of gears) expect(gear).not.toHaveProperty('photoCount')
+    })
+
+    it('answers 422 for an unknown include', async () => {
+      const response = await GET(
+        new NextRequest('https://llun.test/api/v1/gallery/gears?include=x'),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(422)
     })
 
     it('redirects to sign-in without a session', async () => {

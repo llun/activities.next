@@ -117,6 +117,20 @@ vi.mock('@/lib/components/posts/posts', () => ({
   )
 }))
 
+vi.mock('./ProfileGalleryTab', () => ({
+  ProfileGalleryTab: ({
+    subviews,
+    isCurrentUser
+  }: {
+    subviews: string[]
+    isCurrentUser?: boolean
+  }) => (
+    <div data-testid="mock-gallery-tab">
+      {subviews.join(',')}:{String(Boolean(isCurrentUser))}
+    </div>
+  )
+}))
+
 vi.mock('./ActorMediaGallery', () => ({
   ActorMediaGallery: () => <div data-testid="mock-media-gallery" />
 }))
@@ -126,7 +140,17 @@ vi.mock('@/lib/components/ui/tabs', () => ({
     <div data-active-tab={value}>{children}</div>
   ),
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  TabsList: ({
+    children,
+    className
+  }: {
+    children: ReactNode
+    className?: string
+  }) => (
+    <div data-testid="tabs-list" className={className}>
+      {children}
+    </div>
+  ),
   TabsTrigger: ({
     children,
     className,
@@ -645,6 +669,77 @@ describe('ActorTimelines', () => {
         'sm:px-4'
       )
     }
+  })
+
+  describe('Gallery tab', () => {
+    const renderTimelines = (
+      props: Partial<React.ComponentProps<typeof ActorTimelines>> = {}
+    ) =>
+      render(
+        <ActorTimelines
+          host="localhost:3000"
+          actorId="https://local.example/users/me"
+          statuses={[createStatus('https://local.example/statuses/post')]}
+          attachments={[sampleAttachment]}
+          currentTime={FIXED_CURRENT_TIME}
+          statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+          {...props}
+        />
+      )
+
+    it('is offered after Media and before Fitness when the viewer may see gallery photos', () => {
+      renderTimelines({
+        hasFitnessData: true,
+        hasGalleryMedia: true,
+        gallerySubviews: ['subjects', 'recent']
+      })
+
+      const names = screen
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+        .filter((text) =>
+          ['Posts', 'Replies', 'Media', 'Gallery', 'Fitness'].includes(
+            text ?? ''
+          )
+        )
+      expect(names).toEqual(['Posts', 'Replies', 'Media', 'Gallery', 'Fitness'])
+      expect(screen.getByTestId('mock-gallery-tab')).toHaveTextContent(
+        'subjects,recent:false'
+      )
+    })
+
+    it('keeps the four-tab list as it was, without sideways scrolling', () => {
+      renderTimelines({ hasFitnessData: true })
+      expect(screen.getByTestId('tabs-list')).not.toHaveClass('overflow-x-auto')
+    })
+
+    it('is left out without gallery photos', () => {
+      renderTimelines({ hasGalleryMedia: false, gallerySubviews: [] })
+      expect(
+        screen.queryByRole('button', { name: 'Gallery' })
+      ).not.toBeInTheDocument()
+      expect(screen.queryByTestId('mock-gallery-tab')).not.toBeInTheDocument()
+    })
+
+    it('scrolls the tab list sideways below sm when all five tabs are shown, so a 320px viewport does not overflow', () => {
+      renderTimelines({
+        hasFitnessData: true,
+        hasGalleryMedia: true,
+        gallerySubviews: ['subjects', 'recent']
+      })
+      // jsdom has no layout, so pin the classes: the list scrolls and starts
+      // at the left edge, and no trigger may shrink or stretch.
+      expect(screen.getByTestId('tabs-list')).toHaveClass(
+        'overflow-x-auto',
+        'justify-start',
+        'sm:overflow-visible'
+      )
+      for (const name of ['Posts', 'Replies', 'Media', 'Gallery', 'Fitness']) {
+        const trigger = screen.getByRole('button', { name })
+        expect(trigger).toHaveClass('flex-none', 'px-2', 'sm:px-4')
+        expect(trigger).not.toHaveClass('flex-1')
+      }
+    })
   })
 
   it('surfaces a newly created reply on the viewer’s own profile', () => {

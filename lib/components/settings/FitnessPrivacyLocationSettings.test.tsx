@@ -4,6 +4,7 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
+import { createDeferred } from '@/lib/testing/deferred'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
 import { FitnessPrivacyLocationSettings } from './FitnessPrivacyLocationSettings'
@@ -600,6 +601,42 @@ describe('FitnessPrivacyLocationSettings', () => {
         )
       })
     ).toBe(true)
+  })
+
+  it('locks the route description switch while maps are being queued', async () => {
+    const regenerate = createDeferred<Response>()
+    vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const method = init?.method ?? 'GET'
+      if (input === '/api/v1/fitness/general' && method === 'GET') {
+        return {
+          ok: true,
+          json: async () => ({ privacyLocations: [] })
+        } as Response
+      }
+      if (input === '/api/v1/fitness/general/regenerate-maps') {
+        return regenerate.promise
+      }
+      throw new Error('Unexpected fetch call')
+    })
+
+    render(<FitnessPrivacyLocationSettings mapProvider={{ type: 'osm' }} />)
+
+    const regenerateButton = await screen.findByRole('button', {
+      name: 'Regenerate maps for old statuses'
+    })
+    const routeSwitch = screen.getByRole('switch', {
+      name: 'Generate AI route description'
+    })
+    await waitFor(() => expect(routeSwitch).not.toBeDisabled())
+
+    fireEvent.click(regenerateButton)
+    await waitFor(() => expect(routeSwitch).toBeDisabled())
+
+    regenerate.resolve({
+      ok: true,
+      json: async () => ({ success: true, queuedCount: 0 })
+    } as Response)
+    await waitFor(() => expect(routeSwitch).not.toBeDisabled())
   })
 
   describe('route map description toggle', () => {

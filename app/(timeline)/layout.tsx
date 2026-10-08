@@ -102,6 +102,8 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
   // An admin can drop it from navigation instance-wide; the section keeps
   // working for anyone who follows a link straight to it.
   const fitnessUrl = actor.account && features.fitness ? '/fitness' : undefined
+  // Gallery needs a local account too, but is not an admin-switchable feature.
+  const galleryUrl = actor.account ? '/gallery' : undefined
   const isAdmin = actor.account?.role === 'admin'
 
   // Drives the expandable Lists group in the sidebar.
@@ -149,6 +151,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                   actors={formattedActors}
                   unreadCount={unreadCount}
                   fitnessUrl={fitnessUrl}
+                  galleryUrl={galleryUrl}
                   isAdmin={isAdmin}
                   lists={formattedLists}
                   features={features}
@@ -159,6 +162,7 @@ const Layout: FC<LayoutProps> = async ({ children }) => {
                   actors={formattedActors}
                   unreadCount={unreadCount}
                   fitnessUrl={fitnessUrl}
+                  galleryUrl={galleryUrl}
                   isAdmin={isAdmin}
                   lists={formattedLists}
                   features={features}

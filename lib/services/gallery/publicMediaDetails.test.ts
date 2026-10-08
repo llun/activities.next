@@ -26,6 +26,8 @@ const database = (names: Record<string, string> = {}) => ({
   )
 })
 
+const NO_ZONES = { hiddenLocations: [] }
+
 describe('getPublicPlace', () => {
   const place = {
     placeName: 'Lea Valley',
@@ -81,9 +83,9 @@ describe('getPublicPlace', () => {
     ],
     ['nothing stored is no place', {}, null]
   ])('%s', (_, details, expected) => {
-    expect(getPublicPlace({ ...EMPTY_MEDIA_DETAILS, ...details })).toEqual(
-      expected
-    )
+    expect(
+      getPublicPlace({ ...EMPTY_MEDIA_DETAILS, ...details }, NO_ZONES)
+    ).toEqual(expected)
   })
 
   it.each([
@@ -93,12 +95,15 @@ describe('getPublicPlace', () => {
     [0.01, 0],
     [-0.01, 0]
   ])('snaps %d to %d', (value, expected) => {
-    const result = getPublicPlace({
-      ...EMPTY_MEDIA_DETAILS,
-      placePrecision: 'area',
-      placeLatitude: value,
-      placeLongitude: value
-    })
+    const result = getPublicPlace(
+      {
+        ...EMPTY_MEDIA_DETAILS,
+        placePrecision: 'area',
+        placeLatitude: value,
+        placeLongitude: value
+      },
+      NO_ZONES
+    )
 
     expect(result?.latitude).toBe(expected)
     // Never negative zero in JSON.
@@ -106,12 +111,15 @@ describe('getPublicPlace', () => {
   })
 
   it('snaps by no more than half the grid step', () => {
-    const result = getPublicPlace({
-      ...EMPTY_MEDIA_DETAILS,
-      placePrecision: 'area',
-      placeLatitude: 48.8584,
-      placeLongitude: 2.2945
-    })
+    const result = getPublicPlace(
+      {
+        ...EMPTY_MEDIA_DETAILS,
+        placePrecision: 'area',
+        placeLatitude: 48.8584,
+        placeLongitude: 2.2945
+      },
+      NO_ZONES
+    )
 
     expect(Math.abs(result!.latitude! - 48.8584)).toBeLessThanOrEqual(
       AREA_PRECISION_DEGREES / 2 + 1e-9
@@ -119,6 +127,77 @@ describe('getPublicPlace', () => {
     expect(Math.abs(result!.longitude! - 2.2945)).toBeLessThanOrEqual(
       AREA_PRECISION_DEGREES / 2 + 1e-9
     )
+  })
+})
+
+describe('getPublicPlace with hidden locations', () => {
+  const stored = {
+    placeName: 'Lea Valley',
+    placeLatitude: 51.5543,
+    placeLongitude: -0.0231
+  }
+  // Around the stored point itself.
+  const aroundStored = {
+    latitude: 51.5543,
+    longitude: -0.0231,
+    hideRadiusMeters: 200 as const
+  }
+  // Around the `area` cell centre (51.55, 0), about 1.6 km from the stored
+  // point: the true point is outside, the point that would be disclosed is in.
+  const aroundSnapped = {
+    latitude: 51.55,
+    longitude: 0,
+    hideRadiusMeters: 500 as const
+  }
+  const elsewhere = {
+    latitude: 40.7,
+    longitude: -74,
+    hideRadiusMeters: 1000 as const
+  }
+
+  it.each([
+    ['exact', 'around the stored point', aroundStored, false],
+    ['area', 'around the stored point', aroundStored, false],
+    ['country', 'around the stored point', aroundStored, false],
+    [null, 'around the stored point', aroundStored, false],
+    ['area', 'around the snapped point only', aroundSnapped, false],
+    ['exact', 'around the snapped point only', aroundSnapped, true],
+    ['country', 'around the snapped point only', aroundSnapped, true],
+    ['exact', 'elsewhere', elsewhere, true],
+    ['area', 'elsewhere', elsewhere, true]
+  ] as const)(
+    '%s precision with a zone %s discloses a place: %s',
+    (precision, _, zone, disclosed) => {
+      const result = getPublicPlace(
+        { ...EMPTY_MEDIA_DETAILS, ...stored, placePrecision: precision },
+        { hiddenLocations: [zone] }
+      )
+
+      if (disclosed) expect(result).not.toBeNull()
+      else expect(result).toBeNull()
+    }
+  )
+
+  it('withholds a name-only place whose stored point is in a zone', () => {
+    expect(
+      getPublicPlace(
+        { ...EMPTY_MEDIA_DETAILS, ...stored, placePrecision: 'country' },
+        { hiddenLocations: [aroundStored] }
+      )
+    ).toBeNull()
+  })
+
+  it('keeps a name with no coordinates, which no zone can contain', () => {
+    expect(
+      getPublicPlace(
+        {
+          ...EMPTY_MEDIA_DETAILS,
+          placeName: 'Somewhere',
+          placePrecision: 'country'
+        },
+        { hiddenLocations: [aroundStored] }
+      )
+    ).toEqual({ name: 'Somewhere', precision: 'country' })
   })
 })
 
@@ -144,7 +223,7 @@ describe('buildPublicMediaDetails', () => {
       await buildPublicMediaDetails({
         database: database(names),
         media: mediaWith(details),
-        settings: { showGear: true }
+        settings: { showGear: true, hiddenLocations: [] }
       })
     ).toEqual({
       subject: {
@@ -176,7 +255,7 @@ describe('buildPublicMediaDetails', () => {
     const result = await buildPublicMediaDetails({
       database: db,
       media: mediaWith(details),
-      settings: { showGear: false }
+      settings: { showGear: false, hiddenLocations: [] }
     })
 
     expect(result.camera).toBeNull()
@@ -190,7 +269,7 @@ describe('buildPublicMediaDetails', () => {
     const result = await buildPublicMediaDetails({
       database: database(names),
       media: mediaWith(details),
-      settings: { showGear: true }
+      settings: { showGear: true, hiddenLocations: [] }
     })
 
     const json = JSON.stringify(result)
@@ -204,7 +283,7 @@ describe('buildPublicMediaDetails', () => {
     const result = await buildPublicMediaDetails({
       database: database({}),
       media: mediaWith(details),
-      settings: { showGear: true }
+      settings: { showGear: true, hiddenLocations: [] }
     })
 
     expect(result.camera).toBeNull()
@@ -216,7 +295,7 @@ describe('buildPublicMediaDetails', () => {
       await buildPublicMediaDetails({
         database: database(),
         media: { ...mediaWith({}), details: undefined },
-        settings: { showGear: true }
+        settings: { showGear: true, hiddenLocations: [] }
       })
     ).toEqual({
       subject: null,
@@ -228,11 +307,27 @@ describe('buildPublicMediaDetails', () => {
     })
   })
 
+  it('returns no place inside one of the owner hidden locations', async () => {
+    const result = await buildPublicMediaDetails({
+      database: database(names),
+      media: mediaWith({ ...details, placePrecision: 'exact' }),
+      settings: {
+        showGear: true,
+        hiddenLocations: [
+          { latitude: 51.5543, longitude: -0.0231, hideRadiusMeters: 100 }
+        ]
+      }
+    })
+
+    expect(result.place).toBeNull()
+    expect(result.subject).not.toBeNull()
+  })
+
   it('returns no place for a hidden one', async () => {
     const result = await buildPublicMediaDetails({
       database: database(),
       media: mediaWith({ ...details, placePrecision: 'hidden' }),
-      settings: { showGear: true }
+      settings: { showGear: true, hiddenLocations: [] }
     })
 
     expect(result.place).toBeNull()

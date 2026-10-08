@@ -83,6 +83,7 @@ describe('profile follow lookup', () => {
     getActorFollowingCount: vi.fn(),
     getActorFollowersCount: vi.fn(),
     getActorHasFitnessData: vi.fn(),
+    getActorHasGalleryMedia: vi.fn(),
     // canFederateWithDomain (federation gate added on the remote persist path)
     getDomainBlockForDomain: vi.fn().mockResolvedValue(null),
     getDomainAllowForDomain: vi.fn().mockResolvedValue(null),
@@ -141,6 +142,7 @@ describe('profile follow lookup', () => {
     mockDatabase.getActorFollowingCount.mockResolvedValue(0)
     mockDatabase.getActorFollowersCount.mockResolvedValue(0)
     mockDatabase.getActorHasFitnessData.mockResolvedValue(false)
+    mockDatabase.getActorHasGalleryMedia.mockResolvedValue(false)
     mockDatabase.isCurrentActorFollowing.mockResolvedValue(true)
     mockDatabase.isBlocking.mockResolvedValue(false)
     mockDatabase.isDomainBlockedByActor.mockResolvedValue(false)

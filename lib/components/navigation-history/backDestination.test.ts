@@ -26,6 +26,8 @@ describe('resolveBackDestination', () => {
     ['/tags/caf%C3%A9', 'Back to #café'],
     ['/fitness', 'Back to Fitness'],
     ['/fitness/heatmap', 'Back to Fitness'],
+    ['/gallery', 'Back to Gallery'],
+    ['/gallery/subjects/sci%3Aalcedo%20atthis', 'Back to Gallery'],
     ['/settings', 'Back to Settings'],
     ['/settings/preferences', 'Back to Settings'],
     ['/account/security', 'Back to Account'],

@@ -1,5 +1,10 @@
 import { z } from 'zod'
 
+import { MAX_FITNESS_PRIVACY_RADIUS_METERS } from '@/lib/services/fitness-files/privacy'
+import {
+  MAX_GALLERY_HIDDEN_LOCATIONS,
+  parseGalleryHiddenLocations
+} from '@/lib/services/gallery/hiddenLocations'
 import {
   GALLERY_DEFAULTS,
   GALLERY_GEAR_KINDS,
@@ -8,11 +13,6 @@ import {
 
 // `name`, `brand`, `model` and `productUrl` are varchar(255).
 const VARCHAR_MAX = 255
-
-// The map's hidden locations (a later change) are a small list of areas;
-// the cap keeps an arbitrary JSON blob out of the column.
-const MAX_HIDDEN_LOCATIONS = 200
-const MAX_HIDDEN_LOCATIONS_BYTES = 64 * 1024
 
 /**
  * An optional text field that treats an empty or whitespace-only string as an
@@ -65,13 +65,25 @@ export const UpdateGallerySettingsRequest = z.object({
   showGear: z.boolean().optional(),
   mapPublic: z.boolean().optional(),
   lifeListPublic: z.boolean().optional(),
+  // The same shape as Fitness privacy locations. A strict object, so a typo'd
+  // key is a 422 rather than a zone silently saved without its radius. The
+  // transform snaps each radius up to a supported option and drops duplicates,
+  // so what is written is exactly what `parseSQLGallerySettings` reads back.
   hiddenLocations: z
-    .array(z.record(z.string(), z.unknown()))
-    .max(MAX_HIDDEN_LOCATIONS)
-    .refine(
-      (value) => JSON.stringify(value).length <= MAX_HIDDEN_LOCATIONS_BYTES,
-      { message: 'hiddenLocations is too large' }
+    .array(
+      z
+        .object({
+          latitude: z.number().min(-90).max(90),
+          longitude: z.number().min(-180).max(180),
+          hideRadiusMeters: z
+            .number()
+            .positive()
+            .max(MAX_FITNESS_PRIVACY_RADIUS_METERS)
+        })
+        .strict()
     )
+    .max(MAX_GALLERY_HIDDEN_LOCATIONS)
+    .transform(parseGalleryHiddenLocations)
     .optional()
 })
 export type UpdateGallerySettingsRequest = z.infer<
@@ -81,3 +93,23 @@ export type UpdateGallerySettingsRequest = z.infer<
 // The most non-deleted gear rows one actor may hold. GET returns every row
 // unpaginated and each one is shown in the gear pickers.
 export const MAX_GALLERY_GEAR_PER_ACTOR = 500
+
+// Every field is optional: an absent key leaves the gear alone, and a blank
+// brand, model or product url clears it. `kind` is not editable.
+export const UpdateGalleryGearRequest = z
+  .object({
+    name: z.string().trim().min(1).max(VARCHAR_MAX).optional(),
+    brand: optionalText(VARCHAR_MAX),
+    model: optionalText(VARCHAR_MAX),
+    productUrl: optionalProductUrl
+  })
+  .refine(
+    (value) => Object.values(value).some((field) => field !== undefined),
+    {
+      message: 'At least one field is required'
+    }
+  )
+export type UpdateGalleryGearRequest = z.infer<typeof UpdateGalleryGearRequest>
+
+export const RetireGalleryGearRequest = z.object({ retired: z.boolean() })
+export type RetireGalleryGearRequest = z.infer<typeof RetireGalleryGearRequest>

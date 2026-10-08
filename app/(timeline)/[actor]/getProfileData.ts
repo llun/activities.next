@@ -17,6 +17,8 @@ import {
   isPeerTubeActor,
   isPixelfedActor
 } from '@/lib/services/federation/serverSoftware'
+import { toGalleryAudience } from '@/lib/services/gallery/galleryAudience'
+import { GallerySubview } from '@/lib/services/gallery/galleryEntities'
 import {
   canActorReadStatus,
   resolveActorStatusesAudience
@@ -43,6 +45,10 @@ type ProfileData = {
   followersCount: number | null
   isInternalAccount: boolean
   hasFitnessData: boolean
+  // Whether the profile shows a Gallery tab, and which subviews it offers.
+  // Both are scoped to the viewer, so the tab's presence discloses nothing.
+  hasGalleryMedia: boolean
+  gallerySubviews: GallerySubview[]
   isPixelfed?: boolean
   isPeerTube?: boolean
   isMediaService?: boolean
@@ -114,21 +120,43 @@ export const getProfileData = async (
     // Fitness tab exists is itself a disclosure, so a viewer who cannot read
     // any of this actor's fitness posts must not be told there are any. The
     // owner's audience carries no filter, which keeps their own tab unchanged.
-    const [scopedStatuses, attachments, hasFitnessData] = await Promise.all([
-      database.getActorStatuses({
-        actorId: persistedActor.id,
-        currentActorId: currentActor?.id,
-        ...visibilityScope
-      }),
-      database.getAttachmentsForActor({
-        actorId: persistedActor.id,
-        ...visibilityScope
-      }),
-      database.getActorHasFitnessData({
-        actorId: persistedActor.id,
-        ...visibilityScope
+    // The gallery asks the same question through its own scope (a posted,
+    // in-gallery photo on a status this viewer may read), so the Gallery tab
+    // is offered to exactly the viewers who would find something in it.
+    const [scopedStatuses, attachments, hasFitnessData, hasGalleryMedia] =
+      await Promise.all([
+        database.getActorStatuses({
+          actorId: persistedActor.id,
+          currentActorId: currentActor?.id,
+          ...visibilityScope
+        }),
+        database.getAttachmentsForActor({
+          actorId: persistedActor.id,
+          ...visibilityScope
+        }),
+        database.getActorHasFitnessData({
+          actorId: persistedActor.id,
+          ...visibilityScope
+        }),
+        database.getActorHasGalleryMedia({
+          actorId: persistedActor.id,
+          audience: toGalleryAudience(audience)
+        })
+      ])
+
+    const gallerySubviews: GallerySubview[] = []
+    if (hasGalleryMedia) {
+      const gallerySettings = await database.getGallerySettings({
+        actorId: persistedActor.id
       })
-    ])
+      gallerySubviews.push('subjects', 'recent')
+      if (audience.isOwner || gallerySettings.mapPublic) {
+        gallerySubviews.push('map')
+      }
+      if (audience.isOwner || gallerySettings.lifeListPublic) {
+        gallerySubviews.push('life-list')
+      }
+    }
 
     // The SQL scope above filters on the status's own recipients, which cannot
     // see through a boost: an Announce is public while the status it boosts may
@@ -170,6 +198,8 @@ export const getProfileData = async (
       followersCount,
       isInternalAccount: true,
       hasFitnessData,
+      hasGalleryMedia,
+      gallerySubviews,
       isPixelfed: false,
       isPeerTube: false,
       isMediaService: false,
@@ -403,6 +433,9 @@ export const getProfileData = async (
     followersCount: collectionCounts.followersCount,
     isInternalAccount: false,
     hasFitnessData: false,
+    // Galleries exist only for local actors.
+    hasGalleryMedia: false,
+    gallerySubviews: [],
     isPixelfed,
     isPeerTube,
     isMediaService,

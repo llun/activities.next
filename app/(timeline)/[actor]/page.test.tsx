@@ -104,6 +104,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 20,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false
     })
 
@@ -146,6 +148,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 3,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false
     })
 
@@ -176,6 +180,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 0,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false
     })
 
@@ -208,6 +214,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 4,
       isInternalAccount: true,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false
     })
 
@@ -247,6 +255,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 0,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false
     })
 
@@ -278,6 +288,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 0,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false
     })
 
@@ -322,6 +334,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 3,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false
     })
 
@@ -353,6 +367,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 3,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false
     })
 
@@ -390,6 +406,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 15,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false,
       serverSoftware: {
         name: 'mastodon',
@@ -438,6 +456,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 15,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false,
       serverSoftware: {
         name: 'mastodon',
@@ -484,6 +504,8 @@ describe('[actor] page header handle link', () => {
       followersCount: null,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false,
       serverSoftware: {
         name: 'mastodon',
@@ -519,6 +541,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 15,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false,
       serverSoftware: null
     })
@@ -551,6 +575,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 15,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false,
       serverSoftware: null
     })
@@ -597,6 +623,8 @@ describe('[actor] page header handle link', () => {
       followersCount: 15,
       isInternalAccount: false,
       hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: [],
       isPixelfed: false,
       serverSoftware: null
     })

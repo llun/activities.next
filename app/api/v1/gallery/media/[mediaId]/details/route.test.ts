@@ -67,7 +67,8 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
     mockGetServerSession.mockResolvedValue(null)
     await database.updateGallerySettings({
       actorId: ACTOR1_ID,
-      showGear: true
+      showGear: true,
+      hiddenLocations: []
     })
   })
 
@@ -214,6 +215,50 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
     })
 
     expect((await (await request(id)).json()).place).toBeNull()
+  })
+
+  it.each([
+    ['the stored point', { latitude: 51.5543, longitude: -0.0731 }, 'exact'],
+    ['the stored point', { latitude: 51.5543, longitude: -0.0731 }, 'country'],
+    // About 1.7 km from the stored point, around its 0.05 degree cell centre.
+    ['only the snapped point', { latitude: 51.55, longitude: -0.05 }, 'area']
+  ] as const)(
+    'returns no place when a hidden location covers %s of an %s place',
+    async (_, centre, placePrecision) => {
+      await database.updateGallerySettings({
+        actorId: ACTOR1_ID,
+        hiddenLocations: [{ ...centre, hideRadiusMeters: 500 }]
+      })
+      const { id } = await createMedia({
+        to: [ACTIVITY_STREAM_PUBLIC],
+        details: { placePrecision }
+      })
+
+      const body = await (await request(id)).json()
+
+      expect(body.place).toBeNull()
+      expect(body.subject).toMatchObject({ name: 'Common Kingfisher' })
+    }
+  )
+
+  it('keeps the place when the hidden location is elsewhere', async () => {
+    await database.updateGallerySettings({
+      actorId: ACTOR1_ID,
+      hiddenLocations: [
+        { latitude: 40.7, longitude: -74, hideRadiusMeters: 1000 }
+      ]
+    })
+    const { id } = await createMedia({
+      to: [ACTIVITY_STREAM_PUBLIC],
+      details: { placePrecision: 'exact' }
+    })
+
+    expect((await (await request(id)).json()).place).toEqual({
+      name: 'Lea Valley',
+      precision: 'exact',
+      latitude: 51.5543,
+      longitude: -0.0731
+    })
   })
 
   it('withholds gear and exposure when the owner hides gear', async () => {
