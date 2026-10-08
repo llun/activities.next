@@ -18,62 +18,90 @@ For the most common task shapes, follow the step-by-step **Task Recipes** sectio
 
 ## Working with Sub-Agents (always)
 
-Agents working in this repository always delegate work to sub-agents. The main
-thread is the orchestrator: it understands the ask, splits it into tasks,
-briefs a sub-agent for each, checks what comes back, and owns the final
-answer. It does not do the bulk reading, searching, editing or reviewing
-itself. The only exception is a session that cannot spawn sub-agents at all;
-see [When sub-agents are unavailable](CONTRIBUTING.md#agents-code-review-loop-sub-agents). The review loop itself is specified in
-[Code Review Loop (Sub-Agents)](CONTRIBUTING.md#agents-code-review-loop-sub-agents).
+The main thread (the top-level session the user talks to) always delegates work
+to sub-agents. It is the orchestrator: it understands the ask, splits it into
+tasks, briefs a sub-agent for each, checks what comes back, and owns the final
+answer. It does not do the bulk reading, searching, editing or reviewing itself.
+Sub-agents do their assigned task directly and do not spawn further sub-agents
+unless their brief says to. The only exception is a session that cannot spawn
+sub-agents at all; see [When sub-agents are
+unavailable](CONTRIBUTING.md#agents-code-review-loop-sub-agents). The review
+loop itself is specified in [Code Review Loop
+(Sub-Agents)](CONTRIBUTING.md#agents-code-review-loop-sub-agents).
 
 ### Rules for the main thread
 
 - **Delegate every non-trivial step.** Exploration, code search, reading large
   files or logs, implementation, test runs, and code review each go to a
-  sub-agent. The main thread keeps only the conclusions, not the raw output.
-- **Pick the model and effort for every sub-agent explicitly.** Never rely on
-  the inherited default. Choose the cheapest model and lowest effort that will
-  still do the task well, and step up only where quality depends on it.
-- **Run independent tasks in parallel.** Launch sub-agents that do not depend
-  on each other in a single message so they run concurrently.
+  sub-agent. The main thread keeps the conclusions and the evidence it needs to
+  verify them, not the raw output. The main thread may still do directly:
+  reading the parts of this file it needs to brief sub-agents, one short command
+  or one small file whose output it needs anyway (for example `git status`, `git
+diff --stat`, or spot-checking a `file:line` a sub-agent cited), and git/PR
+  bookkeeping (commits, pushes, PR descriptions, replying to and resolving
+  review threads). Anything longer, and any edit to the repository's files, goes
+  to a sub-agent.
+- **Set model and effort on every sub-agent explicitly.** Never rely on the
+  inherited default. Choose the cheapest model and lowest effort that will still
+  do the task well, using the table below, and step up only where quality
+  depends on it.
+- **Run independent tasks in parallel.** Launch sub-agents that do not depend on
+  each other in a single message so they run concurrently. Read-only work
+  (search, reading, review) parallelizes freely; give parallel implementers
+  separate worktrees or non-overlapping files so they do not overwrite each
+  other.
 - **Brief each sub-agent completely.** A sub-agent starts with no context: give
-  it the goal, the relevant paths, the constraints from this file, and the exact
-  shape of the result you want back.
+  it the goal, the relevant paths, the constraints from this file, whether it
+  may edit files, commit or push, and the exact shape of the result you want
+  back.
 - **Verify before trusting.** Check a sub-agent's claims (diffs, test output,
-  `file:line` references) before building on them or reporting them. If a
-  cheap sub-agent's result is wrong or shallow, re-run that task one tier up
-  rather than patching around it.
-- **Review with a fresh sub-agent.** The code review loop always uses a
-  separate reviewer sub-agent that did not write the change; fixes go to an
-  implementer sub-agent; repeat until the reviewer comes back clean.
+  `file:line` references) before building on them or reporting them. If a cheap
+  sub-agent's result is wrong or shallow, re-run that task one step up (next
+  effort level, or next model tier) rather than patching around it.
+- **Review with a fresh sub-agent.** The code review loop always uses a separate
+  reviewer sub-agent that did not write the change, and a new reviewer for each
+  round; fixes go to an implementer sub-agent. Repeat until the reviewer comes
+  back clean; stop conditions are in [Code Review Loop
+  (Sub-Agents)](CONTRIBUTING.md#agents-code-review-loop-sub-agents).
 
 ### Choosing model and effort
 
 Match the tier to how much judgment the task needs, not to how important the
-overall change is.
+overall change is. The models, cheapest to strongest, are `haiku`, `sonnet` and
+`opus`; effort levels, lowest to highest, are `low`, `medium`, `high`, `xhigh`
+and `max`.
 
-| Task                                                                                                       | Model           | Effort      |
-| ---------------------------------------------------------------------------------------------------------- | --------------- | ----------- |
-| Finding files, grepping, listing usages, reading logs, summarizing docs                                    | Haiku           | low         |
-| Mechanical edits: renames, formatting, applying a fix that is already decided, updating docs to match code | Haiku or Sonnet | low         |
-| Running builds, tests and linters and reporting failures                                                   | Haiku           | low         |
-| Implementing a well-specified feature or fix, writing tests                                                | Sonnet          | medium      |
-| Root-causing a CI failure or a bug with a clear reproduction                                               | Sonnet          | medium–high |
-| Architecture and design decisions, plans that touch several subsystems                                     | Opus            | high        |
-| Hard debugging (concurrency, data loss, security, flaky behaviour with no clear cause)                     | Opus            | high–max    |
-| Code review of a change before it is pushed or merged                                                      | Opus            | high        |
+| Task                                                                                                            | Model    | Effort   |
+| --------------------------------------------------------------------------------------------------------------- | -------- | -------- |
+| Finding files, grepping, listing usages, reading logs, summarizing docs                                         | `haiku`  | `low`    |
+| Mechanical edit of exact text in one or two files (rename, formatting, applying a fix that is already decided)  | `haiku`  | `low`    |
+| Mechanical edit that spans several files or needs surrounding code read (including updating docs to match code) | `sonnet` | `low`    |
+| Running builds, tests and linters and reporting failures                                                        | `haiku`  | `low`    |
+| Implementing a well-specified feature or fix, writing tests                                                     | `sonnet` | `medium` |
+| Root-causing a CI failure or a bug with a clear reproduction                                                    | `sonnet` | `medium` |
+| Architecture and design decisions, plans that touch several subsystems                                          | `opus`   | `high`   |
+| Hard debugging (concurrency, data loss, security, flaky behavior with no clear cause)                           | `opus`   | `high`   |
+| Code review of a change before it is pushed or merged                                                           | `opus`   | `high`   |
 
 Guidelines:
 
-- Default to Sonnet at medium effort when unsure; it is the best balance of
-  quality and cost for most coding work.
-- Use Haiku freely for anything that is retrieval or a mechanical change. It is
-  the cheapest and fastest, and a wrong search result is cheap to redo.
-- Reserve Opus and high effort for work where a mistake is expensive: design,
-  security-sensitive code, subtle bugs, and review. Use `max` effort only when
-  `high` has already failed or the problem is unusually hard.
-- When a newer or stronger model family is available, map the tiers onto it
-  (fastest/cheapest, balanced, strongest) rather than pinning old names.
+- When the table does not cover a task and you are unsure, use `sonnet` at
+  `medium`, a good balance of quality and cost for most coding work.
+- Use `haiku` freely for retrieval and mechanical changes. It is the cheapest
+  and fastest, and a wrong search result is cheap to redo.
+- Reserve `opus` and `high` effort for work where a mistake is expensive:
+  design, security-sensitive code, subtle bugs, and review.
+- Escalate one step at a time: raise effort first (`medium` → `high` → `xhigh` →
+  `max`), and move up a model tier when a higher effort on the same model still
+  falls short. Use `max` only when `xhigh` has failed or the problem is
+  unusually hard.
+- Do not pick other model values (for example `fable`) unless the user asks for
+  them. When the available models change, map them onto the same three tiers
+  (cheapest, balanced, strongest) rather than pinning these names.
+- These are the Claude Code values for the Agent tool's `model` and `effort`.
+  Agents with other tooling follow the same split as closely as it allows
+  (separate sub-agent or pass for review, cheapest adequate model per task)
+  rather than skipping it.
 
 ## Project Structure & Module Organization
 
