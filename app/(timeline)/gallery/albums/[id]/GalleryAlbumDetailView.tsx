@@ -4,6 +4,7 @@ import {
   Check,
   Folder,
   Globe,
+  Link2,
   Lock,
   Pencil,
   Plus,
@@ -13,15 +14,16 @@ import {
   X
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useId, useRef, useState } from 'react'
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
+import { GalleryAlbumHero } from '@/app/(timeline)/gallery/albums/GalleryAlbumHero'
+import { GalleryAlbumSpeciesFilter } from '@/app/(timeline)/gallery/albums/GalleryAlbumSpeciesFilter'
 import { GalleryAlbumThumb } from '@/app/(timeline)/gallery/albums/GalleryAlbumThumb'
 import {
   ALBUM_SORT_LABELS,
   TOUCH_BUTTON_CLASS,
   formatAlbumDateRange,
-  getAlbumChipClassName,
   getAlbumFactsParts,
   getAlbumTileLabel,
   getHiddenPlacesLabel
@@ -48,6 +50,7 @@ import {
   DialogTitle
 } from '@/lib/components/ui/dialog'
 import { Select } from '@/lib/components/ui/select'
+import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
 import type {
   GalleryAlbumDetailResponse,
   GalleryAlbumMediaPage
@@ -61,6 +64,8 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   ownerId: string
+  /** The album's public address (`<origin>/@user@domain/albums/<id>`). */
+  shareUrl: string
   detail: GalleryAlbumDetailResponse
   pageSize: number
 }
@@ -68,19 +73,19 @@ interface Props {
 // Small toolbar buttons grow to a 40px target on a touch screen.
 const TOUCH_SM_BUTTON = 'pointer-coarse:h-10'
 
-// The chips beyond these sit behind a "+N" so the grid stays near the top.
-const MAX_VISIBLE_CHIPS = 5
-
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback
 
 export const GalleryAlbumDetailView: FC<Props> = ({
   ownerId,
+  shareUrl,
   detail,
   pageSize
 }) => {
   const router = useRouter()
   const { album, facts, hiddenPlaceCount, species } = detail
+  const { copied, copy } = useCopyToClipboard()
+  const shareHintId = useId()
 
   const [items, setItems] = useState<GalleryItemEntity[]>(detail.page.items)
   const [nextMaxId, setNextMaxId] = useState<string | null>(
@@ -91,7 +96,6 @@ export const GalleryAlbumDetailView: FC<Props> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
-  const [showAllSpecies, setShowAllSpecies] = useState(false)
   const [dialog, setDialog] = useState<'edit' | 'add' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -288,44 +292,26 @@ export const GalleryAlbumDetailView: FC<Props> = ({
   const factsParts = getAlbumFactsParts(facts)
   // The hero shows the explicit cover, else the newest photo: mark whichever
   // it is.
+  // Why the link may not do what a visitor expects. A private album has no
+  // page at all (the button is inert); a public one with no photo visible to
+  // visitors is a not-found page until one is.
+  const shareHint = !isPublic
+    ? 'Make this album public to share its link.'
+    : facts.photoCount === 0
+      ? 'No photo here is visible to visitors yet, so the link shows a not-found page.'
+      : null
   const effectiveCoverId = album.coverMediaId ?? album.cover?.mediaId ?? null
 
   return (
     <div className="space-y-5">
       <BackLink href="/gallery/albums" accessibleName="Back to albums" />
 
-      {album.cover ? (
-        <div className="bg-muted/40 relative aspect-[4/3] w-full overflow-hidden rounded-xl border sm:aspect-[16/7]">
-          <GalleryAlbumThumb
-            item={album.cover}
-            loading="eager"
-            quality="full"
-          />
-          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 via-black/30 to-transparent p-4 text-white sm:p-6">
-            <h1 className="text-2xl font-semibold tracking-tight break-words sm:text-3xl">
-              {album.title}
-            </h1>
-            {dateRange ? (
-              <p className="mt-1 text-sm text-white/85">
-                {dateRange}
-                {facts.countryName ? ` · ${facts.countryName}` : ''}
-              </p>
-            ) : null}
-          </div>
-        </div>
-      ) : (
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight break-words sm:text-3xl">
-            {album.title}
-          </h1>
-          {dateRange ? (
-            <p className="text-muted-foreground mt-1 text-sm">
-              {dateRange}
-              {facts.countryName ? ` · ${facts.countryName}` : ''}
-            </p>
-          ) : null}
-        </div>
-      )}
+      <GalleryAlbumHero
+        title={album.title}
+        cover={album.cover}
+        dateRange={dateRange}
+        countryName={facts.countryName}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -357,6 +343,25 @@ export const GalleryAlbumDetailView: FC<Props> = ({
             Edit details
           </Button>
         ) : null}
+        {/* Not `disabled`: a disabled button leaves the tab order, so its
+            hint could never be reached by keyboard. `aria-disabled` keeps it
+            focusable and the visible hint below is its description. */}
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            TOUCH_SM_BUTTON,
+            !isPublic && 'cursor-not-allowed opacity-50'
+          )}
+          aria-disabled={!isPublic}
+          aria-describedby={shareHint ? shareHintId : undefined}
+          onClick={() => {
+            if (isPublic) void copy(shareUrl)
+          }}
+        >
+          {copied ? <Check /> : <Link2 />}
+          {copied ? 'Link copied' : 'Share link'}
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -370,9 +375,14 @@ export const GalleryAlbumDetailView: FC<Props> = ({
           Delete
         </Button>
         <span role="status" className="sr-only">
-          {announcement}
+          {copied ? 'Link copied.' : announcement}
         </span>
       </div>
+      {shareHint ? (
+        <p id={shareHintId} className="text-muted-foreground -mt-2 text-xs">
+          {shareHint}
+        </p>
+      ) : null}
 
       {actionError ? <FitnessAlert title={actionError} /> : null}
 
@@ -432,48 +442,12 @@ export const GalleryAlbumDetailView: FC<Props> = ({
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             {species.length > 0 ? (
-              <div
-                role="group"
-                aria-label="Filter by species"
-                className="flex min-w-0 flex-wrap gap-2"
-              >
-                <button
-                  type="button"
-                  aria-pressed={subject === null}
-                  onClick={() => handleSubjectChange(null)}
-                  className={getAlbumChipClassName(subject === null)}
-                >
-                  All
-                  <span className="tabular-nums">{album.itemCount}</span>
-                </button>
-                {(showAllSpecies
-                  ? species
-                  : species.slice(0, MAX_VISIBLE_CHIPS)
-                ).map((chip) => (
-                  <button
-                    key={chip.key}
-                    type="button"
-                    aria-pressed={subject === chip.key}
-                    onClick={() => handleSubjectChange(chip.key)}
-                    className={getAlbumChipClassName(subject === chip.key)}
-                  >
-                    <span className="max-w-40 truncate">{chip.name}</span>
-                    <span className="tabular-nums">{chip.count}</span>
-                  </button>
-                ))}
-                {species.length > MAX_VISIBLE_CHIPS ? (
-                  <button
-                    type="button"
-                    aria-expanded={showAllSpecies}
-                    onClick={() => setShowAllSpecies((current) => !current)}
-                    className={getAlbumChipClassName(false)}
-                  >
-                    {showAllSpecies
-                      ? 'Fewer'
-                      : `+${species.length - MAX_VISIBLE_CHIPS}`}
-                  </button>
-                ) : null}
-              </div>
+              <GalleryAlbumSpeciesFilter
+                species={species}
+                total={album.itemCount}
+                subject={subject}
+                onChange={handleSubjectChange}
+              />
             ) : (
               <span />
             )}

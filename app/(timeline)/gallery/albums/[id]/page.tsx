@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getGalleryAlbumDetail } from '@/lib/services/gallery/galleryAlbumQueries'
+import { getGalleryAlbumPublicUrl } from '@/lib/services/gallery/galleryAlbumUrls'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { GalleryAlbumDetailView } from './GalleryAlbumDetailView'
@@ -48,6 +49,7 @@ const Page = async ({ params }: PageProps) => {
   return (
     <GalleryAlbumDetailView
       ownerId={actor.id}
+      shareUrl={getGalleryAlbumPublicUrl({ actor, albumId: detail.album.id })}
       detail={detail}
       pageSize={PAGE_SIZE}
     />

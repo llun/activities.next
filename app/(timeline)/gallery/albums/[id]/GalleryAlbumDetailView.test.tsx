@@ -69,9 +69,16 @@ const remove = vi.mocked(removeGalleryAlbumItems)
 const update = vi.mocked(updateGalleryAlbum)
 const del = vi.mocked(deleteGalleryAlbum)
 
+const SHARE_URL = 'https://activities.test/@owner@activities.test/albums/a1'
+
 const renderView = (detail = buildAlbumDetail()) =>
   render(
-    <GalleryAlbumDetailView ownerId="owner" detail={detail} pageSize={30} />
+    <GalleryAlbumDetailView
+      ownerId="owner"
+      shareUrl={SHARE_URL}
+      detail={detail}
+      pageSize={30}
+    />
   )
 
 describe('GalleryAlbumDetailView', () => {
@@ -129,12 +136,83 @@ describe('GalleryAlbumDetailView', () => {
     ).toBeInTheDocument()
   })
 
-  it('has no share link and promises no visitor page yet', () => {
+  describe('Share link', () => {
+    const writeText = vi.fn()
+
+    beforeEach(() => {
+      writeText.mockReset()
+      writeText.mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText }
+      })
+    })
+
+    it('copies the public address of a public album and says so', async () => {
+      renderView()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Share link' }))
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'Link copied' })
+        ).toBeVisible()
+      )
+      expect(writeText).toHaveBeenCalledWith(SHARE_URL)
+      expect(screen.getByRole('status')).toHaveTextContent('Link copied.')
+      // Nothing to explain for a public album with photos visitors can see.
+      expect(
+        screen.queryByText(/Make this album public/)
+      ).not.toBeInTheDocument()
+    })
+
+    it('is inert for a private album, but still focusable and described by a visible hint', () => {
+      renderView(
+        buildAlbumDetail({
+          album: buildAlbumCard('a1', { visibility: 'private' })
+        })
+      )
+
+      const share = screen.getByRole('button', { name: 'Share link' })
+      expect(share).toHaveAttribute('aria-disabled', 'true')
+      expect(share).not.toBeDisabled()
+      // The reason is text on the page, not a tooltip, and the button points
+      // at it, so keyboard and touch users get it too.
+      expect(share).toHaveAccessibleDescription(
+        'Make this album public to share its link.'
+      )
+      expect(
+        screen.getByText('Make this album public to share its link.')
+      ).toBeVisible()
+      share.focus()
+      expect(share).toHaveFocus()
+
+      fireEvent.click(share)
+      expect(writeText).not.toHaveBeenCalled()
+      expect(
+        screen.queryByRole('button', { name: 'Link copied' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('warns that a public album with no visitor-visible photo is not found yet', async () => {
+      renderView(
+        buildAlbumDetail({
+          facts: { ...buildAlbumDetail().facts, photoCount: 0 }
+        })
+      )
+
+      const share = screen.getByRole('button', { name: 'Share link' })
+      expect(share).not.toHaveAttribute('aria-disabled', 'true')
+      expect(share).toHaveAccessibleDescription(
+        'No photo here is visible to visitors yet, so the link shows a not-found page.'
+      )
+      fireEvent.click(share)
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(SHARE_URL))
+    })
+  })
+
+  it('keeps the counts note for the owner, who sees every photo', () => {
     renderView()
-    expect(
-      screen.queryByRole('button', { name: /share/i })
-    ).not.toBeInTheDocument()
-    expect(screen.queryByText(/what a visitor sees/i)).not.toBeInTheDocument()
     expect(
       screen.getByText(/Counts include only photos from public posts/)
     ).toBeInTheDocument()
@@ -227,6 +305,7 @@ describe('GalleryAlbumDetailView', () => {
     rerender(
       <GalleryAlbumDetailView
         ownerId="owner"
+        shareUrl={SHARE_URL}
         detail={buildAlbumDetail({ species: [] })}
         pageSize={30}
       />

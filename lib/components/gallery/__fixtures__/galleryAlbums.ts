@@ -1,7 +1,8 @@
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import type {
   GalleryAlbumCardEntity,
-  GalleryAlbumDetailResponse
+  GalleryAlbumDetailResponse,
+  GalleryAlbumViewResponse
 } from '@/lib/services/gallery/galleryAlbumEntities'
 
 export const buildAlbumCard = (
@@ -56,6 +57,22 @@ export const buildAlbumDetail = (
       items: album.previews,
       nextMaxId: null
     },
+    ...overrides
+  }
+}
+
+/** An album as a visitor's response carries it (no owner-only fields). */
+export const buildAlbumView = (
+  overrides: Partial<GalleryAlbumViewResponse> = {}
+): GalleryAlbumViewResponse => {
+  const { facts, species } = buildAlbumDetail()
+  const album = overrides.album ?? buildAlbumCard('a1', { title: 'Kruger' })
+  return {
+    album,
+    facts: { ...facts, firstAt: album.firstAt, lastAt: album.lastAt },
+    species,
+    items: album.previews,
+    nextMaxId: null,
     ...overrides
   }
 }

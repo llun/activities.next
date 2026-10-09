@@ -62,6 +62,7 @@ describe('getProfileData', () => {
     getActorFollowersCount: vi.fn(),
     getActorHasFitnessData: vi.fn(),
     getActorHasGalleryMedia: vi.fn(),
+    getActorHasVisibleGalleryAlbums: vi.fn(),
     getGallerySettings: vi.fn(),
     getAcceptedOrRequestedFollow: vi.fn(),
     setActorCounters: vi.fn(),
@@ -152,6 +153,10 @@ describe('getProfileData', () => {
     ;(mockDatabase.getActorHasFitnessData as jest.Mock).mockResolvedValue(false)
     vi.mocked(mockDatabase.getActorHasGalleryMedia).mockReset()
     vi.mocked(mockDatabase.getActorHasGalleryMedia).mockResolvedValue(false)
+    vi.mocked(mockDatabase.getActorHasVisibleGalleryAlbums).mockReset()
+    vi.mocked(mockDatabase.getActorHasVisibleGalleryAlbums).mockResolvedValue(
+      false
+    )
     vi.mocked(mockDatabase.getGallerySettings).mockReset()
     vi.mocked(mockDatabase.getGallerySettings).mockResolvedValue({
       ...DEFAULT_GALLERY_SETTINGS
@@ -581,6 +586,89 @@ describe('getProfileData', () => {
           expect(result?.gallerySubviews).toEqual(expected)
         }
       )
+
+      describe('the Albums chip', () => {
+        it('is offered after Recent when the viewer can open an album', async () => {
+          vi.mocked(mockDatabase.getActorHasGalleryMedia).mockResolvedValue(
+            true
+          )
+          vi.mocked(
+            mockDatabase.getActorHasVisibleGalleryAlbums
+          ).mockResolvedValue(true)
+          vi.mocked(mockDatabase.getGallerySettings).mockResolvedValue({
+            ...DEFAULT_GALLERY_SETTINGS,
+            mapPublic: true
+          })
+
+          const result = await getProfileData(
+            mockDatabase,
+            '@localuser@example.com',
+            false,
+            { currentActor: null }
+          )
+
+          expect(result?.gallerySubviews).toEqual([
+            'subjects',
+            'recent',
+            'albums',
+            'map'
+          ])
+        })
+
+        it('is left out when the viewer can open no album', async () => {
+          vi.mocked(mockDatabase.getActorHasGalleryMedia).mockResolvedValue(
+            true
+          )
+
+          const result = await getProfileData(
+            mockDatabase,
+            '@localuser@example.com',
+            false,
+            { currentActor: null }
+          )
+
+          expect(result?.gallerySubviews).not.toContain('albums')
+          expect(result?.gallerySubviews).toEqual(
+            expect.arrayContaining(['subjects', 'recent'])
+          )
+        })
+
+        it('asks for the viewer’s own audience, never the owner’s', async () => {
+          vi.mocked(mockDatabase.getActorHasGalleryMedia).mockResolvedValue(
+            true
+          )
+          ;(
+            mockDatabase.getAcceptedOrRequestedFollow as jest.Mock
+          ).mockResolvedValue({ status: FollowStatus.enum.Accepted })
+
+          await getProfileData(mockDatabase, '@localuser@example.com', true, {
+            currentActor: viewer
+          })
+
+          expect(
+            mockDatabase.getActorHasVisibleGalleryAlbums
+          ).toHaveBeenCalledWith({
+            actorId: mockLocalActor.id,
+            audience: {
+              kind: 'viewer',
+              publicOnly: false,
+              visibleToActorId: viewer.id,
+              includeFollowersOnly: true,
+              followersAudience: followersUrl
+            }
+          })
+        })
+
+        it('is not asked for when there is no gallery media to make an album of', async () => {
+          await getProfileData(mockDatabase, '@localuser@example.com', false, {
+            currentActor: null
+          })
+
+          expect(
+            mockDatabase.getActorHasVisibleGalleryAlbums
+          ).not.toHaveBeenCalled()
+        })
+      })
 
       it('still hydrates viewer interaction state from the signed-in actor', async () => {
         await getProfileData(mockDatabase, '@localuser@example.com', true, {

@@ -123,6 +123,7 @@ export const getProfileData = async (
     // The gallery asks the same question through its own scope (a posted,
     // in-gallery photo on a status this viewer may read), so the Gallery tab
     // is offered to exactly the viewers who would find something in it.
+    const galleryAudience = toGalleryAudience(audience)
     const [scopedStatuses, attachments, hasFitnessData, hasGalleryMedia] =
       await Promise.all([
         database.getActorStatuses({
@@ -140,16 +141,25 @@ export const getProfileData = async (
         }),
         database.getActorHasGalleryMedia({
           actorId: persistedActor.id,
-          audience: toGalleryAudience(audience)
+          audience: galleryAudience
         })
       ])
 
     const gallerySubviews: GallerySubview[] = []
     if (hasGalleryMedia) {
-      const gallerySettings = await database.getGallerySettings({
-        actorId: persistedActor.id
-      })
+      const [gallerySettings, hasGalleryAlbums] = await Promise.all([
+        database.getGallerySettings({ actorId: persistedActor.id }),
+        // The Albums chip, by the same audience: offered only to a viewer who
+        // can open at least one album, so it never hints at one they cannot.
+        // Asked only once there is gallery media at all, since an album is
+        // made of it.
+        database.getActorHasVisibleGalleryAlbums({
+          actorId: persistedActor.id,
+          audience: galleryAudience
+        })
+      ])
       gallerySubviews.push('subjects', 'recent')
+      if (hasGalleryAlbums) gallerySubviews.push('albums')
       if (audience.isOwner || gallerySettings.mapPublic) {
         gallerySubviews.push('map')
       }
