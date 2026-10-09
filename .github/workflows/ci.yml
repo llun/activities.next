@@ -101,7 +101,7 @@ jobs:
   # for fast wall-clock. NODE_OPTIONS gives the fork workers extra headroom.
   # NOTE: a large share of that "heap OOM" was really a Radix FocusScope <-> jsdom
   # synchronous-focus recursion piling up thrown errors until the worker died
-  # (fixed by the focus-depth guard in vitest.setup.ts). The sharding + heap
+  # (fixed by the focus-depth guard in test/setup/vitest.setup.ts). The sharding + heap
   # headroom are kept as defence in depth and for wall-clock parallelism.
   # Test files now run on worker threads (vitest.config.ts `projects`), with a
   # fresh thread per file; only the few files that call process.chdir() or
@@ -132,7 +132,7 @@ jobs:
           TEST_DATABASE_TYPE: sqlite
           NODE_OPTIONS: --max-old-space-size=8192
           # Deliberately NOT UTC. vitest.config.ts pins the suite to UTC itself;
-          # a non-UTC runner zone is what lets vitest.config.test.ts fail here
+          # a non-UTC runner zone is what lets test/vitest.config.test.ts fail here
           # if that pin is deleted, moved back to `test.env`, or weakened to a
           # default (`??=`). On a UTC runner (the default) it could not fail.
           TZ: Pacific/Noumea

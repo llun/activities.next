@@ -8,8 +8,8 @@ import {
   getSecurityHeaders
 } from '@/lib/utils/http-headers'
 import { resetContentSecurityPolicyCacheForTests } from '@/lib/utils/http-headers/csp'
+import nextConfig from '@/next.config'
 
-import nextConfig from './next.config'
 import { setNodeEnv } from './next.config.testUtils'
 
 const withEnv = <T>(

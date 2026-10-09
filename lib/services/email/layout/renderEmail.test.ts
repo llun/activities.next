@@ -1,7 +1,7 @@
 import { button, headline, paragraph } from './blocks'
 import { renderEmail } from './renderEmail'
 
-// The global config mock (vitest.setup.ts) serves host `test.llun.dev` and
+// The global config mock (test/setup/vitest.setup.ts) serves host `test.llun.dev` and
 // getBaseURL() `https://test.llun.dev`.
 const HOST = 'test.llun.dev'
 const BASE_URL = `https://${HOST}`

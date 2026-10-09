@@ -8,8 +8,7 @@ import path from 'path'
 
 import { resetHostConfigCacheForTests } from '@/lib/config/host'
 import { resetContentSecurityPolicyCacheForTests } from '@/lib/utils/http-headers/csp'
-
-import { proxy, config as proxyConfig } from './proxy'
+import { proxy, config as proxyConfig } from '@/proxy'
 
 const STATIC_IMPORT_PATTERN =
   /(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/g

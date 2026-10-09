@@ -6,6 +6,9 @@
       "@/pages/*": ["./pages/*"],
       "@/migrations/*": ["./migrations/*"],
       "@/package.json": ["./package.json"],
+      "@/instrumentation": ["./instrumentation.ts"],
+      "@/next.config": ["./next.config.ts"],
+      "@/proxy": ["./proxy.ts"],
       "knex": ["./node_modules/knex"]
     },
     "target": "ESNext",
@@ -37,6 +40,5 @@
     ".next/dev/types/**/*.ts",
     ".next/dev/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "plans", "vitest.setup.ts", "vitest-shims"],
-  "files": ["global.d.ts"]
+  "exclude": ["node_modules", "plans", "test/setup"]
 }

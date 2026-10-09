@@ -497,7 +497,7 @@ always matched whatever `Content-Type` is sent: bare `/api` (the catch-all
 excludes only `api/` followed by a segment), so it still gets the proxy's
 404/405 instead of falling through to a page route, and `/api/v1/files/*`,
 because the matcher ignores the method and a GET with a multipart header must
-not produce a CSP-less, year-cacheable file response. `proxy.test.ts` checks
+not produce a CSP-less, year-cacheable file response. `test/proxy.test.ts` checks
 the matcher with Next's own config parser and runtime matcher. Do not fold the
 `/api` entries back into the catch-all.
 
@@ -927,7 +927,7 @@ legacy shape left to copy.
   hand-written beside the HTML. Both used to be maintained by hand and had
   already drifted apart.
 - **A local `vi.mock('@/lib/config', …)` in a test MUST include `getBaseURL`.**
-  It shadows the global mock from `vitest.setup.ts`, and because most email call
+  It shadows the global mock from `test/setup/vitest.setup.ts`, and because most email call
   sites deliberately catch delivery errors, omitting it does **not** fail loudly:
   the template throws, the catch swallows it, and the test keeps passing while
   the email silently stops sending. This has already happened twice
@@ -1243,7 +1243,7 @@ legacy shape left to copy.
   `https://i.ytimg.com`, which is an **unconditional** `img-src` source rather
   than one of `remoteMediaSources`, so narrowing (or emptying)
   `ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS` cannot blank the thumbnail of every
-  video card. `next.config.csp.test.ts` pins that against the emptied allowlist.
+  video card. `test/next.config.csp.test.ts` pins that against the emptied allowlist.
   **Nothing loads from the player until the reader presses play** — a live
   iframe per row is a megabyte of player code and a Google request for every
   video that merely scrolled past — and **the card is mounted under a React

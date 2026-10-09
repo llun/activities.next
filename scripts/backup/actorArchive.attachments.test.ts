@@ -77,7 +77,7 @@ describe('registerAttachmentUrl', () => {
     return { mediaPaths, mediaIds, urlToArchivePath, result, warnings }
   }
 
-  // `vitest.setup.ts` enables the fetch mock but leaves it passing through, so
+  // `test/setup/vitest.setup.ts` enables the fetch mock but leaves it passing through, so
   // the tests that reach the download branch opt in with `doMock()`. One
   // teardown covers all of them, including a later one that opts in without
   // cleaning up after itself.
@@ -256,7 +256,7 @@ describe('registerAttachmentUrl', () => {
   // guard fails them. None of them reaches DNS: the three IP literals take the
   // `isIP` branch, `localhost` is caught by the hostname-name check before the
   // lookup, and the `http://` row is refused on protocol before the hostname
-  // is parsed at all. The global `node:dns/promises` mock in `vitest.setup.ts`
+  // is parsed at all. The global `node:dns/promises` mock in `test/setup/vitest.setup.ts`
   // (every hostname resolves to the public 93.184.216.34) is what keeps the
   // hostname-based tests ABOVE reaching the mocked network — not these.
   it.each([

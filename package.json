@@ -10,12 +10,12 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "oxlint && oxlint -c .oxlintrc.scripts.json scripts",
+    "lint": "oxlint && oxlint -c lint/oxlintrc.scripts.json scripts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prettier": "prettier --write app migrations lib lint",
-    "prettier:check": "prettier --check app migrations lib lint",
+    "prettier": "prettier --write app migrations lib lint test",
+    "prettier:check": "prettier --check app migrations lib lint test",
     "search:reindex": "node scripts/run.cjs scripts/maintenance/rebuildSearchIndex.ts",
     "migrate": "knex migrate:latest",
     "migrate:make": "knex migrate:make",
@@ -23,6 +23,28 @@
   },
   "lint-staged": {
     "*": "prettier --write --ignore-unknown"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "arrowParens": "always",
+    "requirePragma": false,
+    "trailingComma": "none",
+    "importOrderSeparation": true,
+    "importOrderSortSpecifiers": true,
+    "importOrder": [
+      "<THIRD_PARTY_MODULES>",
+      "^@/(.*)$",
+      "^[./]"
+    ],
+    "importOrderParserPlugins": [
+      "typescript",
+      "decorators-legacy",
+      "jsx"
+    ],
+    "plugins": [
+      "@trivago/prettier-plugin-sort-imports"
+    ]
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1146.0",

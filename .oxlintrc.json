@@ -35,7 +35,7 @@
   ],
   "rules": {
     // A containment check must have a separator boundary; see
-    // `.oxlintrc.scripts.json` for how `scripts/**` — ignored above, and where
+    // `lint/oxlintrc.scripts.json` for how `scripts/**` — ignored above, and where
     // the one real instance of this bug was found — is covered too.
     "agents/no-resolved-path-prefix-check": "error",
     "constructor-super": "error",
