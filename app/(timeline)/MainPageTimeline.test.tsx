@@ -34,10 +34,17 @@ vi.mock('@/lib/client', () => ({
   getTimeline: vi.fn()
 }))
 
-vi.mock('@/lib/components/announcements/AnnouncementBanner', async () => ({
-  AnnouncementBanner: (await import('./MainPageTimeline.testUtils'))
-    .MockAnnouncementBanner
+vi.mock('@/lib/components/announcements/useAnnouncements', () => ({
+  useAnnouncements: () => ({ mode: 'pill' })
 }))
+
+vi.mock('@/lib/components/announcements/AnnouncementBanner', async () => {
+  const utils = await import('./MainPageTimeline.testUtils')
+  return {
+    AnnouncementPill: utils.MockAnnouncementPill,
+    AnnouncementIconButton: utils.MockAnnouncementIcon
+  }
+})
 
 vi.mock('@/lib/components/page-header', async () => ({
   PageHeader: (await import('./MainPageTimeline.testUtils')).MockPageHeader
@@ -104,9 +111,9 @@ describe('MainPageTimeline', () => {
     }
   })
 
-  // PageHeader places the banner between the mobile bar and the header box;
-  // the page has to hand it over rather than render it on its own.
-  it('hands the announcement banner to the page header', () => {
+  // Announcements never add a node to the header's layout: the pill floats in
+  // the bottom slot and the icon is a header action beside Refresh.
+  it('hands the announcement pill to the floating row and the icon to the actions', () => {
     render(
       <MainPageTimeline
         host="activities.local"
@@ -118,8 +125,13 @@ describe('MainPageTimeline', () => {
     )
 
     expect(
-      within(screen.getByTestId('page-header')).getByTestId(
-        'announcement-banner'
+      within(screen.getByTestId('header-bottom-slot')).getByTestId(
+        'announcement-pill'
+      )
+    ).toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('header-actions')).getByTestId(
+        'announcement-icon'
       )
     ).toBeInTheDocument()
   })

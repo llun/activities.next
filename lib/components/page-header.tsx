@@ -41,12 +41,6 @@ interface PageHeaderProps {
    */
   compactTitle?: string
   /**
-   * Content that sits above the header on desktop and directly below the
-   * mobile bar (the home timeline's announcements), so the DOM order matches
-   * what is on screen at every width. Not rendered in section mode.
-   */
-  banner?: ReactNode
-  /**
    * Below `md` the content directly below meets the header's bottom edge
    * instead of the parent's vertical rhythm — the bar's hairline when the box
    * has nothing to show there, else the box's — so a full-bleed surface (the
@@ -112,7 +106,6 @@ export const PageHeader = ({
   bottomSlot,
   back,
   compactTitle,
-  banner,
   flushOnMobile,
   actionsInMobileBar
 }: PageHeaderProps) => {
@@ -211,7 +204,6 @@ export const PageHeader = ({
           className={isEmptyOnMobile && !flushOnMobile ? undefined : 'mb-0'}
         />
       ) : null}
-      {banner}
       <div
         className={cn(
           hasMobileBar

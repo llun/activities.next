@@ -4,7 +4,11 @@ import { useRouter } from 'next/navigation'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
-import { AnnouncementBanner } from '@/lib/components/announcements/AnnouncementBanner'
+import {
+  AnnouncementIconButton,
+  AnnouncementPill
+} from '@/lib/components/announcements/AnnouncementBanner'
+import { useAnnouncements } from '@/lib/components/announcements/useAnnouncements'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
 import { PostBox } from '@/lib/components/post-box/post-box'
@@ -58,6 +62,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   readingGroupBoosts
 }) => {
   const router = useRouter()
+  // One announcements state for every copy the header renders (desktop box and
+  // mobile bar), so there is one fetch, one timer and one open state.
+  const announcements = useAnnouncements()
   const [currentStatuses, setCurrentStatuses] = useState<Status[]>(statuses)
   const [currentTimelineContext, setCurrentTimelineContext] = useState<
     TimelineContext | undefined
@@ -399,26 +406,33 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         // meets the bar's hairline directly.
         flushOnMobile
         actionsInMobileBar
-        banner={<AnnouncementBanner currentTime={currentTime} />}
         title="Timeline"
         actions={
-          <RefreshButton
-            onRefresh={refreshTimeline}
-            refreshing={isRefreshing}
-            accessibleName="Refresh timeline"
-          />
+          <div className="flex items-center gap-2">
+            <AnnouncementIconButton state={announcements} />
+            <RefreshButton
+              onRefresh={refreshTimeline}
+              refreshing={isRefreshing}
+              accessibleName="Refresh timeline"
+            />
+          </div>
         }
+        // Both pills float in one row under the header and follow it on scroll.
         bottomSlot={
-          newerPostsCount > 0 ? (
-            <Button
-              type="button"
-              variant="pill"
-              onClick={handleCleanTopSnapshot}
-              className="pointer-events-auto shadow-xs"
-            >
-              {newerPostsCount} new {newerPostsCount === 1 ? 'post' : 'posts'} ↑
-            </Button>
-          ) : undefined
+          <div className="flex items-start justify-center gap-2">
+            <AnnouncementPill state={announcements} />
+            {newerPostsCount > 0 ? (
+              <Button
+                type="button"
+                variant="pill"
+                onClick={handleCleanTopSnapshot}
+                className="pointer-events-auto shadow-xs dark:bg-background dark:hover:bg-accent"
+              >
+                {newerPostsCount} new {newerPostsCount === 1 ? 'post' : 'posts'}{' '}
+                ↑
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
