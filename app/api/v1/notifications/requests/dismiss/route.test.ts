@@ -169,14 +169,22 @@ describe('POST /api/v1/notifications/requests/dismiss', () => {
     expect(await sourcesOf(ACTOR2_ID)).toEqual([ACTOR3_ID])
   })
 
-  it('accepts a single id and raw actor uris', async () => {
+  it('accepts a single id sent as `id`', async () => {
     await create(ACTOR2_ID)
     await create(ACTOR3_ID)
 
     await postJson({ id: await actorPublicId(database, ACTOR2_ID) })
+
+    expect(await sourcesOf()).toEqual([ACTOR3_ID])
+  })
+
+  it('accepts raw actor uris as ids', async () => {
+    await create(ACTOR2_ID)
+    await create(ACTOR3_ID)
+
     await postJson({ 'id[]': [ACTOR3_ID] })
 
-    expect(await sourcesOf()).toEqual([])
+    expect(await sourcesOf()).toEqual([ACTOR2_ID])
   })
 
   it('reads id[] from a form body', async () => {
@@ -228,16 +236,22 @@ describe('POST /api/v1/notifications/requests/dismiss', () => {
     expect(await sourcesOf()).toEqual([ACTOR2_ID])
   })
 
+  // Each body also names the filtered notification's sender, so only the
+  // validation keeps it from being deleted.
   it.each([
-    ['ids that are not strings', { 'id[]': [1, 2] }],
+    ['ids that are not strings', (id: string) => ({ 'id[]': [id, 1] })],
     [
       'more than 100 ids',
-      { 'id[]': Array.from({ length: 101 }, (_, i) => `${i}`) }
+      (id: string) => ({
+        'id[]': [id, ...Array.from({ length: 100 }, (_, i) => `${i}`)]
+      })
     ]
   ])('rejects %s with 422 and deletes nothing', async (_, body) => {
     await create(ACTOR2_ID)
 
-    const response = await postJson(body)
+    const response = await postJson(
+      body(await actorPublicId(database, ACTOR2_ID))
+    )
 
     expect(response.status).toBe(422)
     expect(await sourcesOf()).toEqual([ACTOR2_ID])

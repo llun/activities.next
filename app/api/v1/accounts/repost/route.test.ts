@@ -39,54 +39,6 @@ vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
       })
 }))
 
-describe('POST /api/v1/accounts/repost', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns 400 when the request payload is malformed JSON', async () => {
-    const request = new NextRequest(
-      'https://llun.test/api/v1/accounts/repost',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{'
-      }
-    )
-
-    const response = await POST(request, { params: Promise.resolve({}) })
-    const data = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(data.error).toBe('Bad Request')
-    expect(mockUserAnnounce).not.toHaveBeenCalled()
-  })
-})
-
-describe('DELETE /api/v1/accounts/repost', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns 400 when the request payload is malformed JSON', async () => {
-    const request = new NextRequest(
-      'https://llun.test/api/v1/accounts/repost',
-      {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: '{'
-      }
-    )
-
-    const response = await DELETE(request, { params: Promise.resolve({}) })
-    const data = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(data.error).toBe('Bad Request')
-    expect(mockUserUndoAnnounce).not.toHaveBeenCalled()
-  })
-})
-
 describe.each([
   {
     method: 'POST' as const,
@@ -133,6 +85,21 @@ describe.each([
       database: mockDatabase
     })
     expect(other()).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 without running the action when the payload is malformed JSON', async () => {
+    const response = await handler(
+      new NextRequest('https://llun.test/api/v1/accounts/repost', {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: '{'
+      }),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe('Bad Request')
+    expect(action()).not.toHaveBeenCalled()
   })
 
   it.each([

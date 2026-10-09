@@ -437,6 +437,10 @@ describe('GET /api/v1/fitness-files/by-status access rules', () => {
     mockGetServerSession.mockResolvedValue(null)
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   const request = (statusId?: string) =>
     new NextRequest(
       `https://llun.test/api/v1/fitness-files/by-status${
@@ -515,8 +519,11 @@ describe('GET /api/v1/fitness-files/by-status access rules', () => {
   })
 
   describe('followers-only status', () => {
+    // A fresh status per test: createNote recovers from a duplicate id, so a
+    // shared id would quietly reuse the previous test's status and files.
+    let sequence = 0
     const create = () =>
-      createStatusWithFile('by-status-followers', {
+      createStatusWithFile(`by-status-followers-${(sequence += 1)}`, {
         to: [ACTOR1_FOLLOWER_URL],
         cc: []
       })
@@ -556,8 +563,9 @@ describe('GET /api/v1/fitness-files/by-status access rules', () => {
   })
 
   describe('direct status', () => {
+    let sequence = 0
     const create = () =>
-      createStatusWithFile('by-status-direct', {
+      createStatusWithFile(`by-status-direct-${(sequence += 1)}`, {
         to: [ACTOR3_ID],
         cc: []
       })
@@ -601,7 +609,6 @@ describe('GET /api/v1/fitness-files/by-status access rules', () => {
         error: 'db unavailable'
       })
     )
-    vi.restoreAllMocks()
   })
 
   it('returns a server error when there is no database', async () => {

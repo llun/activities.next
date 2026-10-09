@@ -115,6 +115,12 @@ describe('Wahoo Settings API', () => {
     )
     mockDb.getFitnessSettings.mockResolvedValue(existingSettings())
     mockDb.updateFitnessSettings.mockResolvedValue(existingSettings())
+    // Tests below override these with persistent implementations and
+    // rejections; vi.clearAllMocks keeps those, so reset them every time.
+    mockDb.cancelWahooHistoryImportsByActor.mockReset()
+    mockDb.cancelWahooHistoryImportsByActor.mockResolvedValue(undefined)
+    mockDb.deleteFitnessSettings.mockReset()
+    mockDb.deleteFitnessSettings.mockResolvedValue(undefined)
     mockDb.getAccountFromEmail.mockResolvedValue(account)
     mockDb.getActorsForAccount.mockResolvedValue([actor])
     mockDb.getActorFromId.mockResolvedValue(actor)
@@ -486,11 +492,9 @@ describe('Wahoo Settings API', () => {
       )
       mockDb.cancelWahooHistoryImportsByActor.mockImplementation(async () => {
         order.push('cancel')
-        return 0
       })
       mockDb.deleteFitnessSettings.mockImplementation(async () => {
         order.push('delete')
-        return true
       })
 
       const response = await call(DELETE, 'DELETE')

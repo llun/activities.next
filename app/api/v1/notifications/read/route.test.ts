@@ -88,19 +88,32 @@ describe('POST /api/v1/notifications/read', () => {
     expect(response.status).toBe(500)
   })
 
+  // Every body names the notification we then check, so the 400 is the only
+  // thing keeping it unread.
   it.each([
-    ['a body that is not JSON', 'not json'],
-    ['a missing notification_ids', {}],
-    ['an empty notification_ids list', { notification_ids: [] }],
-    ['an empty-string id', { notification_ids: [''] }],
-    ['non-string ids', { notification_ids: [1, 2] }]
+    ['a body that is not JSON', (id: string) => `{"notification_ids":["${id}"`],
+    ['a missing notification_ids', (id: string) => ({ notification_id: id })],
+    [
+      'an empty-string id next to a valid one',
+      (id: string) => ({ notification_ids: [id, ''] })
+    ],
+    [
+      'a non-string id next to a valid one',
+      (id: string) => ({ notification_ids: [id, 1] })
+    ]
   ])('rejects %s with 400 and marks nothing', async (_, body) => {
     const notification = await create(ACTOR1_ID)
 
-    const response = await post(body)
+    const response = await post(body(notification.id))
 
     expect(response.status).toBe(400)
     expect(await isRead(ACTOR1_ID, notification.id)).toBe(false)
+  })
+
+  it('rejects an empty notification_ids list with 400', async () => {
+    const response = await post({ notification_ids: [] })
+
+    expect(response.status).toBe(400)
   })
 
   it('marks the listed notifications read and reports how many', async () => {

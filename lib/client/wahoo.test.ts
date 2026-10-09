@@ -94,6 +94,14 @@ describe('wahoo client module', () => {
       })
     })
 
+    it('falls back to a readable message when the failure has no JSON body', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(saveWahooSettings({ clientId: 'x' })).rejects.toThrow(
+        'Failed to save Wahoo settings'
+      )
+    })
+
     it('surfaces the server’s reason, such as a duplicate webhook binding', async () => {
       fetchMock.mockResponseOnce(
         JSON.stringify({
@@ -114,8 +122,7 @@ describe('wahoo client module', () => {
         'deleteWahooSettings',
         () => deleteWahooSettings(),
         '/api/v1/fitness/wahoo',
-        { method: 'DELETE' },
-        'Failed to disconnect Wahoo'
+        { method: 'DELETE' }
       ],
       [
         'startWahooHistory',
@@ -125,22 +132,19 @@ describe('wahoo client module', () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ fromDate: '2025-01-01', toDate: '2025-02-01' })
-        },
-        'Failed to start history import'
+        }
       ],
       [
         'cancelWahooHistory',
         () => cancelWahooHistory(),
         '/api/v1/fitness/wahoo/history',
-        { method: 'DELETE' },
-        'Failed to cancel history import'
+        { method: 'DELETE' }
       ],
       [
         'retryWahooHistory',
         () => retryWahooHistory(),
         '/api/v1/fitness/wahoo/history',
-        { method: 'PATCH' },
-        'Failed to retry history import'
+        { method: 'PATCH' }
       ],
       [
         'retryWahooFailedImport',
@@ -150,8 +154,7 @@ describe('wahoo client module', () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ importId: 'import-1' })
-        },
-        'Failed to retry Wahoo workout'
+        }
       ]
     ])(
       '%s sends the request and resolves on success',

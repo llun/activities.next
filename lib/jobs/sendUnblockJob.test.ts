@@ -1,3 +1,5 @@
+import { ZodError } from 'zod'
+
 import { unblock } from '@/lib/activities'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_UNBLOCK_JOB_NAME } from '@/lib/jobs/names'
@@ -135,7 +137,7 @@ describe('sendUnblockJob', () => {
   it('rejects a payload whose block is malformed', async () => {
     await expect(
       runJob(jobData({ block: { id: 'block-1' } }))
-    ).rejects.toThrow()
+    ).rejects.toBeInstanceOf(ZodError)
 
     expect(unblock).not.toHaveBeenCalled()
   })

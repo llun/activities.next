@@ -718,6 +718,14 @@ describe('activities', () => {
   })
 
   describe('inbox delivery failures', () => {
+    // The senders log "[name] message" strings. The shared logger also carries
+    // structured errors from unrelated modules (a request() reads the server
+    // settings, which this test database has no table for), and those land
+    // whenever the settings failure cache has expired, so only string messages
+    // belong to the sender under test.
+    const senderErrors = (spy: { mock: { calls: unknown[][] } }) =>
+      spy.mock.calls.filter(([message]) => typeof message === 'string')
+
     const likedStatus = {
       id: 'https://somewhere.test/statuses/liked',
       actor: {
@@ -806,7 +814,7 @@ describe('activities', () => {
             expect(fetchMock).toHaveBeenCalledTimes(1)
             expect(fetchMock.mock.calls[0][0]).toEqual(inbox)
             expect(fetchMock.mock.calls[0][1]?.method).toEqual('POST')
-            expect(errorSpy).not.toHaveBeenCalled()
+            expect(senderErrors(errorSpy)).toEqual([])
           }
         )
 
@@ -817,10 +825,9 @@ describe('activities', () => {
 
           await expect(send()).resolves.toBeUndefined()
 
-          expect(errorSpy).toHaveBeenCalledTimes(1)
-          expect(errorSpy).toHaveBeenCalledWith(
-            expect.stringContaining(`[${name}]`)
-          )
+          expect(senderErrors(errorSpy)).toEqual([
+            [expect.stringContaining(`[${name}]`)]
+          ])
         })
 
         it(`${logsTimeout ? 'logs' : 'silences'} an ETIMEDOUT from a slow inbox`, async () => {
@@ -832,7 +839,7 @@ describe('activities', () => {
 
           await expect(send()).resolves.toBeUndefined()
 
-          expect(errorSpy).toHaveBeenCalledTimes(logsTimeout ? 1 : 0)
+          expect(senderErrors(errorSpy)).toHaveLength(logsTimeout ? 1 : 0)
         })
       }
     )
@@ -871,7 +878,7 @@ describe('activities', () => {
             })
           ).resolves.toBe(false)
           expect(fetchMock).toHaveBeenCalledTimes(1)
-          expect(errorSpy).not.toHaveBeenCalled()
+          expect(senderErrors(errorSpy)).toEqual([])
         }
       )
 
@@ -891,7 +898,7 @@ describe('activities', () => {
         ).resolves.toBe(false)
         // The account is deleted right after this call, so a failed delivery
         // is recorded on the span only.
-        expect(errorSpy).not.toHaveBeenCalled()
+        expect(senderErrors(errorSpy)).toEqual([])
       })
     })
 

@@ -60,6 +60,16 @@ vi.mock('@/lib/services/guards/AuthenticatedGuard', () => ({
       })
 }))
 
+const TARGET = 'https://remote.test/users/alice'
+
+const jsonRequest = (method: 'POST' | 'DELETE', body: unknown) =>
+  new NextRequest('https://llun.test/api/v1/accounts/follow', {
+    method,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+const emptyContext = { params: Promise.resolve({}) }
+
 describe('DELETE /api/v1/accounts/follow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -143,17 +153,27 @@ describe('DELETE /api/v1/accounts/follow', () => {
       mockSigningActor
     )
   })
-})
 
-const TARGET = 'https://remote.test/users/alice'
+  it('answers 422 when the body has no target', async () => {
+    const response = await DELETE(jsonRequest('DELETE', {}), emptyContext)
 
-const jsonRequest = (method: 'POST' | 'DELETE', body: unknown) =>
-  new NextRequest('https://llun.test/api/v1/accounts/follow', {
-    method,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body)
+    expect(response.status).toBe(422)
+    expect(mockDatabase.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
   })
-const emptyContext = { params: Promise.resolve({}) }
+
+  it('answers 404 and sends nothing when there is no follow to undo', async () => {
+    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+
+    const response = await DELETE(
+      jsonRequest('DELETE', { target: TARGET }),
+      emptyContext
+    )
+
+    expect(response.status).toBe(404)
+    expect(mockUnfollow).not.toHaveBeenCalled()
+    expect(mockDatabase.updateFollowStatus).not.toHaveBeenCalled()
+  })
+})
 
 describe('GET /api/v1/accounts/follow', () => {
   beforeEach(() => {
@@ -264,31 +284,5 @@ describe('POST /api/v1/accounts/follow', () => {
       TARGET,
       mockSigningActor
     )
-  })
-})
-
-describe('DELETE /api/v1/accounts/follow (validation and missing follow)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('answers 422 when the body has no target', async () => {
-    const response = await DELETE(jsonRequest('DELETE', {}), emptyContext)
-
-    expect(response.status).toBe(422)
-    expect(mockDatabase.getAcceptedOrRequestedFollow).not.toHaveBeenCalled()
-  })
-
-  it('answers 404 and sends nothing when there is no follow to undo', async () => {
-    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
-
-    const response = await DELETE(
-      jsonRequest('DELETE', { target: TARGET }),
-      emptyContext
-    )
-
-    expect(response.status).toBe(404)
-    expect(mockUnfollow).not.toHaveBeenCalled()
-    expect(mockDatabase.updateFollowStatus).not.toHaveBeenCalled()
   })
 })

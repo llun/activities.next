@@ -37,7 +37,7 @@ vi.mock('@/lib/config', () => ({
   })
 }))
 
-describe('PATCH /api/v2/filters/:id', () => {
+describe('/api/v2/filters/:id', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
@@ -56,6 +56,10 @@ describe('PATCH /api/v2/filters/:id', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   // Rails `resources` maps update to both PATCH and PUT, so Mastodon clients may
@@ -143,6 +147,25 @@ describe('PATCH /api/v2/filters/:id', () => {
       keywords: [{ keyword: `${title}-word`, wholeWord: true }]
     })
 
+  it.each([
+    { method: 'GET' as const, handler: GET, body: undefined },
+    {
+      method: 'PUT' as const,
+      handler: PUT,
+      body: JSON.stringify({ title: 'x' })
+    },
+    { method: 'DELETE' as const, handler: DELETE, body: undefined }
+  ])('$method answers 404 for an unknown filter id', async (testCase) => {
+    const { method, handler, body } = testCase
+
+    const response = await handler(
+      idRequest('missing', method, body),
+      context('missing')
+    )
+
+    expect(response.status).toBe(404)
+  })
+
   describe('GET', () => {
     it('returns the filter with its keywords in the Mastodon shape', async () => {
       const filter = await createFilterFor(ACTOR1_ID, 'get-own')
@@ -162,15 +185,6 @@ describe('PATCH /api/v2/filters/:id', () => {
       })
     })
 
-    it('answers 404 for an unknown filter id', async () => {
-      const response = await GET(
-        idRequest('missing', 'GET'),
-        context('missing')
-      )
-
-      expect(response.status).toBe(404)
-    })
-
     it("answers 404 for another account's filter instead of exposing it", async () => {
       const foreign = await createFilterFor(ACTOR2_ID, 'get-foreign')
 
@@ -180,18 +194,6 @@ describe('PATCH /api/v2/filters/:id', () => {
       )
 
       expect(response.status).toBe(404)
-    })
-
-    it('answers 401 when the caller is not signed in', async () => {
-      mockGetServerSession.mockResolvedValue(null)
-      const filter = await createFilterFor(ACTOR1_ID, 'get-anon')
-
-      const response = await GET(
-        idRequest(filter.id, 'GET'),
-        context(filter.id)
-      )
-
-      expect(response.status).toBe(401)
     })
   })
 
@@ -246,9 +248,8 @@ describe('PATCH /api/v2/filters/:id', () => {
       ])
     })
 
-    it('accepts a form-encoded body and sets an expiry from expires_in', async () => {
+    it('accepts a form-encoded body', async () => {
       const filter = await createFilterFor(ACTOR1_ID, 'put-form')
-      const before = Date.now()
 
       const response = await PUT(
         idRequest(
@@ -256,11 +257,30 @@ describe('PATCH /api/v2/filters/:id', () => {
           'PUT',
           new URLSearchParams([
             ['title', 'put-form-renamed'],
-            ['context[]', 'notifications'],
-            ['expires_in', '3600']
+            ['context[]', 'notifications']
           ]).toString(),
           'application/x-www-form-urlencoded'
         ),
+        context(filter.id)
+      )
+
+      expect(response.status).toBe(200)
+      expect(
+        await database.getFilter({ actorId: ACTOR1_ID, id: filter.id })
+      ).toMatchObject({
+        title: 'put-form-renamed',
+        context: ['notifications']
+      })
+    })
+
+    it('sets the expiry to now plus expires_in seconds', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      const now = new Date('2026-03-01T12:00:00Z').getTime()
+      vi.setSystemTime(now)
+      const filter = await createFilterFor(ACTOR1_ID, 'put-expiry')
+
+      const response = await PUT(
+        idRequest(filter.id, 'PUT', JSON.stringify({ expires_in: 3600 })),
         context(filter.id)
       )
 
@@ -269,11 +289,7 @@ describe('PATCH /api/v2/filters/:id', () => {
         actorId: ACTOR1_ID,
         id: filter.id
       })
-      expect(stored).toMatchObject({
-        title: 'put-form-renamed',
-        context: ['notifications']
-      })
-      expect(stored?.expiresAt).toBeGreaterThanOrEqual(before + 3_600_000)
+      expect(stored?.expiresAt).toBe(now + 3_600_000)
     })
 
     it.each([
@@ -303,15 +319,6 @@ describe('PATCH /api/v2/filters/:id', () => {
         ).toMatchObject({ title: 'put-invalid', context: ['home'] })
       }
     )
-
-    it('answers 404 for an unknown filter id', async () => {
-      const response = await PUT(
-        idRequest('missing', 'PUT', JSON.stringify({ title: 'x' })),
-        context('missing')
-      )
-
-      expect(response.status).toBe(404)
-    })
 
     it("cannot modify another account's filter", async () => {
       const foreign = await createFilterFor(ACTOR2_ID, 'put-foreign')

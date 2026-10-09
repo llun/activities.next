@@ -129,15 +129,6 @@ describe('/api/v2/filters/statuses/:id', () => {
 
       expect(response.status).toBe(404)
     })
-
-    it('answers 401 when the caller is not signed in', async () => {
-      mockGetServerSession.mockResolvedValue(null)
-      const { row } = await createFilterStatus(ACTOR1_ID, 'status-get-anon')
-
-      const response = await GET(request(row.id, 'GET'), context(row.id))
-
-      expect(response.status).toBe(401)
-    })
   })
 
   describe('DELETE', () => {

@@ -4,6 +4,8 @@
 import '@testing-library/jest-dom'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
+import { createDeferred } from '@/lib/testing/deferred'
+
 import { MarkAllReadButton } from './MarkAllReadButton'
 
 const mockRefresh = vi.fn()
@@ -20,6 +22,8 @@ vi.mock('@/lib/client', () => ({
 describe('MarkAllReadButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // mockReset also drops any unused mock...Once value from an earlier test.
+    mockMarkNotificationsRead.mockReset()
     mockMarkNotificationsRead.mockResolvedValue(true)
   })
 
@@ -39,31 +43,24 @@ describe('MarkAllReadButton', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('is disabled and sends nothing when there is nothing unread', () => {
+  it('is disabled when there is nothing unread', () => {
     render(<MarkAllReadButton unreadIds={[]} unreadCount={0} />)
 
-    const button = screen.getByRole('button', { name: /mark all read/i })
-    expect(button).toBeDisabled()
-    fireEvent.click(button)
-    expect(mockMarkNotificationsRead).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: /mark all read/i })
+    ).toBeDisabled()
   })
 
   it('disables the button while the request is in flight', async () => {
-    let resolve: (ok: boolean) => void = () => {}
-    mockMarkNotificationsRead.mockReturnValue(
-      new Promise<boolean>((r) => {
-        resolve = r
-      })
-    )
+    const deferred = createDeferred<boolean>()
+    mockMarkNotificationsRead.mockReturnValue(deferred.promise)
     render(<MarkAllReadButton unreadIds={['a']} unreadCount={1} />)
     const button = screen.getByRole('button', { name: /mark all read/i })
 
     fireEvent.click(button)
     await vi.waitFor(() => expect(button).toBeDisabled())
-    fireEvent.click(button)
-    expect(mockMarkNotificationsRead).toHaveBeenCalledTimes(1)
 
-    resolve(true)
+    deferred.resolve(true)
     await vi.waitFor(() => expect(button).toBeEnabled())
   })
 

@@ -776,10 +776,26 @@ describe('getValidStravaAccessToken', () => {
 
   it.each([
     ['the expiry is unknown', undefined],
-    ['the token is valid for more than a minute', NOW + 120_000]
+    ['the token is valid for more than a minute', NOW + 120_000],
+    ['the token is valid for one millisecond past the buffer', NOW + 60_001]
   ])('returns the stored token without refreshing when %s', async (_, exp) => {
     await expect(getToken({ tokenExpiresAt: exp })).resolves.toBe('old-access')
     expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a token that expires exactly at the edge of the one minute buffer', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        access_token: 'new-access',
+        refresh_token: 'refresh-2',
+        expires_at: 1_800_000_000
+      })
+    )
+
+    await expect(getToken({ tokenExpiresAt: NOW + 60_000 })).resolves.toBe(
+      'new-access'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes a token that expires within the one minute buffer and stores the new credentials', async () => {

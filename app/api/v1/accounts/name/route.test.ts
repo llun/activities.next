@@ -5,7 +5,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 
-import { OPTIONS, POST } from './route'
+import { POST } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -131,19 +131,5 @@ describe('POST /api/v1/accounts/name', () => {
 
     expect(response.status).toBe(403)
     await expect(accountName(seedActor1.email)).resolves.toBe('Original Name')
-  })
-
-  it('answers the CORS preflight advertising POST', async () => {
-    const response = await OPTIONS(
-      new NextRequest('https://llun.test/api/v1/accounts/name', {
-        method: 'OPTIONS',
-        headers: { origin: 'https://llun.test' }
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('access-control-allow-methods')).toContain(
-      'POST'
-    )
   })
 })

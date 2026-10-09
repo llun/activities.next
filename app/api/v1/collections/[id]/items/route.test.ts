@@ -77,6 +77,10 @@ describe('/api/v1/collections/[id]/items', () => {
     })
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   const postRequest = (body: unknown) =>
     new NextRequest(
       `https://llun.test/api/v1/collections/${collectionId}/items`,
@@ -222,6 +226,11 @@ describe('/api/v1/collections/[id]/items', () => {
         title: 'Managed members'
       })
       ownedId = collection.id
+    })
+
+    // The DELETE tests remove members, so every test starts from the full set
+    // (re-adding an existing member is idempotent) and file order is free.
+    beforeEach(async () => {
       await database.addCollectionMembers({
         id: ownedId,
         actorId: ACTOR1_ID,
@@ -344,24 +353,10 @@ describe('/api/v1/collections/[id]/items', () => {
 
         expect(response.status).toBe(404)
       })
-
-      it('answers 401 when the caller is not signed in', async () => {
-        mockGetServerSession.mockResolvedValue(null)
-
-        const response = await GET(getRequest(), ownedContext())
-
-        expect(response.status).toBe(401)
-      })
     })
 
     describe('DELETE', () => {
       it('removes only the listed accounts, addressed by publicId or legacy id', async () => {
-        await database.addCollectionMembers({
-          id: ownedId,
-          actorId: ACTOR1_ID,
-          targetActorIds: memberIds
-        })
-
         const response = await DELETE(
           deleteRequest(
             JSON.stringify({
@@ -378,19 +373,43 @@ describe('/api/v1/collections/[id]/items', () => {
         expect(await memberOf(ACTOR4_ID)).not.toBeNull()
       })
 
+      // Each body names the row we then check, so only the validation (not an
+      // unrelated body) is what keeps it in the collection.
       it.each([
-        { description: 'a missing account_ids', body: '{}' },
-        { description: 'an empty account_ids', body: '{"account_ids":[]}' },
-        { description: 'malformed JSON', body: '{' }
+        {
+          description: 'a missing account_ids',
+          body: () => JSON.stringify({ account_id: urlToId(ACTOR4_ID) })
+        },
+        {
+          description: 'an account_ids that is not a list',
+          body: () => JSON.stringify({ account_ids: urlToId(ACTOR4_ID) })
+        },
+        {
+          description: 'an empty account id next to a valid one',
+          body: () => JSON.stringify({ account_ids: [urlToId(ACTOR4_ID), ''] })
+        },
+        {
+          description: 'malformed JSON',
+          body: () => `{"account_ids":["${urlToId(ACTOR4_ID)}"`
+        }
       ])(
         'answers 422 and removes nothing for $description',
         async ({ body }) => {
-          const response = await DELETE(deleteRequest(body), ownedContext())
+          const response = await DELETE(deleteRequest(body()), ownedContext())
 
           expect(response.status).toBe(422)
           expect(await memberOf(ACTOR4_ID)).not.toBeNull()
         }
       )
+
+      it('answers 422 for an empty account_ids', async () => {
+        const response = await DELETE(
+          deleteRequest('{"account_ids":[]}'),
+          ownedContext()
+        )
+
+        expect(response.status).toBe(422)
+      })
 
       it("cannot remove members from someone else's collection", async () => {
         mockGetServerSession.mockResolvedValue({

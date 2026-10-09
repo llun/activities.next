@@ -356,19 +356,22 @@ describe('GET /api/v1/notifications (real database)', () => {
 
       const pages: string[][] = []
       let query = '?limit=2'
-      for (let i = 0; i < 5; i++) {
+      // 5 rows at 2 per page is exactly 3 pages; each one must link onward.
+      for (let i = 0; i < 3; i++) {
         const response = await get(query)
         const data: ResponseNotification[] = await response.json()
-        const next = links(response).next
-        if (data.length === 0) {
-          expect(next).toBeNull()
-          break
-        }
         pages.push(data.map((n) => n.id))
+        const next = links(response).next
+        expect(next).not.toBeNull()
         query = `?limit=2&max_id=${next!.searchParams.get('max_id')}`
       }
 
       expect(pages).toEqual([ids.slice(0, 2), ids.slice(2, 4), ids.slice(4)])
+
+      // The page after the last cursor is empty and offers no further link.
+      const past = await get(query)
+      expect(await past.json()).toEqual([])
+      expect(links(past).next).toBeNull()
     })
 
     it('min_id returns the page immediately newer than the cursor', async () => {

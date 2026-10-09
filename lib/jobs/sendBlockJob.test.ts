@@ -1,3 +1,5 @@
+import { ZodError } from 'zod'
+
 import { block } from '@/lib/activities'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { SEND_BLOCK_JOB_NAME } from '@/lib/jobs/names'
@@ -24,6 +26,7 @@ const SIGNING_ACTOR = {
   domain: 'llun.test'
 }
 const TARGET_ID = 'https://remote.test/users/blocked'
+const MISSING_ACTOR_ID = 'https://llun.test/users/missing'
 const BLOCK_URI = `${ACTOR1_ID}#blocks/current`
 
 describe('sendBlockJob', () => {
@@ -45,10 +48,9 @@ describe('sendBlockJob', () => {
       SIGNING_ACTOR as never
     )
     vi.mocked(block).mockResolvedValue({ ok: true, uri: BLOCK_URI })
-    await database.deleteBlock({
-      actorId: ACTOR1_ID,
-      targetActorId: TARGET_ID
-    })
+    for (const actorId of [ACTOR1_ID, MISSING_ACTOR_ID]) {
+      await database.deleteBlock({ actorId, targetActorId: TARGET_ID })
+    }
   })
 
   const runJob = (data: unknown) =>
@@ -99,7 +101,15 @@ describe('sendBlockJob', () => {
   })
 
   it('sends nothing when the blocking actor no longer exists', async () => {
-    await runJob(jobData({ actorId: 'https://llun.test/users/missing' }))
+    // The block row matches the job exactly, so only the missing actor can
+    // stop the send.
+    await database.createBlock({
+      actorId: MISSING_ACTOR_ID,
+      targetActorId: TARGET_ID,
+      uri: BLOCK_URI
+    })
+
+    await runJob(jobData({ actorId: MISSING_ACTOR_ID }))
 
     expect(block).not.toHaveBeenCalled()
   })
@@ -134,7 +144,9 @@ describe('sendBlockJob', () => {
   })
 
   it('rejects a malformed payload before doing any work', async () => {
-    await expect(runJob({ actorId: ACTOR1_ID })).rejects.toThrow()
+    await expect(runJob({ actorId: ACTOR1_ID })).rejects.toBeInstanceOf(
+      ZodError
+    )
 
     expect(canFederateWithDomain).not.toHaveBeenCalled()
     expect(block).not.toHaveBeenCalled()

@@ -269,18 +269,25 @@ describe('POST /api/v1/notifications/requests/accept', () => {
     expect(await acceptedSenders()).toEqual([])
   })
 
+  // Each body also names the pending request, so only the validation keeps it
+  // pending.
   it.each([
-    ['ids that are not strings', { 'id[]': [1, 2] }],
+    ['ids that are not strings', (id: string) => ({ 'id[]': [id, 1] })],
     [
       'more than 100 ids',
-      { 'id[]': Array.from({ length: 101 }, (_, i) => `${i}`) }
+      (id: string) => ({
+        'id[]': [id, ...Array.from({ length: 100 }, (_, i) => `${i}`)]
+      })
     ]
   ])('rejects %s with 422', async (_, body) => {
     await filteredFrom(ACTOR2_ID)
 
-    const response = await postJson(body)
+    const response = await postJson(
+      body(await actorPublicId(database, ACTOR2_ID))
+    )
 
     expect(response.status).toBe(422)
     expect(await filteredIds()).toEqual([ACTOR2_ID])
+    expect(await acceptedSenders()).toEqual([])
   })
 })

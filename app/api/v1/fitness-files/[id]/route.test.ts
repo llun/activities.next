@@ -417,7 +417,7 @@ describe('PATCH /api/v1/fitness-files/[id] (assign gear)', () => {
 
   it.each([
     ['null', null],
-    ['an empty string', '   ']
+    ['a blank string', '   ']
   ])('clears the attribution when gearId is %s', async (_, gearId) => {
     const file = await createFile(ACTOR1_ID, `patch-clear-${typeof gearId}`)
     const gear = await database.createFitnessGear({
@@ -520,6 +520,7 @@ describe('PATCH /api/v1/fitness-files/[id] (assign gear)', () => {
     )
 
     expect(response.status).toBe(403)
+    expect(mockGetServerSession).not.toHaveBeenCalled()
   })
 
   it('redirects a signed-out caller to sign in', async () => {

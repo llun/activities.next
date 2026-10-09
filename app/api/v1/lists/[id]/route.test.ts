@@ -153,12 +153,6 @@ describe('PUT /api/v1/lists/:id', () => {
       expect.objectContaining({ title: 'Renamed', exclusive: true })
     )
   })
-})
-
-describe('PUT /api/v1/lists/:id (validation and ownership)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
 
   it('passes replies_policy through and scopes the update to the signed-in actor', async () => {
     mockDatabase.updateList.mockResolvedValue({
@@ -225,7 +219,7 @@ describe('PUT /api/v1/lists/:id (validation and ownership)', () => {
     expect(mockDatabase.updateList).not.toHaveBeenCalled()
   })
 
-  it('answers 404 when the list does not exist or is not owned by the caller', async () => {
+  it('answers 404 when the database finds no list for the caller', async () => {
     mockDatabase.updateList.mockResolvedValue(null)
 
     const response = await PUT(createJsonRequest({ title: 'Renamed' }), {
@@ -272,7 +266,7 @@ describe('GET /api/v1/lists/:id', () => {
     })
   })
 
-  it('answers 404 when the list is missing or not owned by the caller', async () => {
+  it('answers 404 when the database finds no list for the caller', async () => {
     mockDatabase.getList.mockResolvedValue(null)
 
     const response = await GET(getRequest(), {
@@ -308,7 +302,7 @@ describe('DELETE /api/v1/lists/:id', () => {
     })
   })
 
-  it('answers 404 when there is no such list for the caller', async () => {
+  it('answers 404 when the database deletes no list for the caller', async () => {
     mockDatabase.deleteList.mockResolvedValue(false)
 
     const response = await DELETE(deleteRequest(), {

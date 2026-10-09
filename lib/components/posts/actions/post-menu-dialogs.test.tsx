@@ -95,12 +95,12 @@ const ownStatus: StatusNote = {
 }
 
 describe('MuteDialog', () => {
-  const renderDialog = (open = true) => {
+  const renderDialog = () => {
     const onOpenChange = vi.fn()
     const onMuted = vi.fn()
     const view = render(
       <MuteDialog
-        open={open}
+        open
         onOpenChange={onOpenChange}
         actorName="Maythee"
         targetActorId={targetActorId}

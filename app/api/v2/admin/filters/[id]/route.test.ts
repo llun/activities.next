@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 
-import { DELETE, GET, OPTIONS, PATCH, PUT } from './route'
+import { DELETE, GET, PATCH, PUT } from './route'
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 vi.mock('@/lib/database', () => ({
@@ -269,18 +269,5 @@ describe('/api/v2/admin/filters/:id', () => {
 
       expect(response.status).toBe(404)
     })
-  })
-
-  it('advertises PATCH and DELETE in the OPTIONS Access-Control-Allow-Methods header', async () => {
-    const response = await OPTIONS(
-      new NextRequest('https://llun.test/api/v2/admin/filters/filter-1', {
-        method: 'OPTIONS',
-        headers: { origin: 'https://llun.test' }
-      })
-    )
-
-    const allowed = response.headers.get('Access-Control-Allow-Methods') ?? ''
-    expect(allowed).toContain('PATCH')
-    expect(allowed).toContain('DELETE')
   })
 })

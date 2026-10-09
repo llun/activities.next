@@ -17,13 +17,17 @@ describe('StravaArchiveImportDatabase', () => {
 
   describe.each(table)('%s', (_, database) => {
     let counter = 0
-    const create = (
+    // Every import a test creates is removed in afterEach, so a failing
+    // assertion cannot leave an unresolved import behind (one per actor is
+    // allowed) and break the tests that follow.
+    const createdIds: string[] = []
+    const create = async (
       overrides: Partial<
         Parameters<Database['createStravaArchiveImport']>[0]
       > = {}
     ) => {
       counter += 1
-      return database.createStravaArchiveImport({
+      const created = await database.createStravaArchiveImport({
         actorId: ACTOR_A,
         archiveId: `archive-${counter}`,
         archiveFitnessFileId: `file-${counter}`,
@@ -31,7 +35,15 @@ describe('StravaArchiveImportDatabase', () => {
         visibility: 'private',
         ...overrides
       })
+      createdIds.push(created.id)
+      return created
     }
+
+    afterEach(async () => {
+      for (const id of createdIds.splice(0)) {
+        await database.deleteStravaArchiveImport({ id })
+      }
+    })
 
     afterAll(async () => {
       await database.destroy()
@@ -59,8 +71,6 @@ describe('StravaArchiveImportDatabase', () => {
         expect(created.firstFailureMessage).toBeUndefined()
         expect(created.lastError).toBeUndefined()
         expect(created.resolvedAt).toBeUndefined()
-
-        await database.deleteStravaArchiveImport({ id: 'import-defaults' })
       })
 
       it('persists the row so it can be read back by id', async () => {
@@ -71,16 +81,12 @@ describe('StravaArchiveImportDatabase', () => {
         })
 
         expect(fetched).toEqual(created)
-
-        await database.deleteStravaArchiveImport({ id: created.id })
       })
 
       it('rejects a second unresolved import for the same actor', async () => {
-        const first = await create({ actorId: ACTOR_A })
+        await create({ actorId: ACTOR_A })
 
         await expect(create({ actorId: ACTOR_A })).rejects.toThrow()
-
-        await database.deleteStravaArchiveImport({ id: first.id })
       })
 
       it('allows a new import once the actor’s previous one is resolved', async () => {
@@ -94,13 +100,10 @@ describe('StravaArchiveImportDatabase', () => {
         const second = await create({ actorId: ACTOR_A })
 
         expect(second.id).not.toBe(first.id)
-
-        await database.deleteStravaArchiveImport({ id: first.id })
-        await database.deleteStravaArchiveImport({ id: second.id })
       })
 
       it('rejects reusing an archive id across imports', async () => {
-        const first = await create({
+        await create({
           actorId: ACTOR_A,
           archiveId: 'archive-shared'
         })
@@ -108,8 +111,6 @@ describe('StravaArchiveImportDatabase', () => {
         await expect(
           create({ actorId: ACTOR_B, archiveId: 'archive-shared' })
         ).rejects.toThrow()
-
-        await database.deleteStravaArchiveImport({ id: first.id })
       })
     })
 
@@ -130,8 +131,6 @@ describe('StravaArchiveImportDatabase', () => {
         })
 
         expect(fetched?.id).toBe(created.id)
-
-        await database.deleteStravaArchiveImport({ id: created.id })
       })
 
       it('returns the most recently created import when a batch id is reused', async () => {
@@ -158,9 +157,6 @@ describe('StravaArchiveImportDatabase', () => {
           })
 
           expect(fetched?.id).toBe(newer.id)
-
-          await database.deleteStravaArchiveImport({ id: older.id })
-          await database.deleteStravaArchiveImport({ id: newer.id })
         } finally {
           vi.useRealTimers()
         }
@@ -182,18 +178,14 @@ describe('StravaArchiveImportDatabase', () => {
         })
 
         expect(active?.id).toBe(created.id)
-
-        await database.deleteStravaArchiveImport({ id: created.id })
       })
 
       it('does not return another actor’s import', async () => {
-        const created = await create({ actorId: ACTOR_A })
+        await create({ actorId: ACTOR_A })
 
         await expect(
           database.getActiveStravaArchiveImportByActor({ actorId: ACTOR_B })
         ).resolves.toBeNull()
-
-        await database.deleteStravaArchiveImport({ id: created.id })
       })
 
       it('ignores imports that have been resolved', async () => {
@@ -207,8 +199,6 @@ describe('StravaArchiveImportDatabase', () => {
         await expect(
           database.getActiveStravaArchiveImportByActor({ actorId: ACTOR_A })
         ).resolves.toBeNull()
-
-        await database.deleteStravaArchiveImport({ id: created.id })
       })
     })
 
@@ -248,8 +238,6 @@ describe('StravaArchiveImportDatabase', () => {
         expect(
           await database.getStravaArchiveImportById({ id: created.id })
         ).toEqual(updated)
-
-        await database.deleteStravaArchiveImport({ id: created.id })
       })
 
       it('leaves fields that were not passed untouched', async () => {
@@ -271,8 +259,6 @@ describe('StravaArchiveImportDatabase', () => {
           completedActivitiesCount: 4,
           status: 'importing'
         })
-
-        await database.deleteStravaArchiveImport({ id: created.id })
       })
 
       it('clears nullable fields when null is passed', async () => {
@@ -297,8 +283,6 @@ describe('StravaArchiveImportDatabase', () => {
         expect(cleared?.firstFailureMessage).toBeUndefined()
         expect(cleared?.lastError).toBeUndefined()
         expect(cleared?.resolvedAt).toBeUndefined()
-
-        await database.deleteStravaArchiveImport({ id: created.id })
       })
 
       it('reopens a resolved import for the actor when resolvedAt is cleared', async () => {
@@ -325,8 +309,6 @@ describe('StravaArchiveImportDatabase', () => {
             })
           )?.id
         ).toBe(created.id)
-
-        await database.deleteStravaArchiveImport({ id: created.id })
       })
 
       it('stores pending media activities and reads them back', async () => {
@@ -353,8 +335,6 @@ describe('StravaArchiveImportDatabase', () => {
           pendingMediaActivities: []
         })
         expect(emptied?.pendingMediaActivities).toEqual([])
-
-        await database.deleteStravaArchiveImport({ id: created.id })
       })
 
       it('returns null when the import does not exist', async () => {

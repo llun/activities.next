@@ -200,7 +200,7 @@ describe('like and unlike of an existing status', () => {
   )
 
   it('does not federate a like whose local write failed', async () => {
-    mockDatabase.createLike.mockRejectedValue(new Error('db down'))
+    mockDatabase.createLike.mockRejectedValueOnce(new Error('db down'))
 
     await expect(
       POST(jsonRequest('POST', { statusId: status.id }), context)

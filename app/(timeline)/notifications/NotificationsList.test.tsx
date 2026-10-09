@@ -92,6 +92,8 @@ describe('NotificationsList', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
+    // mockReset also drops any unused mock...Once value from an earlier test.
+    mockMarkNotificationsRead.mockReset()
     observed = []
     vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver)
     mockMarkNotificationsRead.mockResolvedValue(true)

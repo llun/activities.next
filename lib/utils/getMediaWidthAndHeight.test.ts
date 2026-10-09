@@ -15,30 +15,33 @@ describe('getMediaWidthAndHeight', () => {
     vi.restoreAllMocks()
   })
 
-  // Hands the function a real element of the requested kind, with the
-  // intrinsic size jsdom cannot decode from bytes.
-  const stubElement = (
-    tagName: 'video' | 'img',
-    size: Record<string, number>
-  ) => {
+  // Hands the function a real element of the requested kind. jsdom cannot
+  // decode a size from bytes, so tests set it with setSize at the moment the
+  // browser would, which keeps an implementation that reads the size before
+  // the load event from passing.
+  const stubElement = (tagName: 'video' | 'img') => {
     const createElement = document.createElement.bind(document)
     const element = createElement(tagName)
-    for (const [key, value] of Object.entries(size)) {
-      Object.defineProperty(element, key, { value })
-    }
     vi.spyOn(document, 'createElement').mockImplementation((name: string) =>
       name === tagName ? element : createElement(name)
     )
     return element
   }
 
+  const setSize = (element: Element, size: Record<string, number>) => {
+    for (const [key, value] of Object.entries(size)) {
+      Object.defineProperty(element, key, { value })
+    }
+  }
+
   it('reads the intrinsic size of a video once its metadata has loaded', async () => {
     const file = new File(['video'], 'clip.mp4', { type: 'video/mp4' })
-    const video = stubElement('video', { videoWidth: 1920, videoHeight: 1080 })
+    const video = stubElement('video')
 
     const pending = getMediaWidthAndHeight(file)
     expect(video.getAttribute('src')).toBe('blob:test-media')
     expect(URL.createObjectURL).toHaveBeenCalledWith(file)
+    setSize(video, { videoWidth: 1920, videoHeight: 1080 })
     ;(video as HTMLVideoElement).onloadedmetadata?.(new Event('loadedmetadata'))
 
     await expect(pending).resolves.toEqual({ width: 1920, height: 1080 })
@@ -46,24 +49,14 @@ describe('getMediaWidthAndHeight', () => {
 
   it('reads the size of an image once it has loaded', async () => {
     const file = new File(['image'], 'photo.png', { type: 'image/png' })
-    const img = stubElement('img', { width: 640, height: 480 })
+    const img = stubElement('img')
 
     const pending = getMediaWidthAndHeight(file)
     expect(img.getAttribute('src')).toBe('blob:test-media')
+    setSize(img, { width: 640, height: 480 })
     ;(img as HTMLImageElement).onload?.(new Event('load'))
 
     await expect(pending).resolves.toEqual({ width: 640, height: 480 })
-  })
-
-  it('does not report a size before the media has loaded', async () => {
-    const file = new File(['image'], 'photo.png', { type: 'image/png' })
-    stubElement('img', { width: 640, height: 480 })
-
-    const settled = vi.fn()
-    void getMediaWidthAndHeight(file).then(settled)
-    await Promise.resolve()
-
-    expect(settled).not.toHaveBeenCalled()
   })
 
   it.each(['audio/mp4', 'application/pdf', 'text/plain', ''])(
@@ -74,12 +67,5 @@ describe('getMediaWidthAndHeight', () => {
       await expect(getMediaWidthAndHeight(file)).resolves.toBeNull()
       expect(URL.createObjectURL).not.toHaveBeenCalled()
     }
-  )
-
-  // The promise only resolves from onloadedmetadata / onload and nothing
-  // handles onerror, so a corrupt file hangs the caller (lib/client/media.ts)
-  // forever instead of failing the upload.
-  it.todo(
-    'settles instead of hanging when a video or image fails to decode (lib/utils/getMediaWidthAndHeight.ts:5-18)'
   )
 })

@@ -1,3 +1,5 @@
+import { ZodError } from 'zod'
+
 import { sendQuoteAccept } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -125,7 +127,7 @@ describe('sendQuoteAcceptJob', () => {
   it('rejects a payload missing the stamp id', async () => {
     const { stampId: _stampId, ...withoutStamp } = jobData()
 
-    await expect(runJob(withoutStamp)).rejects.toThrow()
+    await expect(runJob(withoutStamp)).rejects.toBeInstanceOf(ZodError)
 
     expect(sendQuoteAccept).not.toHaveBeenCalled()
   })

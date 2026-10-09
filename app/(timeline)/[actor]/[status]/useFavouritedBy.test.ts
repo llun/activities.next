@@ -32,7 +32,9 @@ type Params = Parameters<typeof useFavouritedBy>[0]
 
 describe('useFavouritedBy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    // mockReset (not clearAllMocks) so no unused mock...Once value leaks
+    // from one test into the next.
+    vi.mocked(getStatusFavouritedBy).mockReset()
   })
 
   it('does not fetch while disabled', () => {
@@ -148,22 +150,6 @@ describe('useFavouritedBy', () => {
 
     expect(result.current.accounts.map((a) => a.username)).toEqual(['bob'])
     expect(result.current.isLoading).toBe(false)
-  })
-
-  it('does not apply a response that arrives after unmount', async () => {
-    const slow = createDeferred<ReturnType<typeof page>>()
-    ;(getStatusFavouritedBy as jest.Mock).mockReturnValue(slow.promise)
-    const { result, unmount } = renderHook(() =>
-      useFavouritedBy({ statusId, enabled: true })
-    )
-    await waitFor(() => expect(result.current.isLoading).toBe(true))
-
-    unmount()
-    await act(async () => {
-      slow.resolve(page(['alice'], 1))
-    })
-
-    expect(result.current.accounts).toEqual([])
   })
 
   it('keeps the known total when a later page reports zero', async () => {

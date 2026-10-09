@@ -72,21 +72,17 @@ describe('VisibilityButton', () => {
     vi.clearAllMocks()
   })
 
-  it.each([
-    ['public', [ACTIVITY_STREAM_PUBLIC], [], 'Public'],
-    ['unlisted', [], [ACTIVITY_STREAM_PUBLIC], 'Unlisted'],
-    [
-      'followers only',
-      ['https://activities.local/users/llun/followers'],
-      [],
-      'Followers only'
-    ],
-    ['direct', ['https://remote.example/users/maythee'], [], 'Direct']
-  ])('labels a %s post with its current visibility', (_name, to, cc, label) => {
-    render(<VisibilityButton status={{ ...publicStatus, to, cc }} />)
+  // The to/cc -> visibility mapping itself is covered by getVisibility.test.ts;
+  // this one non-public case proves the button reads both fields from the status.
+  it('labels the button from the status recipients', () => {
+    render(
+      <VisibilityButton
+        status={{ ...publicStatus, to: [], cc: [ACTIVITY_STREAM_PUBLIC] }}
+      />
+    )
 
     expect(
-      screen.getByRole('button', { name: `Visibility: ${label}` })
+      screen.getByRole('button', { name: 'Visibility: Unlisted' })
     ).toBeInTheDocument()
   })
 

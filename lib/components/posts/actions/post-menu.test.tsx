@@ -25,7 +25,6 @@ import {
   updateStatusVisibility
 } from '@/lib/client'
 import { TranslationProvider } from '@/lib/components/posts/translation-context'
-import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import type { Relationship as MastodonRelationship } from '@/lib/types/mastodon/account/relationship'
@@ -322,27 +321,6 @@ describe('PostMenu', () => {
     await waitFor(() =>
       expect(mute).toHaveBeenCalledWith(
         expect.objectContaining({ targetActorId: otherStatus.actorId })
-      )
-    )
-  })
-
-  it('surfaces an inline error when a direct unmute fails', async () => {
-    ;(getRelationship as jest.Mock).mockResolvedValue(
-      relationship({ muting: true })
-    )
-    ;(unmute as jest.Mock).mockResolvedValue(null)
-
-    render(<PostMenu status={otherStatus} isOwner={false} canEdit={false} />)
-
-    await openMenu()
-    const unmuteItem = await screen.findByRole('menuitem', {
-      name: 'Unmute Maythee'
-    })
-    fireEvent.click(unmuteItem)
-
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        'Failed to unmute account. Please try again.'
       )
     )
   })
@@ -644,6 +622,7 @@ describe('PostMenu actions', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     setClipboard(undefined)
   })
 
@@ -694,26 +673,27 @@ describe('PostMenu actions', () => {
     expect(getRelationship).not.toHaveBeenCalled()
   })
 
-  it('links to the original for a remote post but not for a local one', async () => {
-    const { unmount } = render(
-      <PostMenu status={otherStatus} isOwner={false} canEdit={false} />
-    )
+  it('links to the original for a remote post', async () => {
+    render(<PostMenu status={otherStatus} isOwner={false} canEdit={false} />)
+
     const menu = await openMenu()
     const link = within(menu).getByRole('menuitem', { name: 'Open original' })
     expect(link).toHaveAttribute('href', otherStatus.url)
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
-    unmount()
+  })
 
+  it('does not link to the original for a local post', async () => {
     render(<PostMenu status={ownStatus} isOwner canEdit={false} />)
-    const ownMenu = await openMenu()
+
+    const menu = await openMenu()
     expect(
-      within(ownMenu).queryByRole('menuitem', { name: 'Open original' })
+      within(menu).queryByRole('menuitem', { name: 'Open original' })
     ).not.toBeInTheDocument()
   })
 
   describe('visibility', () => {
-    it('saves the picked visibility and marks it current on the next open', async () => {
+    it('saves the picked visibility', async () => {
       ;(updateStatusVisibility as jest.Mock).mockResolvedValue(true)
       render(<PostMenu status={publicOwnStatus} isOwner canEdit={false} />)
 
@@ -740,11 +720,13 @@ describe('PostMenu actions', () => {
       expect(updateStatusVisibility).not.toHaveBeenCalled()
     })
 
-    it('shows an inline error when saving the visibility fails', async () => {
+    it('shows an inline error when saving the visibility fails, then clears it after 4 seconds', async () => {
       ;(updateStatusVisibility as jest.Mock).mockResolvedValue(false)
       render(<PostMenu status={publicOwnStatus} isOwner canEdit={false} />)
-
       const submenu = await openSubmenu('Change visibility')
+
+      // Fake timers only from here, so Radix's menu opens on the real clock.
+      vi.useFakeTimers()
       await act(async () => {
         fireEvent.click(
           within(submenu).getByRole('menuitem', { name: 'Direct' })
@@ -754,43 +736,27 @@ describe('PostMenu actions', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(
         "Couldn't change post visibility. Please try again."
       )
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3999)
+      })
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
-    it('shows an error that clears itself after a few seconds', async () => {
-      vi.useFakeTimers({ shouldAdvanceTime: true })
-      try {
-        ;(updateStatusVisibility as jest.Mock).mockResolvedValue(false)
-        render(<PostMenu status={publicOwnStatus} isOwner canEdit={false} />)
-
-        const submenu = await openSubmenu('Change visibility')
-        await act(async () => {
-          fireEvent.click(
-            within(submenu).getByRole('menuitem', { name: 'Direct' })
-          )
-        })
-        expect(screen.getByRole('alert')).toBeInTheDocument()
-
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(4000)
-        })
-
-        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
-    it('marks the saved visibility as checked when reopened', async () => {
-      const deferred = createDeferred<boolean>()
-      ;(updateStatusVisibility as jest.Mock).mockReturnValue(deferred.promise)
+    it('marks the saved visibility as the current choice when reopened', async () => {
+      ;(updateStatusVisibility as jest.Mock).mockResolvedValue(true)
       render(<PostMenu status={publicOwnStatus} isOwner canEdit={false} />)
 
       const submenu = await openSubmenu('Change visibility')
-      fireEvent.click(
-        within(submenu).getByRole('menuitem', { name: 'Unlisted' })
-      )
       await act(async () => {
-        deferred.resolve(true)
+        fireEvent.click(
+          within(submenu).getByRole('menuitem', { name: 'Unlisted' })
+        )
       })
       await waitFor(() =>
         expect(screen.queryByRole('menu')).not.toBeInTheDocument()
@@ -803,9 +769,9 @@ describe('PostMenu actions', () => {
       const publicItem = within(reopened).getByRole('menuitem', {
         name: 'Public'
       })
-      // The current choice is the only one carrying the check mark svg.
-      expect(unlisted.querySelectorAll('svg')).toHaveLength(2)
-      expect(publicItem.querySelectorAll('svg')).toHaveLength(1)
+      // The check icon is the only marker of the current choice.
+      expect(unlisted.querySelector('.lucide-check')).toBeInTheDocument()
+      expect(publicItem.querySelector('.lucide-check')).not.toBeInTheDocument()
     })
   })
 
@@ -974,25 +940,34 @@ describe('PostMenu actions', () => {
       }
     )
 
-    it('shows an inline error when unmuting throws', async () => {
-      ;(getRelationship as jest.Mock).mockResolvedValue(
-        relationship({ muting: true })
-      )
-      ;(unmute as jest.Mock).mockRejectedValue(new Error('network down'))
-      render(<PostMenu status={otherStatus} isOwner={false} canEdit={false} />)
+    it.each([
+      ['returns nothing', () => Promise.resolve(null)],
+      ['throws', () => Promise.reject(new Error('network down'))]
+    ])(
+      'shows an inline error and does not refresh when unmuting %s',
+      async (_name, impl) => {
+        ;(getRelationship as jest.Mock).mockResolvedValue(
+          relationship({ muting: true })
+        )
+        ;(unmute as jest.Mock).mockImplementation(impl)
+        render(
+          <PostMenu status={otherStatus} isOwner={false} canEdit={false} />
+        )
 
-      await openMenu()
-      const item = await screen.findByRole('menuitem', {
-        name: 'Unmute Maythee'
-      })
-      await act(async () => {
-        fireEvent.click(item)
-      })
+        await openMenu()
+        const item = await screen.findByRole('menuitem', {
+          name: 'Unmute Maythee'
+        })
+        await act(async () => {
+          fireEvent.click(item)
+        })
 
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        'Failed to unmute account. Please try again.'
-      )
-    })
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'Failed to unmute account. Please try again.'
+        )
+        expect(refresh).not.toHaveBeenCalled()
+      }
+    )
 
     it('confirms before blocking and offers Unblock afterwards', async () => {
       ;(block as jest.Mock).mockResolvedValue(relationship({ blocking: true }))
@@ -1018,22 +993,6 @@ describe('PostMenu actions', () => {
       expect(
         screen.getByRole('menuitem', { name: 'Unblock Maythee' })
       ).toBeInTheDocument()
-    })
-
-    it('does not call the client when the mute dialog is cancelled', async () => {
-      render(<PostMenu status={otherStatus} isOwner={false} canEdit={false} />)
-
-      const menu = await openMenu()
-      fireEvent.click(
-        within(menu).getByRole('menuitem', { name: 'Mute Maythee' })
-      )
-      const dialog = await screen.findByRole('dialog')
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-
-      await waitFor(() =>
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-      )
-      expect(mute).not.toHaveBeenCalled()
     })
   })
 

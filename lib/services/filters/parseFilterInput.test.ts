@@ -351,8 +351,12 @@ describe('parseFilterUpdateInput', () => {
     })
   })
 
-  it('treats a null or non-object body as an empty update', () => {
-    expect(parseFilterUpdateInput(null, NOW)).toMatchObject({
+  it.each([
+    ['null', null],
+    ['a string', 'title=New'],
+    ['a number', 5]
+  ])('treats %s as an empty update', (_, body) => {
+    expect(parseFilterUpdateInput(body, NOW)).toMatchObject({
       title: undefined,
       keywords: undefined
     })

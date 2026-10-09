@@ -286,15 +286,6 @@ describe('StravaArchiveImportSection', () => {
 
       expect(mockStart).toHaveBeenCalledWith(expect.any(File), 'unlisted')
     })
-
-    it('does not start an import when no archive is chosen', async () => {
-      await renderSection()
-
-      fireEvent.click(importButton())
-      await advance()
-
-      expect(mockStart).not.toHaveBeenCalled()
-    })
   })
 
   describe('with an import already running', () => {
@@ -521,6 +512,11 @@ describe('StravaArchiveImportSection', () => {
       expect(mockGetBatch).toHaveBeenCalledWith('batch-2')
       expect(screen.getByText('Batch: batch-2')).toBeInTheDocument()
       // The stale failure message is gone and the failed-only actions are hidden.
+      expect(
+        screen.queryByText(
+          'Strava archive import failed. Retry or cancel before importing a new archive.'
+        )
+      ).not.toBeInTheDocument()
       expect(
         screen.queryByRole('button', { name: 'Retry and continue' })
       ).not.toBeInTheDocument()

@@ -73,6 +73,16 @@ describe('POST /api/v1/fitness-files', () => {
       user: { email: seedActor1.email }
     })
     mockSaveFitnessFile.mockResolvedValue({ id: 'fitness-1' })
+    // Default config for every test; the size-limit test overrides it.
+    vi.mocked(getConfig).mockReturnValue({
+      host: 'llun.test',
+      allowEmails: [],
+      allowActorDomains: []
+    } as unknown as ReturnType<typeof getConfig>)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('stores a description within the instance post length', async () => {
@@ -156,28 +166,17 @@ describe('POST /api/v1/fitness-files', () => {
   })
 
   it('rejects a file larger than the configured limit', async () => {
-    const original = vi.mocked(getConfig).getMockImplementation()
     vi.mocked(getConfig).mockReturnValue({
       host: 'llun.test',
       allowEmails: [],
       allowActorDomains: [],
       fitnessStorage: { maxFileSize: 4 }
     } as unknown as ReturnType<typeof getConfig>)
-    try {
-      const response = await POST(upload(), context)
 
-      expect(response.status).toBe(400)
-      expect(mockSaveFitnessFile).not.toHaveBeenCalled()
-    } finally {
-      vi.mocked(getConfig).mockReset()
-      if (original) vi.mocked(getConfig).mockImplementation(original)
-      else
-        vi.mocked(getConfig).mockReturnValue({
-          host: 'llun.test',
-          allowEmails: [],
-          allowActorDomains: []
-        } as unknown as ReturnType<typeof getConfig>)
-    }
+    const response = await POST(upload(), context)
+
+    expect(response.status).toBe(400)
+    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
   })
 
   it('answers 413 when storage reports the account is over quota', async () => {
@@ -216,7 +215,7 @@ describe('POST /api/v1/fitness-files', () => {
     })
   })
 
-  it('rejects a cross-site upload before reading the body', async () => {
+  it('rejects a cross-site upload', async () => {
     const form = new FormData()
     form.set('file', new File(['<gpx/>'], 'ride.gpx'))
 

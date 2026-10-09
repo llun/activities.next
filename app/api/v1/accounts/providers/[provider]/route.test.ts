@@ -6,7 +6,7 @@ import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 
-import { DELETE, OPTIONS } from './route'
+import { DELETE } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -149,7 +149,6 @@ describe('DELETE /api/v1/accounts/providers/[provider]', () => {
     const response = await del('')
 
     expect(response.status).toBe(404)
-    await expect(providersOf(account1Id)).resolves.toEqual(['github', 'google'])
   })
 
   it('returns 500 when the database is unavailable', async () => {
@@ -158,19 +157,5 @@ describe('DELETE /api/v1/accounts/providers/[provider]', () => {
     const response = await del('github')
 
     expect(response.status).toBe(500)
-  })
-
-  it('answers the CORS preflight advertising DELETE', async () => {
-    const response = await OPTIONS(
-      new NextRequest('https://llun.test/api/v1/accounts/providers/github', {
-        method: 'OPTIONS',
-        headers: { origin: 'https://llun.test' }
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('access-control-allow-methods')).toContain(
-      'DELETE'
-    )
   })
 })

@@ -17,7 +17,9 @@ const statusId = 'https://activities.local/users/llun/statuses/run-1'
 
 describe('RetryFitnessButton', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    // mockReset (not clearAllMocks) so no unused mock...Once value leaks
+    // from one test into the next.
+    vi.mocked(retryFitnessProcessing).mockReset()
   })
 
   it.each([
@@ -81,26 +83,36 @@ describe('RetryFitnessButton', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
   })
 
-  it('clears a previous error when retrying again', async () => {
+  it('clears a previous error as soon as the next retry starts', async () => {
+    const second = createDeferred<void>()
     ;(retryFitnessProcessing as jest.Mock)
       .mockRejectedValueOnce(new Error('network down'))
-      .mockResolvedValueOnce(undefined)
+      .mockReturnValueOnce(second.promise)
     render(<RetryFitnessButton statusId={statusId} />)
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     })
+    expect(screen.getByText('Retry failed. Please try again.')).toBeVisible()
+
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     })
 
+    // The second call is still pending: the old error must already be gone.
+    expect(retryFitnessProcessing).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeDisabled()
     expect(
       screen.queryByText('Retry failed. Please try again.')
     ).not.toBeInTheDocument()
+
+    await act(async () => {
+      second.resolve()
+    })
     expect(screen.getByText(/Retry queued/)).toBeInTheDocument()
   })
 
-  it('does not trigger a parent link or click handler', async () => {
+  it('stops the click from reaching a parent handler or following a parent link', async () => {
     ;(retryFitnessProcessing as jest.Mock).mockResolvedValue(undefined)
     const onParentClick = vi.fn()
     render(
@@ -109,10 +121,15 @@ describe('RetryFitnessButton', () => {
       </div>
     )
 
+    let notCancelled = true
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      // fireEvent returns false when preventDefault() was called.
+      notCancelled = fireEvent.click(
+        screen.getByRole('button', { name: 'Retry' })
+      )
     })
 
+    expect(notCancelled).toBe(false)
     expect(onParentClick).not.toHaveBeenCalled()
   })
 })

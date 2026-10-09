@@ -92,6 +92,10 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
     mockPublish.mockResolvedValue(undefined)
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('deletes a fitness file without regenerating route heatmaps', async () => {
     const response = await DELETE(
       new NextRequest(
@@ -118,7 +122,7 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
   })
 
   const callDelete = (
-    fitnessFileId: string | undefined = 'fitness-file-1',
+    fitnessFileId = 'fitness-file-1',
     origin = 'https://test.llun.dev'
   ) =>
     DELETE(
@@ -127,9 +131,7 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
         { method: 'DELETE', headers: { Origin: origin } }
       ),
       {
-        params: Promise.resolve({
-          fitnessFileId: fitnessFileId as string
-        })
+        params: Promise.resolve({ fitnessFileId })
       }
     )
 

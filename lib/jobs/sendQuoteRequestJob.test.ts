@@ -1,3 +1,5 @@
+import { ZodError } from 'zod'
+
 import { getNote, sendQuoteRequest } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -83,6 +85,15 @@ describe('sendQuoteRequestJob', () => {
       to: [ACTIVITY_STREAM_PUBLIC],
       cc: []
     })
+
+  // Without this the beforeEach default (getNote -> null) already stops the
+  // send, so a test of an earlier guard could not fail. With it, the guard
+  // under test is the only thing between the job and the QuoteRequest.
+  const makeQuotedAuthorResolvable = () =>
+    vi.mocked(getNote).mockResolvedValue({
+      id: QUOTED_STATUS_ID,
+      attributedTo: REMOTE_AUTHOR_ID
+    } as never)
 
   const runJob = (data: unknown) =>
     sendQuoteRequestJob(database, {
@@ -191,6 +202,7 @@ describe('sendQuoteRequestJob', () => {
 
   it('checks federation policy against the quoted status and sends nothing when denied', async () => {
     const statusId = await seedQuotingStatus()
+    makeQuotedAuthorResolvable()
     vi.mocked(canFederateWithDomain).mockResolvedValue(false)
 
     await runJob(jobData(statusId))
@@ -203,12 +215,15 @@ describe('sendQuoteRequestJob', () => {
   })
 
   it('sends nothing when the quoting status no longer exists', async () => {
+    makeQuotedAuthorResolvable()
+
     await runJob(jobData(`${ACTOR1_ID}/statuses/deleted-before-job`))
 
     expect(sendQuoteRequest).not.toHaveBeenCalled()
   })
 
   it('sends nothing when the quoting status is a poll, which cannot be an instrument', async () => {
+    makeQuotedAuthorResolvable()
     const pollId = `${ACTOR1_ID}/statuses/quote-poll`
     await database.createPoll({
       id: pollId,
@@ -229,7 +244,7 @@ describe('sendQuoteRequestJob', () => {
   it('rejects a payload missing the quoted status id', async () => {
     await expect(
       runJob({ actorId: ACTOR1_ID, statusId: 'x' })
-    ).rejects.toThrow()
+    ).rejects.toBeInstanceOf(ZodError)
 
     expect(sendQuoteRequest).not.toHaveBeenCalled()
   })

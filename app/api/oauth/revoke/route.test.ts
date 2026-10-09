@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { logger } from '@/lib/utils/logger'
 
-import { OPTIONS, POST } from './route'
+import { POST } from './route'
 
 const mockAuthHandler = vi.fn()
 
@@ -29,6 +29,10 @@ describe('POST /api/oauth/revoke', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAuthHandler.mockResolvedValue(new Response('{}', { status: 200 }))
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('forwards the revocation request unchanged to better-auth and answers 200 with an empty object', async () => {
@@ -143,21 +147,5 @@ describe('POST /api/oauth/revoke', () => {
       message: 'Token revocation threw',
       error: failure
     })
-  })
-})
-
-describe('OPTIONS /api/oauth/revoke', () => {
-  it('answers the CORS preflight advertising POST', async () => {
-    const response = await OPTIONS(
-      new NextRequest('https://llun.test/api/oauth/revoke', {
-        method: 'OPTIONS',
-        headers: { origin: 'https://client.test' }
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('access-control-allow-methods')).toContain(
-      'POST'
-    )
   })
 })

@@ -348,11 +348,6 @@ describe('FilterEditor form behaviour', () => {
         description: 'expires in 2 hours',
         expiresInMs: 2 * 3_600_000,
         expected: '21600'
-      },
-      {
-        description: 'expires in a month',
-        expiresInMs: 30 * 86_400_000,
-        expected: '604800'
       }
     ])(
       'preselects the smallest expiry option covering the remaining time when it $description',
@@ -371,6 +366,18 @@ describe('FilterEditor form behaviour', () => {
         expect(screen.getByLabelText('Expire after')).toHaveValue(expected)
       }
     )
+
+    it('caps at the longest option (1 week) when the remaining time is longer', () => {
+      const now = Date.parse('2026-01-01T00:00:00Z')
+      renderEditor({
+        initial: existingFilter({
+          expires_at: new Date(now + 30 * 86_400_000).toISOString()
+        }),
+        currentTime: now
+      })
+
+      expect(screen.getByLabelText('Expire after')).toHaveValue('604800')
+    })
   })
 
   describe('action cards', () => {

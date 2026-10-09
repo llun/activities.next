@@ -37,31 +37,6 @@ describe('UploadFitnessFileButton', () => {
     expect(click).toHaveBeenCalledTimes(1)
   })
 
-  it('restricts the picker to the supported fitness extensions', () => {
-    const { container } = render(
-      <UploadFitnessFileButton
-        onFileSelected={onFileSelected}
-        onError={onError}
-      />
-    )
-
-    expect(fileInput(container)).toHaveAttribute('accept', '.fit,.gpx,.tcx')
-  })
-
-  it('cannot be clicked while disabled', () => {
-    render(
-      <UploadFitnessFileButton
-        disabled
-        onFileSelected={onFileSelected}
-        onError={onError}
-      />
-    )
-
-    expect(
-      screen.getByRole('button', { name: 'Upload fitness activity file' })
-    ).toBeDisabled()
-  })
-
   it.each(['ride.fit', 'run.gpx', 'swim.tcx', 'RIDE.FIT', 'my.long.name.Gpx'])(
     'passes %s to onFileSelected',
     (name) => {

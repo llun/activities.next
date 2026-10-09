@@ -37,7 +37,7 @@ vi.mock('@/lib/config', () => ({
   })
 }))
 
-describe('PATCH /api/v2/filters/keywords/:id', () => {
+describe('/api/v2/filters/keywords/:id', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
@@ -152,6 +152,25 @@ describe('PATCH /api/v2/filters/keywords/:id', () => {
     return { filter, keywords }
   }
 
+  it.each([
+    { method: 'GET' as const, handler: GET, body: undefined },
+    {
+      method: 'PUT' as const,
+      handler: PUT,
+      body: JSON.stringify({ keyword: 'x' })
+    },
+    { method: 'DELETE' as const, handler: DELETE, body: undefined }
+  ])('$method answers 404 for an unknown keyword id', async (testCase) => {
+    const { method, handler, body } = testCase
+
+    const response = await handler(
+      keywordRequest('missing', method, body),
+      context('missing')
+    )
+
+    expect(response.status).toBe(404)
+  })
+
   describe('GET', () => {
     it('returns the keyword in the Mastodon shape', async () => {
       const {
@@ -169,15 +188,6 @@ describe('PATCH /api/v2/filters/keywords/:id', () => {
         keyword: 'kw-get-word',
         whole_word: false
       })
-    })
-
-    it('answers 404 for an unknown keyword id', async () => {
-      const response = await GET(
-        keywordRequest('missing', 'GET'),
-        context('missing')
-      )
-
-      expect(response.status).toBe(404)
     })
 
     it("answers 404 for a keyword inside another account's filter", async () => {
@@ -291,15 +301,6 @@ describe('PATCH /api/v2/filters/keywords/:id', () => {
       ).toMatchObject({ keyword: 'long-word' })
     })
 
-    it('answers 404 for an unknown keyword id', async () => {
-      const response = await PUT(
-        keywordRequest('missing', 'PUT', JSON.stringify({ keyword: 'x' })),
-        context('missing')
-      )
-
-      expect(response.status).toBe(404)
-    })
-
     it("cannot edit a keyword inside another account's filter", async () => {
       const {
         keywords: [foreign]
@@ -343,15 +344,6 @@ describe('PATCH /api/v2/filters/keywords/:id', () => {
           })
         )?.map((k) => k.id)
       ).toEqual([sibling.id])
-    })
-
-    it('answers 404 for an unknown keyword id', async () => {
-      const response = await DELETE(
-        keywordRequest('missing', 'DELETE'),
-        context('missing')
-      )
-
-      expect(response.status).toBe(404)
     })
 
     it("cannot delete a keyword inside another account's filter", async () => {

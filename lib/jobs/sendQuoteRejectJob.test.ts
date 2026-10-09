@@ -1,3 +1,5 @@
+import { ZodError } from 'zod'
+
 import { sendQuoteReject } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
@@ -122,7 +124,7 @@ describe('sendQuoteRejectJob', () => {
   it('rejects a payload missing the quote request id', async () => {
     const { quoteRequestId: _id, ...withoutId } = jobData()
 
-    await expect(runJob(withoutId)).rejects.toThrow()
+    await expect(runJob(withoutId)).rejects.toBeInstanceOf(ZodError)
 
     expect(sendQuoteReject).not.toHaveBeenCalled()
   })

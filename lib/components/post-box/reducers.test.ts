@@ -484,22 +484,22 @@ describe('post-box reducers', () => {
   })
 
   describe('composer settings', () => {
-    it('stores the chosen visibility and quote policy', () => {
-      let state = createDefaultState()
+    it('stores the chosen visibility', () => {
+      const next = statusExtensionReducer(
+        createDefaultState(),
+        setVisibility('direct')
+      )
 
-      state = statusExtensionReducer(state, setVisibility('direct'))
-      state = statusExtensionReducer(state, setQuoteApprovalPolicy('nobody'))
-
-      expect(state.visibility).toBe('direct')
-      expect(state.quoteApprovalPolicy).toBe('nobody')
+      expect(next.visibility).toBe('direct')
     })
 
-    it('returns the same state for an unknown action', () => {
-      const state = createDefaultState()
-
-      expect(statusExtensionReducer(state, { type: 'bogus' } as never)).toBe(
-        state
+    it('stores the chosen quote policy', () => {
+      const next = statusExtensionReducer(
+        createDefaultState(),
+        setQuoteApprovalPolicy('nobody')
       )
+
+      expect(next.quoteApprovalPolicy).toBe('nobody')
     })
   })
 

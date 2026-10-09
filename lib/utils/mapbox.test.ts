@@ -5,7 +5,9 @@ import type { loadMapboxModule as LoadMapboxModule } from './mapbox'
 
 const SCRIPT_SELECTOR = '[data-mapbox-gl-script="true"]'
 const CSS_SELECTOR = '[data-mapbox-gl-css="true"]'
+// Mirrors MAPBOX_LOAD_TIMEOUT_MS in ./mapbox, which is not exported.
 const LOAD_TIMEOUT_MS = 15000
+const POLL_INTERVAL_MS = 50
 
 type MapboxWindow = Window & { mapboxgl?: unknown }
 
@@ -115,7 +117,13 @@ describe('loadMapboxModule', () => {
     )
     finishScript('load')
 
-    await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS)
+    await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS - POLL_INTERVAL_MS)
+    const stillPending = Symbol('pending')
+    await expect(Promise.race([outcome, stillPending])).resolves.toBe(
+      stillPending
+    )
+
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
 
     await expect(outcome).resolves.toBe('Mapbox global was not initialized')
   })

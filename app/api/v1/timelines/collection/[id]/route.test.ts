@@ -6,6 +6,9 @@ import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
+import { ACTOR5_ID } from '@/lib/stub/seed/actor5'
+import { ACTOR6_ID } from '@/lib/stub/seed/actor6'
 import { Status } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -114,24 +117,57 @@ describe('GET /api/v1/timelines/collection/[id]', () => {
   }
   const context = (id = collectionId) => ({ params: Promise.resolve({ id }) })
 
-  it("returns only approved members' posts, newest first, and excludes non-members", async () => {
-    const response = await GET(request(), context())
+  it("lists every member's posts for the owner, newest first, without non-members", async () => {
+    // ACTOR5 and ACTOR6 have no seeded posts, so this collection holds exactly
+    // the notes created here. The owner's feed covers pending members too.
+    const ordering = await database.createCollection({
+      actorId: ACTOR1_ID,
+      title: 'Ordering'
+    })
+    await database.addCollectionMembers({
+      id: ordering.id,
+      actorId: ACTOR1_ID,
+      targetActorIds: [ACTOR5_ID, ACTOR6_ID]
+    })
+    await database.setCollectionMemberState({
+      id: ordering.id,
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR5_ID,
+      state: 'approved'
+    })
+    const base = Date.UTC(2026, 0, 1)
+    const note = async (actorId: string, name: string, offset: number) => {
+      const status = await database.createNote({
+        id: `${actorId}/statuses/ordering-${name}`,
+        url: `${actorId}/statuses/ordering-${name}`,
+        actorId,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: `ordering ${name}`,
+        createdAt: base + offset
+      })
+      await database.addStatusToCollectionTimelines({ status })
+      return status
+    }
+    const approvedOld = await note(ACTOR5_ID, 'approved-old', 0)
+    const pendingMiddle = await note(ACTOR6_ID, 'pending-middle', 1000)
+    const approvedNew = await note(ACTOR5_ID, 'approved-new', 2000)
+    // Newest of all, but its author is not a member of this collection.
+    const outsider = await note(ACTOR3_ID, 'outsider', 3000)
+
+    const response = await GET(request({}, ordering.id), context(ordering.id))
 
     expect(response.status).toBe(200)
-    const data = (await response.json()) as {
-      id: string
-      account: { id: string }
-    }[]
-    expect(data[0].id).toBe(await statusPublicId(database, memberPost.id))
-    expect(data.length).toBeGreaterThan(0)
-    const memberPublicId = (
-      await database.getActorPublicIds({ actorIds: [ACTOR2_ID] })
-    ).get(ACTOR2_ID)
-    expect(new Set(data.map((status) => status.account.id))).toEqual(
-      new Set([memberPublicId])
+    const data = (await response.json()) as { id: string }[]
+    expect(data.map((status) => status.id)).toEqual(
+      await Promise.all(
+        [approvedNew, pendingMiddle, approvedOld].map((status) =>
+          statusPublicId(database, status.id)
+        )
+      )
     )
     expect(data.map((status) => status.id)).not.toContain(
-      await statusPublicId(database, nonMemberPost.id)
+      await statusPublicId(database, outsider.id)
     )
   })
 
@@ -195,14 +231,6 @@ describe('GET /api/v1/timelines/collection/[id]', () => {
     expect(response.status).toBe(404)
   })
 
-  it('answers 401 when the caller is not signed in', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-
-    const response = await GET(request(), context())
-
-    expect(response.status).toBe(401)
-  })
-
   it.each([{ field: 'max_id' }, { field: 'min_id' }, { field: 'since_id' }])(
     'answers 400 (not 500) for a malformed $field cursor',
     async ({ field }) => {
@@ -252,8 +280,10 @@ describe('GET /api/v1/timelines/collection/[id]', () => {
   })
 
   describe('keyword filters (home context)', () => {
-    let hiddenPost: Status
+    let filteredId: string
+    let keptPost: Status
     let warnedPost: Status
+    let hiddenPost: Status
 
     beforeAll(async () => {
       await database.createFilter({
@@ -272,71 +302,95 @@ describe('GET /api/v1/timelines/collection/[id]', () => {
         expiresAt: null,
         keywords: [{ keyword: 'collwarn', wholeWord: false }]
       })
-      hiddenPost = await database.createNote({
-        id: `${ACTOR2_ID}/statuses/collection-hidden`,
-        url: `${ACTOR2_ID}/statuses/collection-hidden`,
-        actorId: ACTOR2_ID,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [],
-        text: 'collspoiler ahead'
+
+      // ACTOR4 has no seeded posts and belongs to no other collection here, so
+      // this feed holds exactly the three notes below (oldest to newest).
+      const filtered = await database.createCollection({
+        actorId: ACTOR1_ID,
+        title: 'Filtered'
       })
-      warnedPost = await database.createNote({
-        id: `${ACTOR2_ID}/statuses/collection-warned`,
-        url: `${ACTOR2_ID}/statuses/collection-warned`,
-        actorId: ACTOR2_ID,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [],
-        text: 'collwarn inside'
+      filteredId = filtered.id
+      await database.addCollectionMembers({
+        id: filteredId,
+        actorId: ACTOR1_ID,
+        targetActorIds: [ACTOR4_ID]
       })
+      const base = Date.UTC(2026, 1, 1)
+      const note = async (name: string, text: string, offset: number) => {
+        const status = await database.createNote({
+          id: `${ACTOR4_ID}/statuses/collection-${name}`,
+          url: `${ACTOR4_ID}/statuses/collection-${name}`,
+          actorId: ACTOR4_ID,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text,
+          createdAt: base + offset
+        })
+        await database.addStatusToCollectionTimelines({ status })
+        return status
+      }
+      keptPost = await note('kept', 'nothing to filter here', 0)
+      warnedPost = await note('warned', 'collwarn inside', 1000)
+      hiddenPost = await note('hidden', 'collspoiler ahead', 2000)
     })
 
-    it.each([{ format: undefined }, { format: 'activities_next' }])(
-      'drops hide-filtered posts from the page (format=$format)',
-      async ({ format }) => {
-        vi.spyOn(database, 'getCollectionTimeline').mockResolvedValue([
-          memberPost,
-          hiddenPost
-        ])
+    it('drops hide-filtered posts from the page', async () => {
+      const response = await GET(request({}, filteredId), context(filteredId))
 
-        const response = await GET(request(format ? { format } : {}), context())
+      const body = (await response.json()) as { id: string }[]
+      expect(body.map((status) => status.id)).toEqual([
+        await statusPublicId(database, warnedPost.id),
+        await statusPublicId(database, keptPost.id)
+      ])
+    })
 
-        const body = await response.json()
-        const ids = format
-          ? body.statuses.map((s: { id: string }) => s.id)
-          : body.map((s: { id: string }) => s.id)
-        const expectedKept = format
-          ? memberPost.id
-          : await statusPublicId(database, memberPost.id)
-        const expectedDropped = format
-          ? hiddenPost.id
-          : await statusPublicId(database, hiddenPost.id)
-        expect(ids).toContain(expectedKept)
-        expect(ids).not.toContain(expectedDropped)
-      }
-    )
+    it('drops hide-filtered posts from the activities_next page', async () => {
+      const response = await GET(
+        request({ format: 'activities_next' }, filteredId),
+        context(filteredId)
+      )
+
+      const body = (await response.json()) as { statuses: { id: string }[] }
+      expect(body.statuses.map((status) => status.id)).toEqual([
+        warnedPost.id,
+        keptPost.id
+      ])
+    })
 
     it('keeps the next cursor when the whole page is hidden so older posts stay reachable', async () => {
-      vi.spyOn(database, 'getCollectionTimeline').mockResolvedValue([
-        hiddenPost
-      ])
+      const hiddenPublicId = await statusPublicId(database, hiddenPost.id)
 
-      const response = await GET(request(), context())
+      const response = await GET(
+        request({ limit: '1' }, filteredId),
+        context(filteredId)
+      )
 
       expect(await response.json()).toEqual([])
-      expect(response.headers.get('Link') ?? '').toContain('rel="next"')
+      expect(response.headers.get('Link') ?? '').toContain(
+        `max_id=${hiddenPublicId}>; rel="next"`
+      )
+
+      const older = await GET(
+        request({ limit: '1', max_id: hiddenPublicId }, filteredId),
+        context(filteredId)
+      )
+      const olderBody = (await older.json()) as { id: string }[]
+      expect(olderBody.map((status) => status.id)).toEqual([
+        await statusPublicId(database, warnedPost.id)
+      ])
     })
 
     it('keeps warn-filtered posts and annotates them with the matching filter', async () => {
-      vi.spyOn(database, 'getCollectionTimeline').mockResolvedValue([
-        warnedPost
-      ])
+      const response = await GET(request({}, filteredId), context(filteredId))
 
-      const response = await GET(request(), context())
-
-      const [entity] = await response.json()
-      expect(entity.id).toBe(await statusPublicId(database, warnedPost.id))
-      expect(entity.filtered).toHaveLength(1)
-      expect(entity.filtered[0].filter.title).toBe('Warn collection words')
+      const body = (await response.json()) as {
+        id: string
+        filtered: { filter: { title: string } }[]
+      }[]
+      const warnedPublicId = await statusPublicId(database, warnedPost.id)
+      const entity = body.find((status) => status.id === warnedPublicId)
+      expect(entity?.filtered).toHaveLength(1)
+      expect(entity?.filtered[0].filter.title).toBe('Warn collection words')
     })
   })
 })

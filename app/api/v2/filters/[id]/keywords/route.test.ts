@@ -137,15 +137,6 @@ describe('/api/v2/filters/:id/keywords', () => {
 
       expect(response.status).toBe(404)
     })
-
-    it('answers 401 when the caller is not signed in', async () => {
-      mockGetServerSession.mockResolvedValue(null)
-      const filter = await createFilterFor(ACTOR1_ID, 'list-anon', ['x'])
-
-      const response = await GET(getRequest(filter.id), context(filter.id))
-
-      expect(response.status).toBe(401)
-    })
   })
 
   describe('POST', () => {

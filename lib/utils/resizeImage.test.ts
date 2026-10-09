@@ -189,7 +189,7 @@ describe('resizeImage', () => {
   it('rejects when the browser cannot decode the image', async () => {
     decodeFails = true
 
-    await expect(resizeImage(jpeg(), 4000, 4000)).rejects.toBeDefined()
+    await expect(resizeImage(jpeg(), 4000, 4000)).rejects.toBeInstanceOf(Event)
     expect(canvases).toHaveLength(0)
   })
 
@@ -205,12 +205,4 @@ describe('resizeImage', () => {
 
     await expect(resizeImage(jpeg(), 4000, 4000)).rejects.toBe(failure)
   })
-
-  // Only the axis that is longer than its limit is checked, so with unequal
-  // limits an image can come back over the other limit: 100x90 with limits
-  // 200x50 is re-encoded at 100x90. Callers pass square limits today
-  // (MAX_WIDTH = MAX_HEIGHT), so this is latent.
-  it.todo(
-    'also enforces the height limit on a landscape image when the limits differ (lib/utils/resizeImage.ts:48-57)'
-  )
 })

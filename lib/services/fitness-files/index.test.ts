@@ -271,6 +271,11 @@ describe('fitness file storage dispatch', () => {
     )
     vi.spyOn(S3FitnessStorage, 'getStorage').mockReturnValue(storage as never)
     database.getFitnessFile.mockResolvedValue(fitnessFile)
+    // vi.clearAllMocks keeps queued and persistent implementations, so drop
+    // whatever a previous test set on the shared storage double.
+    for (const method of Object.values(storage)) {
+      method.mockReset()
+    }
   })
 
   afterEach(() => {
@@ -480,13 +485,12 @@ describe('fitness file storage dispatch', () => {
       )
     })
 
-    it('are not issued for local storage or when storage is unconfigured', async () => {
-      useStorage(localConfig)
-      await expect(
-        getPresignedFitnessFileUrl(database, actor, input)
-      ).resolves.toBeNull()
+    it.each([
+      ['local storage', localConfig],
+      ['unconfigured storage', undefined]
+    ])('are not issued for %s', async (_, config) => {
+      useStorage(config)
 
-      useStorage(undefined)
       await expect(
         getPresignedFitnessFileUrl(database, actor, input)
       ).resolves.toBeNull()
@@ -506,13 +510,12 @@ describe('fitness file storage dispatch', () => {
       )
     })
 
-    it('are never verified for local storage or when storage is unconfigured', async () => {
-      useStorage(localConfig)
-      await expect(
-        verifyPresignedFitnessFileUpload(database, actor, fitnessFile)
-      ).resolves.toBe(false)
+    it.each([
+      ['local storage', localConfig],
+      ['unconfigured storage', undefined]
+    ])('are never verified for %s', async (_, config) => {
+      useStorage(config)
 
-      useStorage(undefined)
       await expect(
         verifyPresignedFitnessFileUpload(database, actor, fitnessFile)
       ).resolves.toBe(false)

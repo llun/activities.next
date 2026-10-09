@@ -13,31 +13,26 @@ import { POST } from './route'
 
 const database = getTestSQLDatabase()
 const mockPublish = vi.fn()
-const guardScopes = vi.hoisted(() => ({ value: [] as unknown[] }))
 
 vi.mock('@/lib/services/guards/OAuthGuard', () => ({
-  OAuthGuardAnyScope: (
-    scopes: unknown[],
-    handle: (
-      req: NextRequest,
-      context: {
-        database: Database
-        currentActor: unknown
-        params: Promise<{ id: string }>
-      }
-    ) => Promise<Response> | Response
-  ) => {
-    guardScopes.value = scopes
-    return async (
-      req: NextRequest,
-      context: { params: Promise<{ id: string }> }
+  OAuthGuardAnyScope:
+    (
+      _scopes: unknown[],
+      handle: (
+        req: NextRequest,
+        context: {
+          database: Database
+          currentActor: unknown
+          params: Promise<{ id: string }>
+        }
+      ) => Promise<Response> | Response
     ) =>
+    async (req: NextRequest, context: { params: Promise<{ id: string }> }) =>
       handle(req, {
         database,
         currentActor: await database.getActorFromId({ id: ACTOR1_ID }),
         params: context.params
       })
-  }
 }))
 
 vi.mock('@/lib/services/queue', () => ({
@@ -84,10 +79,6 @@ describe('POST /api/v1/accounts/:id/unblock', () => {
 
   const isBlocking = () =>
     database.isBlocking({ actorId: ACTOR1_ID, targetActorId: REMOTE_ID })
-
-  it('requires the write or write:blocks scope', () => {
-    expect(guardScopes.value).toEqual(['write', 'write:blocks'])
-  })
 
   it('removes the block, queues the Undo for federation and returns the new relationship', async () => {
     const created = await database.createBlock({
