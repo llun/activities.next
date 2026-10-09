@@ -16,7 +16,7 @@ import { defineConfig } from 'vitest/config'
 // inside each worker, and on a worker thread assigning `process.env.TZ`
 // changes the variable but not the zone `Date` and `Intl` use: Node re-reads
 // the zone only for the main thread. An externally supplied `TZ` is replaced
-// too — the pin is not a default. `vitest.config.test.ts` guards it.
+// too — the pin is not a default. `test/vitest.config.test.ts` guards it.
 process.env.TZ = 'UTC'
 
 const resolvePath = (relativePath: string) =>
@@ -33,7 +33,7 @@ const EXCLUDED = [
 
 // Runs in both projects, so the UTC pin is checked on a worker thread and in a
 // forked process.
-const TIME_ZONE_PIN_GUARD = 'vitest.config.test.ts'
+const TIME_ZONE_PIN_GUARD = 'test/vitest.config.test.ts'
 
 // Test files that need a process of their own, because Node only honours the
 // call on the main thread: `process.chdir()` ("process.chdir() is not
@@ -87,8 +87,8 @@ export default defineConfig({
       jsdom: { url: 'http://localhost:3000' }
     },
     // jest-global.ts must run first: it installs the minimal global `jest`
-    // shim that jest-fetch-mock (imported by vitest.setup.ts) relies on.
-    setupFiles: ['./vitest-shims/jest-global.ts', './vitest.setup.ts'],
+    // shim that jest-fetch-mock (imported by test/setup/vitest.setup.ts) relies on.
+    setupFiles: ['./test/setup/jest-global.ts', './test/setup/vitest.setup.ts'],
     // `include` is set per project below: with `extends: true` a project's
     // arrays are appended to the root's, so a root `include` would pull every
     // test file into the forks project too.

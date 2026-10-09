@@ -19,7 +19,7 @@ vi.mock('@/lib/config/mapProvider', () => ({
   getPublicMapProvider: () => ({ type: 'osm' })
 }))
 
-// Overrides the global `@/lib/config` barrel mock from vitest.setup.ts so the
+// Overrides the global `@/lib/config` barrel mock from test/setup/vitest.setup.ts so the
 // resolved auth scheme is controllable. MapKit matches the token's `origin`
 // claim against the browser's `Origin` header, so the scheme must follow how the
 // app is actually served rather than being hardcoded to https.

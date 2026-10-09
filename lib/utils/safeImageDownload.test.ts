@@ -13,7 +13,7 @@ import {
 import { DEFAULT_SAFE_REMOTE_FETCH_MAX_REDIRECTS } from './safeRemoteFetch'
 import { isUnsafeAddress } from './unsafeAddress'
 
-// `node:dns/promises` is already mocked globally in `vitest.setup.ts`; this
+// `node:dns/promises` is already mocked globally in `test/setup/vitest.setup.ts`; this
 // just takes a typed handle on that mock.
 const { lookup } =
   await vi.importMock<typeof import('node:dns/promises')>('node:dns/promises')

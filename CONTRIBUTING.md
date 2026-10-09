@@ -126,7 +126,7 @@ Keep commits:
 The project uses:
 
 - **Prettier** for formatting — the Husky pre-commit hook formats staged files automatically via `lint-staged` (`prettier --write` on the staged files, re-staged before the commit); CI enforces formatting with `yarn prettier:check`. `yarn run prettier --write .` still formats the whole tree manually
-- **Oxlint** for linting — the pre-commit hook also runs `yarn lint` and blocks the commit on errors. In VS Code, use the `oxc.oxc-vscode` extension (the ESLint extension no longer applies). `yarn lint` runs Oxlint twice: once over the repo with `.oxlintrc.json`, then over `scripts/` — which the first pass ignores — with `.oxlintrc.scripts.json`, which enables one rule and is meant to stay that way
+- **Oxlint** for linting — the pre-commit hook also runs `yarn lint` and blocks the commit on errors. In VS Code, use the `oxc.oxc-vscode` extension (the ESLint extension no longer applies). `yarn lint` runs Oxlint twice: once over the repo with `.oxlintrc.json`, then over `scripts/` — which the first pass ignores — with `lint/oxlintrc.scripts.json`, which enables one rule and is meant to stay that way
 - **2-space indentation**
 - **Single quotes**
 - **No semicolons**
@@ -461,6 +461,7 @@ activities.next/
 │   └── qstash/                #   Upstash QStash queue adapter (@activities/qstash)
 ├── docs/                      # Documentation
 ├── lint/                      # Local Oxlint JS plugin (AGENTS.md conventions)
+├── test/                      # Tests for root-level files (next.config, proxy, instrumentation) + Vitest setup
 ├── public/                    # Static assets
 └── scripts/                   # Development/admin scripts (backup/, fitness/, maintenance/, mock/)
 ```
@@ -471,8 +472,8 @@ activities.next/
 - `packages/` — Optional dependency workspaces (`@activities/cloudtasks`, `@activities/pg`, `@activities/qstash`)
 - `tsconfig.json` — TypeScript configuration (editors, `yarn tsc`, and `yarn typecheck`)
 - `tsconfig.build.json` — what `next build` type-checks (excludes tests)
-- `.oxlintrc.json` + `.oxlintrc.scripts.json` + `lint/agentsRules.mjs` — Oxlint rules
-- `.prettierrc.yml` — Code formatting rules
+- `.oxlintrc.json` + `lint/oxlintrc.scripts.json` + `lint/agentsRules.mjs` — Oxlint rules
+- `package.json` → `prettier` — Code formatting rules
 - `vitest.config.ts` — Test configuration
 - `next.config.ts` — Next.js configuration
 - `knexfile.js` — Database migration configuration
@@ -705,10 +706,10 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   (`"type": "module"`), so tests run as native ES modules. Use the Vitest API
   (`vi.fn()`, `vi.mock()`, `vi.spyOn()`, …) — do not write `jest.*` calls. (A
   minimal global `jest` proxy exists only as a compat shim for third-party
-  libraries like `jest-fetch-mock` — see `vitest-shims/jest-global.ts` — and
+  libraries like `jest-fetch-mock` — see `test/setup/jest-global.ts` — and
   must not be relied on in first-party tests.) The `jest.Mock` /
   `jest.MockedFunction` / `jest.Mocked` **type** names still work via a
-  compatibility shim in `vitest.d.ts`.
+  compatibility shim in `test/vitest.d.ts`.
 - **The suite's clock is pinned to `TZ=UTC`** (`vitest.config.ts` assigns
   `process.env.TZ` at the top of the file). CI runners default to UTC, so
   before the pin a date assertion that only held there passed review and then
@@ -724,12 +725,12 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
     `process.env.TZ` changes the variable without changing the zone `Date` and
     `Intl` use — Node re-reads the zone only for the main thread. With the pin
     in `test.env`, `process.env.TZ` read `UTC` while every test on the
-    `threads` project ran in the machine's own zone. `vitest.config.test.ts`
+    `threads` project ran in the machine's own zone. `test/vitest.config.test.ts`
     runs in both projects and fails if either pool is not in UTC.
   - **An external `TZ` does not override it**: `TZ=Pacific/Noumea yarn test`
     still runs in UTC. The pin is the suite's zone, not a default. The CI
     `test-shards` job sets `TZ: Pacific/Noumea` on purpose, because on a UTC
-    runner `vitest.config.test.ts` could not fail if the pin were deleted,
+    runner `test/vitest.config.test.ts` could not fail if the pin were deleted,
     moved back to `test.env` or weakened to `??=`. Do not "tidy" that to UTC.
   - **A test that needs another zone wraps the code in `withTimeZone`** from
     `@/lib/testing/withTimeZone` — for example to show that a timestamp
@@ -792,7 +793,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   jsdom tests get `http://localhost:3000` as their URL via
   `environmentOptions`. A `.test.tsx` without the docblock fails with
   "document is not defined".
-- `vitest.setup.ts` installs global mocks that apply to EVERY test: the
+- `test/setup/vitest.setup.ts` installs global mocks that apply to EVERY test: the
   `@/lib/config` barrel (host `test.llun.dev`, in-memory SQLite — a new barrel
   export must also be added to the setup-file factory and
   `lib/config/__mocks__/index.ts`, or every test that hits it fails with
@@ -1078,7 +1079,7 @@ each ends with the Definition of Done gate.
 
 ### Adding a database migration
 
-1. `yarn migrate:make <name>` — never hand-write the file (migrations are ESM `.js` with named `up`/`down` from `migration.stub`).
+1. `yarn migrate:make <name>` — never hand-write the file (migrations are ESM `.js` with named `up`/`down` from `migrations/migration.stub`).
 2. Use the Knex query builder; the migration must work on SQLite and PostgreSQL and avoid breaking MySQL-compatible clients (see **Database Compatibility Guidelines**).
 3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate` (the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in `.env.local` from taking over).
 4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**). This is not optional: the Vitest suite builds its databases from the dumps, and CI's SQLite and PostgreSQL Schema Dump Sync jobs fail on schema-dump drift.

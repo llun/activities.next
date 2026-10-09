@@ -2,12 +2,13 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-import nextConfig from './next.config'
+import nextConfig from '@/next.config'
+
 import { setNodeEnv } from './next.config.testUtils'
 
 const loadNextConfig = async () => {
   vi.resetModules()
-  return import('./next.config')
+  return import('@/next.config')
 }
 
 describe('next config runtime isolation', () => {

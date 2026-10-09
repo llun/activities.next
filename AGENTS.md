@@ -143,7 +143,7 @@ Guidelines:
   - `scripts/` is organized as `mock/`, `maintenance/`, `fitness/`, and `backup/`. Every script runs through the `scripts/run.cjs` bootstrap (`node scripts/run.cjs <script>.ts`), which is also wired into each script's shebang; `yarn search:reindex` is the packaged entry point for `scripts/maintenance/rebuildSearchIndex.ts`. `scripts/` has a dedicated storage-confinement lint pass and is not prettier-checked in CI — verify scripts by running them.
 - **`AGENTS.md` is canonical; `CLAUDE.md` is a symlink to `AGENTS.md`.** `CLAUDE.md` exists as a symbolic link pointing to `AGENTS.md` so that tools looking for either file read the exact same instructions without duplication or drift. Per-tool variants are deliberately not kept here — `.cursor/rules/agents.mdc`, `GEMINI.md` and `.github/copilot-instructions.md` each existed and were removed. Do not add another: point tools or symlinks at `AGENTS.md`.
 - `proxy.ts` at the repo root is the Next.js middleware entrypoint (Next 16's rename of `middleware.ts`) — do **not** add a `middleware.ts`. It runs in the Edge runtime: import helpers via direct sub-paths (e.g. `@/lib/utils/http-headers/csp`), never barrels that transitively pull Node-only dependencies such as `@/lib/config`. It owns the ActivityPub content-negotiation rewrites and CSP header injection.
-- Configuration files live at the repo root (for example `.env.example`, `knexfile.js`, and framework/tooling configs).
+- Configuration files live at the repo root only when their tool requires it (for example `.env.example`, `knexfile.js`, `next.config.ts`, `vitest.config.ts`); Prettier's config is the `prettier` key in `package.json` and the scripts-only Oxlint config is `lint/oxlintrc.scripts.json`. Tests for root-level files (`next.config.ts`, `proxy.ts`, `instrumentation.ts`, `vitest.config.ts`) and the Vitest setup files live in `test/`, not beside those files — do not add `*.test.ts` files to the repo root.
 - `.gitignore` intentionally ignores several files agents commonly create: `docker-compose.yml`, `scripts/*.js`, `plans/`, `PR_DESCRIPTION.md`, `VERIFICATION_SUMMARY.md`, `AGENTS.override.md`, all `*.sql` (except the two `!migrations/schema*.sql` negations), `*.sqlite3`/`*.sqlite`, and `.env*` variants. If a file you added is missing from `git status`, check `git status --ignored` before assuming the add failed.
 
 ## Runtime Configuration Guidelines
@@ -160,7 +160,7 @@ Guidelines:
 ## Coding Style & Naming Conventions
 
 - TypeScript + React with 2-space indentation.
-- Prettier enforces no semicolons, single quotes, and import sorting (`.prettierrc.yml`).
+- Prettier enforces no semicolons, single quotes, and import sorting (the `prettier` key in `package.json`).
 - Use absolute imports (for example `@/lib/...`) for anything outside the current directory.
 - Relative imports are allowed only for files in the same directory (for example `./helper`), and `../` imports are not allowed.
 - Apply the same import-path rule to `vi.mock(...)` module paths.

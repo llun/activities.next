@@ -13,9 +13,9 @@
   //
   // Keep this file minimal: anything added here starts linting the whole
   // scripts tree.
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "$schema": "../node_modules/oxlint/configuration_schema.json",
   "plugins": [],
-  "jsPlugins": ["./lint/agentsRules.mjs"],
+  "jsPlugins": ["./agentsRules.mjs"],
   "categories": {
     "correctness": "off"
   },

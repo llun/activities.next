@@ -31,7 +31,7 @@ import path from 'node:path'
 const OXLINT = path.join(process.cwd(), 'node_modules', '.bin', 'oxlint')
 const PLUGIN = path.join(process.cwd(), 'lint', 'agentsRules.mjs')
 const MAIN_CONFIG = path.join(process.cwd(), '.oxlintrc.json')
-const SCRIPTS_CONFIG = path.join(process.cwd(), '.oxlintrc.scripts.json')
+const SCRIPTS_CONFIG = path.join(process.cwd(), 'lint', 'oxlintrc.scripts.json')
 
 // The local storage drivers `agents/no-storage-path-builder` is scoped to.
 const DRIVER_FILES = [
@@ -154,10 +154,13 @@ const lintWithRepoConfig = (
 ): string[] =>
   withFixtures(files, (directory) => {
     const source = readFileSync(configPath, 'utf-8')
-    const relocated = source.replace(
-      '"./lint/agentsRules.mjs"',
-      JSON.stringify(PLUGIN)
-    )
+    // The main config sits at the root and the scripts config beside the
+    // plugin in lint/, so each names it by its own relative path.
+    const pluginReference =
+      path.dirname(configPath) === path.dirname(PLUGIN)
+        ? '"./agentsRules.mjs"'
+        : '"./lint/agentsRules.mjs"'
+    const relocated = source.replace(pluginReference, JSON.stringify(PLUGIN))
     expect(relocated).not.toEqual(source)
     writeFileSync(path.join(directory, '.oxlintrc.json'), relocated)
     // Only this plugin's diagnostics matter here; the real config turns on
@@ -514,6 +517,6 @@ describe('repo lint configuration', () => {
     const { scripts } = JSON.parse(
       readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8')
     ) as { scripts: Record<string, string> }
-    expect(scripts.lint).toContain('-c .oxlintrc.scripts.json scripts')
+    expect(scripts.lint).toContain('-c lint/oxlintrc.scripts.json scripts')
   })
 })

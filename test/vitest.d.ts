@@ -25,7 +25,7 @@ declare module 'vitest' {
 }
 
 declare global {
-  // Jest-compatible global assertion helper provided by vitest.setup.ts.
+  // Jest-compatible global assertion helper provided by setup/vitest.setup.ts.
   function fail(message?: string): never
 
   namespace jest {

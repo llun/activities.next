@@ -53,7 +53,7 @@ describe('test file type coverage', () => {
         path.isAbsolute(file) ||
         file.startsWith('..') ||
         file.startsWith('node_modules/') ||
-        file.startsWith('vitest-shims/')
+        file.startsWith('test/setup/')
     )
 
     expect(unreachable).toEqual([])

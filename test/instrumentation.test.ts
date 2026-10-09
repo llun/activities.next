@@ -1,9 +1,8 @@
+import { register } from '@/instrumentation'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { startActorDeletionSweep } from '@/lib/services/actors/actorDeletion'
 import { startDatabaseQueueRunner } from '@/lib/services/queue/databaseRunner'
-
-import { register } from './instrumentation'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn()

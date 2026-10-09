@@ -10,8 +10,7 @@
   "exclude": [
     "node_modules",
     "plans",
-    "vitest.setup.ts",
-    "vitest-shims",
+    "test/setup",
     "**/*.test.ts",
     "**/*.test.tsx"
   ]

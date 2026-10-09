@@ -3,7 +3,7 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { buildActorDeletedEmail } from './actorDeleted'
 
 // No local vi.mock of '@/lib/config' here on purpose. The global mock in
-// vitest.setup.ts supplies both getConfig (host test.llun.dev) and getBaseURL;
+// test/setup/vitest.setup.ts supplies both getConfig (host test.llun.dev) and getBaseURL;
 // a local factory that stubs only getConfig shadows it and makes the shared
 // layout fail with "getBaseURL is not a function".
 const HOST = 'test.llun.dev'

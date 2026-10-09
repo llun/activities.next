@@ -1,6 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
 import FitParser from 'fit-file-parser'
-import type { FitData } from 'fit-file-parser'
+import type { ParsedFit } from 'fit-file-parser'
 import { z } from 'zod'
 
 import {
@@ -222,7 +222,7 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
 
   const fitContent = Uint8Array.from(buffer).buffer
 
-  const parsed = await new Promise<FitData>((resolve, reject) => {
+  const parsed = await new Promise<ParsedFit>((resolve, reject) => {
     parser.parse(
       fitContent,
       (error: string | null | undefined, data?: unknown) => {
@@ -236,7 +236,7 @@ const parseFit = async (buffer: Buffer): Promise<FitnessActivityData> => {
           return
         }
 
-        resolve(data as FitData)
+        resolve(data as ParsedFit)
       }
     )
   })
