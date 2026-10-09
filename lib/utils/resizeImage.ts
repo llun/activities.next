@@ -41,20 +41,12 @@ export async function resizeImage(
   const destinationContext = destinationImageCanvas.getContext('2d')
 
   // Calculate new dimensions
-  let width = image.width
-  let height = image.height
-
-  if (width > height) {
-    if (width > widthLimitPixel) {
-      height = Math.round((height * widthLimitPixel) / width)
-      width = widthLimitPixel
-    }
-  } else {
-    if (height > heightLimitPixel) {
-      width = Math.round((width * heightLimitPixel) / height)
-      height = heightLimitPixel
-    }
-  }
+  const scale = Math.min(
+    widthLimitPixel / image.width,
+    heightLimitPixel / image.height
+  )
+  const width = Math.round(image.width * scale)
+  const height = Math.round(image.height * scale)
 
   // Set up source canvas
   originalImageCanvas.width = image.width

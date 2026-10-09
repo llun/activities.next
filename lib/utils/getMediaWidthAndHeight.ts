@@ -3,18 +3,30 @@ export async function getMediaWidthAndHeight(media: File) {
     (resolve) => {
       if (media.type.startsWith('video')) {
         const element = document.createElement('video')
-        element.src = URL.createObjectURL(media)
+        const url = URL.createObjectURL(media)
+        element.src = url
         element.onloadedmetadata = () => {
+          URL.revokeObjectURL(url)
           resolve({ width: element.videoWidth, height: element.videoHeight })
+        }
+        element.onerror = () => {
+          URL.revokeObjectURL(url)
+          resolve(null)
         }
         return
       }
 
       if (media.type.startsWith('image')) {
         const element = document.createElement('img')
-        element.src = URL.createObjectURL(media)
+        const url = URL.createObjectURL(media)
+        element.src = url
         element.onload = () => {
+          URL.revokeObjectURL(url)
           resolve({ width: element.width, height: element.height })
+        }
+        element.onerror = () => {
+          URL.revokeObjectURL(url)
+          resolve(null)
         }
         return
       }

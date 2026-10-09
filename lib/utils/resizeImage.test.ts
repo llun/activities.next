@@ -128,6 +128,20 @@ describe('resizeImage', () => {
       expected: { width: 4000, height: 4000 }
     },
     {
+      description:
+        'a landscape image is scaled by the height limit when width-scaling would still exceed it',
+      source: { width: 1000, height: 900 },
+      limits: [800, 600],
+      expected: { width: 667, height: 600 }
+    },
+    {
+      description:
+        'a portrait image is scaled by the width limit when height-scaling would still exceed it',
+      source: { width: 900, height: 1000 },
+      limits: [600, 800],
+      expected: { width: 600, height: 667 }
+    },
+    {
       description: 'the scaled edge is rounded to a whole pixel',
       source: { width: 4001, height: 3002 },
       limits: [4000, 4000],
@@ -153,6 +167,28 @@ describe('resizeImage', () => {
       expected.height
     )
   })
+
+  it.each([
+    { source: { width: 1000, height: 900 }, limits: [800, 600] },
+    { source: { width: 900, height: 1000 }, limits: [600, 800] },
+    { source: { width: 5000, height: 1200 }, limits: [800, 600] },
+    { source: { width: 1200, height: 5000 }, limits: [600, 800] }
+  ])(
+    'fits a $source.width x $source.height image within $limits',
+    async ({ source, limits }) => {
+      decoded = source
+
+      await resizeImage(jpeg(), limits[0], limits[1])
+
+      const destination = canvases[1].canvas
+      expect(destination.width).toBeLessThanOrEqual(limits[0])
+      expect(destination.height).toBeLessThanOrEqual(limits[1])
+      expect(destination.width / destination.height).toBeCloseTo(
+        source.width / source.height,
+        1
+      )
+    }
+  )
 
   it('returns a new file with the same name and type, encoded at quality 0.8', async () => {
     decoded = { width: 8000, height: 6000 }
