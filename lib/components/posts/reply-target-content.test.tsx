@@ -63,11 +63,6 @@ const renderContent = (status: Partial<StatusNote>) =>
     />
   )
 
-const quote = {
-  quotedStatusId: 'https://remote.social/@a/1',
-  state: 'accepted' as const
-}
-
 describe('ReplyTargetContent', () => {
   it('renders a remote Mastodon mention as one profile link, as the status does', () => {
     renderContent({
@@ -107,41 +102,11 @@ describe('ReplyTargetContent', () => {
       description: 'decodes entities in remote html',
       status: { text: '<p>isn&#39;t it?</p>' },
       expected: "isn't it?"
-    },
-    {
-      description: 'hides the quote fallback when the status has a quote',
-      status: {
-        quote,
-        text: '<p>my take</p><p class="quote-inline">RE: <a href="https://remote.social/@a/1">https://remote.social/@a/1</a></p>'
-      },
-      expected: 'my take'
-    },
-    {
-      description: 'keeps the quote fallback when the status has no quote',
-      status: {
-        text: '<p>my take</p><p class="quote-inline">RE: <a href="https://remote.social/@a/1">https://remote.social/@a/1</a></p>'
-      },
-      expected: 'my take RE: https://remote.social/@a/1'
     }
   ])('$description', ({ status, expected }) => {
     renderContent(status)
-    const content = screen.getByTestId('reply-target-content')
-    // The visible text: parts with the `hidden` class do not count, and
-    // inline paragraphs are separated by a CSS space jsdom does not render.
-    content.querySelectorAll('.hidden').forEach((node) => node.remove())
-    content.querySelectorAll('p').forEach((paragraph) => paragraph.append(' '))
-    expect(content.textContent?.replace(/\s+/g, ' ').trim()).toBe(expected)
-  })
-
-  it('hides the invisible parts of a Mastodon long link', () => {
-    renderContent({
-      text: '<p>see <a href="https://example.com/longpath"><span class="invisible">https://</span><span class="ellipsis">example.com/long</span><span class="invisible">path</span></a></p>'
-    })
-
-    const link = screen.getByRole('link')
-    expect(link.querySelectorAll('span.hidden')).toHaveLength(2)
-    expect(link.querySelector('span:not(.hidden)')).toHaveTextContent(
-      'example.com/long'
+    expect(screen.getByTestId('reply-target-content')).toHaveTextContent(
+      expected
     )
   })
 

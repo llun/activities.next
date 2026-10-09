@@ -263,8 +263,6 @@ describe('replyDraft', () => {
       expect(draft.targetPreview).toEqual({
         id: baseNote.id,
         authorName: 'Alice Wonder',
-        authorHandle: '@alice@remote.social',
-        authorIconUrl: 'https://remote.social/avatars/alice.png',
         spoilerText: undefined,
         visibility: 'public',
         language: 'en',
@@ -355,7 +353,6 @@ describe('replyDraft', () => {
       // Should target Alice (original author), not Dave (booster)
       expect(draft.targetPreview.id).toBe(baseNote.id)
       expect(draft.targetPreview.authorName).toBe('Alice Wonder')
-      expect(draft.targetPreview.authorHandle).toBe('@alice@remote.social')
       expect(draft.initialText.startsWith('@alice@remote.social')).toBe(true)
     })
 

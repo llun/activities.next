@@ -17,7 +17,9 @@ interface Props {
  * The body of the status a composer is replying to, rendered through the same
  * pipeline and `markdown-content` styles as `post.tsx`, so mentions, hashtags,
  * links and custom emoji look the way they do in the status itself. Clamped to
- * two lines, with paragraphs run inline so the preview stays compact.
+ * two lines, with paragraphs run inline so the preview stays compact. The
+ * inline rule skips `.hidden` paragraphs: it is more specific than `hidden`, so
+ * it would otherwise show the quote fallback `cleanClassName` hides.
  */
 export const ReplyTargetContent: FC<Props> = ({
   host,
@@ -33,7 +35,7 @@ export const ReplyTargetContent: FC<Props> = ({
     <div
       data-testid="reply-target-content"
       className={cn(
-        "markdown-content line-clamp-2 break-words text-sm leading-relaxed text-foreground [&_p]:inline [&_p]:after:content-['_']",
+        "markdown-content line-clamp-2 break-words text-sm leading-relaxed text-foreground [&_p:not(.hidden)]:inline [&_p:not(.hidden)]:after:content-['_']",
         className
       )}
     >

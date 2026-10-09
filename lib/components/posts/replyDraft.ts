@@ -15,8 +15,6 @@ export type ReplyMentionMode = 'all' | 'author-first' | 'author-only'
 export interface ReplyTargetPreview {
   id: string
   authorName: string
-  authorHandle: string
-  authorIconUrl?: string
   spoilerText?: string
   visibility: MastodonVisibility
   language?: string | null
@@ -290,17 +288,9 @@ export const prepareReplyDraft = ({
 
   const authorName =
     actualStatus.actor?.name || actualStatus.actor?.username || 'Unknown'
-  const authorHandle = actualStatus.actor
-    ? actualStatus.actor.domain
-      ? `@${actualStatus.actor.username}@${actualStatus.actor.domain}`
-      : `@${actualStatus.actor.username}`
-    : getMentionFromActorID(actualStatus.actorId, true)
-
   const targetPreview: ReplyTargetPreview = {
     id: actualStatus.id,
     authorName,
-    authorHandle,
-    authorIconUrl: actualStatus.actor?.iconUrl,
     spoilerText: spoilerText || undefined,
     visibility,
     language: actualStatus.language ?? null,
