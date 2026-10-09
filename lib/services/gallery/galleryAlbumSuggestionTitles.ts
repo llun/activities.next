@@ -12,9 +12,11 @@ import { MAX_GALLERY_ALBUM_TITLE_LENGTH } from '@/lib/types/database/galleryAlbu
 // threatened species (or one whose check failed or has not finished), a photo
 // with no place at all and photos at more than one place each make the whole
 // title dates. The callers pass the photos a visitor can see, not the owner's
-// whole cluster. Dates are formatted from the UTC midnight of a local day key,
-// with fixed month tables, so a title is the same on every machine and for both
-// databases.
+// whole cluster, and a group with none gets a generic title with no date.
+//
+// Dates are the UTC days the album shows (an album's dates are UTC), formatted
+// from the UTC midnight of a day key with fixed month tables, so a title is the
+// same on every machine and for both databases.
 
 const MONTHS_SHORT = [
   'Jan',
@@ -45,6 +47,12 @@ const MONTHS_LONG = [
   'November',
   'December'
 ]
+
+// What a title says when no photo of the group is visible to a visitor: nothing
+// they could read a date, a place or a species from.
+const GENERIC_TRIP_TITLE = 'Trip'
+const GENERIC_SPECIES_TITLE = 'Species series'
+const GENERIC_DAY_TITLE = 'Day out'
 
 // The most characters of a place name in a title, leaving room for the date.
 const MAX_PLACE_NAME_LENGTH = 80
@@ -135,14 +143,19 @@ export const getSafePlaceName = (
   return name ? name.slice(0, MAX_PLACE_NAME_LENGTH).trimEnd() : null
 }
 
-/** "Kruger, September 2026" when the place is safe, else "Trip, 12–19 Sep 2026". */
+/**
+ * "Kruger, September 2026" when the place is safe, else "Trip, 12–19 Sep 2026".
+ * `shown` are the photos a visitor can see and the dates are theirs; with none,
+ * the title is a plain "Trip" (no dates, no place).
+ */
 export const getTripTitle = (
-  rows: GalleryIndexRow[],
+  shown: GalleryIndexRow[],
   settings: PublicPlaceSettings,
   firstMs: number,
   lastMs: number
 ): string => {
-  const place = getSafePlaceName(rows, settings)
+  if (shown.length === 0) return GENERIC_TRIP_TITLE
+  const place = getSafePlaceName(shown, settings)
   return clamp(
     place
       ? `${place}, ${formatSuggestionMonths(firstMs, lastMs)}`
@@ -150,9 +163,21 @@ export const getTripTitle = (
   )
 }
 
-/** The species' name; no place, no dates. */
-export const getSpeciesTitle = (name: string): string => clamp(name.trim())
+/** The species' name (of a photo a visitor can see); no place, no dates. */
+export const getSpeciesTitle = (name: string): string =>
+  clamp(name.trim() || GENERIC_SPECIES_TITLE)
 
-/** "Activity day, 27 Sep 2026". */
-export const getActivityDayTitle = (dayMs: number): string =>
-  clamp(`Activity day, ${formatSuggestionDays(dayMs, dayMs)}`)
+/**
+ * "Activity day, 27 Sep 2026" when one of the day's activities is on a post a
+ * visitor can read, else just the date ("27 Sep 2026"): the words would tell a
+ * visitor an activity was recorded. `null` for a day none of whose photos a
+ * visitor can see, which gets a title with no date at all.
+ */
+export const getActivityDayTitle = (
+  dayMs: number | null,
+  hasPublicActivity: boolean
+): string => {
+  if (dayMs === null) return GENERIC_DAY_TITLE
+  const date = formatSuggestionDays(dayMs, dayMs)
+  return clamp(hasPublicActivity ? `Activity day, ${date}` : date)
+}

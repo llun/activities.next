@@ -128,10 +128,6 @@ describe('getTripTitle', () => {
     }
   })
 
-  it('falls back to dates when there are no photos a visitor can see', () => {
-    expect(getTripTitle([], SETTINGS, FIRST, LAST)).toBe('Trip, 12–19 Sep 2026')
-  })
-
   it('falls back to dates when no photo has a place', () => {
     expect(
       getTripTitle([buildIndexRow(1), buildIndexRow(2)], SETTINGS, FIRST, LAST)
@@ -265,9 +261,21 @@ describe('species and activity day titles', () => {
     expect(getSpeciesTitle('  Common kingfisher ')).toBe('Common kingfisher')
   })
 
-  it('names an activity day by its date alone', () => {
-    expect(getActivityDayTitle(Date.UTC(2026, 8, 27, 7))).toBe(
+  it('says "Activity day" when one of the activities is publicly readable', () => {
+    expect(getActivityDayTitle(Date.UTC(2026, 8, 27, 7), true)).toBe(
       'Activity day, 27 Sep 2026'
     )
+  })
+
+  it('names the day by its date alone when no activity is public', () => {
+    expect(getActivityDayTitle(Date.UTC(2026, 8, 27, 7), false)).toBe(
+      '27 Sep 2026'
+    )
+  })
+
+  it('has generic titles when no photo is visible to the public', () => {
+    expect(getActivityDayTitle(null, true)).toBe('Day out')
+    expect(getSpeciesTitle('   ')).toBe('Species series')
+    expect(getTripTitle([], SETTINGS, FIRST, LAST)).toBe('Trip')
   })
 })

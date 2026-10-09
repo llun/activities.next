@@ -5,8 +5,10 @@ import {
   groupPhotosByDay,
   groupSpecies,
   isCoveredByOneAlbum,
+  photoActivityDays,
   toLocalDayKey,
-  toLocalDayNumber
+  toUtcDayKey,
+  toUtcDayNumber
 } from '@/lib/services/gallery/galleryAlbumSuggestionGroups'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 
@@ -105,7 +107,7 @@ describe('clusterTrips', () => {
     ).toHaveLength(1)
   })
 
-  it('cuts days at UTC midnight by default, whatever the machine time zone is', async () => {
+  it('cuts days at UTC midnight, whatever the machine time zone is', async () => {
     // One minute either side of UTC midnight: two different days everywhere.
     const rows = [
       buildIndexRow(1, { takenAt: Date.UTC(2026, 8, 12, 23, 59) }),
@@ -113,11 +115,11 @@ describe('clusterTrips', () => {
     ]
     for (const zone of ['Pacific/Kiritimati', 'America/Los_Angeles', 'UTC']) {
       await withTimeZone(zone, () => {
-        expect(toLocalDayKey(rows[0].takenAt as number)).toBe('2026-09-12')
-        expect(toLocalDayKey(rows[1].takenAt as number)).toBe('2026-09-13')
+        expect(toUtcDayKey(rows[0].takenAt as number)).toBe('2026-09-12')
+        expect(toUtcDayKey(rows[1].takenAt as number)).toBe('2026-09-13')
         expect(
-          (toLocalDayNumber(rows[1].takenAt as number) as number) -
-            (toLocalDayNumber(rows[0].takenAt as number) as number)
+          toUtcDayNumber(rows[1].takenAt as number) -
+            toUtcDayNumber(rows[0].takenAt as number)
         ).toBe(1)
         expect(
           clusterTrips([...rows, ...photosOn([0, 0], 1, 10)], {
@@ -129,10 +131,66 @@ describe('clusterTrips', () => {
     }
   })
 
-  describe('in the viewer’s time zone', () => {
-    // A phone photo's `takenAt` is the real instant (EXIF with an offset):
+  it('has no day for an instant that is not a date', () => {
+    expect(toUtcDayKey(Number.NaN)).toBeNull()
+    expect(toUtcDayKey(8.64e15 + 1)).toBeNull()
+    expect(toLocalDayKey(Number.NaN, 'Asia/Tokyo')).toBeNull()
+    expect(toLocalDayKey(Date.UTC(2026, 8, 12), 'Not/AZone')).toBeNull()
+  })
+})
+
+describe('photoActivityDays', () => {
+  // 05:00 on 13 Sep in Tokyo is 20:00 UTC on the 12th.
+  const instant = Date.UTC(2026, 8, 12, 20, 0)
+
+  it('lists the UTC day and the viewer-local day of a photo taken near midnight', () => {
+    const rows = [buildIndexRow(1, { takenAt: instant })]
+
+    expect(photoActivityDays('2026-09-12', rows, 'Asia/Tokyo')).toEqual([
+      '2026-09-12',
+      '2026-09-13'
+    ])
+  })
+
+  it('is the UTC day alone when both readings agree', () => {
+    const rows = [buildIndexRow(1, { takenAt: Date.UTC(2026, 8, 12, 3, 0) })]
+
+    expect(photoActivityDays('2026-09-12', rows, 'Asia/Tokyo')).toEqual([
+      '2026-09-12'
+    ])
+  })
+
+  it('does not depend on the machine time zone', async () => {
+    const rows = [buildIndexRow(1, { takenAt: instant })]
+    for (const zone of ['Pacific/Kiritimati', 'America/Los_Angeles']) {
+      await withTimeZone(zone, () => {
+        expect(photoActivityDays('2026-09-12', rows, 'Asia/Tokyo')).toEqual([
+          '2026-09-12',
+          '2026-09-13'
+        ])
+        expect(
+          photoActivityDays('2026-09-12', rows, 'America/Los_Angeles')
+        ).toEqual(['2026-09-12'])
+      })
+    }
+  })
+
+  it('skips photos with no capture date and an unusable zone', () => {
+    const rows = [
+      buildIndexRow(1, { takenAt: null }),
+      buildIndexRow(2, { takenAt: instant })
+    ]
+
+    expect(photoActivityDays('2026-09-12', rows, 'Not/AZone')).toEqual([
+      '2026-09-12'
+    ])
+  })
+})
+
+describe('trips and days are UTC days', () => {
+  it('measures a trip gap between UTC days, as the album shows them', () => {
     // 05:00 on 13 Sep in Tokyo is 20:00 UTC on the 12th, and 10:00 on the 16th
-    // is 01:00 UTC. UTC calls them 4 days apart, Tokyo 3.
+    // is 01:00 UTC: four UTC days apart, so two trips.
     const early = Date.UTC(2026, 8, 12, 20, 0)
     const late = Date.UTC(2026, 8, 16, 1, 0)
     const pair = [
@@ -141,44 +199,17 @@ describe('clusterTrips', () => {
       buildIndexRow(3, { takenAt: late }),
       buildIndexRow(4, { takenAt: late + 60_000 })
     ]
-    const trips = { maxGapDays: 3, minPhotos: 2 }
 
-    it('measures the trip gap between local days, so a real instant is not cut at UTC midnight', () => {
-      expect(clusterTrips(pair, trips)).toHaveLength(2)
-      expect(
-        clusterTrips(pair, { ...trips, timeZone: 'Asia/Tokyo' })
-      ).toHaveLength(1)
-    })
+    expect(clusterTrips(pair, { maxGapDays: 3, minPhotos: 2 })).toHaveLength(2)
+  })
 
-    it('groups photos by the local day, in step with the activities of that day', () => {
-      // 23:30 on the 12th and 00:30 on the 13th in Tokyo: one UTC day.
-      const rows = [
-        buildIndexRow(1, { takenAt: Date.UTC(2026, 8, 12, 14, 30) }),
-        buildIndexRow(2, { takenAt: Date.UTC(2026, 8, 12, 15, 30) })
-      ]
+  it('groups photos by UTC day, so a late shot stays on its day', () => {
+    const rows = [
+      buildIndexRow(1, { takenAt: Date.UTC(2026, 8, 12, 14, 30) }),
+      buildIndexRow(2, { takenAt: Date.UTC(2026, 8, 12, 15, 30) })
+    ]
 
-      expect([...groupPhotosByDay(rows, 2).keys()]).toEqual(['2026-09-12'])
-      expect([...groupPhotosByDay(rows, 1, 'Asia/Tokyo').keys()]).toEqual([
-        '2026-09-12',
-        '2026-09-13'
-      ])
-      expect(groupPhotosByDay(rows, 2, 'Asia/Tokyo').size).toBe(0)
-    })
-
-    it('does not depend on the machine time zone', async () => {
-      for (const zone of ['Pacific/Kiritimati', 'America/Los_Angeles']) {
-        await withTimeZone(zone, () => {
-          expect(toLocalDayKey(early, 'Asia/Tokyo')).toBe('2026-09-13')
-          expect(toLocalDayKey(early, 'America/Los_Angeles')).toBe('2026-09-12')
-        })
-      }
-    })
-
-    it('has no day for an instant that is not a date', () => {
-      expect(toLocalDayKey(Number.NaN)).toBeNull()
-      expect(toLocalDayKey(8.64e15 + 1)).toBeNull()
-      expect(toLocalDayNumber(Number.NaN)).toBeNull()
-    })
+    expect([...groupPhotosByDay(rows, 2).keys()]).toEqual(['2026-09-12'])
   })
 })
 
@@ -221,7 +252,7 @@ describe('groupSpecies', () => {
 })
 
 describe('groupPhotosByDay', () => {
-  it('groups by date (UTC by default) and keeps the days with enough photos', () => {
+  it('groups by UTC date and keeps the days with enough photos', () => {
     const rows = [
       ...photosOn([0], 3),
       ...photosOn([1], 2, 10),

@@ -27,7 +27,8 @@ import {
   groupPhotosByDay,
   groupSpecies,
   isCoveredByOneAlbum,
-  toLocalDayKey
+  photoActivityDays,
+  toUtcDayKey
 } from '@/lib/services/gallery/galleryAlbumSuggestionGroups'
 import {
   getActivityDayTitle,
@@ -45,6 +46,7 @@ import {
   MAX_INDEX_WINDOWS,
   projectRows
 } from '@/lib/services/gallery/galleryQueries'
+import { isStatusPubliclyReadable } from '@/lib/services/statusAccess'
 import { GallerySettings } from '@/lib/types/database/gallery'
 
 // Album suggestions: groups of the owner's own gallery photos that probably
@@ -52,15 +54,20 @@ import { GallerySettings } from '@/lib/types/database/gallery'
 // scope (in the gallery, on a post of theirs that still exists) and never
 // stored, so a suggestion is exactly as fresh as the request.
 //
-// - Trip: photos with a capture date, split where two neighbouring local days
-//   are more than `TRIP_MAX_GAP_DAYS` apart.
+// - Trip: photos with a capture date, split where two neighbouring days are
+//   more than `TRIP_MAX_GAP_DAYS` apart.
 // - Species series: a species with at least `SPECIES_MIN_PHOTOS` photos.
 // - Activity day: a day on which the owner recorded a fitness activity and took
 //   at least `ACTIVITY_DAY_MIN_PHOTOS` photos.
 //
-// A suggestion that one existing album already covers is left out, so it does
-// not keep coming back once used. Titles and counts are public-safe: see
-// `galleryAlbumSuggestionTitles.ts`.
+// A photo's day is its UTC date, the date the gallery shows (see
+// `galleryAlbumSuggestionGroups.ts`); an activity's day is read in the viewer's
+// zone, and a photo day also matches an activity on the viewer-local day of any
+// of its photos.
+//
+// A suggestion that one existing album already covers (in the photos it offers)
+// is left out, so it does not keep coming back once used. Titles and counts are
+// public-safe: see `galleryAlbumSuggestionTitles.ts`.
 
 type SuggestionDatabase = Pick<
   Database,
@@ -70,6 +77,7 @@ type SuggestionDatabase = Pick<
   | 'getGalleryMediaByIds'
   | 'getGalleryAlbumItemSets'
   | 'getFitnessActivitiesInWindow'
+  | 'getStatus'
 >
 
 // Activities are looked up for the newest photo days only, in windows of this
@@ -92,6 +100,8 @@ interface Candidate {
   // Newest first.
   rows: GalleryIndexRow[]
   activityCount: number
+  // The posts the day's activities were published as (activity days only).
+  activityStatusIds: string[]
 }
 
 /**
@@ -120,10 +130,19 @@ const readIndex = async (
   return rows
 }
 
+// The most statuses of one day's activities that are looked at to say whether
+// the day has a public one.
+const MAX_ACTIVITY_STATUSES_PER_DAY = 5
+
+interface ActivityDay {
+  count: number
+  statusIds: string[]
+}
+
 /**
- * How many recorded activities fall on each local day (in `timeZone`) of one
- * window of local days, a page at a time. Reads the same countable activities
- * the fitness overview does.
+ * The recorded activities on each local day (in `timeZone`) of one window of
+ * local days, with the posts they were published as, a page at a time. Reads
+ * the same countable activities the fitness overview does.
  */
 const readActivityWindow = async (
   database: Pick<SuggestionDatabase, 'getFitnessActivitiesInWindow'>,
@@ -131,9 +150,9 @@ const readActivityWindow = async (
   timeZone: string,
   firstDay: DateKey,
   lastDay: DateKey
-): Promise<Map<string, number>> => {
+): Promise<Map<string, ActivityDay>> => {
   const { startMs, endMs } = localDayWindow(firstDay, lastDay, timeZone)
-  const days = new Map<string, number>()
+  const days = new Map<string, ActivityDay>()
   for (let page = 0; page < MAX_ACTIVITY_PAGES_PER_WINDOW; page += 1) {
     const { activities, hasMore } = await database.getFitnessActivitiesInWindow(
       {
@@ -147,53 +166,78 @@ const readActivityWindow = async (
     for (const activity of activities) {
       if (!Number.isFinite(activity.startTime)) continue
       const key = localDateKeyAt(activity.startTime, timeZone)
-      days.set(key, (days.get(key) ?? 0) + 1)
+      const day = days.get(key) ?? { count: 0, statusIds: [] }
+      day.count += 1
+      if (
+        activity.statusId &&
+        day.statusIds.length < MAX_ACTIVITY_STATUSES_PER_DAY &&
+        !day.statusIds.includes(activity.statusId)
+      ) {
+        day.statusIds.push(activity.statusId)
+      }
+      days.set(key, day)
     }
     if (!hasMore) break
   }
   return days
 }
 
+interface PhotoDay {
+  // The UTC day of the photos (`YYYY-MM-DD`): the day the album will show.
+  day: string
+  // The days an activity may be on for these photos: see `photoActivityDays`.
+  activityDays: string[]
+}
+
 /**
- * The photo days (newest first, `YYYY-MM-DD`) that have a recorded activity,
- * with how many. Walks the days newest first and asks only for the windows those
- * days fall in, stopping once `MAX_SUGGESTIONS_PER_KIND` days matched (or the
- * window bound is spent), so a long history of activities never hides the
- * newest days.
+ * The photo days (newest first) that have a recorded activity, with how many
+ * and the posts they were published as. Walks the days newest first and asks only
+ * for the windows those days fall in, stopping once `MAX_SUGGESTIONS_PER_KIND`
+ * days matched (or the window bound is spent), so a long history of activities
+ * never hides the newest days.
  */
 const findActivityDays = async (
   database: Pick<SuggestionDatabase, 'getFitnessActivitiesInWindow'>,
   ownerId: string,
   timeZone: string,
-  photoDays: string[]
-): Promise<Map<string, number>> => {
-  const keys = [...photoDays].sort().reverse() as DateKey[]
-  const matched = new Map<string, number>()
+  photoDays: PhotoDay[]
+): Promise<Map<string, ActivityDay>> => {
+  const sorted = [...photoDays].sort((a, b) => (a.day < b.day ? 1 : -1))
+  const matched = new Map<string, ActivityDay>()
   let index = 0
   for (
     let windows = 0;
-    index < keys.length &&
+    index < sorted.length &&
     windows < MAX_ACTIVITY_WINDOWS &&
     matched.size < MAX_SUGGESTIONS_PER_KIND;
     windows += 1
   ) {
-    const newest = keys[index]
-    const oldestAllowed = addDays(newest, -(ACTIVITY_WINDOW_SPAN_DAYS - 1))
-    const group: DateKey[] = []
-    while (index < keys.length && keys[index] >= oldestAllowed) {
-      group.push(keys[index])
+    const oldestAllowed = addDays(
+      sorted[index].day as DateKey,
+      -(ACTIVITY_WINDOW_SPAN_DAYS - 1)
+    )
+    const group: PhotoDay[] = []
+    while (index < sorted.length && sorted[index].day >= oldestAllowed) {
+      group.push(sorted[index])
       index += 1
     }
+    const localDays = group.flatMap(({ activityDays }) => activityDays).sort()
     const counts = await readActivityWindow(
       database,
       ownerId,
       timeZone,
-      group[group.length - 1],
-      newest
+      localDays[0] as DateKey,
+      localDays[localDays.length - 1] as DateKey
     )
-    for (const key of group) {
-      const count = counts.get(key)
-      if (count) matched.set(key, count)
+    for (const { day, activityDays } of group) {
+      const found: ActivityDay = { count: 0, statusIds: [] }
+      for (const activityDay of activityDays) {
+        const activity = counts.get(activityDay)
+        if (!activity) continue
+        found.count += activity.count
+        found.statusIds.push(...activity.statusIds)
+      }
+      if (found.count > 0) matched.set(day, found)
     }
   }
   return matched
@@ -209,22 +253,15 @@ const newestName = (rows: GalleryIndexRow[]): string => {
 /**
  * The photos a title may speak for: those a logged-out visitor can see, so a
  * followers-only photo never puts its date, place or species name into text that
- * is public once the album is. A cluster with none of them keeps all its rows
- * for the dates (and gets no place).
+ * is public once the album is. A cluster with none of them gets a generic title.
  */
-const splitForTitle = (
+const shownRows = (
   rows: GalleryIndexRow[],
   publicIds: ReadonlySet<string>
-): { shown: GalleryIndexRow[]; dated: GalleryIndexRow[] } => {
-  const shown = rows.filter((row) => publicIds.has(row.id))
-  return { shown, dated: shown.length > 0 ? shown : rows }
-}
+): GalleryIndexRow[] => rows.filter((row) => publicIds.has(row.id))
 
-/** The local day keys of the first and last dated photo of some rows. */
-const dayRange = (
-  rows: GalleryIndexRow[],
-  timeZone: string
-): { first: string; last: string } => {
+/** The UTC day keys of the first and last dated photo of some rows. */
+const dayRange = (rows: GalleryIndexRow[]): { first: string; last: string } => {
   let first = Infinity
   let last = -Infinity
   for (const row of rows) {
@@ -232,34 +269,28 @@ const dayRange = (
     first = Math.min(first, row.takenAt)
     last = Math.max(last, row.takenAt)
   }
-  return {
-    first: toLocalDayKey(first, timeZone) ?? '',
-    last: toLocalDayKey(last, timeZone) ?? ''
-  }
+  return { first: toUtcDayKey(first) ?? '', last: toUtcDayKey(last) ?? '' }
 }
 
 /** The groups made from the photos alone, before coverage and the activity lookup. */
 const buildPhotoCandidates = ({
   index,
   publicIds,
-  settings,
-  timeZone
+  settings
 }: {
   index: GalleryIndexRow[]
   publicIds: ReadonlySet<string>
   settings: GallerySettings
-  timeZone: string
 }) => {
   const trips: Candidate[] = []
   for (const cluster of clusterTrips(index, {
     maxGapDays: TRIP_MAX_GAP_DAYS,
-    minPhotos: TRIP_MIN_PHOTOS,
-    timeZone
+    minPhotos: TRIP_MIN_PHOTOS
   })) {
     const rows = [...cluster].sort(compareNewestFirst)
-    const { shown, dated } = splitForTitle(rows, publicIds)
-    const all = dayRange(rows, timeZone)
-    const range = dayRange(dated, timeZone)
+    const shown = shownRows(rows, publicIds)
+    const all = dayRange(rows)
+    const range = dayRange(shown)
     trips.push({
       id: `trip:${all.first}`,
       kind: 'trip',
@@ -270,24 +301,26 @@ const buildPhotoCandidates = ({
         dayKeyToMs(range.last)
       ),
       rows,
-      activityCount: 0
+      activityCount: 0,
+      activityStatusIds: []
     })
   }
 
   const species: Candidate[] = []
   for (const [key, group] of groupSpecies(index, SPECIES_MIN_PHOTOS)) {
     const rows = [...group].sort(compareNewestFirst)
-    const { dated } = splitForTitle(rows, publicIds)
+    const shown = shownRows(rows, publicIds)
     species.push({
       id: `species:${key}`,
       kind: 'species',
-      title: getSpeciesTitle(newestName(dated)),
+      title: getSpeciesTitle(shown.length > 0 ? newestName(shown) : ''),
       rows,
-      activityCount: 0
+      activityCount: 0,
+      activityStatusIds: []
     })
   }
 
-  const photoDays = groupPhotosByDay(index, ACTIVITY_DAY_MIN_PHOTOS, timeZone)
+  const photoDays = groupPhotosByDay(index, ACTIVITY_DAY_MIN_PHOTOS)
   return { trips, species, photoDays }
 }
 
@@ -302,9 +335,24 @@ const lastTimeOf = (candidate: Candidate): number =>
   getRowTime(candidate.rows[0])
 
 /**
+ * Whether one of a day's activities is on a post a logged-out visitor can read:
+ * only then may an album title say there was an activity that day.
+ */
+const hasPublicActivity = async (
+  database: Pick<SuggestionDatabase, 'getStatus'>,
+  statusIds: string[]
+): Promise<boolean> => {
+  for (const statusId of statusIds.slice(0, MAX_ACTIVITY_STATUSES_PER_DAY)) {
+    const status = await database.getStatus({ statusId, withReplies: false })
+    if (status && isStatusPubliclyReadable(status)) return true
+  }
+  return false
+}
+
+/**
  * The owner's album suggestions, most recent first. `timeZone` is the viewer's
- * IANA zone: it says which local day a photo was taken on and which a recorded
- * activity belongs to, so the two meet on one day.
+ * IANA zone: it says which local day a recorded activity belongs to, which a
+ * photo day is matched against (see `photoActivityDays`).
  */
 export const getGalleryAlbumSuggestions = async ({
   database,
@@ -328,19 +376,23 @@ export const getGalleryAlbumSuggestions = async ({
   const { trips, species, photoDays } = buildPhotoCandidates({
     index,
     publicIds,
-    settings,
-    timeZone
+    settings
   })
 
-  // Which of the candidates' photos an album holds: only those are read, in
-  // batches, whatever the size of the owner's albums.
+  // A suggestion hands the dialog its first `MAX_SUGGESTION_MEDIA_IDS` photos,
+  // so those are the photos an album has to hold to cover it (and the only ones
+  // whose membership is read, in batches, whatever the size of the albums).
+  const offeredIds = (rows: GalleryIndexRow[]) =>
+    rows.slice(0, MAX_SUGGESTION_MEDIA_IDS).map((row) => row.id)
   const candidateIds = new Set<string>()
   for (const group of [
     ...trips.map(({ rows }) => rows),
     ...species.map(({ rows }) => rows),
     ...photoDays.values()
   ]) {
-    for (const row of group) candidateIds.add(row.id)
+    for (const id of offeredIds([...group].sort(compareNewestFirst))) {
+      candidateIds.add(id)
+    }
   }
   const albumSets =
     candidateIds.size === 0
@@ -353,34 +405,40 @@ export const getGalleryAlbumSuggestions = async ({
     albumSets.map(({ albumId, mediaIds }) => [albumId, new Set(mediaIds)])
   )
   const isOpen = (rows: GalleryIndexRow[]) =>
-    !isCoveredByOneAlbum(
-      rows.map((row) => row.id),
-      albums
-    )
+    !isCoveredByOneAlbum(offeredIds(rows), albums)
 
   // Activity days: only photo days no album covers, and only the newest
   // windows of them are looked up.
-  const openDays = [...photoDays].filter(([, rows]) => isOpen(rows))
+  const openDays = [...photoDays]
+    .map(([day, group]): [string, GalleryIndexRow[]] => [
+      day,
+      [...group].sort(compareNewestFirst)
+    ])
+    .filter(([, rows]) => isOpen(rows))
   const activityDays =
     openDays.length === 0
-      ? new Map<string, number>()
+      ? new Map<string, ActivityDay>()
       : await findActivityDays(
           database,
           owner.id,
           timeZone,
-          openDays.map(([day]) => day)
+          openDays.map(([day, rows]) => ({
+            day,
+            activityDays: photoActivityDays(day, rows, timeZone)
+          }))
         )
   const activityCandidates: Candidate[] = []
-  for (const [day, group] of openDays) {
-    const activityCount = activityDays.get(day)
-    if (!activityCount) continue
-    const rows = [...group].sort(compareNewestFirst)
+  for (const [day, rows] of openDays) {
+    const activity = activityDays.get(day)
+    if (!activity) continue
     activityCandidates.push({
       id: `activity_day:${day}`,
       kind: 'activity_day',
-      title: getActivityDayTitle(dayKeyToMs(day)),
+      // The title is set once the suggestions are chosen.
+      title: '',
       rows,
-      activityCount
+      activityCount: activity.count,
+      activityStatusIds: activity.statusIds
     })
   }
 
@@ -404,6 +462,20 @@ export const getGalleryAlbumSuggestions = async ({
     )
     .sort(byRecency)
   if (chosen.length === 0) return { suggestions: [] }
+
+  // An activity day's title says "Activity day" only when one of its activities
+  // is on a post visitors can read, and dates only photos they can see.
+  for (const candidate of chosen) {
+    if (candidate.kind !== 'activity_day') continue
+    const shown = shownRows(candidate.rows, publicIds)
+    candidate.title =
+      shown.length === 0
+        ? getActivityDayTitle(null, false)
+        : getActivityDayTitle(
+            dayKeyToMs(dayRange(shown).first),
+            await hasPublicActivity(database, candidate.activityStatusIds)
+          )
+  }
 
   // One batch read for every suggestion's first photo, which is its preview
   // (and, once used, the album's cover).

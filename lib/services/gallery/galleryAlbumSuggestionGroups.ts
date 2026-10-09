@@ -6,19 +6,31 @@ import { toSubjectKey } from '@/lib/services/gallery/galleryEntities'
 // per-media index, in JS, so SQLite (timestamps as numbers or text) and
 // PostgreSQL group the same photos.
 //
-// A day is the calendar date of a photo's `takenAt` in the viewer's time zone
-// (`timeZone`, an IANA name; UTC by default), the same zone the recorded
-// activities are bucketed in, so a photo and an activity of one local day meet.
-// `takenAt` is a real instant for a photo whose EXIF carries a UTC offset, and
-// the camera's wall clock stored as if it were UTC for one that does not; the
-// first is exact in the viewer's zone, the second is exact when the viewer is
-// in the zone the photo was taken in (and for UTC viewers). Days come from
-// `Intl` through `localDateKeyAt`, never from the machine's zone.
+// A photo's day is the UTC calendar date of its `takenAt`, the same date the rest
+// of the gallery shows (the album card and page format dates in UTC), so a
+// suggestion's title, ids and date range always agree with the album it
+// becomes. `takenAt` is a real instant when the photo's EXIF carries a UTC
+// offset, and the camera's wall clock stored as if it were UTC when it does not;
+// the media row does not record which, so a UTC day is right for a wall-clock
+// photo (a 23:50 shot stays on its day) and can be a day off for an instant
+// that is near midnight where the viewer is. `photoActivityDays` is where that
+// matters: it lists both readings of a photo's day so an activity still finds it.
+// Days come from epoch milliseconds, never from the machine's zone.
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/** The UTC day number of an instant: whole days since 1970-01-01. */
+export const toUtcDayNumber = (ms: number): number => Math.floor(ms / DAY_MS)
+
+/** `YYYY-MM-DD` (UTC) of an instant, or null when it is not a usable date. */
+export const toUtcDayKey = (ms: number): string | null => {
+  if (!Number.isFinite(ms)) return null
+  const date = new Date(ms)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10)
+}
+
 /** `YYYY-MM-DD` of the day an instant falls on in `timeZone`, or null when it is not a usable date. */
-export const toLocalDayKey = (ms: number, timeZone = 'UTC'): string | null => {
+export const toLocalDayKey = (ms: number, timeZone: string): string | null => {
   if (!Number.isFinite(ms)) return null
   try {
     return localDateKeyAt(ms, timeZone)
@@ -30,15 +42,6 @@ export const toLocalDayKey = (ms: number, timeZone = 'UTC'): string | null => {
 /** UTC midnight of a `YYYY-MM-DD` key: the instant a title formats as that date. */
 export const dayKeyToMs = (key: string): number =>
   Date.parse(`${key}T00:00:00.000Z`)
-
-/** Whole days since 1970-01-01 of the local calendar date an instant falls on. */
-export const toLocalDayNumber = (
-  ms: number,
-  timeZone = 'UTC'
-): number | null => {
-  const key = toLocalDayKey(ms, timeZone)
-  return key === null ? null : Math.round(dayKeyToMs(key) / DAY_MS)
-}
 
 /** When a photo was taken, or uploaded when it carries no capture date. */
 export const getRowTime = (row: GalleryIndexRow): number =>
@@ -54,35 +57,28 @@ const compareOldestFirst = (a: GalleryIndexRow, b: GalleryIndexRow): number =>
   (a.takenAt as number) - (b.takenAt as number) || Number(a.id) - Number(b.id)
 
 const isDated = (
-  row: GalleryIndexRow,
-  timeZone: string
+  row: GalleryIndexRow
 ): row is GalleryIndexRow & {
   takenAt: number
-} => row.takenAt !== null && toLocalDayKey(row.takenAt, timeZone) !== null
+} => row.takenAt !== null && toUtcDayKey(row.takenAt) !== null
 
 /**
- * Trips: photos with a capture date, split wherever two neighbouring local days
- * are more than `maxGapDays` apart (a gap of exactly `maxGapDays` stays one
+ * Trips: photos with a capture date, split wherever two neighbouring days are
+ * more than `maxGapDays` apart (a gap of exactly `maxGapDays` stays one
  * trip), keeping the runs of at least `minPhotos`. A photo with no capture date
  * is skipped: its upload day is when it was posted, not when it was taken, and a
  * bulk upload would read as a trip.
  */
 export const clusterTrips = (
   rows: GalleryIndexRow[],
-  {
-    maxGapDays,
-    minPhotos,
-    timeZone = 'UTC'
-  }: { maxGapDays: number; minPhotos: number; timeZone?: string }
+  { maxGapDays, minPhotos }: { maxGapDays: number; minPhotos: number }
 ): GalleryIndexRow[][] => {
-  const dated = rows
-    .filter((row) => isDated(row, timeZone))
-    .sort(compareOldestFirst)
+  const dated = rows.filter(isDated).sort(compareOldestFirst)
   const clusters: GalleryIndexRow[][] = []
   let current: GalleryIndexRow[] = []
   let lastDay = 0
   for (const row of dated) {
-    const day = toLocalDayNumber(row.takenAt as number, timeZone) as number
+    const day = toUtcDayNumber(row.takenAt as number)
     if (current.length > 0 && day - lastDay > maxGapDays) {
       clusters.push(current)
       current = []
@@ -117,18 +113,17 @@ export const groupSpecies = (
 }
 
 /**
- * Local days (`YYYY-MM-DD` in `timeZone`) with at least `minPhotos` photos taken
- * that day. Only photos with a capture date count, as for trips.
+ * Days (UTC date key) with at least `minPhotos` photos taken that day. Only
+ * photos with a capture date count, as for trips.
  */
 export const groupPhotosByDay = (
   rows: GalleryIndexRow[],
-  minPhotos: number,
-  timeZone = 'UTC'
+  minPhotos: number
 ): Map<string, GalleryIndexRow[]> => {
   const days = new Map<string, GalleryIndexRow[]>()
   for (const row of rows) {
-    if (!isDated(row, timeZone)) continue
-    const key = toLocalDayKey(row.takenAt, timeZone)
+    if (!isDated(row)) continue
+    const key = toUtcDayKey(row.takenAt)
     if (!key) continue
     const group = days.get(key)
     if (group) group.push(row)
@@ -138,6 +133,26 @@ export const groupPhotosByDay = (
     if (group.length < minPhotos) days.delete(key)
   }
   return days
+}
+
+/**
+ * The days an activity could be on for the photos of one UTC day: the day
+ * itself (right for a photo whose `takenAt` is a wall clock) and the day each
+ * photo falls on in the viewer's zone (right for one whose `takenAt` is a real
+ * instant). A photo day is matched by an activity on any of them.
+ */
+export const photoActivityDays = (
+  utcDay: string,
+  rows: GalleryIndexRow[],
+  timeZone: string
+): string[] => {
+  const days = new Set([utcDay])
+  for (const row of rows) {
+    if (row.takenAt === null) continue
+    const local = toLocalDayKey(row.takenAt, timeZone)
+    if (local) days.add(local)
+  }
+  return [...days].sort()
 }
 
 /**

@@ -16,18 +16,29 @@ const DAY = 24 * 60 * 60 * 1000
 
 type Window = { startDate: number; endDate: number; offset: number }
 
+// An activity is its start time, or the time and the post it was published as.
+type FakeActivity = number | { startTime: number; statusId: string }
+
+const startOf = (activity: FakeActivity) =>
+  typeof activity === 'number' ? activity : activity.startTime
+
 const buildDatabase = ({
   owner,
   publicIndex = owner,
-  activities = []
+  activities = [],
+  albums = [],
+  statuses = {}
 }: {
   owner: (maxId?: string) => GalleryIndexRow[]
   publicIndex?: (maxId?: string) => GalleryIndexRow[]
-  activities?: number[]
+  activities?: FakeActivity[]
+  albums?: Array<{ albumId: string; mediaIds: string[] }>
+  // The audience of each post an activity may have been published as.
+  statuses?: Record<string, { to: string[] }>
 }) => {
   const windows: Window[] = []
   const indexCalls: Array<{ audience: string; maxId?: string }> = []
-  const sorted = [...activities].sort((a, b) => a - b)
+  const sorted = [...activities].sort((a, b) => startOf(a) - startOf(b))
   return {
     windows,
     indexCalls,
@@ -51,7 +62,13 @@ const buildDatabase = ({
       ),
       // No photo can be read back: every preview falls back to null.
       getGalleryMediaByIds: vi.fn(async () => []),
-      getGalleryAlbumItemSets: vi.fn(async () => []),
+      getGalleryAlbumItemSets: vi.fn(async () => albums),
+      getStatus: vi.fn(async ({ statusId }: { statusId: string }) => {
+        const status = statuses[statusId]
+        return status
+          ? { id: statusId, type: 'Note', to: status.to, cc: [] }
+          : null
+      }),
       getFitnessActivitiesInWindow: vi.fn(
         async ({
           startDate,
@@ -65,11 +82,18 @@ const buildDatabase = ({
           offset: number
         }) => {
           windows.push({ startDate, endDate, offset })
-          const inside = sorted.filter((t) => t >= startDate && t < endDate)
+          const inside = sorted.filter(
+            (activity) =>
+              startOf(activity) >= startDate && startOf(activity) < endDate
+          )
           return {
             activities: inside
               .slice(offset, offset + limit)
-              .map((startTime) => ({ startTime })),
+              .map((activity) =>
+                typeof activity === 'number'
+                  ? { startTime: activity }
+                  : activity
+              ),
             hasMore: offset + limit < inside.length
           }
         }
@@ -239,6 +263,138 @@ describe('getGalleryAlbumSuggestions: activity windows', () => {
   })
 })
 
+describe('getGalleryAlbumSuggestions: activity-day titles and coverage', () => {
+  const owner = { id: 'https://llun.test/users/owner' }
+  const DAY_START = Date.UTC(2026, 5, 1)
+  const PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'
+
+  const getStatusMock = (database: unknown) =>
+    (database as { getStatus: ReturnType<typeof vi.fn> }).getStatus
+
+  it('says "Activity day" when any of the day\u2019s activities is on a public post, and reads posts with replies off', async () => {
+    const { database } = buildDatabase({
+      owner: () => photosOnDay(1, DAY_START, 5),
+      activities: [
+        { startTime: DAY_START + 6 * 3600_000, statusId: 'private-post' },
+        { startTime: DAY_START + 7 * 3600_000, statusId: 'public-post' }
+      ],
+      statuses: {
+        'private-post': { to: [`${owner.id}/followers`] },
+        'public-post': { to: [PUBLIC] }
+      }
+    })
+
+    const { suggestions } = await getGalleryAlbumSuggestions({
+      database,
+      owner
+    })
+
+    expect(suggestions[0]).toMatchObject({
+      kind: 'activity_day',
+      title: 'Activity day, 1 Jun 2026',
+      activityCount: 2
+    })
+    expect(getStatusMock(database)).toHaveBeenCalledWith({
+      statusId: 'public-post',
+      withReplies: false
+    })
+  })
+
+  it('names the day by its date alone when no activity is on a public post, or the post is gone', async () => {
+    const { database } = buildDatabase({
+      owner: () => photosOnDay(1, DAY_START, 5),
+      activities: [
+        { startTime: DAY_START + 6 * 3600_000, statusId: 'private-post' },
+        { startTime: DAY_START + 7 * 3600_000, statusId: 'deleted-post' }
+      ],
+      statuses: { 'private-post': { to: [`${owner.id}/followers`] } }
+    })
+
+    const { suggestions } = await getGalleryAlbumSuggestions({
+      database,
+      owner
+    })
+
+    expect(suggestions[0].title).toBe('1 Jun 2026')
+  })
+
+  it('does not look at a post for a day that is not suggested', async () => {
+    const { database } = buildDatabase({
+      owner: () => photosOnDay(1, DAY_START, 5),
+      activities: []
+    })
+
+    await getGalleryAlbumSuggestions({ database, owner })
+
+    expect(getStatusMock(database)).not.toHaveBeenCalled()
+  })
+
+  it('leaves out an activity day that one album already holds, and does not look its activities up', async () => {
+    const rows = photosOnDay(1, DAY_START, 5)
+    const { database, windows } = buildDatabase({
+      owner: () => rows,
+      activities: [DAY_START + 7 * 3600_000],
+      albums: [{ albumId: 'album', mediaIds: rows.map((row) => row.id) }]
+    })
+
+    const { suggestions } = await getGalleryAlbumSuggestions({
+      database,
+      owner
+    })
+
+    expect(suggestions).toEqual([])
+    expect(windows).toEqual([])
+  })
+
+  it('keeps an activity day an album holds only part of', async () => {
+    const rows = photosOnDay(1, DAY_START, 5)
+    const { database } = buildDatabase({
+      owner: () => rows,
+      activities: [DAY_START + 7 * 3600_000],
+      albums: [{ albumId: 'album', mediaIds: rows.slice(1).map((r) => r.id) }]
+    })
+
+    const { suggestions } = await getGalleryAlbumSuggestions({
+      database,
+      owner
+    })
+
+    expect(suggestions.map((suggestion) => suggestion.kind)).toEqual([
+      'activity_day'
+    ])
+  })
+
+  it('titles a species by the name of a photo a visitor can see, not the owner’s newest', async () => {
+    const species = (id: number, name: string) =>
+      buildIndexRow(id, {
+        subjectName: name,
+        subjectScientificName: 'Bubo bubo',
+        takenAt: Date.UTC(2020 + id, 0, 1)
+      })
+    // The newest photo (a followers-only one) has the owner's own name for it.
+    const rows = [
+      species(1, 'Eagle-owl'),
+      species(2, 'Eagle-owl'),
+      species(3, 'Eagle-owl'),
+      species(4, 'Eagle-owl'),
+      species(5, 'Barn at night')
+    ]
+    const { database } = buildDatabase({
+      owner: () => rows,
+      publicIndex: () => rows.slice(0, 4)
+    })
+
+    const { suggestions } = await getGalleryAlbumSuggestions({
+      database,
+      owner
+    })
+
+    expect(suggestions).toHaveLength(1)
+    expect(suggestions[0]).toMatchObject({ kind: 'species' })
+    expect(suggestions[0].title).toBe('Eagle-owl')
+  })
+})
+
 describe('getGalleryAlbumSuggestions: index windows and long clusters', () => {
   const owner = { id: 'https://llun.test/users/owner' }
 
@@ -327,5 +483,59 @@ describe('getGalleryAlbumSuggestions: index windows and long clusters', () => {
     expect(trip!.mediaIds[0]).toBe(String(total))
     // The oldest photo is the one left out.
     expect(trip!.mediaIds).not.toContain('1')
+  })
+
+  describe('a cluster past what an album holds', () => {
+    const total = MAX_SUGGESTION_MEDIA_IDS + 1
+    const start = Date.UTC(2026, 5, 1)
+    // 2,001 photos a day apart (so no day has enough photos to be a suggestion of
+    // its own): one trip, and the newest photo has the highest id.
+    const rows = Array.from({ length: total }, (_, index) =>
+      buildIndexRow(index + 1, { takenAt: start + index * DAY })
+    )
+    const newest = rows
+      .slice(1)
+      .reverse()
+      .map((row) => row.id)
+
+    it('treats an album that holds every photo the suggestion offers as covering it', async () => {
+      // An album with the newest 2,000 photos: all the dialog can be handed.
+      const { database } = buildDatabase({
+        owner: () => rows,
+        albums: [{ albumId: 'album', mediaIds: newest }]
+      })
+
+      const { suggestions } = await getGalleryAlbumSuggestions({
+        database,
+        owner
+      })
+
+      expect(suggestions).toEqual([])
+    })
+
+    it('only asks about the offered photos, and keeps the suggestion when an album misses one of them', async () => {
+      const { database } = buildDatabase({
+        owner: () => rows,
+        // The oldest of the offered photos is missing, and the left-out oldest
+        // photo is present: not a cover.
+        albums: [{ albumId: 'album', mediaIds: [...newest.slice(0, -1), '1'] }]
+      })
+
+      const { suggestions } = await getGalleryAlbumSuggestions({
+        database,
+        owner
+      })
+
+      const sets = (
+        database as never as {
+          getGalleryAlbumItemSets: ReturnType<typeof vi.fn>
+        }
+      ).getGalleryAlbumItemSets
+      expect(sets.mock.calls[0][0].mediaIds).toHaveLength(
+        MAX_SUGGESTION_MEDIA_IDS
+      )
+      expect(sets.mock.calls[0][0].mediaIds).not.toContain('1')
+      expect(suggestions.map((suggestion) => suggestion.kind)).toEqual(['trip'])
+    })
   })
 })

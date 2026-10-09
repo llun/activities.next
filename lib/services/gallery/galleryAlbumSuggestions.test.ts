@@ -116,10 +116,34 @@ describe('getGalleryAlbumSuggestions', () => {
       }
     }
 
+    // The post an activity was published as: public, or followers-only.
+    const addActivityPost = async (
+      actorId: string,
+      audience: 'public' | 'followers'
+    ) => {
+      counter += 1
+      const statusId = `${actorId}/statuses/suggestions-activity-${counter}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId,
+        to:
+          audience === 'public'
+            ? [ACTIVITY_STREAM_PUBLIC]
+            : [`${actorId}/followers`],
+        cc: [],
+        text: 'Morning run'
+      })
+      return statusId
+    }
+
     const addActivity = async (
       actorId: string,
       startTime: Date,
-      overrides: { status?: 'completed' | 'failed' | 'pending' } = {}
+      overrides: {
+        status?: 'completed' | 'failed' | 'pending'
+        post?: 'public' | 'followers'
+      } = {}
     ) => {
       counter += 1
       const file = await database.createFitnessFile({
@@ -138,6 +162,12 @@ describe('getGalleryAlbumSuggestions', () => {
         file!.id,
         overrides.status ?? 'completed'
       )
+      if (overrides.post) {
+        await database.updateFitnessFileStatus(
+          file!.id,
+          await addActivityPost(actorId, overrides.post)
+        )
+      }
       return file!.id
     }
 
@@ -242,6 +272,19 @@ describe('getGalleryAlbumSuggestions', () => {
           }
         })
       }
+      // Five of an owl, all in followers-only posts: nothing a visitor can see.
+      for (let month = 0; month < 5; month += 1) {
+        await addPhoto({
+          name: `owl-${month}`,
+          to: [`${ownerId}/followers`],
+          details: {
+            subjectName: 'Eurasian eagle-owl',
+            subjectScientificName: 'Bubo bubo',
+            subjectCategory: 'bird',
+            takenAt: Date.UTC(2023, month * 2, 5, 10)
+          }
+        })
+      }
       // Four of another: below the threshold.
       for (let month = 0; month < 4; month += 1) {
         await addPhoto({
@@ -258,7 +301,9 @@ describe('getGalleryAlbumSuggestions', () => {
       // Activity days. Six photos on 4 Jul with a run that day; six on 20 Jul
       // with no activity; five on 30 Jul whose only activity failed processing.
       await addRun('run', 6, Date.UTC(2026, 6, 4, 6), 1)
-      await addActivity(ownerId, new Date(Date.UTC(2026, 6, 4, 8)))
+      await addActivity(ownerId, new Date(Date.UTC(2026, 6, 4, 8)), {
+        post: 'public'
+      })
       await addRun('quiet', 6, Date.UTC(2026, 6, 20, 6), 1)
       await addRun('failed-run', 5, Date.UTC(2026, 6, 30, 6), 1)
       await addActivity(ownerId, new Date(Date.UTC(2026, 6, 30, 8)), {
@@ -282,8 +327,28 @@ describe('getGalleryAlbumSuggestions', () => {
       }
       await addActivity(
         ownerId,
-        new Date(exifInstant(2026, 1, 21, 7, 5, '+09:00'))
+        new Date(exifInstant(2026, 1, 21, 7, 5, '+09:00')),
+        { post: 'public' }
       )
+
+      // Six photos on 18 Aug with a run published to followers only, and six
+      // followers-only photos on 25 Nov with a public run: neither title may
+      // say there was an activity (the first) or give a date (the second).
+      await addRun('private-run', 6, Date.UTC(2026, 7, 18, 6), 1)
+      await addActivity(ownerId, new Date(Date.UTC(2026, 7, 18, 8)), {
+        post: 'followers'
+      })
+      await addRun(
+        'private-photos',
+        6,
+        Date.UTC(2026, 10, 25, 6),
+        1,
+        {},
+        { to: [`${ownerId}/followers`] }
+      )
+      await addActivity(ownerId, new Date(Date.UTC(2026, 10, 25, 8)), {
+        post: 'public'
+      })
 
       // A trip through two public places: every name is public for its own
       // photo, so none of them names the trip.
@@ -454,7 +519,10 @@ describe('getGalleryAlbumSuggestions', () => {
       expect(byId(suggestions, 'activity_day:2026-07-30')).toBeUndefined()
     })
 
-    it("matches an activity to the day in the viewer's time zone", async () => {
+    it('finds the activity of a photo with no UTC offset on the viewer-local day, the photo stored as its wall clock', async () => {
+      // Five photos at 06:00 to 10:00 on 3 Mar with no EXIF offset (the camera's
+      // wall clock, stored as UTC), and a run at 08:30 on 3 Mar in Tokyo, which
+      // is 23:30 UTC on 2 Mar. In Tokyo the run is on the photos' day.
       expect(byId(await suggest(), 'activity_day:2026-03-03')).toBeUndefined()
 
       expect(
@@ -465,31 +533,53 @@ describe('getGalleryAlbumSuggestions', () => {
       ).toMatchObject({ kind: 'activity_day', photoCount: 5, activityCount: 1 })
     })
 
-    it('matches photos and activities on the same local day when takenAt is a real instant', async () => {
-      // 07:00 to 08:40 on 21 Feb in Tokyo, and a run at 07:05 that day.
-      expect(
-        byId(
-          await suggest({ timeZone: 'Asia/Tokyo' }),
-          'activity_day:2026-02-21'
-        )
-      ).toMatchObject({
-        kind: 'activity_day',
-        title: 'Activity day, 21 Feb 2026',
-        photoCount: 6,
-        activityCount: 1
-      })
-      // The same instants are 20 Feb in UTC, photos and run alike, and 20 Feb
-      // in Los Angeles (14:00 PST), so every viewer sees them meet.
-      for (const timeZone of ['UTC', 'America/Los_Angeles']) {
+    it('finds the activity of a photo with a UTC offset on the viewer-local day, and shows the album’s UTC date', async () => {
+      // Six photos from 07:00 to 08:40 on 21 Feb in Tokyo, stored as the real
+      // instant (EXIF with a +09:00 offset): 20 Feb in UTC, which is the date
+      // the album shows. A run at 07:05 that morning meets them in Tokyo (the
+      // photos' local day), and in UTC and Los Angeles (the run's day there is
+      // 20 Feb as well).
+      for (const timeZone of ['Asia/Tokyo', 'UTC', 'America/Los_Angeles']) {
         const suggestions = await suggest({ timeZone })
-        expect(
-          byId(suggestions, 'activity_day:2026-02-20'),
-          timeZone
-        ).toMatchObject({ photoCount: 6, activityCount: 1 })
+        const day = byId(suggestions, 'activity_day:2026-02-20')
+
+        expect(day, timeZone).toMatchObject({
+          kind: 'activity_day',
+          title: 'Activity day, 20 Feb 2026',
+          photoCount: 6,
+          activityCount: 1
+        })
+        // Title and meta line agree: the first photo is on 20 Feb UTC.
+        expect(day!.firstAt, timeZone).toBe('2026-02-20T22:00:00.000Z')
         expect(byId(suggestions, 'activity_day:2026-02-21'), timeZone).toBe(
           undefined
         )
       }
+    })
+
+    it('says "Activity day" only when one of the activities is on a post visitors can read', async () => {
+      const suggestions = await suggest()
+
+      // A followers-only activity: the title is just the date.
+      expect(byId(suggestions, 'activity_day:2026-08-18')).toMatchObject({
+        kind: 'activity_day',
+        title: '18 Aug 2026',
+        activityCount: 1
+      })
+      // A public activity: the words are fine.
+      expect(byId(suggestions, 'activity_day:2026-07-04')!.title).toBe(
+        'Activity day, 4 Jul 2026'
+      )
+    })
+
+    it('gives a day with no photo a visitor can see a generic title with no date', async () => {
+      const day = byId(await suggest(), 'activity_day:2026-11-25')
+
+      expect(day).toMatchObject({
+        kind: 'activity_day',
+        title: 'Day out',
+        photoCount: 6
+      })
     })
 
     it('names no place for a trip through two public places, and gives it a dates title', async () => {
@@ -556,6 +646,15 @@ describe('getGalleryAlbumSuggestions', () => {
         kind: 'trip',
         photoCount: 8
       })
+    })
+
+    it('gives a suggestion of followers-only photos only a generic title, with no dates, place or species', async () => {
+      const suggestions = await suggest()
+
+      expect(byId(suggestions, 'trip:2026-05-10')!.title).toBe('Trip')
+      const owls = byId(suggestions, 'species:sci:bubo bubo')
+      expect(owls).toMatchObject({ kind: 'species', photoCount: 5 })
+      expect(owls!.title).toBe('Species series')
     })
 
     it('answers an empty list for an owner with no gallery', async () => {

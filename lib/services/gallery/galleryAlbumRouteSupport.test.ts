@@ -158,6 +158,8 @@ describe('public album reads', () => {
         expect(tryAlbumRead(null)).toBeTrue()
       }
     })
+  })
+})
 
 describe('suggestion read limits', () => {
   beforeEach(() => {
