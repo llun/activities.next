@@ -122,6 +122,16 @@ describe('client media module', () => {
       expect(res).toBeNull()
     })
 
+    it('returns null without requesting a URL when the browser cannot read the size', async () => {
+      vi.mocked(getMediaWidthAndHeight).mockResolvedValue(null)
+
+      const file = new File(['data'], 'clip.mov', { type: 'video/quicktime' })
+      const res = await createUploadPresignedUrl({ media: file })
+
+      expect(res).toBeNull()
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
     it('throws error when endpoint returns other non-200 status', async () => {
       fetchMock.mockResponseOnce('', { status: 500 })
 
@@ -414,6 +424,37 @@ describe('client media module', () => {
         posterUrl: 'https://llun.test/api/v1/files/server-preview.webp'
       })
       expect(fetchMock).toHaveBeenCalledTimes(3)
+    })
+
+    it('uploads directly when the browser cannot read the size', async () => {
+      vi.mocked(getMediaWidthAndHeight).mockResolvedValue(null)
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'media-hevc',
+          type: 'video',
+          mime_type: 'video/quicktime',
+          url: 'https://llun.test/files/hevc.mov',
+          preview_url: null,
+          meta: { original: { width: 1920, height: 1080 } },
+          description: null
+        }),
+        { status: 200 }
+      )
+
+      const result = await uploadAttachment(
+        new File(['test'], 'clip.mov', { type: 'video/quicktime' })
+      )
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v2/media',
+        expect.objectContaining({ method: 'POST' })
+      )
+      expect(result).toMatchObject({
+        id: 'media-hevc',
+        width: 1920,
+        height: 1080
+      })
     })
 
     it('passes posterFile as thumbnail to uploadMedia on direct upload', async () => {

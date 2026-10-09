@@ -45,8 +45,9 @@ export async function resizeImage(
     widthLimitPixel / image.width,
     heightLimitPixel / image.height
   )
-  const width = Math.round(image.width * scale)
-  const height = Math.round(image.height * scale)
+  // Keep at least one pixel so an extreme aspect ratio still re-encodes.
+  const width = Math.max(1, Math.round(image.width * scale))
+  const height = Math.max(1, Math.round(image.height * scale))
 
   // Set up source canvas
   originalImageCanvas.width = image.width
