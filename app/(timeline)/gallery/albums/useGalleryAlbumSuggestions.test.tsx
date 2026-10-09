@@ -6,6 +6,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { useGalleryAlbumSuggestions } from '@/app/(timeline)/gallery/albums/useGalleryAlbumSuggestions'
 import { getGalleryAlbumSuggestions } from '@/lib/client'
 import { buildSuggestion } from '@/lib/components/gallery/__fixtures__/galleryAlbumSuggestions'
+import { createDeferred } from '@/lib/testing/deferred'
 
 vi.mock('@/lib/client', () => ({
   getGalleryAlbumSuggestions: vi.fn()
@@ -65,13 +66,8 @@ describe('useGalleryAlbumSuggestions', () => {
   })
 
   it('drops the answer of a read that a newer read replaced', async () => {
-    let resolveFirst: (value: { suggestions: never[] }) => void = () => {}
-    read.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveFirst = resolve
-        })
-    )
+    const first = createDeferred<{ suggestions: never[] }>()
+    read.mockImplementationOnce(() => first.promise)
     const suggestion = buildSuggestion('species:sci:alcedo atthis')
     const { result } = renderHook(() => useGalleryAlbumSuggestions())
 
@@ -80,7 +76,7 @@ describe('useGalleryAlbumSuggestions', () => {
       await result.current.reload()
     })
     await act(async () => {
-      resolveFirst({ suggestions: [] })
+      first.resolve({ suggestions: [] })
     })
 
     expect(result.current.state).toEqual({

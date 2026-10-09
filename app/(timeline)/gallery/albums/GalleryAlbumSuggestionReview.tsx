@@ -6,11 +6,20 @@ import { getGalleryAlbumSuggestionMedia } from '@/lib/client'
 import { GALLERY_ALBUM_ITEMS_BATCH } from '@/lib/client/galleryAlbums'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { Button } from '@/lib/components/ui/button'
+import { Input } from '@/lib/components/ui/input'
+import { Label } from '@/lib/components/ui/label'
+import { Select } from '@/lib/components/ui/select'
 import type { GalleryAlbumSuggestionEntity } from '@/lib/services/gallery/galleryAlbumSuggestionEntities'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 import { MAX_GALLERY_ALBUM_ITEMS } from '@/lib/types/database/galleryAlbums'
 
 import { GalleryAlbumPickerTile } from './GalleryAlbumPickerTile'
+import {
+  filterPickerItems,
+  getPickerPlaceNames,
+  getPickerSubjectNames,
+  ignoreEnter
+} from './galleryAlbumPickerUi'
 
 interface Props {
   suggestion: GalleryAlbumSuggestionEntity
@@ -30,7 +39,8 @@ const PAGE_SIZE = Math.min(60, GALLERY_ALBUM_ITEMS_BATCH)
 /**
  * "Review and trim": the photos of the suggestion in use, a page at a time, each
  * a toggle on the dialog's selection. Unticking a photo only changes what the
- * dialog would add; nothing is saved here.
+ * dialog would add; nothing is saved here. Species, place and date filters run
+ * over the photos loaded so far.
  */
 export const GalleryAlbumSuggestionReview: FC<Props> = ({
   suggestion,
@@ -44,6 +54,10 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
   const [loadedCount, setLoadedCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [species, setSpecies] = useState('')
+  const [place, setPlace] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   // Bumped by every restart so a slow answer for an older suggestion is dropped.
   const generation = useRef(0)
   const onItemsLoadedRef = useRef(onItemsLoaded)
@@ -97,9 +111,27 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
   const selectedSet = useMemo(() => new Set(selected), [selected])
   const isFull = selected.length >= capacity
   const hasMore = loadedCount < mediaIds.length
-  const allSelected = mediaIds
-    .slice(0, capacity)
-    .every((id) => selectedSet.has(id))
+
+  const speciesNames = useMemo(() => getPickerSubjectNames(items), [items])
+  const placeNames = useMemo(() => getPickerPlaceNames(items), [items])
+  const visible = useMemo(
+    () => filterPickerItems(items, { species, place, from, to }),
+    [items, species, place, from, to]
+  )
+  const hasFilters = Boolean(species || place || from || to)
+  const clearFilters = () => {
+    setSpecies('')
+    setPlace('')
+    setFrom('')
+    setTo('')
+  }
+
+  // Adds to the picks, never replaces them: the owner's other picks and the
+  // cover (the first pick) stay as they are. With no filter it is the whole
+  // suggestion, with one only the photos shown.
+  const toAdd = (hasFilters ? visible.map((item) => item.mediaId) : mediaIds)
+    .filter((id) => !selectedSet.has(id))
+    .slice(0, Math.max(capacity - selected.length, 0))
 
   const toggle = (mediaId: string) => {
     if (disabled) return
@@ -130,10 +162,10 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
             variant="ghost"
             size="sm"
             className="pointer-coarse:h-10"
-            disabled={disabled || allSelected}
-            onClick={() => onChange(mediaIds.slice(0, capacity))}
+            disabled={disabled || toAdd.length === 0}
+            onClick={() => onChange([...selected, ...toAdd])}
           >
-            Select all
+            {hasFilters ? 'Select all shown' : 'Select all'}
           </Button>
           <Button
             type="button"
@@ -147,6 +179,88 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
           </Button>
         </div>
       </div>
+      {items.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="album-review-species" className="text-xs">
+              Species
+            </Label>
+            <Select
+              id="album-review-species"
+              value={species}
+              onChange={(event) => setSpecies(event.target.value)}
+              disabled={disabled}
+            >
+              <option value="">Any species</option>
+              {speciesNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="album-review-place" className="text-xs">
+              Place
+            </Label>
+            <Select
+              id="album-review-place"
+              value={place}
+              onChange={(event) => setPlace(event.target.value)}
+              disabled={disabled}
+            >
+              <option value="">Any place</option>
+              {placeNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="min-w-0 space-y-1 max-sm:col-span-2">
+            <Label htmlFor="album-review-from" className="text-xs">
+              Taken from
+            </Label>
+            <Input
+              id="album-review-from"
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(event) => setFrom(event.target.value)}
+              onKeyDown={ignoreEnter}
+              disabled={disabled}
+            />
+          </div>
+          <div className="min-w-0 space-y-1 max-sm:col-span-2">
+            <Label htmlFor="album-review-to" className="text-xs">
+              Taken to
+            </Label>
+            <Input
+              id="album-review-to"
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(event) => setTo(event.target.value)}
+              onKeyDown={ignoreEnter}
+              disabled={disabled}
+            />
+          </div>
+        </div>
+      ) : null}
+      {hasFilters ? (
+        <div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="pointer-coarse:h-10"
+            onClick={clearFilters}
+            disabled={disabled}
+          >
+            Clear filters
+          </Button>
+        </div>
+      ) : null}
       {suggestion.truncated ? (
         <p className="text-muted-foreground text-xs">
           An album holds at most{' '}
@@ -167,12 +281,18 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
             />
           ))}
         </div>
+      ) : visible.length === 0 && items.length > 0 ? (
+        <p className="text-muted-foreground py-6 text-center text-sm">
+          {hasMore
+            ? 'Nothing matches in the photos loaded so far.'
+            : 'No photos match these filters.'}
+        </p>
       ) : (
         <ul
           className="grid grid-cols-3 gap-1 sm:grid-cols-4"
           aria-busy={isLoading}
         >
-          {items.map((item, index) => (
+          {visible.map((item, index) => (
             <li key={item.mediaId} className="min-w-0">
               <GalleryAlbumPickerTile
                 item={item}

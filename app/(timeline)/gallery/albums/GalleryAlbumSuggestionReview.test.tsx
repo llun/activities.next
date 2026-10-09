@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 
 import { GalleryAlbumSuggestionReview } from '@/app/(timeline)/gallery/albums/GalleryAlbumSuggestionReview'
@@ -10,6 +10,8 @@ import { getGalleryAlbumSuggestionMedia } from '@/lib/client'
 import { buildSuggestion } from '@/lib/components/gallery/__fixtures__/galleryAlbumSuggestions'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import type { GalleryAlbumSuggestionEntity } from '@/lib/services/gallery/galleryAlbumSuggestionEntities'
+import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
+import { createDeferred } from '@/lib/testing/deferred'
 
 vi.mock('@/lib/client', () => ({
   getGalleryAlbumSuggestionMedia: vi.fn()
@@ -179,15 +181,8 @@ describe('GalleryAlbumSuggestionReview', () => {
   })
 
   it('drops the answer for a suggestion that is no longer in use', async () => {
-    let resolveFirst: (value: {
-      items: ReturnType<typeof buildGalleryItem>[]
-    }) => void = () => {}
-    media.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveFirst = resolve
-        })
-    )
+    const first = createDeferred<{ items: GalleryItemEntity[] }>()
+    media.mockImplementationOnce(() => first.promise)
     const { rerender } = render(
       <GalleryAlbumSuggestionReview
         suggestion={buildSuggestion('old')}
@@ -203,11 +198,149 @@ describe('GalleryAlbumSuggestionReview', () => {
       />
     )
     await screen.findAllByRole('button', { name: /^Select Photo \d+$/ })
-    resolveFirst({ items: [buildGalleryItem('old-1')] })
+    await act(async () => {
+      first.resolve({ items: [buildGalleryItem('old-1')] })
+    })
 
     await waitFor(() => expect(media).toHaveBeenCalledTimes(2))
     expect(
       screen.getAllByRole('button', { name: /^Select Photo \d+$/ })
     ).toHaveLength(3)
+  })
+
+  describe('Select all', () => {
+    it('adds the suggestion to the picks and keeps the other picks and the cover', async () => {
+      // The owner added two photos of their own, took one suggested photo out,
+      // and put the first of their own at the front as the cover.
+      render(
+        <Harness
+          suggestion={buildSuggestion('s')}
+          initial={['own-1', 's-1', 'own-2']}
+        />
+      )
+      await screen.findAllByRole('button', { name: /^Select Photo \d+$/ })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
+
+      expect(screen.getByTestId('selected')).toHaveTextContent(
+        'own-1,s-1,own-2,s-2,s-3'
+      )
+    })
+
+    it('adds only what fits in the album', async () => {
+      render(
+        <Harness
+          suggestion={buildSuggestion('s')}
+          initial={['own-1']}
+          capacity={2}
+        />
+      )
+      await screen.findAllByRole('button', { name: /^Select Photo \d+$/ })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
+
+      expect(screen.getByTestId('selected')).toHaveTextContent('own-1,s-1')
+      expect(screen.getByRole('button', { name: 'Select all' })).toBeDisabled()
+    })
+  })
+
+  describe('filters', () => {
+    const place = (name: string) =>
+      ({
+        name,
+        precision: 'exact',
+        latitude: 1,
+        longitude: 2,
+        countryCode: 'GB'
+      }) as GalleryItemEntity['place']
+    const subject = (name: string) =>
+      ({
+        name,
+        scientificName: null,
+        category: 'bird',
+        taxonKey: null,
+        taxonPath: null
+      }) as GalleryItemEntity['subject']
+    const mixed = (ids: string[]) =>
+      Promise.resolve({
+        items: ids.map((id, index) =>
+          buildGalleryItem(id, {
+            subject: subject(index % 2 === 0 ? 'Kingfisher' : 'Heron'),
+            place: place(index < 2 ? 'Lee Valley' : 'Hyde Park'),
+            takenAt: `2026-06-0${index + 1}T10:00:00Z`
+          })
+        )
+      })
+    const suggestion = buildSuggestion('s', {
+      mediaIds: ['s-1', 's-2', 's-3', 's-4'],
+      photoCount: 4
+    })
+    const shown = () =>
+      screen
+        .getAllByRole('button', { name: /^Select (Kingfisher|Heron)/ })
+        .map((tile) => tile.getAttribute('aria-label'))
+
+    beforeEach(() => {
+      media.mockImplementation((ids) => mixed(ids))
+    })
+
+    it('narrows the grid by species, place and date, and clears the filters', async () => {
+      render(<Harness suggestion={suggestion} />)
+      await screen.findAllByRole('button', {
+        name: /^Select (Kingfisher|Heron)/
+      })
+      expect(shown()).toHaveLength(4)
+
+      fireEvent.change(screen.getByLabelText('Species'), {
+        target: { value: 'Kingfisher' }
+      })
+      expect(shown()).toHaveLength(2)
+
+      fireEvent.change(screen.getByLabelText('Place'), {
+        target: { value: 'Hyde Park' }
+      })
+      expect(shown()).toHaveLength(1)
+
+      fireEvent.change(screen.getByLabelText('Taken from'), {
+        target: { value: '2026-06-04' }
+      })
+      expect(
+        screen.getByText('No photos match these filters.')
+      ).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+      expect(shown()).toHaveLength(4)
+      expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
+    })
+
+    it('selects only the shown photos while a filter is on, keeping the other picks', async () => {
+      render(<Harness suggestion={suggestion} initial={['own-1']} />)
+      await screen.findAllByRole('button', {
+        name: /^Select (Kingfisher|Heron)/
+      })
+
+      fireEvent.change(screen.getByLabelText('Place'), {
+        target: { value: 'Lee Valley' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Select all shown' }))
+
+      expect(screen.getByTestId('selected')).toHaveTextContent('own-1,s-1,s-2')
+    })
+
+    it('does not submit the dialog form when Enter is pressed in a date field', async () => {
+      const onSubmit = vi.fn((event) => event.preventDefault())
+      render(
+        <form onSubmit={onSubmit}>
+          <Harness suggestion={suggestion} />
+        </form>
+      )
+      await screen.findAllByRole('button', {
+        name: /^Select (Kingfisher|Heron)/
+      })
+
+      fireEvent.keyDown(screen.getByLabelText('Taken from'), { key: 'Enter' })
+
+      expect(onSubmit).not.toHaveBeenCalled()
+    })
   })
 })

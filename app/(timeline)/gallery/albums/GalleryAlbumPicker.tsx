@@ -2,15 +2,7 @@
 
 import { Images } from 'lucide-react'
 import Link from 'next/link'
-import {
-  FC,
-  KeyboardEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getGalleryMedia, getGallerySubjects } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
@@ -21,7 +13,11 @@ import { Select } from '@/lib/components/ui/select'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 
 import { GalleryAlbumPickerTile } from './GalleryAlbumPickerTile'
-import { filterPickerItems, getPickerPlaceNames } from './galleryAlbumPickerUi'
+import {
+  filterPickerItems,
+  getPickerPlaceNames,
+  ignoreEnter
+} from './galleryAlbumPickerUi'
 
 interface Props {
   ownerId: string
@@ -51,12 +47,6 @@ const MAX_AUTO_PAGES = 5
 interface SubjectOption {
   key: string
   label: string
-}
-
-// A date field submits its form on Enter; here Enter must not save an album
-// the owner has not finished picking for.
-const ignoreEnter = (event: KeyboardEvent) => {
-  if (event.key === 'Enter') event.preventDefault()
 }
 
 /**

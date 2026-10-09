@@ -329,12 +329,14 @@ describe('getGalleryAlbumSuggestions: activity-day titles and coverage', () => {
     expect(getStatusMock(database)).not.toHaveBeenCalled()
   })
 
-  it('leaves out an activity day that one album already holds, and does not look its activities up', async () => {
-    const rows = photosOnDay(1, DAY_START, 5)
+  it('leaves out an activity day that one album already holds, and shows an older matching day instead', async () => {
+    const older = DAY_START - 40 * DAY
+    const newer = photosOnDay(1, DAY_START, 5)
+    const rows = [...newer, ...photosOnDay(100, older, 5)]
     const { database, windows } = buildDatabase({
       owner: () => rows,
-      activities: [DAY_START + 7 * 3600_000],
-      albums: [{ albumId: 'album', mediaIds: rows.map((row) => row.id) }]
+      activities: [DAY_START + 7 * 3600_000, older + 7 * 3600_000],
+      albums: [{ albumId: 'album', mediaIds: newer.map((row) => row.id) }]
     })
 
     const { suggestions } = await getGalleryAlbumSuggestions({
@@ -342,8 +344,13 @@ describe('getGalleryAlbumSuggestions: activity-day titles and coverage', () => {
       owner
     })
 
-    expect(suggestions).toEqual([])
-    expect(windows).toEqual([])
+    expect(suggestions.map((suggestion) => suggestion.id)).toEqual([
+      'activity_day:2026-04-22'
+    ])
+    // Only the older day's window was read: the covered day cost no lookup.
+    expect(windows).toHaveLength(1)
+    expect(windows[0].startDate).toBeLessThanOrEqual(older)
+    expect(windows[0].endDate).toBeLessThan(DAY_START)
   })
 
   it('keeps an activity day an album holds only part of', async () => {
