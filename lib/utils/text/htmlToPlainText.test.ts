@@ -31,6 +31,21 @@ describe('htmlToPlainText', () => {
       description: 'drops script and style contents',
       html: '<p>Hello</p><script>alert("x")</script><style>.hidden{display:none}</style>',
       expected: 'Hello'
+    },
+    {
+      description: 'decodes entities exactly once',
+      html: '<p>&amp;lt;b&amp;gt;</p>',
+      expected: '&lt;b&gt;'
+    },
+    {
+      description: 'decodes decimal and hex numeric entities',
+      html: '<p>&#39;fast&#39; &#x41;&#66;</p>',
+      expected: "'fast' AB"
+    },
+    {
+      description: 'does not separate adjacent inline elements',
+      html: '<a href="#">@<span>null</span></a>',
+      expected: '@null'
     }
   ])('$description', ({ html, expected }) => {
     expect(htmlToPlainText(html)).toBe(expected)
@@ -48,5 +63,51 @@ describe('htmlToPlainText', () => {
     const html = `${'<div>'.repeat(depth)}<p>inner</p> outer${'</div>'.repeat(depth)}`
 
     expect(htmlToPlainText(html)).toBe('inner outer')
+  })
+})
+
+describe('htmlToPlainText statusBody', () => {
+  const quoteHtml =
+    '<p>take</p><p class="quote-inline">RE: <a href="https://r.social/1">link</a></p>'
+
+  it.each([
+    {
+      description: 'ignores classes by default',
+      html: '<a href="x"><span class="invisible">https://</span><span class="ellipsis">a.com/b</span></a>',
+      options: undefined,
+      expected: 'https://a.com/b'
+    },
+    {
+      description: 'drops invisible parts and marks the ellipsis',
+      html: '<a href="x"><span class="invisible">https://</span><span class="ellipsis">a.com/b</span><span class="invisible">c</span></a>',
+      options: { statusBody: { hideQuoteInline: false } },
+      expected: 'a.com/b…'
+    },
+    {
+      description: 'keeps quote-inline unless hideQuoteInline is set',
+      html: quoteHtml,
+      options: { statusBody: { hideQuoteInline: false } },
+      expected: 'take RE: link'
+    },
+    {
+      description: 'drops quote-inline when hideQuoteInline is set',
+      html: quoteHtml,
+      options: { statusBody: { hideQuoteInline: true } },
+      expected: 'take'
+    },
+    {
+      description: 'honours ellipsis only on span',
+      html: '<a class="ellipsis" href="https://example.com">cut</a> after',
+      options: { statusBody: { hideQuoteInline: false } },
+      expected: 'cut after'
+    },
+    {
+      description: 'honours invisible only on span',
+      html: '<a class="invisible" href="https://example.com">kept</a> after',
+      options: { statusBody: { hideQuoteInline: false } },
+      expected: 'kept after'
+    }
+  ])('$description', ({ html, options, expected }) => {
+    expect(htmlToPlainText(html, options)).toBe(expected)
   })
 })

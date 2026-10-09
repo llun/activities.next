@@ -9,6 +9,11 @@ import {
   getOriginalStatus
 } from '@/lib/types/domain/status'
 import { MastodonVisibility, getVisibility } from '@/lib/utils/getVisibility'
+import {
+  HtmlToPlainTextOptions,
+  htmlToPlainText
+} from '@/lib/utils/text/htmlToPlainText'
+import { processStatusTextContent } from '@/lib/utils/text/processStatusText'
 
 export type ReplyMentionMode = 'all' | 'author-first' | 'author-only'
 
@@ -53,14 +58,13 @@ export interface ViewerIdentity {
   domain: string
 }
 
-const stripHtml = (text: string): string =>
-  text
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-export const createTextSnippet = (text: string, maxLength = 140): string => {
-  const clean = stripHtml(text)
+/** Builds a plain-text snippet from status HTML (not raw markdown). */
+export const createTextSnippet = (
+  text: string,
+  maxLength = 140,
+  options?: HtmlToPlainTextOptions
+): string => {
+  const clean = htmlToPlainText(text, options)
   if (clean.length <= maxLength) return clean
   return `${clean.slice(0, maxLength - 1).trimEnd()}…`
 }
@@ -314,7 +318,22 @@ export const prepareReplyDraft = ({
     authorName,
     authorHandle,
     authorIconUrl: actualStatus.actor?.iconUrl,
-    textSnippet: createTextSnippet(actualStatus.text),
+    // Local statuses store markdown; render them to the same sanitized HTML the
+    // status body shows before flattening to text, so a literal `<` survives.
+    textSnippet: createTextSnippet(
+      processStatusTextContent(
+        currentViewer.domain,
+        actualStatus.text,
+        actualStatus.tags,
+        actualStatus.isLocalActor,
+        { convertEmojis: false }
+      ),
+      undefined,
+      // Read it as `post.tsx` renders the body: long links collapse to their
+      // visible part, and the "RE: <link>" fallback hides once a quote card
+      // renders.
+      { statusBody: { hideQuoteInline: Boolean(actualStatus.quote) } }
+    ),
     spoilerText: spoilerText || undefined,
     visibility,
     language: actualStatus.language ?? null,

@@ -10,6 +10,12 @@ import React from 'react'
 import { Tag } from '@/lib/types/domain/tag'
 
 import { extractProfileHref } from './extractProfileHref'
+import {
+  hasToken,
+  isEllipsisClass,
+  isInvisibleClass,
+  isQuoteInlineClass
+} from './statusBodyClasses'
 
 interface replacingNode {
   name: string
@@ -35,9 +41,6 @@ export const extractTagFromHref = (
   }
 }
 
-const hasToken = (value: string | undefined, token: string): boolean =>
-  value?.split(/\s+/).includes(token) ?? false
-
 export interface CleanClassNameOptions {
   hideQuoteInline?: boolean
   host?: string
@@ -61,15 +64,21 @@ export const cleanClassName = (
         hideQuoteInline &&
         (replacingNode.name === 'p' || replacingNode.name === 'span') &&
         replacingNode.attribs &&
-        hasToken(replacingNode.attribs.class, 'quote-inline')
+        isQuoteInlineClass(replacingNode.attribs.class)
       ) {
         replacingNode.attribs.class = 'hidden'
       }
       if (replacingNode.name === 'span') {
-        if (replacingNode.attribs?.class === 'invisible') {
+        if (
+          replacingNode.attribs &&
+          isInvisibleClass(replacingNode.attribs.class)
+        ) {
           replacingNode.attribs.class = 'hidden'
         }
-        if (replacingNode.attribs?.class === 'ellipsis') {
+        if (
+          replacingNode.attribs &&
+          isEllipsisClass(replacingNode.attribs.class)
+        ) {
           replacingNode.attribs.class = 'after:content-["…"]'
         }
       }
@@ -121,7 +130,7 @@ export const cleanClassName = (
               href: profileHref,
               prefetch: false,
               className:
-                hideQuoteInline && hasToken(className, 'quote-inline')
+                hideQuoteInline && isQuoteInlineClass(className)
                   ? 'hidden'
                   : className,
               onClick: (e: React.MouseEvent) => e.stopPropagation()
@@ -135,7 +144,7 @@ export const cleanClassName = (
           {
             ...restAttribs,
             className:
-              hideQuoteInline && hasToken(className, 'quote-inline')
+              hideQuoteInline && isQuoteInlineClass(className)
                 ? 'hidden'
                 : className,
             onClick: (e: React.MouseEvent) => e.stopPropagation()
