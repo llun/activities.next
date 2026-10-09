@@ -65,4 +65,12 @@ describe('GearProductLink', () => {
     fireEvent.click(screen.getByRole('link'))
     expect(onClick).toHaveBeenCalled()
   })
+
+  it('uses the accessible orange for the link text', () => {
+    // `text-primary` is 3.37:1 on the card and fails AA as a foreground;
+    // `--primary-text` is the hue tuned per theme to clear it.
+    render(<GearProductLink productUrl="https://moots.com" onEdit={vi.fn()} />)
+
+    expect(screen.getByRole('link')).toHaveClass('text-primary-text')
+  })
 })

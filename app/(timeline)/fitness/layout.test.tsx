@@ -99,7 +99,4 @@ describe('Fitness Layout', () => {
       within(menu).getByRole('menuitem', { name: 'Overview' })
     ).not.toHaveAttribute('aria-current')
   })
-
-  // Below md the description's own 16px bottom padding is the whole gap to
-  // the dropdown; from md up the section keeps its 16px top padding.
 })

@@ -208,6 +208,8 @@ describe('CollapsibleContent', () => {
       button.getAttribute('aria-controls')!
     )
     expect(content?.style.height).toBe(COLLAPSED_HEIGHT_REM)
+    // The fade mask is applied only while collapsed.
+    expect(content?.className).toContain('[mask-image')
 
     fireEvent.click(button)
 
@@ -217,6 +219,7 @@ describe('CollapsibleContent', () => {
       ).not.toBeInTheDocument()
     })
     expect(content?.style.height).toBe('')
+    expect(content?.className).not.toContain('[mask-image')
   })
 
   it('does not collapse or show a button for content that fits within the line limit', async () => {

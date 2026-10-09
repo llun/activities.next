@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import sharp from 'sharp'
 
 import { getMapProviderConfig } from '@/lib/config/mapProvider'
+import { ROUTE_COLOR } from '@/lib/fitness/routeColor'
 
 import { generateMapImage } from './generateMapImage'
 
@@ -166,6 +167,27 @@ describe('generateMapImage', () => {
     expect(result).toBeDefined()
     expect(result?.length).toBeGreaterThan(0)
     expect(global.fetch).toHaveBeenCalled()
+
+    // The route polyline is composited over the tiles. Its 4px stroke is fully
+    // opaque at the centre, so the exact route colour is present.
+    const { data, info } = await sharp(result!)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    const [red, green, blue] = Buffer.from(ROUTE_COLOR.slice(1), 'hex')
+    let hasRoutePixel = false
+    for (let offset = 0; offset < data.length; offset += info.channels) {
+      if (
+        data[offset] === red &&
+        data[offset + 1] === green &&
+        data[offset + 2] === blue
+      ) {
+        hasRoutePixel = true
+        break
+      }
+    }
+    expect(hasRoutePixel).toBe(true)
+
     const requestedUrls = (global.fetch as jest.Mock).mock.calls.map((call) =>
       String(call[0])
     )

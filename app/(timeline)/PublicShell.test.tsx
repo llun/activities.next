@@ -50,12 +50,18 @@ describe('PublicTopBar', () => {
     mockSettings.mockReset()
   })
 
-  it('shows the Sign in and Create account CTAs', async () => {
+  it('shows the logo and both CTAs', async () => {
     mockRegistration(true)
     const PublicTopBar = await loadPublicTopBar()
     render(await PublicTopBar())
 
     const banner = screen.getByRole('banner')
+    // The logo is on the canonical origin, so it resolves when the page is
+    // served from a CDN alias domain.
+    const home = within(banner).getByRole('link', { name: 'Activities home' })
+    expect(home.querySelector('img')?.getAttribute('src')).toContain(
+      encodeURIComponent('https://canonical.example/logo-nav.png')
+    )
     expect(
       within(banner).getByRole('link', { name: 'Sign in' })
     ).toHaveAttribute('href', '/auth/signin')

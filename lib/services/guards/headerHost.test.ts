@@ -31,8 +31,8 @@ describe('headerHost', () => {
     it.each([
       {
         description: 'returns host value from Host',
-        headers: [['Host', 'test.llun.dev']],
-        expected: 'test.llun.dev'
+        headers: [['Host', 'test-forwarded.llun.dev']],
+        expected: 'test-forwarded.llun.dev'
       },
       {
         description:

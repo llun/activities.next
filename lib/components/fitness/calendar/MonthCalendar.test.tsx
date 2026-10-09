@@ -584,4 +584,10 @@ describe('MonthCalendar', () => {
       expect(tip).not.toHaveTextContent('No activities')
     })
   })
+
+  it('sizes to its container, never the viewport', () => {
+    const { container } = renderMonth()
+
+    expect(container.innerHTML).not.toMatch(/class="[^"]*\b(sm|md|lg|xl):/)
+  })
 })

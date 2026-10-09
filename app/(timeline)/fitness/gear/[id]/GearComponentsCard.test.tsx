@@ -243,15 +243,11 @@ describe('GearComponentsCard', () => {
     })
 
     // jsdom lays nothing out, so this guards the containing block instead of
-    // the page width. Unpinned on a phone, the actions header is not
-    // positioned, and its `sr-only` label (`position: absolute`) resolved
-    // against the page rather than the scroller — escaping the overflow clip at
-    // its unscrolled x and widening a 390px document to ~1,770px.
-
-    // The Added/Retired cells are never positioned, so a refitted component's
-    // `sr-only` "Install N:" labels leaked at every width the table scrolls,
-    // not only on a phone — here the actions are pinned and the labels still
-    // have nothing positioned between them and the scroller.
+    // the page width. The Added/Retired cells are never positioned, so a
+    // refitted component's `sr-only` "Install N:" labels (`position: absolute`)
+    // leaked out of the scroller's overflow clip at every width the table
+    // scrolls — here the actions are pinned and the labels still have nothing
+    // positioned between them and the scroller.
     it('keeps the install labels inside a positioned scroller with the actions pinned', () => {
       renderCard([
         createComponent({
@@ -264,9 +260,12 @@ describe('GearComponentsCard', () => {
       act(() => deliverWidth?.(600))
 
       const scroller = screen.getByRole('table').parentElement as HTMLElement
+      expect(scroller).toHaveClass('relative', 'overflow-x-auto')
       const labels = screen.getAllByText(/^Install \d+:$/)
       expect(labels).toHaveLength(4)
       for (const label of labels) {
+        expect(label).toHaveClass('sr-only')
+        expect(label.closest('.sticky')).toBeNull()
         expect(scroller).toContainElement(label)
       }
     })
@@ -749,8 +748,6 @@ describe('GearComponentsCard', () => {
     expect(onChanged).not.toHaveBeenCalled()
   })
 
-  // Action buttons stay on a single line via flex-nowrap and generous column sizing
-
   // The pinned actions column fits two buttons, and "Confirm delete" beside
   // "Refit" did not: it spilled across the divider and off the card. The
   // accessible names still say what is being confirmed.
@@ -773,9 +770,6 @@ describe('GearComponentsCard', () => {
       screen.getByRole('button', { name: 'Confirm delete Chain' })
     ).toHaveTextContent(/^Confirm$/)
   })
-
-  // Fading the `<tr>` or a pinned `<td>` fades the pinned cell's opaque
-  // surface with it, and the data columns would show through mid-fade.
 
   it('offers refit and delete on a retired row, but not edit', () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])

@@ -114,6 +114,35 @@ describe('StatusBox', () => {
     })
   })
 
+  it.each([
+    ['detail', true],
+    ['comment', false]
+  ] as const)(
+    'centres the header row on the avatar for the %s variant: %s',
+    (variant, centred) => {
+      const { container } = render(
+        <StatusBox
+          host="activities.local"
+          mapProvider={{ type: 'osm' }}
+          currentActor={pollStatusFixture.actor}
+          currentTime={pollStatusCurrentTime}
+          status={pollStatusFixture}
+          variant={variant}
+        />
+      )
+
+      const headerRow = container.querySelector(
+        '.flex-1 > .flex.flex-wrap.items-center'
+      )
+      expect(headerRow).not.toBeNull()
+      if (centred) {
+        expect(headerRow).toHaveClass('mt-2.5')
+      } else {
+        expect(headerRow).not.toHaveClass('mt-2.5')
+      }
+    }
+  )
+
   it('renders the likes list on the detail view for a signed-in actor', () => {
     render(
       <StatusBox

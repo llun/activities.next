@@ -141,8 +141,8 @@ describe('POST /api/v1/accounts/:id/mute', () => {
     },
     { name: 'a negative duration (no expiry)', duration: -60, seconds: null },
     {
-      name: 'a non-finite duration (no expiry)',
-      duration: Infinity,
+      name: 'a null duration (no expiry)',
+      duration: null,
       seconds: null
     }
   ])('computes endsAt from $name', async ({ duration, seconds }) => {

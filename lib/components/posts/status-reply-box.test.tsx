@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
@@ -409,5 +409,54 @@ describe('StatusReplyBox attachment cap', () => {
     expect(
       screen.queryByRole('button', { name: 'Add media (2/1)' })
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('StatusReplyBox automatic vertical growth', () => {
+  it('updates measured height on input and shrinks back when cleared without field-sizing support', () => {
+    const originalCSS = globalThis.CSS
+    globalThis.CSS = {
+      supports: vi.fn(() => false)
+    } as unknown as typeof CSS
+
+    try {
+      render(
+        <StatusReplyBox
+          profile={profile}
+          replyStatus={replyStatus}
+          onCancel={vi.fn()}
+          onPostCreated={vi.fn()}
+        />
+      )
+      const textarea = screen.getByPlaceholderText(
+        `Reply to ${replyStatus.actor?.name}...`
+      ) as HTMLTextAreaElement
+
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 140
+      })
+
+      act(() => {
+        fireEvent.change(textarea, {
+          target: { value: 'A long reply spanning multiple lines' }
+        })
+      })
+
+      expect(textarea.style.height).toBe('140px')
+
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 60
+      })
+
+      act(() => {
+        fireEvent.change(textarea, { target: { value: '' } })
+      })
+
+      expect(textarea.style.height).toBe('60px')
+    } finally {
+      globalThis.CSS = originalCSS
+    }
   })
 })

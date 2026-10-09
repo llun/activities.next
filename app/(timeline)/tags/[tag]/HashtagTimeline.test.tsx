@@ -404,10 +404,13 @@ describe('HashtagTimeline', () => {
         .getAllByRole('heading', { level: 1 })
         .filter((heading) => !bar.contains(heading))
       const box = boxHeading.closest('[class*="md:sticky"]') as HTMLElement
+      // The box steps aside below md, so exactly one h1 is displayed there.
+      expect(box).toHaveClass('max-md:hidden')
 
       const count = screen
         .getAllByText('1 post')
         .find((element) => !box.contains(element)) as HTMLElement
+      expect(count).toHaveClass('md:hidden')
       // The bar and the count are siblings in the page's own 24px stack, as
       // they were before the box replaced the old heading row.
       expect(count.parentElement).toBe(bar.parentElement)

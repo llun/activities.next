@@ -921,8 +921,6 @@ How are you?
 
         expect(status.to).toEqual([ACTOR2_ID])
         expect(status.cc).toEqual([])
-        expect(status.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
-        expect(status.to).not.toContain(`${actor1.id}/followers`)
       })
 
       it('only notifies explicit direct recipients when direct replying to a non-direct parent', async () => {

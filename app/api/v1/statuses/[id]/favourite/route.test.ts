@@ -31,8 +31,7 @@ vi.mock('better-auth/oauth2', () => ({
 }))
 
 vi.mock('@/lib/activities', () => ({
-  sendLike: vi.fn().mockResolvedValue(undefined),
-  sendUndoLike: vi.fn().mockResolvedValue(undefined)
+  sendLike: vi.fn().mockResolvedValue(undefined)
 }))
 
 vi.mock('@/lib/config', () => ({

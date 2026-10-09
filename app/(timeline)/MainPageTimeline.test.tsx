@@ -1786,7 +1786,7 @@ describe('MainPageTimeline', () => {
       }
     })
 
-    it('renders load more when visible feed is initially empty but cursor exists', () => {
+    it('renders load more in-flow when visible feed is initially empty but cursor exists', () => {
       render(
         <MainPageTimeline
           host="activities.local"
@@ -1800,6 +1800,9 @@ describe('MainPageTimeline', () => {
 
       const loadMoreBtn = screen.getByRole('button', { name: 'Load more' })
       expect(loadMoreBtn).toBeInTheDocument()
+      // An empty feed has no rows to overlay, so it must not be the
+      // zero-height overlay a non-empty feed uses.
+      expect(loadMoreBtn.closest('div')).not.toHaveClass('max-md:h-0')
     })
   })
 })

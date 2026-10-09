@@ -1550,6 +1550,36 @@ describe('Attachments', () => {
     expect(onMediaSelected).toHaveBeenCalledWith([attachment], 0)
   })
 
+  // The indicator has been got wrong twice (an outset ring clipped by the
+  // strip's overflow, then an inset ring painted under the opaque image), so
+  // the outline spelling is pinned.
+  it.each([
+    { description: 'a lone picture', count: 1 },
+    { description: 'a strip item', count: 2 }
+  ])(
+    'draws the focus outline of $description inside its border box',
+    ({ count }) => {
+      render(
+        <Attachments
+          status={buildNoteStatus(
+            Array.from({ length: count }, () =>
+              buildAttachment({ width: 800, height: 600 })
+            )
+          )}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const [item] = screen.getAllByRole('button', { name: /Open media/ })
+      expect(item).toHaveClass(
+        'focus-visible:outline-2',
+        'focus-visible:-outline-offset-2',
+        'focus-visible:outline-ring/50'
+      )
+      expect(item.className).not.toContain('focus-visible:ring-')
+    }
+  )
+
   describe('accessible names', () => {
     it.each([
       {
@@ -1794,6 +1824,37 @@ describe('Attachments', () => {
       expect(images).toHaveLength(expectedCorners.length)
       images.forEach((image, index) => {
         expect(image).toHaveClass(expectedCorners[index])
+      })
+    })
+
+    it.each([
+      {
+        description: 'rounds a lone video on all four corners',
+        count: 1,
+        expectedCorners: ['rounded-2xl']
+      },
+      {
+        description: 'rounds only the outer edges of a three-video strip',
+        count: 3,
+        expectedCorners: ['rounded-l-2xl', 'rounded-none', 'rounded-r-2xl']
+      }
+    ])('$description', ({ count, expectedCorners }) => {
+      const items = Array.from({ length: count }, () =>
+        buildAttachment({ mediaType: 'video/mp4', width: 800, height: 600 })
+      )
+      const { container } = render(
+        <Attachments
+          status={buildNoteStatus(items)}
+          onMediaSelected={vi.fn()}
+        />
+      )
+
+      const videos = Array.from(container.querySelectorAll('video'))
+      expect(videos).toHaveLength(expectedCorners.length)
+      videos.forEach((video, index) => {
+        expect(video).toHaveClass(expectedCorners[index])
+        // The tile clipping the video carries the same corner.
+        expect(video.parentElement).toHaveClass(expectedCorners[index])
       })
     })
 

@@ -5,6 +5,12 @@ import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
+import {
+  MOBILE_FEED_SURFACE_CLASS,
+  MOBILE_INSET_CARD_CLASS,
+  MOBILE_INSET_CARD_FRAME_CLASS,
+  MOBILE_INSET_STACK_CLASS
+} from '@/lib/components/posts/feedLayout'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
@@ -195,6 +201,27 @@ const clipsBetween = (card: HTMLElement, statusId: string) => {
 const rowFor = (statusId: string) =>
   screen.getByTestId(`status-${statusId}`).parentElement
 
+const tokens = (classes: string) => classes.split(' ')
+
+// What changes with the viewer on both cards: a signed-in page sits in the
+// `(timeline)` layout (top margin from md up, the full-bleed feed surface
+// below it); a logged-out page goes through `PublicShell`, which leaves the gap
+// under the top bar, and is a stack of inset cards below md.
+const expectViewerSurface = (card: HTMLElement, signedIn: boolean) => {
+  if (signedIn) {
+    expect(card).toHaveClass('md:mt-4', ...tokens(MOBILE_FEED_SURFACE_CLASS))
+    expect(card).not.toHaveClass('max-md:flex')
+  } else {
+    expect(card).toHaveClass(...tokens(MOBILE_INSET_STACK_CLASS))
+    expect(card).not.toHaveClass('md:mt-4', 'max-md:w-auto')
+  }
+}
+
+const viewers = [
+  { viewer: 'signed in', signedIn: true },
+  { viewer: 'logged out', signedIn: false }
+]
+
 describe('Mobile chrome', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -382,6 +409,23 @@ describe('Conversation card chrome', () => {
     expect(clipsBetween(card, 'focused')).toEqual([])
   })
 
+  it.each(viewers)(
+    'takes the surface, margin and thread frame of a $viewer viewer',
+    async ({ signedIn }) => {
+      if (signedIn) mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+      const card = await renderPage()
+
+      expectViewerSurface(card, signedIn)
+      const thread = rowFor('focused')?.parentElement as HTMLElement
+      if (signedIn) {
+        expect(thread).not.toHaveClass('max-md:rounded-2xl')
+      } else {
+        expect(thread).toHaveClass(...tokens(MOBILE_INSET_CARD_CLASS))
+      }
+    }
+  )
+
   it('leads with the header wrapper for a signed-in viewer', async () => {
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 
@@ -532,6 +576,30 @@ describe('Fitness activity card chrome', () => {
     )
     expect(card.lastElementChild).toBe(rowFor('ride-1'))
   })
+
+  it.each(viewers)(
+    'takes the surface, margin and corners of a $viewer viewer',
+    async ({ signedIn }) => {
+      if (signedIn) mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+      const card = await renderPage()
+
+      expectViewerSurface(card, signedIn)
+      const activity = rowFor('ride-1')
+      // Signed in, the header wrapper takes the top corners and the post block
+      // the bottom ones; logged out, the post block takes the top corners and
+      // the sign-in callout the bottom ones, and the block is its own inset card.
+      expect(activity).toHaveClass(signedIn ? 'rounded-b-2xl' : 'rounded-t-2xl')
+      expect(activity).not.toHaveClass(
+        signedIn ? 'rounded-t-2xl' : 'rounded-b-2xl'
+      )
+      if (signedIn) {
+        expect(activity).not.toHaveClass('max-md:rounded-2xl')
+      } else {
+        expect(activity).toHaveClass(...tokens(MOBILE_INSET_CARD_FRAME_CLASS))
+      }
+    }
+  )
 
   it('puts the activity first and the sign-in callout last when logged out', async () => {
     const card = await renderPage()

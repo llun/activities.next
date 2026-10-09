@@ -52,7 +52,7 @@ const build = () =>
   buildBoostEmail({ recipient, actor: profile(), status: status() })
 
 describe('buildBoostEmail', () => {
-  it('says boosted, matching the product vocabulary', () => {
+  it('renders the subject, headline and notification footer with boost wording', () => {
     const { subject, html } = build()
     expect(subject).toBe(`@ben boosted your post in ${HOST}`)
     expect(html).toContain('Ben boosted your post')

@@ -152,6 +152,58 @@ describe('GearListView', () => {
     expect(bikes.getByText('1 active')).toBeInTheDocument()
   })
 
+  const getColumnWidths = async (title: string) => {
+    const section = await getSection(title)
+    return Array.from(section.getByRole('table').querySelectorAll('col')).map(
+      (col) => {
+        const match = /w-\[([\d.]+)%\]/.exec(col.className)
+        return match ? Number(match[1]) : NaN
+      }
+    )
+  }
+  const sum = (widths: number[]) => widths.reduce((total, w) => total + w, 0)
+
+  it('splits the bikes table into columns that add up to a full row, Distance wide enough for a lifetime total', async () => {
+    mockGetFitnessGearList.mockResolvedValue([createGear()])
+    render(<GearListView />)
+
+    const widths = await getColumnWidths('Bikes')
+
+    expect(widths).toHaveLength(5)
+    expect(sum(widths)).toBeCloseTo(100)
+    // Bike, Product page, Default sports, Distance, actions. Distance (a
+    // five-digit total like "35,670.2 km") is the widest data cell after the
+    // name, so it must out-size the Default sports column.
+    const [, , defaultSports, distance] = widths
+    expect(distance).toBeGreaterThan(defaultSports)
+  })
+
+  // The three tables are meant to line up: the same first two columns and the
+  // same Actions column, and the number each one right-aligns ends at 90% (the
+  // Distance column of bikes and shoes, the Activities column of devices).
+  it('lines the devices table up with the bikes and shoes tables', async () => {
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear(),
+      createGear({ id: 'gear-2', kind: 'shoes', name: 'Cloudmonster' }),
+      createDevice()
+    ])
+    render(<GearListView />)
+
+    const bikes = await getColumnWidths('Bikes')
+    const shoes = await getColumnWidths('Shoes')
+    const devices = await getColumnWidths('Devices')
+
+    expect(shoes).toEqual(bikes)
+    // Name, Product page and Actions are the same columns on all three.
+    expect(devices[0]).toBe(bikes[0])
+    expect(devices[1]).toBe(bikes[1])
+    expect(devices[3]).toBe(bikes[4])
+    // The count's right edge is the Distance column's: 90% in and 10% to go.
+    const edge = (widths: number[]) => sum(widths.slice(0, -1))
+    expect(edge(devices)).toBeCloseTo(edge(bikes))
+    expect(sum(devices)).toBeCloseTo(100)
+  })
+
   describe('Actions column', () => {
     // A bike, a retired bike (revealed) and a device: the bikes table and the
     // devices table, which render their own Actions cells.
@@ -482,11 +534,24 @@ describe('GearListView', () => {
     })
   })
 
-  // The pinned first column fails silently: drop its opaque surface and the
-  // scrolled-under columns show through it, drop `group` from the row and only
-  // that column lights on hover, and a translucent hover reintroduces the
-  // transparency. None of those produce a type error, a lint error or a visual
-  // diff in the tests that follow — so they are asserted directly.
+  // The pinned first column stays opaque only if the dimming goes through the
+  // cells: an `opacity-60` on the row would make it translucent and let the
+  // scrolled-under columns show through it.
+  it('dims a retired row through its cells so the pinned column stays opaque', async () => {
+    mockGetFitnessGearList.mockResolvedValue([
+      createGear({ retiredAt: Date.UTC(2020, 0, 1) })
+    ])
+    render(<GearListView />)
+
+    const section = await getSection('Bikes')
+    fireEvent.click(section.getByRole('button', { name: /^Show 1 retired/ }))
+
+    const cell = section.getByRole('link', { name: 'Rocket' }).closest('td')
+    expect(cell?.closest('tr')).not.toHaveClass('opacity-60')
+    expect(cell).not.toHaveClass('opacity-60')
+    expect(cell?.querySelector('.opacity-60')).not.toBeNull()
+  })
+
   describe('editing gear', () => {
     it('opens the edit dialog seeded with the gear when Edit is clicked on an active bike', async () => {
       mockGetFitnessGearList.mockResolvedValue([createGear()])

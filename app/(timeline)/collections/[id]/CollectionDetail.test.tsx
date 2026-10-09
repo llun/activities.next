@@ -200,7 +200,8 @@ describe('CollectionDetail', () => {
       />
     )
 
-    expect(screen.getByText('fediverse')).toBeInTheDocument()
+    // `text-primary` fails AA as a foreground; `text-primary-text` clears it.
+    expect(screen.getByText('fediverse')).toHaveClass('text-primary-text')
     expect(screen.getByText('Public', { selector: 'span' })).toBeInTheDocument()
   })
 

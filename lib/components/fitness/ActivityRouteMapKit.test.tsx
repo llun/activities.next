@@ -213,7 +213,11 @@ describe('ActivityRouteMapKit', () => {
     // the sample instead of marking it — the GL surfaces draw a dot on the point.
     expect(markerAnnotation).not.toHaveBeenCalled()
 
-    expect(double.annotations[0].element).not.toBeNull()
+    const element = double.annotations[0].element
+    expect(element).not.toBeNull()
+    const [, core] = Array.from(element?.children ?? []) as HTMLElement[]
+    // Green because the hovered sample sits on a privacy-hidden segment.
+    expect(core.style.backgroundColor).toBe('rgb(22, 163, 74)')
   })
 
   it('rebuilds the route overlays when the route data changes', async () => {

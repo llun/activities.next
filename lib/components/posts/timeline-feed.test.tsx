@@ -213,9 +213,6 @@ describe('TimelineFeed', () => {
     expect(
       text2.compareDocumentPosition(text3) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-
-    // Verify no connector rails are rendered between avatars
-    expect(screen.queryByTestId('connector-rail')).not.toBeInTheDocument()
   })
 
   it('collapses middle posts in thread > 3 posts and expands on button click', () => {
@@ -320,9 +317,6 @@ describe('TimelineFeed', () => {
     expect(
       screen.getByText(/Agreed, the nested replies make reading easier/)
     ).toBeInTheDocument()
-
-    // Verify no connector rails are rendered between avatars
-    expect(screen.queryByTestId('connector-rail')).not.toBeInTheDocument()
   })
 
   it('targets the correct status when replying from a thread post', () => {

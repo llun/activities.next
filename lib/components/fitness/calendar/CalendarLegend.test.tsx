@@ -58,4 +58,12 @@ describe('CalendarLegend', () => {
     expect(screen.getByText('Upcoming')).toBeInTheDocument()
     expect(labels()).toEqual(['0', '1', '2', '3', '4+', 'Upcoming'])
   })
+
+  it('wraps by its container, never the viewport', () => {
+    const { container } = render(
+      <CalendarLegend metric="distance" showUpcoming />
+    )
+
+    expect(container.innerHTML).not.toMatch(/class="[^"]*\b(sm|md|lg|xl):/)
+  })
 })

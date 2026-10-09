@@ -43,14 +43,25 @@ describe('FitnessAnalysisCharts', () => {
   // its own fraction of the plot's width. `justify-between` spread the boxes
   // evenly instead, which puts a label under its time only when every label is
   // the same width — they are not ("0:00" next to "1:13:46").
+  //
+  // With six labels the one before the flush-right last label collides with it
+  // on a phone-width plot, so the six-label charts hide exactly that one below
+  // 400px of label row; the four-label overview chart hides none.
   const expectLabelsAtTheirFractions = (
     labels: HTMLElement[],
-    expectedTexts: string[]
+    expectedTexts: string[],
+    { dropsPenultimateWhenNarrow }: { dropsPenultimateWhenNarrow: boolean }
   ) => {
     expect(labels.map((label) => label.textContent)).toEqual(expectedTexts)
     const last = labels.length - 1
 
     labels.forEach((label, index) => {
+      if (dropsPenultimateWhenNarrow && index === last - 1) {
+        expect(label).toHaveClass('hidden', '@min-[400px]:block')
+      } else {
+        expect(label).not.toHaveClass('hidden')
+      }
+
       if (index === 0 || index === last) {
         // The ends are pinned to the edges, not positioned by a fraction.
         expect(label.style.left).toBe('')
@@ -62,6 +73,11 @@ describe('FitnessAnalysisCharts', () => {
         )
       }
     })
+    // The row is the size container the hidden penultimate label's
+    // `@min-[400px]` query measures: without `@container` no ancestor on the
+    // status page is one, the query never matches, and that label stays hidden
+    // at every width.
+    expect(labels[0].parentElement).toHaveClass('@container')
   }
 
   describe('ChartHoverMarker', () => {
@@ -133,12 +149,11 @@ describe('FitnessAnalysisCharts', () => {
       const labels = container.querySelectorAll('span')
       const labelTexts = Array.from(labels).map((l) => l.textContent)
       expect(labelTexts).toEqual(['0:00', '10:00', '20:00', '30:00'])
-      expectLabelsAtTheirFractions(screen.getAllByTestId('chart-time-label'), [
-        '0:00',
-        '10:00',
-        '20:00',
-        '30:00'
-      ])
+      expectLabelsAtTheirFractions(
+        screen.getAllByTestId('chart-time-label'),
+        ['0:00', '10:00', '20:00', '30:00'],
+        { dropsPenultimateWhenNarrow: false }
+      )
 
       const svg = container.querySelector('svg')!
       mockSvgBoundingBox(svg, 100, 400)
@@ -301,14 +316,11 @@ describe('FitnessAnalysisCharts', () => {
         />
       )
 
-      expectLabelsAtTheirFractions(screen.getAllByTestId('chart-time-label'), [
-        '0:00',
-        '24:35',
-        '49:11',
-        '1:13:46',
-        '1:38:22',
-        '2:02:57'
-      ])
+      expectLabelsAtTheirFractions(
+        screen.getAllByTestId('chart-time-label'),
+        ['0:00', '24:35', '49:11', '1:13:46', '1:38:22', '2:02:57'],
+        { dropsPenultimateWhenNarrow: true }
+      )
     })
   })
 
@@ -375,14 +387,11 @@ describe('FitnessAnalysisCharts', () => {
         <CombinedChartPanel series={combinedSeries} durationSeconds={7377} />
       )
 
-      expectLabelsAtTheirFractions(screen.getAllByTestId('chart-time-label'), [
-        '0:00',
-        '24:35',
-        '49:11',
-        '1:13:46',
-        '1:38:22',
-        '2:02:57'
-      ])
+      expectLabelsAtTheirFractions(
+        screen.getAllByTestId('chart-time-label'),
+        ['0:00', '24:35', '49:11', '1:13:46', '1:38:22', '2:02:57'],
+        { dropsPenultimateWhenNarrow: true }
+      )
     })
   })
 

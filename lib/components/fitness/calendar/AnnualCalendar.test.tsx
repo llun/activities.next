@@ -171,6 +171,7 @@ describe('AnnualCalendar', () => {
       // (700 - 3 - 28 - 120) / 40 = 13.725
       [700, 13.725]
     ])('is sized from a %ipx container', (width, expected) => {
+      expect(cellSizeAt(width)).toMatch(/px$/)
       expect(parseFloat(cellSizeAt(width))).toBeCloseTo(expected, 2)
     })
 
@@ -996,5 +997,11 @@ describe('AnnualCalendar dates as keys', () => {
     expect(container.querySelectorAll('[data-date="2026-03-29"]')).toHaveLength(
       1
     )
+  })
+
+  it('sizes to its container, never the viewport', () => {
+    const { container } = renderCalendar()
+
+    expect(container.innerHTML).not.toMatch(/class="[^"]*\b(sm|md|lg|xl):/)
   })
 })

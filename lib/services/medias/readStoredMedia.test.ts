@@ -1,7 +1,10 @@
 import sharp from 'sharp'
 
 import { getMedia } from '@/lib/services/medias'
-import { readStoredImage } from '@/lib/services/medias/readStoredMedia'
+import {
+  STORED_MEDIA_READ_MAX_BYTES,
+  readStoredImage
+} from '@/lib/services/medias/readStoredMedia'
 import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 
 vi.mock('@/lib/services/medias', () => ({ getMedia: vi.fn() }))
@@ -103,5 +106,17 @@ describe('readStoredImage', () => {
     })
 
     await expect(readStoredImage(database, 'medias/a', 16)).rejects.toThrow()
+  })
+
+  it('refuses a stream over the default cap when no maxBytes is given', async () => {
+    const size = STORED_MEDIA_READ_MAX_BYTES + 1
+    vi.mocked(getMedia).mockResolvedValue({
+      type: 'stream',
+      stream: streamOf(Buffer.alloc(size)),
+      contentType: 'image/jpeg',
+      contentLength: size
+    })
+
+    await expect(readStoredImage(database, 'medias/a')).rejects.toThrow()
   })
 })

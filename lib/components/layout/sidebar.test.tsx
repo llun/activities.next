@@ -423,6 +423,48 @@ describe('Sidebar', () => {
       ).not.toHaveAttribute('aria-current')
     })
 
+    // `text-primary-text`, never `text-primary`: `--primary` is the icon orange
+    // and is under the AA floor as a label (globals.contrast.test.ts guards the
+    // token values, not their usage).
+    it('draws only the current row label in the AA-safe text token', () => {
+      mockPathname.mockReturnValue('/search')
+      renderSidebar(<Sidebar lists={[]} />)
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const active = within(nav).getByRole('link', { name: 'Search' })
+      expect(active).toHaveClass('text-primary-text')
+      expect(active).not.toHaveClass('text-primary')
+      expect(
+        within(nav).getByRole('link', { name: 'Timeline' })
+      ).not.toHaveClass('text-primary-text')
+    })
+
+    it('shows the current page on the collapsed More row', () => {
+      mockPathname.mockReturnValue('/favorites')
+      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
+
+      const nav = screen.getAllByRole('navigation')[0]
+      const more = within(nav).getByRole('button', { name: /^More/ })
+      expect(more).not.toHaveClass('text-primary-text')
+      fireEvent.click(more)
+      expect(more).toHaveClass('text-primary-text')
+    })
+
+    it('marks the current row of the rail flyout as the current page', async () => {
+      mockPathname.mockReturnValue('/favorites')
+      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
+
+      const rail = screen.getAllByRole('navigation')[1]
+      fireEvent.keyDown(
+        within(rail).getByRole('button', { name: 'More navigation' }),
+        { key: 'ArrowDown' }
+      )
+
+      expect(
+        await screen.findByRole('menuitem', { name: 'Favorites' })
+      ).toHaveAttribute('aria-current', 'page')
+    })
+
     it('opens the More group on its own for a route inside it', () => {
       mockPathname.mockReturnValue('/favorites')
       renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
@@ -481,6 +523,14 @@ describe('Sidebar', () => {
 
       expect(screen.getByText('7')).toBeInTheDocument()
       expect(screen.getByText('(7 unread)')).toBeInTheDocument()
+    })
+
+    it('gives drawer navigation links a 44px minimum touch target', () => {
+      renderSidebar(<Sidebar variant="drawer" lists={[]} />)
+
+      expect(screen.getByRole('link', { name: 'Timeline' })).toHaveClass(
+        'min-h-[44px]'
+      )
     })
   })
 })

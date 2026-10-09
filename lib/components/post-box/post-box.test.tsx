@@ -1764,3 +1764,57 @@ describe('PostBox attachment ref guard', () => {
     )
   })
 })
+
+describe('PostBox automatic vertical growth', () => {
+  it('updates measured height on content change when native field-sizing is not supported', async () => {
+    const originalCSS = globalThis.CSS
+    globalThis.CSS = {
+      supports: vi.fn(() => false)
+    } as unknown as typeof CSS
+
+    try {
+      render(
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      )
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Post' })).toBeInTheDocument()
+      })
+      const textarea = screen.getByPlaceholderText(
+        'What is on your mind?'
+      ) as HTMLTextAreaElement
+
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 160
+      })
+
+      act(() => {
+        fireEvent.change(textarea, {
+          target: { value: 'Line 1\nLine 2\nLine 3' }
+        })
+      })
+
+      expect(textarea.style.height).toBe('160px')
+
+      Object.defineProperty(textarea, 'scrollHeight', {
+        configurable: true,
+        value: 72
+      })
+
+      act(() => {
+        fireEvent.change(textarea, { target: { value: '' } })
+      })
+
+      expect(textarea.style.height).toBe('72px')
+    } finally {
+      globalThis.CSS = originalCSS
+    }
+  })
+})

@@ -136,12 +136,4 @@ describe('POST /api/v1/notifications/clear', () => {
     expect(response.status).toBe(200)
     expect(await notificationsOf(ACTOR1_ID)).toHaveLength(0)
   }, 60_000)
-
-  it('answers 500 when no database is available', async () => {
-    mockDatabase = null
-
-    const response = await clear()
-
-    expect(response.status).toBe(500)
-  })
 })

@@ -234,6 +234,7 @@ describe('email design conformance', () => {
   it.each(cases)(
     '$description hides a preheader from the body',
     ({ email }) => {
+      expect(email.html).toContain('display:none')
       expect(email.html).toContain('mso-hide:all')
       expect(email.html).toContain('&zwnj;&nbsp;'.repeat(30))
     }

@@ -1414,7 +1414,7 @@ describe('Post', () => {
       }
     )
 
-    it('truncates a long gear name inside its stat cell', () => {
+    it('keeps a long gear name whole in its text and title', () => {
       // fitness_gears.name is a varchar(255): the full name must stay in the
       // DOM (and in the title) however long it is.
       const longName = 'M'.repeat(200)
@@ -1437,7 +1437,6 @@ describe('Post', () => {
         />
       )
 
-      // The full text stays in the DOM and reachable on hover.
       const value = screen.getByText(`42.6 km · ${longName}`)
       expect(value).toHaveAttribute('title', `42.6 km · ${longName}`)
     })

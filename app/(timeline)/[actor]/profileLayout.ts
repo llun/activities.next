@@ -1,6 +1,6 @@
 // Shared by the profile page and its loading skeleton through
-// `ProfileCardSection`, and pinned by its own test; dependency-free and
-// directive-less so any module can read it.
+// `ProfileCardSection`; dependency-free and directive-less so any module can
+// read it.
 
 // Signed in, below `md` the profile card is full-bleed and square, with no top
 // or side border, so the cover meets the top and both edges of the viewport.

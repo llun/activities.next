@@ -227,21 +227,18 @@ describe('client filters module', () => {
         method: 'DELETE',
         body: true
       }
-    ])(
-      '$name requests $url with $method',
-      async ({ call, url, method, body }) => {
-        // Deletes resolve to a boolean from the status; everything else returns
-        // the parsed JSON body.
-        fetchMock.mockResponseOnce(body === true ? '' : JSON.stringify(body), {
-          status: 200
-        })
+    ])('$name requests $url', async ({ call, url, method, body }) => {
+      // Deletes resolve to a boolean from the status; everything else returns
+      // the parsed JSON body.
+      fetchMock.mockResponseOnce(body === true ? '' : JSON.stringify(body), {
+        status: 200
+      })
 
-        await expect(call()).resolves.toEqual(body)
-        expect(fetchMock).toHaveBeenCalledWith(
-          url,
-          method ? expect.objectContaining({ method }) : expect.anything()
-        )
-      }
-    )
+      await expect(call()).resolves.toEqual(body)
+      expect(fetchMock).toHaveBeenCalledWith(
+        url,
+        method ? expect.objectContaining({ method }) : expect.anything()
+      )
+    })
   })
 })

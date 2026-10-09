@@ -68,6 +68,22 @@ describe('ActorMediaGallery', () => {
     expect(descriptions[0]).toBeInTheDocument()
   })
 
+  it('applies keyboard focus-visible outline classes on thumbnail buttons', () => {
+    render(
+      <ActorMediaGallery
+        actorId="https://activities.local/users/llun"
+        initialAttachments={[
+          buildAttachment({ id: 'attachment-1', name: 'Cat' })
+        ]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Open media: Cat' })).toHaveClass(
+      'focus-visible:outline-2',
+      'focus-visible:outline-primary'
+    )
+  })
+
   it('renders engagement counts overlay with favorite, comment, and repost counts', () => {
     const attachment = buildAttachment({
       id: 'attachment-1',

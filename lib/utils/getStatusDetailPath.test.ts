@@ -1,19 +1,15 @@
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getHashFromStringClient } from '@/lib/utils/getHashFromStringClient'
 import { getStatusDetailPath } from '@/lib/utils/getStatusDetailPath'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 import { generatePublicId } from '@/lib/utils/publicId'
 
-// The server and client implementations must produce identical paths.
+// The server and client implementations must produce identical paths, so both
+// are checked against the same expected values (and the server hash).
 describe.each([
-  ['getStatusDetailPath', getStatusDetailPath, getHashFromString],
-  [
-    'getStatusDetailPathClient',
-    getStatusDetailPathClient,
-    getHashFromStringClient
-  ]
-] as const)('%s', (_name, getPath, getHash) => {
+  ['getStatusDetailPath', getStatusDetailPath],
+  ['getStatusDetailPathClient', getStatusDetailPathClient]
+] as const)('%s', (_name, getPath) => {
   it('returns a publicId path for a local note', async () => {
     const publicId = generatePublicId()
     const status = {
@@ -82,7 +78,7 @@ describe.each([
     } as Status
 
     expect(await getPath(status)).toBe(
-      `/@alice@example.com/${await getHash(url)}`
+      `/@alice@example.com/${await getHashFromString(url)}`
     )
   })
 

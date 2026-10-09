@@ -97,6 +97,26 @@ describe('LoadMoreButton', () => {
     ).toBeInTheDocument()
   })
 
+  it('wraps in a div carrying containerClassName when only that is passed', () => {
+    const { container } = render(
+      <LoadMoreButton containerClassName="flex my-4" onClick={() => {}} />
+    )
+    expect(container.firstElementChild?.tagName).toBe('DIV')
+    expect(container.firstElementChild).toHaveClass('flex', 'my-4')
+  })
+
+  it('gives only the default size a minimum width', () => {
+    const { rerender } = render(<LoadMoreButton onClick={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Load more' })).toHaveClass(
+      'min-w-[110px]'
+    )
+
+    rerender(<LoadMoreButton size="sm" onClick={() => {}} />)
+    expect(screen.getByRole('button', { name: 'Load more' })).not.toHaveClass(
+      'min-w-[110px]'
+    )
+  })
+
   it('attaches containerRef to the wrapper when containerClassName is also passed', () => {
     const containerRef = createRef<HTMLDivElement>()
     const { container } = render(

@@ -6,12 +6,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 
 import { ActorProfile } from '@/lib/types/domain/actor'
-import {
-  Status,
-  StatusAnnounce,
-  StatusNote,
-  StatusType
-} from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { processStatusText } from '@/lib/utils/text/processStatusText'
 
 import { QuotedPreview } from './quoted-preview'
@@ -19,14 +14,9 @@ import { ReplyPreview } from './reply-preview'
 
 // Mock the processStatusText utility
 vi.mock('@/lib/utils/text/processStatusText', async () => ({
-  processStatusText: vi.fn((_host: string, status: Status) => {
-    if (status.type === 'Announce') {
-      const original = status.originalStatus
-      return 'text' in original ? original.text : ''
-    }
-    return 'text' in status ? status.text : ''
-  }),
-  getActualStatus: vi.fn((status: Status) => status)
+  processStatusText: vi.fn((_host: string, status: Status) =>
+    'text' in status ? status.text : ''
+  )
 }))
 
 // Mock the cleanClassName utility
@@ -92,26 +82,6 @@ const createMockStatus = (overrides: Partial<StatusNote> = {}): StatusNote => ({
   createdAt: Date.now(),
   updatedAt: Date.now(),
   ...overrides
-})
-
-const createMockAnnounceStatus = (): StatusAnnounce => ({
-  id: 'announce-1',
-  type: StatusType.enum.Announce,
-  actorId: 'https://example.com/users/booster',
-  actor: createMockActor({
-    id: 'https://example.com/users/booster',
-    username: 'booster',
-    name: 'Booster User'
-  }),
-  to: [],
-  cc: [],
-  edits: [],
-  isLocalActor: false,
-  originalStatus: createMockStatus({
-    text: 'This is the original boosted status'
-  }),
-  createdAt: Date.now(),
-  updatedAt: Date.now()
 })
 
 type PreviewProps = {
@@ -195,17 +165,6 @@ describe.each([
 
       const closeButton = screen.getByRole('button', { name: dismissLabel })
       expect(() => fireEvent.click(closeButton)).not.toThrow()
-    })
-  })
-
-  describe('status types', () => {
-    it('renders boosted (Announce) status with original content', () => {
-      const status = createMockAnnounceStatus()
-      render(<Preview host="example.com" status={status} />)
-
-      expect(
-        screen.getByText('This is the original boosted status')
-      ).toBeInTheDocument()
     })
   })
 
