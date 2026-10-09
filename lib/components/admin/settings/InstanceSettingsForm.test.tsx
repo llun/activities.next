@@ -80,8 +80,8 @@ describe('InstanceSettingsForm', () => {
       renderForm()
       fireEvent.click(screen.getByLabelText('Fitness'))
 
-      const updateButtons = screen.getAllByRole('button', { name: 'Save' })
-      fireEvent.click(updateButtons[updateButtons.length - 1])
+      const saveButtons = screen.getAllByRole('button', { name: 'Save' })
+      fireEvent.click(saveButtons[saveButtons.length - 1])
 
       await waitFor(() =>
         expect(mockUpdate).toHaveBeenCalledWith({
@@ -99,7 +99,7 @@ describe('InstanceSettingsForm', () => {
       target: { value: 'New Name' }
     })
 
-    // One Update button per section; details is the first.
+    // One Save button per section; details is the first.
     fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     await waitFor(() =>
@@ -136,7 +136,7 @@ describe('InstanceSettingsForm', () => {
         screen.getByText('Some settings could not be saved')
       ).toBeInTheDocument()
     )
-    // Still dirty (the value was not adopted), so Update stays enabled.
+    // Still dirty (the value was not adopted), so Save stays enabled.
     expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeEnabled()
   })
 

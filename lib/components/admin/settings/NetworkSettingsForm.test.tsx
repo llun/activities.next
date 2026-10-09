@@ -57,8 +57,8 @@ const baseSettings: ResolvedServerSettings = {
 const renderForm = (locks: ServerSettingLocks = {}) =>
   render(<NetworkSettingsForm settings={baseSettings} locks={locks} />)
 
-// Each section saves independently, so every one has its own Update button.
-const updateButtonFor = (sectionTitle: string) => {
+// Each section saves independently, so every one has its own Save button.
+const saveButtonFor = (sectionTitle: string) => {
   const heading = screen.getByRole('heading', { name: sectionTitle })
   const section = heading.closest('section') ?? heading.parentElement
   if (!section) throw new Error(`No section found for ${sectionTitle}`)
@@ -83,7 +83,7 @@ describe('NetworkSettingsForm', () => {
     fireEvent.change(screen.getByLabelText('Timeout'), {
       target: { value: '8000' }
     })
-    fireEvent.click(updateButtonFor('Advanced — outbound requests'))
+    fireEvent.click(saveButtonFor('Advanced — outbound requests'))
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -95,7 +95,7 @@ describe('NetworkSettingsForm', () => {
   it('saves the link preview switch on its own, without the request tuning', async () => {
     renderForm()
     fireEvent.click(screen.getByLabelText('Fetch link previews'))
-    fireEvent.click(updateButtonFor('Link previews'))
+    fireEvent.click(saveButtonFor('Link previews'))
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith({ 'network.linkPreviews': false })
@@ -105,7 +105,7 @@ describe('NetworkSettingsForm', () => {
   it('saves the species lookup switch on its own', async () => {
     renderForm()
     fireEvent.click(screen.getByLabelText('Look up species'))
-    fireEvent.click(updateButtonFor('Species lookups'))
+    fireEvent.click(saveButtonFor('Species lookups'))
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith({
@@ -117,7 +117,7 @@ describe('NetworkSettingsForm', () => {
   it('saves the place lookup switch on its own', async () => {
     renderForm()
     fireEvent.click(screen.getByLabelText('Look up place names'))
-    fireEvent.click(updateButtonFor('Place names'))
+    fireEvent.click(saveButtonFor('Place names'))
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith({ 'network.placeLookups': false })

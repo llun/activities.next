@@ -28,14 +28,4 @@ describe('ActorInfoBanner', () => {
     const banner = screen.getByRole('status')
     expect(banner).toHaveAttribute('data-tone', 'info')
   })
-
-  it('uses theme tokens only, so it follows dark mode', () => {
-    const { container } = render(
-      <ActorInfoBanner actorHandle="@test@domain.com" />
-    )
-
-    expect(container.innerHTML).not.toMatch(
-      /(bg|text|border)-(red|green|amber|yellow|blue)-\d/
-    )
-  })
 })

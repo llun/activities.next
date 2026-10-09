@@ -460,8 +460,8 @@ Read the applicable rules and review checks below before changing this subsystem
   That is the rule working on real available width, not drift.
 - `@container` goes on a **wrapper**, never on the grid itself: a container
   query styles a container's descendants, not the container, so a grid cannot
-  both establish the container and read it. Guarded by
-  `lib/components/surface/StatStrip.test.tsx`.
+  both establish the container and read it. Not test-guarded: jsdom does not
+  evaluate container queries, so check it in a browser.
 
 <a id="agents-apple-maps-basemap"></a>
 

@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
+import { SELECTED_BACKGROUND } from '@/lib/components/surface/StatCell'
+
 /**
  * WCAG 2.1 AA (SC 1.4.3) guard for muted secondary text.
  *
@@ -368,16 +370,27 @@ describe('status tone tokens: success, warning, info (WCAG 2.1 AA SC 1.4.3)', ()
 })
 
 describe('selected stat cell (WCAG 2.1 AA SC 1.4.3)', () => {
-  // A pressed `StatCell` fills with --primary at 10% MIXED INTO --background
-  // (`bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))]`), opaque,
-  // and its value is --primary-text. Laying `bg-primary/10` over the strip's
-  // grey `bg-border` track instead dropped light mode to 3.67:1. Composited here
-  // in sRGB, which is within a rounding step of the oklab mix.
+  // A pressed `StatCell` fills with a tint of --primary MIXED INTO
+  // --background, opaque, and its value is --primary-text. Laying
+  // `bg-primary/10` over the strip's grey `bg-border` track instead dropped
+  // light mode to 3.67:1. The recipe is parsed from the cell's own class, so a
+  // change to it changes this check. Composited in sRGB, which is within a
+  // rounding step of the oklab mix.
+  const recipe = SELECTED_BACKGROUND.match(
+    /color-mix\(in_oklab,var\((--[\w-]+)\)_(\d+)%,var\((--[\w-]+)\)\)/
+  )
+
+  it('is an opaque mix of two theme tokens', () => {
+    expect(recipe, SELECTED_BACKGROUND).not.toBeNull()
+  })
+
   const mixed = (theme: 'light' | 'dark'): Rgb => {
-    const primary = rgbOf(themes[theme], '--primary')
-    const background = rgbOf(themes[theme], '--background')
-    return primary.map((channel, i) =>
-      Math.round(channel * 0.1 + background[i] * 0.9)
+    const [, tint, percent, base] = recipe!
+    const weight = Number(percent) / 100
+    const top = rgbOf(themes[theme], tint)
+    const bottom = rgbOf(themes[theme], base)
+    return top.map((channel, i) =>
+      Math.round(channel * weight + bottom[i] * (1 - weight))
     ) as Rgb
   }
 
@@ -391,13 +404,6 @@ describe('selected stat cell (WCAG 2.1 AA SC 1.4.3)', () => {
         ratio,
         `${theme} primary-text ${JSON.stringify(fg)} on selected cell ${JSON.stringify(bg)} = ${ratio.toFixed(3)}:1`
       ).toBeGreaterThanOrEqual(AA_NORMAL)
-    }
-  )
-
-  it.each(['light', 'dark'] as const)(
-    '%s selected cell fill is opaque and not the strip track (--border)',
-    (theme) => {
-      expect(mixed(theme)).not.toEqual(rgbOf(themes[theme], '--border'))
     }
   )
 })

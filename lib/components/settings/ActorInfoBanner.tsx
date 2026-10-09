@@ -12,7 +12,7 @@ export const ActorInfoBanner: FC<ActorInfoBannerProps> = ({ actorHandle }) => (
     title={
       <>
         All fitness imports will be saved to{' '}
-        <span className="font-medium">{actorHandle}</span>
+        <span className="font-bold">{actorHandle}</span>
       </>
     }
   />

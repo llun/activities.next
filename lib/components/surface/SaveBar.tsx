@@ -99,7 +99,13 @@ export const SaveBar: FC<SaveBarProps> = ({
       disabled={saving || !dirty}
       className="shrink-0"
     >
-      {saving ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
+      {saving ? (
+        <Loader2
+          data-slot="spinner"
+          aria-hidden="true"
+          className="animate-spin"
+        />
+      ) : null}
       Save
     </Button>
   </div>

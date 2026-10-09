@@ -15,7 +15,7 @@ export interface SegmentedControlItem {
   disabled?: boolean
 }
 
-interface Props {
+interface BaseProps {
   items: ReadonlyArray<SegmentedControlItem>
   /** The chosen item's `value` (the current page, with `asLinks`). */
   value: string
@@ -29,10 +29,26 @@ interface Props {
   asLinks?: boolean
   /** `md` is a 44px touch target (the default); `sm` is 36px. */
   size?: 'sm' | 'md'
-  /** Names the group: "Shade the calendar by", "Reports". */
-  'aria-label': string
   className?: string
 }
+
+/**
+ * The group needs a name: `aria-label` text, or `aria-labelledby` pointing at
+ * a visible label (a `FormRow` hands its label's id to a render-prop child).
+ */
+type Props = BaseProps &
+  (
+    | {
+        /** Names the group: "Shade the calendar by", "Reports". */
+        'aria-label': string
+        'aria-labelledby'?: never
+      }
+    | {
+        /** The id of the element that names the group. */
+        'aria-labelledby': string
+        'aria-label'?: never
+      }
+  )
 
 const TRACK_CLASS =
   'bg-muted flex max-w-full items-stretch gap-0.5 overflow-x-auto rounded-lg shadow-[inset_0_0_0_1px_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
@@ -67,13 +83,18 @@ export const SegmentedControl = ({
   asLinks = false,
   size = 'md',
   className,
-  'aria-label': ariaLabel
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy
 }: Props) => {
   const group = useRef<HTMLDivElement>(null)
 
   if (asLinks) {
     return (
-      <nav aria-label={ariaLabel} className={cn(TRACK_CLASS, className)}>
+      <nav
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
+        className={cn(TRACK_CLASS, className)}
+      >
         {items.map((item) => {
           const active = item.value === value
           const Icon = item.icon
@@ -117,18 +138,13 @@ export const SegmentedControl = ({
       ? items[checkedIndex]
       : undefined) ?? enabled[0]
 
-  // The enabled segment `direction` steps away from the checked one, wrapping.
-  // With no checked segment, forward starts at the first enabled segment and
-  // backward at the last; a disabled checked segment steps from its own place.
-  const step = (direction: 1 | -1) => {
-    if (checkedIndex < 0) {
-      return direction === 1 ? enabled[0] : enabled[enabled.length - 1]
-    }
+  // The enabled segment `direction` steps away from `from` (the focused
+  // segment), wrapping around the group.
+  const step = (from: number, direction: 1 | -1) => {
     for (let offset = 1; offset <= items.length; offset += 1) {
       const candidate =
         items[
-          (checkedIndex + direction * offset + items.length * offset) %
-            items.length
+          (from + direction * offset + items.length * offset) % items.length
         ]
       if (!candidate.disabled) return candidate
     }
@@ -137,11 +153,20 @@ export const SegmentedControl = ({
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (enabled.length === 0) return
+    // Arrows step from the focused segment (the tab stop when focus is on the
+    // group itself), not from the checked value, which may be unknown or
+    // disabled.
+    const focused = (event.target as HTMLElement).closest<HTMLElement>(
+      '[data-value]'
+    )?.dataset.value
+    const from = items.findIndex((item) => item.value === focused)
+    const origin =
+      from >= 0 ? from : items.indexOf(tabStop as (typeof items)[0])
     let next: SegmentedControlItem | undefined
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-      next = step(1)
+      next = step(origin, 1)
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-      next = step(-1)
+      next = step(origin, -1)
     } else if (event.key === 'Home') {
       next = enabled[0]
     } else if (event.key === 'End') {
@@ -161,6 +186,7 @@ export const SegmentedControl = ({
       ref={group}
       role="radiogroup"
       aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
       onKeyDown={onKeyDown}
       className={cn(TRACK_CLASS, className)}
     >

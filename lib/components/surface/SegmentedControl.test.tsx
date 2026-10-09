@@ -5,6 +5,7 @@ import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 
+import { FormRow } from './FormRow'
 import { SegmentedControl } from './SegmentedControl'
 
 const items = [
@@ -103,8 +104,8 @@ describe('SegmentedControl (in-page state)', () => {
     })
 
     it.each([
-      ['ArrowRight', 'count'],
-      ['ArrowDown', 'count'],
+      ['ArrowRight', 'distance'],
+      ['ArrowDown', 'distance'],
       ['ArrowLeft', 'duration'],
       ['ArrowUp', 'duration']
     ])('%s with an unknown value chooses %s', (key, expected) => {
@@ -131,14 +132,15 @@ describe('SegmentedControl (in-page state)', () => {
       expect(tabStops()).toEqual(['count'])
     })
 
-    it('steps forward and back from a disabled selected segment', () => {
+    it('steps from the focused segment, wrapping past the disabled one', () => {
       const onValueChange = vi.fn()
       withDisabledSelected(onValueChange)
-      const group = screen.getByRole('radiogroup')
-      fireEvent.keyDown(group, { key: 'ArrowRight' })
+      const focused = screen.getByRole('radio', { name: 'Activities' })
+      focused.focus()
+      fireEvent.keyDown(focused, { key: 'ArrowRight' })
       expect(onValueChange).toHaveBeenLastCalledWith('duration')
-      fireEvent.keyDown(group, { key: 'ArrowLeft' })
-      expect(onValueChange).toHaveBeenLastCalledWith('count')
+      fireEvent.keyDown(focused, { key: 'ArrowLeft' })
+      expect(onValueChange).toHaveBeenLastCalledWith('duration')
     })
 
     it('does nothing when every segment is disabled', () => {
@@ -155,6 +157,26 @@ describe('SegmentedControl (in-page state)', () => {
       expect(onValueChange).not.toHaveBeenCalled()
       expect(tabStops()).toEqual([])
     })
+  })
+})
+
+describe('SegmentedControl (named by a label element)', () => {
+  it('takes its name from aria-labelledby, as inside a FormRow', () => {
+    render(
+      <FormRow label="Shade the calendar by" htmlFor="shade">
+        {({ labelledBy }) => (
+          <SegmentedControl
+            aria-labelledby={labelledBy}
+            items={items}
+            value="count"
+            onValueChange={vi.fn()}
+          />
+        )}
+      </FormRow>
+    )
+    expect(
+      screen.getByRole('radiogroup', { name: 'Shade the calendar by' })
+    ).toBeInTheDocument()
   })
 })
 

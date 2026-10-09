@@ -49,7 +49,7 @@ describe('SaveBar', () => {
     renderBar({ dirty: true, saving: true })
     const button = screen.getByRole('button', { name: 'Save' })
     expect(button).toBeDisabled()
-    expect(button.querySelector('svg.animate-spin')).not.toBeNull()
+    expect(button.querySelector('[data-slot="spinner"]')).not.toBeNull()
   })
 
   it('announces an error as an alert instead of the status', () => {

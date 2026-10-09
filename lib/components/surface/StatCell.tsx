@@ -29,7 +29,9 @@ interface Props {
 // `text-primary-text` value below AA in light mode.
 const CELL_CLASS = 'flex min-w-0 items-center gap-3 px-4 py-3'
 const IDLE_BACKGROUND = 'bg-background'
-const SELECTED_BACKGROUND =
+// Exported so `app/globals.contrast.test.ts` reads the recipe from the class
+// itself and checks the contrast of what is actually rendered.
+export const SELECTED_BACKGROUND =
   'bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))]'
 
 const SELECTABLE_CLASS =
