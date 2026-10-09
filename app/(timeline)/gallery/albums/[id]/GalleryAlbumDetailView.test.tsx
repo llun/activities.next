@@ -280,6 +280,88 @@ describe('GalleryAlbumDetailView', () => {
     )
   })
 
+  describe('when a reload fails', () => {
+    const paged = () =>
+      buildAlbumDetail({
+        page: {
+          items: [buildGalleryItem('a1-1'), buildGalleryItem('a1-2')],
+          nextMaxId: '5:2'
+        }
+      })
+
+    it('puts the sort back, so Load more keeps the cursor of the order on screen', async () => {
+      items.mockRejectedValueOnce(new Error('Rate limited'))
+      items.mockResolvedValueOnce({
+        items: [buildGalleryItem('a1-3')],
+        nextMaxId: null
+      })
+      renderView(paged())
+
+      const select = screen.getByLabelText('Sort photos')
+      fireEvent.change(select, { target: { value: 'taken_asc' } })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Rate limited')
+      expect(select).toHaveValue('taken_desc')
+      expect(screen.getByTestId('grid').children).toHaveLength(2)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+      await waitFor(() =>
+        expect(screen.getByTestId('grid').children).toHaveLength(3)
+      )
+      expect(items).toHaveBeenLastCalledWith('a1', {
+        limit: 30,
+        sort: 'taken_desc',
+        subject: undefined,
+        maxId: '5:2'
+      })
+    })
+
+    it('puts the species back', async () => {
+      items.mockRejectedValueOnce(new Error('Offline'))
+      renderView(paged())
+
+      fireEvent.click(screen.getByRole('button', { name: /African Lion\s*2/ }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Offline')
+      expect(
+        screen.getByRole('button', { name: /African Lion\s*2/ })
+      ).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.getByTestId('grid').children).toHaveLength(2)
+    })
+
+    it('drops the cursor, and does not ask again, when a filter that has gone cannot be reloaded', async () => {
+      items.mockResolvedValue({
+        items: [buildGalleryItem('lion-1')],
+        nextMaxId: '7:7'
+      })
+      const withLion = buildAlbumDetail({
+        species: [{ key: 'sci:panthera leo', name: 'African Lion', count: 1 }]
+      })
+      const { rerender } = renderView(withLion)
+      fireEvent.click(screen.getByRole('button', { name: /African Lion\s*1/ }))
+      expect(await screen.findByText('lion-1')).toBeInTheDocument()
+
+      items.mockReset()
+      items.mockRejectedValue(new Error('Offline'))
+      rerender(
+        <GalleryAlbumDetailView
+          ownerId="owner"
+          shareUrl={SHARE_URL}
+          detail={buildAlbumDetail({ species: [] })}
+          pageSize={30}
+        />
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Offline')
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Load more' })
+        ).not.toBeInTheDocument()
+      )
+      expect(items).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('drops a species filter whose last photo was removed, even with no chips left', async () => {
     items.mockResolvedValue({
       items: [buildGalleryItem('lion-1')],

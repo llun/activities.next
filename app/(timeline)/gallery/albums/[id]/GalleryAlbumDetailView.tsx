@@ -105,6 +105,13 @@ export const GalleryAlbumDetailView: FC<Props> = ({
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const generation = useRef(0)
+  // The sort and species the grid and its cursor were last loaded with. A
+  // change the reload cannot load is put back to these, so "Load more" never
+  // pairs a cursor of one order with another.
+  const committed = useRef<{ sort: GalleryAlbumSort; subject: string | null }>({
+    sort: album.sortOrder,
+    subject: null
+  })
   const gridRef = useRef<HTMLDivElement>(null)
   // Where focus goes once a removed photo has left the grid.
   const pendingFocus = useRef<number | null>(null)
@@ -128,20 +135,33 @@ export const GalleryAlbumDetailView: FC<Props> = ({
   )
 
   // Replaces the grid with the first page of a query (a new sort, a species
-  // chip, or the album after an edit). A slow older answer is dropped.
+  // chip, or the album after an edit). A slow older answer is dropped. When
+  // the query fails the sort and species go back to the last ones that loaded
+  // (the grid and its cursor still belong to those), and the result is false.
   const reload = useCallback(
-    async (nextSort: GalleryAlbumSort, nextSubject: string | null) => {
+    async (
+      nextSort: GalleryAlbumSort,
+      nextSubject: string | null,
+      { revert = true }: { revert?: boolean } = {}
+    ): Promise<boolean> => {
       const current = ++generation.current
       setIsLoading(true)
       setLoadError(null)
       try {
         const page = await fetchPage(nextSort, nextSubject)
-        if (current !== generation.current) return
+        if (current !== generation.current) return true
         setItems(page.items)
         setNextMaxId(page.nextMaxId)
+        committed.current = { sort: nextSort, subject: nextSubject }
+        return true
       } catch (error) {
-        if (current !== generation.current) return
+        if (current !== generation.current) return true
+        if (revert) {
+          setSort(committed.current.sort)
+          setSubject(committed.current.subject)
+        }
         setLoadError(getErrorMessage(error, 'Failed to load photos.'))
+        return false
       } finally {
         if (current === generation.current) setIsLoading(false)
       }
@@ -191,7 +211,11 @@ export const GalleryAlbumDetailView: FC<Props> = ({
       return
     }
     setSubject(null)
-    void reload(sort, null)
+    // The filter is gone for good, so a failed reload cannot put it back (the
+    // effect would only ask again). Drop the cursor of the old query instead.
+    void reload(sort, null, { revert: false }).then((loaded) => {
+      if (!loaded) setNextMaxId(null)
+    })
   }, [species, subject, sort, reload])
 
   // After a removal, focus the photo that took its place (or the one before
@@ -290,8 +314,6 @@ export const GalleryAlbumDetailView: FC<Props> = ({
   const dateRange = formatAlbumDateRange(album.firstAt, album.lastAt)
   const isEmpty = album.itemCount === 0
   const factsParts = getAlbumFactsParts(facts)
-  // The hero shows the explicit cover, else the newest photo: mark whichever
-  // it is.
   // Why the link may not do what a visitor expects. A private album has no
   // page at all (the button is inert); a public one with no photo visible to
   // visitors is a not-found page until one is.
@@ -300,6 +322,8 @@ export const GalleryAlbumDetailView: FC<Props> = ({
     : facts.photoCount === 0
       ? 'No photo here is visible to visitors yet, so the link shows a not-found page.'
       : null
+  // The hero shows the explicit cover, else the newest photo: mark whichever
+  // it is.
   const effectiveCoverId = album.coverMediaId ?? album.cover?.mediaId ?? null
 
   return (

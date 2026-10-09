@@ -182,10 +182,15 @@ const LifeListPanel: FC<{
   )
 }
 
+// The owner's own list holds their private albums too (with a Private badge on
+// the card), and a private album has no public page, so each card opens the
+// owner's album page, which has the Share hint and the controls. A visitor's
+// cards open the public page.
 const AlbumsPanel: FC<{
   actorId: string
   handle: string
-}> = ({ actorId, handle }) => {
+  isCurrentUser: boolean
+}> = ({ actorId, handle, isCurrentUser }) => {
   const result = useGalleryLoad<GalleryAlbumListResponse>(
     () => getAccountGalleryAlbums(actorId),
     'Failed to load albums.'
@@ -201,7 +206,11 @@ const AlbumsPanel: FC<{
         <li key={album.id} className="min-w-0">
           <GalleryAlbumCard
             album={album}
-            href={`/${handle}/albums/${encodeURIComponent(album.id)}`}
+            href={
+              isCurrentUser
+                ? `/gallery/albums/${encodeURIComponent(album.id)}`
+                : `/${handle}/albums/${encodeURIComponent(album.id)}`
+            }
           />
         </li>
       ))}
@@ -337,7 +346,13 @@ export const ProfileGalleryTab: FC<Props> = ({
           </div>
         )
       case 'albums':
-        return handle ? <AlbumsPanel actorId={actorId} handle={handle} /> : null
+        return handle ? (
+          <AlbumsPanel
+            actorId={actorId}
+            handle={handle}
+            isCurrentUser={isCurrentUser}
+          />
+        ) : null
       case 'map':
         return (
           <MapPanel

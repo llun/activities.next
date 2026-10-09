@@ -72,6 +72,13 @@ export const PublicGalleryAlbumView: FC<Props> = ({
   const [loadError, setLoadError] = useState<string | null>(null)
   // Bumped by every new query, so a slow older answer is dropped.
   const generation = useRef(0)
+  // The sort and species the grid and its cursor were last loaded with. A
+  // reload that fails puts the controls back to these, so "Load more" never
+  // pairs a cursor of one order with another.
+  const committed = useRef<{ sort: GalleryAlbumSort; subject: string | null }>({
+    sort: album.sortOrder,
+    subject: null
+  })
 
   const fetchPage = useCallback(
     (nextSort: GalleryAlbumSort, nextSubject: string | null, cursor?: string) =>
@@ -97,8 +104,11 @@ export const PublicGalleryAlbumView: FC<Props> = ({
       if (current !== generation.current) return
       setItems(page.items)
       setNextMaxId(page.nextMaxId)
+      committed.current = { sort: nextSort, subject: nextSubject }
     } catch (error) {
       if (current !== generation.current) return
+      setSort(committed.current.sort)
+      setSubject(committed.current.subject)
       setLoadError(getErrorMessage(error, 'Failed to load photos.'))
     } finally {
       if (current === generation.current) setIsLoading(false)
@@ -185,7 +195,7 @@ export const PublicGalleryAlbumView: FC<Props> = ({
           <Link
             href={profileHref}
             prefetch={false}
-            className="hover:text-foreground underline-offset-2 hover:underline"
+            className="hover:text-foreground inline-block underline underline-offset-2 pointer-coarse:-my-3 pointer-coarse:py-3"
           >
             {ownerName}
           </Link>

@@ -271,6 +271,70 @@ describe('PublicGalleryAlbumView', () => {
       ).toBeInTheDocument()
     })
 
+    it('puts the sort back when its reload fails, so Load more keeps the cursor of the order on screen', async () => {
+      load.mockRejectedValueOnce(new Error('Rate limited'))
+      load.mockResolvedValueOnce(
+        buildAlbumView({ items: [buildGalleryItem('p-3')], nextMaxId: null })
+      )
+      renderView(paged())
+
+      const select = screen.getByLabelText('Sort photos')
+      fireEvent.change(select, { target: { value: 'taken_asc' } })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Rate limited')
+      // The grid still holds the newest-first page, so the control says so.
+      expect(select).toHaveValue('taken_desc')
+      expect(screen.getByTestId('grid').children).toHaveLength(2)
+
+      fireEvent.click(screen.getByRole('button', { name: /load more/i }))
+      await waitFor(() =>
+        expect(screen.getByTestId('grid').children).toHaveLength(3)
+      )
+      expect(load).toHaveBeenLastCalledWith(
+        'https://activities.test/users/ann',
+        'a1',
+        { limit: 30, sort: 'taken_desc', subject: undefined, maxId: '5:2' }
+      )
+    })
+
+    it('puts the species back when its reload fails', async () => {
+      load.mockRejectedValueOnce(new Error('Offline'))
+      renderView(paged())
+
+      const group = screen.getByRole('group', { name: 'Filter by species' })
+      fireEvent.click(
+        within(group).getByRole('button', { name: /African Lion/ })
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Offline')
+      expect(
+        within(group).getByRole('button', { name: /African Lion/ })
+      ).toHaveAttribute('aria-pressed', 'false')
+      expect(
+        within(group).getByRole('button', { name: /All/ })
+      ).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByTestId('grid').children).toHaveLength(2)
+    })
+
+    it('keeps a change that loaded when a later one fails', async () => {
+      load.mockResolvedValueOnce(
+        buildAlbumView({ items: [buildGalleryItem('asc-1')], nextMaxId: '9:9' })
+      )
+      load.mockRejectedValueOnce(new Error('Offline'))
+      renderView(paged())
+
+      const select = screen.getByLabelText('Sort photos')
+      fireEvent.change(select, { target: { value: 'taken_asc' } })
+      await waitFor(() =>
+        expect(screen.getByTestId('grid')).toHaveTextContent('asc-1')
+      )
+      fireEvent.change(select, { target: { value: 'added_desc' } })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Offline')
+      // Back to the last order that loaded, not the original one.
+      expect(select).toHaveValue('taken_asc')
+    })
+
     it('drops a slow answer that a newer query has replaced', async () => {
       let resolveOld: (value: ReturnType<typeof buildAlbumView>) => void = () =>
         undefined

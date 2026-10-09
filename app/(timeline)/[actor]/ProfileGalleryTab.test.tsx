@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import {
   getAccountGalleryAlbums,
@@ -324,6 +324,33 @@ describe('ProfileGalleryTab', () => {
         '/@llun@llun.test/albums/b%2F2'
       )
       expect(getAlbumsMock).toHaveBeenCalledWith('actor-1')
+    })
+
+    it("lists the owner's albums, private ones badged, as links to their own album page", async () => {
+      getAlbumsMock.mockResolvedValue({
+        albums: [
+          buildAlbumCard('a1', { title: 'Kruger' }),
+          buildAlbumCard('b/2', { title: 'Secret', visibility: 'private' })
+        ],
+        photoCount: 6
+      })
+      renderTab({ subviews: [...withAlbums], isCurrentUser: true })
+      await screen.findByRole('region', { name: 'Birds' })
+
+      await openSubview('Albums')
+
+      // A private album has no public page, so neither card goes there.
+      expect(
+        await screen.findByRole('link', { name: /Kruger/ })
+      ).toHaveAttribute('href', '/gallery/albums/a1')
+      const secret = screen.getByRole('link', { name: /Secret/ })
+      expect(secret).toHaveAttribute('href', '/gallery/albums/b%2F2')
+      expect(within(secret).getByText('Private')).toBeInTheDocument()
+      expect(
+        within(screen.getByRole('link', { name: /Kruger/ })).queryByText(
+          'Private'
+        )
+      ).toBeNull()
     })
 
     it('says so when there is nothing to show', async () => {

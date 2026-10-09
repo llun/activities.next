@@ -4,6 +4,8 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
+import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
+
 import Loading from './loading'
 
 describe('album loading', () => {
@@ -23,5 +25,28 @@ describe('album loading', () => {
     for (const leaf of container.querySelectorAll('div:not(:has(div))')) {
       expect(leaf).toHaveClass('skeleton')
     }
+  })
+
+  it('keeps the signed-in mobile bar and desktop padding of the loaded page', () => {
+    const { container } = render(
+      <MobileNavigationProvider>
+        <Loading />
+      </MobileNavigationProvider>
+    )
+
+    // The bar (menu button, a placeholder for the title) is there from the
+    // start, before the album arrives, so it does not pop in.
+    const bar = container.querySelector('[data-mobile-compact-header]')
+    expect(bar).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Open navigation' })
+    ).toBeInTheDocument()
+    expect(bar?.querySelector('.skeleton')).toBeInTheDocument()
+    expect(bar?.nextElementSibling).toHaveAttribute('aria-busy', 'true')
+    // The loaded page's `md:pt-8`, dropped in the public shell.
+    expect(bar?.nextElementSibling).toHaveClass(
+      'md:pt-8',
+      'group-data-[shell=public]/shell:md:pt-0'
+    )
   })
 })
