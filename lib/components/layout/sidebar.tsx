@@ -282,12 +282,14 @@ export function Sidebar({
 
   return (
     <TooltipProvider delayDuration={0}>
-      {/* Full sidebar - Desktop / Drawer */}
+      {/* Full sidebar - Desktop / Drawer. h-dvh, not h-screen: iOS Safari's
+          100vh is the height with its toolbars hidden, so while they show, the
+          bottom of a 100vh rail (the account) sits behind them. */}
       <aside
         className={cn(
           isDrawer
             ? 'flex h-full w-full min-h-0 flex-col bg-background'
-            : 'fixed left-0 top-0 z-40 h-screen w-[280px] border-r bg-surface-chrome backdrop-blur hidden xl:flex flex-col'
+            : 'fixed left-0 top-0 z-40 h-dvh w-[280px] border-r bg-surface-chrome backdrop-blur hidden xl:flex flex-col'
         )}
       >
         {/* flex, not block: the Logo link is inline-flex, and as an inline
@@ -547,7 +549,7 @@ export function Sidebar({
         </nav>
 
         {currentActor && actors.length > 0 ? (
-          <div className="border-t p-4">
+          <div className="border-t px-4 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
             <ActorSwitcher
               currentActor={currentActor}
               actors={actors}
@@ -556,7 +558,7 @@ export function Sidebar({
           </div>
         ) : (
           user && (
-            <div className="border-t p-4">
+            <div className="border-t px-4 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
               <Link
                 href={`/${user.handle}`}
                 onClick={onNavigate}
@@ -584,9 +586,9 @@ export function Sidebar({
         )}
       </aside>
 
-      {/* Collapsed sidebar - Tablet */}
+      {/* Collapsed sidebar - Tablet. Same h-dvh reason as the full sidebar. */}
       {variant === 'responsive' && (
-        <aside className="fixed left-0 top-0 z-40 h-screen w-[72px] border-r bg-surface-chrome backdrop-blur hidden md:flex xl:hidden flex-col items-center">
+        <aside className="fixed left-0 top-0 z-40 h-dvh w-[72px] border-r bg-surface-chrome backdrop-blur hidden md:flex xl:hidden flex-col items-center">
           {/* flex for the same reason as the full sidebar's logo wrapper. The
               rail draws the logo at y 20 and its first item at y 64, so the
               extra 4px on top comes off the bottom (20 + 32 + 12 = 64). */}
@@ -727,10 +729,12 @@ export function Sidebar({
           </nav>
 
           {user && (
+            // The bottom padding clears the home indicator, so the account
+            // stays tappable on iPhones and foldables in landscape.
             // w-full so the divider spans the whole rail (the aside is an
             // items-center column, which would shrink it to its content);
             // justify-center keeps the avatar where it was.
-            <div className="flex w-full justify-center border-t p-3">
+            <div className="flex w-full justify-center border-t px-3 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
