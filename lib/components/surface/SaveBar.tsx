@@ -20,7 +20,7 @@ interface SavedIndicatorProps {
 /**
  * The quiet "Saved" tick for controls that save the moment they change. The
  * region is always in the page and only its text comes and goes, which is what
- * makes a screen reader announce it politely.
+ * makes a screen reader announce it politely (unless `announce` is off).
  */
 export const SavedIndicator: FC<SavedIndicatorProps> = ({
   saved,

@@ -275,7 +275,7 @@ export function MediaManagement({
               onClick={handleDeleteConfirm}
               disabled={deleting}
             >
-              {deleting ? 'Deleting...' : 'Delete'}
+              {deleting ? 'Deleting…' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>
