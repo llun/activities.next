@@ -83,6 +83,8 @@ export const Posts: FC<Props> = ({
     medias: Attachment[]
     tags?: Tag[]
     initialSelection: number
+    /** The viewer's actor id when the post is their own (the albums pill). */
+    albumsOwnerId: string | null
   } | null>(null)
   // Reply/quote/edit share one inline composer owned here, so every surface
   // that renders <Posts> offers the identical action set without re-wiring it.
@@ -171,7 +173,11 @@ export const Posts: FC<Props> = ({
                   setModalMedias({
                     medias: allMedias,
                     tags: actualStatus.tags,
-                    initialSelection: index
+                    initialSelection: index,
+                    albumsOwnerId:
+                      currentActor && currentActor.id === actualStatus.actorId
+                        ? currentActor.id
+                        : null
                   })
                 }}
               />
@@ -196,6 +202,7 @@ export const Posts: FC<Props> = ({
         medias={modalMedias?.medias ?? null}
         tags={modalMedias?.tags ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}
+        albumsOwnerId={modalMedias?.albumsOwnerId}
         onClosed={() => setModalMedias(null)}
       />
     </>

@@ -576,7 +576,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
                 })}
               </ul>
             ) : (
-              <GalleryGrid items={items} />
+              <GalleryGrid items={items} albumsOwnerId={ownerId} />
             )}
           </div>
 

@@ -5,7 +5,10 @@ import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getGalleryMedia } from '@/lib/client'
 import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
-import { GalleryGrid } from '@/lib/components/gallery/GalleryGrid'
+import {
+  GalleryGrid,
+  type GalleryGridSelection
+} from '@/lib/components/gallery/GalleryGrid'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import type {
   GalleryItemEntity,
@@ -24,6 +27,12 @@ interface Props {
   initialPage?: GalleryMediaPage
   emptyTitle?: string
   showCaption?: boolean
+  /** Select mode (owner views): tiles toggle instead of opening the viewer. */
+  selection?: GalleryGridSelection
+  /** The signed-in owner's actor id when these are their own photos. */
+  albumsOwnerId?: string | null
+  /** Told the photos loaded so far each time they change. */
+  onItemsChange?: (items: GalleryItemEntity[]) => void
 }
 
 const PAGE_SIZE = 30
@@ -52,7 +61,10 @@ export const GalleryPagedGrid: FC<Props> = ({
   gearId,
   initialPage,
   emptyTitle = 'No photos in your gallery yet',
-  showCaption = true
+  showCaption = true,
+  selection,
+  albumsOwnerId,
+  onItemsChange
 }) => {
   const [items, setItems] = useState<GalleryItemEntity[]>(
     initialPage?.items ?? []
@@ -109,6 +121,16 @@ export const GalleryPagedGrid: FC<Props> = ({
     [actorId, subject, category, gearId]
   )
 
+  // A ref, so a parent that passes a new callback each render does not make
+  // the effect below fire again.
+  const onItemsChangeRef = useRef(onItemsChange)
+  useEffect(() => {
+    onItemsChangeRef.current = onItemsChange
+  }, [onItemsChange])
+  useEffect(() => {
+    onItemsChangeRef.current?.(items)
+  }, [items])
+
   useEffect(() => {
     isMounted.current = true
     if (!initialPage) void load()
@@ -139,7 +161,12 @@ export const GalleryPagedGrid: FC<Props> = ({
   return (
     <div className="space-y-4">
       {items.length > 0 ? (
-        <GalleryGrid items={items} showCaption={showCaption} />
+        <GalleryGrid
+          items={items}
+          showCaption={showCaption}
+          selection={selection}
+          albumsOwnerId={albumsOwnerId}
+        />
       ) : error || nextMaxId ? null : (
         <FitnessEmptyState icon={Images} title={emptyTitle} />
       )}

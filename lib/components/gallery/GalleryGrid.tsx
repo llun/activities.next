@@ -1,6 +1,6 @@
 'use client'
 
-import { Video } from 'lucide-react'
+import { Check, Video } from 'lucide-react'
 import { FC, useState } from 'react'
 
 import { formatGalleryDate } from '@/lib/components/gallery/galleryCategories'
@@ -9,10 +9,23 @@ import { Media } from '@/lib/components/posts/media'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 import { cn } from '@/lib/utils'
 
+/** Select mode: a tile toggles instead of opening the viewer. */
+export interface GalleryGridSelection {
+  selected: ReadonlySet<string>
+  onToggle: (item: GalleryItemEntity) => void
+}
+
 interface Props {
   items: GalleryItemEntity[]
   /** Show the subject and capture date under each tile. */
   showCaption?: boolean
+  /** Select mode; absent when tiles open the viewer. */
+  selection?: GalleryGridSelection
+  /**
+   * The signed-in viewer's actor id when every photo is theirs: the viewer
+   * then offers each photo's albums menu.
+   */
+  albumsOwnerId?: string | null
   className?: string
 }
 
@@ -22,12 +35,12 @@ const isVideo = (item: GalleryItemEntity) =>
 
 // The media type is part of the button's own name: a badge inside a labelled
 // button is never announced.
-const itemLabel = (item: GalleryItemEntity, index: number) => {
+const itemLabel = (item: GalleryItemEntity, index: number, verb = 'Open') => {
   const noun = isVideo(item) ? 'video' : 'media'
   const alt = item.attachment.name?.trim()
-  if (alt) return `Open ${noun}: ${alt}`
-  if (item.subject?.name) return `Open ${noun}: ${item.subject.name}`
-  return `Open ${noun} ${index + 1}`
+  if (alt) return `${verb} ${noun}: ${alt}`
+  if (item.subject?.name) return `${verb} ${noun}: ${item.subject.name}`
+  return `${verb} ${noun} ${index + 1}`
 }
 
 /**
@@ -37,6 +50,8 @@ const itemLabel = (item: GalleryItemEntity, index: number) => {
 export const GalleryGrid: FC<Props> = ({
   items,
   showCaption = false,
+  selection,
+  albumsOwnerId,
   className
 }) => {
   const [modalIndex, setModalIndex] = useState<number | null>(null)
@@ -53,13 +68,24 @@ export const GalleryGrid: FC<Props> = ({
           const caption = [item.subject?.name, formatGalleryDate(item.takenAt)]
             .filter(Boolean)
             .join(' · ')
+          const isSelected = selection?.selected.has(item.mediaId) ?? false
           return (
             <li key={item.mediaId} className="min-w-0">
               <button
                 type="button"
-                className="group bg-muted/20 focus-visible:outline-primary relative block aspect-square w-full overflow-hidden rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2"
-                onClick={() => setModalIndex(index)}
-                aria-label={itemLabel(item, index)}
+                className={cn(
+                  'group bg-muted/20 focus-visible:outline-primary relative block aspect-square w-full overflow-hidden rounded-md focus-visible:outline-2 focus-visible:-outline-offset-2',
+                  isSelected && 'ring-primary ring-3 ring-inset'
+                )}
+                onClick={() =>
+                  selection ? selection.onToggle(item) : setModalIndex(index)
+                }
+                aria-label={itemLabel(
+                  item,
+                  index,
+                  selection ? 'Select' : 'Open'
+                )}
+                aria-pressed={selection ? isSelected : undefined}
               >
                 <Media
                   attachment={
@@ -74,6 +100,18 @@ export const GalleryGrid: FC<Props> = ({
                   loading="lazy"
                   className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                 />
+                {selection ? (
+                  <span
+                    aria-hidden="true"
+                    data-testid="select-mark"
+                    className={cn(
+                      'pointer-events-none absolute top-1.5 left-1.5 flex size-6 items-center justify-center rounded-full border-2 border-white text-white shadow-sm',
+                      isSelected ? 'bg-primary' : 'bg-black/30'
+                    )}
+                  >
+                    {isSelected ? <Check className="size-3.5" /> : null}
+                  </span>
+                ) : null}
                 {isVideo(item) ? (
                   <span
                     className="pointer-events-none absolute top-1.5 right-1.5 flex items-center rounded bg-black/60 p-1 text-white"
@@ -98,6 +136,7 @@ export const GalleryGrid: FC<Props> = ({
           modalIndex === null ? null : items.map((item) => item.attachment)
         }
         initialSelection={modalIndex ?? 0}
+        albumsOwnerId={albumsOwnerId}
         onClosed={() => setModalIndex(null)}
       />
     </>

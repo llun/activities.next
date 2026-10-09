@@ -20,10 +20,12 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
   MediasModal: ({
     medias,
     initialSelection,
+    albumsOwnerId,
     onClosed
   }: {
     medias: Attachment[] | null
     initialSelection: number
+    albumsOwnerId?: string | null
     onClosed: () => void
   }) =>
     medias ? (
@@ -32,6 +34,7 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
           {medias.map((media) => media.mediaId).join(',')}
         </span>
         <span data-testid="modal-selection">{initialSelection}</span>
+        <span data-testid="modal-owner">{albumsOwnerId ?? 'none'}</span>
         <button onClick={onClosed}>Close viewer</button>
       </div>
     ) : null
@@ -100,5 +103,76 @@ describe('GalleryGrid', () => {
       screen.getByRole('button', { name: /^Open video/ })
     ).toBeInTheDocument()
     expect(screen.queryByLabelText('Video')).not.toBeInTheDocument()
+  })
+
+  it('hands the viewer the owner id for the albums pill, when there is one', () => {
+    const { rerender } = render(<GalleryGrid items={items} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open media 2' }))
+    expect(screen.getByTestId('modal-owner')).toHaveTextContent('none')
+    fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+
+    rerender(<GalleryGrid items={items} albumsOwnerId="owner-1" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open media 2' }))
+    expect(screen.getByTestId('modal-owner')).toHaveTextContent('owner-1')
+  })
+
+  describe('select mode', () => {
+    it('toggles a tile instead of opening the viewer', () => {
+      const onToggle = vi.fn()
+      render(
+        <GalleryGrid
+          items={items}
+          selection={{ selected: new Set(), onToggle }}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Select media 2' }))
+
+      expect(onToggle).toHaveBeenCalledWith(items[1])
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /^Open/ })
+      ).not.toBeInTheDocument()
+    })
+
+    it('states which tiles are selected to assistive tech and by sight', () => {
+      render(
+        <GalleryGrid
+          items={items}
+          selection={{ selected: new Set(['2']), onToggle: vi.fn() }}
+        />
+      )
+
+      const picked = screen.getByRole('button', { name: 'Select media 2' })
+      const other = screen.getByRole('button', { name: 'Select media 3' })
+      expect(picked).toHaveAttribute('aria-pressed', 'true')
+      expect(other).toHaveAttribute('aria-pressed', 'false')
+      expect(picked.querySelector('svg')).not.toBeNull()
+      expect(other.querySelector('svg')).toBeNull()
+      // Every tile shows its mark, so the mode is clear before the first pick.
+      expect(screen.getAllByTestId('select-mark')).toHaveLength(3)
+    })
+
+    it('keeps the subject in the name of a tile', () => {
+      render(
+        <GalleryGrid
+          items={items}
+          selection={{ selected: new Set(), onToggle: vi.fn() }}
+        />
+      )
+
+      expect(
+        screen.getByRole('button', { name: 'Select media: Red Fox' })
+      ).toBeInTheDocument()
+    })
+
+    it('has no pressed state and no marks outside select mode', () => {
+      render(<GalleryGrid items={items} />)
+
+      expect(
+        screen.getByRole('button', { name: 'Open media 2' })
+      ).not.toHaveAttribute('aria-pressed')
+      expect(screen.queryByTestId('select-mark')).not.toBeInTheDocument()
+    })
   })
 })

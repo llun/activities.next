@@ -14,8 +14,20 @@ vi.mock('@/lib/client', () => ({
 }))
 
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
-  GalleryGrid: ({ items }: { items: { mediaId: string }[] }) => (
-    <ul data-testid="grid">
+  GalleryGrid: ({
+    items,
+    selection,
+    albumsOwnerId
+  }: {
+    items: { mediaId: string }[]
+    selection?: unknown
+    albumsOwnerId?: string | null
+  }) => (
+    <ul
+      data-testid="grid"
+      data-selecting={selection ? 'yes' : 'no'}
+      data-owner={albumsOwnerId ?? ''}
+    >
       {items.map((item) => (
         <li key={item.mediaId}>{item.mediaId}</li>
       ))}
@@ -142,5 +154,69 @@ describe('GalleryPagedGrid', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
     await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(6))
+  })
+
+  it('passes select mode and the owner id on to the grid', () => {
+    render(
+      <GalleryPagedGrid
+        actorId="actor-1"
+        initialPage={{ items: [buildGalleryItem('1')], nextMaxId: null }}
+        selection={{ selected: new Set(), onToggle: vi.fn() }}
+        albumsOwnerId="owner-1"
+      />
+    )
+
+    expect(screen.getByTestId('grid')).toHaveAttribute('data-selecting', 'yes')
+    expect(screen.getByTestId('grid')).toHaveAttribute('data-owner', 'owner-1')
+  })
+
+  it('tells the parent which photos are loaded, as pages arrive', async () => {
+    const onItemsChange = vi.fn()
+    getGalleryMediaMock.mockResolvedValue({
+      items: [buildGalleryItem('1')],
+      nextMaxId: null
+    })
+    render(
+      <GalleryPagedGrid
+        actorId="actor-1"
+        initialPage={{ items: [buildGalleryItem('3')], nextMaxId: '3' }}
+        onItemsChange={onItemsChange}
+      />
+    )
+    expect(onItemsChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ mediaId: '3' })
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    await waitFor(() =>
+      expect(onItemsChange).toHaveBeenLastCalledWith([
+        expect.objectContaining({ mediaId: '3' }),
+        expect.objectContaining({ mediaId: '1' })
+      ])
+    )
+  })
+
+  it('does not report again just because the parent passes a new callback', () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const page = { items: [buildGalleryItem('3')], nextMaxId: null }
+    const { rerender } = render(
+      <GalleryPagedGrid
+        actorId="actor-1"
+        initialPage={page}
+        onItemsChange={first}
+      />
+    )
+    rerender(
+      <GalleryPagedGrid
+        actorId="actor-1"
+        initialPage={page}
+        onItemsChange={second}
+      />
+    )
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).not.toHaveBeenCalled()
   })
 })
