@@ -35,16 +35,6 @@ vi.mock('./ActorMediaGallery', async () => ({
     .MockActorMediaGallery
 }))
 
-vi.mock('@/lib/components/ui/tabs', async () => {
-  const utils = await import('./ActorTimelines.testUtils')
-  return {
-    Tabs: utils.MockTabs,
-    TabsContent: utils.MockTabsContent,
-    TabsList: utils.MockTabsList,
-    TabsTrigger: utils.MockTabsTrigger
-  }
-})
-
 vi.mock('@/lib/components/ui/button', async () => ({
   Button: (await import('./ActorTimelines.testUtils')).MockButton
 }))
@@ -147,14 +137,60 @@ describe('ActorTimelines', () => {
       />
     )
 
-    // The Tabs primitive is mocked to render every tab panel, so a post shows
-    // up only under Posts and a reply only under Replies (one occurrence each).
+    // Posts is the tab it opens on: the post is there, the reply is not.
+    expect(screen.getByRole('radio', { name: 'Posts' })).toBeChecked()
     expect(
-      screen.getAllByText('https://remote.example/statuses/post')
-    ).toHaveLength(1)
+      screen.getByText('https://remote.example/statuses/post')
+    ).toBeInTheDocument()
     expect(
-      screen.getAllByText('https://remote.example/statuses/reply')
-    ).toHaveLength(1)
+      screen.queryByText('https://remote.example/statuses/reply')
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Replies' }))
+
+    expect(screen.getByRole('radio', { name: 'Replies' })).toBeChecked()
+    expect(
+      screen.getByText('https://remote.example/statuses/reply')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('https://remote.example/statuses/post')
+    ).not.toBeInTheDocument()
+  })
+
+  it('moves between tabs with the arrow keys', () => {
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus('https://remote.example/statuses/post')]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    const posts = screen.getByRole('radio', { name: 'Posts' })
+    posts.focus()
+    fireEvent.keyDown(posts, { key: 'ArrowRight' })
+
+    expect(screen.getByRole('radio', { name: 'Replies' })).toBeChecked()
+  })
+
+  it('says so when the Replies tab has nothing to show', () => {
+    render(
+      <ActorTimelines
+        host="localhost:3000"
+        actorId="https://remote.example/users/actor"
+        statuses={[createStatus('https://remote.example/statuses/post')]}
+        attachments={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Replies' }))
+
+    expect(screen.getByText('No replies yet')).toBeInTheDocument()
   })
 
   it('omits the Fitness tab when the actor has no fitness data', () => {
@@ -170,7 +206,7 @@ describe('ActorTimelines', () => {
     )
 
     expect(
-      screen.queryByRole('button', { name: 'Fitness' })
+      screen.queryByRole('radio', { name: 'Fitness' })
     ).not.toBeInTheDocument()
   })
 
@@ -190,12 +226,17 @@ describe('ActorTimelines', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Fitness' })).toBeInTheDocument()
-    // The fitness status appears under both Posts (it is a non-reply note) and
-    // the Fitness tab, so it renders twice with the all-panels Tabs mock.
+    fireEvent.click(screen.getByRole('radio', { name: 'Fitness' }))
+
+    expect(screen.getByRole('radio', { name: 'Fitness' })).toBeChecked()
+    // Only the Fitness panel is mounted now, so the activity shows once and
+    // the plain post (a Posts-tab item) is gone.
     expect(
       screen.getAllByText('https://remote.example/statuses/run')
-    ).toHaveLength(2)
+    ).toHaveLength(1)
+    expect(
+      screen.queryByText('https://remote.example/statuses/post')
+    ).not.toBeInTheDocument()
   })
 
   describe('Gallery tab', () => {
@@ -222,14 +263,11 @@ describe('ActorTimelines', () => {
       })
 
       const names = screen
-        .getAllByRole('button')
-        .map((button) => button.textContent)
-        .filter((text) =>
-          ['Posts', 'Replies', 'Media', 'Gallery', 'Fitness'].includes(
-            text ?? ''
-          )
-        )
+        .getAllByRole('radio')
+        .map((radio) => radio.textContent)
       expect(names).toEqual(['Posts', 'Replies', 'Media', 'Gallery', 'Fitness'])
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Gallery' }))
       expect(screen.getByTestId('mock-gallery-tab')).toHaveTextContent(
         'subjects,recent:false'
       )
@@ -238,22 +276,9 @@ describe('ActorTimelines', () => {
     it('is left out without gallery photos', () => {
       renderTimelines({ hasGalleryMedia: false, gallerySubviews: [] })
       expect(
-        screen.queryByRole('button', { name: 'Gallery' })
+        screen.queryByRole('radio', { name: 'Gallery' })
       ).not.toBeInTheDocument()
       expect(screen.queryByTestId('mock-gallery-tab')).not.toBeInTheDocument()
-    })
-
-    it('scrolls the tab list sideways only when all five tabs are shown, so a 320px viewport does not overflow', () => {
-      const { unmount } = renderTimelines({ hasFitnessData: true })
-      expect(screen.getByTestId('tabs-list')).not.toHaveClass('overflow-x-auto')
-      unmount()
-
-      renderTimelines({
-        hasFitnessData: true,
-        hasGalleryMedia: true,
-        gallerySubviews: ['subjects', 'recent']
-      })
-      expect(screen.getByTestId('tabs-list')).toHaveClass('overflow-x-auto')
     })
   })
 
@@ -278,6 +303,7 @@ describe('ActorTimelines', () => {
     fireEvent.click(screen.getAllByTestId('trigger-reply-created')[0])
 
     // The new reply is a reply, so it lands under the Replies tab feed.
+    fireEvent.click(screen.getByRole('radio', { name: 'Replies' }))
     expect(
       screen.getByText('https://local.example/statuses/new-reply')
     ).toBeInTheDocument()

@@ -29,6 +29,7 @@ interface DirectionConfig {
   label: string
   subpath: '/followers' | '/following'
   emptyMessage: string
+  emptyHint: string
   getCount: (profile: ProfileData) => number | null | undefined
   getFollows: (
     database: NonNullable<ReturnType<typeof getDatabase>>,
@@ -42,6 +43,7 @@ const DIRECTION_CONFIGS: Record<FollowListDirection, DirectionConfig> = {
     label: 'Followers',
     subpath: '/followers',
     emptyMessage: 'No followers yet',
+    emptyHint: 'People who follow this account will show up here.',
     getCount: (profile) => profile.followersCount,
     getFollows: (database, targetActorId) =>
       database.getFollowers({ targetActorId, limit: 100 }),
@@ -51,6 +53,7 @@ const DIRECTION_CONFIGS: Record<FollowListDirection, DirectionConfig> = {
     label: 'Following',
     subpath: '/following',
     emptyMessage: 'Not following anyone yet',
+    emptyHint: 'Accounts this account follows will show up here.',
     getCount: (profile) => profile.followingCount,
     getFollows: (database, actorId) =>
       database.getFollowing({ actorId, limit: 100 }),
@@ -208,14 +211,13 @@ export const FollowListPage: FC<FollowListPageProps> = async ({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
-        <FollowList
-          users={users}
-          isLoggedIn={isLoggedIn}
-          blockedActorIds={blockedActorIds}
-          emptyMessage={config.emptyMessage}
-        />
-      </div>
+      <FollowList
+        users={users}
+        isLoggedIn={isLoggedIn}
+        blockedActorIds={blockedActorIds}
+        emptyMessage={config.emptyMessage}
+        emptyHint={config.emptyHint}
+      />
     </div>
   )
 }

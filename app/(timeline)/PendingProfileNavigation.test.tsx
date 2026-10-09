@@ -57,10 +57,7 @@ describe('PendingProfileNavigation', () => {
     fireEvent.click(screen.getByText('Alice'))
 
     expect(overlay()).toBeInTheDocument()
-    expect(screen.getByLabelText('Loading profile')).toHaveAttribute(
-      'aria-busy',
-      'true'
-    )
+    expect(screen.getByRole('status')).toHaveTextContent('Loading profile')
   })
 
   it('shows the skeleton even when the link stops the click propagating', () => {

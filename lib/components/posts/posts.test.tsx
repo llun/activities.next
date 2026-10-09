@@ -13,10 +13,6 @@ import {
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
-import {
-  MOBILE_FEED_SURFACE_CLASS,
-  MOBILE_INSET_FEED_CLASS
-} from './feedLayout'
 import { Posts } from './posts'
 
 // A boost (Announce) row wrapping the shared poll fixture as its original, with
@@ -276,67 +272,6 @@ describe('Posts', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Reply to post/ })[0])
 
     expect(screen.getAllByTestId('inline-composer')).toHaveLength(1)
-  })
-
-  it('applies the mobile feed surface to a framed feed only', () => {
-    // The embedded surfaces (Search, Explore, landing) own their parent frame
-    // and must not get the negative gutter bleed; only `framed` feeds do. jsdom
-    // does not lay the geometry out — the frame edges are browser-verified.
-    const { container } = render(
-      <Posts
-        host="activities.local"
-        currentTime={pollStatusCurrentTime}
-        statuses={[pollStatusFixture]}
-      />
-    )
-    expect(container.querySelector('section')).toHaveClass(
-      ...MOBILE_FEED_SURFACE_CLASS.split(' ')
-    )
-
-    const { container: embedded } = render(
-      <Posts
-        host="activities.local"
-        framed={false}
-        currentTime={pollStatusCurrentTime}
-        statuses={[pollStatusFixture]}
-      />
-    )
-    expect(embedded.querySelector('section')).not.toHaveClass(
-      ...MOBILE_FEED_SURFACE_CLASS.split(' ')
-    )
-  })
-
-  it('lets a caller turn the feed surface into an inset card below md', () => {
-    // The logged-out shared collection passes the inset frame as `className`.
-    // `cn` merges it after the feed surface, so each token has to win its own
-    // conflict — a class left over from the surface (the viewport-wide margin,
-    // `rounded-none`, `border-0`, `shadow-none`) would still paint, because
-    // jsdom cannot tell which one the cascade picks.
-    const { container } = render(
-      <Posts
-        host="activities.local"
-        className={MOBILE_INSET_FEED_CLASS}
-        currentTime={pollStatusCurrentTime}
-        statuses={[pollStatusFixture]}
-      />
-    )
-
-    const section = container.querySelector('section')
-    expect(section).toHaveClass(
-      'max-md:mx-0',
-      'max-md:rounded-2xl',
-      'max-md:border',
-      'max-md:shadow-sm',
-      // Still the one frame from md up.
-      'rounded-xl',
-      'border',
-      'shadow-sm'
-    )
-    for (const token of MOBILE_FEED_SURFACE_CLASS.split(' ').filter(
-      (token) => token !== 'max-md:w-auto'
-    )) {
-      expect(section).not.toHaveClass(token)
-    }
   })
 
   it('opens the status detail page from the timestamp', async () => {

@@ -92,7 +92,9 @@ export const StatusLikes: FC<Props> = ({ statusId, totalLikes }) => {
     <>
       <div className="mt-3 border-t border-border/60 pt-3">
         <div className="flex items-center gap-2 text-sm">
-          <Heart className="size-4 fill-red-500 text-red-500" />
+          {/* Same red as the like button's liked heart (`fill-current text-like-icon`),
+              in both themes: a likes count is not a destructive action. */}
+          <Heart className="size-4 fill-current text-like-icon" />
           <span className="font-medium">
             {likesCount} {likesCount === 1 ? 'like' : 'likes'}
           </span>

@@ -58,7 +58,7 @@ export const LikeButton: FC<LikeButtonProps> = ({
         disabled={isOwnPost || isLoading}
         className={cn(
           ACTION_BUTTON_CLASS,
-          isActorLiked ? 'text-like-text' : 'hover:text-red-500'
+          isActorLiked ? 'text-like-text' : 'hover:text-like-icon'
         )}
         onClick={async (e) => {
           e.stopPropagation()
@@ -97,7 +97,7 @@ export const LikeButton: FC<LikeButtonProps> = ({
       >
         <Heart
           className={cn('h-4 w-4', {
-            'fill-current text-red-500': isActorLiked
+            'fill-current text-like-icon': isActorLiked
           })}
         />
         {totalLikes > 0 && <span>{totalLikes}</span>}

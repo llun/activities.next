@@ -158,7 +158,7 @@ describe('FitnessStatusDetail', () => {
     const headerCard = () =>
       screen
         .getByRole('group', { name: 'Post actions' })
-        .closest('.bg-card') as HTMLElement
+        .closest('[data-slot="fitness-card"]') as HTMLElement
 
     it('leaves no clipping ancestor between the action row and the card', () => {
       renderDetail()
@@ -371,7 +371,9 @@ describe('FitnessStatusDetail', () => {
       // Inside the header card, under the action row that opened it — the same
       // relationship `Posts` and `StatusBox` give it.
       expect(
-        screen.getByRole('group', { name: 'Post actions' }).closest('.bg-card')
+        screen
+          .getByRole('group', { name: 'Post actions' })
+          .closest('[data-slot="fitness-card"]')
       ).toContainElement(composer)
     })
 

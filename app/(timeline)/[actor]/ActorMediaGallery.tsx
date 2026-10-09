@@ -7,6 +7,8 @@ import { getActorMedia } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Media } from '@/lib/components/posts/media'
+import { Alert } from '@/lib/components/surface/Alert'
+import { Frame } from '@/lib/components/surface/Frame'
 import { Attachment, isVisualAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
@@ -85,7 +87,7 @@ export const ActorMediaGallery: FC<Props> = ({
       setAttachments([...attachments, ...newAttachments])
       setHasMore(newAttachments.length >= 25)
     } catch {
-      setError('Failed to load more media. Please try again.')
+      setError('Failed to load more media')
     } finally {
       setIsLoadingMore(false)
     }
@@ -93,12 +95,7 @@ export const ActorMediaGallery: FC<Props> = ({
 
   return (
     <>
-      <div
-        className={cn(
-          'rounded-xl border bg-card p-1 shadow-sm sm:p-2',
-          className
-        )}
-      >
+      <Frame className={cn('p-1 sm:p-2', className)}>
         <div className="grid grid-cols-3 gap-1 sm:gap-2">
           {attachments.map((attachment, index) => {
             const parentStatus = statusMap.get(attachment.statusId)
@@ -208,12 +205,12 @@ export const ActorMediaGallery: FC<Props> = ({
             )
           })}
         </div>
-      </div>
+      </Frame>
 
       {error && (
-        <div className="mt-4 p-4 text-center text-sm text-red-600 dark:text-red-400">
-          {error}
-        </div>
+        <Alert title={error} className="mt-4">
+          Please try again.
+        </Alert>
       )}
 
       {!isMediaGrid && hasMore && (

@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
-import { MOBILE_FEED_SURFACE_CLASS } from './feedLayout'
+import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
 import { InlineStatusComposer } from './inline-status-composer'
 import { Post } from './post'
 import { useInlineComposer } from './useInlineComposer'
@@ -24,9 +24,10 @@ interface Props {
   host: string
   className?: string
   /**
-   * When true (default) the feed renders as a self-contained bordered card
-   * (the merged-feed box). Set to false to render only the divided rows so the
-   * feed can be embedded inside an existing card (e.g. the search results card).
+   * When true (default) the feed renders in the post list frame: one flat
+   * `rounded-lg border` with a divider between rows, full-bleed below `md`.
+   * Set to false to render only the divided rows so the feed can be embedded
+   * inside a frame that is already there (the logged-out landing feed).
    */
   framed?: boolean
   currentActor?: ActorProfile
@@ -113,11 +114,7 @@ export const Posts: FC<Props> = ({
           // dark mode. No `overflow-hidden`: posts render non-portaled overlays
           // (edit-history panel, inline error bubbles) that must escape the box.
           'w-full min-w-0 divide-y divide-border',
-          framed &&
-            cn(
-              'rounded-xl border bg-card shadow-sm',
-              MOBILE_FEED_SURFACE_CLASS
-            ),
+          framed && cn(POST_LIST_FRAME_CLASS, MOBILE_FEED_SURFACE_CLASS),
           className
         )}
       >
@@ -137,7 +134,7 @@ export const Posts: FC<Props> = ({
                 'min-h-0 min-w-0 px-4 py-3',
                 // Match the framed box's corners so any child background can't
                 // bleed past the rounded edges now that overflow-hidden is gone.
-                framed && 'first:rounded-t-xl last:rounded-b-xl'
+                framed && 'first:rounded-t-lg last:rounded-b-lg'
               )}
             >
               <Post

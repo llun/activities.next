@@ -304,6 +304,43 @@ describe('ListTimeline', () => {
     expect(header).toHaveAttribute('data-back-name', 'Back to lists')
   })
 
+  it('says the list has no posts and offers Add people to the editor', () => {
+    render(
+      <ListTimeline
+        host="activities.local"
+        list={list}
+        memberCount={0}
+        statuses={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+      />
+    )
+
+    expect(screen.getByText('No posts yet')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Add people' })).toHaveAttribute(
+      'href',
+      '/lists/list-1/edit'
+    )
+  })
+
+  it('does not offer Add people when the list has members who have not posted', () => {
+    render(
+      <ListTimeline
+        host="activities.local"
+        list={list}
+        memberCount={3}
+        statuses={[]}
+        currentTime={FIXED_CURRENT_TIME}
+        currentActor={profile}
+      />
+    )
+
+    expect(screen.getByText('No posts yet')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Add people' })
+    ).not.toBeInTheDocument()
+  })
+
   it('appends the next page of statuses on load more', async () => {
     ;(getListTimeline as jest.Mock).mockResolvedValue({
       statuses: [createStatus('https://activities.local/users/llun/s/2')],

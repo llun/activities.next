@@ -19,14 +19,14 @@ describe('LoadMoreButton', () => {
 
   it('renders disabled button with loading text and aria-busy when isLoading is true', () => {
     render(<LoadMoreButton isLoading onClick={() => {}} />)
-    const button = screen.getByRole('button', { name: 'Loading...' })
+    const button = screen.getByRole('button', { name: 'Loading more' })
     expect(button).toBeDisabled()
     expect(button).toHaveAttribute('aria-busy', 'true')
   })
 
   it('remains disabled even if disabled={false} is explicitly passed when isLoading is true', () => {
     render(<LoadMoreButton isLoading disabled={false} onClick={() => {}} />)
-    const button = screen.getByRole('button', { name: 'Loading...' })
+    const button = screen.getByRole('button', { name: 'Loading more' })
     expect(button).toBeDisabled()
   })
 

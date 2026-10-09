@@ -5,6 +5,8 @@ import {
   breakoutStyle
 } from '@/lib/components/layout/chromeLayout'
 import { PageHeader } from '@/lib/components/page-header'
+import { Frame } from '@/lib/components/surface/Frame'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { cn } from '@/lib/utils'
 
 interface FollowListLoadingSkeletonProps {
@@ -42,12 +44,10 @@ export const FollowListLoadingSkeleton: FC<FollowListLoadingSkeletonProps> = ({
   const title = route === 'followers' ? 'Followers' : 'Following'
 
   return (
-    <div
-      aria-busy="true"
-      aria-label={label}
-      data-route={route}
-      className="space-y-6"
-    >
+    <div aria-busy="true" data-route={route} className="space-y-6">
+      <span role="status" className="sr-only">
+        {label}
+      </span>
       {/* Signed-in header: reuses PageHeader directly for pixel-exact
           alignment. `compactTitle` gives the mobile bar the loaded page's plain
           title while the desktop h1 keeps its skeleton; the box is the desktop
@@ -85,19 +85,19 @@ export const FollowListLoadingSkeleton: FC<FollowListLoadingSkeletonProps> = ({
         </div>
       </div>
 
-      <div className="divide-y overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
+      <Frame divided className="overflow-hidden">
         {[0, 1, 2, 3].map((index) => (
-          <div key={index} className="flex items-center gap-3 px-5 py-4">
-            <div className="skeleton h-12 w-12 shrink-0 rounded-full" />
+          <div key={index} className="flex items-center gap-3 px-4 py-4">
+            <SkeletonBar className="size-12 shrink-0 rounded-full" />
             <div className="min-w-0 flex-1 space-y-1.5">
-              <div className="skeleton h-4 w-36 rounded" />
-              <div className="skeleton h-3 w-28 rounded" />
-              <div className="skeleton h-3 w-48 rounded" />
+              <SkeletonBar className="h-4 w-36" />
+              <SkeletonBar className="h-3 w-28" />
+              <SkeletonBar className="h-3 w-48 max-w-full" />
             </div>
-            <div className="skeleton h-8 w-20 shrink-0 rounded-md" />
+            <SkeletonBar className="h-8 w-20 shrink-0" />
           </div>
         ))}
-      </div>
+      </Frame>
     </div>
   )
 }

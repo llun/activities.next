@@ -540,10 +540,13 @@ describe('fitness motion tokens', () => {
 describe('@theme utility mappings', () => {
   // Tailwind v4 emits a `bg-<name>` / `text-<name>` utility only for a
   // `--color-<name>` in @theme; without it the class compiles to no rule at all.
-  it.each(['control-off', 'like-text', 'surface-chrome', 'surface-accent'])(
-    'maps --color-%s to its token',
-    (name) => {
-      expect(css).toMatch(new RegExp(`--color-${name}:\\s*var\\(--${name}\\)`))
-    }
-  )
+  it.each([
+    'control-off',
+    'like-text',
+    'like-icon',
+    'surface-chrome',
+    'surface-accent'
+  ])('maps --color-%s to its token', (name) => {
+    expect(css).toMatch(new RegExp(`--color-${name}:\\s*var\\(--${name}\\)`))
+  })
 })

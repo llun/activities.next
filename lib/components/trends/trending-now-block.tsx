@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 import { getTrendingTags } from '@/lib/client'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
 import { TrendTagRow } from '@/lib/components/trends/trend-tag-row'
 import type { Tag } from '@/lib/types/mastodon/tag'
 
@@ -36,22 +38,25 @@ export const TrendingNowBlock = () => {
   if (tags.length === 0) return null
 
   return (
-    <div className="rounded-2xl border bg-card/80 p-3 shadow-sm backdrop-blur">
-      <div className="flex items-center justify-between px-3 pb-1 pt-2">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <TrendingUp className="size-4 text-primary" />
-          Trending now
-        </div>
+    <Section
+      title="Trending now"
+      icon={TrendingUp}
+      actions={
         <Link
           href="/explore"
-          className="text-xs font-medium text-primary-text hover:underline"
+          className="text-sm font-medium text-primary-text hover:underline"
         >
           See more
         </Link>
-      </div>
-      {tags.slice(0, TRENDING_NOW_LIMIT).map((tag) => (
-        <TrendTagRow key={tag.name} tag={tag} compact />
-      ))}
-    </div>
+      }
+    >
+      <FramedList>
+        {tags.slice(0, TRENDING_NOW_LIMIT).map((tag) => (
+          <FramedListItem key={tag.name} className="p-0">
+            <TrendTagRow tag={tag} compact />
+          </FramedListItem>
+        ))}
+      </FramedList>
+    </Section>
   )
 }

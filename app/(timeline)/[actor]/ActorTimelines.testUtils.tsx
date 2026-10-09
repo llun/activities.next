@@ -113,44 +113,6 @@ export const MockActorMediaGallery = () => (
   <div data-testid="mock-media-gallery" />
 )
 
-export const MockTabs = ({
-  children,
-  value
-}: {
-  children: ReactNode
-  value?: string
-}) => <div data-active-tab={value}>{children}</div>
-
-export const MockTabsContent = ({ children }: { children: ReactNode }) => (
-  <div>{children}</div>
-)
-
-export const MockTabsList = ({
-  children,
-  className
-}: {
-  children: ReactNode
-  className?: string
-}) => (
-  <div data-testid="tabs-list" className={className}>
-    {children}
-  </div>
-)
-
-export const MockTabsTrigger = ({
-  children,
-  className,
-  value
-}: {
-  children: ReactNode
-  className?: string
-  value?: string
-}) => (
-  <button data-value={value} className={className}>
-    {children}
-  </button>
-)
-
 export const MockButton = ({
   children,
   disabled,

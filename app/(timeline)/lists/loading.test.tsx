@@ -24,7 +24,9 @@ describe.each([
     expect(screen.getByRole('status')).toHaveTextContent(label)
     expect(container.textContent).toBe(label)
     expect(
-      container.querySelectorAll('[data-slot="frame"]').length
+      container.querySelectorAll(
+        '[data-slot="frame"], [data-slot="post-list-skeleton"]'
+      ).length
     ).toBeGreaterThan(0)
     expect(
       container.querySelectorAll('[data-slot="skeleton-bar"]').length

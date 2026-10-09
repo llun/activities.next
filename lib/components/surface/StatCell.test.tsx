@@ -87,4 +87,34 @@ describe('StatCell', () => {
     expect(container.querySelector('dt')).toHaveTextContent('Distance')
     expect(container.querySelector('dd')).toHaveTextContent('12.3 km')
   })
+
+  it('becomes a link to the list behind the number when given an href', () => {
+    render(
+      <StatCell
+        label="Followers"
+        icon={Activity}
+        value="30"
+        href="/@alice/followers"
+        prefetch={false}
+      />
+    )
+    const link = screen.getByRole('link', { name: /Followers/ })
+    expect(link).toHaveAttribute('href', '/@alice/followers')
+    expect(link).toHaveTextContent('30')
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('lets onSelect win over href', () => {
+    render(
+      <StatCell
+        label="Distance"
+        icon={Activity}
+        value="1"
+        href="/somewhere"
+        onSelect={() => {}}
+      />
+    )
+    expect(screen.getByRole('button', { name: /Distance/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link')).toBeNull()
+  })
 })

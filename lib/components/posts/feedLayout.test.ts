@@ -24,13 +24,6 @@ describe('mobile inset card contract', () => {
     }
   })
 
-  it('builds the card class from the card frame plus a background', () => {
-    expect(tokens(MOBILE_INSET_CARD_CLASS)).toEqual([
-      ...tokens(MOBILE_INSET_CARD_FRAME_CLASS),
-      'max-md:bg-background/80'
-    ])
-  })
-
   it('never spans the viewport like the feed surface does', () => {
     for (const token of tokens(MOBILE_FEED_SURFACE_CLASS).filter((t) =>
       /(mx-|w-auto)/.test(t)

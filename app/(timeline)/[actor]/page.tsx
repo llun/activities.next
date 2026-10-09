@@ -1,4 +1,11 @@
-import { ExternalLink, Info } from 'lucide-react'
+import {
+  ExternalLink,
+  FileText,
+  Info,
+  type LucideIcon,
+  UserCheck,
+  Users
+} from 'lucide-react'
 import { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -10,6 +17,8 @@ import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { Bio } from '@/lib/components/bio/Bio'
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
 import { FeaturedTagsBlock } from '@/lib/components/profile/FeaturedTagsBlock'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
@@ -25,7 +34,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 import { ActorRedirectCard } from './ActorRedirectCard'
 import { ActorTimelines } from './ActorTimelines'
-import { ProfileCardSection } from './ProfileCardSection'
+import { ProfileCover } from './ProfileCover'
 import { ProfileHeaderImage } from './ProfileHeaderImage'
 import { ProfileRelationshipActions } from './ProfileRelationshipActions'
 import { getProfileData } from './getProfileData'
@@ -33,6 +42,14 @@ import { getNonLocalActorRedirectTarget } from './resolveActorRedirect'
 
 interface Props {
   params: Promise<{ actor: string }>
+}
+
+interface CountCell {
+  label: string
+  icon: LucideIcon
+  count: number
+  /** The list behind the number; a cell without one is plain. */
+  href?: string
 }
 
 const numberFormatter = new Intl.NumberFormat('en-US')
@@ -254,6 +271,31 @@ const Page: FC<Props> = async ({ params }) => {
     (/^https?:\/\//i.test(person.id) ? person.id : null) ||
     `https://${actorDomain}/@${actorUsername}`
 
+  // A count the server does not know is left out rather than shown as zero;
+  // Following and Followers open their lists.
+  const profilePath = `/@${person.preferredUsername}@${actorDomain}`
+  const countCells: CountCell[] = [
+    statusesCount !== null
+      ? { label: 'Posts', icon: FileText, count: statusesCount }
+      : null,
+    followingCount !== null
+      ? {
+          label: 'Following',
+          icon: UserCheck,
+          count: followingCount,
+          href: `${profilePath}/following`
+        }
+      : null,
+    followersCount !== null
+      ? {
+          label: 'Followers',
+          icon: Users,
+          count: followersCount,
+          href: `${profilePath}/followers`
+        }
+      : null
+  ].filter((cell): cell is CountCell => cell !== null)
+
   const formattedSoftware = serverSoftware
     ? formatServerSoftware(serverSoftware)
     : null
@@ -267,15 +309,20 @@ const Page: FC<Props> = async ({ params }) => {
     // layout's mobile navigation and render nothing there.
     <div className={cn('flex flex-col gap-6', isLoggedIn && 'md:pt-8')}>
       <MobileNavigationTrigger variant="floating" />
-      <ProfileCardSection className="overflow-hidden rounded-2xl border bg-card">
-        <ProfileHeaderImage
-          actorId={person.id}
-          imageUrl={headerImageUrl}
-          mediaType={headerImageMediaType}
-        />
+      {/* The profile header is not a card: the cover, then the avatar, name,
+          handle and bio on the page itself, then the counts as a stat strip
+          whose cells open the lists. */}
+      <section aria-label="Profile" className="flex flex-col gap-4">
+        <ProfileCover>
+          <ProfileHeaderImage
+            actorId={person.id}
+            imageUrl={headerImageUrl}
+            mediaType={headerImageMediaType}
+          />
+        </ProfileCover>
 
-        <div className="relative px-6 pb-6">
-          <Avatar className="relative -mt-10 h-20 w-20 border-4 border-background">
+        <div className="relative px-4">
+          <Avatar className="relative -mt-14 size-20 border-4 border-background">
             <AvatarImage src={iconImageUrl || undefined} />
             {/* The 4px border takes the avatar's content box down to 72px, so
                 the shared 42cqw initial would come out 30px; the Avatar board
@@ -283,17 +330,17 @@ const Page: FC<Props> = async ({ params }) => {
             <AvatarFallback className="text-[34px]">{initials}</AvatarFallback>
           </Avatar>
 
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold break-words">
+              <h1 className="text-xl font-semibold tracking-tight break-words">
                 <ActorDisplayName
-                  name={person.name}
+                  name={person.name || person.preferredUsername}
                   tags={getActorEmojiTags(person)}
                 />
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {/* `max-w-full` + a truncating, shrinkable handle: a handle
-                  longer than the card ellipsizes and the icon stays in view,
+                  longer than the column ellipsizes and the icon stays in view,
                   where a plain `truncate` on the paragraph clips the whole
                   inline-flex link (icon included). */}
                 <a
@@ -310,7 +357,7 @@ const Page: FC<Props> = async ({ params }) => {
             </div>
             {isCurrentUser ? (
               <Button variant="outline" asChild className="shrink-0">
-                <Link href="/settings">Edit Profile</Link>
+                <Link href="/settings">Edit profile</Link>
               </Button>
             ) : (
               <ProfileRelationshipActions
@@ -324,56 +371,8 @@ const Page: FC<Props> = async ({ params }) => {
 
           <Bio summary={person.summary} tags={getActorEmojiTags(person)} />
 
-          {(statusesCount !== null ||
-            followingCount !== null ||
-            followersCount !== null) && (
-            <div className="mt-5 flex flex-wrap gap-6 text-sm">
-              {statusesCount !== null && (
-                <div>
-                  <span className="font-semibold">
-                    {formatNumber(statusesCount)}
-                  </span>{' '}
-                  <span className="text-muted-foreground">Posts</span>
-                </div>
-              )}
-              {followingCount !== null && (
-                <Link
-                  href={`/@${person.preferredUsername}@${actorDomain}/following`}
-                  prefetch={false}
-                  className="hover:underline"
-                >
-                  <span className="font-semibold">
-                    {formatNumber(followingCount)}
-                  </span>{' '}
-                  <span className="text-muted-foreground">Following</span>
-                </Link>
-              )}
-              {followersCount !== null && (
-                <Link
-                  href={`/@${person.preferredUsername}@${actorDomain}/followers`}
-                  prefetch={false}
-                  className="hover:underline"
-                >
-                  <span className="font-semibold">
-                    {formatNumber(followersCount)}
-                  </span>{' '}
-                  <span className="text-muted-foreground">Followers</span>
-                </Link>
-              )}
-            </div>
-          )}
-
           {formattedSoftware && (
-            <div
-              className={cn(
-                'flex items-center gap-1.5 text-sm text-muted-foreground break-words',
-                statusesCount !== null ||
-                  followingCount !== null ||
-                  followersCount !== null
-                  ? 'mt-3'
-                  : 'mt-5'
-              )}
-            >
+            <div className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground break-words">
               <Info className="size-3.5 shrink-0" aria-hidden="true" />
               <span>{formattedSoftware}</span>
             </div>
@@ -381,7 +380,22 @@ const Page: FC<Props> = async ({ params }) => {
 
           <FeaturedTagsBlock tags={featuredTags} />
         </div>
-      </ProfileCardSection>
+
+        {countCells.length > 0 && (
+          <StatStrip variant="counts" columns={countCells.length as 1 | 2 | 3}>
+            {countCells.map((cell) => (
+              <StatCell
+                key={cell.label}
+                label={cell.label}
+                icon={cell.icon}
+                value={formatNumber(cell.count)}
+                href={cell.href}
+                prefetch={false}
+              />
+            ))}
+          </StatStrip>
+        )}
+      </section>
 
       <ActorTimelines
         key={person.id}

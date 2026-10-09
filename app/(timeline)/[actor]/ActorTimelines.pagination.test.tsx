@@ -33,16 +33,6 @@ vi.mock('./ActorMediaGallery', async () => ({
     .MockActorMediaGallery
 }))
 
-vi.mock('@/lib/components/ui/tabs', async () => {
-  const utils = await import('./ActorTimelines.testUtils')
-  return {
-    Tabs: utils.MockTabs,
-    TabsContent: utils.MockTabsContent,
-    TabsList: utils.MockTabsList,
-    TabsTrigger: utils.MockTabsTrigger
-  }
-})
-
 vi.mock('@/lib/components/ui/button', async () => ({
   Button: (await import('./ActorTimelines.testUtils')).MockButton
 }))
@@ -207,7 +197,7 @@ describe('ActorTimelines', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'Failed to load more posts. Please try again.'
+        'Failed to load more posts'
       )
     })
     expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
@@ -241,11 +231,11 @@ describe('ActorTimelines', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
 
     // Nothing is appended here, so the settled state is the control itself
-    // going away. It reads "Loading..." while the request is in flight, which
+    // going away. It reads "Loading more" while the request is in flight, which
     // means the "Load more" assertion below would pass mid-flight too — wait
     // for the in-flight control to be removed first so it asserts the end state.
     await waitForElementToBeRemoved(() =>
-      screen.queryByRole('button', { name: 'Loading...' })
+      screen.queryByRole('button', { name: 'Loading more' })
     )
 
     expect(getActorStatusesMock).toHaveBeenCalledTimes(1)
@@ -286,7 +276,7 @@ describe('ActorTimelines', () => {
     fireEvent.click(loadMoreButton)
 
     await waitForElementToBeRemoved(() =>
-      screen.queryByRole('button', { name: 'Loading...' })
+      screen.queryByRole('button', { name: 'Loading more' })
     )
 
     expect(

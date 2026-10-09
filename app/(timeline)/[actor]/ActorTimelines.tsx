@@ -1,6 +1,12 @@
 'use client'
 
-import { Activity } from 'lucide-react'
+import {
+  Activity,
+  FileText,
+  Images,
+  type LucideIcon,
+  MessageCircle
+} from 'lucide-react'
 import Link from 'next/link'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -11,13 +17,10 @@ import {
   removeOriginalStatus,
   updateMatchingStatus
 } from '@/lib/components/posts/statusArray'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/lib/components/ui/tabs'
 import type { GallerySubview } from '@/lib/services/gallery/galleryEntities'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -29,7 +32,6 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
-import { cn } from '@/lib/utils'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
 import { ActorMediaGallery } from './ActorMediaGallery'
@@ -77,7 +79,6 @@ interface Props {
 }
 
 const LOAD_MORE_PAGE_LIMIT = 5
-const LOAD_MORE_ERROR_MESSAGE = 'Failed to load more posts. Please try again.'
 
 type ProfileTab = 'posts' | 'replies' | 'media' | 'gallery' | 'fitness'
 
@@ -111,25 +112,13 @@ const appendUniqueStatuses = (
   ]
 }
 
-// The shared trigger pads 16px a side, which makes the four triggers 308px wide
-// together: more than the 282px a 320px viewport leaves inside the list, so they
-// would spill out of the pill. Pad 8px a side until the list stops stretching
-// to the card (`sm`), then the shared 16px.
-const PROFILE_TAB_TRIGGER_CLASS = 'flex-1 px-2 sm:flex-none sm:px-4'
-
-// With the Gallery tab there can be five triggers (Posts, Replies, Media,
-// Gallery, Fitness): no padding fits them in 282px. Below `sm` the list then
-// scrolls sideways (`overflow-x-auto`, left-aligned so the first trigger is
-// reachable, triggers `flex-none` so none is squeezed); from `sm` up it is as
-// wide as its triggers again, as before.
-const CROWDED_TAB_COUNT = 5
-const CROWDED_TAB_TRIGGER_CLASS = 'flex-none px-2 sm:px-4'
-const CROWDED_TAB_LIST_CLASS =
-  'justify-start overflow-x-auto sm:justify-center sm:overflow-visible'
-
-const EmptyState: FC<{ children: string }> = ({ children }) => (
-  <p className="py-10 text-center text-sm text-muted-foreground">{children}</p>
-)
+const PROFILE_TAB_LABELS: Record<ProfileTab, string> = {
+  posts: 'Posts',
+  replies: 'Replies',
+  media: 'Media',
+  gallery: 'Gallery',
+  fitness: 'Fitness'
+}
 
 export const ActorTimelines: FC<Props> = ({
   host,
@@ -211,11 +200,6 @@ export const ActorTimelines: FC<Props> = ({
     }
     return tabs
   }, [showRepliesTab, hasMedia, showGalleryTab, showFitnessTab])
-
-  const isCrowded = availableTabs.length >= CROWDED_TAB_COUNT
-  const tabTriggerClass = isCrowded
-    ? CROWDED_TAB_TRIGGER_CLASS
-    : PROFILE_TAB_TRIGGER_CLASS
 
   const [activeTab, setActiveTab] = useState<ProfileTab>(
     isMediaOnly ? 'media' : 'posts'
@@ -390,7 +374,7 @@ export const ActorTimelines: FC<Props> = ({
         )
       }
     } catch (_error) {
-      setLoadMoreError(LOAD_MORE_ERROR_MESSAGE)
+      setLoadMoreError('Failed to load more posts')
     } finally {
       isLoadingRef.current = false
       setLoadingMoreStatuses(false)
@@ -444,7 +428,10 @@ export const ActorTimelines: FC<Props> = ({
     mediaAttachments.length
   ])
 
-  const renderFeed = (feedStatuses: Status[], emptyMessage: string) =>
+  const renderFeed = (
+    feedStatuses: Status[],
+    empty: { icon: LucideIcon; title: string; hint: string }
+  ) =>
     feedStatuses.length > 0 ? (
       <Posts
         host={host}
@@ -463,8 +450,45 @@ export const ActorTimelines: FC<Props> = ({
         onReactionsChanged={handleReactionsChanged}
       />
     ) : (
-      <EmptyState>{emptyMessage}</EmptyState>
+      <EmptyState icon={empty.icon} title={empty.title}>
+        {empty.hint}
+      </EmptyState>
     )
+
+  const noPosts = {
+    icon: FileText,
+    title: 'No posts yet',
+    hint: isCurrentUser
+      ? 'Posts you write show up here.'
+      : 'Posts show up here once they write something.'
+  }
+  const noReplies = {
+    icon: MessageCircle,
+    title: 'No replies yet',
+    hint: isCurrentUser
+      ? 'Your replies to other people show up here.'
+      : 'Replies to other people show up here.'
+  }
+  const noFitness = {
+    icon: Activity,
+    title: 'No fitness activities yet',
+    hint: 'Activities shared as posts show up here.'
+  }
+
+  // Posts, replies and fitness page through the outbox cursor with Load more;
+  // a failed page says so above the button, which is also the way to retry.
+  const loadMoreControl = canLoadMore ? (
+    <>
+      {loadMoreError ? (
+        <Alert title={loadMoreError}>Please try again.</Alert>
+      ) : null}
+      <LoadMoreButton
+        containerRef={loadMoreRef}
+        isLoading={isLoadingMoreStatuses}
+        onClick={handleManualLoadMore}
+      />
+    </>
+  ) : null
 
   if (isMediaOnly) {
     return (
@@ -478,17 +502,12 @@ export const ActorTimelines: FC<Props> = ({
             isMediaOnly={isMediaOnly}
           />
         ) : (
-          <EmptyState>No media yet</EmptyState>
+          <EmptyState icon={Images} title="No media yet">
+            Photos and videos show up here.
+          </EmptyState>
         )}
 
-        {canLoadMore && (
-          <LoadMoreButton
-            containerRef={loadMoreRef}
-            error={loadMoreError}
-            isLoading={isLoadingMoreStatuses}
-            onClick={handleManualLoadMore}
-          />
-        )}
+        {loadMoreControl}
       </div>
     )
   }
@@ -496,114 +515,68 @@ export const ActorTimelines: FC<Props> = ({
   if (availableTabs.length <= 1) {
     return (
       <div className="space-y-4">
-        {renderFeed(postStatuses, 'No posts yet')}
+        {renderFeed(postStatuses, noPosts)}
 
-        {canLoadMore && (
-          <LoadMoreButton
-            containerRef={loadMoreRef}
-            error={loadMoreError}
-            isLoading={isLoadingMoreStatuses}
-            onClick={handleManualLoadMore}
-          />
-        )}
+        {loadMoreControl}
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      <Tabs
+      <SegmentedControl
+        aria-label="Profile sections"
+        items={availableTabs.map((value) => ({
+          value,
+          label: PROFILE_TAB_LABELS[value]
+        }))}
         value={effectiveActiveTab}
         onValueChange={(value) => setActiveTab(value as ProfileTab)}
-        className="w-full gap-4"
-      >
-        <TabsList
-          className={cn('w-full sm:w-fit', isCrowded && CROWDED_TAB_LIST_CLASS)}
-          aria-label="Profile sections"
-        >
-          <TabsTrigger value="posts" className={tabTriggerClass}>
-            Posts
-          </TabsTrigger>
-          {showRepliesTab && (
-            <TabsTrigger value="replies" className={tabTriggerClass}>
-              Replies
-            </TabsTrigger>
-          )}
-          {hasMedia && (
-            <TabsTrigger value="media" className={tabTriggerClass}>
-              Media
-            </TabsTrigger>
-          )}
-          {showGalleryTab && (
-            <TabsTrigger value="gallery" className={tabTriggerClass}>
-              Gallery
-            </TabsTrigger>
-          )}
-          {showFitnessTab && (
-            <TabsTrigger value="fitness" className={tabTriggerClass}>
-              Fitness
-            </TabsTrigger>
-          )}
-        </TabsList>
+        className="sm:w-fit"
+      />
 
-        <TabsContent value="posts" className="mt-0">
-          {renderFeed(postStatuses, 'No posts yet')}
-        </TabsContent>
+      {effectiveActiveTab === 'posts' && renderFeed(postStatuses, noPosts)}
 
-        {showRepliesTab && (
-          <TabsContent value="replies" className="mt-0">
-            {renderFeed(replyStatuses, 'No replies yet')}
-          </TabsContent>
-        )}
+      {effectiveActiveTab === 'replies' &&
+        showRepliesTab &&
+        renderFeed(replyStatuses, noReplies)}
 
-        {hasMedia && (
-          <TabsContent value="media" className="mt-0">
-            <ActorMediaGallery
-              actorId={actorId}
-              initialAttachments={mediaAttachments}
-              statuses={currentStatuses}
-              isPixelfed={false}
-            />
-          </TabsContent>
-        )}
-
-        {showGalleryTab && (
-          <TabsContent value="gallery" className="mt-0">
-            <ProfileGalleryTab
-              actorId={actorId}
-              handle={handle}
-              subviews={gallerySubviews}
-              isCurrentUser={isCurrentUser}
-              mapProvider={mapProvider}
-            />
-          </TabsContent>
-        )}
-
-        {showFitnessTab && (
-          <TabsContent value="fitness" className="mt-0 space-y-4">
-            {isCurrentUser && (
-              <div className="flex justify-end">
-                <Button variant="outline" asChild>
-                  <Link href="/fitness">
-                    <Activity className="size-4" aria-hidden="true" />
-                    Fitness dashboard
-                  </Link>
-                </Button>
-              </div>
-            )}
-            {renderFeed(fitnessStatuses, 'No fitness activities yet')}
-          </TabsContent>
-        )}
-      </Tabs>
-
-      {canLoadMore && (
-        <LoadMoreButton
-          containerRef={loadMoreRef}
-          error={loadMoreError}
-          isLoading={isLoadingMoreStatuses}
-          onClick={handleManualLoadMore}
+      {effectiveActiveTab === 'media' && hasMedia && (
+        <ActorMediaGallery
+          actorId={actorId}
+          initialAttachments={mediaAttachments}
+          statuses={currentStatuses}
+          isPixelfed={false}
         />
       )}
+
+      {effectiveActiveTab === 'gallery' && showGalleryTab && (
+        <ProfileGalleryTab
+          actorId={actorId}
+          handle={handle}
+          subviews={gallerySubviews}
+          isCurrentUser={isCurrentUser}
+          mapProvider={mapProvider}
+        />
+      )}
+
+      {effectiveActiveTab === 'fitness' && showFitnessTab && (
+        <div className="space-y-4">
+          {isCurrentUser && (
+            <div className="flex justify-end">
+              <Button variant="outline" asChild>
+                <Link href="/fitness">
+                  <Activity className="size-4" aria-hidden="true" />
+                  Fitness dashboard
+                </Link>
+              </Button>
+            </div>
+          )}
+          {renderFeed(fitnessStatuses, noFitness)}
+        </div>
+      )}
+
+      {loadMoreControl}
     </div>
   )
 }

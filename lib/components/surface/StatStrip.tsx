@@ -38,6 +38,13 @@ import { cn } from '@/lib/utils'
  *   2×2 card stacks to one column (and 4-up waits for twice the width) instead
  *   of clipping "22.2 km" to "22.2 kr". At the default size 16rem is 256px
  *   (a 320px phone's 288px column is still 2×2) and 43.75rem is 700px.
+ * - `counts` — a few short integers (a profile's Posts, Following and
+ *   Followers, a post's Boosts, Likes and Comments). Same hairline strip as
+ *   `summary`, but a count is "12,345", not "35,670.2 km", so three cells fit
+ *   across a phone: 3-up from 17rem (a 320px phone's 288px column is already
+ *   3-up, ~96px a cell), and one column only when the text is so large that
+ *   they truly cannot, as at 200% text. `summary` would leave the third count
+ *   alone on a second row on a 390px phone.
  */
 const VARIANT_CLASS_NAMES = {
   detail: 'gap-3 grid-cols-1 @min-[420px]:grid-cols-2 @min-[780px]:grid-cols-4',
@@ -46,7 +53,19 @@ const VARIANT_CLASS_NAMES = {
     'gap-px grid-cols-1 @min-[16rem]:grid-cols-2 @min-[43.75rem]:grid-cols-4'
 } as const
 
-export type StatStripVariant = keyof typeof VARIANT_CLASS_NAMES
+export type StatStripVariant = keyof typeof VARIANT_CLASS_NAMES | 'counts'
+
+/**
+ * The `counts` strip's columns for the number of cells it holds. Rem, not px,
+ * for the same reason as the `summary` thresholds: at 200% text 17rem is 544px,
+ * so a phone stacks to one column instead of clipping a label.
+ */
+const COUNT_COLUMN_CLASS_NAMES = {
+  1: 'gap-px grid-cols-1',
+  2: 'gap-px grid-cols-1 @min-[12rem]:grid-cols-2',
+  3: 'gap-px grid-cols-1 @min-[17rem]:grid-cols-3',
+  4: 'gap-px grid-cols-1 @min-[12rem]:grid-cols-2 @min-[24rem]:grid-cols-4'
+} as const
 
 /**
  * The `summary` strip with fewer than four cells — the gear pages' totals use
@@ -56,9 +75,11 @@ export type StatStripVariant = keyof typeof VARIANT_CLASS_NAMES
  * 3-up from 30rem (a 480px column still gives each "35,670.2 km" ~160px) and,
  * on a phone, two over one with the third cell spanning the row, the 2×2
  * strip's shape rather than a tall single column; two follow the four-cell
- * strip's own 16rem step. Same `rem` reasoning as above.
+ * strip's own 16rem step; a lone cell is one full-width column. Same `rem`
+ * reasoning as above.
  */
 const SUMMARY_COLUMN_CLASS_NAMES = {
+  1: 'gap-px grid-cols-1',
   2: 'gap-px grid-cols-1 @min-[16rem]:grid-cols-2',
   3: 'gap-px grid-cols-1 @min-[16rem]:grid-cols-2 @min-[16rem]:[&>*:nth-child(3)]:col-span-2 @min-[30rem]:grid-cols-3 @min-[30rem]:[&>*:nth-child(3)]:col-span-1',
   4: VARIANT_CLASS_NAMES.summary
@@ -75,13 +96,13 @@ export const STAT_STRIP_CLASS = 'bg-border overflow-hidden rounded-lg border'
  * both establish the container and read it. The wrapper is a plain block, so
  * its content box is exactly the grid's width.
  *
- * The `summary` variant is the hairline strip: it also paints `bg-border`, the
+ * The `summary` and `counts` variants are the hairline strip: they also paint `bg-border`, the
  * border and the radius that its cells' 1px gaps cut into dividers, so a caller
  * only passes margins. Fill it with `StatCell`s.
  */
 export const StatStrip: FC<{
   variant?: StatStripVariant
-  /** `summary` only: how many cells the strip holds (default four). */
+  /** `summary` and `counts`: how many cells the strip holds (default four). */
   columns?: StatStripColumns
   className?: string
   children: ReactNode
@@ -89,16 +110,18 @@ export const StatStrip: FC<{
   <div
     className={cn(
       '@container',
-      variant === 'summary' && STAT_STRIP_CLASS,
+      (variant === 'summary' || variant === 'counts') && STAT_STRIP_CLASS,
       className
     )}
   >
     <div
       className={cn(
         'grid',
-        variant === 'summary'
-          ? SUMMARY_COLUMN_CLASS_NAMES[columns]
-          : VARIANT_CLASS_NAMES[variant]
+        variant === 'counts'
+          ? COUNT_COLUMN_CLASS_NAMES[columns]
+          : variant === 'summary'
+            ? SUMMARY_COLUMN_CLASS_NAMES[columns]
+            : VARIANT_CLASS_NAMES[variant]
       )}
     >
       {children}

@@ -470,7 +470,7 @@ describe('GearActivitiesFeed', () => {
       )
       renderFeed()
 
-      const retry = await screen.findByRole('button', { name: 'Try again' })
+      const retry = await screen.findByRole('button', { name: 'Retry' })
       mockGetFitnessGearActivities.mockResolvedValueOnce(
         page({ statuses: [createStatus('status-1', 'Morning ride')] })
       )
@@ -479,7 +479,7 @@ describe('GearActivitiesFeed', () => {
       expect(await screen.findByText('Morning ride')).toBeInTheDocument()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Try again' })
+        screen.queryByRole('button', { name: 'Retry' })
       ).not.toBeInTheDocument()
     })
   })

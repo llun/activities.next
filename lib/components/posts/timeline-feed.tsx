@@ -20,7 +20,7 @@ import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient
 import { getActualStatus } from '@/lib/utils/text/processStatusText'
 
 import { BoostCarousel } from './boost-carousel'
-import { MOBILE_FEED_SURFACE_CLASS } from './feedLayout'
+import { MOBILE_FEED_SURFACE_CLASS, POST_LIST_FRAME_CLASS } from './feedLayout'
 import { InlineStatusComposer } from './inline-status-composer'
 import { Post } from './post'
 import { getStatusReplyTargetId, groupTimelinePage } from './timelineModel'
@@ -30,7 +30,8 @@ export interface TimelineFeedProps {
   host: string
   className?: string
   /**
-   * When true (default) the feed renders as a self-contained bordered card.
+   * When true (default) the feed renders in the post list frame (see
+   * `Posts`).
    */
   framed?: boolean
   currentActor?: ActorProfile
@@ -226,11 +227,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
       <section
         className={cn(
           'w-full min-w-0 divide-y divide-border',
-          framed &&
-            cn(
-              'rounded-xl border bg-card shadow-sm',
-              MOBILE_FEED_SURFACE_CLASS
-            ),
+          framed && cn(POST_LIST_FRAME_CLASS, MOBILE_FEED_SURFACE_CLASS),
           className
         )}
       >
@@ -251,7 +248,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 key={row.key}
                 className={cn(
                   'min-h-0 min-w-0',
-                  framed && 'first:rounded-t-xl last:rounded-b-xl'
+                  framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
                 {renderPostItem(status, {
@@ -278,7 +275,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 aria-label="Thread"
                 className={cn(
                   'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
-                  framed && 'first:rounded-t-xl last:rounded-b-xl'
+                  framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
                 {shouldCollapse ? (
@@ -360,7 +357,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
                 aria-label="Conversation"
                 className={cn(
                   'min-h-0 min-w-0 bg-muted/30 dark:bg-muted/15',
-                  framed && 'first:rounded-t-xl last:rounded-b-xl'
+                  framed && 'first:rounded-t-lg last:rounded-b-lg'
                 )}
               >
                 {convStatuses.map((status, index) => {

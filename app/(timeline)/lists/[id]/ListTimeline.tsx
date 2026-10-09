@@ -1,13 +1,12 @@
 'use client'
 
-import { Pencil } from 'lucide-react'
+import { List, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useCallback, useRef, useState } from 'react'
 
 import { getListTimeline } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
@@ -15,6 +14,7 @@ import {
 } from '@/lib/components/posts/statusArray'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -184,15 +184,24 @@ export const ListTimeline: FC<ListTimelineProps> = ({
           onReactionsChanged={onReactionsChanged}
         />
       ) : (
-        <div
-          className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+        <EmptyState
+          icon={List}
+          titleAs="h2"
+          title="No posts yet"
+          action={
+            // Only an empty list needs people added; one with members is
+            // waiting on them to post.
+            memberCount === 0 ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/lists/${list.id}/edit`}>Add people</Link>
+              </Button>
+            ) : undefined
+          }
         >
-          <h2 className="mb-2 text-xl font-semibold">No posts yet</h2>
-          <p>
-            Posts from this list&rsquo;s members will appear here. Add accounts
-            from the list settings to get started.
-          </p>
-        </div>
+          {memberCount === 0
+            ? 'Add people to this list to see their posts here.'
+            : 'Posts from this list\u2019s members will appear here.'}
+        </EmptyState>
       )}
 
       {hasMoreStatuses && lastStatusIdRef.current && (

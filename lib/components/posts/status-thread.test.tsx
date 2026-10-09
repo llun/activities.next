@@ -165,77 +165,6 @@ describe('StatusThread', () => {
   // logged-out thread is an inset card at every width, so its first row keeps
   // the card's top corners below `md` too: a reset would let its square
   // `bg-background` bleed past the card's rounded border.
-  describe('mobile corner reset', () => {
-    const buildThread = () => {
-      const root = createMockNote({
-        id: 'https://activities.local/users/alice/statuses/root',
-        actor: mockAlice,
-        actorId: mockAlice.id,
-        text: 'Ancestor Root',
-        createdAt: BASE_TIME
-      })
-      const focused = createMockNote({
-        id: 'https://activities.local/users/alice/statuses/focused',
-        actor: mockAlice,
-        actorId: mockAlice.id,
-        reply: root.id,
-        text: 'Focused Status',
-        createdAt: BASE_TIME + 60000
-      })
-      return { root, focused }
-    }
-
-    it('keeps the ancestor and focused rows rounded when logged out', () => {
-      const { root, focused } = buildThread()
-      const { rerender } = render(
-        <StatusThread
-          host={host}
-          status={focused}
-          ancestors={[root]}
-          currentTime={BASE_TIME + 200000}
-        />
-      )
-
-      const ancestorRow = screen.getAllByTestId('ancestor-status')[0]
-      expect(ancestorRow).toHaveClass('rounded-t-2xl')
-      expect(ancestorRow).not.toHaveClass('max-md:rounded-none')
-      expect(screen.getByTestId('focused-status')).not.toHaveClass(
-        'max-md:rounded-none'
-      )
-
-      rerender(
-        <StatusThread
-          host={host}
-          status={focused}
-          currentTime={BASE_TIME + 200000}
-        />
-      )
-      const focusedRow = screen.getByTestId('focused-status')
-      expect(focusedRow).toHaveClass('rounded-t-2xl')
-      expect(focusedRow).not.toHaveClass('max-md:rounded-none')
-    })
-
-    it('squares the ancestor and focused rows below md when signed in', () => {
-      const { root, focused } = buildThread()
-      render(
-        <StatusThread
-          host={host}
-          status={focused}
-          ancestors={[root]}
-          currentActor={mockAlice}
-          currentTime={BASE_TIME + 200000}
-        />
-      )
-
-      expect(screen.getAllByTestId('ancestor-status')[0]).toHaveClass(
-        'max-md:rounded-none'
-      )
-      expect(screen.getByTestId('focused-status')).toHaveClass(
-        'max-md:rounded-none'
-      )
-    })
-  })
-
   it('renders empty state when there are no replies', () => {
     const focused = createMockNote({
       id: 'https://activities.local/users/alice/statuses/lonely',
@@ -250,6 +179,7 @@ describe('StatusThread', () => {
     )
 
     expect(screen.getByText('No replies yet')).toBeInTheDocument()
+    expect(screen.getByText('Replies show up here.')).toBeInTheDocument()
   })
 
   it('renders focusedFooter when provided', () => {

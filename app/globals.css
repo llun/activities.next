@@ -40,6 +40,7 @@
   --color-info-foreground: var(--info-foreground);
   --color-info-text: var(--info-text);
   --color-like-text: var(--like-text);
+  --color-like-icon: var(--like-icon);
   --color-surface-chrome: var(--surface-chrome);
   --color-surface-accent: var(--surface-accent);
   --color-accent-foreground: var(--accent-foreground);
@@ -138,6 +139,11 @@
      separately, so this is its own token and the like button never reads as a
      destructive action. Exposed as the `text-like-text` utility. */
   --like-text: hsl(357.5 64.1% 43.7%);
+  /* The LIKED heart itself (and the hover tint on the unliked one): Tailwind's
+     red-500, the same bright red in both themes, on the like button and on the
+     "N likes" heart under a post. Not --destructive, which turns maroon in dark
+     mode and would read as a destructive action. Exposed as `text-like-icon`. */
+  --like-icon: oklch(63.7% 0.237 25.331);
   /* Status tones for the surface kit's Alert (and anything else that must say
      success, warning or info), as distinct from --destructive for errors. As
      with --primary vs --primary-text, the plain token is the FILL or accent
@@ -248,6 +254,8 @@
   --destructive-text: hsl(0 91% 71%);
   /* Like Text (see the light block): the same red-400 as --destructive-text. */
   --like-text: hsl(0 91% 71%);
+  /* Like icon (see the light block): the same red-500 in both themes. */
+  --like-icon: oklch(63.7% 0.237 25.331);
   /* Status tones (see the light block). Fills step down to deep shades that
      keep white (or near-white) foreground text at 4.5:1; the -text shades go UP
      in lightness (green-400, amber-400, blue-300) to clear 4.5:1 on the dark

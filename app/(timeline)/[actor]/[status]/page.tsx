@@ -9,7 +9,8 @@ import {
   MOBILE_FEED_SURFACE_CLASS,
   MOBILE_INSET_CARD_CLASS,
   MOBILE_INSET_CARD_FRAME_CLASS,
-  MOBILE_INSET_STACK_CLASS
+  MOBILE_INSET_STACK_CLASS,
+  POST_LIST_FRAME_CLASS
 } from '@/lib/components/posts/feedLayout'
 import { StatusThread } from '@/lib/components/posts/status-thread'
 import { getBaseURL, getConfig } from '@/lib/config'
@@ -178,7 +179,7 @@ const Page: FC<Props> = async ({ params }) => {
       data: { statusId: fullStatusId, firstPageOnly: queue.runsInline }
     })
 
-    // Show loading state. Its own "Fetching Remote Status" heading stays the
+    // Show loading state. Its own "Fetching remote status" heading stays the
     // page's h1, so the mobile bar only names the page.
     return (
       <>
@@ -297,7 +298,7 @@ const Page: FC<Props> = async ({ params }) => {
             // off, so a failed bookmark stayed unreadable. The picker and the ⋯
             // popover are unaffected either way; both portal to the document
             // body.
-            'rounded-2xl border bg-background/80 shadow-sm',
+            POST_LIST_FRAME_CLASS,
             // Below `md` a signed-in page is the full-bleed feed surface. A
             // logged-out page is not one card but a stack of inset cards (the
             // activity, then `SignInCallout`), like `PublicFooter` below them.
@@ -315,7 +316,7 @@ const Page: FC<Props> = async ({ params }) => {
             // carries two transparent corner notches out over the post. A
             // clipping box is safe on this subtree alone because the header
             // holds no overlays.
-            <div className="overflow-hidden rounded-t-2xl max-md:rounded-none">
+            <div className="overflow-hidden rounded-t-lg max-md:rounded-none">
               <Header
                 isFitnessDashboard
                 fallbackHref={authorProfileHref}
@@ -337,10 +338,10 @@ const Page: FC<Props> = async ({ params }) => {
               // full-bleed. Logged out there is no `Header` above this — the
               // `sr-only` heading is out of flow and paints nothing — so it meets
               // the top corners as well…
-              !currentActorProfile && 'rounded-t-2xl',
+              !currentActorProfile && 'rounded-t-lg',
               // …and it is the last child unless the logged-out `SignInCallout`
               // follows it, in which case that block takes the bottom corners.
-              currentActorProfile && 'rounded-b-2xl max-md:rounded-none',
+              currentActorProfile && 'rounded-b-lg max-md:rounded-none',
               // Below `md` a logged-out activity is a card of its own, framed
               // all the way round (its `border-b` becomes a full border).
               !currentActorProfile && MOBILE_INSET_CARD_FRAME_CLASS
@@ -373,7 +374,7 @@ const Page: FC<Props> = async ({ params }) => {
             // so it is what meets the bottom corners on the logged-out view.
             <SignInCallout
               registrationOpen={registrationOpen}
-              className={cn('rounded-b-2xl', MOBILE_INSET_CARD_FRAME_CLASS)}
+              className={cn('rounded-b-lg', MOBILE_INSET_CARD_FRAME_CLASS)}
             />
           ) : null}
         </div>
@@ -416,7 +417,7 @@ const Page: FC<Props> = async ({ params }) => {
           // the "No replies yet" block, neither of which paints a background —
           // append a background-painting child last and the bottom corners will
           // need the same treatment.
-          'rounded-2xl border bg-background/80 shadow-sm',
+          POST_LIST_FRAME_CLASS,
           // Below `md` a signed-in page is the full-bleed feed surface. A
           // logged-out page is not one card but a stack of inset cards (the
           // thread, then `SignInCallout`), like `PublicFooter` below them; the
@@ -444,7 +445,7 @@ const Page: FC<Props> = async ({ params }) => {
           //
           // So the header still does not stick, on either call site. Whether it
           // should is a live question, but it is not this change's to answer.
-          <div className="overflow-hidden rounded-t-2xl max-md:rounded-none">
+          <div className="overflow-hidden rounded-t-lg max-md:rounded-none">
             <Header
               isFitnessDashboard={false}
               fallbackHref={authorProfileHref}
