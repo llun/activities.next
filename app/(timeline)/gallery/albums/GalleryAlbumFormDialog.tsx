@@ -66,7 +66,7 @@ const VISIBILITY_COPY: Record<
 > = {
   public: {
     label: 'Public',
-    hint: 'Anyone who can see the posts can see this album’s photos.',
+    hint: 'Anyone with the link can open it, and sees only the photos from posts they may read.',
     icon: Globe
   },
   private: { label: 'Private', hint: 'Only you can see it.', icon: Lock }

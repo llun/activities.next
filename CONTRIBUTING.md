@@ -300,6 +300,7 @@ yarn test --maxWorkers=2 \
   lib/database/sql/galleryAlbums.test.ts \
   lib/services/gallery/galleryQueries.test.ts \
   lib/services/gallery/galleryAlbumQueries.test.ts \
+  lib/services/gallery/galleryAlbumVisitor.test.ts \
   lib/services/gallery/galleryGear.test.ts \
   lib/services/gallery/subjectHashtags.test.ts \
   lib/services/gallery/uploadMediaDetails.test.ts \

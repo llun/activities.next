@@ -432,6 +432,28 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   photos and an actor 200 albums (422 past either). A missing album and
   somebody else's both answer 404; writes are limited to 120 per actor per
   minute (429, in process). Albums are not federated.
+- **Public gallery albums** — `GET /api/v1/accounts/:id/gallery/albums` and
+  `GET /api/v1/accounts/:id/gallery/albums/:albumId`, non-Mastodon, CORS `GET`s
+  behind `OptionalOAuthGuard` (`read` or `read:statuses`, or no token, or the web
+  session), answering for whoever is asking. The list returns `albums` (each
+  with `itemCount`, `firstAt`, `lastAt`, `cover` and `previews`) and `photoCount`
+  for the albums that viewer can open: for anyone but the owner, only `public`
+  albums with at least one photo they can see, every number computed from the
+  photos they can see, in last-updated order. For anyone but the owner an album's
+  `createdAt` and `updatedAt` are not the stored times (which move whenever the
+  owner adds or removes any photo, visible or not) but when the first and the
+  latest photo that viewer can see joined the album, and the list order uses the
+  latter. The album returns `album`, `facts`, `species` and a page
+  of `items` with `nextMaxId` (`?max_id&limit&sort&subject`; `limit` 1 to 60,
+  default 30, clamped; a bad `max_id`, `sort` or `subject` is a 422). A private
+  album, a missing one, another account's, and one with no photo the viewer can
+  see are all the same 404, answered before the query is checked, and so is a
+  missing or remote account. `place` on an item is exactly `getPublicPlace`;
+  `coverMediaId` is null and `hiddenPlaceCount` 0 for everyone but the owner,
+  and no IUCN or lookup field is ever sent. Reads are limited to 300 per viewer
+  per minute (429, in process): a signed-in viewer by actor, a logged-out one
+  by client address only when `ACTIVITIES_TRUST_PROXY_IP_HEADERS` is on, and
+  otherwise not limited here.
 - **`?format=activities_next`** — timeline endpoints and
   `GET /api/v1/trends/statuses` accept this query flag to return the raw internal
   status JSON instead of the Mastodon status shape (the web `/explore` Posts tab

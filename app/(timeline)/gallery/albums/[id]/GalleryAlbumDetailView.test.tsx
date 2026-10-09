@@ -69,9 +69,16 @@ const remove = vi.mocked(removeGalleryAlbumItems)
 const update = vi.mocked(updateGalleryAlbum)
 const del = vi.mocked(deleteGalleryAlbum)
 
+const SHARE_URL = 'https://activities.test/@owner@activities.test/albums/a1'
+
 const renderView = (detail = buildAlbumDetail()) =>
   render(
-    <GalleryAlbumDetailView ownerId="owner" detail={detail} pageSize={30} />
+    <GalleryAlbumDetailView
+      ownerId="owner"
+      shareUrl={SHARE_URL}
+      detail={detail}
+      pageSize={30}
+    />
   )
 
 describe('GalleryAlbumDetailView', () => {
@@ -129,12 +136,90 @@ describe('GalleryAlbumDetailView', () => {
     ).toBeInTheDocument()
   })
 
-  it('has no share link and promises no visitor page yet', () => {
+  describe('Share link', () => {
+    const writeText = vi.fn()
+
+    beforeEach(() => {
+      writeText.mockReset()
+      writeText.mockResolvedValue(undefined)
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText }
+      })
+    })
+
+    it('copies the public address of a public album and says so', async () => {
+      renderView()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Share link' }))
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'Link copied' })
+        ).toBeVisible()
+      )
+      expect(writeText).toHaveBeenCalledWith(SHARE_URL)
+      expect(screen.getByRole('status')).toHaveTextContent('Link copied.')
+      // Nothing to explain for a public album with photos visitors can see.
+      expect(
+        screen.queryByText(/Make this album public/)
+      ).not.toBeInTheDocument()
+    })
+
+    it('is inert for a private album, but still focusable and described by a visible hint', () => {
+      renderView(
+        buildAlbumDetail({
+          album: buildAlbumCard('a1', { visibility: 'private' })
+        })
+      )
+
+      const share = screen.getByRole('button', { name: 'Share link' })
+      expect(share).toHaveAttribute('aria-disabled', 'true')
+      expect(share).not.toBeDisabled()
+      // The reason is text on the page, not a tooltip, and the button points
+      // at it, so keyboard and touch users get it too.
+      expect(share).toHaveAccessibleDescription(
+        'Make this album public to share its link.'
+      )
+      expect(
+        screen.getByText('Make this album public to share its link.')
+      ).toBeVisible()
+      share.focus()
+      expect(share).toHaveFocus()
+
+      fireEvent.click(share)
+      expect(writeText).not.toHaveBeenCalled()
+      expect(
+        screen.queryByRole('button', { name: 'Link copied' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('warns that a public album with no public photo is not found for signed-out viewers and non-followers', async () => {
+      renderView(
+        buildAlbumDetail({
+          facts: { ...buildAlbumDetail().facts, photoCount: 0 }
+        })
+      )
+
+      const share = screen.getByRole('button', { name: 'Share link' })
+      expect(share).not.toHaveAttribute('aria-disabled', 'true')
+      expect(share).toHaveAccessibleDescription(
+        'No photo here is public yet, so anyone signed out (and anyone who does not follow you) sees a not-found page.'
+      )
+      fireEvent.click(share)
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(SHARE_URL))
+    })
+  })
+
+  it('keeps the sort a 40px touch target', () => {
     renderView()
-    expect(
-      screen.queryByRole('button', { name: /share/i })
-    ).not.toBeInTheDocument()
-    expect(screen.queryByText(/what a visitor sees/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Sort photos')).toHaveClass(
+      'pointer-coarse:h-10'
+    )
+  })
+
+  it('keeps the counts note for the owner, who sees every photo', () => {
+    renderView()
     expect(
       screen.getByText(/Counts include only photos from public posts/)
     ).toBeInTheDocument()
@@ -202,6 +287,88 @@ describe('GalleryAlbumDetailView', () => {
     )
   })
 
+  describe('when a reload fails', () => {
+    const paged = () =>
+      buildAlbumDetail({
+        page: {
+          items: [buildGalleryItem('a1-1'), buildGalleryItem('a1-2')],
+          nextMaxId: '5:2'
+        }
+      })
+
+    it('puts the sort back, so Load more keeps the cursor of the order on screen', async () => {
+      items.mockRejectedValueOnce(new Error('Rate limited'))
+      items.mockResolvedValueOnce({
+        items: [buildGalleryItem('a1-3')],
+        nextMaxId: null
+      })
+      renderView(paged())
+
+      const select = screen.getByLabelText('Sort photos')
+      fireEvent.change(select, { target: { value: 'taken_asc' } })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Rate limited')
+      expect(select).toHaveValue('taken_desc')
+      expect(screen.getByTestId('grid').children).toHaveLength(2)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+      await waitFor(() =>
+        expect(screen.getByTestId('grid').children).toHaveLength(3)
+      )
+      expect(items).toHaveBeenLastCalledWith('a1', {
+        limit: 30,
+        sort: 'taken_desc',
+        subject: undefined,
+        maxId: '5:2'
+      })
+    })
+
+    it('puts the species back', async () => {
+      items.mockRejectedValueOnce(new Error('Offline'))
+      renderView(paged())
+
+      fireEvent.click(screen.getByRole('button', { name: /African Lion\s*2/ }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Offline')
+      expect(
+        screen.getByRole('button', { name: /African Lion\s*2/ })
+      ).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.getByTestId('grid').children).toHaveLength(2)
+    })
+
+    it('drops the cursor, and does not ask again, when a filter that has gone cannot be reloaded', async () => {
+      items.mockResolvedValue({
+        items: [buildGalleryItem('lion-1')],
+        nextMaxId: '7:7'
+      })
+      const withLion = buildAlbumDetail({
+        species: [{ key: 'sci:panthera leo', name: 'African Lion', count: 1 }]
+      })
+      const { rerender } = renderView(withLion)
+      fireEvent.click(screen.getByRole('button', { name: /African Lion\s*1/ }))
+      expect(await screen.findByText('lion-1')).toBeInTheDocument()
+
+      items.mockReset()
+      items.mockRejectedValue(new Error('Offline'))
+      rerender(
+        <GalleryAlbumDetailView
+          ownerId="owner"
+          shareUrl={SHARE_URL}
+          detail={buildAlbumDetail({ species: [] })}
+          pageSize={30}
+        />
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Offline')
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Load more' })
+        ).not.toBeInTheDocument()
+      )
+      expect(items).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('drops a species filter whose last photo was removed, even with no chips left', async () => {
     items.mockResolvedValue({
       items: [buildGalleryItem('lion-1')],
@@ -227,6 +394,7 @@ describe('GalleryAlbumDetailView', () => {
     rerender(
       <GalleryAlbumDetailView
         ownerId="owner"
+        shareUrl={SHARE_URL}
         detail={buildAlbumDetail({ species: [] })}
         pageSize={30}
       />

@@ -2,7 +2,6 @@ import crypto from 'crypto'
 import { NextRequest } from 'next/server'
 
 import { getConfig } from '@/lib/config'
-import { getTrustProxyIpHeadersConfig } from '@/lib/config/trustProxyIpHeaders'
 import { getDatabase } from '@/lib/database'
 import {
   oauthLogger,
@@ -14,6 +13,7 @@ import {
   isRequestBodyTooLargeError
 } from '@/lib/utils/boundedRequestBody'
 import { getRequestBody } from '@/lib/utils/getRequestBody'
+import { getTrustedClientIp } from '@/lib/utils/getTrustedClientIp'
 import { HttpMethod } from '@/lib/utils/http-headers'
 import { logger } from '@/lib/utils/logger'
 import {
@@ -38,25 +38,6 @@ let hasWarnedMissingAppRegistrationSource = false
 
 export const resetAppRegistrationWarningStateForTests = () => {
   hasWarnedMissingAppRegistrationSource = false
-}
-
-const getTrustedClientIp = (req: NextRequest): string | undefined => {
-  if (!getTrustProxyIpHeadersConfig()) return undefined
-
-  const cfConnectingIp = req.headers.get('cf-connecting-ip')?.trim()
-  if (cfConnectingIp) return cfConnectingIp
-
-  const realIp = req.headers.get('x-real-ip')?.trim()
-  if (realIp) return realIp
-
-  const forwardedFor = req.headers
-    .get('x-forwarded-for')
-    ?.split(',')
-    .map((ip) => ip.trim())
-    .find(Boolean)
-  if (forwardedFor) return forwardedFor
-
-  return undefined
 }
 
 const getAppRegistrationKey = (req: NextRequest): string | undefined => {

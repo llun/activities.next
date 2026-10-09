@@ -13,6 +13,8 @@ import { getAlbumCardMeta } from './galleryAlbumsUi'
 
 interface Props {
   album: GalleryAlbumCardEntity
+  /** Where the card goes; the owner's album page unless given. */
+  href?: string
 }
 
 // One tile fills the cover; two put the second one in a full-height column;
@@ -23,14 +25,14 @@ const getTileClassNames = (count: number): string[] => {
   return ['col-span-2 row-span-2', 'col-span-1', 'col-span-1']
 }
 
-export const GalleryAlbumCard: FC<Props> = ({ album }) => {
+export const GalleryAlbumCard: FC<Props> = ({ album, href }) => {
   const tiles = album.previews.slice(0, 3)
   const tileClassNames = getTileClassNames(tiles.length)
 
   return (
     <Link
       // Per-row links to per-user pages: no prefetch for every card.
-      href={`/gallery/albums/${encodeURIComponent(album.id)}`}
+      href={href ?? `/gallery/albums/${encodeURIComponent(album.id)}`}
       prefetch={false}
       className="group focus-visible:outline-primary block min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
     >

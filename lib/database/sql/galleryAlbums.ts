@@ -246,6 +246,11 @@ export interface CountGalleryAlbumMediaParams {
   audience: GalleryAudience
 }
 
+export interface HasVisibleGalleryAlbumsParams {
+  actorId: string
+  audience: GalleryAudience
+}
+
 export interface CountGalleryAlbumStoredItemsParams {
   albumId: string
   actorId: string
@@ -270,7 +275,9 @@ export interface GalleryAlbumDatabase {
   getGalleryAlbum(params: GetGalleryAlbumParams): Promise<GalleryAlbum | null>
   // The actor's albums, last updated first, with counts, dates, cover and
   // collage from visible items. Anyone but the owner gets only public albums
-  // with something visible.
+  // with something visible, and their `createdAt` and `updatedAt` (and so the
+  // order) are computed from the visible items only: when the first and the
+  // latest of them joined the album.
   getGalleryAlbumSummaries(
     params: GetGalleryAlbumSummariesParams
   ): Promise<GalleryAlbumSummary[]>
@@ -310,6 +317,12 @@ export interface GalleryAlbumDatabase {
   // (public albums only, for anyone but the owner). A photo in several albums
   // counts once.
   countGalleryAlbumMedia(params: CountGalleryAlbumMediaParams): Promise<number>
+  // Whether the audience can open at least one of the actor's albums: for the
+  // owner any album, for anyone else a public album with at least one visible
+  // item. One `EXISTS`-shaped read, for the profile's Albums chip.
+  getActorHasVisibleGalleryAlbums(
+    params: HasVisibleGalleryAlbumsParams
+  ): Promise<boolean>
   // How many items the album holds against its item cap: every stored row
   // whose media still exists, whether or not the owner can see it any more (a
   // deleted post's photo still counts). 0 for a missing or foreign album. Owner
@@ -506,9 +519,28 @@ export const GalleryAlbumSQLDatabaseMixin = (
   }
 
   const summarize = (
-    album: GalleryAlbum,
-    items: VisibleItem[]
+    storedAlbum: GalleryAlbum,
+    items: VisibleItem[],
+    isOwner: boolean
   ): GalleryAlbumSummary => {
+    // The album's own `createdAt` and `updatedAt` move whenever its photos
+    // change, whatever the photo's visibility, so a visitor would see the owner
+    // add or remove a photo they cannot see. A visitor's album carries times
+    // computed from the photos they can see instead: when the first and the
+    // latest of those joined the album.
+    const album: GalleryAlbum = isOwner
+      ? storedAlbum
+      : {
+          ...storedAlbum,
+          createdAt: items.reduce(
+            (min, item) => Math.min(min, item.addedAt),
+            items[0]?.addedAt ?? 0
+          ),
+          updatedAt: items.reduce(
+            (max, item) => Math.max(max, item.addedAt),
+            items[0]?.addedAt ?? 0
+          )
+        }
     // Newest first, whatever the album's own sort: the cover fallback and the
     // collage are the newest photos.
     const newestFirst = [...items].sort((a, b) =>
@@ -735,9 +767,19 @@ export const GalleryAlbumSQLDatabaseMixin = (
       }
 
       const isOwner = isOwnerGalleryAudience(audience)
-      return albums
-        .map((album) => summarize(album, byAlbum.get(album.id) ?? []))
+      const summaries = albums
+        .map((album) => summarize(album, byAlbum.get(album.id) ?? [], isOwner))
         .filter((summary) => isOwner || summary.itemCount > 0)
+      // The owner's order is by the stored `updatedAt` (already applied);
+      // a visitor's by the visible-only one, so the order moves only with
+      // what they can see.
+      return isOwner
+        ? summaries
+        : summaries.sort(
+            (a, b) =>
+              b.album.updatedAt - a.album.updatedAt ||
+              (a.album.id < b.album.id ? -1 : a.album.id > b.album.id ? 1 : 0)
+          )
     },
 
     async updateGalleryAlbum({ id, actorId, ...patch }) {
@@ -971,6 +1013,25 @@ export const GalleryAlbumSQLDatabaseMixin = (
         .countDistinct<{ total: number | string }[]>({ total: 'medias.id' })
         .first()
       return Number(row?.total ?? 0)
+    },
+
+    async getActorHasVisibleGalleryAlbums({ actorId, audience }) {
+      if (isOwnerGalleryAudience(audience)) {
+        const own = await database<SQLGalleryAlbum>(ALBUMS)
+          .where('actorId', actorId)
+          .select('id')
+          .first()
+        return Boolean(own)
+      }
+      const query = database(`${ITEMS} as album_items`)
+        .innerJoin(`${ALBUMS} as albums`, 'albums.id', 'album_items.albumId')
+        .innerJoin('medias', 'medias.id', 'album_items.mediaId')
+        .where('albums.actorId', actorId)
+        .where('album_items.actorId', actorId)
+        .where('albums.visibility', 'public')
+      buildGalleryMediaScope(database, actorId, audience)(query)
+      const row = await query.select(database.raw('1')).first()
+      return Boolean(row)
     },
 
     async countGalleryAlbumStoredItems({ albumId, actorId }) {

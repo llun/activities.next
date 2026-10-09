@@ -2,13 +2,15 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import {
+  getAccountGalleryAlbums,
   getGalleryLifeList,
   getGalleryMap,
   getGallerySubjects
 } from '@/lib/client'
+import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
 import {
   buildGallerySubject,
   buildLifeListEntry
@@ -25,6 +27,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/lib/client', () => ({
+  getAccountGalleryAlbums: vi.fn(),
   getGalleryLifeList: vi.fn(),
   getGalleryMap: vi.fn(),
   getGalleryMedia: vi.fn(),
@@ -73,6 +76,7 @@ vi.mock('@/lib/components/gallery/GalleryMap', () => ({
 const getGallerySubjectsMock = getGallerySubjects as jest.Mock
 const getGalleryLifeListMock = getGalleryLifeList as jest.Mock
 const getGalleryMapMock = getGalleryMap as jest.Mock
+const getAlbumsMock = vi.mocked(getAccountGalleryAlbums)
 
 const subjects = {
   groups: [
@@ -131,6 +135,7 @@ describe('ProfileGalleryTab', () => {
     getGallerySubjectsMock.mockReset().mockResolvedValue(subjects)
     getGalleryLifeListMock.mockReset()
     getGalleryMapMock.mockReset()
+    getAlbumsMock.mockReset()
     mockPush.mockReset()
   })
 
@@ -261,5 +266,111 @@ describe('ProfileGalleryTab', () => {
     renderTab({ isCurrentUser: false })
     await screen.findByRole('region', { name: 'Birds' })
     expect(screen.queryByRole('link', { name: 'Gallery' })).toBeNull()
+  })
+  describe('Albums', () => {
+    const withAlbums = ['subjects', 'recent', 'albums', 'map'] as const
+
+    it('offers the Albums chip between Recent and Map when it is given', async () => {
+      renderTab({ subviews: [...withAlbums] })
+      await screen.findByRole('region', { name: 'Birds' })
+
+      const nav = screen.getByRole('navigation', { name: 'Gallery views' })
+      fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
+      const items = await screen.findAllByRole('menuitem')
+      expect(items.map((item) => item.textContent)).toEqual([
+        'Subjects',
+        'Recent',
+        'Albums',
+        'Map'
+      ])
+    })
+
+    it('does not offer it when the page did not, which is when the viewer has no album to open', async () => {
+      renderTab({ subviews: ['subjects', 'recent', 'map'] })
+      await screen.findByRole('region', { name: 'Birds' })
+
+      const nav = screen.getByRole('navigation', { name: 'Gallery views' })
+      fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
+      expect(screen.queryByRole('menuitem', { name: 'Albums' })).toBeNull()
+    })
+
+    it('does not offer it without a handle to link an album to', async () => {
+      renderTab({ subviews: [...withAlbums], handle: undefined })
+      await screen.findByRole('region', { name: 'Birds' })
+
+      const nav = screen.getByRole('navigation', { name: 'Gallery views' })
+      fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
+      expect(screen.queryByRole('menuitem', { name: 'Albums' })).toBeNull()
+    })
+
+    it('lists the account albums as links to their public pages', async () => {
+      getAlbumsMock.mockResolvedValue({
+        albums: [
+          buildAlbumCard('a1', { title: 'Kruger' }),
+          buildAlbumCard('b/2', { title: 'Lakes' })
+        ],
+        photoCount: 6
+      })
+      renderTab({ subviews: [...withAlbums] })
+      await screen.findByRole('region', { name: 'Birds' })
+
+      await openSubview('Albums')
+
+      expect(
+        await screen.findByRole('link', { name: /Kruger/ })
+      ).toHaveAttribute('href', '/@llun@llun.test/albums/a1')
+      expect(screen.getByRole('link', { name: /Lakes/ })).toHaveAttribute(
+        'href',
+        '/@llun@llun.test/albums/b%2F2'
+      )
+      expect(getAlbumsMock).toHaveBeenCalledWith('actor-1')
+    })
+
+    it("lists the owner's albums, private ones badged, as links to their own album page", async () => {
+      getAlbumsMock.mockResolvedValue({
+        albums: [
+          buildAlbumCard('a1', { title: 'Kruger' }),
+          buildAlbumCard('b/2', { title: 'Secret', visibility: 'private' })
+        ],
+        photoCount: 6
+      })
+      renderTab({ subviews: [...withAlbums], isCurrentUser: true })
+      await screen.findByRole('region', { name: 'Birds' })
+
+      await openSubview('Albums')
+
+      // A private album has no public page, so neither card goes there.
+      expect(
+        await screen.findByRole('link', { name: /Kruger/ })
+      ).toHaveAttribute('href', '/gallery/albums/a1')
+      const secret = screen.getByRole('link', { name: /Secret/ })
+      expect(secret).toHaveAttribute('href', '/gallery/albums/b%2F2')
+      expect(within(secret).getByText('Private')).toBeInTheDocument()
+      expect(
+        within(screen.getByRole('link', { name: /Kruger/ })).queryByText(
+          'Private'
+        )
+      ).toBeNull()
+    })
+
+    it('says so when there is nothing to show', async () => {
+      getAlbumsMock.mockResolvedValue({ albums: [], photoCount: 0 })
+      renderTab({ subviews: [...withAlbums] })
+      await screen.findByRole('region', { name: 'Birds' })
+
+      await openSubview('Albums')
+
+      expect(await screen.findByText('No albums to show')).toBeInTheDocument()
+    })
+
+    it('shows an error when the albums fail to load', async () => {
+      getAlbumsMock.mockRejectedValue(new Error('Rate limited'))
+      renderTab({ subviews: [...withAlbums] })
+      await screen.findByRole('region', { name: 'Birds' })
+
+      await openSubview('Albums')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Rate limited')
+    })
   })
 })

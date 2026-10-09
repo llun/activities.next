@@ -250,6 +250,7 @@ export type GalleryGearWithUsageEntity = GalleryGearEntity &
 export const GALLERY_SUBVIEWS = [
   'subjects',
   'recent',
+  'albums',
   'map',
   'life-list'
 ] as const

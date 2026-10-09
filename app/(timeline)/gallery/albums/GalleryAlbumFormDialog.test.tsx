@@ -315,17 +315,16 @@ describe('GalleryAlbumFormDialog', () => {
     expect(screen.getByTestId('existing')).toHaveTextContent('x1,x2')
   })
 
-  it('describes the visibility choice without promising a visitor page', () => {
+  it('describes what each visibility choice lets other people open', () => {
     renderDialog({ intent: 'edit', album: buildAlbumCard('a1') })
     expect(
       screen.getByText(
-        'Anyone who can see the posts can see this album’s photos.'
+        'Anyone with the link can open it, and sees only the photos from posts they may read.'
       )
     ).toBeInTheDocument()
     expect(screen.getByText('Only you can see it.')).toBeInTheDocument()
-    // Nothing about a page that has not shipped.
+    // The page exists now: no "arrives later" wording is left.
     expect(screen.queryByText(/public album pages/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/can be shared/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/arrive/i)).not.toBeInTheDocument()
   })
 

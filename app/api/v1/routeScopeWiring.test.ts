@@ -540,6 +540,16 @@ const EXPECTED: Array<{
     scopes: ['read', 'read:statuses'],
     guard: 'OptionalOAuthGuard:any'
   },
+  {
+    module: '@/app/api/v1/accounts/[id]/gallery/albums/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
+  {
+    module: '@/app/api/v1/accounts/[id]/gallery/albums/[albumId]/route',
+    scopes: ['read', 'read:statuses'],
+    guard: 'OptionalOAuthGuard:any'
+  },
   // gallery albums (owner only)
   {
     module: '@/app/api/v1/gallery/albums/route',

@@ -706,6 +706,54 @@ describe('proxy', () => {
     )
   })
 
+  describe('album pages', () => {
+    it('does not rewrite a JSON request for an album page into the status API', async () => {
+      for (const accept of [
+        'application/activity+json',
+        'application/json',
+        'application/ld+json'
+      ]) {
+        const request = new NextRequest(
+          'https://llun.social/@u@d.com/albums/abc',
+          { method: 'GET', headers: { Accept: accept } }
+        )
+
+        const response = await proxy(request)
+
+        expect(response?.headers.get('x-middleware-rewrite')).toBeNull()
+      }
+    })
+
+    it('still rewrites a status request, which the album path must not be confused with', async () => {
+      const request = new NextRequest('https://llun.social/@u/abc', {
+        method: 'GET',
+        headers: { Accept: 'application/activity+json' }
+      })
+
+      const response = await proxy(request)
+
+      expect(response?.headers.get('x-middleware-rewrite')).toBe(
+        'https://llun.social/api/users/u/statuses/abc'
+      )
+    })
+
+    it('adds the host to a handle with none, keeping the album path', async () => {
+      const request = new NextRequest(
+        'https://internal.example.com/@u/albums/abc',
+        {
+          method: 'GET',
+          headers: { host: 'internal.example.com' }
+        }
+      )
+
+      const response = await proxy(request)
+
+      expect(response?.headers.get('x-middleware-rewrite')).toBe(
+        'https://internal.example.com/@u@public.example.com/albums/abc'
+      )
+    })
+  })
+
   // Walk proxy.ts's static import graph, reporting every disallowed specifier
   // reached and the files visited on the way. The visited set is returned so a
   // caller can prove the walk got somewhere: if module resolution ever breaks,

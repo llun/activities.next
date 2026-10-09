@@ -1,11 +1,21 @@
 'use client'
 
-import { Bird, Camera, Images, ListChecks, MapPin, X } from 'lucide-react'
+import {
+  Bird,
+  Camera,
+  FolderOpen,
+  Images,
+  ListChecks,
+  MapPin,
+  X
+} from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
 
+import { GalleryAlbumCard } from '@/app/(timeline)/gallery/albums/GalleryAlbumCard'
 import {
+  getAccountGalleryAlbums,
   getGalleryLifeList,
   getGalleryMap,
   getGallerySubjects
@@ -22,6 +32,7 @@ import {
   type SectionNavSelectTab
 } from '@/lib/components/section-nav-select'
 import { Button } from '@/lib/components/ui/button'
+import type { GalleryAlbumListResponse } from '@/lib/services/gallery/galleryAlbumEntities'
 import type {
   GalleryLifeListResponse,
   GalleryMapResponse,
@@ -51,6 +62,7 @@ const SUBVIEW_TABS: Record<
 > = {
   subjects: { id: 'subjects', label: 'Subjects', icon: Bird },
   recent: { id: 'recent', label: 'Recent', icon: Images },
+  albums: { id: 'albums', label: 'Albums', icon: FolderOpen },
   map: { id: 'map', label: 'Map', icon: MapPin },
   'life-list': { id: 'life-list', label: 'Life list', icon: ListChecks }
 }
@@ -170,6 +182,42 @@ const LifeListPanel: FC<{
   )
 }
 
+// The owner's own list holds their private albums too (with a Private badge on
+// the card), and a private album has no public page, so each card opens the
+// owner's album page, which has the Share hint and the controls. A visitor's
+// cards open the public page.
+const AlbumsPanel: FC<{
+  actorId: string
+  handle: string
+  isCurrentUser: boolean
+}> = ({ actorId, handle, isCurrentUser }) => {
+  const result = useGalleryLoad<GalleryAlbumListResponse>(
+    () => getAccountGalleryAlbums(actorId),
+    'Failed to load albums.'
+  )
+  if (result.state === 'loading') return <PanelSkeleton />
+  if (result.state === 'error') return <PanelError message={result.message} />
+  if (result.data.albums.length === 0) {
+    return <FitnessEmptyState icon={FolderOpen} title="No albums to show" />
+  }
+  return (
+    <ul className="grid grid-cols-2 gap-x-3 gap-y-5 md:grid-cols-3 md:gap-x-4">
+      {result.data.albums.map((album) => (
+        <li key={album.id} className="min-w-0">
+          <GalleryAlbumCard
+            album={album}
+            href={
+              isCurrentUser
+                ? `/gallery/albums/${encodeURIComponent(album.id)}`
+                : `/${handle}/albums/${encodeURIComponent(album.id)}`
+            }
+          />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 const MapPanel: FC<{
   actorId: string
   handle?: string
@@ -216,10 +264,14 @@ const MapPanel: FC<{
 export const ProfileGalleryTab: FC<Props> = ({
   actorId,
   handle,
-  subviews,
+  subviews: offeredSubviews,
   isCurrentUser = false,
   mapProvider
 }) => {
+  // An album opens at `/<handle>/albums/<id>`, which needs the handle.
+  const subviews = handle
+    ? offeredSubviews
+    : offeredSubviews.filter((id) => id !== 'albums')
   const [view, setView] = useState<GallerySubview>(subviews[0] ?? 'subjects')
   const [subject, setSubject] = useState<{
     key: string
@@ -293,6 +345,14 @@ export const ProfileGalleryTab: FC<Props> = ({
             />
           </div>
         )
+      case 'albums':
+        return handle ? (
+          <AlbumsPanel
+            actorId={actorId}
+            handle={handle}
+            isCurrentUser={isCurrentUser}
+          />
+        ) : null
       case 'map':
         return (
           <MapPanel
