@@ -3,8 +3,10 @@ import { v7 } from 'uuid'
 import { urlToId } from '@/lib/utils/urlToId'
 
 // Strict UUIDv7 shape: version nibble pinned to 7 and RFC 4122 variant to
-// [89ab], so v4 row ids (notifications, media, …) and legacy encodings can
-// never be mistaken for a public id.
+// [89ab], so v4 row ids (media attachments, …) and legacy encodings can never
+// be mistaken for a public id. Notification ids are minted with
+// generatePublicId too, so they match this shape; they are only ever looked up
+// as notification row ids, never through a status/actor resolver.
 const PUBLIC_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 

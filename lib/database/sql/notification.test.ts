@@ -3,6 +3,7 @@ import {
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
 import { NotificationType } from '@/lib/types/database/operations'
+import { getPublicIdTimestamp, isPublicId } from '@/lib/utils/publicId'
 
 describe('Notification Database', () => {
   const table = getTestDatabaseTable()
@@ -40,6 +41,41 @@ describe('Notification Database', () => {
         })
         expect(notification.id).toBeString()
         expect(notification.createdAt).toBeNumber()
+      })
+
+      it('mints a UUIDv7 id whose timestamp is createdAt, so ids sort by creation time', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          const created = []
+          // Newest first in time, oldest last, so a passing sort is not an
+          // accident of insertion order.
+          for (const time of [
+            Date.UTC(2026, 2, 1, 0, 0, 2),
+            Date.UTC(2026, 2, 1, 0, 0, 1),
+            Date.UTC(2026, 2, 1, 0, 0, 3)
+          ]) {
+            vi.setSystemTime(time)
+            created.push(
+              await database.createNotification({
+                actorId: actor1Id,
+                type: NotificationType.enum.follow,
+                sourceActorId: actor2Id
+              })
+            )
+          }
+
+          for (const notification of created) {
+            expect(isPublicId(notification.id)).toBe(true)
+            expect(getPublicIdTimestamp(notification.id)).toBe(
+              notification.createdAt
+            )
+          }
+          const byId = [...created].sort((a, b) => (a.id < b.id ? -1 : 1))
+          const byTime = [...created].sort((a, b) => a.createdAt - b.createdAt)
+          expect(byId.map((n) => n.id)).toEqual(byTime.map((n) => n.id))
+        } finally {
+          vi.useRealTimers()
+        }
       })
 
       it('should create all notification types', async () => {

@@ -44,12 +44,33 @@ product or security decision, not a gap to be closed.
   or a remote actor this instance does not store, such as a mention of an
   unknown account — keeps emitting the legacy colon form, so a client can still
   encounter both shapes. Notification, report, and filter ids are their
-  own UUIDs and are unaffected — but a status or account these entities
+  own row ids and are unaffected (notification ids are time-ordered UUIDv7s
+  of their own, see the next item) — but a status or account these entities
   _reference_ is still a status or account id, and carries the `publicId` like
   any other: a filter's `status_id`, a `FilterResult`'s `status_matches`, a
   report's `status_ids`, a notification group's `status_id`. Nothing about
   federation changed: what is sent to and received from remote servers is still
   the ActivityPub URI.
+
+- **Notification ids are time-ordered UUIDv7s, minted from the notification's
+  `createdAt`.** Mastodon's notification ids are snowflakes that grow with time,
+  and clients rely on it: Ivory sorts the notification list, and compares the
+  `notifications` read marker, by id. `createNotification` therefore mints the
+  id with `generatePublicId(createdAt)` — the same scheme as a status or
+  account `publicId` — so ids compare chronologically as plain strings and the
+  id order always matches the server's `(createdAt, id)` page order. Do not go
+  back to `crypto.randomUUID()`: a random v4 id put Ivory's notification list in
+  a random order. The `20261009163215_time_ordered_notification_ids` migration
+  rewrote every earlier v4 id from its row's `createdAt` and repointed the
+  `notifications` marker's `last_read_id` with it. Two things it could not
+  carry over: ids a client cached before it ran (a notification id, a
+  `max_id`/`min_id`/`since_id` cursor, an `ungrouped-<id>` group key) no longer
+  resolve, so such a client has to reload its list from the top; and the
+  previous build kept minting v4 ids while the migration ran ahead of the
+  rollout, so the few notifications written in that window keep a v4 id that
+  sorts out of place in an id-ordering client until it ages out of the list.
+  Unlike status and account ids, notification ids are still opaque on input:
+  there is no legacy-form resolver, a notification id is only ever the row id.
 
 - **`PUT /api/v1/statuses/:id` accepts `visibility`, and widening it drops the
   edit history.** Mastodon cannot change a posted status's visibility; this
@@ -276,9 +297,11 @@ product or security decision, not a gap to be closed.
   (and the single-group `/:group_key` variant), Mastodon serializes
   `most_recent_notification_id` as the numeric notification id, and clients
   decode it as an integer (the official Mastodon iOS app types it `Int` and
-  crashes on a string). Activity.next uses UUID notification ids, which can't be
-  numbers, so it emits a deterministic integer derived from the group's
-  most-recent notification `createdAt` (epoch ms). This value is display-only —
+  crashes on a string). Activity.next's notification ids are time-ordered
+  UUIDv7 strings (see **Notification ids are time-ordered UUIDv7s** above),
+  which can't be numbers, so it emits a deterministic integer derived from the
+  group's most-recent notification `createdAt` (epoch ms) — the same
+  millisecond that notification's UUIDv7 encodes. This value is display-only —
   clients never send it back as a cursor. Pagination uses the `Link` header and
   the string `page_min_id` / `page_max_id`, which stay real UUID cursors the
   server can resolve. Do **not** "fix" `most_recent_notification_id` back to the

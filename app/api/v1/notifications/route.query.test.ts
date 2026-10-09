@@ -374,6 +374,18 @@ describe('GET /api/v1/notifications (real database)', () => {
       expect(links(past).next).toBeNull()
     })
 
+    it('returns ids in descending string order, so clients that sort by id agree', async () => {
+      // Mastodon clients (Ivory, for one) order notifications by id, so the
+      // newest-first page has to be newest-first by id as well.
+      const ids = await makeFollows(5)
+
+      const data: ResponseNotification[] = await (await get('?limit=5')).json()
+      const returned = data.map((n) => n.id)
+
+      expect(returned).toEqual(ids)
+      expect(returned).toEqual([...returned].sort().reverse())
+    })
+
     it('min_id returns the page immediately newer than the cursor', async () => {
       const ids = await makeFollows(5)
 
