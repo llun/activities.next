@@ -115,3 +115,96 @@ describe('DELETE /api/v1/accounts/like', () => {
     expect(mockSendUndoLike).not.toHaveBeenCalled()
   })
 })
+
+describe('like and unlike of an existing status', () => {
+  const status = {
+    id: 'https://remote.test/users/alice/statuses/1',
+    actorId: 'https://remote.test/users/alice'
+  }
+  const context = { params: Promise.resolve({}) }
+  const jsonRequest = (method: 'POST' | 'DELETE', body: unknown) =>
+    new NextRequest('https://llun.test/api/v1/accounts/like', {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDatabase.getStatus.mockResolvedValue(status)
+  })
+
+  it('POST stores the like, then federates it to the status author', async () => {
+    const response = await POST(
+      jsonRequest('POST', { statusId: status.id }),
+      context
+    )
+
+    // The route answers HTTP 200 carrying the Accepted body.
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ status: 'Accepted' })
+    expect(mockDatabase.getStatus).toHaveBeenCalledWith({
+      statusId: status.id,
+      withReplies: false
+    })
+    expect(mockDatabase.createLike).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      statusId: status.id
+    })
+    expect(mockSendLike).toHaveBeenCalledWith({
+      currentActor: mockCurrentActor,
+      status
+    })
+    expect(mockDatabase.deleteLike).not.toHaveBeenCalled()
+  })
+
+  it('DELETE removes the like, then federates an Undo', async () => {
+    const response = await DELETE(
+      jsonRequest('DELETE', { statusId: status.id }),
+      context
+    )
+
+    // The route answers HTTP 200 carrying the Accepted body.
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ status: 'Accepted' })
+    expect(mockDatabase.deleteLike).toHaveBeenCalledWith({
+      actorId: mockCurrentActor.id,
+      statusId: status.id
+    })
+    expect(mockSendUndoLike).toHaveBeenCalledWith({
+      currentActor: mockCurrentActor,
+      status
+    })
+    expect(mockDatabase.createLike).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { method: 'POST' as const, handler: POST },
+    { method: 'DELETE' as const, handler: DELETE }
+  ])(
+    '$method answers 404 and neither writes nor federates when the status does not exist',
+    async ({ method, handler }) => {
+      mockDatabase.getStatus.mockResolvedValue(null)
+
+      const response = await handler(
+        jsonRequest(method, { statusId: 'missing' }),
+        context
+      )
+
+      expect(response.status).toBe(404)
+      expect(mockDatabase.createLike).not.toHaveBeenCalled()
+      expect(mockDatabase.deleteLike).not.toHaveBeenCalled()
+      expect(mockSendLike).not.toHaveBeenCalled()
+      expect(mockSendUndoLike).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not federate a like whose local write failed', async () => {
+    mockDatabase.createLike.mockRejectedValue(new Error('db down'))
+
+    await expect(
+      POST(jsonRequest('POST', { statusId: status.id }), context)
+    ).rejects.toThrow('db down')
+    expect(mockSendLike).not.toHaveBeenCalled()
+  })
+})

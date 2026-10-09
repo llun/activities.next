@@ -1,15 +1,17 @@
 import { NextRequest } from 'next/server'
 
+import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { CollectionLimitError } from '@/lib/services/collections/limits'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
+import { ACTOR4_ID } from '@/lib/stub/seed/actor4'
 import { generatePublicId } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
-import { POST } from './route'
+import { DELETE, GET, POST } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -167,5 +169,242 @@ describe('/api/v1/collections/[id]/items', () => {
         targetActorId: ACTOR3_ID
       })
     ).toMatchObject({ targetActorId: ACTOR3_ID })
+  })
+
+  it('answers 422 for an empty account_ids list', async () => {
+    const response = await POST(postRequest({ account_ids: [] }), context())
+    expect(response.status).toBe(422)
+  })
+
+  it('is idempotent for the spec form: adding the same account twice returns the same item', async () => {
+    const first = await (
+      await POST(postRequest({ account_id: urlToId(ACTOR4_ID) }), context())
+    ).json()
+    const second = await (
+      await POST(postRequest({ account_id: urlToId(ACTOR4_ID) }), context())
+    ).json()
+
+    expect(second.collection_item.id).toBe(first.collection_item.id)
+  })
+
+  it("cannot add members to another account's collection", async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+    const response = await POST(
+      postRequest({ account_id: urlToId(ACTOR1_ID) }),
+      context()
+    )
+
+    expect(response.status).toBe(404)
+    expect(
+      await database.getCollectionItemByAccount({
+        collectionId,
+        targetActorId: ACTOR1_ID
+      })
+    ).toBeNull()
+  })
+
+  it('answers 404 for an unknown collection', async () => {
+    const response = await POST(postRequest({ account_ids: ['x'] }), {
+      params: Promise.resolve({ id: 'missing' })
+    })
+    expect(response.status).toBe(404)
+  })
+
+  describe('GET and DELETE', () => {
+    let ownedId: string
+    const memberIds = [ACTOR2_ID, ACTOR3_ID, ACTOR4_ID]
+
+    beforeAll(async () => {
+      const collection = await database.createCollection({
+        actorId: ACTOR1_ID,
+        title: 'Managed members'
+      })
+      ownedId = collection.id
+      await database.addCollectionMembers({
+        id: ownedId,
+        actorId: ACTOR1_ID,
+        targetActorIds: memberIds
+      })
+    })
+
+    const ownedContext = () => ({ params: Promise.resolve({ id: ownedId }) })
+    const itemsUrl = (query = '') =>
+      `https://llun.test/api/v1/collections/${ownedId}/items${query}`
+    const getRequest = (query = '') =>
+      new NextRequest(itemsUrl(query), {
+        headers: { origin: 'https://llun.test' }
+      })
+    const deleteRequest = (body: string) =>
+      new NextRequest(itemsUrl(), {
+        method: 'DELETE',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://llun.test'
+        },
+        body
+      })
+    const memberOf = (actorId: string) =>
+      database.getCollectionItemByAccount({
+        collectionId: ownedId,
+        targetActorId: actorId
+      })
+    const nextCursor = (response: Response) =>
+      new URL(
+        (response.headers.get('Link') ?? '').match(
+          /<([^>]+)>; rel="next"/
+        )?.[1] ?? 'https://none.test/'
+      ).searchParams.get('max_id')
+
+    describe('GET', () => {
+      it("lists the collection's accounts for its owner", async () => {
+        const response = await GET(getRequest(), ownedContext())
+
+        expect(response.status).toBe(200)
+        const accounts = (await response.json()) as { id: string }[]
+        expect(new Set(accounts.map((account) => account.id))).toEqual(
+          new Set(await Promise.all(memberIds.map(emittedActorId)))
+        )
+      })
+
+      it('pages through members with Link cursors without repeating or skipping any', async () => {
+        const firstPage = await GET(getRequest('?limit=2'), ownedContext())
+        const firstAccounts = (await firstPage.json()) as { id: string }[]
+        expect(firstAccounts).toHaveLength(2)
+        const cursor = nextCursor(firstPage)
+        expect(cursor).toBeTruthy()
+
+        const secondPage = await GET(
+          getRequest(`?limit=2&max_id=${cursor}`),
+          ownedContext()
+        )
+        const secondAccounts = (await secondPage.json()) as { id: string }[]
+
+        expect(secondAccounts).toHaveLength(1)
+        expect(nextCursor(secondPage)).toBeNull()
+        expect(
+          new Set([...firstAccounts, ...secondAccounts].map((a) => a.id))
+        ).toEqual(new Set(await Promise.all(memberIds.map(emittedActorId))))
+      })
+
+      it.each([
+        {
+          description: 'a non-numeric limit',
+          query: '?limit=abc',
+          expected: PER_PAGE_LIMIT
+        },
+        {
+          description: 'a negative limit',
+          query: '?limit=-5',
+          expected: PER_PAGE_LIMIT
+        },
+        {
+          description: 'a limit above the maximum',
+          query: '?limit=1000',
+          expected: 80
+        }
+      ])(
+        'falls back to a safe page size for $description',
+        async ({ query, expected }) => {
+          const spy = vi.spyOn(database, 'getCollectionMembers')
+
+          await GET(getRequest(query), ownedContext())
+
+          expect(spy).toHaveBeenCalledWith(
+            expect.objectContaining({ limit: expected, projection: 'owner' })
+          )
+        }
+      )
+
+      it('accepts min_id as an alias for since_id', async () => {
+        const spy = vi.spyOn(database, 'getCollectionMembers')
+
+        await GET(getRequest('?min_id=item-1'), ownedContext())
+
+        expect(spy).toHaveBeenCalledWith(
+          expect.objectContaining({ sinceId: 'item-1' })
+        )
+      })
+
+      it("answers 404 for someone else's collection", async () => {
+        mockGetServerSession.mockResolvedValue({
+          user: { email: seedActor2.email }
+        })
+
+        const response = await GET(getRequest(), ownedContext())
+
+        expect(response.status).toBe(404)
+      })
+
+      it('answers 404 for an unknown collection', async () => {
+        const response = await GET(getRequest(), {
+          params: Promise.resolve({ id: 'missing' })
+        })
+
+        expect(response.status).toBe(404)
+      })
+
+      it('answers 401 when the caller is not signed in', async () => {
+        mockGetServerSession.mockResolvedValue(null)
+
+        const response = await GET(getRequest(), ownedContext())
+
+        expect(response.status).toBe(401)
+      })
+    })
+
+    describe('DELETE', () => {
+      it('removes only the listed accounts, addressed by publicId or legacy id', async () => {
+        await database.addCollectionMembers({
+          id: ownedId,
+          actorId: ACTOR1_ID,
+          targetActorIds: memberIds
+        })
+
+        const response = await DELETE(
+          deleteRequest(
+            JSON.stringify({
+              account_ids: [await emittedActorId(ACTOR2_ID), urlToId(ACTOR3_ID)]
+            })
+          ),
+          ownedContext()
+        )
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({})
+        expect(await memberOf(ACTOR2_ID)).toBeNull()
+        expect(await memberOf(ACTOR3_ID)).toBeNull()
+        expect(await memberOf(ACTOR4_ID)).not.toBeNull()
+      })
+
+      it.each([
+        { description: 'a missing account_ids', body: '{}' },
+        { description: 'an empty account_ids', body: '{"account_ids":[]}' },
+        { description: 'malformed JSON', body: '{' }
+      ])(
+        'answers 422 and removes nothing for $description',
+        async ({ body }) => {
+          const response = await DELETE(deleteRequest(body), ownedContext())
+
+          expect(response.status).toBe(422)
+          expect(await memberOf(ACTOR4_ID)).not.toBeNull()
+        }
+      )
+
+      it("cannot remove members from someone else's collection", async () => {
+        mockGetServerSession.mockResolvedValue({
+          user: { email: seedActor2.email }
+        })
+
+        const response = await DELETE(
+          deleteRequest(JSON.stringify({ account_ids: [urlToId(ACTOR4_ID)] })),
+          ownedContext()
+        )
+
+        expect(response.status).toBe(404)
+        expect(await memberOf(ACTOR4_ID)).not.toBeNull()
+      })
+    })
   })
 })

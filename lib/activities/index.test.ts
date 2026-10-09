@@ -27,8 +27,10 @@ import { MockMastodonActivityPubNote } from '@/lib/stub/note'
 import { MockActivityPubPerson } from '@/lib/stub/person'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
+import { Follow } from '@/lib/types/domain/follow'
 import { Relay } from '@/lib/types/domain/relay'
-import { StatusType } from '@/lib/types/domain/status'
+import { Status, StatusType } from '@/lib/types/domain/status'
+import { logger } from '@/lib/utils/logger'
 
 const ACTIVITY_STREAM_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public'
 
@@ -712,6 +714,260 @@ describe('activities', () => {
 
       // Should not have made any requests
       expect(fetchMock.mock.calls.length).toBe(0)
+    })
+  })
+
+  describe('inbox delivery failures', () => {
+    const likedStatus = {
+      id: 'https://somewhere.test/statuses/liked',
+      actor: {
+        id: 'https://somewhere.test/actors/author',
+        inboxUrl: 'https://somewhere.test/actors/author/inbox'
+      }
+    }
+    const unfollowTargetId = 'https://somewhere.test/actors/test1'
+    const unfollowRecord = {
+      id: 'follow-123',
+      actorId: 'https://llun.test/users/test1',
+      targetActorId: unfollowTargetId,
+      inbox: `${unfollowTargetId}/inbox`,
+      status: 'Accepted',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+
+    // Fire-and-forget senders resolve with nothing whatever the inbox says.
+    // `inbox` is where the activity must land; `logsTimeout` is whether an
+    // ETIMEDOUT is logged (sendNote and deleteStatus silence it).
+    const fireAndForget = [
+      {
+        name: 'sendNote',
+        inbox: TEST_SHARED_INBOX,
+        logsTimeout: false,
+        send: () =>
+          sendNote({
+            currentActor: MockActor({}),
+            inbox: TEST_SHARED_INBOX,
+            note: MockMastodonActivityPubNote({
+              content: '<p>Hello</p>',
+              to: [ACTIVITY_STREAM_PUBLIC]
+            })
+          })
+      },
+      {
+        name: 'deleteStatus',
+        inbox: TEST_SHARED_INBOX,
+        logsTimeout: false,
+        send: () =>
+          deleteStatus({
+            currentActor: MockActor({}),
+            inbox: TEST_SHARED_INBOX,
+            statusId: 'https://llun.test/statuses/to-delete'
+          })
+      },
+      {
+        name: 'sendLike',
+        inbox: likedStatus.actor.inboxUrl,
+        logsTimeout: true,
+        send: () =>
+          sendLike({
+            currentActor: MockActor({}),
+            status: likedStatus as unknown as Status
+          })
+      },
+      {
+        name: 'sendUndoLike',
+        inbox: likedStatus.actor.inboxUrl,
+        logsTimeout: true,
+        send: () =>
+          sendUndoLike({
+            currentActor: MockActor({}),
+            status: likedStatus as unknown as Status
+          })
+      }
+    ]
+
+    describe.each(fireAndForget)(
+      '$name',
+      ({ name, inbox, logsTimeout, send }) => {
+        afterEach(() => {
+          vi.restoreAllMocks()
+        })
+
+        it.each([400, 404, 410, 500, 503])(
+          'resolves quietly after a %i response, with a single delivery attempt',
+          async (status) => {
+            const errorSpy = vi.spyOn(logger, 'error')
+            fetchMock.resetMocks()
+            fetchMock.mockResponse('', { status })
+
+            await expect(send()).resolves.toBeUndefined()
+
+            expect(fetchMock).toHaveBeenCalledTimes(1)
+            expect(fetchMock.mock.calls[0][0]).toEqual(inbox)
+            expect(fetchMock.mock.calls[0][1]?.method).toEqual('POST')
+            expect(errorSpy).not.toHaveBeenCalled()
+          }
+        )
+
+        it('resolves and logs the failure under its own name when the network fails', async () => {
+          const errorSpy = vi.spyOn(logger, 'error')
+          fetchMock.resetMocks()
+          fetchMock.mockReject(new Error('connection reset'))
+
+          await expect(send()).resolves.toBeUndefined()
+
+          expect(errorSpy).toHaveBeenCalledTimes(1)
+          expect(errorSpy).toHaveBeenCalledWith(
+            expect.stringContaining(`[${name}]`)
+          )
+        })
+
+        it(`${logsTimeout ? 'logs' : 'silences'} an ETIMEDOUT from a slow inbox`, async () => {
+          const errorSpy = vi.spyOn(logger, 'error')
+          fetchMock.resetMocks()
+          fetchMock.mockReject(
+            Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' })
+          )
+
+          await expect(send()).resolves.toBeUndefined()
+
+          expect(errorSpy).toHaveBeenCalledTimes(logsTimeout ? 1 : 0)
+        })
+      }
+    )
+
+    describe('deleteActor', () => {
+      afterEach(() => {
+        vi.restoreAllMocks()
+      })
+
+      it.each([200, 202])(
+        'reports delivery on a %i response',
+        async (status) => {
+          fetchMock.resetMocks()
+          fetchMock.mockResponse('', { status })
+
+          await expect(
+            deleteActor({
+              currentActor: MockActor({}),
+              inbox: TEST_SHARED_INBOX
+            })
+          ).resolves.toBe(true)
+        }
+      )
+
+      it.each([400, 401, 410, 500, 503])(
+        'reports non-delivery on a %i response',
+        async (status) => {
+          const errorSpy = vi.spyOn(logger, 'error')
+          fetchMock.resetMocks()
+          fetchMock.mockResponse('', { status })
+
+          await expect(
+            deleteActor({
+              currentActor: MockActor({}),
+              inbox: TEST_SHARED_INBOX
+            })
+          ).resolves.toBe(false)
+          expect(fetchMock).toHaveBeenCalledTimes(1)
+          expect(errorSpy).not.toHaveBeenCalled()
+        }
+      )
+
+      it.each([
+        ['a network failure', new Error('connection reset')],
+        [
+          'a timeout',
+          Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' })
+        ]
+      ])('reports non-delivery without logging on %s', async (_, error) => {
+        const errorSpy = vi.spyOn(logger, 'error')
+        fetchMock.resetMocks()
+        fetchMock.mockReject(error)
+
+        await expect(
+          deleteActor({ currentActor: MockActor({}), inbox: TEST_SHARED_INBOX })
+        ).resolves.toBe(false)
+        // The account is deleted right after this call, so a failed delivery
+        // is recorded on the span only.
+        expect(errorSpy).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('unfollow', () => {
+      afterEach(() => {
+        vi.restoreAllMocks()
+      })
+
+      const person = () =>
+        JSON.stringify({
+          ...MockActivityPubPerson({ id: unfollowTargetId }),
+          inbox: 'https://somewhere.test/custom-delivery/test1'
+        })
+
+      const queuePerson = () => {
+        fetchMock.resetMocks()
+        fetchMock.mockResponseOnce(person(), {
+          status: 200,
+          headers: ACTIVITY_JSON_HEADERS
+        })
+      }
+
+      it.each([200, 202])(
+        'reports delivery on a %i response',
+        async (status) => {
+          if (!actor1) fail('Actor1 is required')
+          queuePerson()
+          fetchMock.mockResponseOnce('', { status })
+
+          await expect(
+            unfollow(actor1, unfollowRecord as unknown as Follow)
+          ).resolves.toBe(true)
+          const [url, options] = fetchMock.mock.calls[1]
+          expect(url).toEqual('https://somewhere.test/custom-delivery/test1')
+          expect(options?.method).toEqual('POST')
+        }
+      )
+
+      it.each([400, 404, 410, 500])(
+        'reports non-delivery on a %i response',
+        async (status) => {
+          if (!actor1) fail('Actor1 is required')
+          queuePerson()
+          fetchMock.mockResponseOnce('', { status })
+
+          await expect(
+            unfollow(actor1, unfollowRecord as unknown as Follow)
+          ).resolves.toBe(false)
+        }
+      )
+
+      it('falls back to {target}/inbox when the target actor cannot be fetched', async () => {
+        if (!actor1) fail('Actor1 is required')
+        fetchMock.resetMocks()
+        fetchMock.mockResponseOnce('', { status: 404 })
+        fetchMock.mockResponseOnce('', { status: 202 })
+
+        await expect(
+          unfollow(actor1, unfollowRecord as unknown as Follow)
+        ).resolves.toBe(true)
+        expect(fetchMock.mock.calls[1][0]).toEqual(`${unfollowTargetId}/inbox`)
+      })
+
+      it('reports non-delivery and logs under unfollow when the network fails', async () => {
+        if (!actor1) fail('Actor1 is required')
+        const errorSpy = vi.spyOn(logger, 'error')
+        queuePerson()
+        fetchMock.mockRejectOnce(new Error('connection reset'))
+
+        await expect(
+          unfollow(actor1, unfollowRecord as unknown as Follow)
+        ).resolves.toBe(false)
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.stringContaining('[unfollow]')
+        )
+      })
     })
   })
 })

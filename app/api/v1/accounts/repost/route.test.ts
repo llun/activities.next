@@ -86,3 +86,76 @@ describe('DELETE /api/v1/accounts/repost', () => {
     expect(mockUserUndoAnnounce).not.toHaveBeenCalled()
   })
 })
+
+describe.each([
+  {
+    method: 'POST' as const,
+    handler: POST,
+    action: () => mockUserAnnounce,
+    other: () => mockUserUndoAnnounce
+  },
+  {
+    method: 'DELETE' as const,
+    handler: DELETE,
+    action: () => mockUserUndoAnnounce,
+    other: () => mockUserAnnounce
+  }
+])('$method /api/v1/accounts/repost', ({ method, handler, action, other }) => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const jsonRequest = (body: unknown) =>
+    new NextRequest('https://llun.test/api/v1/accounts/repost', {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+  const context = { params: Promise.resolve({}) }
+
+  it('runs the action for the signed-in actor and returns the resulting status id', async () => {
+    action().mockResolvedValue({
+      id: 'https://llun.test/users/llun/statuses/boost-1'
+    })
+
+    const response = await handler(
+      jsonRequest({ statusId: 'status-1' }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      statusId: 'https://llun.test/users/llun/statuses/boost-1'
+    })
+    expect(action()).toHaveBeenCalledWith({
+      currentActor: mockCurrentActor,
+      statusId: 'status-1',
+      database: mockDatabase
+    })
+    expect(other()).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { description: 'a missing statusId', body: {} },
+    { description: 'a non-string statusId', body: { statusId: 5 } }
+  ])(
+    'answers 422 without running the action for $description',
+    async ({ body }) => {
+      const response = await handler(jsonRequest(body), context)
+
+      expect(response.status).toBe(422)
+      expect(action()).not.toHaveBeenCalled()
+    }
+  )
+
+  it('answers 422 when the action cannot be performed on that status', async () => {
+    action().mockResolvedValue(null)
+
+    const response = await handler(
+      jsonRequest({ statusId: 'unknown-status' }),
+      context
+    )
+
+    expect(response.status).toBe(422)
+  })
+})
