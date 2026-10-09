@@ -11,29 +11,21 @@ describe('ActivityPub activities', () => {
     cc: ['https://example.com/users/alice/followers']
   }
 
-  it('validates a standard announce activity', () => {
-    const result = Announce.safeParse(baseAnnounce)
-    expect(result.success).toBe(true)
-  })
-
-  it('accepts announce when cc is omitted', () => {
-    const { cc: _cc, ...withoutCc } = baseAnnounce
-    const result = Announce.safeParse(withoutCc)
-    expect(result.success).toBe(true)
-  })
-
-  it('accepts announce when to is omitted', () => {
-    const { to: _to, ...withoutTo } = baseAnnounce
-    const result = Announce.safeParse(withoutTo)
-    expect(result.success).toBe(true)
-  })
-
-  it('accepts announce when to and cc are null', () => {
-    const result = Announce.safeParse({
-      ...baseAnnounce,
-      to: null,
-      cc: null
-    })
-    expect(result.success).toBe(true)
+  it.each([
+    { description: 'a standard announce activity', input: baseAnnounce },
+    {
+      description: 'an announce without cc',
+      input: (({ cc: _cc, ...rest }) => rest)(baseAnnounce)
+    },
+    {
+      description: 'an announce without to',
+      input: (({ to: _to, ...rest }) => rest)(baseAnnounce)
+    },
+    {
+      description: 'an announce with null to and cc',
+      input: { ...baseAnnounce, to: null, cc: null }
+    }
+  ])('accepts $description', ({ input }) => {
+    expect(Announce.safeParse(input).success).toBe(true)
   })
 })

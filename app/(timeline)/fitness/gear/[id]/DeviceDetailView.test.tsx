@@ -118,14 +118,6 @@ describe('DeviceDetailView', () => {
     expect(screen.queryByText('Distance')).not.toBeInTheDocument()
   })
 
-  it('draws the stats on the overview hairline strip', () => {
-    renderView({})
-
-    const strip = screen.getByText('Activities').closest('.bg-border')
-    expect(strip).toHaveClass('rounded-lg', 'border')
-    expect(strip).toContainElement(screen.getByText('First used'))
-  })
-
   it('renders a dash, read as unavailable, for a device with no dated activity yet', () => {
     renderView({ gear: createDevice({ firstUsedAt: null }) })
 

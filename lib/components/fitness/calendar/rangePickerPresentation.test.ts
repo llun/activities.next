@@ -31,32 +31,33 @@ const portrait: PresentationInput = {
 }
 
 describe('choosePresentation', () => {
-  it('anchors a popover on tablet landscape', () => {
-    expect(choosePresentation(landscape)).toBe('popover')
-  })
-
-  it('uses the sheet on tablet portrait, where the main column is too narrow', () => {
-    expect(choosePresentation(portrait)).toBe('sheet')
-  })
-
-  it('uses the sheet at 768 x 1024 too', () => {
-    expect(
-      choosePresentation({
+  it.each<[string, PresentationInput, 'popover' | 'sheet']>([
+    ['anchors a popover on tablet landscape', landscape, 'popover'],
+    [
+      'uses the sheet on tablet portrait, where the main column is too narrow',
+      portrait,
+      'sheet'
+    ],
+    [
+      'uses the sheet at 768 x 1024 too',
+      {
         viewport: { width: 768, height: 1024 },
         trigger: { left: 599, right: 752, top: 155, bottom: 199 },
         boundaryLeft: 72,
         boundaryRight: 768
-      })
-    ).toBe('sheet')
-  })
-
-  it('uses the sheet on a phone', () => {
-    expect(
-      choosePresentation({
+      },
+      'sheet'
+    ],
+    [
+      'uses the sheet on a phone',
+      {
         viewport: { width: 390, height: 844 },
         trigger: { left: 280, right: 374, top: 200, bottom: 244 }
-      })
-    ).toBe('sheet')
+      },
+      'sheet'
+    ]
+  ])('%s', (_title, input, expected) => {
+    expect(choosePresentation(input)).toBe(expected)
   })
 
   it('needs the whole height: below the trigger or above it', () => {

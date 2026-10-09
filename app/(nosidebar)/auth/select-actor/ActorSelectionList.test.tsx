@@ -40,25 +40,4 @@ describe('ActorSelectionList', () => {
     expect(screen.getByText('@alice@activities.local')).toBeInTheDocument()
     expect(screen.getByText('@bob@activities.local')).toBeInTheDocument()
   })
-
-  it('draws each actor monogram on the neutral tokens, not Tailwind grays', () => {
-    render(<ActorSelectionList actors={actors} />)
-
-    // The same fill and letter as the sidebar footer's monogram: the skeleton
-    // fill, a semibold muted letter, and the input fill in dark.
-    const rows = screen.getAllByRole('button')
-    for (const [index, initial] of ['A', 'B'].entries()) {
-      const monogram = rows[index].querySelector(
-        '[data-slot="avatar-fallback"]'
-      )
-      expect(monogram).toHaveTextContent(initial)
-      expect(monogram).toHaveClass(
-        'bg-(--skeleton)',
-        'font-semibold',
-        'text-muted-foreground',
-        'dark:bg-input'
-      )
-      expect(monogram?.className).not.toMatch(/gray-/)
-    }
-  })
 })

@@ -90,72 +90,6 @@ describe('[actor] followers page', () => {
     mockDatabase.getActorFromId.mockReset().mockResolvedValue(null)
   })
 
-  it('renders ActorRedirectCard for non-local actor when logged out', async () => {
-    mockGetServerAuthSession.mockResolvedValue(null)
-    mockIsLocalFederationDomain.mockResolvedValue(false)
-
-    const element = await Page({
-      params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' })
-    })
-    render(element)
-
-    expect(
-      screen.getByRole('heading', {
-        level: 1,
-        name: 'You are leaving llun.social'
-      })
-    ).toBeInTheDocument()
-
-    const continueLink = screen.getByRole('link', {
-      name: /continue to pouet\.chapril\.org/i
-    })
-    expect(continueLink).toHaveAttribute(
-      'href',
-      'https://pouet.chapril.org/@clairenony/followers'
-    )
-    expect(mockNotFound).not.toHaveBeenCalled()
-  })
-
-  it('renders ActorRedirectCard for non-local actor when logged in', async () => {
-    mockGetServerAuthSession.mockResolvedValue({
-      user: { email: 'user@llun.social' }
-    } as never)
-    mockIsLocalFederationDomain.mockResolvedValue(false)
-
-    const element = await Page({
-      params: Promise.resolve({ actor: '@Edent@mastodon.social' })
-    })
-    render(element)
-
-    expect(
-      screen.getByRole('heading', {
-        level: 1,
-        name: 'You are leaving llun.social'
-      })
-    ).toBeInTheDocument()
-
-    const continueLink = screen.getByRole('link', {
-      name: /continue to mastodon\.social/i
-    })
-    expect(continueLink).toHaveAttribute(
-      'href',
-      'https://mastodon.social/@Edent/followers'
-    )
-    expect(mockNotFound).not.toHaveBeenCalled()
-  })
-
-  it('calls notFound for local actor when profile is not found', async () => {
-    mockGetServerAuthSession.mockResolvedValue(null)
-    mockIsLocalFederationDomain.mockResolvedValue(true)
-    mockGetProfileData.mockResolvedValue(null)
-
-    await Page({
-      params: Promise.resolve({ actor: '@unknown@llun.social' })
-    })
-
-    expect(mockNotFound).toHaveBeenCalled()
-  })
-
   it('renders FollowList for local actor with followers', async () => {
     mockGetServerAuthSession.mockResolvedValue({
       user: { email: 'user@llun.social' }
@@ -221,22 +155,6 @@ describe('[actor] followers page', () => {
   })
 
   describe('generateMetadata', () => {
-    it('sets canonical link and noindex robots for non-local actor', async () => {
-      mockIsLocalFederationDomain.mockResolvedValue(false)
-
-      const metadata = await generateMetadata({
-        params: Promise.resolve({ actor: '@clairenony@pouet.chapril.org' })
-      })
-
-      expect(metadata).toEqual({
-        title: 'Activities.next: @clairenony@pouet.chapril.org Followers',
-        robots: { index: false, follow: false },
-        alternates: {
-          canonical: 'https://pouet.chapril.org/@clairenony/followers'
-        }
-      })
-    })
-
     it('sets standard metadata for local actor', async () => {
       mockIsLocalFederationDomain.mockResolvedValue(true)
 

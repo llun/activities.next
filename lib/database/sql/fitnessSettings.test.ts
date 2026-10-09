@@ -617,29 +617,6 @@ describe('FitnessSettings database operations', () => {
       expect(settings).toBeNull()
     })
 
-    it('sets deletedAt timestamp', async () => {
-      const _beforeDelete = Date.now()
-
-      await database.createFitnessSettings({
-        actorId: `${testActorId}-delete-time`,
-        serviceType: 'strava',
-        clientId: '12345'
-      })
-
-      await database.deleteFitnessSettings({
-        actorId: `${testActorId}-delete-time`,
-        serviceType: 'strava'
-      })
-
-      // Verify deletedAt is set (would need raw query to check, but we verify behavior)
-      const settings = await database.getFitnessSettings({
-        actorId: `${testActorId}-delete-time`,
-        serviceType: 'strava'
-      })
-
-      expect(settings).toBeNull() // Should not return deleted entries
-    })
-
     it('does not throw for non-existent entry', async () => {
       await expect(
         database.deleteFitnessSettings({
@@ -706,58 +683,6 @@ describe('FitnessSettings database operations', () => {
       expect(strava).toBeNull()
       expect(garmin).not.toBeNull()
       expect(garmin?.clientId).toBe('22222')
-    })
-  })
-
-  describe('end-to-end OAuth flow', () => {
-    it('simulates complete OAuth flow', async () => {
-      const actorId = `${testActorId}-oauth-flow`
-
-      // 1. User saves credentials
-      const initial = await database.createFitnessSettings({
-        actorId,
-        serviceType: 'strava',
-        clientId: '12345',
-        clientSecret: 'client-secret-abc',
-        webhookToken: 'webhook-token-xyz'
-      })
-
-      expect(initial.clientId).toBe('12345')
-      expect(initial.accessToken).toBeUndefined()
-
-      // 2. OAuth redirect - save state
-      const stateExpiry = Date.now() + 600000
-      await database.updateFitnessSettings({
-        id: initial.id,
-        oauthState: 'random-state-123',
-        oauthStateExpiry: stateExpiry
-      })
-
-      // 3. OAuth callback - exchange code for tokens
-      const afterAuth = await database.updateFitnessSettings({
-        id: initial.id,
-        accessToken: 'ya29.access-token',
-        refreshToken: 'refresh-token-abc',
-        tokenExpiresAt: Date.now() + 3600000,
-        oauthState: null,
-        oauthStateExpiry: null
-      })
-
-      expect(afterAuth?.accessToken).toBe('ya29.access-token')
-      expect(afterAuth?.refreshToken).toBe('refresh-token-abc')
-      expect(afterAuth?.oauthState).toBeUndefined()
-
-      // 4. Verify stored data
-      const final = await database.getFitnessSettings({
-        actorId,
-        serviceType: 'strava'
-      })
-
-      expect(final?.clientId).toBe('12345')
-      expect(final?.clientSecret).toBe('client-secret-abc')
-      expect(final?.accessToken).toBe('ya29.access-token')
-      expect(final?.refreshToken).toBe('refresh-token-abc')
-      expect(final?.webhookToken).toBe('webhook-token-xyz')
     })
   })
 

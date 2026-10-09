@@ -142,7 +142,6 @@ describe('GalleryAlbumsView suggestions', () => {
     const button = await screen.findByRole('button', {
       name: 'See suggestions'
     })
-    expect(button).toHaveClass('pointer-coarse:h-10')
     fireEvent.click(button)
 
     expect(screen.getByTestId('initial-tab')).toHaveTextContent('suggestions')

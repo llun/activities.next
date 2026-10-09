@@ -214,26 +214,6 @@ describe('deleteStatusFromUserInput', () => {
       ).rejects.toThrow('Database transaction rolled back')
     })
 
-    it('rejects deletion when status is owned by another actor', async () => {
-      const status = createMockStatus({
-        id: 'https://llun.test/users/other/statuses/unauthorized',
-        actorId: 'https://llun.test/users/other',
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: []
-      })
-      const database = createDatabase(status)
-
-      await deleteStatusFromUserInput({
-        currentActor: CURRENT_ACTOR,
-        statusId: status.id,
-        database
-      })
-
-      expect(database.deleteStatusWithQueueJob).not.toHaveBeenCalled()
-      expect(database.deleteStatus).not.toHaveBeenCalled()
-      expect(getQueue().publish).not.toHaveBeenCalled()
-    })
-
     it('handles repeated deletion gracefully when status is already deleted', async () => {
       const database = createDatabase(null)
 
@@ -356,10 +336,41 @@ describe('deleteStatusFromUserInput', () => {
       )
       loggerSpy.mockRestore()
     })
+  })
 
+  describe.each([
+    {
+      name: 'database',
+      setup: () => {
+        const queueConfig: DatabaseQueueConfig = {
+          type: 'database',
+          maxRetries: 16
+        }
+        currentMockConfig = { queue: queueConfig }
+        return new DatabaseQueue(queueConfig)
+      }
+    },
+    {
+      name: 'QStash',
+      setup: () => {
+        const queueConfig: QStashConfig = {
+          type: 'qstash',
+          url: 'https://qstash.example.com',
+          token: 'token',
+          currentSigningKey: 'sig1',
+          nextSigningKey: 'sig2'
+        }
+        currentMockConfig = { queue: queueConfig }
+        return new QStashQueue(queueConfig)
+      }
+    }
+  ])('ownership check on the $name queue backend', ({ setup }) => {
     it('rejects deletion when status is owned by another actor', async () => {
+      const queue = setup()
+      vi.spyOn(queue, 'publish').mockResolvedValue(undefined)
+      vi.mocked(getQueue).mockReturnValue(queue)
       const status = createMockStatus({
-        id: 'https://llun.test/users/other/statuses/qstash-unauthorized',
+        id: 'https://llun.test/users/other/statuses/unauthorized',
         actorId: 'https://llun.test/users/other',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
@@ -372,8 +383,9 @@ describe('deleteStatusFromUserInput', () => {
         database
       })
 
+      expect(database.deleteStatusWithQueueJob).not.toHaveBeenCalled()
       expect(database.deleteStatus).not.toHaveBeenCalled()
-      expect(qstashQueue.publish).not.toHaveBeenCalled()
+      expect(queue.publish).not.toHaveBeenCalled()
     })
   })
 

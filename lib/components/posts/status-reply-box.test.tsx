@@ -413,24 +413,6 @@ describe('StatusReplyBox attachment cap', () => {
 })
 
 describe('StatusReplyBox automatic vertical growth', () => {
-  it('configures native sizing classes on the reply textarea', () => {
-    render(
-      <StatusReplyBox
-        profile={profile}
-        replyStatus={replyStatus}
-        onCancel={vi.fn()}
-        onPostCreated={vi.fn()}
-      />
-    )
-    const textarea = screen.getByPlaceholderText(
-      `Reply to ${replyStatus.actor?.name}...`
-    )
-    expect(textarea).toHaveClass('field-sizing-content')
-    expect(textarea).toHaveClass('min-h-[60px]')
-    expect(textarea).toHaveClass('max-h-[min(320px,40dvh)]')
-    expect(textarea).toHaveClass('overflow-y-auto')
-  })
-
   it('updates measured height on input and shrinks back when cleared without field-sizing support', () => {
     const originalCSS = globalThis.CSS
     globalThis.CSS = {

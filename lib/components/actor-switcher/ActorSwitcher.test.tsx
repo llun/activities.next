@@ -108,17 +108,12 @@ describe('ActorSwitcher', () => {
       expect(link).toHaveTextContent('@alice@activities.local')
     })
 
-    it('does not render the actor-list dropdown trigger', () => {
-      render(<ActorSwitcher currentActor={alice} actors={[alice]} />)
-
-      expect(screen.queryByRole('button')).not.toBeInTheDocument()
-    })
-
-    it('does not render the chevron arrow', () => {
+    it('does not render the actor-list dropdown trigger or chevron', () => {
       const { container } = render(
         <ActorSwitcher currentActor={alice} actors={[alice]} />
       )
 
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
       expect(
         container.querySelector('.lucide-chevron-down')
       ).not.toBeInTheDocument()
@@ -478,34 +473,24 @@ describe('ActorSwitcher', () => {
       )
     })
 
-    it('invokes onNavigate when clicking avatar profile link with multiple actors', () => {
-      const onNavigate = vi.fn()
-      render(
-        <ActorSwitcher
-          currentActor={alice}
-          actors={[alice, bob]}
-          onNavigate={onNavigate}
-        />
-      )
+    it.each([
+      ['multiple actors', [alice, bob], "View Alice's profile"],
+      ['a single actor', [alice], /Alice/]
+    ])(
+      'invokes onNavigate when clicking the profile link with %s',
+      (_label, actors, name) => {
+        const onNavigate = vi.fn()
+        render(
+          <ActorSwitcher
+            currentActor={alice}
+            actors={actors}
+            onNavigate={onNavigate}
+          />
+        )
 
-      fireEvent.click(
-        screen.getByRole('link', { name: "View Alice's profile" })
-      )
-      expect(onNavigate).toHaveBeenCalledTimes(1)
-    })
-
-    it('invokes onNavigate when clicking profile link with single actor', () => {
-      const onNavigate = vi.fn()
-      render(
-        <ActorSwitcher
-          currentActor={alice}
-          actors={[alice]}
-          onNavigate={onNavigate}
-        />
-      )
-
-      fireEvent.click(screen.getByRole('link', { name: /Alice/ }))
-      expect(onNavigate).toHaveBeenCalledTimes(1)
-    })
+        fireEvent.click(screen.getByRole('link', { name }))
+        expect(onNavigate).toHaveBeenCalledTimes(1)
+      }
+    )
   })
 })

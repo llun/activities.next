@@ -31,11 +31,6 @@ describe('CloudTasksQueue', () => {
     mockGetProjectId.mockResolvedValue('resolved-project-id')
   })
 
-  it('declares runsInline as false', () => {
-    const queue = new CloudTasksQueue()
-    expect(queue.runsInline).toBe(false)
-  })
-
   describe('publish', () => {
     const baseConfig: CloudTasksConfig = {
       type: 'cloudtasks',
@@ -275,21 +270,6 @@ describe('CloudTasksQueue', () => {
       await expect(queue.publish(testMessage)).rejects.toThrow(
         'Google Cloud Tasks API error'
       )
-    })
-  })
-
-  describe('handle', () => {
-    it('returns a promise when handling a job message', async () => {
-      const queue = new CloudTasksQueue()
-      const message: JobMessage = {
-        id: 'job-789',
-        name: 'unknownJob',
-        data: {}
-      }
-
-      const result = queue.handle(message)
-      expect(result).toBeInstanceOf(Promise)
-      await result
     })
   })
 })

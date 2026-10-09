@@ -153,8 +153,6 @@ describe('GalleryAlbumFormDialog suggestions', () => {
       'aria-selected',
       'true'
     )
-    // 40px to touch.
-    for (const tab of tabs) expect(tab).toHaveClass('pointer-coarse:min-h-10')
     expect(
       screen.getByText(/replaces the photos you have selected/)
     ).toBeInTheDocument()
@@ -165,14 +163,11 @@ describe('GalleryAlbumFormDialog suggestions', () => {
 
     const panels = document.querySelectorAll('[data-slot="tabs-content"]')
     expect(panels).toHaveLength(2)
-    // `forceMount` keeps Radix from setting `hidden`, so a class does it.
     expect(panels[0]).toHaveAttribute('data-state', 'active')
     expect(panels[1]).toHaveAttribute('data-state', 'inactive')
-    expect(panels[1]).toHaveClass('data-[state=inactive]:hidden')
 
     selectTab('Suggestions')
     expect(panels[0]).toHaveAttribute('data-state', 'inactive')
-    expect(panels[0]).toHaveClass('data-[state=inactive]:hidden')
     expect(panels[1]).toHaveAttribute('data-state', 'active')
   })
 

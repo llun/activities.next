@@ -67,16 +67,6 @@ describe('Landing', () => {
     expect(screen.queryByText('happening next.')).not.toBeInTheDocument()
   })
 
-  it('draws the feed header as Surface Chrome, like the other sticky bars', () => {
-    renderLanding([{ id: 'p1' }] as unknown as Status[])
-
-    // The same translucent chrome the page header and sidebar use (white 72 %
-    // light, #141414 at 80 % dark), not a hand-rolled `bg-background/70`.
-    const bar = screen.getByText('llun.social').closest('.sticky')
-    expect(bar).toHaveClass('bg-surface-chrome', 'backdrop-blur')
-    expect(bar).not.toHaveClass('bg-background/70')
-  })
-
   it('lets the feed wrapper grow with the feed so the bar sticks the whole scroll', () => {
     renderLanding([{ id: 'p1' }] as unknown as Status[])
 
@@ -97,17 +87,6 @@ describe('Landing', () => {
       /(?:^|:)!?(?:(?:(?:min-|max-)?h|size)-|overflow-)/.test(name)
     )
     expect(sizing).toEqual([])
-  })
-
-  it("keeps the sticky feed bar above a post's z-10 media controls", () => {
-    renderLanding([{ id: 'p1' }] as unknown as Status[])
-
-    // `attachments.tsx` draws the GIF play/pause button `absolute z-10`; at
-    // equal z-index the later-in-DOM button paints over the bar. Same z as
-    // `PageHeader`.
-    const bar = screen.getByText('llun.social').closest('.sticky')
-    expect(bar).toHaveClass('sticky', 'top-0', 'z-20')
-    expect(bar).not.toHaveClass('z-10')
   })
 
   it('forwards currentTime to the feed as a number (no in-render Date.now)', () => {

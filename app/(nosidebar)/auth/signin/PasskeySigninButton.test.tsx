@@ -51,51 +51,91 @@ describe('PasskeySigninButton', () => {
     vi.clearAllMocks()
   })
 
-  it('renders the button when a platform authenticator is available', async () => {
-    setPlatformAuthenticator(() => Promise.resolve(true))
-    await renderButton()
-    expect(passkeyButton()).toBeInTheDocument()
-  })
-
-  it('hides the button when the WebAuthn API is absent (in-app browser)', async () => {
-    clearWebAuthn()
-    await renderButton()
-    expect(passkeyButton()).not.toBeInTheDocument()
-  })
-
-  it('hides the button when no platform authenticator is available', async () => {
-    setPlatformAuthenticator(() => Promise.resolve(false))
-    await renderButton()
-    expect(passkeyButton()).not.toBeInTheDocument()
-  })
-
-  it('hides the button when the availability check rejects', async () => {
-    setPlatformAuthenticator(() => Promise.reject(new Error('nope')))
-    await renderButton()
-    expect(passkeyButton()).not.toBeInTheDocument()
-  })
-
   // With credential sign-in disabled the passkey button is the only way in. A
   // passkey on a roaming security key (USB/NFC/BLE) works without any platform
   // authenticator, so hiding the button there would lock its owner out.
-  it('offers the button for a roaming security key when credential sign-in is disabled', async () => {
-    setPlatformAuthenticator(() => Promise.resolve(false))
-    await renderButton({ credentialEnabled: false })
-    expect(passkeyButton()).toBeInTheDocument()
-    expect(unavailableNotice()).not.toBeInTheDocument()
-  })
+  const platformAuthenticator = {
+    available: () => setPlatformAuthenticator(() => Promise.resolve(true)),
+    unavailable: () => setPlatformAuthenticator(() => Promise.resolve(false)),
+    rejects: () =>
+      setPlatformAuthenticator(() => Promise.reject(new Error('nope'))),
+    noWebAuthn: () => clearWebAuthn()
+  }
 
-  it('offers the button when the platform check rejects and credential sign-in is disabled', async () => {
-    setPlatformAuthenticator(() => Promise.reject(new Error('nope')))
-    await renderButton({ credentialEnabled: false })
-    expect(passkeyButton()).toBeInTheDocument()
-  })
-
-  it('shows the notice when the WebAuthn API is absent and credential sign-in is disabled', async () => {
-    clearWebAuthn()
-    await renderButton({ credentialEnabled: false })
-    expect(unavailableNotice()).toBeInTheDocument()
-  })
+  it.each([
+    {
+      name: 'a platform authenticator is available',
+      setup: platformAuthenticator.available,
+      credentialEnabled: true,
+      button: true,
+      notice: false
+    },
+    {
+      name: 'the WebAuthn API is absent (in-app browser)',
+      setup: platformAuthenticator.noWebAuthn,
+      credentialEnabled: true,
+      button: false,
+      notice: false
+    },
+    {
+      name: 'no platform authenticator is available',
+      setup: platformAuthenticator.unavailable,
+      credentialEnabled: true,
+      button: false,
+      notice: false
+    },
+    {
+      name: 'the availability check rejects',
+      setup: platformAuthenticator.rejects,
+      credentialEnabled: true,
+      button: false,
+      notice: false
+    },
+    {
+      name: 'a roaming security key may exist and credential sign-in is disabled',
+      setup: platformAuthenticator.unavailable,
+      credentialEnabled: false,
+      button: true,
+      notice: false
+    },
+    {
+      name: 'the platform check rejects and credential sign-in is disabled',
+      setup: platformAuthenticator.rejects,
+      credentialEnabled: false,
+      button: true,
+      notice: false
+    },
+    {
+      name: 'the WebAuthn API is absent and credential sign-in is disabled',
+      setup: platformAuthenticator.noWebAuthn,
+      credentialEnabled: false,
+      button: false,
+      notice: true
+    },
+    {
+      name: 'passkeys are supported even if credential sign-in is disabled',
+      setup: platformAuthenticator.available,
+      credentialEnabled: false,
+      button: true,
+      notice: false
+    },
+    {
+      name: 'support is still being detected (no flash of the notice)',
+      setup: () =>
+        setPlatformAuthenticator(() => new Promise<boolean>(() => {})),
+      credentialEnabled: false,
+      button: false,
+      notice: false
+    }
+  ])(
+    'shows button=$button and notice=$notice when $name',
+    async ({ setup, credentialEnabled, button, notice }) => {
+      setup()
+      await renderButton({ credentialEnabled })
+      expect(Boolean(passkeyButton())).toBe(button)
+      expect(Boolean(unavailableNotice())).toBe(notice)
+    }
+  )
 
   it('exposes the notice as a status live region so screen readers announce it when it appears', async () => {
     clearWebAuthn()
@@ -105,27 +145,5 @@ describe('PasskeySigninButton', () => {
     expect(screen.getByRole('status')).toHaveTextContent(
       /passkeys aren't available in this browser/i
     )
-  })
-
-  it('does not show the notice when credential sign-in is enabled (button just hides)', async () => {
-    setPlatformAuthenticator(() => Promise.resolve(false))
-    await renderButton({ credentialEnabled: true })
-    expect(unavailableNotice()).not.toBeInTheDocument()
-    expect(passkeyButton()).not.toBeInTheDocument()
-  })
-
-  it('shows the button, not the notice, when passkeys are supported even if credential sign-in is disabled', async () => {
-    setPlatformAuthenticator(() => Promise.resolve(true))
-    await renderButton({ credentialEnabled: false })
-    expect(passkeyButton()).toBeInTheDocument()
-    expect(unavailableNotice()).not.toBeInTheDocument()
-  })
-
-  it('does not flash the notice while support is still being detected', async () => {
-    // A detection promise that never resolves keeps `supported` unknown.
-    setPlatformAuthenticator(() => new Promise<boolean>(() => {}))
-    await renderButton({ credentialEnabled: false })
-    expect(unavailableNotice()).not.toBeInTheDocument()
-    expect(passkeyButton()).not.toBeInTheDocument()
   })
 })

@@ -30,16 +30,15 @@ const build = (contactEmail?: string) =>
   })
 
 describe('buildActorDeletedEmail', () => {
-  it('names the deleted actor and the instance in the subject', () => {
-    expect(build().subject).toBe(
+  it('renders the subject, headline and account footer', () => {
+    const { subject, html, text } = build()
+    expect(subject).toBe(
       `Your actor @testuser@${HOST} has been deleted from ${HOST}`
     )
-  })
-
-  it('leads with a past-tense headline', () => {
-    const { html, text } = build()
     expect(html).toContain('Your actor was deleted')
     expect(text).toContain('Your actor was deleted')
+    expect(html).toContain('This email was sent to anna@example.com')
+    expect(html).not.toContain('Manage email notifications')
   })
 
   it('bolds the deleted handle in the body', () => {
@@ -66,11 +65,5 @@ describe('buildActorDeletedEmail', () => {
     const { html, text } = build()
     expect(html).not.toContain('mailto:')
     expect(text).toContain('contact your server admin immediately.')
-  })
-
-  it('uses the account footer, not a notification footer', () => {
-    const { html } = build()
-    expect(html).toContain('This email was sent to anna@example.com')
-    expect(html).not.toContain('Manage email notifications')
   })
 })

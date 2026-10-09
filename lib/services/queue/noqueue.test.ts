@@ -16,8 +16,11 @@ describe('NoQueue', () => {
         data: { key: 'value' }
       }
 
-      // Should not throw - it will try to run the job but won't find a handler
+      const handle = vi.spyOn(queue, 'handle').mockResolvedValue(undefined)
+
       await expect(queue.publish(message)).resolves.toBeUndefined()
+      expect(handle).toHaveBeenCalledTimes(1)
+      expect(handle).toHaveBeenCalledWith(message)
     })
 
     it('drops delayed messages instead of running them immediately', async () => {
@@ -31,20 +34,6 @@ describe('NoQueue', () => {
 
       await expect(queue.publish(message)).resolves.toBeUndefined()
       expect(handle).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('handle', () => {
-    it('returns a promise', async () => {
-      const message: JobMessage = {
-        id: 'job-456',
-        name: 'unknownJob',
-        data: {}
-      }
-
-      const result = queue.handle(message)
-      expect(result).toBeInstanceOf(Promise)
-      await result // Wait for it to complete
     })
   })
 })

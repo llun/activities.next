@@ -16,14 +16,14 @@ describe('parseSubscribeInput', () => {
       subscription: { endpoint, keys: { p256dh, auth }, standard: true },
       data: { alerts: { mention: true, follow: false }, policy: 'followed' }
     })
-    expect(parsed).not.toBeNull()
-    expect(parsed?.endpoint).toBe(endpoint)
-    expect(parsed?.p256dh).toBe(p256dh)
-    expect(parsed?.auth).toBe(auth)
-    expect(parsed?.standard).toBe(true)
-    expect(parsed?.policy).toBe('followed')
-    expect(parsed?.alerts.mention).toBe(true)
-    expect(parsed?.alerts.follow).toBe(false)
+    expect(parsed).toMatchObject({
+      endpoint,
+      p256dh,
+      auth,
+      standard: true,
+      policy: 'followed',
+      alerts: { mention: true, follow: false }
+    })
   })
 
   it('parses bracketed form keys', () => {
@@ -36,14 +36,14 @@ describe('parseSubscribeInput', () => {
       'data[alerts][favourite]': '1',
       'data[policy]': 'follower'
     })
-    expect(parsed).not.toBeNull()
-    expect(parsed?.endpoint).toBe(endpoint)
-    expect(parsed?.p256dh).toBe(p256dh)
-    expect(parsed?.auth).toBe(auth)
-    expect(parsed?.standard).toBe(true)
-    expect(parsed?.policy).toBe('follower')
-    expect(parsed?.alerts.mention).toBe(true)
-    expect(parsed?.alerts.favourite).toBe(true)
+    expect(parsed).toMatchObject({
+      endpoint,
+      p256dh,
+      auth,
+      standard: true,
+      policy: 'follower',
+      alerts: { mention: true, favourite: true }
+    })
   })
 
   it('returns null when required keys are missing', () => {
@@ -116,31 +116,29 @@ describe('parseAlertsInput', () => {
   })
 })
 
-describe('parsePolicyInput', () => {
-  it('accepts valid policies', () => {
-    expect(parsePolicyInput({ data: { policy: 'none' } })).toBe('none')
-    expect(parsePolicyInput({ 'data[policy]': 'all' })).toBe('all')
-  })
-
-  it('ignores invalid policies', () => {
-    expect(parsePolicyInput({ data: { policy: 'invalid' } })).toBeUndefined()
-    expect(parsePolicyInput({})).toBeUndefined()
-  })
-})
-
-describe('hasInvalidPolicy', () => {
-  it('is false when policy is absent or empty', () => {
-    expect(hasInvalidPolicy({})).toBe(false)
-    expect(hasInvalidPolicy({ data: { policy: '' } })).toBe(false)
-  })
-
-  it('is false for valid policies', () => {
-    expect(hasInvalidPolicy({ policy: 'none' })).toBe(false)
-    expect(hasInvalidPolicy({ data: { policy: 'followed' } })).toBe(false)
-  })
-
-  it('is true for a present but unsupported policy', () => {
-    expect(hasInvalidPolicy({ policy: 'everyone' })).toBe(true)
-    expect(hasInvalidPolicy({ data: { policy: 'invalid' } })).toBe(true)
-  })
+describe('policy input', () => {
+  it.each([
+    { input: { data: { policy: 'none' } }, policy: 'none', invalid: false },
+    { input: { 'data[policy]': 'all' }, policy: 'all', invalid: false },
+    { input: { policy: 'none' }, policy: 'none', invalid: false },
+    {
+      input: { data: { policy: 'followed' } },
+      policy: 'followed',
+      invalid: false
+    },
+    { input: {}, policy: undefined, invalid: false },
+    { input: { data: { policy: '' } }, policy: undefined, invalid: false },
+    {
+      input: { data: { policy: 'invalid' } },
+      policy: undefined,
+      invalid: true
+    },
+    { input: { policy: 'everyone' }, policy: undefined, invalid: true }
+  ])(
+    'parses $input as policy $policy (invalid: $invalid)',
+    ({ input, policy, invalid }) => {
+      expect(parsePolicyInput(input)).toBe(policy)
+      expect(hasInvalidPolicy(input)).toBe(invalid)
+    }
+  )
 })

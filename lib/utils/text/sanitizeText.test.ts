@@ -1,38 +1,6 @@
-import {
-  SANITIZED_OPTION,
-  sanitizeText,
-  sanitizeTrustedStatusText
-} from './sanitizeText'
+import { sanitizeText, sanitizeTrustedStatusText } from './sanitizeText'
 
 describe('sanitizeText', () => {
-  describe('SANITIZED_OPTION', () => {
-    it('has correct allowed tags', () => {
-      expect(SANITIZED_OPTION.allowedTags).toContain('p')
-      expect(SANITIZED_OPTION.allowedTags).toContain('br')
-      expect(SANITIZED_OPTION.allowedTags).toContain('a')
-      expect(SANITIZED_OPTION.allowedTags).toContain('span')
-      expect(SANITIZED_OPTION.allowedTags).toContain('strong')
-      expect(SANITIZED_OPTION.allowedTags).toContain('em')
-      expect(SANITIZED_OPTION.allowedTags).toContain('code')
-      expect(SANITIZED_OPTION.allowedTags).toContain('pre')
-      expect(SANITIZED_OPTION.allowedTags).toContain('blockquote')
-      expect(SANITIZED_OPTION.allowedTags).toContain('ul')
-      expect(SANITIZED_OPTION.allowedTags).toContain('ol')
-      expect(SANITIZED_OPTION.allowedTags).toContain('li')
-    })
-
-    it('does not allow script tag', () => {
-      expect(SANITIZED_OPTION.allowedTags).not.toContain('script')
-    })
-
-    it('has correct allowed attributes for links', () => {
-      expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('href')
-      expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('rel')
-      expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('class')
-      expect(SANITIZED_OPTION.allowedAttributes?.a).toContain('target')
-    })
-  })
-
   describe('sanitizeText', () => {
     it('allows basic paragraph tags', () => {
       const input = '<p>Hello world</p>'

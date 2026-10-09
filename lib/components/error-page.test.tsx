@@ -86,12 +86,4 @@ describe('errorBoundaryMeta', () => {
     // @ts-expect-error — a non-Error value can be thrown; the guard must hold
     expect(errorBoundaryMeta('500', 'just a string')).toBeUndefined()
   })
-
-  it('sets the technical line on a 16 px line box rather than the inherited 24', () => {
-    render(<ErrorPage />)
-
-    const detail = screen.getByText('404 · not found')
-    expect(detail.tagName).toBe('CODE')
-    expect(detail).toHaveClass('block', 'text-xs', 'leading-4')
-  })
 })

@@ -175,83 +175,48 @@ describe('composerAttachments', () => {
       expect(getAttachmentIds([itemA, itemB, itemC])).toEqual(['a', 'b', 'c'])
     })
 
-    it('returns true when attachment IDs are in exact identical order', () => {
-      expect(areAttachmentIdsEqualInOrder([itemA, itemB], [itemA, itemB])).toBe(
-        true
-      )
-    })
-
-    it('returns false when attachments have the same IDs in different order', () => {
-      expect(areAttachmentIdsEqualInOrder([itemA, itemB], [itemB, itemA])).toBe(
-        false
-      )
-    })
-
-    it('returns false when lengths differ', () => {
-      expect(areAttachmentIdsEqualInOrder([itemA], [itemA, itemB])).toBe(false)
-      expect(areAttachmentIdsEqualInOrder([itemA, itemB], [itemA])).toBe(false)
-    })
-
-    it('returns false when IDs differ', () => {
-      expect(areAttachmentIdsEqualInOrder([itemA, itemB], [itemA, itemC])).toBe(
-        false
-      )
-    })
-
-    it('returns true for two empty lists', () => {
-      expect(areAttachmentIdsEqualInOrder([], [])).toBe(true)
-    })
+    it.each([
+      ['identical order', [itemA, itemB], [itemA, itemB], true],
+      ['same IDs in different order', [itemA, itemB], [itemB, itemA], false],
+      ['the first list is shorter', [itemA], [itemA, itemB], false],
+      ['the second list is shorter', [itemA, itemB], [itemA], false],
+      ['different IDs', [itemA, itemB], [itemA, itemC], false],
+      ['two empty lists', [], [], true]
+    ])(
+      'compares attachment IDs in order: %s',
+      (_case, left, right, expected) => {
+        expect(areAttachmentIdsEqualInOrder(left, right)).toBe(expected)
+      }
+    )
   })
 
   describe('getTimestamp', () => {
-    it('returns finite number timestamp', () => {
-      expect(getTimestamp(12345, 999)).toBe(12345)
-    })
-
-    it('parses valid ISO string', () => {
-      const time = Date.parse('2026-09-07T12:00:00Z')
-      expect(getTimestamp('2026-09-07T12:00:00Z', 999)).toBe(time)
-    })
-
-    it('extracts time from Date object', () => {
-      const date = new Date(1234567890)
-      expect(getTimestamp(date, 999)).toBe(1234567890)
-    })
-
-    it('returns fallback for invalid string or null/undefined', () => {
-      expect(getTimestamp('invalid-date', 999)).toBe(999)
-      expect(getTimestamp(null, 999)).toBe(999)
-      expect(getTimestamp(undefined, 999)).toBe(999)
-      expect(getTimestamp(NaN, 999)).toBe(999)
+    it.each([
+      ['a finite number', 12345, 12345],
+      [
+        'a valid ISO string',
+        '2026-09-07T12:00:00Z',
+        Date.parse('2026-09-07T12:00:00Z')
+      ],
+      ['a Date object', new Date(1234567890), 1234567890],
+      ['an invalid string', 'invalid-date', 999],
+      ['null', null, 999],
+      ['undefined', undefined, 999],
+      ['NaN', NaN, 999]
+    ])('reads %s (fallback 999)', (_case, input, expected) => {
+      expect(getTimestamp(input, 999)).toBe(expected)
     })
   })
 
   describe('getMediaTypeFromMastodonAttachment', () => {
-    it('maps image to image/jpeg', () => {
-      expect(getMediaTypeFromMastodonAttachment({ type: 'image' } as any)).toBe(
-        'image/jpeg'
-      )
-    })
-
-    it('maps gifv and video to video/mp4', () => {
-      expect(getMediaTypeFromMastodonAttachment({ type: 'gifv' } as any)).toBe(
-        'video/mp4'
-      )
-      expect(getMediaTypeFromMastodonAttachment({ type: 'video' } as any)).toBe(
-        'video/mp4'
-      )
-    })
-
-    it('maps audio to audio/mpeg', () => {
-      expect(getMediaTypeFromMastodonAttachment({ type: 'audio' } as any)).toBe(
-        'audio/mpeg'
-      )
-    })
-
-    it('falls back to application/octet-stream', () => {
-      expect(
-        getMediaTypeFromMastodonAttachment({ type: 'unknown' } as any)
-      ).toBe('application/octet-stream')
+    it.each([
+      ['image', 'image/jpeg'],
+      ['gifv', 'video/mp4'],
+      ['video', 'video/mp4'],
+      ['audio', 'audio/mpeg'],
+      ['unknown', 'application/octet-stream']
+    ])('maps %s to %s', (type, expected) => {
+      expect(getMediaTypeFromMastodonAttachment({ type } as any)).toBe(expected)
     })
   })
 

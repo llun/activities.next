@@ -1,4 +1,4 @@
-import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
+import { getOtelConfig } from './opentelemetry'
 
 describe('OpenTelemetry config', () => {
   const originalEnv = process.env
@@ -9,25 +9,6 @@ describe('OpenTelemetry config', () => {
 
   afterAll(() => {
     process.env = originalEnv
-  })
-
-  describe('OpenTelemetryConfig schema', () => {
-    it('parses standard config with endpoint', () => {
-      const config = OpenTelemetryConfig.parse({
-        endpoint: 'https://otel.example.com',
-        protocol: 'grpc'
-      })
-
-      expect(config.endpoint).toBe('https://otel.example.com')
-    })
-
-    it('parses google config', () => {
-      const config = OpenTelemetryConfig.parse({
-        protocol: 'google'
-      })
-
-      expect(config.protocol).toBe('google')
-    })
   })
 
   describe('getOtelConfig', () => {

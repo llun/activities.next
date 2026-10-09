@@ -69,25 +69,29 @@ describe('GET /api/v2/instance', () => {
     })
   })
 
-  it('reports the configured host by default', async () => {
+  it.each([
+    {
+      name: 'the configured host by default',
+      headers: {} as Record<string, string>,
+      expected: 'llun.test'
+    },
+    {
+      name: 'a trusted forwarded host',
+      headers: { 'x-forwarded-host': 'alias.llun.test' },
+      expected: 'alias.llun.test'
+    },
+    {
+      name: 'the configured host when the forwarded host is untrusted',
+      headers: { 'x-forwarded-host': 'evil.example' },
+      expected: 'llun.test'
+    }
+  ])('reports $name', async ({ headers, expected }) => {
     const response = await GET(
-      new NextRequest('https://llun.test/api/v2/instance'),
+      new NextRequest('https://llun.test/api/v2/instance', { headers }),
       params
     )
     await expect(response.json()).resolves.toMatchObject({
-      domain: 'llun.test'
-    })
-  })
-
-  it('reports a trusted forwarded host', async () => {
-    const response = await GET(
-      new NextRequest('https://llun.test/api/v2/instance', {
-        headers: { 'x-forwarded-host': 'alias.llun.test' }
-      }),
-      params
-    )
-    await expect(response.json()).resolves.toMatchObject({
-      domain: 'alias.llun.test'
+      domain: expected
     })
   })
 
@@ -108,18 +112,6 @@ describe('GET /api/v2/instance', () => {
     } finally {
       peersSpy.mockRestore()
     }
-  })
-
-  it('ignores an untrusted forwarded host', async () => {
-    const response = await GET(
-      new NextRequest('https://llun.test/api/v2/instance', {
-        headers: { 'x-forwarded-host': 'evil.example' }
-      }),
-      params
-    )
-    await expect(response.json()).resolves.toMatchObject({
-      domain: 'llun.test'
-    })
   })
 
   it('includes stored instance rules in position order', async () => {

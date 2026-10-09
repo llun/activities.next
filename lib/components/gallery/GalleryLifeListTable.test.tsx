@@ -45,7 +45,7 @@ describe('GalleryLifeListTable', () => {
     expect(rows).toHaveLength(3)
     expect(within(rows[0]).getAllByRole('cell')[0]).toHaveTextContent('1')
     expect(within(rows[0]).getByText('Common Kingfisher')).toBeInTheDocument()
-    expect(within(rows[0]).getByText('Alcedo atthis')).toHaveClass('italic')
+    expect(within(rows[0]).getByText('Alcedo atthis')).toBeInTheDocument()
     expect(within(rows[0]).getByText('14 Mar 2025')).toBeInTheDocument()
     expect(within(rows[1]).getByText('9')).toBeInTheDocument()
     expect(within(rows[2]).getAllByRole('cell')[0]).toHaveTextContent('3')

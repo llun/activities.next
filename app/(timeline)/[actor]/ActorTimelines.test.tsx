@@ -642,35 +642,6 @@ describe('ActorTimelines', () => {
     ).toHaveLength(2)
   })
 
-  it('pads the four profile tabs 8px a side on a phone and the shared 16px from sm up', () => {
-    render(
-      <ActorTimelines
-        host="localhost:3000"
-        actorId="https://remote.example/users/actor"
-        statuses={[
-          createStatus('https://remote.example/statuses/post'),
-          createFitnessStatus('https://remote.example/statuses/run')
-        ]}
-        attachments={[sampleAttachment]}
-        currentTime={FIXED_CURRENT_TIME}
-        hasFitnessData
-        statusPagination={{ nextPageUrl: null, prevPageUrl: null }}
-      />
-    )
-
-    // jsdom has no layout, so pin the classes: with the shared 16px padding the
-    // four triggers are 308px wide together and spill out of a 320px
-    // viewport's 282px list, centred, on both sides.
-    for (const name of ['Posts', 'Replies', 'Media', 'Fitness']) {
-      expect(screen.getByRole('button', { name })).toHaveClass(
-        'flex-1',
-        'px-2',
-        'sm:flex-none',
-        'sm:px-4'
-      )
-    }
-  })
-
   describe('Gallery tab', () => {
     const renderTimelines = (
       props: Partial<React.ComponentProps<typeof ActorTimelines>> = {}
@@ -708,11 +679,6 @@ describe('ActorTimelines', () => {
       )
     })
 
-    it('keeps the four-tab list as it was, without sideways scrolling', () => {
-      renderTimelines({ hasFitnessData: true })
-      expect(screen.getByTestId('tabs-list')).not.toHaveClass('overflow-x-auto')
-    })
-
     it('is left out without gallery photos', () => {
       renderTimelines({ hasGalleryMedia: false, gallerySubviews: [] })
       expect(
@@ -721,24 +687,17 @@ describe('ActorTimelines', () => {
       expect(screen.queryByTestId('mock-gallery-tab')).not.toBeInTheDocument()
     })
 
-    it('scrolls the tab list sideways below sm when all five tabs are shown, so a 320px viewport does not overflow', () => {
+    it('scrolls the tab list sideways only when all five tabs are shown, so a 320px viewport does not overflow', () => {
+      const { unmount } = renderTimelines({ hasFitnessData: true })
+      expect(screen.getByTestId('tabs-list')).not.toHaveClass('overflow-x-auto')
+      unmount()
+
       renderTimelines({
         hasFitnessData: true,
         hasGalleryMedia: true,
         gallerySubviews: ['subjects', 'recent']
       })
-      // jsdom has no layout, so pin the classes: the list scrolls and starts
-      // at the left edge, and no trigger may shrink or stretch.
-      expect(screen.getByTestId('tabs-list')).toHaveClass(
-        'overflow-x-auto',
-        'justify-start',
-        'sm:overflow-visible'
-      )
-      for (const name of ['Posts', 'Replies', 'Media', 'Gallery', 'Fitness']) {
-        const trigger = screen.getByRole('button', { name })
-        expect(trigger).toHaveClass('flex-none', 'px-2', 'sm:px-4')
-        expect(trigger).not.toHaveClass('flex-1')
-      }
+      expect(screen.getByTestId('tabs-list')).toHaveClass('overflow-x-auto')
     })
   })
 

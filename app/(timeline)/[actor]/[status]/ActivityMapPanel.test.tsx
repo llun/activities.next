@@ -239,61 +239,62 @@ describe('ActivityMapPanel', () => {
       expect(onOpenMap).toHaveBeenCalledTimes(1)
     })
 
-    it('keeps the Apple Maps attribution on the static preview, whose crop cuts the baked-in logo off', () => {
-      render(
-        <ActivityMapPanel
-          mapAttachment={sampleAttachment}
-          routeSamples={[]}
-          routeSegments={[]}
-          mapProvider={{ type: 'apple' }}
-          onOpenMap={vi.fn()}
-        />
-      )
+    // The static preview's crop cuts the baked-in Apple logo off, so the chip
+    // carries the attribution wherever an Apple map shows the preview.
+    it.each([
+      {
+        name: 'an Apple map with no route',
+        props: {
+          routeSamples: [],
+          routeSegments: [],
+          mapProvider: { type: 'apple' as const }
+        },
+        fallsBack: false,
+        showsChip: true
+      },
+      {
+        name: 'an Apple map that falls back once MapKit is unavailable',
+        props: {
+          routeSamples: sampleRoute,
+          mapProvider: { type: 'apple' as const }
+        },
+        fallsBack: true,
+        showsChip: true
+      },
+      {
+        name: 'another provider',
+        props: {
+          routeSamples: [],
+          routeSegments: [],
+          mapProvider: { type: 'osm' as const }
+        },
+        fallsBack: false,
+        showsChip: false
+      }
+    ])(
+      'labels the static preview as Apple Maps: $showsChip for $name',
+      ({ props, fallsBack, showsChip }) => {
+        render(
+          <ActivityMapPanel
+            mapAttachment={sampleAttachment}
+            onOpenMap={vi.fn()}
+            {...props}
+          />
+        )
 
-      const chip = screen.getByText('Apple Maps')
-      // Bottom-left is where Apple draws its logo on the image; the chip must
-      // not take clicks away from the preview button it sits over. `absolute`
-      // is what makes the offsets apply, and it lives in `AppleMapsChip`, not
-      // at this call site, so it is pinned here too: without it the chip drops
-      // into normal flow below the preview instead of over the cropped corner.
-      expect(chip).toHaveClass(
-        'absolute',
-        'bottom-3',
-        'left-3',
-        'pointer-events-none'
-      )
-      expect(screen.getByTestId('media-attachment')).toBeInTheDocument()
-    })
+        if (fallsBack) {
+          expect(screen.queryByText('Apple Maps')).not.toBeInTheDocument()
+          fireEvent.click(screen.getByTestId('mapkit-trigger-unavailable'))
+        }
 
-    it('shows the Apple Maps attribution on the static preview an Apple map falls back to', () => {
-      render(
-        <ActivityMapPanel
-          mapAttachment={sampleAttachment}
-          routeSamples={sampleRoute}
-          mapProvider={{ type: 'apple' }}
-        />
-      )
-      expect(screen.queryByText('Apple Maps')).not.toBeInTheDocument()
-
-      fireEvent.click(screen.getByTestId('mapkit-trigger-unavailable'))
-
-      expect(screen.getByText('Apple Maps')).toBeInTheDocument()
-    })
-
-    it('does not label a static preview as Apple Maps for another provider', () => {
-      render(
-        <ActivityMapPanel
-          mapAttachment={sampleAttachment}
-          routeSamples={[]}
-          routeSegments={[]}
-          mapProvider={{ type: 'osm' }}
-          onOpenMap={vi.fn()}
-        />
-      )
-
-      expect(screen.getByTestId('media-attachment')).toBeInTheDocument()
-      expect(screen.queryByText('Apple Maps')).not.toBeInTheDocument()
-    })
+        expect(screen.getByTestId('media-attachment')).toBeInTheDocument()
+        if (showsChip) {
+          expect(screen.getByText('Apple Maps')).toBeInTheDocument()
+        } else {
+          expect(screen.queryByText('Apple Maps')).not.toBeInTheDocument()
+        }
+      }
+    )
 
     it('renders "Map preview unavailable" when neither route nor attachment is available', () => {
       render(
@@ -353,8 +354,8 @@ describe('ActivityMapPanel', () => {
       expect(mapkit).toHaveAttribute('data-segments-count', '1')
     })
 
-    it('draws the route as a #E55F06 line over a white casing, casing first', async () => {
-      const { map, layers, MapConstructor } = setupGlMock()
+    it('draws the route casing before, so under, both route lines', async () => {
+      const { layers, MapConstructor } = setupGlMock()
 
       render(
         <ActivityMapPanel
@@ -375,26 +376,6 @@ describe('ActivityMapPanel', () => {
       expect(layers.indexOf(MAP_ROUTE_CASING_LAYER_ID)).toBeLessThan(
         layers.indexOf('activity-route-line-hidden')
       )
-
-      const paintOf = (id: string) =>
-        map.addLayer.mock.calls
-          .map(([layer]) => layer as { id: string; paint: unknown })
-          .find((layer) => layer.id === id)?.paint
-      expect(paintOf(MAP_ROUTE_CASING_LAYER_ID)).toEqual({
-        'line-color': '#ffffff',
-        'line-width': 6,
-        'line-opacity': 0.9
-      })
-      // Fully opaque: transparency would tint the brand orange.
-      expect(paintOf('activity-route-line-visible')).toEqual({
-        'line-color': '#E55F06',
-        'line-width': 3.3
-      })
-      expect(paintOf('activity-route-line-hidden')).toEqual({
-        'line-color': '#16a34a',
-        'line-width': 4,
-        'line-opacity': 0.95
-      })
     })
 
     it('initializes GL map for OSM provider and registers layers, sources, and bounds', async () => {

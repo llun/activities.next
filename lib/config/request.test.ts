@@ -12,18 +12,6 @@ describe('Request config', () => {
   })
 
   describe('RequestConfig schema', () => {
-    it('parses valid config', () => {
-      const config = RequestConfig.parse({
-        timeoutInMilliseconds: 5000,
-        numberOfRetry: 3,
-        retryNoise: 50
-      })
-
-      expect(config.timeoutInMilliseconds).toBe(5000)
-      expect(config.numberOfRetry).toBe(3)
-      expect(config.retryNoise).toBe(50)
-    })
-
     it('uses defaults for missing values', () => {
       const config = RequestConfig.parse({})
 

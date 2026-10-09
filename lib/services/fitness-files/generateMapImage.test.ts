@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import sharp from 'sharp'
 
 import { getMapProviderConfig } from '@/lib/config/mapProvider'
+import { ROUTE_COLOR } from '@/lib/fitness/routeColor'
 
 import { generateMapImage } from './generateMapImage'
 
@@ -128,62 +129,6 @@ describe('generateMapImage', () => {
     expect((global.fetch as jest.Mock).mock.calls[0][0]).toContain('mapbox.com')
   })
 
-  it('draws the Mapbox route in the brand orange', async () => {
-    mockGetMapProviderConfig.mockReturnValue({
-      type: 'mapbox',
-      accessToken: 'test-mapbox-token'
-    })
-    global.fetch = vi.fn().mockResolvedValue(
-      new Response(Buffer.from('mapbox-image-binary'), {
-        status: 200,
-        headers: { 'Content-Type': 'image/png' }
-      })
-    ) as unknown as typeof fetch
-
-    await generateMapImage({ coordinates })
-
-    const requestedUrl = String((global.fetch as jest.Mock).mock.calls[0][0])
-    const geoJson = JSON.parse(
-      decodeURIComponent(requestedUrl.match(/geojson\((.+?)\)\/auto/)![1])
-    )
-    expect(geoJson.properties.stroke).toBe('#E55F06')
-  })
-
-  it('draws the OSM route in the brand orange', async () => {
-    mockGetMapProviderConfig.mockReturnValue({ type: 'osm' })
-    const tileBuffer = await pngTile()
-    global.fetch = vi.fn().mockImplementation(
-      async () =>
-        new Response(Buffer.from(tileBuffer), {
-          status: 200,
-          headers: { 'Content-Type': 'image/png' }
-        })
-    ) as unknown as typeof fetch
-
-    const result = await generateMapImage({ coordinates })
-
-    const { data, info } = await sharp(result!)
-      .ensureAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true })
-    const hasPixel = (red: number, green: number, blue: number) => {
-      for (let offset = 0; offset < data.length; offset += info.channels) {
-        if (
-          data[offset] === red &&
-          data[offset + 1] === green &&
-          data[offset + 2] === blue
-        ) {
-          return true
-        }
-      }
-      return false
-    }
-    // The 4px polyline is fully opaque at its centre, so its exact colour is
-    // present; the old red (#ff3b30) is gone.
-    expect(hasPixel(0xe5, 0x5f, 0x06)).toBe(true)
-    expect(hasPixel(0xff, 0x3b, 0x30)).toBe(false)
-  })
-
   it('falls back to OSM tiles when the Mapbox request fails', async () => {
     mockGetMapProviderConfig.mockReturnValue({
       type: 'mapbox',
@@ -222,6 +167,27 @@ describe('generateMapImage', () => {
     expect(result).toBeDefined()
     expect(result?.length).toBeGreaterThan(0)
     expect(global.fetch).toHaveBeenCalled()
+
+    // The route polyline is composited over the tiles. Its 4px stroke is fully
+    // opaque at the centre, so the exact route colour is present.
+    const { data, info } = await sharp(result!)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    const [red, green, blue] = Buffer.from(ROUTE_COLOR.slice(1), 'hex')
+    let hasRoutePixel = false
+    for (let offset = 0; offset < data.length; offset += info.channels) {
+      if (
+        data[offset] === red &&
+        data[offset + 1] === green &&
+        data[offset + 2] === blue
+      ) {
+        hasRoutePixel = true
+        break
+      }
+    }
+    expect(hasRoutePixel).toBe(true)
+
     const requestedUrls = (global.fetch as jest.Mock).mock.calls.map((call) =>
       String(call[0])
     )

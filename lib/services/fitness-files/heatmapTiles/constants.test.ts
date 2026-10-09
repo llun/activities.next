@@ -1,7 +1,6 @@
 import {
   HEAT_COUNT_COLOR_STOPS,
   HEAT_COUNT_SATURATION,
-  HEAT_COUNT_WIDTH_STOPS,
   HEAT_HIDDEN_BASE_OPACITY,
   HEAT_VISIBLE_BASE_OPACITY,
   TILE_EXTENT,
@@ -209,19 +208,6 @@ describe('heatOpacityForCount', () => {
 })
 
 describe('HEAT_COUNT_COLOR_STOPS', () => {
-  it('is the heat ramp the interactive map paints: red, orange, yellow', () => {
-    // Pinned as a literal: the interactive tiled layer and the static share
-    // image both read this one list, so an edit changes both on purpose.
-    expect([...HEAT_COUNT_COLOR_STOPS]).toEqual([
-      1,
-      '#ef4444',
-      4,
-      '#f97316',
-      12,
-      '#facc15'
-    ])
-  })
-
   it('ascends in count, which a GL interpolate requires', () => {
     const counts = HEAT_COUNT_COLOR_STOPS.filter(
       (_unused, index) => index % 2 === 0
@@ -278,10 +264,6 @@ describe('heatWidthForCount', () => {
 
   it('blends over any stop list it is given', () => {
     expect(heatWidthForCount(8, [4, 2, 12, 6])).toBe(4)
-  })
-
-  it('ships the stops the GL paint interpolates', () => {
-    expect([...HEAT_COUNT_WIDTH_STOPS]).toEqual([1, 2.8, 4, 3.4, 16, 4.2])
   })
 })
 

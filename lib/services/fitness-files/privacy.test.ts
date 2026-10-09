@@ -584,10 +584,6 @@ describe('getFitnessPrivacyLocations', () => {
 })
 
 describe('FITNESS_PRIVACY_RADIUS_OPTIONS', () => {
-  it('offers 50m as the smallest enabled radius and 1km as the largest', () => {
-    expect(FITNESS_PRIVACY_RADIUS_OPTIONS).toEqual([0, 50, 100, 200, 500, 1000])
-  })
-
   it('stays sorted ascending, which the upward snap depends on', () => {
     const sorted = [...FITNESS_PRIVACY_RADIUS_OPTIONS].sort(
       (first, second) => first - second

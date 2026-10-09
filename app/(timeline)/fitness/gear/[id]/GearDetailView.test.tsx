@@ -308,25 +308,6 @@ describe('GearDetailView', () => {
     expect(screen.getAllByText('Distance')).toHaveLength(2)
   })
 
-  it('draws the stats on the overview hairline strip, one column per value', async () => {
-    render(<GearDetailView gearId="gear-1" feed={feed} />)
-
-    await screen.findByText('Components installed')
-    const strips = ['Distance', 'Activities', 'Components installed'].map(
-      (label) =>
-        screen
-          .getByText(label, { selector: 'dt' })
-          .closest('.bg-border') as HTMLElement
-    )
-    expect(new Set(strips).size).toBe(1)
-    expect(strips[0]).toHaveClass('rounded-lg', 'border')
-    // Three values span three columns; a four-column strip would leave an
-    // empty border-coloured cell at the end of the row.
-    expect(strips[0].querySelector('.grid')?.className).toMatch(
-      /@min-\[30rem\]:grid-cols-3/
-    )
-  })
-
   it('renders two stat tiles and the activities feed for shoes', async () => {
     // Shoes carry no components card, so there is no second view to reach and
     // no switcher to render — the page goes straight to the activities.

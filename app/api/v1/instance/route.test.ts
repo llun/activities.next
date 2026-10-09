@@ -63,23 +63,29 @@ describe('GET /api/v1/instance', () => {
     vi.mocked(config.getConfig).mockReturnValue(baseConfig as unknown as Config)
   })
 
-  it('reports the configured host by default', async () => {
+  it.each([
+    {
+      name: 'the configured host by default',
+      headers: {} as Record<string, string>,
+      expected: 'llun.test'
+    },
+    {
+      name: 'a trusted forwarded host',
+      headers: { 'x-forwarded-host': 'alias.llun.test' },
+      expected: 'alias.llun.test'
+    },
+    {
+      name: 'the configured host when the forwarded host is untrusted',
+      headers: { 'x-forwarded-host': 'evil.example' },
+      expected: 'llun.test'
+    }
+  ])('reports $name', async ({ headers, expected }) => {
     const response = await GET(
-      new NextRequest('https://llun.test/api/v1/instance'),
-      params
-    )
-    await expect(response.json()).resolves.toMatchObject({ uri: 'llun.test' })
-  })
-
-  it('reports a trusted forwarded host', async () => {
-    const response = await GET(
-      new NextRequest('https://llun.test/api/v1/instance', {
-        headers: { 'x-forwarded-host': 'alias.llun.test' }
-      }),
+      new NextRequest('https://llun.test/api/v1/instance', { headers }),
       params
     )
     await expect(response.json()).resolves.toMatchObject({
-      uri: 'alias.llun.test'
+      uri: expected
     })
   })
 
@@ -100,16 +106,6 @@ describe('GET /api/v1/instance', () => {
     } finally {
       peersSpy.mockRestore()
     }
-  })
-
-  it('ignores an untrusted forwarded host', async () => {
-    const response = await GET(
-      new NextRequest('https://llun.test/api/v1/instance', {
-        headers: { 'x-forwarded-host': 'evil.example' }
-      }),
-      params
-    )
-    await expect(response.json()).resolves.toMatchObject({ uri: 'llun.test' })
   })
 
   it('serves the configured contact email instead of the placeholder', async () => {

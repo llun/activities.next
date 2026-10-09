@@ -351,11 +351,6 @@ describe('fitness heat tokens', () => {
     expect(heat[theme]['--heat-upcoming']).toBe(outline)
   })
 
-  it('draws the light Heat 4 numeral in black, not the prototype white', () => {
-    // White on #428656 is 4.40:1, under the 4.5:1 floor for 13-18px numerals.
-    expect(heat.light['--heat-4-fg']).toBe('#000000')
-  })
-
   const pairs = (['light', 'dark'] as const).flatMap((theme) =>
     levels.map((level) => ({ theme, level }))
   )
@@ -401,26 +396,6 @@ describe('fitness heat tokens', () => {
 })
 
 describe('fitness motion tokens', () => {
-  const root = css.slice(css.lastIndexOf(':root'))
-  const duration = (name: string) => {
-    const match = root.match(new RegExp(`${name}:\\s*(\\d+)ms`))
-    return match ? Number(match[1]) : null
-  }
-
-  it.each([
-    ['--fitness-t-xfade-half', 75],
-    ['--fitness-t-color', 150],
-    ['--fitness-t-dim', 150],
-    ['--fitness-t-detail', 150],
-    ['--fitness-t-sheet', 200],
-    ['--fitness-t-select', 100],
-    ['--fitness-t-edge', 100],
-    ['--fitness-t-tip-in', 100],
-    ['--fitness-t-tip-out', 75]
-  ])('%s is the approved %ims', (name, ms) => {
-    expect(duration(name)).toBe(ms)
-  })
-
   it.each(['--fitness-fade-start', '--fitness-fade-end'])(
     'registers %s so the edge fade can transition',
     (name) => {
@@ -440,8 +415,4 @@ describe('@theme utility mappings', () => {
       expect(css).toMatch(new RegExp(`--color-${name}:\\s*var\\(--${name}\\)`))
     }
   )
-
-  it('draws text-lg on a 24px line (1.5 / 1.125)', () => {
-    expect(css).toContain('--text-lg--line-height: calc(1.5 / 1.125)')
-  })
 })

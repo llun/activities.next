@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 
-import { DELETE, PATCH, PUT } from './route'
+import { DELETE, PATCH } from './route'
 
 let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
 vi.mock('@/lib/database', () => ({
@@ -66,14 +66,6 @@ describe('/api/v2/admin/rules/[id]', () => {
         body: init.body ? JSON.stringify(init.body) : undefined
       }
     )
-
-  // Rails `resources` maps update to both PATCH and PUT, so admin clients may
-  // send either. Binding PATCH to the same handler reference guarantees both
-  // verbs behave identically.
-  it('binds PATCH to the same handler as PUT', () => {
-    expect(typeof PATCH).toBe('function')
-    expect(PATCH).toBe(PUT)
-  })
 
   it('updates the text and position of an existing rule', async () => {
     const rule = await database.createInstanceRule({

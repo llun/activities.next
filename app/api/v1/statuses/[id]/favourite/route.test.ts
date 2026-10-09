@@ -1,224 +1,139 @@
+import { NextRequest } from 'next/server'
+
+import { sendLike } from '@/lib/activities'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { seedDatabase } from '@/lib/stub/database'
-import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
-import { Status, StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { urlToId } from '@/lib/utils/urlToId'
 
-vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn().mockReturnValue({ host: 'llun.test' })
+import { POST } from './route'
+
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: () => mockGetServerSession()
 }))
 
-/**
- * Tests for Mastodon-compatible status action endpoints
- *
- * API Reference: https://docs.joinmastodon.org/methods/statuses/
- *
- * These tests verify:
- * - POST /api/v1/statuses/:id/favourite - Returns Status with favourited=true
- * - POST /api/v1/statuses/:id/unfavourite - Returns Status with favourited=false
- * - POST /api/v1/statuses/:id/reblog - Returns Status (reblog wrapper)
- * - POST /api/v1/statuses/:id/unreblog - Returns original Status
- * - DELETE /api/v1/statuses/:id - Returns Status with text property
- * - GET /api/v1/statuses/:id/source - Returns source text
- * - GET /api/v1/statuses/:id/history - Returns edit history
- */
-describe('Status Action Endpoints', () => {
+let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+vi.mock('@/lib/database', () => ({
+  getDatabase: () => mockDatabase
+}))
+
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
+  })
+}))
+
+vi.mock('better-auth/oauth2', () => ({
+  verifyBearerToken: vi.fn()
+}))
+
+vi.mock('@/lib/activities', () => ({
+  sendLike: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
+    allowEmails: [],
+    host: 'llun.test',
+    secretPhase: 'test-secret'
+  })
+}))
+
+const favourite = (statusId: string) =>
+  POST(
+    new NextRequest(
+      `https://llun.test/api/v1/statuses/${urlToId(statusId)}/favourite`,
+      { method: 'POST', headers: { Origin: 'https://llun.test' } }
+    ),
+    { params: Promise.resolve({ id: urlToId(statusId) }) }
+  )
+
+describe('POST /api/v1/statuses/[id]/favourite', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
+    mockDatabase = database
   })
 
   afterAll(async () => {
     if (!database) return
+    mockDatabase = null
     await database.destroy()
   })
 
-  describe('favourite/unfavourite', () => {
-    it('creates like and returns status with favourited=true', async () => {
-      const statusId = `${ACTOR1_ID}/statuses/post-1`
-
-      // Create a like
-      await database.createLike({
-        actorId: ACTOR2_ID,
-        statusId
-      })
-
-      const status = (await database.getStatus({
-        statusId,
-        withReplies: false
-      })) as Status
-
-      const mastodonStatus = await getMastodonStatus(
-        database,
-        status,
-        ACTOR2_ID
-      )
-
-      expect(mastodonStatus).not.toBeNull()
-      expect(mastodonStatus?.favourites_count).toBeGreaterThanOrEqual(1)
-    })
-
-    it('deletes like and returns status with favourited=false', async () => {
-      const statusId = `${ACTOR1_ID}/statuses/post-1`
-
-      // Create and then delete like
-      await database.createLike({
-        actorId: ACTOR2_ID,
-        statusId
-      })
-      await database.deleteLike({
-        actorId: ACTOR2_ID,
-        statusId
-      })
-
-      const status = (await database.getStatus({
-        statusId,
-        withReplies: false
-      })) as Status
-
-      expect(status).not.toBeNull()
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
     })
   })
 
-  describe('reblog/unreblog', () => {
-    it('creates announce status', async () => {
-      const originalStatusId = `${ACTOR1_ID}/statuses/post-1`
-      const announceId = `${ACTOR2_ID}/statuses/test-reblog-${Date.now()}`
-
-      const announce = await database.createAnnounce({
-        id: announceId,
-        actorId: ACTOR2_ID,
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: [],
-        originalStatusId
-      })
-
-      expect(announce).not.toBeNull()
-      expect(announce?.type).toBe(StatusType.enum.Announce)
-      if (!announce || announce.type !== StatusType.enum.Announce) {
-        throw new Error('Expected announce status')
-      }
-      expect(announce.originalStatus.id).toBe(originalStatusId)
+  // The signed-in actor (actor1) favourites a status by actor2.
+  const seedNote = async (suffix: string, to: string[]) => {
+    const statusId = `${ACTOR2_ID}/statuses/favourite-${suffix}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR2_ID,
+      text: 'like me',
+      to,
+      cc: []
     })
+    return statusId
+  }
 
-    it('returns reblog count for reblogged status', async () => {
-      const statusId = `${ACTOR1_ID}/statuses/post-1`
+  it('records the like, federates it and returns the status as favourited', async () => {
+    const statusId = await seedNote('readable', [ACTIVITY_STREAM_PUBLIC])
 
-      const count = await database.getStatusReblogsCount({ statusId })
+    const response = await favourite(statusId)
 
-      expect(count).toBeGreaterThanOrEqual(0)
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      favourited: true,
+      favourites_count: 1
     })
+    await expect(
+      database.isActorLikedStatus({ actorId: ACTOR1_ID, statusId })
+    ).resolves.toBeTrue()
+    expect(sendLike).toHaveBeenCalledTimes(1)
   })
 
-  describe('status source', () => {
-    it('returns source text for status', async () => {
-      const statusId = `${ACTOR1_ID}/statuses/post-1`
-      const status = await database.getStatus({
-        statusId,
-        withReplies: false
-      })
+  it('is idempotent and does not federate a second Like activity', async () => {
+    const statusId = await seedNote('twice', [ACTIVITY_STREAM_PUBLIC])
 
-      expect(status?.type).toBe(StatusType.enum.Note)
-      if (!status || status.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
+    await favourite(statusId)
+    const response = await favourite(statusId)
 
-      expect(status.text).toBeTruthy()
-
-      // Verify source format
-      const source = {
-        id: urlToId(status.id),
-        text: status.text ?? '',
-        spoiler_text: status.summary ?? ''
-      }
-
-      expect(source).toMatchObject({
-        id: expect.toBeString(),
-        text: expect.toBeString(),
-        spoiler_text: expect.toBeString()
-      })
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      favourited: true,
+      favourites_count: 1
     })
+    expect(sendLike).toHaveBeenCalledTimes(1)
   })
 
-  describe('status history', () => {
-    it('returns history array with at least current version', async () => {
-      const statusId = `${ACTOR1_ID}/statuses/post-1`
-      const status = await database.getStatus({
-        statusId,
-        withReplies: false
-      })
+  it('returns 404 and records nothing for a status the actor cannot read', async () => {
+    const statusId = await seedNote('private', [])
 
-      expect(status?.type).toBe(StatusType.enum.Note)
-      if (!status || status.type !== StatusType.enum.Note) {
-        throw new Error('Expected note status')
-      }
+    const response = await favourite(statusId)
 
-      // Build history (current implementation returns single entry)
-      const history = [
-        {
-          content: status.text ?? '',
-          spoiler_text: status.summary ?? '',
-          sensitive: Boolean(status.summary),
-          created_at: new Date(status.createdAt).toISOString()
-        }
-      ]
-
-      expect(history).toBeArray()
-      expect(history.length).toBeGreaterThanOrEqual(1)
-    })
+    expect(response.status).toBe(404)
+    await expect(
+      database.isActorLikedStatus({ actorId: ACTOR1_ID, statusId })
+    ).resolves.toBeFalse()
+    expect(sendLike).not.toHaveBeenCalled()
   })
 
-  describe('favourited_by', () => {
-    it('returns actors who favourited the status', async () => {
-      const statusId = `${ACTOR1_ID}/statuses/post-1`
+  it('returns 404 for a status that does not exist', async () => {
+    const response = await favourite(`${ACTOR2_ID}/statuses/favourite-missing`)
 
-      // Create a like first
-      await database.createLike({
-        actorId: ACTOR2_ID,
-        statusId
-      })
-
-      const actors = await database.getFavouritedBy({ statusId, limit: 40 })
-
-      expect(actors).toBeArray()
-      expect(actors.length).toBeGreaterThanOrEqual(1)
-    })
-  })
-
-  describe('status deletion', () => {
-    it('deletes status from database', async () => {
-      // Create a new status to delete
-      const deleteStatusId = `${ACTOR1_ID}/statuses/to-delete-${Date.now()}`
-      await database.createNote({
-        id: deleteStatusId,
-        url: deleteStatusId,
-        actorId: ACTOR1_ID,
-        text: 'This will be deleted',
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: []
-      })
-
-      // Verify it exists
-      const beforeDelete = await database.getStatus({
-        statusId: deleteStatusId,
-        withReplies: false
-      })
-      expect(beforeDelete).not.toBeNull()
-
-      // Delete it
-      await database.deleteStatus({ statusId: deleteStatusId })
-
-      // Verify it's gone
-      const afterDelete = await database.getStatus({
-        statusId: deleteStatusId,
-        withReplies: false
-      })
-      expect(afterDelete).toBeNull()
-    })
+    expect(response.status).toBe(404)
+    expect(sendLike).not.toHaveBeenCalled()
   })
 })

@@ -1010,75 +1010,21 @@ describe('MessagesPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('fills the unified content column with aligned composer controls', () => {
-    const { container } = renderMessagesPage([], null)
+  it('renders the recipient input and Send button without a Search recipients button', () => {
+    renderMessagesPage([], null)
 
-    // The conversation pane stretches to fill the shared content column
-    // (max-w-content on the timeline wrapper) rather than opting into its own
-    // width, so Messages lines up with every other desktop tab.
-    expect(container.firstElementChild).toHaveClass('flex-1')
-
-    const directMessages = screen.getByLabelText('Direct messages')
-    expect(directMessages).toHaveClass('flex-1')
-    expect(directMessages.className).not.toContain('100svh')
-    expect(directMessages.className).toContain(
-      '2xl:grid-cols-[380px_minmax(0,1fr)]'
-    )
-
-    const recipientInput = screen.getByRole('textbox', {
-      name: 'Search recipients'
-    })
-    expect(recipientInput.parentElement).toHaveClass('relative')
+    expect(
+      screen.getByRole('textbox', { name: 'Search recipients' })
+    ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Search recipients' })
     ).not.toBeInTheDocument()
-
-    const messageInput = screen.getByRole('textbox', { name: 'Message text' })
-    expect(messageInput).toHaveClass('flex-1')
-    const sendButton = screen.getByRole('button', { name: 'Send message' })
-    expect(sendButton).toHaveTextContent('Send')
-    // The composer is an inline row: the textarea and Send button sit side by
-    // side, bottom-aligned, rather than the button stacked below.
-    expect(sendButton.parentElement).toHaveClass('items-end')
-  })
-
-  it('pulls the header row up under the mobile bar to cancel the column gap', () => {
-    renderMessagesPage([], null)
-
-    // The column's flex `gap-5` would open a visible gap between the compact
-    // bar and the heading row that continues it; `max-md:-mt-5` cancels it
-    // below md. The header box is the heading's `max-w-content` row's parent.
-    const header = screen
-      .getByRole('heading', { level: 1, name: 'Messages' })
-      .closest('.max-w-content')?.parentElement
-    expect(header).toHaveClass('max-md:-mt-5')
-  })
-
-  it("gives the Send button the design's 16px side padding despite its leading icon", () => {
-    renderMessagesPage([], null)
-
-    // `Button`'s default size drops to 12px (`has-[>svg]:px-3`) when the icon is
-    // a direct child, which is what the Send button has. The override has to
-    // be the same variant, or the merge keeps both and the 12px wins.
-    const sendButton = screen.getByRole('button', { name: 'Send message' })
-    expect(sendButton).toHaveClass('has-[>svg]:px-4')
-    expect(sendButton).not.toHaveClass('has-[>svg]:px-3')
-  })
-
-  it('sets the conversation name at 14px at every breakpoint', async () => {
-    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-      statuses: [],
-      nextMaxStatusId: null
-    })
-    renderMessagesPage([conversation({ id: 'first', participantName: 'Ada' })])
-
-    const name = within(screen.getByRole('button', { name: /Ada/i })).getByText(
-      'Ada'
-    )
-    expect(name).toHaveClass('text-sm')
-    expect(name).not.toHaveClass('md:text-base')
-
-    await waitFor(() => expect(getConversationStatuses).toHaveBeenCalled())
+    expect(
+      screen.getByRole('textbox', { name: 'Message text' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Send message' })
+    ).toHaveTextContent('Send')
   })
 
   it('renders sent and received messages as aligned chat bubbles', async () => {

@@ -72,19 +72,14 @@ describe('attachment', () => {
       expect(result?.description).toEqual('Test image')
     })
 
-    it('returns image type for png', () => {
-      const pngAttachment = { ...baseAttachment, mediaType: 'image/png' }
-      const result = getMastodonAttachment(pngAttachment)
+    it.each(['image/png', 'image/webp'])(
+      'returns image type for %s',
+      (mediaType) => {
+        const result = getMastodonAttachment({ ...baseAttachment, mediaType })
 
-      expect(result?.type).toEqual('image')
-    })
-
-    it('returns image type for webp', () => {
-      const webpAttachment = { ...baseAttachment, mediaType: 'image/webp' }
-      const result = getMastodonAttachment(webpAttachment)
-
-      expect(result?.type).toEqual('image')
-    })
+        expect(result?.type).toEqual('image')
+      }
+    )
 
     // `null` is not a MediaAttachment, and an entry with no id is one a client
     // cannot name — which an edit then reads as "remove it". Anything this
@@ -110,11 +105,14 @@ describe('attachment', () => {
       })
     })
 
-    it('returns video type for mp4', () => {
+    it.each([
+      { mediaType: 'video/mp4', url: 'https://example.com/media/video.mp4' },
+      { mediaType: 'video/webm', url: 'https://example.com/media/video.webm' }
+    ])('returns video type for $mediaType', ({ mediaType, url }) => {
       const videoAttachment: Attachment = {
         ...baseAttachment,
-        mediaType: 'video/mp4',
-        url: 'https://example.com/media/video.mp4'
+        mediaType,
+        url
       }
 
       const result = getMastodonAttachment(videoAttachment)
@@ -122,7 +120,7 @@ describe('attachment', () => {
       expect(result).not.toBeNull()
       expect(result?.type).toEqual('video')
       expect(result?.id).toEqual('attachment-123')
-      expect(result?.url).toEqual('https://example.com/media/video.mp4')
+      expect(result?.url).toEqual(url)
     })
 
     // The upload path stores a focal point for a video's preview frame the
@@ -166,40 +164,18 @@ describe('attachment', () => {
       })
     })
 
-    it('returns video type for webm', () => {
-      const webmAttachment: Attachment = {
-        ...baseAttachment,
-        mediaType: 'video/webm'
-      }
-
-      const result = getMastodonAttachment(webmAttachment)
-
-      expect(result?.type).toEqual('video')
-    })
-
-    it('handles missing dimensions in image', () => {
+    it.each([
+      { description: 'image', mediaType: 'image/jpeg' },
+      { description: 'video', mediaType: 'video/mp4' }
+    ])('handles missing dimensions in $description', ({ mediaType }) => {
       const attachmentNoDimensions: Attachment = {
         ...baseAttachment,
+        mediaType,
         width: undefined,
         height: undefined
       }
 
       const result = getMastodonAttachment(attachmentNoDimensions)
-
-      expect(result).not.toBeNull()
-      expect(metaOf(result)?.original?.width).toEqual(0)
-      expect(metaOf(result)?.original?.height).toEqual(0)
-    })
-
-    it('handles missing dimensions in video', () => {
-      const videoNoDimensions: Attachment = {
-        ...baseAttachment,
-        mediaType: 'video/mp4',
-        width: undefined,
-        height: undefined
-      }
-
-      const result = getMastodonAttachment(videoNoDimensions)
 
       expect(result).not.toBeNull()
       expect(metaOf(result)?.original?.width).toEqual(0)

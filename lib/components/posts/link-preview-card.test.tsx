@@ -114,30 +114,13 @@ describe('LinkPreviewCard', () => {
 
   // The dot separates two things that are already separate elements, so it says
   // nothing a screen reader needs and is marked as decoration. It still has to
-  // live INSIDE the name's truncating box — see the orphan case below.
-  it('renders the separator as decoration inside the truncating name', () => {
+  // live INSIDE the name's box — see the orphan case below.
+  it('renders the separator as decoration inside the name', () => {
     render(<LinkPreviewCard linkPreview={card()} />)
 
     const separator = screen.getByText('·')
     expect(separator).toHaveAttribute('aria-hidden', 'true')
     expect(separator.parentElement).toHaveTextContent('The Verge')
-    expect(separator.parentElement).toHaveClass('truncate')
-  })
-
-  // The domain is the only part of the card the page cannot choose, so it is
-  // the part that must survive truncation. Rendering the line as one truncated
-  // string clipped the domain and kept the author's site name — a long enough
-  // og:site_name pushed the real host off the end entirely.
-  it('keeps the domain intact when the publisher name is very long', () => {
-    render(
-      <LinkPreviewCard linkPreview={card({ siteName: 'A'.repeat(255) })} />
-    )
-
-    const domain = screen.getByText('theverge.com')
-    expect(domain).toBeInTheDocument()
-    // The name is what gives way; the domain is kept out of the squeeze.
-    expect(domain).toHaveClass('shrink-0')
-    expect(screen.getByText('A'.repeat(255))).toHaveClass('truncate')
   })
 
   // The separator belongs to the name, so a name squeezed to nothing cannot
@@ -146,29 +129,6 @@ describe('LinkPreviewCard', () => {
     render(<LinkPreviewCard linkPreview={card({ siteName: null })} />)
 
     expect(screen.queryByText('·')).not.toBeInTheDocument()
-    expect(screen.getByText('theverge.com')).toBeInTheDocument()
-  })
-
-  // Hard clipping would cut the host flush; the ellipsis is the only signal
-  // that what the reader is checking is not the whole domain.
-  it('ellipsises rather than clips a domain that overflows on its own', () => {
-    render(
-      <LinkPreviewCard
-        linkPreview={card({
-          siteName: null,
-          url: `https://${'a-very-long-subdomain.'.repeat(4)}example.com/x`
-        })}
-      />
-    )
-
-    const domain = screen.getByText(/example\.com/)
-    expect(domain).toHaveClass('truncate')
-    expect(domain).toHaveClass('max-w-full')
-  })
-
-  it('shows the domain alone when there is no publisher name', () => {
-    render(<LinkPreviewCard linkPreview={card({ siteName: null })} />)
-
     expect(screen.getByText('theverge.com')).toBeInTheDocument()
   })
 

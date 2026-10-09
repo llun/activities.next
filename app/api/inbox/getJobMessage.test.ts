@@ -16,9 +16,12 @@ import { getActorUpdateJobMessage, getJobMessage } from './getJobMessage'
 const verifiedSenderActorId = 'https://remote.test/users/alice'
 
 describe('getJobMessage', () => {
-  it('rejects Create Note activities when the verified sender actor id is invalid', () => {
-    const result = getJobMessage(
-      {
+  it.each([
+    {
+      title:
+        'Create Note activities when the verified sender actor id is invalid',
+      sender: '',
+      activity: {
         id: 'https://remote.test/activities/create-unverified',
         type: 'Create',
         actor: verifiedSenderActorId,
@@ -28,16 +31,13 @@ describe('getJobMessage', () => {
           attributedTo: verifiedSenderActorId,
           content: 'Unverified sender'
         }
-      } as never,
-      ''
-    )
-
-    expect(result).toBeNull()
-  })
-
-  it('rejects Create Note activities without object actor attribution when the sender is verified', () => {
-    const result = getJobMessage(
-      {
+      }
+    },
+    {
+      title:
+        'Create Note activities without object actor attribution when the sender is verified',
+      sender: verifiedSenderActorId,
+      activity: {
         id: 'https://remote.test/activities/create-no-attribution',
         type: 'Create',
         actor: verifiedSenderActorId,
@@ -46,16 +46,13 @@ describe('getJobMessage', () => {
           type: 'Note',
           content: 'Missing attribution'
         }
-      } as never,
-      verifiedSenderActorId
-    )
-
-    expect(result).toBeNull()
-  })
-
-  it('rejects Create Note activities when the verified sender is not one of the attributed authors', () => {
-    const result = getJobMessage(
-      {
+      }
+    },
+    {
+      title:
+        'Create Note activities when the verified sender is not one of the attributed authors',
+      sender: verifiedSenderActorId,
+      activity: {
         id: 'https://remote.test/activities/create-not-an-author',
         type: 'Create',
         actor: verifiedSenderActorId,
@@ -68,16 +65,12 @@ describe('getJobMessage', () => {
           ],
           content: 'Not an author'
         }
-      } as never,
-      verifiedSenderActorId
-    )
-
-    expect(result).toBeNull()
-  })
-
-  it('rejects Create Note activities that list a co-author on another origin', () => {
-    const result = getJobMessage(
-      {
+      }
+    },
+    {
+      title: 'Create Note activities that list a co-author on another origin',
+      sender: verifiedSenderActorId,
+      activity: {
         id: 'https://remote.test/activities/create-cross-origin-coauthor',
         type: 'Create',
         actor: verifiedSenderActorId,
@@ -90,16 +83,13 @@ describe('getJobMessage', () => {
           ],
           content: 'Borrowed co-author'
         }
-      } as never,
-      verifiedSenderActorId
-    )
-
-    expect(result).toBeNull()
-  })
-
-  it('rejects Create Note activities whose object actor differs from the verified sender even when the sender is an author', () => {
-    const result = getJobMessage(
-      {
+      }
+    },
+    {
+      title:
+        'Create Note activities whose object actor differs from the verified sender even when the sender is an author',
+      sender: verifiedSenderActorId,
+      activity: {
         id: 'https://remote.test/activities/create-object-actor-mismatch',
         type: 'Create',
         actor: verifiedSenderActorId,
@@ -110,11 +100,42 @@ describe('getJobMessage', () => {
           actor: 'https://remote.test/users/mallory',
           content: 'Object actor mismatch'
         }
-      } as never,
-      verifiedSenderActorId
-    )
-
-    expect(result).toBeNull()
+      }
+    },
+    {
+      title:
+        'Announce activities when the activity actor differs from the verified sender',
+      sender: verifiedSenderActorId,
+      activity: {
+        id: 'https://remote.test/activities/announce-spoofed',
+        type: 'Announce',
+        actor: 'https://remote.test/users/mallory',
+        object: 'https://remote.test/users/alice/statuses/1'
+      }
+    },
+    {
+      title: 'Announce activities when the verified sender actor id is invalid',
+      sender: '',
+      activity: {
+        id: 'https://remote.test/activities/announce-unverified',
+        type: 'Announce',
+        actor: verifiedSenderActorId,
+        object: 'https://remote.test/users/alice/statuses/1'
+      }
+    },
+    {
+      title:
+        'Delete activities when the activity actor differs from the verified sender',
+      sender: verifiedSenderActorId,
+      activity: {
+        id: 'https://remote.test/activities/delete-spoofed',
+        type: 'Delete',
+        actor: 'https://remote.test/users/mallory',
+        object: 'https://remote.test/users/alice/statuses/1'
+      }
+    }
+  ])('rejects $title', ({ activity, sender }) => {
+    expect(getJobMessage(activity as never, sender)).toBeNull()
   })
 
   it('pins attributedTo to the verified sender when a same-origin co-author is listed first', () => {
@@ -530,48 +551,6 @@ describe('getJobMessage', () => {
         )
       ).toBeNull()
     })
-  })
-
-  it('rejects Announce activities when the activity actor differs from the verified sender', () => {
-    const result = getJobMessage(
-      {
-        id: 'https://remote.test/activities/announce-spoofed',
-        type: 'Announce',
-        actor: 'https://remote.test/users/mallory',
-        object: 'https://remote.test/users/alice/statuses/1'
-      } as never,
-      verifiedSenderActorId
-    )
-
-    expect(result).toBeNull()
-  })
-
-  it('rejects Announce activities when the verified sender actor id is invalid', () => {
-    const result = getJobMessage(
-      {
-        id: 'https://remote.test/activities/announce-unverified',
-        type: 'Announce',
-        actor: verifiedSenderActorId,
-        object: 'https://remote.test/users/alice/statuses/1'
-      } as never,
-      ''
-    )
-
-    expect(result).toBeNull()
-  })
-
-  it('rejects Delete activities when the activity actor differs from the verified sender', () => {
-    const result = getJobMessage(
-      {
-        id: 'https://remote.test/activities/delete-spoofed',
-        type: 'Delete',
-        actor: 'https://remote.test/users/mallory',
-        object: 'https://remote.test/users/alice/statuses/1'
-      } as never,
-      verifiedSenderActorId
-    )
-
-    expect(result).toBeNull()
   })
 
   it('rejects Undo Announce activities when the activity actor differs from the verified sender', () => {

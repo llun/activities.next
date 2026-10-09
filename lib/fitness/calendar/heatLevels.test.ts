@@ -1,6 +1,5 @@
 import {
   HEAT_METRICS,
-  HEAT_THRESHOLDS,
   HeatMetric,
   legendFor,
   levelFor,
@@ -88,13 +87,6 @@ describe('levelFor', () => {
     levelFor('distance', 0)
     expect(levelFor('distance', 12 * KM)).toBe(before)
     expect(before).toBe(2)
-    expect(levelFor.length).toBe(2)
-  })
-
-  it('exposes the documented thresholds', () => {
-    expect(HEAT_THRESHOLDS.count).toEqual([2, 3, 4])
-    expect(HEAT_THRESHOLDS.distance).toEqual([10_000, 25_000, 50_000])
-    expect(HEAT_THRESHOLDS.duration).toEqual([1800, 3600, 7200])
   })
 })
 

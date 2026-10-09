@@ -228,13 +228,6 @@ describe('GalleryAlbumDetailView', () => {
     })
   })
 
-  it('keeps the sort a 40px touch target', () => {
-    renderView()
-    expect(screen.getByLabelText('Sort photos')).toHaveClass(
-      'pointer-coarse:h-10'
-    )
-  })
-
   it('keeps the counts note for the owner, who sees every photo', () => {
     renderView()
     expect(
@@ -671,16 +664,14 @@ describe('GalleryAlbumDetailView', () => {
       const marker = screen.getByTestId('album-cover-marker')
       expect(marker).toHaveTextContent('Cover')
       expect(marker.tagName).toBe('SPAN')
-      expect(marker.querySelector('svg')).toHaveClass('fill-current')
 
       // The others are buttons that keep their full accessible name even where
-      // the label is hidden, with an outline star.
+      // the label is hidden.
       const buttons = screen.getAllByTestId('album-set-cover')
       expect(buttons).toHaveLength(2)
       expect(buttons[0]).toHaveAccessibleName('Set Photo 1 as cover')
       expect(buttons[1]).toHaveAccessibleName('Set Photo 3 as cover')
       for (const button of buttons) {
-        expect(button.querySelector('svg')).not.toHaveClass('fill-current')
         expect(button).not.toBe(marker)
       }
       expect(screen.getAllByText('Cover')).toHaveLength(1)

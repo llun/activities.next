@@ -266,26 +266,46 @@ describe('Fitness General Settings API', () => {
       )
     })
 
-    it('saves generateRouteDescription toggle', async () => {
-      mockDb.createFitnessSettings.mockResolvedValue({
+    it.each([
+      {
+        name: 'creates settings with the toggle on',
+        existing: null,
+        value: true
+      },
+      {
+        name: 'turns the toggle on for existing settings',
+        existing: false,
+        value: true
+      },
+      {
+        name: 'turns the toggle off for existing settings',
+        existing: true,
+        value: false
+      }
+    ])('$name (generateRouteDescription)', async ({ existing, value }) => {
+      const settings = (generateRouteDescription: boolean) => ({
         id: 'general-settings-id',
         actorId: ACTOR1_ID,
-        serviceType: 'general',
-        generateRouteDescription: true,
+        serviceType: 'general' as const,
         privacyLocations: [],
         privacyHideRadiusMeters: 0,
+        generateRouteDescription,
         createdAt: Date.now(),
         updatedAt: Date.now()
       })
+      if (existing === null) {
+        mockDb.createFitnessSettings.mockResolvedValue(settings(value))
+      } else {
+        mockDb.getFitnessSettings.mockResolvedValue(settings(existing))
+        mockDb.updateFitnessSettings.mockResolvedValue(settings(value))
+      }
 
       const request = new NextRequest(
         'http://llun.test/api/v1/fitness/general',
         {
           method: 'POST',
           headers: { Origin: 'https://llun.test' },
-          body: JSON.stringify({
-            generateRouteDescription: true
-          })
+          body: JSON.stringify({ generateRouteDescription: value })
         }
       )
 
@@ -294,108 +314,25 @@ describe('Fitness General Settings API', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(data.generateRouteDescription).toBe(true)
-      expect(mockDb.createFitnessSettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorId: ACTOR1_ID,
-          serviceType: 'general',
-          generateRouteDescription: true
-        })
-      )
-    })
-
-    it('updates existing settings with generateRouteDescription', async () => {
-      mockDb.getFitnessSettings.mockResolvedValue({
-        id: 'general-settings-id',
-        actorId: ACTOR1_ID,
-        serviceType: 'general',
-        privacyLocations: [],
-        privacyHideRadiusMeters: 0,
-        generateRouteDescription: false,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      })
-      mockDb.updateFitnessSettings.mockResolvedValue({
-        id: 'general-settings-id',
-        actorId: ACTOR1_ID,
-        serviceType: 'general',
-        privacyLocations: [],
-        privacyHideRadiusMeters: 0,
-        generateRouteDescription: true,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      })
-
-      const request = new NextRequest(
-        'http://llun.test/api/v1/fitness/general',
-        {
-          method: 'POST',
-          headers: { Origin: 'https://llun.test' },
-          body: JSON.stringify({
-            generateRouteDescription: true
+      expect(data.generateRouteDescription).toBe(value)
+      if (existing === null) {
+        expect(mockDb.createFitnessSettings).toHaveBeenCalledWith(
+          expect.objectContaining({
+            actorId: ACTOR1_ID,
+            serviceType: 'general',
+            generateRouteDescription: value
           })
-        }
-      )
-
-      const response = await POST(request, { params: Promise.resolve({}) })
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.generateRouteDescription).toBe(true)
-      expect(mockDb.updateFitnessSettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'general-settings-id',
-          generateRouteDescription: true
-        })
-      )
-    })
-
-    it('updates existing settings to disable generateRouteDescription', async () => {
-      mockDb.getFitnessSettings.mockResolvedValue({
-        id: 'general-settings-id',
-        actorId: ACTOR1_ID,
-        serviceType: 'general',
-        privacyLocations: [],
-        privacyHideRadiusMeters: 0,
-        generateRouteDescription: true,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      })
-      mockDb.updateFitnessSettings.mockResolvedValue({
-        id: 'general-settings-id',
-        actorId: ACTOR1_ID,
-        serviceType: 'general',
-        privacyLocations: [],
-        privacyHideRadiusMeters: 0,
-        generateRouteDescription: false,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      })
-
-      const request = new NextRequest(
-        'http://llun.test/api/v1/fitness/general',
-        {
-          method: 'POST',
-          headers: { Origin: 'https://llun.test' },
-          body: JSON.stringify({
-            generateRouteDescription: false
+        )
+        expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
+      } else {
+        expect(mockDb.updateFitnessSettings).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: 'general-settings-id',
+            generateRouteDescription: value
           })
-        }
-      )
-
-      const response = await POST(request, { params: Promise.resolve({}) })
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.generateRouteDescription).toBe(false)
-      expect(mockDb.updateFitnessSettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'general-settings-id',
-          generateRouteDescription: false
-        })
-      )
+        )
+        expect(mockDb.createFitnessSettings).not.toHaveBeenCalled()
+      }
     })
 
     it('rejects invalid generateRouteDescription type with 422', async () => {

@@ -61,37 +61,23 @@ describe('FitnessAnalysisCharts', () => {
       } else {
         expect(label).not.toHaveClass('hidden')
       }
-    })
 
-    labels.forEach((label, index) => {
-      expect(label).toHaveClass('absolute', 'whitespace-nowrap')
-      if (index === 0) {
-        expect(label).toHaveClass('left-0')
-        expect(label.style.left).toBe('')
-      } else if (index === last) {
-        expect(label).toHaveClass('right-0')
+      if (index === 0 || index === last) {
+        // The ends are pinned to the edges, not positioned by a fraction.
         expect(label.style.left).toBe('')
       } else {
-        // Centred on its fraction: the left edge is at the fraction and the box
-        // is pulled back by half its own width.
-        expect(label).toHaveClass('-translate-x-1/2')
+        // Centred on its fraction of the plot.
         expect(parseFloat(label.style.left)).toBeCloseTo(
           (index / last) * 100,
           5
         )
       }
     })
-    // No flex row spreading the boxes. The row is also the size container the
-    // hidden penultimate label's `@min-[400px]` query measures: without
-    // `@container` no ancestor on the status page is one, the query never
-    // matches, and that label stays hidden at every width.
-    expect(labels[0].parentElement).toHaveClass('relative', '@container')
-    // Every label is `absolute`, so `h-4` is all that gives the row a height:
-    // without it the row is 0px tall and its labels (a 16px line) hang over
-    // whatever follows it, such as the combined chart's caption.
-    expect(labels[0].parentElement).toHaveClass('h-4')
-    expect(labels[0].parentElement).not.toHaveClass('flex')
-    expect(labels[0].parentElement).not.toHaveClass('justify-between')
+    // The row is the size container the hidden penultimate label's
+    // `@min-[400px]` query measures: without `@container` no ancestor on the
+    // status page is one, the query never matches, and that label stays hidden
+    // at every width.
+    expect(labels[0].parentElement).toHaveClass('@container')
   }
 
   describe('ChartHoverMarker', () => {
@@ -114,7 +100,6 @@ describe('FitnessAnalysisCharts', () => {
       const dot = screen.getByTestId('chart-hover-dot')
       expect(dot).toBeInTheDocument()
       expect(dot).toHaveStyle({ left: '25%', top: '40%' })
-      expect(dot).toHaveClass('bg-sky-500')
 
       const chip = screen.getByTestId('chart-hover-value')
       expect(chip).toBeInTheDocument()

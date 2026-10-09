@@ -25,16 +25,12 @@ describe('getHashFromString', () => {
     )
   })
 
-  it('should handle special characters', () => {
-    const input = '!@#$%^&*()_+'
+  it.each([
+    { description: 'special characters', input: '!@#$%^&*()_+' },
+    { description: 'unicode characters', input: '你好世界' }
+  ])('should handle $description', ({ input }) => {
     const hash = getHashFromString(input)
-    expect(hash).toHaveLength(64) // SHA-256 produces 64 character hex string
-    expect(hash).toMatch(/^[a-f0-9]{64}$/) // Should be hexadecimal
-  })
-
-  it('should handle unicode characters', () => {
-    const input = '你好世界'
-    const hash = getHashFromString(input)
+    // SHA-256 produces a 64 character hexadecimal string
     expect(hash).toHaveLength(64)
     expect(hash).toMatch(/^[a-f0-9]{64}$/)
   })

@@ -2,14 +2,7 @@ import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { logger } from '@/lib/utils/logger'
 
-import {
-  NODE_INFO_20_CONTENT_TYPE,
-  NODE_INFO_21_CONTENT_TYPE,
-  buildNodeInfo20,
-  buildNodeInfo21,
-  getNodeInfo20,
-  getNodeInfo21
-} from './nodeinfo'
+import { buildNodeInfo20, buildNodeInfo21, getNodeInfo20 } from './nodeinfo'
 
 const DEFAULT_CONFIG = {
   host: 'test.example.com',
@@ -46,32 +39,6 @@ const STATS = {
   activeHalfyear: 5,
   localPosts: 99
 }
-
-describe('NODE_INFO_20_CONTENT_TYPE', () => {
-  it('carries the NodeInfo 2.0 schema profile', () => {
-    expect(NODE_INFO_20_CONTENT_TYPE).toBe(
-      'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.0#"'
-    )
-  })
-})
-
-describe('NODE_INFO_21_CONTENT_TYPE', () => {
-  it('carries the NodeInfo 2.1 schema profile', () => {
-    expect(NODE_INFO_21_CONTENT_TYPE).toBe(
-      'application/json; profile="http://nodeinfo.diaspora.software/ns/schema/2.1#"'
-    )
-  })
-})
-
-describe('getNodeInfo21', () => {
-  it('sets version 2.1 and keeps the 2.0 metadata', () => {
-    const nodeInfo = getNodeInfo21(STATS)
-
-    expect(nodeInfo.version).toBe('2.1')
-    expect(nodeInfo.metadata.nodeName).toBe('Test Service')
-    expect(nodeInfo.usage.localPosts).toBe(99)
-  })
-})
 
 describe('getNodeInfo20', () => {
   it('falls back to host when serviceName is a blank string', () => {

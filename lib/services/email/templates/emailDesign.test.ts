@@ -1,6 +1,7 @@
 import { RenderedEmail } from '@/lib/services/email/types'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { EditableStatus, StatusType } from '@/lib/types/domain/status'
+import { escapeHtml } from '@/lib/utils/text/escapeHtml'
 
 import { buildActivityImportEmail } from './activityImport'
 import { buildActorDeletedEmail } from './actorDeleted'
@@ -233,6 +234,7 @@ describe('email design conformance', () => {
   it.each(cases)(
     '$description hides a preheader from the body',
     ({ email }) => {
+      expect(email.html).toContain('display:none')
       expect(email.html).toContain('mso-hide:all')
       expect(email.html).toContain('&zwnj;&nbsp;'.repeat(30))
     }
@@ -241,8 +243,10 @@ describe('email design conformance', () => {
   it.each(cases)(
     '$description titles the document with its subject',
     ({ email }) => {
-      expect(email.html).toContain('<title>')
       expect(email.subject.length).toBeGreaterThan(0)
+      expect(email.html).toContain(
+        `<title>${escapeHtml(email.subject)}</title>`
+      )
     }
   )
 

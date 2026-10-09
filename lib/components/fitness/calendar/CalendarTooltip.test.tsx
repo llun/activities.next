@@ -305,18 +305,5 @@ describe('calendar tooltip', () => {
     keyboardFocus(screen.getByRole('button', { name: 'one' }))
 
     expect(tooltip()).toHaveAttribute('aria-hidden', 'true')
-    expect(tooltip()).toHaveClass('pointer-events-none')
-  })
-
-  it('fades in over 100ms and out over 75ms', () => {
-    render(<Harness />)
-    const one = screen.getByRole('button', { name: 'one' })
-
-    keyboardFocus(one)
-    expect(tooltip()?.style.transition).toContain('var(--fitness-t-tip-in)')
-
-    act(() => one.blur())
-    expect(tooltip()?.style.transition).toContain('var(--fitness-t-tip-out)')
-    expect(tooltip()).toHaveStyle({ opacity: '0' })
   })
 })

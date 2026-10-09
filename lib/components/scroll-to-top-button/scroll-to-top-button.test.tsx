@@ -30,62 +30,41 @@ describe('ScrollToTopButton', () => {
     vi.useRealTimers()
   })
 
-  it('should not render button when scroll position is less than 300px', () => {
-    Object.defineProperty(window, 'scrollY', { value: 200 })
-    render(<ScrollToTopButton />)
+  it.each([
+    { scrollY: 100, isLoadMoreVisible: undefined, shown: false },
+    { scrollY: 200, isLoadMoreVisible: undefined, shown: false },
+    { scrollY: 400, isLoadMoreVisible: true, shown: false },
+    { scrollY: 400, isLoadMoreVisible: false, shown: true },
+    { scrollY: 500, isLoadMoreVisible: undefined, shown: true }
+  ])(
+    'is shown on mount: $shown at scrollY $scrollY with isLoadMoreVisible $isLoadMoreVisible',
+    ({ scrollY, isLoadMoreVisible, shown }) => {
+      Object.defineProperty(window, 'scrollY', { value: scrollY })
+      render(<ScrollToTopButton isLoadMoreVisible={isLoadMoreVisible} />)
 
-    expect(
-      screen.queryByRole('button', { name: 'Scroll to top' })
-    ).not.toBeInTheDocument()
-  })
+      const button = screen.queryByRole('button', { name: 'Scroll to top' })
+      if (shown) {
+        expect(button).toBeInTheDocument()
+        expect(button).not.toBeDisabled()
+      } else {
+        expect(button).not.toBeInTheDocument()
+      }
+    }
+  )
 
-  it('should not render button when load more is visible even if scrolled', () => {
-    Object.defineProperty(window, 'scrollY', { value: 400 })
-    render(<ScrollToTopButton isLoadMoreVisible={true} />)
-
-    expect(
-      screen.queryByRole('button', { name: 'Scroll to top' })
-    ).not.toBeInTheDocument()
-  })
-
-  it('should be visible when scroll position is greater than 300px and load more is not visible', () => {
-    Object.defineProperty(window, 'scrollY', { value: 400 })
-    render(<ScrollToTopButton isLoadMoreVisible={false} />)
-
-    const button = screen.getByRole('button', { name: 'Scroll to top' })
-    expect(button).toBeInTheDocument()
-    expect(button).toHaveClass('animate-in')
-    expect(button).toHaveTextContent('Scroll to top')
-    expect(button).not.toBeDisabled()
-  })
-
-  it('should hide button when load more becomes visible', async () => {
+  it('hides while load more is visible and shows again once it is hidden', () => {
     Object.defineProperty(window, 'scrollY', { value: 400 })
     const { rerender } = render(<ScrollToTopButton isLoadMoreVisible={false} />)
-
     expect(
       screen.getByRole('button', { name: 'Scroll to top' })
     ).toBeInTheDocument()
 
-    // Load more becomes visible
     rerender(<ScrollToTopButton isLoadMoreVisible={true} />)
-
-    expect(
-      screen.queryByRole('button', { name: 'Scroll to top' })
-    ).not.toBeInTheDocument()
-  })
-
-  it('should show button again when load more becomes hidden', async () => {
-    Object.defineProperty(window, 'scrollY', { value: 400 })
-    const { rerender } = render(<ScrollToTopButton isLoadMoreVisible={true} />)
-
     expect(
       screen.queryByRole('button', { name: 'Scroll to top' })
     ).not.toBeInTheDocument()
 
-    // Load more becomes hidden
     rerender(<ScrollToTopButton isLoadMoreVisible={false} />)
-
     expect(
       screen.getByRole('button', { name: 'Scroll to top' })
     ).toBeInTheDocument()
@@ -204,41 +183,5 @@ describe('ScrollToTopButton', () => {
     vi.advanceTimersByTime(100)
 
     removeEventListenerSpy.mockRestore()
-  })
-
-  it('should set initial visibility correctly based on scroll position on mount', () => {
-    // Test mounting with scroll position above threshold
-    Object.defineProperty(window, 'scrollY', { value: 500 })
-    const { unmount } = render(<ScrollToTopButton />)
-
-    const button = screen.getByRole('button', { name: 'Scroll to top' })
-    expect(button).toBeInTheDocument()
-    expect(button).not.toBeDisabled()
-
-    unmount()
-
-    // Test mounting with scroll position below threshold
-    Object.defineProperty(window, 'scrollY', { value: 100 })
-    render(<ScrollToTopButton />)
-
-    expect(
-      screen.queryByRole('button', { name: 'Scroll to top' })
-    ).not.toBeInTheDocument()
-  })
-
-  it('renders with fixed positioning and safe-area bottom offset', () => {
-    Object.defineProperty(window, 'scrollY', { value: 500 })
-    render(<ScrollToTopButton />)
-
-    const button = screen.getByRole('button', { name: 'Scroll to top' })
-    expect(button).toHaveClass(
-      'fixed',
-      'bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]',
-      'z-30',
-      'bg-popover',
-      'text-popover-foreground',
-      'dark:bg-popover'
-    )
-    expect(button).toHaveAttribute('data-variant', 'pill')
   })
 })

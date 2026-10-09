@@ -284,7 +284,23 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
 
   // PostgreSQL rejects a NUL byte in a bound text parameter (22021), so one
   // reaching the cache-key lookup was a 500 there and a 404 on SQLite.
-  describe('an activity_type carrying a NUL byte', () => {
+  // activity_type and period_key are both bound as part of the cache key.
+  describe.each([
+    {
+      field: 'activity_type',
+      query: 'period_type=all_time&period_key=all&activity_type=%00',
+      body: {
+        activity_type: '\u0000',
+        period_type: 'all_time',
+        period_key: 'all'
+      }
+    },
+    {
+      field: 'period_key',
+      query: 'period_type=all_time&period_key=%00',
+      body: { period_type: 'all_time', period_key: '\u0000' }
+    }
+  ])('a $field carrying a NUL byte', ({ query, body }) => {
     const ORIGIN = 'https://test.llun.dev'
 
     const expectBadRequest = async (response: Response) => {
@@ -296,23 +312,18 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
 
     it('rejects a POST before the lookup', async () => {
       await expectBadRequest(
-        await POST(
-          postRequest({
-            activity_type: '\u0000',
-            period_type: 'all_time',
-            period_key: 'all'
-          }),
-          { params: Promise.resolve({ id: encodedId }) }
-        )
+        await POST(postRequest(body), {
+          params: Promise.resolve({ id: encodedId })
+        })
       )
       expect(mockDb.setFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
     })
 
     it('rejects a DELETE before the lookup', async () => {
-      const request = new NextRequest(
-        `${baseUrl}?period_type=all_time&period_key=all&activity_type=%00`,
-        { method: 'DELETE', headers: { Origin: ORIGIN } }
-      )
+      const request = new NextRequest(`${baseUrl}?${query}`, {
+        method: 'DELETE',
+        headers: { Origin: ORIGIN }
+      })
       await expectBadRequest(
         await DELETE(request, { params: Promise.resolve({ id: encodedId }) })
       )
@@ -363,38 +374,5 @@ describe('/api/v1/accounts/[id]/fitness-route-heatmap/share', () => {
         expect(mockDb.clearFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
       }
     )
-  })
-
-  // The same 22021 applies to period_key, which is bound as the cache key.
-  describe('a period_key carrying a NUL byte', () => {
-    const ORIGIN = 'https://test.llun.dev'
-
-    const expectBadRequest = async (response: Response) => {
-      expect(response.status).toBe(400)
-      expect(response.headers.get('Access-Control-Allow-Origin')).toBe(ORIGIN)
-      await expect(response.json()).resolves.toEqual({ error: 'Bad Request' })
-      expect(mockDb.getFitnessRouteHeatmapByKey).not.toHaveBeenCalled()
-    }
-
-    it('rejects a POST before the lookup', async () => {
-      await expectBadRequest(
-        await POST(
-          postRequest({ period_type: 'all_time', period_key: '\u0000' }),
-          { params: Promise.resolve({ id: encodedId }) }
-        )
-      )
-      expect(mockDb.setFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
-    })
-
-    it('rejects a DELETE before the lookup', async () => {
-      const request = new NextRequest(
-        `${baseUrl}?period_type=all_time&period_key=%00`,
-        { method: 'DELETE', headers: { Origin: ORIGIN } }
-      )
-      await expectBadRequest(
-        await DELETE(request, { params: Promise.resolve({ id: encodedId }) })
-      )
-      expect(mockDb.clearFitnessRouteHeatmapShareToken).not.toHaveBeenCalled()
-    })
   })
 })

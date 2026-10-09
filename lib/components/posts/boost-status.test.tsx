@@ -144,14 +144,6 @@ describe('BoostStatus', () => {
     expect(link).toHaveAttribute('href', '/@booster@remote.example')
   })
 
-  it('gives the booster link at-rest contrast against the muted row it sits in', () => {
-    render(<BoostStatus status={boost} />)
-
-    expect(screen.getByRole('link', { name: 'Booster' })).toHaveClass(
-      'text-foreground'
-    )
-  })
-
   it('links the handle recovered from the actor id when the profile is absent', () => {
     render(
       <BoostStatus

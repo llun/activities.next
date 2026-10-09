@@ -124,7 +124,6 @@ describe('updatePollJob', () => {
     })
 
     const status = await database.getStatus({ statusId: pollId })
-    expect(status).toBeDefined()
     if (status?.type !== StatusType.enum.Poll) {
       fail('Status type must be Poll')
     }
@@ -159,7 +158,6 @@ describe('updatePollJob', () => {
     })
 
     const status = await database.getStatus({ statusId: pollId })
-    expect(status).toBeDefined()
     if (status?.type !== StatusType.enum.Poll) {
       fail('Status type must be Poll')
     }
@@ -193,7 +191,6 @@ describe('updatePollJob', () => {
     const status = (await database.getStatus({
       statusId: pollId
     })) as StatusPoll
-    expect(status).toBeDefined()
     expect(status?.text).toEqual('<p>Updated question</p>')
   })
 
@@ -305,7 +302,6 @@ describe('updatePollJob', () => {
     })
 
     const status = await database.getStatus({ statusId: pollId })
-    expect(status).toBeDefined()
     if (status?.type !== StatusType.enum.Poll) {
       fail('Status type must be Poll')
     }

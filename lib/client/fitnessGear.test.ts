@@ -41,17 +41,6 @@ describe('fitnessGear client module', () => {
       expect(result).toEqual(mockGear)
     })
 
-    it('throws error with API error message on failure', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({ message: 'Database connection failed' }),
-        { status: 500 }
-      )
-
-      await expect(getFitnessGearList()).rejects.toThrow(
-        'Database connection failed'
-      )
-    })
-
     it('throws error with fallback message on empty error response', async () => {
       fetchMock.mockResponseOnce('', { status: 500, statusText: '' })
 
@@ -84,17 +73,6 @@ describe('fitnessGear client module', () => {
         body: JSON.stringify(payload)
       })
       expect(result).toEqual(mockCreated)
-    })
-
-    it('throws error with parsed API status on failure', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({ status: 'Invalid gear kind' }),
-        { status: 422 }
-      )
-
-      await expect(
-        createFitnessGear({ kind: 'bike', name: 'Bike' })
-      ).rejects.toThrow('Invalid gear kind')
     })
   })
 
@@ -140,16 +118,6 @@ describe('fitnessGear client module', () => {
         body: JSON.stringify(clearingPayload)
       })
     })
-
-    it('throws error on failure', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Gear not found' }), {
-        status: 404
-      })
-
-      await expect(
-        updateFitnessGear('gear-1', { name: 'New' })
-      ).rejects.toThrow('Gear not found')
-    })
   })
 
   describe('deleteFitnessGear', () => {
@@ -161,17 +129,6 @@ describe('fitnessGear client module', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/v1/fitness/gear/gear-abc', {
         method: 'DELETE'
       })
-    })
-
-    it('throws error on failure', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({ error: 'Cannot delete gear with activities' }),
-        { status: 409 }
-      )
-
-      await expect(deleteFitnessGear('gear-abc')).rejects.toThrow(
-        'Cannot delete gear with activities'
-      )
     })
   })
 
@@ -256,14 +213,6 @@ describe('fitnessGear client module', () => {
       )
       expect(result).toEqual(mockPage)
     })
-
-    it('throws error on failure', async () => {
-      fetchMock.mockResponseOnce('Server error', { status: 500 })
-
-      await expect(getFitnessGearActivities('gear-1')).rejects.toThrow(
-        'Server error'
-      )
-    })
   })
 
   describe('getFitnessGearComponents', () => {
@@ -278,14 +227,6 @@ describe('fitnessGear client module', () => {
         { method: 'GET', headers: { Accept: 'application/json' } }
       )
       expect(result).toEqual(mockComponents)
-    })
-
-    it('throws error on failure', async () => {
-      fetchMock.mockResponseOnce('', { status: 500 })
-
-      await expect(getFitnessGearComponents('gear-1')).rejects.toThrow(
-        'Failed to load components.'
-      )
     })
   })
 
@@ -314,17 +255,6 @@ describe('fitnessGear client module', () => {
         }
       )
       expect(result).toEqual(mockComponent)
-    })
-
-    it('throws error on failure', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({ error: 'Invalid component' }),
-        { status: 400 }
-      )
-
-      await expect(
-        createFitnessGearComponent('gear-1', { componentType: 'Tire' })
-      ).rejects.toThrow('Invalid component')
     })
   })
 
@@ -372,14 +302,6 @@ describe('fitnessGear client module', () => {
         }
       )
     })
-
-    it('throws error on failure', async () => {
-      fetchMock.mockResponseOnce('', { status: 500 })
-
-      await expect(
-        updateFitnessGearComponent('gear-1', 'comp-1', { brand: 'SRAM' })
-      ).rejects.toThrow('Failed to save component.')
-    })
   })
 
   describe('deleteFitnessGearComponent', () => {
@@ -392,14 +314,6 @@ describe('fitnessGear client module', () => {
         '/api/v1/fitness/gear/gear-1/components/comp-1',
         { method: 'DELETE' }
       )
-    })
-
-    it('throws error on failure', async () => {
-      fetchMock.mockResponseOnce('', { status: 500 })
-
-      await expect(
-        deleteFitnessGearComponent('gear-1', 'comp-1')
-      ).rejects.toThrow('Failed to delete component.')
     })
   })
 
@@ -416,14 +330,6 @@ describe('fitnessGear client module', () => {
       )
       expect(result).toEqual(mockComponent)
     })
-
-    it('throws error on failure', async () => {
-      fetchMock.mockResponseOnce('', { status: 500 })
-
-      await expect(
-        retireFitnessGearComponent('gear-1', 'comp-1')
-      ).rejects.toThrow('Failed to retire component.')
-    })
   })
 
   describe('refitFitnessGearComponent', () => {
@@ -438,14 +344,6 @@ describe('fitnessGear client module', () => {
         { method: 'POST' }
       )
       expect(result).toEqual(mockComponent)
-    })
-
-    it('throws error on failure', async () => {
-      fetchMock.mockResponseOnce('', { status: 500 })
-
-      await expect(
-        refitFitnessGearComponent('gear-1', 'comp-1')
-      ).rejects.toThrow('Failed to refit component.')
     })
   })
 
@@ -477,16 +375,103 @@ describe('fitnessGear client module', () => {
       })
       expect(result).toEqual(mockResponse)
     })
+  })
 
-    it('throws error on failure', async () => {
+  describe.each([
+    {
+      name: 'getFitnessGearList',
+      call: () => getFitnessGearList(),
+      response: { message: 'Database connection failed' },
+      status: 500,
+      expected: 'Database connection failed'
+    },
+    {
+      name: 'createFitnessGear',
+      call: () => createFitnessGear({ kind: 'bike', name: 'Bike' }),
+      response: { status: 'Invalid gear kind' },
+      status: 422,
+      expected: 'Invalid gear kind'
+    },
+    {
+      name: 'updateFitnessGear',
+      call: () => updateFitnessGear('gear-1', { name: 'New' }),
+      response: { error: 'Gear not found' },
+      status: 404,
+      expected: 'Gear not found'
+    },
+    {
+      name: 'deleteFitnessGear',
+      call: () => deleteFitnessGear('gear-abc'),
+      response: { error: 'Cannot delete gear with activities' },
+      status: 409,
+      expected: 'Cannot delete gear with activities'
+    },
+    {
+      name: 'getFitnessGearActivities',
+      call: () => getFitnessGearActivities('gear-1'),
+      response: 'Server error',
+      status: 500,
+      expected: 'Server error'
+    },
+    {
+      name: 'getFitnessGearComponents',
+      call: () => getFitnessGearComponents('gear-1'),
+      response: '',
+      status: 500,
+      expected: 'Failed to load components.'
+    },
+    {
+      name: 'createFitnessGearComponent',
+      call: () =>
+        createFitnessGearComponent('gear-1', { componentType: 'Tire' }),
+      response: { error: 'Invalid component' },
+      status: 400,
+      expected: 'Invalid component'
+    },
+    {
+      name: 'updateFitnessGearComponent',
+      call: () =>
+        updateFitnessGearComponent('gear-1', 'comp-1', { brand: 'SRAM' }),
+      response: '',
+      status: 500,
+      expected: 'Failed to save component.'
+    },
+    {
+      name: 'deleteFitnessGearComponent',
+      call: () => deleteFitnessGearComponent('gear-1', 'comp-1'),
+      response: '',
+      status: 500,
+      expected: 'Failed to delete component.'
+    },
+    {
+      name: 'retireFitnessGearComponent',
+      call: () => retireFitnessGearComponent('gear-1', 'comp-1'),
+      response: '',
+      status: 500,
+      expected: 'Failed to retire component.'
+    },
+    {
+      name: 'refitFitnessGearComponent',
+      call: () => refitFitnessGearComponent('gear-1', 'comp-1'),
+      response: '',
+      status: 500,
+      expected: 'Failed to refit component.'
+    },
+    {
+      name: 'updateFitnessFileGear',
+      call: () => updateFitnessFileGear('file-1', 'gear-1'),
+      response: { error: 'Activity not found' },
+      status: 404,
+      expected: 'Activity not found'
+    }
+  ])('$name on failure', ({ call, response, status, expected }) => {
+    it('throws the API error message or the endpoint fallback', async () => {
       fetchMock.mockResponseOnce(
-        JSON.stringify({ error: 'Activity not found' }),
-        { status: 404 }
+        typeof response === 'string' ? response : JSON.stringify(response),
+        { status }
       )
 
-      await expect(updateFitnessFileGear('file-1', 'gear-1')).rejects.toThrow(
-        'Activity not found'
-      )
+      await expect(call()).rejects.toThrow(expected)
     })
   })
 })

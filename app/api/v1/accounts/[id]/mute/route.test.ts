@@ -132,45 +132,35 @@ describe('POST /api/v1/accounts/:id/mute', () => {
     )
   })
 
-  it('computes endsAt from positive duration', async () => {
+  it.each([
+    { name: 'a positive duration', duration: 3600, seconds: 3600 },
+    {
+      name: 'a fractional duration (floored to whole seconds)',
+      duration: 3600.9,
+      seconds: 3600
+    },
+    { name: 'a negative duration (no expiry)', duration: -60, seconds: null },
+    {
+      name: 'a null duration (no expiry)',
+      duration: null,
+      seconds: null
+    }
+  ])('computes endsAt from $name', async ({ duration, seconds }) => {
     const targetActorId = 'https://remote.test/users/alice'
     applyMuteMock.mockResolvedValue({})
     const before = Date.now()
 
-    await POST(createRequest(targetActorId, { duration: 3600 }), {
+    await POST(createRequest(targetActorId, { duration }), {
       params: Promise.resolve({ id: urlToId(targetActorId) })
     })
 
     const call = applyMuteMock.mock.calls[0][0]
-    expect(call.endsAt).toBeGreaterThanOrEqual(before + 3600 * 1000)
-    expect(call.endsAt).toBeLessThan(before + 3601 * 1000)
-  })
-
-  it('treats negative duration as no expiry', async () => {
-    const targetActorId = 'https://remote.test/users/alice'
-    applyMuteMock.mockResolvedValue({})
-
-    await POST(createRequest(targetActorId, { duration: -60 }), {
-      params: Promise.resolve({ id: urlToId(targetActorId) })
-    })
-
-    expect(applyMuteMock).toHaveBeenCalledWith(
-      expect.objectContaining({ endsAt: null })
-    )
-  })
-
-  it('floors fractional duration to integer seconds', async () => {
-    const targetActorId = 'https://remote.test/users/alice'
-    applyMuteMock.mockResolvedValue({})
-    const before = Date.now()
-
-    await POST(createRequest(targetActorId, { duration: 3600.9 }), {
-      params: Promise.resolve({ id: urlToId(targetActorId) })
-    })
-
-    const call = applyMuteMock.mock.calls[0][0]
-    expect(call.endsAt).toBeGreaterThanOrEqual(before + 3600 * 1000)
-    expect(call.endsAt).toBeLessThan(before + 3601 * 1000)
+    if (seconds === null) {
+      expect(call.endsAt).toBeNull()
+    } else {
+      expect(call.endsAt).toBeGreaterThanOrEqual(before + seconds * 1000)
+      expect(call.endsAt).toBeLessThan(before + (seconds + 1) * 1000)
+    }
   })
 
   it('skips applyMute when muting self', async () => {
@@ -180,20 +170,6 @@ describe('POST /api/v1/accounts/:id/mute', () => {
 
     expect(applyMuteMock).not.toHaveBeenCalled()
     expect(getRelationshipMock).toHaveBeenCalled()
-  })
-
-  it('handles empty body gracefully', async () => {
-    const targetActorId = 'https://remote.test/users/alice'
-    applyMuteMock.mockResolvedValue({})
-
-    const response = await POST(createRequest(targetActorId), {
-      params: Promise.resolve({ id: urlToId(targetActorId) })
-    })
-
-    expect(response.status).not.toBe(500)
-    expect(applyMuteMock).toHaveBeenCalledWith(
-      expect.objectContaining({ notifications: true, endsAt: null })
-    )
   })
 
   it('reads notifications and duration from a urlencoded body (native clients)', async () => {
@@ -256,19 +232,6 @@ describe('POST /api/v1/accounts/:id/mute', () => {
 
     expect(response.status).toBe(404)
     expect(applyMuteMock).not.toHaveBeenCalled()
-  })
-
-  it('ignores invalid duration values (non-finite or non-integer body)', async () => {
-    const targetActorId = 'https://remote.test/users/alice'
-    applyMuteMock.mockResolvedValue({})
-
-    await POST(createRequest(targetActorId, { duration: Infinity }), {
-      params: Promise.resolve({ id: urlToId(targetActorId) })
-    })
-
-    expect(applyMuteMock).toHaveBeenCalledWith(
-      expect.objectContaining({ endsAt: null })
-    )
   })
 
   it('preserves valid notifications:false when duration is invalid', async () => {

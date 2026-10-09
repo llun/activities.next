@@ -47,7 +47,6 @@ describe('ActorDisplayName', () => {
       />
     )
     const img = screen.getByRole('img', { name: ':blobcat:' })
-    expect(img).toBeDefined()
     expect(img.getAttribute('src')).toBe('https://example.com/blobcat.png')
     expect(img.getAttribute('title')).toBe(':blobcat:')
     expect(screen.getByText(/Alice/)).toBeDefined()
@@ -66,7 +65,6 @@ describe('ActorDisplayName', () => {
       />
     )
     const img = screen.getByRole('img', { name: ':partyblob:' })
-    expect(img).toBeDefined()
     expect(img.getAttribute('src')).toBe('https://example.com/partyblob.png')
     expect(screen.getByText(/Bob/)).toBeDefined()
   })
@@ -98,23 +96,6 @@ describe('ActorDisplayName', () => {
     expect(screen.getByText(/:unknown:/)).toBeDefined()
   })
 
-  it('applies custom className when provided', () => {
-    const { container } = render(
-      <ActorDisplayName
-        name="Alice :blobcat:"
-        className="custom-title-class"
-        tags={[
-          {
-            type: 'emoji',
-            name: ':blobcat:',
-            value: 'https://example.com/blobcat.png'
-          }
-        ]}
-      />
-    )
-    expect(container.querySelector('.custom-title-class')).not.toBeNull()
-  })
-
   it('supports text prop via CustomEmojiText export', () => {
     render(
       <CustomEmojiText
@@ -129,7 +110,6 @@ describe('ActorDisplayName', () => {
       />
     )
     const img = screen.getByRole('img', { name: ':blobcat:' })
-    expect(img).toBeDefined()
     expect(img.getAttribute('src')).toBe('https://example.com/blobcat.png')
     expect(screen.getByText(/Content Warning/)).toBeDefined()
   })

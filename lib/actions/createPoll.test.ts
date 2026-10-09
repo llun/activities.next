@@ -259,7 +259,86 @@ describe('Create poll action', () => {
 
         expect(poll).toBeDefined()
         expect(poll?.to).toContain(`${actor1.id}/followers`)
+        expect(poll?.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
         expect(poll?.cc).toContain(ACTIVITY_STREAM_PUBLIC)
+      })
+
+      it('creates direct poll with explicit recipients in to only', async () => {
+        await createPollFromUserInput({
+          text: `@${actor2.username}@${actor2.domain} Direct poll`,
+          currentActor: actor1,
+          choices: ['Yes', 'No'],
+          database,
+          endAt: Date.now() + 24 * 60 * 60 * 1000,
+          visibility: 'direct'
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: actor1.id
+        })
+        const poll = findPoll(statuses, 'Direct poll')
+
+        expect(poll).toBeDefined()
+        expect(poll?.to).toEqual([ACTOR2_ID])
+        expect(poll?.cc).toEqual([])
+      })
+
+      it('rejects a direct poll reply to a non-direct status without an explicit recipient', async () => {
+        const parentStatus = await database.createNote({
+          id: `${actor1.id}/statuses/public-parent-direct-poll-no-recipient`,
+          url: `${actor1.id}/statuses/public-parent-direct-poll-no-recipient`,
+          actorId: 'https://remote.test/actors/public-poll-parent',
+          text: 'Public poll parent',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${actor1.id}/followers`]
+        })
+
+        const poll = await createPollFromUserInput({
+          text: 'quiet direct poll reply',
+          currentActor: actor1,
+          replyStatusId: parentStatus.id,
+          visibility: 'direct',
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 24 * 60 * 60 * 1000,
+          database
+        })
+
+        expect(poll).toBeNull()
+      })
+
+      it('preserves direct reply parent to and cc recipients for polls', async () => {
+        const parentStatus = await database.createNote({
+          id: `${actor1.id}/statuses/direct-parent-poll-recipients`,
+          url: `${actor1.id}/statuses/direct-parent-poll-recipients`,
+          actorId: 'https://remote.test/actors/poll-sender',
+          text: 'Direct parent for poll',
+          to: [actor1.id, 'https://remote.test/actors/poll-primary'],
+          cc: ['https://remote.test/actors/poll-copied']
+        })
+
+        await createPollFromUserInput({
+          text: 'Poll reply without mention prefixes',
+          currentActor: actor1,
+          replyStatusId: parentStatus.id,
+          choices: ['Yes', 'No'],
+          endAt: Date.now() + 24 * 60 * 60 * 1000,
+          database
+        })
+
+        const statuses = await database.getActorStatuses({
+          actorId: actor1.id
+        })
+        const poll = findPoll(statuses, 'Poll reply without mention prefixes')
+
+        expect(poll).toBeDefined()
+        expect(poll?.to).toEqual(
+          expect.arrayContaining([
+            actor1.id,
+            'https://remote.test/actors/poll-primary',
+            'https://remote.test/actors/poll-sender'
+          ])
+        )
+        expect(poll?.cc).toEqual(['https://remote.test/actors/poll-copied'])
       })
 
       it('inherits visibility from private reply status', async () => {

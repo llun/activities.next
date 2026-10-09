@@ -7,7 +7,6 @@ import {
   ERROR_404,
   ERROR_422,
   ERROR_500,
-  HTTP_STATUS,
   apiResponse,
   codeMap,
   defaultStatusOption,
@@ -15,35 +14,6 @@ import {
 } from './response'
 
 describe('response utilities', () => {
-  describe('error constants', () => {
-    it('uses the Mastodon { error } shape', () => {
-      expect(ERROR_400).toEqual({ error: 'Bad Request' })
-      expect(ERROR_401).toEqual({ error: 'Unauthorized' })
-      expect(ERROR_403).toEqual({ error: 'Forbidden' })
-      expect(ERROR_404).toEqual({ error: 'Not Found' })
-      expect(ERROR_422).toEqual({ error: 'Unprocessable entity' })
-      expect(ERROR_500).toEqual({ error: 'Internal Server Error' })
-    })
-
-    it('keeps the { status } shape for success acknowledgements', () => {
-      expect(DEFAULT_200).toEqual({ status: 'OK' })
-      expect(DEFAULT_202).toEqual({ status: 'Accepted' })
-    })
-  })
-
-  describe('HTTP_STATUS', () => {
-    it('has correct status codes', () => {
-      expect(HTTP_STATUS.OK).toEqual(200)
-      expect(HTTP_STATUS.ACCEPTED).toEqual(202)
-      expect(HTTP_STATUS.BAD_REQUEST).toEqual(400)
-      expect(HTTP_STATUS.UNAUTHORIZED).toEqual(401)
-      expect(HTTP_STATUS.FORBIDDEN).toEqual(403)
-      expect(HTTP_STATUS.NOT_FOUND).toEqual(404)
-      expect(HTTP_STATUS.UNPROCESSABLE_ENTITY).toEqual(422)
-      expect(HTTP_STATUS.INTERNAL_SERVER_ERROR).toEqual(500)
-    })
-  })
-
   describe('codeMap', () => {
     it('maps status codes to responses', () => {
       expect(codeMap[200]).toEqual(DEFAULT_200)

@@ -5,10 +5,7 @@ import '@testing-library/jest-dom'
 import { act, render, screen } from '@testing-library/react'
 import { FC, useCallback } from 'react'
 
-import {
-  SCROLL_EDGE_TOLERANCE,
-  useMediaStripScroll
-} from './useMediaStripScroll'
+import { useMediaStripScroll } from './useMediaStripScroll'
 
 // The hook computes everything from the container's own scroll geometry,
 // which jsdom never lays out (scrollWidth/clientWidth are always 0 and
@@ -174,39 +171,34 @@ describe('useMediaStripScroll', () => {
   )
 
   // clientWidth 500, scrollWidth 1000 => maxScrollLeft 500, so the right edge's
-  // own dead zone sits at 500 - SCROLL_EDGE_TOLERANCE.
+  // own dead zone is the 8px below 500. The boundaries are written as literals:
+  // deriving them from SCROLL_EDGE_TOLERANCE would pass against any value,
+  // including 0, which would remove the dead zone the constant exists for.
   const MAX_SCROLL_LEFT = 500
-
-  it('keeps the dead zone at 8px', () => {
-    // Asserted as a literal: deriving the boundary cases below from the
-    // constant makes them pass against any value, including 0, which would
-    // remove the dead zone the constant exists for.
-    expect(SCROLL_EDGE_TOLERANCE).toBe(8)
-  })
 
   it.each([
     {
       description: 'does not enable left scroll exactly at the tolerance',
-      scrollLeft: SCROLL_EDGE_TOLERANCE,
+      scrollLeft: 8,
       testId: 'left',
       expected: false
     },
     {
       description: 'enables left scroll just past the tolerance',
-      scrollLeft: SCROLL_EDGE_TOLERANCE + 1,
+      scrollLeft: 9,
       testId: 'left',
       expected: true
     },
     {
       description:
         'does not enable right scroll within the tolerance of the maximum',
-      scrollLeft: MAX_SCROLL_LEFT - SCROLL_EDGE_TOLERANCE,
+      scrollLeft: MAX_SCROLL_LEFT - 8,
       testId: 'right',
       expected: false
     },
     {
       description: 'enables right scroll just past the tolerance',
-      scrollLeft: MAX_SCROLL_LEFT - SCROLL_EDGE_TOLERANCE - 1,
+      scrollLeft: MAX_SCROLL_LEFT - 9,
       testId: 'right',
       expected: true
     }

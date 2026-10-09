@@ -46,62 +46,6 @@ describe('UpdateGearRequest', () => {
     const parsed = UpdateGearRequest.safeParse({ brand: 'x'.repeat(256) })
     expect(parsed.success).toBe(false)
   })
-
-  describe('productUrl', () => {
-    it('leaves an unmentioned product page absent, not null', () => {
-      const parsed = UpdateGearRequest.safeParse({ name: 'Edge 840' })
-      expect(parsed.success).toBe(true)
-      expect('productUrl' in (parsed.data ?? {})).toBe(false)
-    })
-
-    it.each([
-      { description: 'an explicit null', input: null },
-      { description: 'an empty string', input: '' },
-      { description: 'a whitespace-only string', input: '   ' }
-    ])('treats $description as a clear', ({ input }) => {
-      const parsed = UpdateGearRequest.safeParse({ productUrl: input })
-      expect(parsed.success).toBe(true)
-      expect('productUrl' in (parsed.data ?? {})).toBe(true)
-      expect(parsed.data?.productUrl).toBeNull()
-    })
-
-    it.each([
-      {
-        description: 'an https URL',
-        input: 'https://www.garmin.com/en-US/p/781308'
-      },
-      { description: 'an http URL', input: 'http://example.com/device' }
-    ])('accepts $description', ({ input }) => {
-      const parsed = UpdateGearRequest.safeParse({ productUrl: input })
-      expect(parsed.success).toBe(true)
-      expect(parsed.data?.productUrl).toBe(input)
-    })
-
-    it('trims a supplied URL', () => {
-      const parsed = UpdateGearRequest.safeParse({
-        productUrl: '  https://www.coros.com  '
-      })
-      expect(parsed.data?.productUrl).toBe('https://www.coros.com')
-    })
-
-    it.each([
-      {
-        description: 'a javascript: URL',
-        input: 'javascript:alert(1)'
-      },
-      { description: 'a data: URL', input: 'data:text/html,<script></script>' },
-      // Rendered as a relative link on this origin rather than the vendor's.
-      { description: 'a bare hostname', input: 'garmin.com' },
-      {
-        description: 'a URL longer than the column',
-        input: `https://a.co/${'x'.repeat(255)}`
-      }
-    ])('rejects $description', ({ input }) => {
-      expect(UpdateGearRequest.safeParse({ productUrl: input }).success).toBe(
-        false
-      )
-    })
-  })
 })
 
 describe('UpdateGearComponentRequest', () => {
@@ -230,32 +174,6 @@ describe('CreateGearRequest', () => {
     ).toBe(false)
   })
 
-  it('accepts a product page on a new bike', () => {
-    const parsed = CreateGearRequest.safeParse({
-      kind: 'bike',
-      name: 'Moots',
-      productUrl: '  https://moots.com/pages/vamoots-rsl  '
-    })
-    expect(parsed.success).toBe(true)
-    expect(parsed.data?.productUrl).toBe('https://moots.com/pages/vamoots-rsl')
-  })
-
-  it('leaves an unmentioned product page absent, not null', () => {
-    const parsed = CreateGearRequest.safeParse({ kind: 'bike', name: 'Moots' })
-    expect(parsed.success).toBe(true)
-    expect('productUrl' in (parsed.data ?? {})).toBe(false)
-  })
-
-  it('rejects a product page that is not an http(s) URL', () => {
-    expect(
-      CreateGearRequest.safeParse({
-        kind: 'bike',
-        name: 'Moots',
-        productUrl: 'javascript:alert(1)'
-      }).success
-    ).toBe(false)
-  })
-
   it.each([
     // Devices are created only by `resolveDeviceGear`, from the identity the
     // recorded file carried — one made by hand would match no upload.
@@ -280,53 +198,85 @@ describe('CreateGearComponentRequest', () => {
     expect(parsed.success).toBe(true)
     expect(parsed.data?.addedAt).toBeUndefined()
   })
-
-  it('accepts and trims a valid productUrl', () => {
-    const parsed = CreateGearComponentRequest.safeParse({
-      componentType: 'Chain',
-      productUrl: '  https://www.shimano.com/chain  '
-    })
-    expect(parsed.success).toBe(true)
-    expect(parsed.data?.productUrl).toBe('https://www.shimano.com/chain')
-  })
-
-  it('rejects an invalid productUrl', () => {
-    expect(
-      CreateGearComponentRequest.safeParse({
-        componentType: 'Chain',
-        productUrl: 'javascript:alert(1)'
-      }).success
-    ).toBe(false)
-  })
 })
 
-describe('UpdateGearComponentRequest', () => {
-  it('leaves an unmentioned productUrl absent', () => {
-    const parsed = UpdateGearComponentRequest.safeParse({ brand: 'Shimano' })
+// `productUrl` is declared once and shared by all four request schemas, so each
+// one gets the same checks. `body` is the smallest valid request for the schema.
+const productUrlSchemas = [
+  { name: 'UpdateGearRequest', schema: UpdateGearRequest, body: {} },
+  {
+    name: 'CreateGearRequest',
+    schema: CreateGearRequest,
+    body: { kind: 'bike', name: 'Moots' }
+  },
+  {
+    name: 'CreateGearComponentRequest',
+    schema: CreateGearComponentRequest,
+    body: { componentType: 'Chain' }
+  },
+  {
+    name: 'UpdateGearComponentRequest',
+    schema: UpdateGearComponentRequest,
+    body: { brand: 'Shimano' }
+  }
+]
+
+describe.each(productUrlSchemas)('$name productUrl', ({ schema, body }) => {
+  it('leaves an unmentioned product page absent, not null', () => {
+    const parsed = schema.safeParse(body)
     expect(parsed.success).toBe(true)
     expect('productUrl' in (parsed.data ?? {})).toBe(false)
   })
 
-  it('accepts null to clear productUrl', () => {
-    const parsed = UpdateGearComponentRequest.safeParse({ productUrl: null })
+  it.each([
+    {
+      description: 'an https URL',
+      input: 'https://www.garmin.com/en-US/p/781308',
+      expected: 'https://www.garmin.com/en-US/p/781308'
+    },
+    {
+      description: 'an http URL',
+      input: 'http://example.com/device',
+      expected: 'http://example.com/device'
+    },
+    {
+      description: 'a padded URL, trimmed',
+      input: '  https://www.coros.com  ',
+      expected: 'https://www.coros.com'
+    }
+  ])('accepts $description', ({ input, expected }) => {
+    const parsed = schema.safeParse({ ...body, productUrl: input })
     expect(parsed.success).toBe(true)
+    expect(parsed.data?.productUrl).toBe(expected)
+  })
+
+  it.each([
+    { description: 'a javascript: URL', input: 'javascript:alert(1)' },
+    { description: 'a data: URL', input: 'data:text/html,<script></script>' },
+    { description: 'an ftp: URL', input: 'ftp://example.com' },
+    // Rendered as a relative link on this origin rather than the vendor's.
+    { description: 'a bare hostname', input: 'garmin.com' },
+    {
+      description: 'a URL longer than the column',
+      input: `https://a.co/${'x'.repeat(255)}`
+    }
+  ])('rejects $description', ({ input }) => {
+    expect(schema.safeParse({ ...body, productUrl: input }).success).toBe(false)
+  })
+})
+
+describe.each(
+  productUrlSchemas.filter(({ name }) => name.startsWith('Update'))
+)('$name clearing productUrl', ({ schema, body }) => {
+  it.each([
+    { description: 'an explicit null', input: null },
+    { description: 'an empty string', input: '' },
+    { description: 'a whitespace-only string', input: '   ' }
+  ])('treats $description as a clear', ({ input }) => {
+    const parsed = schema.safeParse({ ...body, productUrl: input })
+    expect(parsed.success).toBe(true)
+    expect('productUrl' in (parsed.data ?? {})).toBe(true)
     expect(parsed.data?.productUrl).toBeNull()
-  })
-
-  it('accepts a valid productUrl', () => {
-    const parsed = UpdateGearComponentRequest.safeParse({
-      productUrl: 'https://example.com/component'
-    })
-    expect(parsed.success).toBe(true)
-    expect(parsed.data?.productUrl).toBe('https://example.com/component')
-  })
-
-  it('rejects an invalid productUrl', () => {
-    expect(
-      UpdateGearComponentRequest.safeParse({
-        productUrl: 'ftp://example.com'
-      }).success
-    ).toBe(false)
   })
 })
 

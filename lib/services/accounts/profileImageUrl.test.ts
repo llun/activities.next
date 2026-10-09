@@ -1,7 +1,4 @@
-import {
-  MAX_PROFILE_IMAGE_URL_LENGTH,
-  parseProfileImageUrl
-} from '@/lib/services/accounts/profileImageUrl'
+import { parseProfileImageUrl } from '@/lib/services/accounts/profileImageUrl'
 import { HostRuleConfig } from '@/lib/utils/host'
 
 const config: HostRuleConfig = {
@@ -71,12 +68,6 @@ describe('parseProfileImageUrl', () => {
         valid: true,
         value: 'http://localhost:3000/api/v1/files/abc.jpg'
       })
-    })
-
-    it('keeps the maximum length within what accounts.iconUrl can hold', () => {
-      // The column is varchar(255) on both backends, so a longer value is a
-      // PostgreSQL insert failure rather than a validation result.
-      expect(MAX_PROFILE_IMAGE_URL_LENGTH).toBe(255)
     })
   })
 

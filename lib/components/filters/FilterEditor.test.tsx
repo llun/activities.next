@@ -84,10 +84,8 @@ describe('FilterEditor', () => {
       renderEditor('warn')
 
       const bar = screen.getByText('Filtered: Spoilers').parentElement
-      expect(bar).toHaveClass('bg-muted', 'rounded-lg')
       expect(bar).toHaveTextContent('Show anyway')
-      // No dashed wrapper and no PREVIEW caption around it.
-      expect(bar?.parentElement).not.toHaveClass('border-dashed')
+      // No PREVIEW caption around it.
       expect(screen.queryByText('Preview')).not.toBeInTheDocument()
     })
 

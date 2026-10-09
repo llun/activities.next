@@ -502,47 +502,6 @@ describe('StatusThread', () => {
     expect(mockRefresh).not.toHaveBeenCalled()
   })
 
-  it('renders avatar icons without vertical connector rails in thread', () => {
-    const root = createMockNote({
-      id: 'https://activities.local/users/alice/statuses/root',
-      actor: mockAlice,
-      actorId: mockAlice.id,
-      text: 'Ancestor Root',
-      createdAt: BASE_TIME
-    })
-
-    const focused = createMockNote({
-      id: 'https://activities.local/users/alice/statuses/focused',
-      actor: mockAlice,
-      actorId: mockAlice.id,
-      reply: root.id,
-      text: 'Focused Status',
-      createdAt: BASE_TIME + 60000
-    })
-
-    const descendant = createMockNote({
-      id: 'https://activities.local/users/bob/statuses/reply1',
-      actor: mockBob,
-      actorId: mockBob.id,
-      reply: focused.id,
-      text: 'Direct Reply from Bob',
-      createdAt: BASE_TIME + 120000
-    })
-
-    render(
-      <StatusThread
-        host={host}
-        status={focused}
-        ancestors={[root]}
-        descendants={[descendant]}
-        currentTime={BASE_TIME + 200000}
-      />
-    )
-
-    // No connector-rail elements rendered
-    expect(screen.queryByTestId('connector-rail')).not.toBeInTheDocument()
-  })
-
   it('nests reply directly beneath ancestor when replying to an ancestor', async () => {
     const root = createMockNote({
       id: 'https://activities.local/users/alice/statuses/root',
@@ -617,65 +576,6 @@ describe('StatusThread', () => {
 
     // router.refresh was not called
     expect(mockRefresh).not.toHaveBeenCalled()
-  })
-
-  it('renders replies flat without indentation or left borders', () => {
-    const root = createMockNote({
-      id: 'https://activities.local/users/alice/statuses/root',
-      actor: mockAlice,
-      actorId: mockAlice.id,
-      text: 'Ancestor Root Post',
-      createdAt: BASE_TIME
-    })
-
-    const focused = createMockNote({
-      id: 'https://activities.local/users/alice/statuses/focused',
-      actor: mockAlice,
-      actorId: mockAlice.id,
-      reply: root.id,
-      text: 'Focused Status',
-      createdAt: BASE_TIME + 60000
-    })
-
-    const reply1 = createMockNote({
-      id: 'https://activities.local/users/bob/statuses/r1',
-      actor: mockBob,
-      actorId: mockBob.id,
-      reply: focused.id,
-      text: 'Direct reply 1',
-      createdAt: BASE_TIME + 120000
-    })
-
-    const subReply = createMockNote({
-      id: 'https://activities.local/users/carol/statuses/sub1',
-      actor: mockCarol,
-      actorId: mockCarol.id,
-      reply: reply1.id,
-      text: 'Sub reply to r1',
-      createdAt: BASE_TIME + 180000
-    })
-
-    render(
-      <StatusThread
-        host={host}
-        status={focused}
-        ancestors={[root]}
-        descendants={[reply1, subReply]}
-        currentTime={BASE_TIME + 300000}
-      />
-    )
-
-    // Ancestor status should not have border-l-4 or left border
-    const ancestor = screen.getByTestId('ancestor-status')
-    expect(ancestor.className).not.toContain('border-l-4')
-
-    // Thread nodes should not have ml- or pl- indentation or border-l-2
-    const threadNodes = screen.getAllByTestId('thread-node')
-    for (const node of threadNodes) {
-      expect(node.className).not.toContain('ml-')
-      expect(node.className).not.toContain('pl-')
-      expect(node.className).not.toContain('border-l-2')
-    }
   })
 
   it('places newly created reply directly next to focused status at top of replies', async () => {

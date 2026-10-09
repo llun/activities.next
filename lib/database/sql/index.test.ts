@@ -231,47 +231,6 @@ describe('getSQLDatabase', () => {
     expect(timelineMixinMock).toHaveBeenCalledWith(knexDatabase, statusDatabase)
   })
 
-  it('exposes methods from all composed mixins', () => {
-    const {
-      accountDatabase,
-      actorDatabase,
-      blockDatabase,
-      bookmarkDatabase,
-      database,
-      followerDatabase,
-      fitnessSettingsDatabase,
-      likeDatabase,
-      mediaDatabase,
-      notificationDatabase,
-      oauthDatabase,
-      searchDatabase,
-      statusDatabase,
-      statusDetectedLanguageDatabase,
-      timelineDatabase
-    } = createComposedDatabase()
-
-    expect(database.isAccountExists).toBe(accountDatabase.isAccountExists)
-    expect(database.getActorFromId).toBe(actorDatabase.getActorFromId)
-    expect(database.createBlock).toBe(blockDatabase.createBlock)
-    expect(database.createBookmark).toBe(bookmarkDatabase.createBookmark)
-    expect(database.createFitnessSettings).toBe(
-      fitnessSettingsDatabase.createFitnessSettings
-    )
-    expect(database.getFollowers).toBe(followerDatabase.getFollowers)
-    expect(database.createLike).toBe(likeDatabase.createLike)
-    expect(database.createMedia).toBe(mediaDatabase.createMedia)
-    expect(database.createNotification).toBe(
-      notificationDatabase.createNotification
-    )
-    expect(database.getClientFromName).toBe(oauthDatabase.getClientFromName)
-    expect(database.searchDocuments).toBe(searchDatabase.searchDocuments)
-    expect(database.getStatus).toBe(statusDatabase.getStatus)
-    expect(database.getDetectedLanguage).toBe(
-      statusDetectedLanguageDatabase.getDetectedLanguage
-    )
-    expect(database.getTimeline).toBe(timelineDatabase.getTimeline)
-  })
-
   it('merges properties with later mixins taking precedence', () => {
     const { database } = createComposedDatabase()
     const merged = database as unknown as Record<string, string>

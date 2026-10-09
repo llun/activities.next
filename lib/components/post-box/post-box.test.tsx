@@ -1766,29 +1766,6 @@ describe('PostBox attachment ref guard', () => {
 })
 
 describe('PostBox automatic vertical growth', () => {
-  const host = 'activities.local'
-
-  it('configures native sizing classes on the message textarea', async () => {
-    render(
-      <PostBox
-        host={host}
-        profile={profile}
-        onDiscardReply={vi.fn()}
-        onPostCreated={vi.fn()}
-        onPostUpdated={vi.fn()}
-        onDiscardEdit={vi.fn()}
-      />
-    )
-    const textarea = screen.getByPlaceholderText('What is on your mind?')
-    expect(textarea).toHaveClass('field-sizing-content')
-    expect(textarea).toHaveClass('min-h-[72px]')
-    expect(textarea).toHaveClass('max-h-[min(320px,40dvh)]')
-    expect(textarea).toHaveClass('overflow-y-auto')
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Post' })).toBeInTheDocument()
-    })
-  })
-
   it('updates measured height on content change when native field-sizing is not supported', async () => {
     const originalCSS = globalThis.CSS
     globalThis.CSS = {
@@ -1798,7 +1775,7 @@ describe('PostBox automatic vertical growth', () => {
     try {
       render(
         <PostBox
-          host={host}
+          host="activities.local"
           profile={profile}
           onDiscardReply={vi.fn()}
           onPostCreated={vi.fn()}

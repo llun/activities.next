@@ -201,6 +201,28 @@ const clipsBetween = (card: HTMLElement, statusId: string) => {
 const rowFor = (statusId: string) =>
   screen.getByTestId(`status-${statusId}`).parentElement
 
+const tokens = (classes: string) => classes.split(' ')
+
+// What changes with the viewer on both cards: a signed-in page sits in the
+// `(timeline)` layout (top margin from md up, the full-bleed feed surface
+// below it); a logged-out page goes through `PublicShell`, which leaves the gap
+// under the top bar, and is a stack of inset cards below md.
+const expectViewerSurface = (card: HTMLElement, signedIn: boolean) => {
+  if (signedIn) {
+    expect(card).toHaveClass('md:mt-4', ...tokens(MOBILE_FEED_SURFACE_CLASS))
+    expect(card).not.toHaveClass('max-md:flex')
+  } else {
+    expect(card).toHaveClass(...tokens(MOBILE_INSET_STACK_CLASS))
+    expect(card).not.toHaveClass('md:mt-4')
+    expect(card).not.toHaveClass('max-md:w-auto')
+  }
+}
+
+const viewers = [
+  { viewer: 'signed in', signedIn: true },
+  { viewer: 'logged out', signedIn: false }
+]
+
 describe('Mobile chrome', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -385,128 +407,104 @@ describe('Conversation card chrome', () => {
 
     const card = await renderPage()
 
-    expect(card).toHaveClass('rounded-2xl')
     expect(clipsBetween(card, 'focused')).toEqual([])
   })
 
-  // Nothing clips for the rounded corners any more, so the child that meets
-  // them has to round itself or its square background bleeds past the border.
-  // Exactly one child may do so — a second would notch a rounded row into the
-  // middle of the card.
-  it('rounds the header wrapper, its topmost child, for a signed-in viewer', async () => {
+  it.each(viewers)(
+    'takes the surface, margin and thread frame of a $viewer viewer',
+    async ({ signedIn }) => {
+      if (signedIn) mockGetActorFromSession.mockResolvedValue(buildViewer())
+
+      const card = await renderPage()
+
+      expectViewerSurface(card, signedIn)
+      const thread = rowFor('focused')?.parentElement as HTMLElement
+      if (signedIn) {
+        expect(thread).not.toHaveClass('max-md:rounded-2xl')
+      } else {
+        expect(thread).toHaveClass(...tokens(MOBILE_INSET_CARD_CLASS))
+      }
+    }
+  )
+
+  it('leads with the header wrapper for a signed-in viewer', async () => {
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 
     const card = await renderPage()
 
     // The wrapper, not the header itself: `Header` is `sticky top-0`, so it
-    // has to keep a clipping ancestor or it starts detaching mid-scroll and
-    // carries the corners out over the posts.
-    expect(card.firstElementChild).toHaveClass('rounded-t-2xl')
-    expect(card.firstElementChild).toHaveClass('overflow-hidden')
-    // Below `md` the outer card is square and full-bleed, so the wrapper must
-    // drop its own rounding or it notches a rounded background into it.
-    expect(card).toHaveClass('max-md:rounded-none')
-    expect(card.firstElementChild).toHaveClass('max-md:rounded-none')
-    // The header takes the corners, so the post below it must not — even
-    // though it is the topmost *post* and would take them when logged out.
-    expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
+    // has to keep a wrapper of its own.
+    expect(card.firstElementChild).toContainElement(
+      screen.getByRole('heading', { name: 'Post' })
+    )
+    expect(card.firstElementChild).not.toContainElement(
+      screen.getByTestId('status-focused')
+    )
   })
 
-  it('applies top margin only from md up when signed in, sitting flush on mobile', async () => {
-    mockGetActorFromSession.mockResolvedValue(buildViewer())
-
+  it('puts the thread first and the sign-in callout last when logged out', async () => {
     const card = await renderPage()
 
-    expect(card).toHaveClass('md:mt-4')
-    expect(card).not.toHaveClass('mt-4')
-    expect(card).not.toHaveClass('max-md:-mt-6')
-  })
-
-  it('takes no margin of its own when logged out, leaving PublicShell the gap under the top bar', async () => {
-    const card = await renderPage()
-
-    expect(card).not.toHaveClass('max-md:-mt-6')
-    expect(card).not.toHaveClass('md:mt-4')
-    expect(card).not.toHaveClass('mt-4')
-  })
-
-  // Below md a signed-in page is the full-bleed feed surface; a logged-out one
-  // is a stack of inset cards (thread, then sign-in callout) level with the
-  // footer's. Asserting both sides keeps either from leaking into the other.
-  it('is a stack of inset cards below md when logged out, not the full-bleed surface', async () => {
-    const card = await renderPage()
-
-    expect(card).toHaveClass(...MOBILE_INSET_STACK_CLASS.split(' '))
-    for (const token of ['max-md:mx-[calc(50%_-_50vw)]', 'max-md:w-auto']) {
-      expect(card).not.toHaveClass(token)
-    }
     // The thread is the first card…
     const thread = rowFor('focused')?.parentElement as HTMLElement
-    expect(thread).toHaveClass(...MOBILE_INSET_CARD_CLASS.split(' '))
     expect(thread.parentElement).toBe(card)
-    // …its first row meets the card's rounded top corners at every width…
-    expect(rowFor('focused')).toHaveClass('rounded-t-2xl')
-    expect(rowFor('focused')).not.toHaveClass('max-md:rounded-none')
-    // …and the sign-in callout is the second, framed like it.
+    // …and the sign-in callout is the second.
     const callout = screen
       .getByText('Join the conversation')
       .closest('div.bg-primary\\/5')
-    expect(callout).toHaveClass(...MOBILE_INSET_CARD_FRAME_CLASS.split(' '))
     expect(callout?.parentElement).toBe(card)
     expect(card.lastElementChild).toBe(callout)
   })
 
-  it('keeps the full-bleed surface below md when signed in, with no inset card', async () => {
-    mockGetActorFromSession.mockResolvedValue(buildViewer())
-
-    const card = await renderPage()
-
-    expect(card).toHaveClass(...MOBILE_FEED_SURFACE_CLASS.split(' '))
-    MOBILE_INSET_STACK_CLASS.split(' ')
-      .filter((token) => !MOBILE_FEED_SURFACE_CLASS.split(' ').includes(token))
-      .forEach((token) => expect(card).not.toHaveClass(token))
-    const thread = rowFor('focused')?.parentElement as HTMLElement
-    expect(thread).not.toHaveClass('max-md:rounded-2xl')
-    expect(thread).not.toHaveClass('max-md:border')
-    expect(rowFor('focused')).toHaveClass('max-md:rounded-none')
-  })
-
-  it('rounds the focused post instead when logged out, which has no header', async () => {
+  it('leads with an sr-only heading when logged out, which has no header', async () => {
     const card = await renderPage()
 
     // The logged-out branch leads with an `sr-only` heading, which is out of
-    // flow and paints nothing — the post below it is what meets the corners.
+    // flow and paints nothing — and stays in the accessibility tree at every
+    // width: a logged-out visitor has no mobile bar to carry the page's h1.
     expect(card.firstElementChild).toHaveClass('sr-only')
-    // …and stays in the accessibility tree at every width: a logged-out
-    // visitor has no mobile bar to carry the page's h1.
     expect(card.firstElementChild).not.toHaveClass('max-md:hidden')
-    expect(rowFor('focused')).toHaveClass('rounded-t-2xl')
   })
 
-  it('rounds the first ancestor row when logged out and the post is a reply', async () => {
-    const focused = buildNote({ id: 'focused', reply: 'parent' })
-    mockResolveStatusFromPath.mockResolvedValue({
-      pathActor: PATH_ACTOR,
-      status: focused,
-      statusId: 'focused',
-      fullStatusId: focused.url,
-      isStatusHash: true
-    })
-    mockGetStatus.mockResolvedValue(buildNote({ id: 'parent' }))
-
-    await renderPage()
-
-    // The ancestor chain now sits above the focused post, so it takes the
-    // corners and the post must not keep them.
-    expect(rowFor('parent')).toHaveClass('rounded-t-2xl')
-    expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
-  })
-
-  // With a single ancestor, `index === 0` and `index === previouses.length - 1`
-  // are the same row, so a chain of two is what distinguishes the topmost
-  // ancestor from the one nearest the focused post. The chain runs up to three.
-  it('rounds only the topmost ancestor when the chain is longer than one', async () => {
-    const focused = buildNote({ id: 'focused', reply: 'parent' })
+  // Nothing clips for the rounded corners, so the one row that meets them has
+  // to round itself or its square background bleeds past the border. Exactly
+  // one row may do so — a second would notch a rounded row into the middle of
+  // the card. Logged out that is the topmost row (the focused post, or the
+  // topmost ancestor: with a single ancestor `index === 0` and
+  // `index === previouses.length - 1` are the same row, so a chain of two is
+  // what tells them apart). A signed-in viewer gets the header above everything,
+  // so neither guard may fire; deleting either would leave a rounded row notched
+  // into the middle of the card.
+  it.each([
+    {
+      name: 'the focused post when logged out',
+      signedIn: false,
+      ancestors: [],
+      rounded: 'focused'
+    },
+    {
+      name: 'the first ancestor row when logged out and the post is a reply',
+      signedIn: false,
+      ancestors: ['parent'],
+      rounded: 'parent'
+    },
+    {
+      name: 'only the topmost ancestor when the chain is longer than one',
+      signedIn: false,
+      ancestors: ['parent', 'grandparent'],
+      rounded: 'grandparent'
+    },
+    {
+      name: 'neither the ancestor row nor the post for a signed-in viewer',
+      signedIn: true,
+      ancestors: ['parent'],
+      rounded: null
+    }
+  ])('rounds $name', async ({ signedIn, ancestors, rounded }) => {
+    if (signedIn) mockGetActorFromSession.mockResolvedValue(buildViewer())
+    const chain = ['focused', ...ancestors]
+    const replyOf = (id: string) => chain[chain.indexOf(id) + 1] ?? ''
+    const focused = buildNote({ id: 'focused', reply: replyOf('focused') })
     mockResolveStatusFromPath.mockResolvedValue({
       pathActor: PATH_ACTOR,
       status: focused,
@@ -516,39 +514,18 @@ describe('Conversation card chrome', () => {
     })
     mockGetStatus.mockImplementation(
       async ({ statusId }: { statusId: string }) =>
-        statusId === 'parent'
-          ? buildNote({ id: 'parent', reply: 'grandparent' })
-          : buildNote({ id: 'grandparent' })
+        buildNote({ id: statusId, reply: replyOf(statusId) })
     )
 
     await renderPage()
 
-    expect(rowFor('grandparent')).toHaveClass('rounded-t-2xl')
-    expect(rowFor('parent')).not.toHaveClass('rounded-t-2xl')
-    expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
-  })
-
-  // Both rounding rules are guarded on the viewer being logged out, because a
-  // signed-in viewer gets the header above everything. Without this, deleting
-  // either guard leaves the suite green while shipping a rounded row notched
-  // into the middle of the card.
-  it('rounds neither the ancestor row nor the post for a signed-in viewer', async () => {
-    mockGetActorFromSession.mockResolvedValue(buildViewer())
-    const focused = buildNote({ id: 'focused', reply: 'parent' })
-    mockResolveStatusFromPath.mockResolvedValue({
-      pathActor: PATH_ACTOR,
-      status: focused,
-      statusId: 'focused',
-      fullStatusId: focused.url,
-      isStatusHash: true
-    })
-    mockGetStatus.mockResolvedValue(buildNote({ id: 'parent' }))
-
-    const card = await renderPage()
-
-    expect(card.firstElementChild).toHaveClass('rounded-t-2xl')
-    expect(rowFor('parent')).not.toHaveClass('rounded-t-2xl')
-    expect(rowFor('focused')).not.toHaveClass('rounded-t-2xl')
+    for (const id of chain) {
+      if (id === rounded) {
+        expect(rowFor(id)).toHaveClass('rounded-t-2xl')
+      } else {
+        expect(rowFor(id)).not.toHaveClass('rounded-t-2xl')
+      }
+    }
   })
 })
 
@@ -583,109 +560,69 @@ describe('Fitness activity card chrome', () => {
 
     const card = await renderPage()
 
-    expect(card).toHaveClass('rounded-2xl')
     expect(clipsBetween(card, 'ride-1')).toEqual([])
   })
 
-  // Unlike the conversation card, every child here paints a background, so with
-  // the clip gone each corner a child reaches has to be rounded by that child —
-  // including the bottom ones, which the conversation card never needed.
-  it('rounds the header wrapper and the post block for a signed-in viewer', async () => {
+  // Every child here paints a background, so with the clip gone each corner a
+  // child reaches has to be rounded by that child. That is only right while the
+  // header wrapper stays first and the post block stays last: append another
+  // painted block and a rounded row is notched into the middle of the card.
+  it('keeps the header wrapper first and the post block last for a signed-in viewer', async () => {
     mockGetActorFromSession.mockResolvedValue(buildViewer())
 
     const card = await renderPage()
 
-    // The wrapper, not the header itself: `Header` is `sticky top-0`, so it
-    // has to keep a clipping ancestor or it starts detaching mid-scroll and
-    // carries the corners out over the post.
-    expect(card.firstElementChild).toHaveClass('rounded-t-2xl')
-    expect(card.firstElementChild).toHaveClass('overflow-hidden')
-    // The header takes the top corners, so the post block takes only the
-    // bottom ones…
-    expect(rowFor('ride-1')).not.toHaveClass('rounded-t-2xl')
-    expect(rowFor('ride-1')).toHaveClass('rounded-b-2xl')
-    // …which is only right while it is still the last child. Append another
-    // painted block after it and `rounded-b-2xl` notches a rounded row into
-    // the middle of the card while the new block meets square corners.
+    expect(card.firstElementChild).toContainElement(
+      screen.getByRole('heading', { name: 'Activity' })
+    )
     expect(card.lastElementChild).toBe(rowFor('ride-1'))
   })
 
-  it('applies top margin only from md up when signed in, sitting flush on mobile', async () => {
-    mockGetActorFromSession.mockResolvedValue(buildViewer())
+  it.each(viewers)(
+    'takes the surface, margin and corners of a $viewer viewer',
+    async ({ signedIn }) => {
+      if (signedIn) mockGetActorFromSession.mockResolvedValue(buildViewer())
 
-    const card = await renderPage()
+      const card = await renderPage()
 
-    expect(card).toHaveClass('md:mt-4')
-    expect(card).not.toHaveClass('mt-4')
-    expect(card).not.toHaveClass('max-md:-mt-6')
-  })
-
-  it('takes no margin of its own when logged out, leaving PublicShell the gap under the top bar', async () => {
-    const card = await renderPage()
-
-    expect(card).not.toHaveClass('max-md:-mt-6')
-    expect(card).not.toHaveClass('md:mt-4')
-    expect(card).not.toHaveClass('mt-4')
-  })
-
-  it('is a stack of inset cards below md when logged out, not the full-bleed surface', async () => {
-    const card = await renderPage()
-
-    expect(card).toHaveClass(...MOBILE_INSET_STACK_CLASS.split(' '))
-    for (const token of ['max-md:mx-[calc(50%_-_50vw)]', 'max-md:w-auto']) {
-      expect(card).not.toHaveClass(token)
+      expectViewerSurface(card, signedIn)
+      const activity = rowFor('ride-1')
+      // Signed in, the header wrapper takes the top corners and the post block
+      // the bottom ones; logged out, the post block takes the top corners and
+      // the sign-in callout the bottom ones, and the block is its own inset card.
+      expect(activity).toHaveClass(signedIn ? 'rounded-b-2xl' : 'rounded-t-2xl')
+      expect(activity).not.toHaveClass(
+        signedIn ? 'rounded-t-2xl' : 'rounded-b-2xl'
+      )
+      if (signedIn) {
+        expect(activity).not.toHaveClass('max-md:rounded-2xl')
+      } else {
+        expect(activity).toHaveClass(...tokens(MOBILE_INSET_CARD_FRAME_CLASS))
+      }
     }
-    // The activity is the first card, framed all the way round…
-    const activity = rowFor('ride-1') as HTMLElement
-    expect(activity).toHaveClass(...MOBILE_INSET_CARD_FRAME_CLASS.split(' '))
-    expect(activity).not.toHaveClass('max-md:rounded-none')
-    expect(activity.parentElement).toBe(card)
-    // …and the sign-in callout the second, framed like it.
-    const callout = screen
-      .getByText('Join the conversation')
-      .closest('div.bg-primary\\/5')
-    expect(callout).toHaveClass(...MOBILE_INSET_CARD_FRAME_CLASS.split(' '))
-    expect(callout).not.toHaveClass('max-md:rounded-none')
-    expect(callout?.parentElement).toBe(card)
-  })
+  )
 
-  it('keeps the full-bleed surface below md when signed in, with no inset card', async () => {
-    mockGetActorFromSession.mockResolvedValue(buildViewer())
-
-    const card = await renderPage()
-
-    expect(card).toHaveClass(...MOBILE_FEED_SURFACE_CLASS.split(' '))
-    MOBILE_INSET_STACK_CLASS.split(' ')
-      .filter((token) => !MOBILE_FEED_SURFACE_CLASS.split(' ').includes(token))
-      .forEach((token) => expect(card).not.toHaveClass(token))
-    expect(rowFor('ride-1')).toHaveClass('max-md:rounded-none')
-    expect(rowFor('ride-1')).not.toHaveClass('max-md:rounded-2xl')
-    expect(rowFor('ride-1')).not.toHaveClass('max-md:border')
-  })
-
-  it('gives the post block the top corners when logged out, which has no header', async () => {
-    const card = await renderPage()
-
-    // The logged-out branch leads with an `sr-only` heading, which is out of
-    // flow and paints nothing — the post block below it meets the corners.
-    expect(card.firstElementChild).toHaveClass('sr-only')
-    // …and stays in the accessibility tree at every width: a logged-out
-    // visitor has no mobile bar to carry the page's h1.
-    expect(card.firstElementChild).not.toHaveClass('max-md:hidden')
-    expect(rowFor('ride-1')).toHaveClass('rounded-t-2xl')
-    // …but not the bottom ones: the sign-in callout renders below it.
-    expect(rowFor('ride-1')).not.toHaveClass('rounded-b-2xl')
-  })
-
-  it('gives the bottom corners to the sign-in callout when logged out', async () => {
+  it('puts the activity first and the sign-in callout last when logged out', async () => {
     const card = await renderPage()
 
     // Anchored on the callout's own text rather than a child index, so this
     // keeps meaning the right element if the card gains another block.
+    const activity = rowFor('ride-1') as HTMLElement
+    expect(activity.parentElement).toBe(card)
     const callout = screen
       .getByText('Join the conversation')
       .closest('div.bg-primary\\/5')
-    expect(callout).toHaveClass('rounded-b-2xl')
+    expect(callout?.parentElement).toBe(card)
     expect(card.lastElementChild).toBe(callout)
+  })
+
+  it('leads with an sr-only heading when logged out, which has no header', async () => {
+    const card = await renderPage()
+
+    // The logged-out branch leads with an `sr-only` heading, which is out of
+    // flow and paints nothing — and stays in the accessibility tree at every
+    // width: a logged-out visitor has no mobile bar to carry the page's h1.
+    expect(card.firstElementChild).toHaveClass('sr-only')
+    expect(card.firstElementChild).not.toHaveClass('max-md:hidden')
   })
 })

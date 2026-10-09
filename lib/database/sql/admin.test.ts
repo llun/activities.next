@@ -12,6 +12,8 @@ import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { isPublicId } from '@/lib/utils/publicId'
 
+type HashtagRows = Awaited<ReturnType<Database['getAllHashtags']>>['hashtags']
+
 describe('AdminDatabase', () => {
   const { actors } = DatabaseSeed
   const primaryActorId = actors.primary.id
@@ -135,36 +137,41 @@ describe('AdminDatabase', () => {
         expect(c?.postCount).toBe(2)
       })
 
-      it('sorts alphabetically', async () => {
+      it.each([
+        {
+          sort: 'alphabetical' as const,
+          read: (hashtags: HashtagRows) => {
+            const names = hashtags.map((h) => h.name)
+            return { actual: names, expected: [...names].sort() }
+          }
+        },
+        {
+          sort: 'count' as const,
+          read: (hashtags: HashtagRows) => {
+            const counts = hashtags.map((h) => h.postCount)
+            return {
+              actual: counts,
+              expected: [...counts].sort((a, b) => b - a)
+            }
+          }
+        },
+        {
+          sort: 'recent' as const,
+          read: (hashtags: HashtagRows) => {
+            const times = hashtags
+              .map((h) => h.latestPostAt ?? 0)
+              .filter((t) => t > 0)
+            return { actual: times, expected: [...times].sort((a, b) => b - a) }
+          }
+        }
+      ])('sorts by $sort', async ({ sort, read }) => {
         const { hashtags } = await database.getAllHashtags({
           limit: 100,
           offset: 0,
-          sort: 'alphabetical'
+          sort
         })
-        const names = hashtags.map((h) => h.name)
-        expect(names).toEqual([...names].sort())
-      })
-
-      it('sorts by count descending', async () => {
-        const { hashtags } = await database.getAllHashtags({
-          limit: 100,
-          offset: 0,
-          sort: 'count'
-        })
-        const counts = hashtags.map((h) => h.postCount)
-        expect(counts).toEqual([...counts].sort((a, b) => b - a))
-      })
-
-      it('sorts by most recent activity descending', async () => {
-        const { hashtags } = await database.getAllHashtags({
-          limit: 100,
-          offset: 0,
-          sort: 'recent'
-        })
-        const times = hashtags
-          .map((h) => h.latestPostAt ?? 0)
-          .filter((t) => t > 0)
-        expect(times).toEqual([...times].sort((a, b) => b - a))
+        const { actual, expected } = read(hashtags)
+        expect(actual).toEqual(expected)
       })
 
       it('paginates correctly', async () => {

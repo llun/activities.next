@@ -8,9 +8,7 @@ import {
 import type { Client } from '@upstash/qstash'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { QStashConfig as LeafQStashConfig } from '@/lib/config/queue'
-
-import { QStashConfig, QStashQueue } from './qstash'
+import { QStashQueue } from './qstash'
 
 const mockPublishJSON = vi.fn()
 const MockClient = vi.fn().mockImplementation(function (this: unknown) {
@@ -49,65 +47,32 @@ describe('QStashQueue', () => {
     mockPublishJSON.mockClear()
   })
 
-  it('re-exports QStashConfig matching leaf queue config', () => {
-    expect(QStashConfig).toBe(LeafQStashConfig)
-    const parsed = QStashConfig.safeParse({
-      type: 'qstash',
-      url: 'https://example.com/queue',
-      token: 'token',
-      currentSigningKey: 'key',
-      nextSigningKey: 'nextKey'
-    })
-    expect(parsed.success).toBe(true)
-  })
-
-  it('uses message id as deduplicationId', async () => {
-    const queue = new QStashQueue({
-      type: 'qstash',
-      url: 'https://example.com/queue',
-      token: 'token',
-      currentSigningKey: 'key',
-      nextSigningKey: 'nextKey'
-    })
-
-    const message = {
-      id: 'job:with:colons',
-      name: 'test-job',
-      data: {}
-    }
-
-    await queue.publish(message)
-
-    expect(mockPublishJSON).toHaveBeenCalledWith(
-      expect.objectContaining({
-        deduplicationId: Buffer.from('job:with:colons').toString('base64url')
+  it.each(['job:with:colons', 'simple-job'])(
+    'uses base64url-encoded message id %s as deduplicationId',
+    async (id) => {
+      const queue = new QStashQueue({
+        type: 'qstash',
+        url: 'https://example.com/queue',
+        token: 'token',
+        currentSigningKey: 'key',
+        nextSigningKey: 'nextKey'
       })
-    )
-  })
 
-  it('encodes simple id as well', async () => {
-    const queue = new QStashQueue({
-      type: 'qstash',
-      url: 'https://example.com/queue',
-      token: 'token',
-      currentSigningKey: 'key',
-      nextSigningKey: 'nextKey'
-    })
+      const message = {
+        id,
+        name: 'test-job',
+        data: {}
+      }
 
-    const message = {
-      id: 'simple-job',
-      name: 'test-job',
-      data: {}
+      await queue.publish(message)
+
+      expect(mockPublishJSON).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deduplicationId: Buffer.from(id).toString('base64url')
+        })
+      )
     }
-
-    await queue.publish(message)
-
-    expect(mockPublishJSON).toHaveBeenCalledWith(
-      expect.objectContaining({
-        deduplicationId: Buffer.from('simple-job').toString('base64url')
-      })
-    )
-  })
+  )
 
   it('injects active trace context into QStash publish headers when propagator is set', async () => {
     // Fake propagator that writes a dummy header

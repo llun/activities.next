@@ -23,28 +23,28 @@ describe('resolveFollowFromActivity', () => {
   })
 
   describe('extractFollowIdCandidates', () => {
-    it('extracts UUID from path', () => {
+    it.each([
+      {
+        description: 'path',
+        uriFor: (uuid: string) => `https://activities.local/follows/${uuid}`
+      },
+      {
+        description: 'hash fragment',
+        uriFor: (uuid: string) =>
+          `https://activities.local/actors/alice#follows/${uuid}`
+      },
+      {
+        description: 'hash fragment with trailing /undo',
+        uriFor: (uuid: string) =>
+          `https://activities.local/actors/alice#follows/${uuid}/undo`
+      },
+      {
+        description: 'a non-URL urn',
+        uriFor: (uuid: string) => `urn:follow:${uuid}`
+      }
+    ])('extracts UUID from $description', ({ uriFor }) => {
       const uuid = '01955ffb-46cb-7833-8a3c-b171f1636c2e'
-      const candidates = extractFollowIdCandidates(
-        `https://activities.local/follows/${uuid}`
-      )
-      expect(candidates).toContain(uuid)
-    })
-
-    it('extracts UUID from hash fragment', () => {
-      const uuid = '01955ffb-46cb-7833-8a3c-b171f1636c2e'
-      const candidates = extractFollowIdCandidates(
-        `https://activities.local/actors/alice#follows/${uuid}`
-      )
-      expect(candidates).toContain(uuid)
-    })
-
-    it('extracts UUID from hash fragment with trailing /undo', () => {
-      const uuid = '01955ffb-46cb-7833-8a3c-b171f1636c2e'
-      const candidates = extractFollowIdCandidates(
-        `https://activities.local/actors/alice#follows/${uuid}/undo`
-      )
-      expect(candidates).toContain(uuid)
+      expect(extractFollowIdCandidates(uriFor(uuid))).toContain(uuid)
     })
 
     it('filters out non-UUID tokens', () => {
@@ -52,12 +52,6 @@ describe('resolveFollowFromActivity', () => {
         'https://activities.local/actors/alice#follows/undo'
       )
       expect(candidates).toEqual([])
-    })
-
-    it('extracts from non-URL URI string if it contains a UUID', () => {
-      const uuid = '01955ffb-46cb-7833-8a3c-b171f1636c2e'
-      const candidates = extractFollowIdCandidates(`urn:follow:${uuid}`)
-      expect(candidates).toContain(uuid)
     })
 
     it('caps candidate count to at most 8', () => {

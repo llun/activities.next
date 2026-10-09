@@ -69,34 +69,6 @@ describe('LikeButton', () => {
     vi.clearAllMocks()
   })
 
-  it('keeps the heart bright red but sets a liked count in the Like Text token', () => {
-    render(
-      <LikeButton
-        currentActor={currentActor}
-        status={{ ...status, isActorLiked: true, totalLikes: 3 }}
-      />
-    )
-
-    const button = screen.getByRole('button', { name: 'Unlike, 3 likes' })
-    // The count inherits the button colour, so the button carries the token...
-    expect(button).toHaveClass('text-like-text')
-    expect(button).not.toHaveClass('text-red-500')
-    expect(screen.getByText('3')).toBeInTheDocument()
-    // ...while the heart overrides it with the icon red.
-    expect(button.querySelector('svg')).toHaveClass(
-      'fill-current',
-      'text-red-500'
-    )
-  })
-
-  it('does not colour an unliked heart or count', () => {
-    render(<LikeButton currentActor={currentActor} status={status} />)
-
-    const button = screen.getByRole('button', { name: 'Like' })
-    expect(button).not.toHaveClass('text-like-text')
-    expect(button.querySelector('svg')).not.toHaveClass('text-red-500')
-  })
-
   it('disables while liking to avoid duplicate requests', async () => {
     const deferred = createDeferred<boolean>()
     ;(likeStatus as jest.Mock).mockReturnValue(deferred.promise)

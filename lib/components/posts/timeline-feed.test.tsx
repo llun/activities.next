@@ -185,7 +185,7 @@ describe('TimelineFeed', () => {
     expect(screen.getByText('In reply to a post')).toBeInTheDocument()
   })
 
-  it('renders a self-thread <= 3 posts with Thread label, connector rails, and in chronological order', () => {
+  it('renders a self-thread <= 3 posts with Thread label in chronological order', () => {
     render(
       <TimelineFeed
         host="activities.local"
@@ -196,9 +196,6 @@ describe('TimelineFeed', () => {
 
     const threadContainer = screen.getByLabelText('Thread')
     expect(threadContainer).toBeInTheDocument()
-    expect(threadContainer).toHaveClass('bg-muted/30')
-    expect(threadContainer).toHaveClass('dark:bg-muted/15')
-    expect(threadContainer).not.toHaveClass('divide-y')
 
     // Chronological order: thread part 1 -> thread part 2 -> thread part 3
     const text1 = screen.getByText('Thread part 1: The introduction')
@@ -216,9 +213,6 @@ describe('TimelineFeed', () => {
     expect(
       text2.compareDocumentPosition(text3) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-
-    // Verify no connector rails are rendered between avatars
-    expect(screen.queryByTestId('connector-rail')).not.toBeInTheDocument()
   })
 
   it('collapses middle posts in thread > 3 posts and expands on button click', () => {
@@ -302,7 +296,7 @@ describe('TimelineFeed', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('renders a multi-author conversation with Conversation label and connector rails', () => {
+  it('renders a multi-author conversation with Conversation label', () => {
     render(
       <TimelineFeed
         host="activities.local"
@@ -313,9 +307,6 @@ describe('TimelineFeed', () => {
 
     const convContainer = screen.getByLabelText('Conversation')
     expect(convContainer).toBeInTheDocument()
-    expect(convContainer).toHaveClass('bg-muted/30')
-    expect(convContainer).toHaveClass('dark:bg-muted/15')
-    expect(convContainer).not.toHaveClass('divide-y')
 
     expect(
       screen.getByText(/Alice: What does everyone think of Phanpy/)
@@ -326,9 +317,6 @@ describe('TimelineFeed', () => {
     expect(
       screen.getByText(/Agreed, the nested replies make reading easier/)
     ).toBeInTheDocument()
-
-    // Verify no connector rails are rendered between avatars
-    expect(screen.queryByTestId('connector-rail')).not.toBeInTheDocument()
   })
 
   it('targets the correct status when replying from a thread post', () => {

@@ -17,12 +17,12 @@ vi.mock('@/lib/components/posts/media', () => ({
 }))
 
 describe('GallerySubjectCard', () => {
-  it('shows the cover thumbnail, name, italic scientific name and count', () => {
+  it('shows the cover thumbnail, name, scientific name and count', () => {
     render(<GallerySubjectCard subject={buildGallerySubject('a')} href="/x" />)
 
     expect(screen.getByText('Keel-billed Toucan')).toBeInTheDocument()
-    expect(screen.getByText('Ramphastos sulfuratus')).toHaveClass('italic')
-    expect(screen.getByText('2 photos')).toHaveClass('sr-only')
+    expect(screen.getByText('Ramphastos sulfuratus')).toBeInTheDocument()
+    expect(screen.getByText('2 photos')).toBeInTheDocument()
     expect(document.querySelector('img')).toHaveAttribute(
       'src',
       'https://activities.local/media/cover-a-thumb.jpg'

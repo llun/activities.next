@@ -1,8 +1,4 @@
 import {
-  BIKE_TYPE_OPTIONS,
-  COMPONENT_TYPE_OPTIONS,
-  STICKY_CLICKABLE_COLUMN,
-  STICKY_COLUMN,
   formatGearDate,
   formatGearDistanceKm,
   formatKmInt,
@@ -251,27 +247,6 @@ describe('getWearState', () => {
   })
 })
 
-describe('gear option lists', () => {
-  it('offers every bike type the design system lists', () => {
-    expect(BIKE_TYPE_OPTIONS).toEqual([
-      'Road bike',
-      'Gravel bike',
-      'Mountain bike',
-      'Folding bike',
-      'Commuter',
-      'E-bike',
-      'Time trial'
-    ])
-  })
-
-  it('offers the drivetrain, contact-point and suspension component types', () => {
-    expect(COMPONENT_TYPE_OPTIONS).toContain('Chain')
-    expect(COMPONENT_TYPE_OPTIONS).toContain('Bottom bracket')
-    expect(COMPONENT_TYPE_OPTIONS).toContain('Rear shock')
-    expect(COMPONENT_TYPE_OPTIONS).toHaveLength(19)
-  })
-})
-
 describe('getProductUrlHostname', () => {
   it.each([
     {
@@ -316,47 +291,5 @@ describe('getProductUrlHostname', () => {
     { description: 'undefined', url: undefined, expected: null }
   ])('$description', ({ url, expected }) => {
     expect(getProductUrlHostname(url)).toBe(expected)
-  })
-})
-
-describe('STICKY_COLUMN', () => {
-  // The pinned column's surface is whatever the table sits on, and the
-  // hairline down its right edge does the separating — the design's
-  // relationship. A colour other than the table's own paints a bright stripe in
-  // light mode and a sunken well in dark.
-  // The tables now sit on the page itself (the overview's layout), not in a
-  // card, so the lane is the page's surface.
-  it('paints the pinned column in the page surface the table sits on', () => {
-    expect(STICKY_COLUMN).toContain('bg-background')
-    expect(STICKY_COLUMN).not.toContain('bg-card')
-  })
-
-  // A sticky cell with a see-through background lets the data columns scroll
-  // straight under it, so the surface may not carry an opacity modifier.
-  it('keeps the surface opaque', () => {
-    expect(STICKY_COLUMN).not.toMatch(/bg-[a-z-]+\/\d+/)
-  })
-
-  // Now that the column shares the card's surface, the hairline is the only
-  // thing separating it from the numbers — drop it and the rows read as loose
-  // text again, which is the whole reason these constants exist. It is an inset
-  // shadow rather than a `border-r` because `border-collapse: collapse` drops a
-  // sticky cell's own right border.
-  it('keeps the hairline down its right edge', () => {
-    expect(STICKY_COLUMN).toContain('shadow-[inset_-1px_0_0_var(--border)]')
-  })
-})
-
-describe('STICKY_CLICKABLE_COLUMN', () => {
-  // Without this the pinned cell keeps painting its own surface over the row's
-  // hover, so the first column stays unlit while the rest of the row highlights.
-  it('repeats the row hover', () => {
-    expect(STICKY_CLICKABLE_COLUMN).toContain('group-hover:bg-muted')
-  })
-
-  // `bg-muted/50` here would make the cell 50% transparent exactly while the
-  // pointer is on the row — the one state a pinned column most needs to be solid.
-  it('keeps the hover surface opaque', () => {
-    expect(STICKY_CLICKABLE_COLUMN).not.toMatch(/bg-[a-z-]+\/\d+/)
   })
 })

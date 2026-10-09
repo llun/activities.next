@@ -108,7 +108,15 @@ describe('readStoredImage', () => {
     await expect(readStoredImage(database, 'medias/a', 16)).rejects.toThrow()
   })
 
-  it('caps reads at 25 MiB by default', () => {
-    expect(STORED_MEDIA_READ_MAX_BYTES).toBe(25 * 1024 * 1024)
+  it('refuses a stream over the default cap when no maxBytes is given', async () => {
+    const size = STORED_MEDIA_READ_MAX_BYTES + 1
+    vi.mocked(getMedia).mockResolvedValue({
+      type: 'stream',
+      stream: streamOf(Buffer.alloc(size)),
+      contentType: 'image/jpeg',
+      contentLength: size
+    })
+
+    await expect(readStoredImage(database, 'medias/a')).rejects.toThrow()
   })
 })

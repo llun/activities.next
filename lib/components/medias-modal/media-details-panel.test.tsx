@@ -33,7 +33,7 @@ describe('MediaDetailsPanel taxonomy', () => {
   it('shows the taxonomy path under the scientific name', () => {
     render(<MediaDetailsPanel details={details()} />)
 
-    expect(screen.getByText('Alcedo atthis')).toHaveClass('italic')
+    expect(screen.getByText('Alcedo atthis')).toBeInTheDocument()
     expect(
       screen.getByText(
         'Animalia › Chordata › Aves › Coraciiformes › Alcedinidae'

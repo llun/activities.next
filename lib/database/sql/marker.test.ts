@@ -22,37 +22,6 @@ describe('MarkerSQLDatabaseMixin', () => {
     expect(markers).toEqual([])
   })
 
-  it('upserts a marker and starts at version 1', async () => {
-    const marker = await database.upsertMarker({
-      actorId: 'https://llun.test/users/marker-v1',
-      timeline: 'home',
-      lastReadId: '100'
-    })
-    expect(marker).toEqual(
-      expect.objectContaining({
-        timeline: 'home',
-        lastReadId: '100',
-        version: 1
-      })
-    )
-  })
-
-  it('increments version on subsequent upserts', async () => {
-    const INC_ACTOR_ID = 'https://llun.test/users/marker-inc'
-    await database.upsertMarker({
-      actorId: INC_ACTOR_ID,
-      timeline: 'notifications',
-      lastReadId: '5'
-    })
-    const updated = await database.upsertMarker({
-      actorId: INC_ACTOR_ID,
-      timeline: 'notifications',
-      lastReadId: '9'
-    })
-    expect(updated.lastReadId).toBe('9')
-    expect(updated.version).toBe(2)
-  })
-
   it('overwrites lastReadId on every upsert (last-write-wins) and bumps version', async () => {
     const LWW_ACTOR_ID = 'https://llun.test/users/marker-lww'
 

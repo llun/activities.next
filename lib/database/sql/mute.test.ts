@@ -108,22 +108,15 @@ describe('MuteDatabase', () => {
     expect(result).toBeNull()
   })
 
-  it('returns false from isMuting when no mute exists', async () => {
-    const result = await database.isMuting({
-      actorId: ACTOR1_ID,
-      targetActorId: targetActorId()
-    })
+  it('reports no mute from isMuting and getMute when none exists', async () => {
+    const target = targetActorId()
 
-    expect(result).toBe(false)
-  })
-
-  it('getMute returns null when no mute exists', async () => {
-    const result = await database.getMute({
-      actorId: ACTOR1_ID,
-      targetActorId: targetActorId()
-    })
-
-    expect(result).toBeNull()
+    expect(
+      await database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })
+    ).toBe(false)
+    expect(
+      await database.getMute({ actorId: ACTOR1_ID, targetActorId: target })
+    ).toBeNull()
   })
 
   it('getMuteRelations returns only forward directional relations', async () => {
@@ -217,7 +210,7 @@ describe('MuteDatabase', () => {
     ).resolves.not.toBeNull()
   })
 
-  it('getMute returns null for an expired mute', async () => {
+  it('ignores an expired mute in getMute and isMuting', async () => {
     const target = targetActorId()
     const pastEndsAt = Date.now() - 1000
 
@@ -236,24 +229,6 @@ describe('MuteDatabase', () => {
     await expect(
       database.getMute({ actorId: ACTOR1_ID, targetActorId: target })
     ).resolves.toBeNull()
-  })
-
-  it('isMuting returns false for an expired mute', async () => {
-    const target = targetActorId()
-    const pastEndsAt = Date.now() - 1000
-
-    await knexDatabase('mutes').insert({
-      id: crypto.randomUUID(),
-      actorId: ACTOR1_ID,
-      actorHost: new URL(ACTOR1_ID).host,
-      targetActorId: target,
-      targetActorHost: new URL(target).host,
-      notifications: true,
-      endsAt: pastEndsAt,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
-
     await expect(
       database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })
     ).resolves.toBe(false)

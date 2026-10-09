@@ -45,16 +45,20 @@ describe('wellknown services', () => {
     it('includes supported scopes', () => {
       const metadata = getOAuthAuthorizationServerMetadata()
 
-      expect(metadata.scopes_supported).toContain('openid')
-      expect(metadata.scopes_supported).toContain('profile')
-      expect(metadata.scopes_supported).toContain('email')
-      expect(metadata.scopes_supported).toContain('read')
-      expect(metadata.scopes_supported).toContain('read:bookmarks')
-      expect(metadata.scopes_supported).toContain('write')
-      expect(metadata.scopes_supported).toContain('write:accounts')
-      expect(metadata.scopes_supported).toContain('write:bookmarks')
-      expect(metadata.scopes_supported).toContain('follow')
-      expect(metadata.scopes_supported).toContain('push')
+      expect(metadata.scopes_supported).toEqual(
+        expect.arrayContaining([
+          'openid',
+          'profile',
+          'email',
+          'read',
+          'read:bookmarks',
+          'write',
+          'write:accounts',
+          'write:bookmarks',
+          'follow',
+          'push'
+        ])
+      )
     })
 
     it('advertises a provided baseURL host instead of the configured host (multi-domain alias)', () => {
@@ -176,18 +180,26 @@ describe('wellknown services', () => {
     it('includes OIDC scopes and claims', () => {
       const config = getOpenIDConfiguration()
 
-      expect(config.scopes_supported).toContain('openid')
-      expect(config.scopes_supported).toContain('profile')
-      expect(config.scopes_supported).toContain('email')
-      expect(config.scopes_supported).toContain('read:bookmarks')
-      expect(config.scopes_supported).toContain('write:accounts')
-      expect(config.scopes_supported).toContain('write:bookmarks')
-      expect(config.scopes_supported).toContain('push')
-      expect(config.claims_supported).toContain('sub')
-      expect(config.claims_supported).toContain('name')
-      expect(config.claims_supported).toContain('email')
-      expect(config.claims_supported).toContain('email_verified')
-      expect(config.claims_supported).toContain('preferred_username')
+      expect(config.scopes_supported).toEqual(
+        expect.arrayContaining([
+          'openid',
+          'profile',
+          'email',
+          'read:bookmarks',
+          'write:accounts',
+          'write:bookmarks',
+          'push'
+        ])
+      )
+      expect(config.claims_supported).toEqual(
+        expect.arrayContaining([
+          'sub',
+          'name',
+          'email',
+          'email_verified',
+          'preferred_username'
+        ])
+      )
     })
 
     it('advertises a provided baseURL host (issuer + endpoints) for a served alias domain', () => {
@@ -229,26 +241,14 @@ describe('wellknown services', () => {
   })
 
   describe('getNodeInfoLinks', () => {
-    it('returns nodeinfo links array', () => {
+    it('lists the nodeinfo 2.0 schema link first, then 2.1', () => {
       const nodeInfoLinks = getNodeInfoLinks()
 
-      expect(nodeInfoLinks).toHaveProperty('links')
-      expect(nodeInfoLinks.links).toBeArray()
       expect(nodeInfoLinks.links).toHaveLength(2)
-    })
-
-    it('includes nodeinfo 2.0 schema link first', () => {
-      const nodeInfoLinks = getNodeInfoLinks()
-
       expect(nodeInfoLinks.links[0]).toMatchObject({
         rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
         href: 'https://test.example.com/nodeinfo/2.0'
       })
-    })
-
-    it('includes nodeinfo 2.1 schema link', () => {
-      const nodeInfoLinks = getNodeInfoLinks()
-
       expect(nodeInfoLinks.links[1]).toMatchObject({
         rel: 'http://nodeinfo.diaspora.software/ns/schema/2.1',
         href: 'https://test.example.com/nodeinfo/2.1'
@@ -264,9 +264,16 @@ describe('wellknown services', () => {
       localPosts: 42
     }
 
-    it('returns a NodeInfo 2.1 document with the 2.0 payload', () => {
-      expect(getNodeInfo21(stats)).toMatchObject({
+    it('returns a NodeInfo 2.1 document with the 2.0 payload and repository links', () => {
+      const nodeInfo = getNodeInfo21(stats)
+
+      expect(nodeInfo.software.name).toMatch(/^[a-z0-9-]+$/)
+      expect(nodeInfo).toMatchObject({
         version: '2.1',
+        software: {
+          repository: 'https://github.com/llun/activities.next',
+          homepage: 'https://github.com/llun/activities.next'
+        },
         protocols: ['activitypub'],
         services: { inbound: [], outbound: [] },
         openRegistrations: false,
@@ -279,16 +286,6 @@ describe('wellknown services', () => {
           nodeName: 'test.example.com',
           nodeDescription: ''
         }
-      })
-    })
-
-    it('adds repository and homepage to software', () => {
-      const nodeInfo = getNodeInfo21(stats)
-
-      expect(nodeInfo.software.name).toMatch(/^[a-z0-9-]+$/)
-      expect(nodeInfo.software).toMatchObject({
-        repository: 'https://github.com/llun/activities.next',
-        homepage: 'https://github.com/llun/activities.next'
       })
     })
   })
@@ -304,6 +301,14 @@ describe('wellknown services', () => {
     it('returns a spec-compliant NodeInfo 2.0 document', () => {
       const nodeInfo = getNodeInfo20(stats)
 
+      // software.name must be schema-safe (^[a-z0-9-]+$).
+      expect(nodeInfo.software.name).toMatch(/^[a-z0-9-]+$/)
+      expect(nodeInfo.software).toHaveProperty('version')
+      // nodeName falls back to the host when serviceName is unset.
+      expect(nodeInfo.metadata).toEqual({
+        nodeName: 'test.example.com',
+        nodeDescription: ''
+      })
       expect(nodeInfo).toMatchObject({
         version: '2.0',
         protocols: ['activitypub'],
@@ -314,22 +319,6 @@ describe('wellknown services', () => {
           localPosts: 42,
           localComments: 0
         }
-      })
-    })
-
-    it('uses a schema-safe software.name (^[a-z0-9-]+$)', () => {
-      const nodeInfo = getNodeInfo20(stats)
-
-      expect(nodeInfo.software.name).toMatch(/^[a-z0-9-]+$/)
-      expect(nodeInfo.software).toHaveProperty('version')
-    })
-
-    it('falls back to host for nodeName when serviceName is unset', () => {
-      const nodeInfo = getNodeInfo20(stats)
-
-      expect(nodeInfo.metadata).toEqual({
-        nodeName: 'test.example.com',
-        nodeDescription: ''
       })
     })
   })

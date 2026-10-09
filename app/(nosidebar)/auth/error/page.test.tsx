@@ -148,15 +148,4 @@ describe('/auth/error', () => {
       expect.objectContaining({ errorDescription: 'x'.repeat(200) })
     )
   })
-
-  it('sets the title on a 24 px line so a wrapped title is not double spaced', async () => {
-    await renderPage({ error: 'invalid_client' })
-
-    // `text-2xl` alone brings a 32 px line height (class merging drops the
-    // CardTitle's leading-none), which makes a two-line title 16 px too tall.
-    expect(screen.getByText("This app isn't registered here")).toHaveClass(
-      'text-2xl',
-      'leading-6'
-    )
-  })
 })

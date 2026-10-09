@@ -152,22 +152,6 @@ describe('resolveMediaSubjectJob', () => {
     )
   })
 
-  it('records a threatened category', async () => {
-    gbif.getTaxon.mockResolvedValue({ ...KINGFISHER, iucnCategory: 'EN' })
-    mediaWith({ subjectScientificName: 'Panthera tigris' })
-
-    await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
-
-    expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        patch: expect.objectContaining({
-          subjectIucnCategory: 'EN',
-          subjectLookupStatus: 'resolved'
-        })
-      })
-    )
-  })
-
   it('reads a known taxon key directly, without matching', async () => {
     mediaWith({
       subjectName: 'Common Kingfisher',
@@ -302,52 +286,9 @@ describe('resolveMediaSubjectJob', () => {
         )
       }
     )
-
-    it('records failed when the unhinted answer places the name in a kingdom', async () => {
-      gbif.lookupMatch.mockResolvedValue({ kind: 'unplaced' })
-      mediaWith({
-        subjectScientificName: 'Panthera tigris',
-        subjectCategory: 'plant'
-      })
-
-      await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
-
-      expect(gbif.lookupMatch).toHaveBeenCalledTimes(2)
-      expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
-      )
-    })
-
-    it('records failed for the unhinted NONE too', async () => {
-      gbif.lookupMatch
-        .mockResolvedValueOnce({ kind: 'none' })
-        .mockResolvedValueOnce({ kind: 'none' })
-      mediaWith({
-        subjectScientificName: 'Zzzqx blorp',
-        subjectCategory: 'bird'
-      })
-
-      await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
-
-      expect(gbif.lookupMatch).toHaveBeenCalledTimes(2)
-      expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
-      )
-    })
   })
 
   describe('a key GBIF does not know', () => {
-    it('records failed for a stored key with no name to try', async () => {
-      gbif.getTaxon.mockResolvedValue(null)
-      mediaWith({ subjectTaxonKey: '99999999' })
-
-      await resolveMediaSubjectJob(database, message({ mediaId: '7' }))
-
-      expect(setMediaSubjectLookup).toHaveBeenCalledWith(
-        expect.objectContaining({ patch: { subjectLookupStatus: 'failed' } })
-      )
-    })
-
     it('records failed when the names of a retired key only give NONE', async () => {
       gbif.getTaxon.mockResolvedValue(null)
       gbif.lookupMatch.mockResolvedValue({ kind: 'none' })

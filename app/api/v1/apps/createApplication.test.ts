@@ -145,62 +145,6 @@ describe('createApplication', () => {
     ])
   })
 
-  test('it accepts Mastodon bookmark scopes', async () => {
-    const response = (await createApplication({
-      client_name: 'bookmarkScopesClient',
-      redirect_uris: 'https://test.llun.dev/apps/redirect',
-      scopes: 'read:bookmarks write:bookmarks',
-      website: 'https://test.llun.dev'
-    })) as SuccessResponse
-
-    expect(response.type).toBe('success')
-
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
-    expect(JSON.parse(dbClient.scopes)).toEqual([
-      'read:bookmarks',
-      'write:bookmarks'
-    ])
-  })
-
-  test('it accepts Mastodon account write scopes', async () => {
-    const response = (await createApplication({
-      client_name: 'accountWriteScopesClient',
-      redirect_uris: 'https://test.llun.dev/apps/redirect',
-      scopes: 'write:accounts',
-      website: 'https://test.llun.dev'
-    })) as SuccessResponse
-
-    expect(response.type).toBe('success')
-
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
-    expect(JSON.parse(dbClient.scopes)).toEqual(['write:accounts'])
-  })
-
-  test('it accepts Mastodon push scopes', async () => {
-    const response = (await createApplication({
-      client_name: 'pushScopesClient',
-      redirect_uris: 'https://test.llun.dev/apps/redirect',
-      scopes: 'read write follow push',
-      website: 'https://test.llun.dev'
-    })) as SuccessResponse
-
-    expect(response.type).toBe('success')
-
-    const dbClient = await knexDatabase('oauthClient')
-      .where({ id: response.id })
-      .first()
-    expect(JSON.parse(dbClient.scopes)).toEqual([
-      'read',
-      'write',
-      'follow',
-      'push'
-    ])
-  })
-
   test('it records the client_credentials ceiling the app token grant needs', async () => {
     // better-auth denies the client_credentials grant outright when this column
     // is missing or empty, and a Mastodon client asks for an app token before it

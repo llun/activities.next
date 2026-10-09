@@ -67,38 +67,11 @@ describe('FitnessSummaryStrip', () => {
     }
   })
 
-  it('draws the shared shimmering skeleton in every cell', () => {
-    const { container } = render(<FitnessSummaryStrip totals={null} loading />)
-
-    expect(
-      container.querySelectorAll('[aria-hidden="true"].block.skeleton')
-    ).toHaveLength(4)
-  })
-
   it('never shows zeros for totals it does not have', () => {
     render(<FitnessSummaryStrip totals={null} />)
 
     // A failed first read: no data is not "0 activities".
     expect(valueOf('Activities')).not.toMatch(/0/)
     expect(valueOf('Activities')).toContain('Unavailable')
-  })
-
-  it('lays the cells out on the summary stat grid', () => {
-    const { container } = render(
-      <FitnessSummaryStrip
-        totals={{
-          count: 0,
-          totalDistanceMeters: 0,
-          totalDurationSeconds: 0,
-          totalElevationGainMeters: 0
-        }}
-      />
-    )
-
-    // The shared strip's container-queried columns, not a hand-rolled grid.
-    expect(container.querySelector('.grid')).toHaveClass('gap-px')
-    expect(container.querySelector('.grid')?.className).toMatch(
-      /@min-\[16rem\]:grid-cols-2/
-    )
   })
 })

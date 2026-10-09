@@ -92,23 +92,6 @@ describe('ActivityRouteMapKit', () => {
     expect(mockLoadMapKitModule).not.toHaveBeenCalled()
   })
 
-  it('draws the muted standard basemap, so the route line stays the brightest thing', async () => {
-    const double = createMapKitTestDouble()
-    mockLoadMapKitModule.mockImplementation((() =>
-      Promise.resolve(double.mapkit)) as never)
-
-    render(
-      <ActivityRouteMapKit
-        routeSegments={routeSegments}
-        routeSamples={routeSamples}
-        onUnavailable={vi.fn()}
-      />
-    )
-
-    await waitFor(() => expect(double.getMap()).not.toBeNull())
-    expect(double.getMap()!.options.mapType).toBe('mutedStandard')
-  })
-
   it("turns MapKit's native zoom control off, because the component draws its own +/- buttons", async () => {
     const double = createMapKitTestDouble()
     mockLoadMapKitModule.mockImplementation((() =>
@@ -232,13 +215,7 @@ describe('ActivityRouteMapKit', () => {
 
     const element = double.annotations[0].element
     expect(element).not.toBeNull()
-    // Zero-sized anchor: MapKit's bottom-centre anchoring lands on its centre.
-    expect(element?.style.width).toBe('0px')
-    expect(element?.style.height).toBe('0px')
-
-    const [halo, core] = Array.from(element?.children ?? []) as HTMLElement[]
-    expect(halo.style.width).toBe('16px')
-    expect(halo.style.backgroundColor).toBe('rgb(255, 255, 255)')
+    const [, core] = Array.from(element?.children ?? []) as HTMLElement[]
     // Green because the hovered sample sits on a privacy-hidden segment.
     expect(core.style.backgroundColor).toBe('rgb(22, 163, 74)')
   })

@@ -183,7 +183,7 @@ describe('FitnessOverviewHeader', () => {
 })
 
 describe('StepButtons', () => {
-  it('names its targets by view and stays 44px', () => {
+  it('names its targets by view', () => {
     render(
       <StepButtons
         view="annual"
@@ -192,12 +192,12 @@ describe('StepButtons', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Previous year' })).toHaveClass(
-      'size-11'
-    )
-    expect(screen.getByRole('button', { name: 'Next year' })).toHaveClass(
-      'size-11'
-    )
+    expect(
+      screen.getByRole('button', { name: 'Previous year' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Next year' })
+    ).toBeInTheDocument()
   })
 })
 

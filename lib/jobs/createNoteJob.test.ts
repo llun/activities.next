@@ -84,7 +84,6 @@ describe('createNoteJob', () => {
     if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
-    expect(status).toBeDefined()
     expect(status.id).toEqual(note.id)
     expect(status.text).toEqual('<p>Hello</p>')
     expect(status.actorId).toEqual(note.attributedTo)
@@ -174,7 +173,6 @@ describe('createNoteJob', () => {
     if (status.type !== StatusType.enum.Note) {
       fail('Stauts type must be note')
     }
-    expect(status).toBeDefined()
     expect(status.id).toEqual(note.id)
     expect(status.text).toEqual('<p>Hello</p>')
     expect(status.actorId).toEqual(note.attributedTo)
@@ -448,7 +446,6 @@ describe('createNoteJob', () => {
     if (status.type !== StatusType.enum.Note) {
       fail('Status type must be note')
     }
-    expect(status).toBeDefined()
     expect(status.id).toEqual(image.id)
     expect(status.text).toEqual('<p>Beautiful sunset</p>')
     expect(status.actorId).toEqual(image.attributedTo)
@@ -533,43 +530,26 @@ describe('createNoteJob', () => {
     })
   })
 
-  it('adds page activity as note into database', async () => {
-    const page = {
+  it.each([
+    {
       type: 'Page',
       id: 'https://pixelfed.social/p/user/page1',
       attributedTo: 'https://pixelfed.social/users/user',
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: ['https://pixelfed.social/users/user/followers'],
-      content: '<p>A nice page</p>',
-      url: 'https://pixelfed.social/p/user/page1',
-      published: new Date().toISOString(),
-      tag: []
-    }
-
-    await createNoteJob(database, {
-      id: 'id',
-      name: CREATE_NOTE_JOB_NAME,
-      data: page
-    })
-
-    const status = (await database.getStatus({
-      statusId: page.id
-    })) as StatusNote
-    expect(status).toBeDefined()
-    expect(status.id).toEqual(page.id)
-    expect(status.type).toEqual(StatusType.enum.Note)
-    expect(status.text).toEqual('<p>A nice page</p>')
-  })
-
-  it('adds article activity as note into database', async () => {
-    const article = {
+      content: '<p>A nice page</p>'
+    },
+    {
       type: 'Article',
       id: 'https://writefreely.org/posts/article1',
       attributedTo: 'https://writefreely.org/users/writer',
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: ['https://writefreely.org/users/writer/followers'],
-      content: '<p>An interesting article</p>',
-      url: 'https://writefreely.org/posts/article1',
+      content: '<p>An interesting article</p>'
+    }
+  ])('adds $type activity as note into database', async (activity) => {
+    const object = {
+      ...activity,
+      to: ['https://www.w3.org/ns/activitystreams#Public'],
+      url: activity.id,
       published: new Date().toISOString(),
       tag: []
     }
@@ -577,56 +557,38 @@ describe('createNoteJob', () => {
     await createNoteJob(database, {
       id: 'id',
       name: CREATE_NOTE_JOB_NAME,
-      data: article
+      data: object
     })
 
     const status = (await database.getStatus({
-      statusId: article.id
+      statusId: object.id
     })) as StatusNote
-    expect(status).toBeDefined()
-    expect(status.id).toEqual(article.id)
+    expect(status.id).toEqual(object.id)
     expect(status.type).toEqual(StatusType.enum.Note)
-    expect(status.text).toEqual('<p>An interesting article</p>')
+    expect(status.text).toEqual(object.content)
   })
 
-  it('prepends the page name as a bold title', async () => {
-    const page = {
+  it.each([
+    {
       type: 'Page',
       id: 'https://lemmy.test/post/title-page1',
       attributedTo: 'https://lemmy.test/u/picard',
-      to: ['https://www.w3.org/ns/activitystreams#Public'],
-      cc: [],
       name: 'Page title',
-      content: '<p>A nice page</p>',
-      url: 'https://lemmy.test/post/title-page1',
-      published: new Date().toISOString(),
-      tag: []
-    }
-
-    await createNoteJob(database, {
-      id: 'id',
-      name: CREATE_NOTE_JOB_NAME,
-      data: page
-    })
-
-    const status = (await database.getStatus({
-      statusId: page.id
-    })) as StatusNote
-    expect(status.text).toEqual(
-      '<p><strong>Page title</strong></p>\n<p>A nice page</p>'
-    )
-  })
-
-  it('prepends the article name as a bold title', async () => {
-    const article = {
+      content: '<p>A nice page</p>'
+    },
+    {
       type: 'Article',
       id: 'https://writefreely.org/posts/title-article1',
       attributedTo: 'https://writefreely.org/users/writer',
+      name: 'Article title',
+      content: '<p>An interesting article</p>'
+    }
+  ])('prepends the $type name as a bold title', async (activity) => {
+    const object = {
+      ...activity,
       to: ['https://www.w3.org/ns/activitystreams#Public'],
       cc: [],
-      name: 'Article title',
-      content: '<p>An interesting article</p>',
-      url: 'https://writefreely.org/posts/title-article1',
+      url: activity.id,
       published: new Date().toISOString(),
       tag: []
     }
@@ -634,14 +596,14 @@ describe('createNoteJob', () => {
     await createNoteJob(database, {
       id: 'id',
       name: CREATE_NOTE_JOB_NAME,
-      data: article
+      data: object
     })
 
     const status = (await database.getStatus({
-      statusId: article.id
+      statusId: object.id
     })) as StatusNote
     expect(status.text).toEqual(
-      '<p><strong>Article title</strong></p>\n<p>An interesting article</p>'
+      `<p><strong>${activity.name}</strong></p>\n${activity.content}`
     )
   })
 
@@ -799,7 +761,6 @@ describe('createNoteJob', () => {
     const status = (await database.getStatus({
       statusId: video.id
     })) as StatusNote
-    expect(status).toBeDefined()
     expect(status.id).toEqual(video.id)
     expect(status.type).toEqual(StatusType.enum.Note)
     expect(status.attachments).toHaveLength(1)

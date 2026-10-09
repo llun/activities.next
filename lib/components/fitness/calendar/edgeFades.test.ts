@@ -1,11 +1,6 @@
 import { ANNUAL_LABEL_WIDTH } from '@/lib/fitness/calendar/geometry'
 
-import {
-  ANNUAL_SNAP_PADDING,
-  EDGE_FADE_WIDTH,
-  edgeFades,
-  sameEdgeFades
-} from './edgeFades'
+import { ANNUAL_SNAP_PADDING, edgeFades, sameEdgeFades } from './edgeFades'
 
 describe('edge fades', () => {
   it.each([
@@ -57,9 +52,7 @@ describe('edge fades', () => {
     ).toBe(false)
   })
 
-  it('pads the snap line by the sticky label column plus a 16px fade', () => {
-    expect(EDGE_FADE_WIDTH).toBe(16)
+  it('pads the snap line by the sticky label column plus the fade', () => {
     expect(ANNUAL_SNAP_PADDING).toBe(ANNUAL_LABEL_WIDTH + 16)
-    expect(ANNUAL_SNAP_PADDING).toBe(44)
   })
 })

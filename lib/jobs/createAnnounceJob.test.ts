@@ -668,87 +668,62 @@ describe('Announce action', () => {
     expect(status.cc).toEqual([])
   })
 
-  it('rejects public announce of an existing local followers-only status', async () => {
-    const statusId = stubNoteId()
-    const targetStatus = await database.createNote({
-      id: `${actor1?.id}/statuses/private-note-1`,
-      url: `${actor1?.id}/statuses/private-note-1`,
-      actorId: actor1!.id,
-      to: [`${actor1?.id}/followers`],
-      cc: [],
+  it.each([
+    {
+      description: 'public announce of an existing local followers-only status',
+      jobId: 'id-public-boost-private',
+      noteSlug: 'private-note-1',
+      to: (actorId: string) => [`${actorId}/followers`],
       text: 'Local followers-only note'
-    })
-
-    await createAnnounceJob(database, {
-      id: 'id-public-boost-private',
-      name: CREATE_ANNOUNCE_JOB_NAME,
-      data: MockAnnounceStatus({
-        actorId: 'https://somewhere.test/actors/friend',
-        statusId,
-        announceStatusId: targetStatus.id
-      })
-    })
-
-    await expect(
-      database.getStatus({ statusId: `${statusId}/activity` })
-    ).resolves.toBeNull()
-  })
-
-  it('rejects public announce of an existing local direct status', async () => {
-    const statusId = stubNoteId()
-    const targetStatus = await database.createNote({
-      id: `${actor1?.id}/statuses/direct-note-1`,
-      url: `${actor1?.id}/statuses/direct-note-1`,
-      actorId: actor1!.id,
-      to: ['https://somewhere.test/actors/friend'],
-      cc: [],
+    },
+    {
+      description: 'public announce of an existing local direct status',
+      jobId: 'id-public-boost-direct',
+      noteSlug: 'direct-note-1',
+      to: () => ['https://somewhere.test/actors/friend'],
       text: 'Local direct note'
-    })
+    },
+    {
+      description: 'unlisted announce of a followers-only status',
+      jobId: 'id-unlisted-boost-private',
+      noteSlug: 'private-note-unlisted',
+      to: (actorId: string) => [`${actorId}/followers`],
+      text: 'Local followers-only note for unlisted boost',
+      announceTo: ['https://somewhere.test/actors/friend/followers'],
+      announceCc: [ACTIVITY_STREAM_PUBLIC]
+    }
+  ])(
+    'rejects $description',
+    async ({ jobId, noteSlug, to, text, announceTo, announceCc }) => {
+      const statusId = stubNoteId()
+      const targetStatus = await database.createNote({
+        id: `${actor1?.id}/statuses/${noteSlug}`,
+        url: `${actor1?.id}/statuses/${noteSlug}`,
+        actorId: actor1!.id,
+        to: to(actor1!.id),
+        cc: [],
+        text
+      })
 
-    await createAnnounceJob(database, {
-      id: 'id-public-boost-direct',
-      name: CREATE_ANNOUNCE_JOB_NAME,
-      data: MockAnnounceStatus({
+      const announce = MockAnnounceStatus({
         actorId: 'https://somewhere.test/actors/friend',
         statusId,
         announceStatusId: targetStatus.id
       })
-    })
+      if (announceTo) announce.to = announceTo
+      if (announceCc) announce.cc = announceCc
 
-    await expect(
-      database.getStatus({ statusId: `${statusId}/activity` })
-    ).resolves.toBeNull()
-  })
+      await createAnnounceJob(database, {
+        id: jobId,
+        name: CREATE_ANNOUNCE_JOB_NAME,
+        data: announce
+      })
 
-  it('rejects unlisted announce of a followers-only status', async () => {
-    const statusId = stubNoteId()
-    const targetStatus = await database.createNote({
-      id: `${actor1?.id}/statuses/private-note-unlisted`,
-      url: `${actor1?.id}/statuses/private-note-unlisted`,
-      actorId: actor1!.id,
-      to: [`${actor1?.id}/followers`],
-      cc: [],
-      text: 'Local followers-only note for unlisted boost'
-    })
-
-    const announce = MockAnnounceStatus({
-      actorId: 'https://somewhere.test/actors/friend',
-      statusId,
-      announceStatusId: targetStatus.id
-    })
-    announce.to = ['https://somewhere.test/actors/friend/followers']
-    announce.cc = [ACTIVITY_STREAM_PUBLIC]
-
-    await createAnnounceJob(database, {
-      id: 'id-unlisted-boost-private',
-      name: CREATE_ANNOUNCE_JOB_NAME,
-      data: announce
-    })
-
-    await expect(
-      database.getStatus({ statusId: `${statusId}/activity` })
-    ).resolves.toBeNull()
-  })
+      await expect(
+        database.getStatus({ statusId: `${statusId}/activity` })
+      ).resolves.toBeNull()
+    }
+  )
 
   it('rejects public announce of a remotely fetched followers-only status', async () => {
     const statusId = stubNoteId()

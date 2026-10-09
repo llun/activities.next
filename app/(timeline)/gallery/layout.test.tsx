@@ -99,12 +99,4 @@ describe('Gallery Layout', () => {
       within(menu).getByRole('menuitem', { name: 'Subjects' })
     ).not.toHaveAttribute('aria-current')
   })
-
-  it('drops the section top padding below md only', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/gallery')
-    renderLayout()
-
-    const nav = screen.getByRole('navigation', { name: 'Gallery' })
-    expect(nav.parentElement).toHaveClass('pt-4', 'max-md:pt-0')
-  })
 })

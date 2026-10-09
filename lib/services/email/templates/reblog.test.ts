@@ -52,9 +52,11 @@ const build = () =>
   buildBoostEmail({ recipient, actor: profile(), status: status() })
 
 describe('buildBoostEmail', () => {
-  it('says boosted, matching the product vocabulary', () => {
-    expect(build().subject).toBe(`@ben boosted your post in ${HOST}`)
-    expect(build().html).toContain('Ben boosted your post')
+  it('renders the subject, headline and notification footer with boost wording', () => {
+    const { subject, html } = build()
+    expect(subject).toBe(`@ben boosted your post in ${HOST}`)
+    expect(html).toContain('Ben boosted your post')
+    expect(html).toContain('email notifications for boosts')
   })
 
   it('no longer says reblogged anywhere in the user-facing copy', () => {
@@ -66,9 +68,5 @@ describe('buildBoostEmail', () => {
 
   it('labels the quote as the recipient own post', () => {
     expect(build().html).toContain('>Your post:</p>')
-  })
-
-  it('uses the notification footer naming boosts', () => {
-    expect(build().html).toContain('email notifications for boosts')
   })
 })

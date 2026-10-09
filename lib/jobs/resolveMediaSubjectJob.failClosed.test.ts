@@ -153,25 +153,52 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
     expect(withheld).toBe(true)
   })
 
-  it('records failed for a species record in a changed shape', async () => {
-    answers.set('/v1/species/5219416', {
-      statusCode: 200,
-      body: { usage: { key: 5219416, name: 'Panthera tigris' } }
-    })
+  it.each<{
+    description: string
+    path: string
+    answer: Answer
+    details?: Partial<MediaDetailsRecord>
+  }>([
+    {
+      description: 'a species record in a changed shape',
+      path: '/v1/species/5219416',
+      answer: {
+        statusCode: 200,
+        body: { usage: { key: 5219416, name: 'Panthera tigris' } }
+      }
+    },
+    {
+      description: 'a match answer in a changed shape',
+      path: '/v1/species/match',
+      answer: {
+        statusCode: 200,
+        body: { usage: { key: 5219416 }, diagnostics: { matchType: 'EXACT' } }
+      }
+    },
+    {
+      description: 'a 404 from species/match',
+      path: '/v1/species/match',
+      answer: HTML_404
+    },
+    {
+      description: 'a 404 from iucnRedListCategory',
+      path: '/v1/species/5219416/iucnRedListCategory',
+      answer: { statusCode: 404, body: '' }
+    },
+    {
+      description: 'an HTML 404 for a stored taxon key',
+      path: '/v1/species/5219416',
+      answer: HTML_404,
+      details: {
+        ...TIGER,
+        subjectScientificName: null,
+        subjectTaxonKey: '5219416'
+      }
+    }
+  ])('records failed for $description', async ({ path, answer, details }) => {
+    answers.set(path, answer)
 
-    const { patch, withheld } = await run()
-
-    expect(patch).toEqual({ subjectLookupStatus: 'failed' })
-    expect(withheld).toBe(true)
-  })
-
-  it('records failed for a match answer in a changed shape', async () => {
-    answers.set('/v1/species/match', {
-      statusCode: 200,
-      body: { usage: { key: 5219416 }, diagnostics: { matchType: 'EXACT' } }
-    })
-
-    const { patch, withheld } = await run()
+    const { patch, withheld } = await run(details)
 
     expect(patch).toEqual({ subjectLookupStatus: 'failed' })
     expect(withheld).toBe(true)
@@ -192,15 +219,6 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
   })
 
   describe('a 404 is not "nothing found"', () => {
-    it('records failed for a 404 from species/match', async () => {
-      answers.set('/v1/species/match', HTML_404)
-
-      const { patch, withheld } = await run()
-
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
-      expect(withheld).toBe(true)
-    })
-
     it('records failed for a 404 from species/search', async () => {
       answers.set('/v1/species/search', HTML_404)
 
@@ -239,31 +257,6 @@ describe('resolveMediaSubjectJob fails closed on unreadable GBIF answers', () =>
       })
 
       expect(patch).toMatchObject({ subjectLookupStatus: 'resolved' })
-    })
-
-    it('records failed for a 404 from iucnRedListCategory', async () => {
-      answers.set('/v1/species/5219416/iucnRedListCategory', {
-        statusCode: 404,
-        body: ''
-      })
-
-      const { patch, withheld } = await run()
-
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
-      expect(withheld).toBe(true)
-    })
-
-    it('records failed for an HTML 404 for a stored taxon key', async () => {
-      answers.set('/v1/species/5219416', HTML_404)
-
-      const { patch, withheld } = await run({
-        ...TIGER,
-        subjectScientificName: null,
-        subjectTaxonKey: '5219416'
-      })
-
-      expect(patch).toEqual({ subjectLookupStatus: 'failed' })
-      expect(withheld).toBe(true)
     })
 
     it('records failed when GBIF does not know the key its match named', async () => {

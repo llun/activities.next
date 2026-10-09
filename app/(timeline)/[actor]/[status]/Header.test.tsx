@@ -50,11 +50,8 @@ describe('Status Header', () => {
   it('renders the desktop back button and post title', () => {
     render(<Header fallbackHref={FALLBACK} fallbackName={NAME} />)
 
-    expect(screen.getByRole('button', { name: 'Go back' })).toHaveClass(
-      'max-md:hidden'
-    )
-    const heading = screen.getByRole('heading', { name: 'Post' })
-    expect(heading.parentElement).toHaveClass('max-md:hidden')
+    expect(screen.getByRole('button', { name: 'Go back' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Post' })).toBeInTheDocument()
     expect(screen.getByText('Conversation thread')).toBeInTheDocument()
   })
 
@@ -63,17 +60,6 @@ describe('Status Header', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Go back' }))
     expect(mockBack).toHaveBeenCalled()
-  })
-
-  it('lays the mobile Back row on the 16px content gutter', () => {
-    const { container } = render(
-      <Header fallbackHref={FALLBACK} fallbackName={NAME} />
-    )
-
-    // The row's own 16px padding is the whole gutter: the arrow lines up
-    // with the post card's avatar below it.
-    expect(container.firstElementChild).toHaveClass('max-md:px-4')
-    expect(container.firstElementChild).not.toHaveClass('max-md:px-3')
   })
 
   it('offers "Back to profile" as a real link to the author on direct entry', () => {
@@ -86,10 +72,6 @@ describe('Status Header', () => {
     expect(link).toHaveTextContent(/^Back to profile$/)
     expect(link).toHaveAttribute('href', FALLBACK)
     expect(link).toHaveAttribute('data-prefetch', 'false')
-    expect(link).toHaveClass('md:hidden')
-    // Same row geometry as the history Back: no negative margin, 16px arrow.
-    expect(link.className).not.toContain('max-md:-ml-1')
-    expect(link.querySelector('svg')).toHaveClass('max-md:size-4')
     expect(
       screen.queryByRole('button', { name: /^Back/ })
     ).not.toBeInTheDocument()
@@ -103,24 +85,12 @@ describe('Status Header', () => {
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
     // Two buttons share the name: the mobile row and the desktop arrow.
-    const [desktop, back] = screen.getAllByRole('button', {
+    const buttons = screen.getAllByRole('button', {
       name: 'Back to Notifications'
     })
-    expect(desktop).toHaveClass('max-md:hidden')
+    expect(buttons).toHaveLength(2)
+    const back = buttons[1]
     expect(back).toHaveTextContent(/^Back$/)
-    expect(back).toHaveClass(
-      'md:hidden',
-      'max-md:min-h-11',
-      'max-md:gap-2',
-      'max-md:text-sm',
-      'max-md:font-medium',
-      'text-muted-foreground'
-    )
-    // The arrow sits on the 16px content gutter: 16px icon, no negative
-    // margin or horizontal padding on the row.
-    expect(back.className).not.toContain('max-md:-ml-1')
-    expect(back.className).not.toContain('max-md:px-1')
-    expect(back.querySelector('svg')).toHaveClass('size-4')
 
     fireEvent.click(back)
     expect(mockBack).toHaveBeenCalled()

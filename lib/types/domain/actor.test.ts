@@ -21,31 +21,29 @@ describe('Actor', () => {
   })
 
   describe('getMention', () => {
-    it('returns mention', () => {
-      const actor = MockActor({})
-      expect(getMention(actor)).toEqual(`@${actor.username}`)
-    })
-
-    it('returns mention with domain', () => {
-      const actor = MockActor({})
-      expect(getMention(actor, true)).toEqual(
-        `@${actor.username}@${actor.domain}`
-      )
-    })
+    it.each([
+      { withDomain: false, expected: '@me' },
+      { withDomain: true, expected: '@me@chat.llun.dev' }
+    ])(
+      'returns mention (withDomain: $withDomain)',
+      ({ withDomain, expected }) => {
+        const actor = MockActor({})
+        expect(getMention(actor, withDomain)).toEqual(expected)
+      }
+    )
   })
 
   describe('getActorURL', () => {
-    it('returns actor url', () => {
-      const actor = MockActor({})
-      expect(getActorURL(actor)).toEqual('https://chat.llun.dev/@me')
-    })
-
-    it('returns actor url with domain', () => {
-      const actor = MockActor({})
-      expect(getActorURL(actor, true)).toEqual(
-        'https://chat.llun.dev/@me@chat.llun.dev'
-      )
-    })
+    it.each([
+      { withDomain: false, expected: 'https://chat.llun.dev/@me' },
+      { withDomain: true, expected: 'https://chat.llun.dev/@me@chat.llun.dev' }
+    ])(
+      'returns actor url (withDomain: $withDomain)',
+      ({ withDomain, expected }) => {
+        const actor = MockActor({})
+        expect(getActorURL(actor, withDomain)).toEqual(expected)
+      }
+    )
   })
 
   describe('getMentionDomainFromActorID', () => {
@@ -57,15 +55,17 @@ describe('Actor', () => {
   })
 
   describe('getMentionFromActorID', () => {
-    it('returns mention from actor url', () => {
-      expect(getMentionFromActorID('https://chat.llun.me/me')).toEqual('@me')
-    })
-
-    it('returns mention from actor url with domain', () => {
-      expect(getMentionFromActorID('https://chat.llun.me/me', true)).toEqual(
-        '@me@chat.llun.me'
-      )
-    })
+    it.each([
+      { withDomain: false, expected: '@me' },
+      { withDomain: true, expected: '@me@chat.llun.me' }
+    ])(
+      'returns mention from actor url (withDomain: $withDomain)',
+      ({ withDomain, expected }) => {
+        expect(
+          getMentionFromActorID('https://chat.llun.me/me', withDomain)
+        ).toEqual(expected)
+      }
+    )
   })
 
   describe('ActorProfile with emoji tags', () => {

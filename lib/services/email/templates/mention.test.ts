@@ -60,12 +60,12 @@ const build = () =>
   buildMentionEmail({ recipient, actor: sender, status: senderStatus })
 
 describe('buildMentionEmail', () => {
-  it('keeps the subject the codebase already used', () => {
-    expect(build().subject).toBe(`@ben mentions you in ${HOST}`)
-  })
-
-  it('uses the short name in the headline', () => {
-    expect(build().html).toContain('Ben mentioned you in a post')
+  it('renders the subject, headline and notification footer', () => {
+    const { subject, html } = build()
+    // The subject is the one the codebase already used.
+    expect(subject).toBe(`@ben mentions you in ${HOST}`)
+    expect(html).toContain('Ben mentioned you in a post')
+    expect(html).toContain('email notifications for mentions')
   })
 
   it('quotes the sender, not the recipient', () => {
@@ -76,9 +76,5 @@ describe('buildMentionEmail', () => {
 
   it('carries no label because the post is the subject of the email', () => {
     expect(build().html).not.toContain('>Your post:</p>')
-  })
-
-  it('uses the notification footer naming mentions', () => {
-    expect(build().html).toContain('email notifications for mentions')
   })
 })
