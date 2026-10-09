@@ -1,7 +1,12 @@
 import { notFound, redirect } from 'next/navigation'
 
+import { DetailList } from '@/lib/components/admin/DetailList'
+import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import { BackLink } from '@/lib/components/back-link'
 import { PageHeader } from '@/lib/components/page-header'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
 import { Badge } from '@/lib/components/ui/badge'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -57,71 +62,59 @@ const Page = async ({ params }: Props) => {
         />
       </div>
 
-      <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">Account Details</h2>
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <dt className="text-sm text-muted-foreground">Email</dt>
-            <dd className="font-medium">{account.email}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">Name</dt>
-            <dd className="font-medium">{account.name || '—'}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">Created</dt>
-            <dd className="font-medium">
-              {formatAccountCreatedAt(account.createdAt)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">Role</dt>
-            <dd className="font-medium">{formatAccountRole(account.role)}</dd>
-          </div>
-        </dl>
-      </div>
+      <Section title="Account details">
+        <DetailList
+          items={[
+            { label: 'Email', value: account.email },
+            { label: 'Name', value: account.name || '—' },
+            {
+              label: 'Created',
+              value: formatAccountCreatedAt(account.createdAt)
+            },
+            { label: 'Role', value: formatAccountRole(account.role) }
+          ]}
+        />
+      </Section>
 
-      <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">Actors ({actors.length})</h2>
+      <Section title="Actors" meta={actors.length}>
         {actors.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No actors for this account
-          </p>
+          <EmptyState icon={ADMIN_ICONS.accounts} title="No actors">
+            This account has no actors yet.
+          </EmptyState>
         ) : (
-          <div className="space-y-3">
+          <FramedList aria-label="Actors">
             {actors.map((actor) => (
-              <div
-                key={actor.id}
-                className="flex flex-wrap items-center justify-between rounded-xl border p-4"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">
-                    {actor.name || actor.username}
-                  </p>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {getMention(actor, true)}
-                  </p>
+              <FramedListItem key={actor.id} className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">
+                      {actor.name || actor.username}
+                    </p>
+                    <p className="text-muted-foreground truncate text-sm">
+                      {getMention(actor, true)}
+                    </p>
+                  </div>
+                  <div className="text-muted-foreground shrink-0 text-right text-sm">
+                    {actor.deletionStatus ? (
+                      <span className="text-destructive-text">
+                        {actor.deletionStatus}
+                      </span>
+                    ) : (
+                      new Date(actor.createdAt).toLocaleDateString()
+                    )}
+                  </div>
                 </div>
-                <div className="text-right text-sm text-muted-foreground ml-4 shrink-0">
-                  {actor.deletionStatus ? (
-                    <span className="text-destructive">
-                      {actor.deletionStatus}
-                    </span>
-                  ) : (
-                    new Date(actor.createdAt).toLocaleDateString()
-                  )}
-                </div>
-                <div className="mt-4 basis-full border-t pt-4">
+                <div className="border-t pt-4">
                   <ActorModerationPanel
                     actorId={getClientActorId(actor)}
                     username={actor.username}
                   />
                 </div>
-              </div>
+              </FramedListItem>
             ))}
-          </div>
+          </FramedList>
         )}
-      </div>
+      </Section>
     </div>
   )
 }

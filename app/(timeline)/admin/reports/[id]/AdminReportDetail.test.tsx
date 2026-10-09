@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import {
   assignAdminReportToSelf,
@@ -119,21 +125,7 @@ describe('AdminReportDetail', () => {
     )
   })
 
-  it('keeps the native category menu but draws the thin muted chevron, not the OS arrow', async () => {
-    mockGetAdminReport.mockResolvedValue(report({}))
-
-    render(<AdminReportDetail reportId="report-1" />)
-    await waitFor(() =>
-      expect(screen.getByText('troll@evil.example')).toBeInTheDocument()
-    )
-
-    const select = screen.getByRole('combobox')
-    expect(select.tagName).toBe('SELECT')
-    expect(screen.getAllByRole('option')).toHaveLength(4)
-    expect(select).toHaveClass('appearance-none', 'pr-8')
-  })
-
-  it('is the shared Select, sized to its content beside the buttons', async () => {
+  it('offers the four categories in the labelled category select', async () => {
     mockGetAdminReport.mockResolvedValue(report({ category: 'legal' }))
 
     render(<AdminReportDetail reportId="report-1" />)
@@ -141,12 +133,113 @@ describe('AdminReportDetail', () => {
       expect(screen.getByText('troll@evil.example')).toBeInTheDocument()
     )
 
-    const select = screen.getByRole('combobox')
-    expect(select).toHaveAttribute('data-slot', 'select')
-    // Not the primitive's full width: it shares a wrapping row with the buttons.
-    expect(select).toHaveClass('w-auto')
-    expect(select).not.toHaveClass('w-full')
+    const select = screen.getByRole('combobox', { name: 'Category' })
+    expect(select.tagName).toBe('SELECT')
+    expect(screen.getAllByRole('option')).toHaveLength(4)
     expect(select).toHaveValue('legal')
+  })
+
+  it('lays the facts out as label and value rows', async () => {
+    mockGetAdminReport.mockResolvedValue(
+      report({
+        assigned_account: { username: 'mod', domain: null } as never
+      })
+    )
+
+    render(<AdminReportDetail reportId="report-1" />)
+
+    const details = (
+      await screen.findByRole('heading', { level: 2, name: 'Details' })
+    ).closest('section') as HTMLElement
+    expect(
+      within(details)
+        .getAllByRole('term')
+        .map((term) => term.textContent)
+    ).toEqual([
+      'Reporter',
+      'Target',
+      'Category',
+      'Status',
+      'Assigned to',
+      'Comment'
+    ])
+    expect(within(details).getByText('reporter')).toBeInTheDocument()
+    expect(within(details).getByText('Open')).toBeInTheDocument()
+    expect(within(details).getByText('mod')).toBeInTheDocument()
+    expect(within(details).getByText('unsolicited ads')).toBeInTheDocument()
+  })
+
+  it('lists the broken rules and reported statuses when there are any', async () => {
+    mockGetAdminReport.mockResolvedValue(
+      report({
+        rules: [{ id: 'r1', text: 'No spam' }] as AdminReport['rules'],
+        statuses: [
+          { id: 's1', url: 'https://llun.test/@troll/1' }
+        ] as AdminReport['statuses']
+      })
+    )
+
+    render(<AdminReportDetail reportId="report-1" />)
+
+    const rules = await screen.findByRole('list', { name: 'Broken rules' })
+    expect(within(rules).getByText('No spam')).toBeInTheDocument()
+    const statuses = screen.getByRole('list', { name: 'Reported statuses' })
+    expect(
+      within(statuses).getByRole('link', { name: 'https://llun.test/@troll/1' })
+    ).toHaveAttribute('href', 'https://llun.test/@troll/1')
+  })
+
+  it('leaves out the rules and statuses sections when there are none', async () => {
+    mockGetAdminReport.mockResolvedValue(report({}))
+
+    render(<AdminReportDetail reportId="report-1" />)
+    await screen.findByRole('heading', { level: 2, name: 'Moderation' })
+
+    expect(screen.queryByRole('list', { name: 'Broken rules' })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Reported statuses' })).toBeNull()
+  })
+
+  it('draws a skeleton while the report loads, not text', async () => {
+    const pending = createDeferred<AdminReport>()
+    mockGetAdminReport.mockReturnValue(pending.promise)
+
+    const { container } = render(<AdminReportDetail reportId="report-1" />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading report')
+    expect(container.textContent).toBe('Loading report')
+    pending.resolve(report({}))
+    expect(await screen.findByText('troll@evil.example')).toBeInTheDocument()
+  })
+
+  it('shows a load failure as an alert whose Retry loads the report again', async () => {
+    mockGetAdminReport.mockRejectedValueOnce(new Error('Report not found'))
+    mockGetAdminReport.mockResolvedValueOnce(report({}))
+
+    render(<AdminReportDetail reportId="report-1" />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Report not found'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText('troll@evil.example')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mockGetAdminReport).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the report and shows an alert when an action fails', async () => {
+    mockGetAdminReport.mockResolvedValue(report({}))
+    mockResolve.mockRejectedValue(new Error('Could not resolve'))
+
+    render(<AdminReportDetail reportId="report-1" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Resolve' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not resolve'
+    )
+    expect(screen.getByText('troll@evil.example')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Resolve' })).toBeEnabled()
   })
 
   it('locks the category select while an action is in flight', async () => {

@@ -26,6 +26,7 @@ interface NumberFieldProps {
   // For inputs the field label does not point at — e.g. the custom post size,
   // where the label belongs to the preset select next to it.
   ariaLabel?: string
+  'aria-describedby'?: string
 }
 
 export const NumberField: FC<NumberFieldProps> = ({
@@ -36,7 +37,8 @@ export const NumberField: FC<NumberFieldProps> = ({
   suffix,
   min,
   max,
-  ariaLabel
+  ariaLabel,
+  'aria-describedby': describedBy
 }) => {
   const [text, setText] = useState(() => String(value))
   const lastEmitted = useRef(value)
@@ -76,15 +78,16 @@ export const NumberField: FC<NumberFieldProps> = ({
   }
 
   return (
-    // One 200 px field with the unit inside its right edge, as the design's
-    // Input/NumberField draws it. The input reserves room for the longest unit
-    // (`attachments`) so a typed value never runs under it.
-    <div className="relative w-50">
+    // The field fills its form-row column with the unit inside its right edge.
+    // The input reserves room for the longest unit (`attachments`) so a typed
+    // value never runs under it.
+    <div className="relative w-full">
       <Input
         id={id}
         type="number"
         inputMode="numeric"
         aria-label={ariaLabel}
+        aria-describedby={describedBy}
         value={text}
         min={min}
         max={max}

@@ -1,7 +1,7 @@
 'use client'
 
 import { GripVertical, Pencil, Plus, Trash2 } from 'lucide-react'
-import { FC, FormEvent, useEffect, useRef, useState } from 'react'
+import { FC, FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   type ServerRule,
@@ -11,7 +11,14 @@ import {
   updateServerRule
 } from '@/lib/client'
 import { reorder } from '@/lib/components/admin-rules/reorder'
+import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { Section } from '@/lib/components/surface/Section'
+import { SkeletonRows } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Textarea } from '@/lib/components/ui/textarea'
@@ -29,7 +36,7 @@ const sortRules = (rules: ServerRule[]): ServerRule[] =>
 const normalize = (rules: ServerRule[]): ServerRule[] =>
   rules.map((rule, index) => ({ ...rule, position: index }))
 
-// The orange numbered chip that fronts every rule, matching the design system.
+// The numbered chip that fronts every rule, matching the design system.
 const RuleNumber: FC<{ n: number }> = ({ n }) => (
   <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary-text">
     {n}
@@ -71,8 +78,10 @@ export const RulesPanel: FC = () => {
   // `busy === false`. This ref flips synchronously to serialize them.
   const inFlightRef = useRef(false)
 
-  useEffect(() => {
+  const loadRules = useCallback(() => {
     let active = true
+    setLoading(true)
+    setListError(null)
     getServerRules()
       .then((result) => {
         if (active) setRules(sortRules(result))
@@ -89,6 +98,8 @@ export const RulesPanel: FC = () => {
       active = false
     }
   }, [])
+
+  useEffect(() => loadRules(), [loadRules])
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -268,30 +279,36 @@ export const RulesPanel: FC = () => {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
         title="Server rules"
         description="Displayed on the about page and served from the Mastodon rules API. Keep them short and specific — details go in the hint. Drag to reorder; the order is the rule number everywhere else."
       />
 
-      {listError && <p className="text-sm text-destructive">{listError}</p>}
+      {listError && (
+        <Alert
+          title={listError}
+          // A failed load offers another go; a failed write does not need one.
+          onRetry={rules.length === 0 ? loadRules : undefined}
+        />
+      )}
 
       <p aria-live="polite" className="sr-only">
         {reorderStatus}
       </p>
 
       {loading ? (
-        <p className="rounded-2xl border bg-background/80 py-10 text-center text-sm text-muted-foreground shadow-sm">
-          Loading rules…
-        </p>
+        <Frame className="p-4">
+          <SkeletonRows rows={3} rowClassName="h-12" label="Loading rules" />
+        </Frame>
       ) : rules.length === 0 && !listError ? (
         // Suppress the empty-state copy when a load error is already shown, so a
         // failed fetch doesn't read as "you have no rules".
-        <p className="rounded-2xl border bg-background/80 py-10 text-center text-sm text-muted-foreground shadow-sm">
-          No rules yet — add one to show it on the about page.
-        </p>
-      ) : (
-        <div className="divide-y rounded-2xl border bg-background/80 shadow-sm backdrop-blur">
+        <EmptyState icon={ADMIN_ICONS.rules} title="No rules yet">
+          Add one below to show it on the about page.
+        </EmptyState>
+      ) : rules.length > 0 ? (
+        <Frame divided className="overflow-hidden">
           {rules.map((rule, index) => {
             const isEditing = editingId === rule.id
             const draggable = !busy && !editing
@@ -321,7 +338,7 @@ export const RulesPanel: FC = () => {
                   setOverIndex(null)
                 }}
                 className={cn(
-                  'flex items-start gap-2 px-3 py-3 transition-colors',
+                  'flex items-start gap-2 px-4 py-3 transition-colors',
                   overIndex === index &&
                     dragIndex !== null &&
                     dragIndex !== index &&
@@ -341,7 +358,7 @@ export const RulesPanel: FC = () => {
                       moveRule(index, index + 1)
                     }
                   }}
-                  className="mt-1.5 cursor-grab rounded text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-1.5 cursor-grab rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <GripVertical className="size-4" />
                 </button>
@@ -435,30 +452,39 @@ export const RulesPanel: FC = () => {
               </div>
             )
           })}
-        </div>
-      )}
+        </Frame>
+      ) : null}
 
-      <form onSubmit={handleCreate} className="space-y-2">
-        <div className="flex gap-2">
-          <Input
-            aria-label="New rule text"
-            placeholder="Add a rule…"
-            value={newText}
-            maxLength={1000}
-            required
-            disabled={busy || editing}
-            onChange={(event) => setNewText(event.target.value)}
-          />
-          <Button
-            type="submit"
-            disabled={busy || editing || newText.trim().length === 0}
+      <Section title="Add a rule">
+        <form onSubmit={handleCreate} className="space-y-3">
+          <Frame
+            footer={
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={busy || editing || newText.trim().length === 0}
+                >
+                  <Plus />
+                  Add rule
+                </Button>
+              </div>
+            }
           >
-            <Plus className="size-4" />
-            Add rule
-          </Button>
-        </div>
-        {formError && <p className="text-sm text-destructive">{formError}</p>}
-      </form>
+            <FormRow label="New rule" htmlFor="new-rule-text" wide>
+              <Input
+                id="new-rule-text"
+                placeholder="Add a rule…"
+                value={newText}
+                maxLength={1000}
+                required
+                disabled={busy || editing}
+                onChange={(event) => setNewText(event.target.value)}
+              />
+            </FormRow>
+          </Frame>
+          {formError && <Alert title={formError} />}
+        </form>
+      </Section>
     </div>
   )
 }

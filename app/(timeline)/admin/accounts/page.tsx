@@ -1,8 +1,19 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
+import { Pagination } from '@/lib/components/admin/Pagination'
+import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
+import {
+  PHONE_DETAIL_CLASS,
+  SECONDARY_COLUMN_CLASS
+} from '@/lib/components/admin/adminTable'
 import { PageHeader } from '@/lib/components/page-header'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import {
+  TABLE_CELL_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+  TableFrame
+} from '@/lib/components/surface/TableFrame'
 import { Badge } from '@/lib/components/ui/badge'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -15,6 +26,8 @@ const ITEMS_PER_PAGE = 20
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>
 }
+
+const HEAD_CELL_CLASS = 'px-3 py-2.5 font-medium'
 
 const Page = async ({ searchParams }: Props) => {
   const database = getDatabase()
@@ -43,72 +56,91 @@ const Page = async ({ searchParams }: Props) => {
       />
 
       {accounts.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-6 text-center text-muted-foreground">
-          No accounts found
-        </div>
+        <EmptyState icon={ADMIN_ICONS.accounts} title="No accounts found">
+          Accounts appear here once people sign up.
+        </EmptyState>
       ) : (
-        <div className="space-y-2">
-          {accounts.map((account) => (
-            <Link
-              key={account.id}
-              href={`/admin/accounts/${account.id}`}
-              className="flex items-center justify-between rounded-xl border bg-background/80 p-4 shadow-sm transition-colors hover:bg-muted"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium truncate">
+        <TableFrame aria-label="Accounts" tableClassName="sm:min-w-[34rem]">
+          <thead>
+            <tr className={TABLE_HEAD_ROW_CLASS}>
+              <th scope="col" className={HEAD_CELL_CLASS}>
+                Account
+              </th>
+              <th
+                scope="col"
+                className={`${HEAD_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}
+              >
+                Email
+              </th>
+              <th
+                scope="col"
+                className={`${HEAD_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}
+              >
+                Role
+              </th>
+              <th
+                scope="col"
+                className={`${HEAD_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}
+              >
+                Joined
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {accounts.map((account) => (
+              <tr key={account.id} className="hover:bg-muted/60">
+                <td className={`${TABLE_CELL_CLASS} sm:max-w-56`}>
+                  <Link
+                    href={`/admin/accounts/${account.id}`}
+                    className="block truncate font-medium hover:underline"
+                  >
                     {account.name || account.email}
-                  </p>
-                  {account.role === 'admin' && (
-                    <Badge tone="primary">Admin</Badge>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground truncate">
+                  </Link>
+                  <div className={PHONE_DETAIL_CLASS}>
+                    <span className="min-w-0 break-all">{account.email}</span>
+                    {account.role === 'admin' ? (
+                      <Badge tone="primary">Admin</Badge>
+                    ) : (
+                      <span>Member</span>
+                    )}
+                    <span>
+                      Joined {new Date(account.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </td>
+                <td
+                  className={`${TABLE_CELL_CLASS} ${SECONDARY_COLUMN_CLASS} text-muted-foreground max-w-64 truncate`}
+                >
                   {account.email}
-                </p>
-              </div>
-              <div className="text-right text-sm text-muted-foreground ml-4 shrink-0">
-                {new Date(account.createdAt).toLocaleDateString()}
-              </div>
-            </Link>
-          ))}
-        </div>
+                </td>
+                <td className={`${TABLE_CELL_CLASS} ${SECONDARY_COLUMN_CLASS}`}>
+                  {account.role === 'admin' ? (
+                    <Badge tone="primary">Admin</Badge>
+                  ) : (
+                    <span className="text-muted-foreground">Member</span>
+                  )}
+                </td>
+                <td
+                  className={`${TABLE_CELL_CLASS} ${SECONDARY_COLUMN_CLASS} text-muted-foreground whitespace-nowrap`}
+                >
+                  {new Date(account.createdAt).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </TableFrame>
       )}
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          {page > 1 ? (
-            <Link
-              href={`/admin/accounts?page=${page - 1}`}
-              className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Link>
-          ) : (
-            <span className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground/50">
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </span>
-          )}
-          <span className="text-sm text-muted-foreground">
-            Page {page} of {totalPages}
-          </span>
-          {page < totalPages ? (
-            <Link
-              href={`/admin/accounts?page=${page + 1}`}
-              className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-          ) : (
-            <span className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground/50">
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </span>
-          )}
-        </div>
+        <Pagination
+          label={`Page ${page} of ${totalPages}`}
+          previousHref={
+            page > 1 ? `/admin/accounts?page=${page - 1}` : undefined
+          }
+          nextHref={
+            page < totalPages ? `/admin/accounts?page=${page + 1}` : undefined
+          }
+        />
       )}
     </div>
   )

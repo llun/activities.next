@@ -2,14 +2,15 @@
 
 import { FC } from 'react'
 
+import { Frame } from '@/lib/components/surface/Frame'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
+import { Section } from '@/lib/components/surface/Section'
 import { Select } from '@/lib/components/ui/select'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { LinesTextarea } from './LinesTextarea'
 import { SettingsField } from './SettingsField'
-import { SettingsSection } from './SettingsSection'
 import { useServerSettingsForm } from './useServerSettingsForm'
 
 interface FederationPolicyFormProps {
@@ -38,69 +39,79 @@ export const FederationPolicyForm: FC<FederationPolicyFormProps> = ({
   const mode = values['federation.mode'] as 'open' | 'allowlist'
 
   return (
-    <SettingsSection
+    <Section
       title="Federation policy"
       description="Who this instance federates with by default. Per-domain blocks below still apply."
-      footer={
-        <SaveBar
-          dirty={isDirty(FEDERATION_KEYS)}
-          saving={status.saving}
-          saved={status.saved}
-          error={status.error}
-          onSave={() => saveSection('federation', FEDERATION_KEYS)}
-        />
-      }
     >
-      <SettingsField
-        label="Mode"
-        htmlFor="federation-mode"
-        locked={lock('federation.mode').locked}
-        envVar={lock('federation.mode').envVar}
+      <Frame
+        divided
+        footer={
+          <SaveBar
+            dirty={isDirty(FEDERATION_KEYS)}
+            saving={status.saving}
+            saved={status.saved}
+            error={status.error}
+            onSave={() => saveSection('federation', FEDERATION_KEYS)}
+          />
+        }
       >
-        <Select
-          id="federation-mode"
-          value={mode}
-          disabled={lock('federation.mode').locked}
-          onChange={(event) => setValue('federation.mode', event.target.value)}
-        >
-          <option value="open">Open — federate with any server</option>
-          <option value="allowlist">
-            Allowlist — only servers listed below
-          </option>
-        </Select>
-      </SettingsField>
-
-      {mode === 'allowlist' && (
         <SettingsField
-          label="Allowed servers"
-          htmlFor="federation-actor-domains"
-          help="One domain per line. Actors elsewhere are ignored."
-          locked={lock('federation.allowActorDomains').locked}
-          envVar={lock('federation.allowActorDomains').envVar}
+          label="Mode"
+          htmlFor="federation-mode"
+          locked={lock('federation.mode').locked}
+          envVar={lock('federation.mode').envVar}
+        >
+          <Select
+            id="federation-mode"
+            value={mode}
+            disabled={lock('federation.mode').locked}
+            onChange={(event) =>
+              setValue('federation.mode', event.target.value)
+            }
+          >
+            <option value="open">Open — federate with any server</option>
+            <option value="allowlist">
+              Allowlist — only servers listed below
+            </option>
+          </Select>
+        </SettingsField>
+
+        {mode === 'allowlist' && (
+          <SettingsField
+            label="Allowed servers"
+            htmlFor="federation-actor-domains"
+            help="One domain per line. Actors elsewhere are ignored."
+            wide
+            locked={lock('federation.allowActorDomains').locked}
+            envVar={lock('federation.allowActorDomains').envVar}
+          >
+            <LinesTextarea
+              id="federation-actor-domains"
+              value={values['federation.allowActorDomains'] as string[]}
+              disabled={lock('federation.allowActorDomains').locked}
+              onChange={(next) =>
+                setValue('federation.allowActorDomains', next)
+              }
+            />
+          </SettingsField>
+        )}
+
+        <SettingsField
+          label="Trusted media domains"
+          htmlFor="federation-media-domains"
+          wide
+          locked
+          help="Configured in the environment; the ACTIVITIES_ALLOW_MEDIA_DOMAINS variable feeds the Content-Security-Policy and cannot be managed here."
         >
           <LinesTextarea
-            id="federation-actor-domains"
-            value={values['federation.allowActorDomains'] as string[]}
-            disabled={lock('federation.allowActorDomains').locked}
-            onChange={(next) => setValue('federation.allowActorDomains', next)}
+            id="federation-media-domains"
+            value={mediaDomains}
+            disabled
+            rows={2}
+            onChange={() => {}}
           />
         </SettingsField>
-      )}
-
-      <SettingsField
-        label="Trusted media domains"
-        htmlFor="federation-media-domains"
-        locked
-        help="Configured in the environment; the ACTIVITIES_ALLOW_MEDIA_DOMAINS variable feeds the Content-Security-Policy and cannot be managed here."
-      >
-        <LinesTextarea
-          id="federation-media-domains"
-          value={mediaDomains}
-          disabled
-          rows={2}
-          onChange={() => {}}
-        />
-      </SettingsField>
-    </SettingsSection>
+      </Frame>
+    </Section>
   )
 }

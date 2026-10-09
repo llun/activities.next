@@ -12,6 +12,7 @@ import {
   getAdminAccount,
   performAdminAccountAction
 } from '@/lib/client'
+import { createDeferred } from '@/lib/testing/deferred'
 import { AdminAccount } from '@/lib/types/mastodon/admin/account'
 
 import { ActorModerationPanel } from './ActorModerationPanel'
@@ -89,7 +90,7 @@ describe('ActorModerationPanel', () => {
     await waitFor(() => expect(mockUnsuspend).toHaveBeenCalledWith('acct-1'))
   })
 
-  it('draws every state label as the shared destructive Badge', async () => {
+  it('names every state the account is in', async () => {
     mockGetAdminAccount.mockResolvedValue(
       account({
         suspended: true,
@@ -112,11 +113,83 @@ describe('ActorModerationPanel', () => {
       'Disabled',
       'Pending'
     ]) {
-      const badge = screen.getByText(label, { selector: 'span' })
-      expect(badge).toHaveClass('bg-destructive/10', 'text-destructive-text')
-      // The shared tone's dark fill; the hand-rolled pill had none.
-      expect(badge.className).toContain('dark:bg-[#DF3A3A]/16')
+      expect(screen.getByText(label, { selector: 'span' })).toBeInTheDocument()
     }
+  })
+
+  it('shows no state labels for an account in good standing', async () => {
+    mockGetAdminAccount.mockResolvedValue(account({}))
+
+    render(<ActorModerationPanel actorId="acct-1" username="target" />)
+
+    await screen.findByRole('button', { name: 'Suspend' })
+    expect(screen.queryByText('Suspended')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pending')).not.toBeInTheDocument()
+    expect(screen.getByText('@target moderation')).toBeInTheDocument()
+  })
+
+  it('waits behind a polite loading status, not text on screen', async () => {
+    const pending = createDeferred<AdminAccount>()
+    mockGetAdminAccount.mockReturnValue(pending.promise)
+
+    const { container } = render(
+      <ActorModerationPanel actorId="acct-1" username="target" />
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Loading moderation state'
+    )
+    expect(container.querySelector('[data-slot="skeleton-bar"]')).not.toBeNull()
+
+    pending.resolve(account({}))
+    expect(
+      await screen.findByRole('button', { name: 'Suspend' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('shows a load failure as an alert whose Retry fetches again', async () => {
+    mockGetAdminAccount.mockRejectedValueOnce(new Error('Network down'))
+    mockGetAdminAccount.mockResolvedValueOnce(account({}))
+
+    render(<ActorModerationPanel actorId="acct-1" username="target" />)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Network down')
+    expect(screen.queryByRole('button', { name: 'Suspend' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Suspend' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mockGetAdminAccount).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the actions and shows an alert when an action fails', async () => {
+    mockGetAdminAccount.mockResolvedValue(account({}))
+    mockAction.mockRejectedValue(new Error('Not allowed'))
+
+    render(<ActorModerationPanel actorId="acct-1" username="target" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Silence' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Not allowed')
+    expect(screen.getByRole('button', { name: 'Silence' })).toBeEnabled()
+  })
+
+  it('says the account is gone after rejecting it, without refetching', async () => {
+    mockGetAdminAccount.mockResolvedValue(account({ approved: false }))
+    mockReject.mockResolvedValue(undefined)
+
+    render(<ActorModerationPanel actorId="acct-1" username="target" />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Reject' }))
+
+    expect(
+      await screen.findByText('Account rejected and removed.')
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
+    expect(mockGetAdminAccount).toHaveBeenCalledTimes(1)
   })
 
   it('treats a local actor on a secondary domain as local (login actions shown)', async () => {

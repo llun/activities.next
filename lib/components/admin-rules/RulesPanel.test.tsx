@@ -66,11 +66,42 @@ describe('RulesPanel', () => {
   it('shows an empty state when there are no rules', async () => {
     mockGet.mockResolvedValue([])
     render(<RulesPanel />)
+    expect(await screen.findByText('No rules yet')).toBeInTheDocument()
     expect(
-      await screen.findByText(
-        'No rules yet — add one to show it on the about page.'
-      )
+      screen.getByText('Add one below to show it on the about page.')
     ).toBeInTheDocument()
+  })
+
+  it('waits behind skeleton bars, not loading text', async () => {
+    let finish: (rules: ServerRule[]) => void = () => {}
+    mockGet.mockReturnValue(
+      new Promise<ServerRule[]>((resolve) => {
+        finish = resolve
+      })
+    )
+    const { container } = render(<RulesPanel />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading rules')
+    expect(container.textContent).not.toMatch(/Loading rules…/)
+    expect(screen.queryByText('No rules yet')).not.toBeInTheDocument()
+
+    finish([])
+    expect(await screen.findByText('No rules yet')).toBeInTheDocument()
+  })
+
+  it('offers Retry on a failed load and shows the rules once it works', async () => {
+    mockGet.mockRejectedValueOnce(new Error('boom'))
+    mockGet.mockResolvedValueOnce([
+      { id: 'r1', text: 'Be kind', hint: '', position: 0 } as ServerRule
+    ])
+    render(<RulesPanel />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText('Be kind')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Failed to load rules. Please try again.')
+    ).not.toBeInTheDocument()
   })
 
   it('surfaces a load error instead of the empty state', async () => {
@@ -86,7 +117,7 @@ describe('RulesPanel', () => {
       rule({ id: '3', text: 'No harassment', position: 2 })
     )
     await renderPanel()
-    const input = screen.getByLabelText('New rule text')
+    const input = screen.getByLabelText('New rule')
     fireEvent.change(input, { target: { value: 'No harassment' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add rule' }))
     await waitFor(() =>
@@ -170,7 +201,7 @@ describe('RulesPanel', () => {
   it('surfaces an error and keeps the input when creating fails', async () => {
     mockCreate.mockResolvedValue(null)
     await renderPanel()
-    const input = screen.getByLabelText('New rule text')
+    const input = screen.getByLabelText('New rule')
     fireEvent.change(input, { target: { value: 'No doxxing' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add rule' }))
     expect(
@@ -190,7 +221,7 @@ describe('RulesPanel', () => {
     screen
       .getAllByRole('button', { name: /^Reorder rule/ })
       .forEach((grip) => expect(grip).toBeDisabled())
-    expect(screen.getByLabelText('New rule text')).toBeDisabled()
+    expect(screen.getByLabelText('New rule')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Add rule' })).toBeDisabled()
   })
 

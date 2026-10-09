@@ -1,12 +1,4 @@
-import {
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  ShieldBan,
-  ShieldCheck,
-  Trash2
-} from 'lucide-react'
-import Link from 'next/link'
+import { Download, Layers, ShieldBan, ShieldCheck, Trash2 } from 'lucide-react'
 import { redirect } from 'next/navigation'
 
 import {
@@ -16,12 +8,20 @@ import {
   deleteDomainBlockAction,
   importKnownDomainBlocklistAction
 } from '@/app/(timeline)/admin/federation/actions'
+import { Pagination } from '@/lib/components/admin/Pagination'
 import { FederationPolicyForm } from '@/lib/components/admin/settings/FederationPolicyForm'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FormRow, formRowHintId } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
 import { Textarea } from '@/lib/components/ui/textarea'
 import { getConfig } from '@/lib/config'
@@ -29,7 +29,6 @@ import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { KNOWN_DOMAIN_BLOCKLIST_SOURCES } from '@/lib/services/federation/blocklistSources'
 import { getServerSettingsView } from '@/lib/services/serverSettings'
-import { cn } from '@/lib/utils'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
@@ -103,52 +102,6 @@ const getPaginationLabel = (
   return `Showing ${offset + 1}-${offset + count} of ${total} ${noun}`
 }
 
-const PaginationControls = ({
-  label,
-  previousHref,
-  nextHref,
-  hasPrevious,
-  hasNext
-}: {
-  label: string
-  previousHref: string
-  nextHref: string
-  hasPrevious: boolean
-  hasNext: boolean
-}) => (
-  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <p className="text-sm text-muted-foreground">{label}</p>
-    <div className="flex gap-2">
-      {hasPrevious ? (
-        <Button asChild variant="outline" size="sm">
-          <Link href={previousHref}>
-            <ChevronLeft className="h-4 w-4" />
-            Previous
-          </Link>
-        </Button>
-      ) : (
-        <Button disabled variant="outline" size="sm">
-          <ChevronLeft className="h-4 w-4" />
-          Previous
-        </Button>
-      )}
-      {hasNext ? (
-        <Button asChild variant="outline" size="sm">
-          <Link href={nextHref}>
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </Link>
-        </Button>
-      ) : (
-        <Button disabled variant="outline" size="sm">
-          Next
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      )}
-    </div>
-  </div>
-)
-
 const Page = async ({ searchParams }: Props) => {
   const database = getDatabase()
   if (!database) throw new Error('Failed to load database')
@@ -203,42 +156,29 @@ const Page = async ({ searchParams }: Props) => {
       />
 
       {statusMessage && (
-        <div
-          className={cn(
-            'rounded-lg border px-4 py-3 text-sm',
-            isErrorStatus
-              ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100'
-              : 'border-green-200 bg-green-50 text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-100'
-          )}
-        >
-          {statusMessage}
-        </div>
+        <Alert
+          tone={isErrorStatus ? 'error' : 'success'}
+          title={statusMessage}
+        />
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <ShieldBan className="h-5 w-5 text-destructive" />
-            <div>
-              <p className="text-sm text-muted-foreground">Blocked domains</p>
-              <p className="text-2xl font-bold">{stats.blocks}</p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="h-5 w-5 text-green-600" />
-            <div>
-              <p className="text-sm text-muted-foreground">Allowed domains</p>
-              <p className="text-2xl font-bold">{stats.allows}</p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
-          <p className="text-sm text-muted-foreground">Shared-list entries</p>
-          <p className="text-2xl font-bold">{stats.sourceBlocks}</p>
-        </div>
-      </div>
+      <StatStrip columns={3}>
+        <StatCell
+          label="Blocked domains"
+          icon={ShieldBan}
+          value={stats.blocks.toLocaleString()}
+        />
+        <StatCell
+          label="Allowed domains"
+          icon={ShieldCheck}
+          value={stats.allows.toLocaleString()}
+        />
+        <StatCell
+          label="Shared-list entries"
+          icon={Layers}
+          value={stats.sourceBlocks.toLocaleString()}
+        />
+      </StatStrip>
 
       <FederationPolicyForm
         settings={settings}
@@ -246,217 +186,244 @@ const Page = async ({ searchParams }: Props) => {
         mediaDomains={mediaDomains}
       />
 
-      <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Known Blocklist</h2>
-            <p className="text-sm text-muted-foreground">
-              Import a Mastodon-compatible CSV source.
-            </p>
-          </div>
-        </div>
-        <div className="space-y-3">
+      <Section
+        title="Known blocklist"
+        description="Import a Mastodon-compatible CSV source."
+      >
+        <FramedList aria-label="Known blocklist sources">
           {KNOWN_DOMAIN_BLOCKLIST_SOURCES.map((source) => (
-            <form
-              key={source.id}
-              action={importKnownDomainBlocklistAction}
-              className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <input type="hidden" name="source" value={source.id} />
-              <div>
-                <p className="font-medium">{source.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {sourceCounts.get(source.id) ?? 0} imported entries
-                </p>
-              </div>
-              <Button type="submit" className="sm:w-auto">
-                <Download className="h-4 w-4" />
-                Import
-              </Button>
-            </form>
+            <FramedListItem key={source.id}>
+              <form
+                action={importKnownDomainBlocklistAction}
+                className="flex items-center justify-between gap-3"
+              >
+                <input type="hidden" name="source" value={source.id} />
+                <div>
+                  <p className="font-medium">{source.name}</p>
+                  <p className="text-muted-foreground text-sm">
+                    {sourceCounts.get(source.id) ?? 0} imported entries
+                  </p>
+                </div>
+                <Button type="submit" variant="outline" className="sm:w-auto">
+                  <Download />
+                  Import
+                </Button>
+              </form>
+            </FramedListItem>
           ))}
-        </div>
-      </section>
+        </FramedList>
+      </Section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold">Add Domain Block</h2>
-          <form action={createDomainBlockAction} className="space-y-4">
-            <div className="space-y-1">
-              <Label htmlFor="block-domain">Domain</Label>
+      <Section title="Add domain block">
+        <form action={createDomainBlockAction}>
+          <Frame
+            divided
+            footer={
+              <div className="flex justify-end">
+                <Button type="submit">Save block</Button>
+              </div>
+            }
+          >
+            <FormRow label="Domain" htmlFor="block-domain">
               <Input
                 id="block-domain"
                 required
                 name="domain"
                 placeholder="example.social"
               />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="block-severity">Severity</Label>
+            </FormRow>
+            <FormRow
+              label="Severity"
+              htmlFor="block-severity"
+              hint="Only Suspend rejects federation. Silence and Noop are stored for Mastodon-compatible metadata."
+            >
               <Select
                 id="block-severity"
                 name="severity"
                 defaultValue="suspend"
+                aria-describedby={formRowHintId('block-severity')}
               >
                 <option value="suspend">Suspend</option>
                 <option value="silence">Silence</option>
                 <option value="noop">Noop</option>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Only Suspend rejects federation. Silence and Noop are stored for
-                Mastodon-compatible metadata.
-              </p>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="block-public-comment">Public comment</Label>
+            </FormRow>
+            <FormRow label="Public comment" htmlFor="block-public-comment" wide>
               <Textarea
                 id="block-public-comment"
                 name="publicComment"
                 rows={2}
               />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="block-private-comment">Private comment</Label>
+            </FormRow>
+            <FormRow
+              label="Private comment"
+              htmlFor="block-private-comment"
+              wide
+            >
               <Textarea
                 id="block-private-comment"
                 name="privateComment"
                 rows={2}
               />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Label>
-                <Checkbox name="rejectMedia" />
-                Reject media
-              </Label>
-              <Label>
-                <Checkbox name="rejectReports" />
-                Reject reports
-              </Label>
-              <Label>
-                <Checkbox name="obfuscate" />
-                Obfuscate
-              </Label>
-            </div>
-            <Button type="submit">Save block</Button>
-          </form>
-        </div>
+            </FormRow>
+            <FormRow label="Reject media" htmlFor="block-reject-media" inline>
+              <Checkbox id="block-reject-media" name="rejectMedia" />
+            </FormRow>
+            <FormRow
+              label="Reject reports"
+              htmlFor="block-reject-reports"
+              inline
+            >
+              <Checkbox id="block-reject-reports" name="rejectReports" />
+            </FormRow>
+            <FormRow label="Obfuscate" htmlFor="block-obfuscate" inline>
+              <Checkbox id="block-obfuscate" name="obfuscate" />
+            </FormRow>
+          </Frame>
+        </form>
+      </Section>
 
-        <div className="rounded-xl border bg-background/80 p-5 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold">Add Domain Allow</h2>
-          <form action={createDomainAllowAction} className="space-y-4">
-            <div className="space-y-1">
-              <Label htmlFor="allow-domain">Domain</Label>
+      <Section title="Add domain allow">
+        <form action={createDomainAllowAction}>
+          <Frame
+            divided
+            footer={
+              <div className="flex justify-end">
+                <Button type="submit">Save allow</Button>
+              </div>
+            }
+          >
+            <FormRow label="Domain" htmlFor="allow-domain">
               <Input
                 id="allow-domain"
                 required
                 name="domain"
                 placeholder="trusted.social"
               />
-            </div>
-            <Button type="submit">Save allow</Button>
-          </form>
-        </div>
-      </section>
+            </FormRow>
+          </Frame>
+        </form>
+      </Section>
 
-      <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">Domain Blocks</h2>
-        <div className="space-y-2">
+      <Section title="Domain blocks" meta={stats.blocks.toLocaleString()}>
+        <div className="space-y-3">
           {blocks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No domains blocked</p>
+            <EmptyState icon={ShieldBan} title="No domains blocked">
+              Blocked domains are listed here once you add one.
+            </EmptyState>
           ) : (
-            blocks.map((block) => (
-              <div
-                key={block.id}
-                className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{block.domain}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {block.severity}
-                    {block.publicComment ? ` - ${block.publicComment}` : ''}
-                  </p>
-                </div>
-                <form action={deleteDomainBlockAction}>
-                  <input type="hidden" name="id" value={block.id} />
-                  <Button
-                    type="submit"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Delete block for ${block.domain}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </form>
-              </div>
-            ))
+            <FramedList aria-label="Domain blocks">
+              {blocks.map((block) => (
+                <FramedListItem
+                  key={block.id}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{block.domain}</p>
+                    <p className="text-muted-foreground text-sm">
+                      {block.severity}
+                      {block.publicComment ? ` - ${block.publicComment}` : ''}
+                    </p>
+                  </div>
+                  <form action={deleteDomainBlockAction}>
+                    <input type="hidden" name="id" value={block.id} />
+                    <Button
+                      type="submit"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Delete block for ${block.domain}`}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </form>
+                </FramedListItem>
+              ))}
+            </FramedList>
           )}
+          <Pagination
+            navLabel="Domain blocks pagination"
+            label={getPaginationLabel(
+              'blocked domains',
+              blockOffset,
+              blocks.length,
+              stats.blocks
+            )}
+            previousHref={
+              hasPreviousBlocks
+                ? getPaginationHref({
+                    blockOffset: getPreviousOffset(blockOffset),
+                    allowOffset
+                  })
+                : undefined
+            }
+            nextHref={
+              hasNextBlocks
+                ? getPaginationHref({
+                    blockOffset: getNextOffset(blockOffset, blocks.length),
+                    allowOffset
+                  })
+                : undefined
+            }
+          />
         </div>
-        <PaginationControls
-          label={getPaginationLabel(
-            'blocked domains',
-            blockOffset,
-            blocks.length,
-            stats.blocks
-          )}
-          previousHref={getPaginationHref({
-            blockOffset: getPreviousOffset(blockOffset),
-            allowOffset
-          })}
-          nextHref={getPaginationHref({
-            blockOffset: getNextOffset(blockOffset, blocks.length),
-            allowOffset
-          })}
-          hasPrevious={hasPreviousBlocks}
-          hasNext={hasNextBlocks}
-        />
-      </section>
+      </Section>
 
-      <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">Domain Allows</h2>
-        <div className="space-y-2">
+      <Section title="Domain allows" meta={stats.allows.toLocaleString()}>
+        <div className="space-y-3">
           {allows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No domains allowed</p>
+            <EmptyState icon={ShieldCheck} title="No domains allowed">
+              Allowed domains are listed here once you add one.
+            </EmptyState>
           ) : (
-            allows.map((allow) => (
-              <div
-                key={allow.id}
-                className="flex items-center justify-between gap-3 rounded-lg border p-4"
-              >
-                <p className="min-w-0 truncate font-medium">{allow.domain}</p>
-                <form action={deleteDomainAllowAction}>
-                  <input type="hidden" name="id" value={allow.id} />
-                  <Button
-                    type="submit"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Delete allow for ${allow.domain}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </form>
-              </div>
-            ))
+            <FramedList aria-label="Domain allows">
+              {allows.map((allow) => (
+                <FramedListItem
+                  key={allow.id}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <p className="min-w-0 truncate font-medium">{allow.domain}</p>
+                  <form action={deleteDomainAllowAction}>
+                    <input type="hidden" name="id" value={allow.id} />
+                    <Button
+                      type="submit"
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Delete allow for ${allow.domain}`}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </form>
+                </FramedListItem>
+              ))}
+            </FramedList>
           )}
+          <Pagination
+            navLabel="Domain allows pagination"
+            label={getPaginationLabel(
+              'allowed domains',
+              allowOffset,
+              allows.length,
+              stats.allows
+            )}
+            previousHref={
+              hasPreviousAllows
+                ? getPaginationHref({
+                    blockOffset,
+                    allowOffset: getPreviousOffset(allowOffset)
+                  })
+                : undefined
+            }
+            nextHref={
+              hasNextAllows
+                ? getPaginationHref({
+                    blockOffset,
+                    allowOffset: getNextOffset(allowOffset, allows.length)
+                  })
+                : undefined
+            }
+          />
         </div>
-        <PaginationControls
-          label={getPaginationLabel(
-            'allowed domains',
-            allowOffset,
-            allows.length,
-            stats.allows
-          )}
-          previousHref={getPaginationHref({
-            blockOffset,
-            allowOffset: getPreviousOffset(allowOffset)
-          })}
-          nextHref={getPaginationHref({
-            blockOffset,
-            allowOffset: getNextOffset(allowOffset, allows.length)
-          })}
-          hasPrevious={hasPreviousAllows}
-          hasNext={hasNextAllows}
-        />
-      </section>
+      </Section>
     </div>
   )
 }

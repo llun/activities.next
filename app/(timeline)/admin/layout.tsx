@@ -1,24 +1,8 @@
 'use client'
 
-import {
-  AlertTriangle,
-  BarChart,
-  Filter,
-  Globe,
-  Hash,
-  Image,
-  Link as LinkIcon,
-  ListOrdered,
-  Megaphone,
-  Rss,
-  Scale,
-  Server,
-  Settings,
-  Smile,
-  User
-} from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
+import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import {
   PageHeader,
   PageHeaderSectionProvider
@@ -41,21 +25,29 @@ interface Props {
 // entries have no page here yet, and Hashtags/Relays/Custom emojis/System have
 // no design entry — those sit next to the tab they belong with.
 const tabs: SectionNavTab[] = [
-  { name: 'Overview', url: '/admin', icon: BarChart },
-  { name: 'Accounts', url: '/admin/accounts', icon: User },
-  { name: 'Reports', url: '/admin/reports', icon: AlertTriangle },
-  { name: 'Server rules', url: '/admin/rules', icon: Scale },
-  { name: 'Hashtags', url: '/admin/tags', icon: Hash },
-  { name: 'Announcements', url: '/admin/announcements', icon: Megaphone },
-  { name: 'Filters', url: '/admin/filters', icon: Filter },
-  { name: 'Custom emojis', url: '/admin/emojis', icon: Smile },
-  { name: 'Federation', url: '/admin/federation', icon: Globe },
-  { name: 'Relays', url: '/admin/relays', icon: Rss },
-  { name: 'Posts & media', url: '/admin/posts', icon: Image },
-  { name: 'Network', url: '/admin/network', icon: LinkIcon },
-  { name: 'Instance', url: '/admin/instance', icon: Settings },
-  { name: 'Queues', url: '/admin/queues', icon: ListOrdered },
-  { name: 'System', url: '/admin/system', icon: Server }
+  { name: 'Overview', url: '/admin', icon: ADMIN_ICONS.overview },
+  { name: 'Accounts', url: '/admin/accounts', icon: ADMIN_ICONS.accounts },
+  { name: 'Reports', url: '/admin/reports', icon: ADMIN_ICONS.reports },
+  { name: 'Server rules', url: '/admin/rules', icon: ADMIN_ICONS.rules },
+  { name: 'Hashtags', url: '/admin/tags', icon: ADMIN_ICONS.tags },
+  {
+    name: 'Announcements',
+    url: '/admin/announcements',
+    icon: ADMIN_ICONS.announcements
+  },
+  { name: 'Filters', url: '/admin/filters', icon: ADMIN_ICONS.filters },
+  { name: 'Custom emojis', url: '/admin/emojis', icon: ADMIN_ICONS.emojis },
+  {
+    name: 'Federation',
+    url: '/admin/federation',
+    icon: ADMIN_ICONS.federation
+  },
+  { name: 'Relays', url: '/admin/relays', icon: ADMIN_ICONS.relays },
+  { name: 'Posts & media', url: '/admin/posts', icon: ADMIN_ICONS.posts },
+  { name: 'Network', url: '/admin/network', icon: ADMIN_ICONS.network },
+  { name: 'Instance', url: '/admin/instance', icon: ADMIN_ICONS.instance },
+  { name: 'Queues', url: '/admin/queues', icon: ADMIN_ICONS.queues },
+  { name: 'System', url: '/admin/system', icon: ADMIN_ICONS.system }
 ]
 
 const Layout: FC<Props> = ({ children }) => {

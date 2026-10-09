@@ -57,27 +57,32 @@ describe('NumberField', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('draws the unit inside one 200 px field, after the input', () => {
+  it('shows the unit beside the value, in the same field', () => {
     render(
       <NumberField id="days" value={30} onChange={vi.fn()} suffix="days" />
     )
 
     const input = screen.getByRole('spinbutton')
     const unit = screen.getByText('days')
-    const field = input.parentElement as HTMLElement
     // The unit shares the input's box rather than sitting beside it.
-    expect(unit.parentElement).toBe(field)
-    expect(field).toHaveClass('relative', 'w-50')
-    expect(unit).toHaveClass('absolute', 'right-2.5')
-    // The input spans the field and keeps the typed value clear of the unit.
-    expect(input).toHaveClass('w-full', 'pr-24')
+    expect(unit.parentElement).toBe(input.parentElement)
+    expect(input).toHaveValue(30)
   })
 
-  it('draws no unit and keeps the plain padding when there is no suffix', () => {
+  it('draws no unit when there is no suffix', () => {
     render(<NumberField id="plain" value={30} onChange={vi.fn()} />)
 
     const input = screen.getByRole('spinbutton')
     expect(input.parentElement?.children).toHaveLength(1)
-    expect(input).not.toHaveClass('pr-24')
+  })
+
+  it('shows a new value handed in from outside, such as after a save', () => {
+    const { rerender } = render(
+      <NumberField id="saved" value={30} onChange={vi.fn()} />
+    )
+
+    rerender(<NumberField id="saved" value={45} onChange={vi.fn()} />)
+
+    expect(screen.getByRole('spinbutton')).toHaveValue(45)
   })
 })

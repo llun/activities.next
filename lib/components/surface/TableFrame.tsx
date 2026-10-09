@@ -36,7 +36,9 @@ export const TableFrame: FC<Props> = ({
   ...aria
 }) => (
   <Frame className={cn('overflow-hidden', className)}>
-    <div data-slot="table-scroller" className="overflow-x-auto">
+    {/* `relative` makes the scroller the containing block of `sr-only` (absolutely
+        positioned) text in cells, so it is clipped here instead of widening the page. */}
+    <div data-slot="table-scroller" className="relative overflow-x-auto">
       <table className={cn('w-full text-sm', tableClassName)} {...aria}>
         {children}
       </table>

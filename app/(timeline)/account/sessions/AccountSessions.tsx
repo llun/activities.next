@@ -402,7 +402,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                       {app.name || app.clientId}
                     </span>
                     {app.signIn ? (
-                      <Badge tone="blue">Sign-in</Badge>
+                      <Badge tone="info">Sign-in</Badge>
                     ) : (
                       <Badge tone="gray">App</Badge>
                     )}

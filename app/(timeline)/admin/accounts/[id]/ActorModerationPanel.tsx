@@ -13,7 +13,10 @@ import {
   getAdminAccount,
   performAdminAccountAction
 } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
+import { SkeletonRows } from '@/lib/components/surface/Skeleton'
 import { Badge } from '@/lib/components/ui/badge'
+import { Button } from '@/lib/components/ui/button'
 import { AdminAccount } from '@/lib/types/mastodon/admin/account'
 
 interface Props {
@@ -34,18 +37,20 @@ const ActionButton = ({
   disabled: boolean
   destructive?: boolean
 }) => (
-  <button
+  <Button
     type="button"
+    variant="outline"
+    size="sm"
     onClick={onClick}
     disabled={disabled}
-    className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+    className={
       destructive
-        ? 'border-destructive/40 text-destructive-text hover:bg-destructive/10'
-        : 'hover:bg-muted'
-    }`}
+        ? 'border-destructive/40 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text'
+        : undefined
+    }
   >
     {label}
-  </button>
+  </Button>
 )
 
 export const ActorModerationPanel = ({ actorId, username }: Props) => {
@@ -99,22 +104,25 @@ export const ActorModerationPanel = ({ actorId, username }: Props) => {
   }
 
   if (removed) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Account rejected and removed.
-      </p>
-    )
+    return <Alert tone="success" title="Account rejected and removed." />
   }
-  if (loading) {
+  const retry = () => {
+    setLoading(true)
+    void load()
+  }
+
+  if (loading && !account) {
     return (
-      <p className="text-sm text-muted-foreground">Loading moderation state…</p>
+      <SkeletonRows
+        rows={1}
+        rowClassName="h-8"
+        label="Loading moderation state"
+      />
     )
   }
   if (!account) {
     return (
-      <p className="text-sm text-destructive">
-        {error ?? 'Moderation state unavailable'}
-      </p>
+      <Alert title={error ?? 'Moderation state unavailable'} onRetry={retry} />
     )
   }
 
@@ -139,7 +147,7 @@ export const ActorModerationPanel = ({ actorId, username }: Props) => {
         ) : null}
         {account.disabled ? <Badge tone="destructive">Disabled</Badge> : null}
         {isLocal && !account.approved ? (
-          <Badge tone="destructive">Pending</Badge>
+          <Badge tone="warning">Pending</Badge>
         ) : null}
       </div>
 
@@ -253,7 +261,7 @@ export const ActorModerationPanel = ({ actorId, username }: Props) => {
         ) : null}
       </div>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <Alert title={error} /> : null}
     </div>
   )
 }

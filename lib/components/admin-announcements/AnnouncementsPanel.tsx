@@ -1,7 +1,7 @@
 'use client'
 
 import { Plus, Trash2 } from 'lucide-react'
-import { FC, FormEvent, useEffect, useState } from 'react'
+import { FC, FormEvent, useCallback, useEffect, useState } from 'react'
 
 import {
   type ServerAnnouncement,
@@ -11,15 +11,35 @@ import {
   getServerAnnouncements,
   updateServerAnnouncement
 } from '@/lib/client'
-import { AnnouncementBadge } from '@/lib/components/announcements/AnnouncementBanner'
-import { FilterField, FilterSection } from '@/lib/components/filters/filterUi'
+import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FormRow, formRowHintId } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
+import { SkeletonRows } from '@/lib/components/surface/Skeleton'
+import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
+import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
 
-import { computeAnnouncementStatus } from './announcementStatus'
+import {
+  type AnnouncementStatusDescriptor,
+  computeAnnouncementStatus
+} from './announcementStatus'
+
+const STATUS_TONES: Record<
+  AnnouncementStatusDescriptor['tone'],
+  'success' | 'primary' | 'gray'
+> = {
+  green: 'success',
+  orange: 'primary',
+  gray: 'gray'
+}
 
 // The server returns announcements newest-first by createdAt. `Array.prototype
 // .sort` is stable, so re-sorting after an edit preserves that order for rows
@@ -69,8 +89,10 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadAnnouncements = useCallback(() => {
     let active = true
+    setLoading(true)
+    setListError(null)
     getServerAnnouncements()
       .then((result) => {
         if (active) setAnnouncements(sortAnnouncements(result))
@@ -88,6 +110,8 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
       active = false
     }
   }, [])
+
+  useEffect(() => loadAnnouncements(), [loadAnnouncements])
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -213,37 +237,62 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
         description="Instance-wide announcements served from the Mastodon announcements API. Published announcements within their active window are shown to everyone."
       />
 
-      {listError && <p className="text-destructive text-sm">{listError}</p>}
+      {listError && (
+        <Alert
+          title={listError}
+          // A failed load offers another go; a failed write does not need one.
+          onRetry={announcements.length === 0 ? loadAnnouncements : undefined}
+        />
+      )}
 
-      <FilterSection
+      <Section
         title="Add an announcement"
         description="Markdown is supported. Leave the event window empty to show it immediately and indefinitely."
       >
-        <form onSubmit={handleCreate} className="space-y-4">
-          <FilterField
-            label="Text"
-            htmlFor="announcement-text"
-            help="Markdown with hashtags and mentions; keep it under a few sentences. No attachments."
+        <form onSubmit={handleCreate} className="space-y-3">
+          <Frame
+            divided
+            footer={
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={
+                    saving || busyId !== null || newText.trim().length === 0
+                  }
+                >
+                  <Plus />
+                  {newPublished ? 'Publish' : 'Save draft'}
+                </Button>
+              </div>
+            }
           >
-            <Textarea
-              id="announcement-text"
-              value={newText}
-              onChange={(event) => setNewText(event.target.value)}
-              maxLength={5000}
-              rows={4}
-              required
-            />
-          </FilterField>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FilterField label="Event starts" htmlFor="announcement-starts-at">
+            <FormRow
+              label="Text"
+              htmlFor="announcement-text"
+              hint="Markdown with hashtags and mentions; keep it under a few sentences. No attachments."
+              wide
+            >
+              {({ describedBy }) => (
+                <Textarea
+                  id="announcement-text"
+                  value={newText}
+                  onChange={(event) => setNewText(event.target.value)}
+                  maxLength={5000}
+                  rows={4}
+                  required
+                  aria-describedby={describedBy}
+                />
+              )}
+            </FormRow>
+            <FormRow label="Event starts" htmlFor="announcement-starts-at">
               <Input
                 id="announcement-starts-at"
                 type="datetime-local"
                 value={newStartsAt}
                 onChange={(event) => setNewStartsAt(event.target.value)}
               />
-            </FilterField>
-            <FilterField label="Event ends" htmlFor="announcement-ends-at">
+            </FormRow>
+            <FormRow label="Event ends" htmlFor="announcement-ends-at">
               <Input
                 id="announcement-ends-at"
                 type="datetime-local"
@@ -251,88 +300,96 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                 onChange={(event) => setNewEndsAt(event.target.value)}
                 disabled={newAllDay}
               />
-            </FilterField>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium">All-day event</p>
-              <p className="text-muted-foreground text-sm">
-                Hide the times and show only the dates.
-              </p>
-            </div>
-            <Switch
-              id="announcement-all-day"
-              checked={newAllDay}
-              onCheckedChange={setNewAllDay}
-              aria-label="All-day event"
-            />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium">Publish now</p>
-              <p className="text-muted-foreground text-sm">
-                Publish immediately. Leave off to save as a draft.
-              </p>
-            </div>
-            <Switch
-              id="announcement-published"
-              checked={newPublished}
-              onCheckedChange={setNewPublished}
-              aria-label="Publish now"
-            />
-          </div>
-          <p className="text-muted-foreground text-[0.8rem]">
+            </FormRow>
+            <FormRow
+              inline
+              label="All-day event"
+              htmlFor="announcement-all-day"
+              hint="Hide the times and show only the dates."
+            >
+              <Switch
+                id="announcement-all-day"
+                aria-describedby={formRowHintId('announcement-all-day')}
+                checked={newAllDay}
+                onCheckedChange={setNewAllDay}
+              />
+            </FormRow>
+            <FormRow
+              inline
+              label="Publish now"
+              htmlFor="announcement-published"
+              hint="Publish immediately. Leave off to save as a draft."
+            >
+              <Switch
+                id="announcement-published"
+                aria-describedby={formRowHintId('announcement-published')}
+                checked={newPublished}
+                onCheckedChange={setNewPublished}
+              />
+            </FormRow>
+          </Frame>
+          <p className="text-muted-foreground text-xs">
             Times are stored in UTC and display in each reader&apos;s local
             timezone. The announcement disappears for everyone after the end
             date.
           </p>
-          {formError && <p className="text-destructive text-sm">{formError}</p>}
-          <div className="flex justify-end">
-            <Button
-              type="submit"
-              disabled={
-                saving || busyId !== null || newText.trim().length === 0
-              }
-            >
-              <Plus className="size-4" />
-              {newPublished ? 'Publish' : 'Save draft'}
-            </Button>
-          </div>
+          {formError && <Alert title={formError} />}
         </form>
-      </FilterSection>
+      </Section>
 
-      <FilterSection>
+      <Section
+        title="Existing announcements"
+        meta={announcements.length > 0 ? announcements.length : undefined}
+      >
         {loading ? (
-          <p className="text-muted-foreground py-6 text-center text-sm">
-            Loading announcements…
-          </p>
+          <Frame className="p-4">
+            <SkeletonRows
+              rows={3}
+              rowClassName="h-16"
+              label="Loading announcements"
+            />
+          </Frame>
         ) : announcements.length === 0 && !listError ? (
           // Suppress the empty-state copy when a load error is already shown, so
           // a failed fetch doesn't read as "you have no announcements".
-          <p className="text-muted-foreground py-6 text-center text-sm">
-            No announcements yet — add one to show it to everyone.
-          </p>
-        ) : (
-          <div className="space-y-4">
+          <EmptyState
+            icon={ADMIN_ICONS.announcements}
+            title="No announcements yet"
+          >
+            Add one above to show it to everyone.
+          </EmptyState>
+        ) : announcements.length > 0 ? (
+          <FramedList aria-label="Announcements">
             {announcements.map((announcement) => {
               const status = computeAnnouncementStatus(
                 announcement,
                 currentTime
               )
               return (
-                <div
-                  key={announcement.id}
-                  className="space-y-3 rounded-lg border p-3"
-                >
-                  <div className="flex items-center gap-2">
-                    <AnnouncementBadge tone={status.tone}>
+                <FramedListItem key={announcement.id} className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <Badge tone={STATUS_TONES[status.tone]}>
                       {status.label}
-                    </AnnouncementBadge>
+                    </Badge>
+                    <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                      {announcement.starts_at !== null && (
+                        <span>
+                          Starts {formatDateTime(announcement.starts_at)}
+                        </span>
+                      )}
+                      {announcement.ends_at !== null && (
+                        <span>Ends {formatDateTime(announcement.ends_at)}</span>
+                      )}
+                      {announcement.all_day && <span>All day</span>}
+                    </div>
                   </div>
-                  <FilterField
-                    label="Text"
-                    htmlFor={`announcement-text-${announcement.id}`}
-                  >
+                  <div>
+                    <Label
+                      htmlFor={`announcement-text-${announcement.id}`}
+                      className="sr-only"
+                    >
+                      Text
+                    </Label>
                     <Textarea
                       id={`announcement-text-${announcement.id}`}
                       defaultValue={announcement.text}
@@ -351,17 +408,6 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                         handleEditText(announcement, event.target.value)
                       }}
                     />
-                  </FilterField>
-                  <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                    {announcement.starts_at !== null && (
-                      <span>
-                        Starts {formatDateTime(announcement.starts_at)}
-                      </span>
-                    )}
-                    {announcement.ends_at !== null && (
-                      <span>Ends {formatDateTime(announcement.ends_at)}</span>
-                    )}
-                    {announcement.all_day && <span>All day</span>}
                   </div>
                   <div className="flex items-center justify-end gap-2">
                     <Button
@@ -373,22 +419,24 @@ export const AnnouncementsPanel: FC<AnnouncementsPanelProps> = ({
                     >
                       {announcement.published ? 'Unpublish' : 'Publish'}
                     </Button>
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="icon-sm"
                       aria-label={`Delete announcement ${announcement.text}`}
                       onClick={() => handleDelete(announcement)}
                       disabled={busyId !== null || saving}
-                      className="border-destructive/40 text-destructive-text hover:bg-destructive/10 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors disabled:pointer-events-none disabled:opacity-50"
+                      className="border-destructive/40 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                     >
-                      <Trash2 className="size-4" />
-                    </button>
+                      <Trash2 />
+                    </Button>
                   </div>
-                </div>
+                </FramedListItem>
               )
             })}
-          </div>
-        )}
-      </FilterSection>
+          </FramedList>
+        ) : null}
+      </Section>
     </div>
   )
 }
