@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { useState } from 'react'
 
 import {
@@ -11,6 +17,7 @@ import {
   getGalleryGears,
   getGallerySettings,
   getMedia,
+  getMediaAlbums,
   suggestMediaSubjects,
   updateMediaDetails,
   updateNote,
@@ -35,6 +42,7 @@ vi.mock('@/lib/client', () => ({
   getGalleryGears: vi.fn(),
   getGallerySettings: vi.fn(),
   getMedia: vi.fn(),
+  getMediaAlbums: vi.fn(),
   suggestMediaSubjects: vi.fn(),
   updateMediaDetails: vi.fn(),
   updateNote: vi.fn(),
@@ -56,6 +64,7 @@ const suggestMock = vi.mocked(suggestMediaSubjects)
 const getGallerySettingsMock = vi.mocked(getGallerySettings)
 const updateMediaDetailsMock = vi.mocked(updateMediaDetails)
 const createNoteMock = vi.mocked(createNote)
+const getMediaAlbumsMock = vi.mocked(getMediaAlbums)
 
 const profile = {
   id: 'https://activities.local/users/llun',
@@ -162,6 +171,13 @@ describe('PostBox media details', () => {
     createNoteMock.mockResolvedValue({
       status: {} as never,
       attachments: []
+    })
+    getMediaAlbumsMock.mockResolvedValue({
+      albums: [
+        { id: 'a1', title: 'Kruger', visibility: 'public', itemCount: 14 }
+      ],
+      albumIds: [],
+      addable: false
     })
   })
 
@@ -372,6 +388,20 @@ describe('PostBox media details', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Media details' })
     expect(dialog).toBeInTheDocument()
     expect(screen.getByText('2 of 2')).toBeInTheDocument()
+  })
+
+  it('gives the details dialog the signed-in actor, so it offers that actor’s albums', async () => {
+    renderPostBox()
+    attach('a.png')
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Review details of a.png' })
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: 'Media details' })
+    expect(
+      await within(dialog).findByRole('button', { name: 'Add to album' })
+    ).toBeVisible()
+    expect(getMediaAlbumsMock).toHaveBeenCalledWith('media-a.png')
   })
 
   it('keeps the opener enabled during a details refetch and refocuses it on close', async () => {
