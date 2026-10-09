@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FC, useEffect, useState } from 'react'
+import { FC, ReactNode, useEffect, useState } from 'react'
 
 import { GearFormDialog } from '@/app/(timeline)/fitness/gear/GearFormDialog'
 import { GearProductLink } from '@/app/(timeline)/fitness/gear/GearProductLink'
@@ -73,6 +73,45 @@ const GEAR_VIEW_TABS: SectionNavSelectTab<GearView>[] = [
   { id: 'components', label: 'Components', icon: Wrench },
   { id: 'activities', label: 'Activities', icon: Activity }
 ]
+
+const GearBackLink: FC = () => (
+  <Link
+    href="/fitness/gear"
+    className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+  >
+    <ArrowLeft className="size-4" />
+    Gear
+  </Link>
+)
+
+/**
+ * A gear's page while it loads: the Back link, then the title, meta line and
+ * stat strip as shimmering `.skeleton` bars, with one polite status. The route's
+ * `loading.tsx` draws the same shape, so the page does not move between the
+ * two.
+ */
+export const GearDetailSkeleton: FC<{ backLink?: ReactNode }> = ({
+  backLink = <GearBackLink />
+}) => (
+  <div aria-busy="true" className="space-y-6">
+    {backLink}
+    <p role="status" className="sr-only">
+      Loading gear
+    </p>
+    <div aria-hidden="true" className="space-y-6">
+      <div className="space-y-2">
+        <span className="block h-7 w-48 rounded-md skeleton" />
+        <span className="block h-4 w-72 max-w-full rounded skeleton" />
+      </div>
+      {/* The kind is not known yet, so neither are the labels: bars only, in
+          the stat strip's frame. */}
+      <div className="h-[70px] rounded-lg border p-4">
+        <span className="block h-5 w-24 rounded skeleton" />
+        <span className="mt-2 block h-3.5 w-16 rounded skeleton" />
+      </div>
+    </div>
+  </div>
+)
 
 interface Props {
   gearId: string
@@ -215,39 +254,10 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
     }
   }
 
-  const backLink = (
-    <Link
-      href="/fitness/gear"
-      className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-    >
-      <ArrowLeft className="size-4" />
-      Gear
-    </Link>
-  )
+  const backLink = <GearBackLink />
 
   if (isInitialLoading) {
-    return (
-      <div className="space-y-6">
-        {backLink}
-        <p role="status" className="sr-only">
-          Loading gear
-        </p>
-        {/* The title, meta line and stat strip in shimmering `.skeleton` bars,
-            as the overview loads. */}
-        <div aria-hidden="true" className="space-y-6">
-          <div className="space-y-2">
-            <span className="block h-7 w-48 rounded-md skeleton" />
-            <span className="block h-4 w-72 max-w-full rounded skeleton" />
-          </div>
-          {/* The kind is not known yet, so neither are the labels: bars
-              only, in the stat strip's frame. */}
-          <div className="h-[70px] rounded-lg border p-4">
-            <span className="block h-5 w-24 rounded skeleton" />
-            <span className="mt-2 block h-3.5 w-16 rounded skeleton" />
-          </div>
-        </div>
-      </div>
-    )
+    return <GearDetailSkeleton backLink={backLink} />
   }
 
   if (!gear) {

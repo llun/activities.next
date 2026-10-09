@@ -23,13 +23,6 @@ import { useInlineComposer } from './useInlineComposer'
 interface Props {
   host: string
   className?: string
-  /**
-   * When true (default) the feed renders in the post list frame: one flat
-   * `rounded-lg border` with a divider between rows, full-bleed below `md`.
-   * Set to false to render only the divided rows so the feed can be embedded
-   * inside a frame that is already there (the logged-out landing feed).
-   */
-  framed?: boolean
   currentActor?: ActorProfile
   showActions?: boolean
   /**
@@ -65,7 +58,6 @@ interface Props {
 export const Posts: FC<Props> = ({
   host,
   className,
-  framed = true,
   currentActor,
   showActions = false,
   showReadOnlyStats = false,
@@ -114,7 +106,8 @@ export const Posts: FC<Props> = ({
           // dark mode. No `overflow-hidden`: posts render non-portaled overlays
           // (edit-history panel, inline error bubbles) that must escape the box.
           'w-full min-w-0 divide-y divide-border',
-          framed && cn(POST_LIST_FRAME_CLASS, MOBILE_FEED_SURFACE_CLASS),
+          POST_LIST_FRAME_CLASS,
+          MOBILE_FEED_SURFACE_CLASS,
           className
         )}
       >
@@ -130,12 +123,9 @@ export const Posts: FC<Props> = ({
           return (
             <article
               key={status.id}
-              className={cn(
-                'min-h-0 min-w-0 px-4 py-3',
-                // Match the framed box's corners so any child background can't
-                // bleed past the rounded edges now that overflow-hidden is gone.
-                framed && 'first:rounded-t-lg last:rounded-b-lg'
-              )}
+              // Match the framed box's corners so any child background can't
+              // bleed past the rounded edges now that overflow-hidden is gone.
+              className="min-h-0 min-w-0 px-4 py-3 first:rounded-t-lg last:rounded-b-lg"
             >
               <Post
                 host={host}

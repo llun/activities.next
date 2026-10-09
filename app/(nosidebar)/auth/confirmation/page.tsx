@@ -1,7 +1,12 @@
 import { Metadata } from 'next'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
+import { AuthCard } from '@/app/(nosidebar)/AuthCard'
+import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
+import { Alert } from '@/lib/components/surface/Alert'
+import { Button } from '@/lib/components/ui/button'
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -39,11 +44,25 @@ const Page: FC<Props> = async ({ searchParams }) => {
   const isAccountVerify = Boolean(await isVerify(database, code))
 
   return (
-    <h1>
-      {isAccountVerify
-        ? 'Your account is verified'
-        : 'Invalid verification code'}
-    </h1>
+    <AuthCard logoSrc={getAuthLogoSrc()} title="Confirm your account">
+      {isAccountVerify ? (
+        <>
+          <Alert tone="success" live={false} title="Your account is verified" />
+          <Button asChild className="w-full">
+            <Link href="/auth/signin">Continue to sign in</Link>
+          </Button>
+        </>
+      ) : (
+        <>
+          <Alert live={false} title="Invalid verification code">
+            Check that you opened the whole link from your email.
+          </Alert>
+          <Button asChild variant="outline" className="w-full">
+            <Link href="/auth/signin">Back to sign in</Link>
+          </Button>
+        </>
+      )}
+    </AuthCard>
   )
 }
 

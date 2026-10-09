@@ -2,14 +2,8 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
+import { AuthCard, AuthCardFooter } from '@/app/(nosidebar)/AuthCard'
+import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import {
   isKnownAuthErrorCode,
   resolveAuthErrorContent,
@@ -78,33 +72,31 @@ const Page: FC<Props> = async ({ searchParams }) => {
   })
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl leading-6">{content.title}</CardTitle>
-        <CardDescription>{content.body}</CardDescription>
-      </CardHeader>
-      {/* Only an allow-listed code, never merely a token-shaped one: see
-          isKnownAuthErrorCode for the phishing case that distinction closes. */}
-      {isKnownCode && (
-        <CardContent>
-          <div className="border-t pt-4 text-center">
-            <code className="text-muted-foreground font-mono text-xs">
-              {code}
-            </code>
-          </div>
-        </CardContent>
-      )}
-      <CardFooter className="justify-center">
-        <p className="text-sm text-muted-foreground">
+    <AuthCard
+      logoSrc={getAuthLogoSrc()}
+      title={content.title}
+      description={content.body}
+      footer={
+        <AuthCardFooter>
           <Link
             href="/auth/signin"
             className="text-primary-text hover:underline"
           >
             Back to sign in
           </Link>
-        </p>
-      </CardFooter>
-    </Card>
+        </AuthCardFooter>
+      }
+    >
+      {/* Only an allow-listed code, never merely a token-shaped one: see
+          isKnownAuthErrorCode for the phishing case that distinction closes. */}
+      {isKnownCode && (
+        <div className="border-t pt-4 text-center">
+          <code className="text-muted-foreground font-mono text-xs">
+            {code}
+          </code>
+        </div>
+      )}
+    </AuthCard>
   )
 }
 

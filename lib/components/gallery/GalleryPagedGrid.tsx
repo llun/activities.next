@@ -8,6 +8,7 @@ import {
   GalleryGrid,
   type GalleryGridSelection
 } from '@/lib/components/gallery/GalleryGrid'
+import { GalleryGridSkeleton } from '@/lib/components/gallery/GalleryGridSkeleton'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
@@ -142,21 +143,7 @@ export const GalleryPagedGrid: FC<Props> = ({
   }, [])
 
   if (isLoading && items.length === 0) {
-    return (
-      <div
-        className="grid grid-cols-3 gap-1 sm:grid-cols-4 sm:gap-2"
-        aria-busy="true"
-      >
-        <span className="sr-only">Loading photos</span>
-        {Array.from({ length: 8 }, (_, index) => (
-          <div
-            key={index}
-            aria-hidden="true"
-            className="skeleton aspect-square rounded-md"
-          />
-        ))}
-      </div>
-    )
+    return <GalleryGridSkeleton label="Loading photos" />
   }
 
   return (

@@ -1,18 +1,11 @@
 import { Metadata } from 'next'
-import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
-import { getBaseURL, getConfig } from '@/lib/config'
+import { AuthCard, AuthCardFooter } from '@/app/(nosidebar)/AuthCard'
+import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -81,40 +74,14 @@ const Page: FC<Props> = async ({ searchParams }) => {
   } = await getResolvedServerSettings(database)
   const credentialEnabled = auth?.enableCredential !== false
 
-  // Use an absolute URL on the configured host (ACTIVITIES_HOST) so the logo
-  // resolves against the canonical origin instead of the request host. When the
-  // instance is served behind a CDN on an alias domain, a root-relative
-  // `/logo-nav.png` can be intercepted and redirected away from the app origin.
-  const logoSrc = new URL('/logo-nav.png', getBaseURL()).toString()
-
   return (
-    <Card>
-      <CardHeader className="items-center text-center">
-        <Image
-          src={logoSrc}
-          alt=""
-          aria-hidden="true"
-          width={48}
-          height={48}
-          className="mx-auto mb-2 h-12 w-12 object-contain"
-        />
-        <CardTitle className="text-2xl">
-          Sign in to {serviceName ?? 'Activities'}
-        </CardTitle>
-        <CardDescription>
-          Your self-hosted corner of the Fediverse.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {credentialEnabled && (
-          <CredentialForm providerName={serviceName ?? 'credentials'} />
-        )}
-
-        <PasskeySigninButton credentialEnabled={credentialEnabled} />
-      </CardContent>
-      {registrationOpen && (
-        <CardFooter className="justify-center">
-          <p className="text-sm text-muted-foreground">
+    <AuthCard
+      logoSrc={getAuthLogoSrc()}
+      title={`Sign in to ${serviceName ?? 'Activities'}`}
+      description="Your self-hosted corner of the Fediverse."
+      footer={
+        registrationOpen ? (
+          <AuthCardFooter>
             Don&apos;t have an account?{' '}
             <Link
               href="/auth/signup"
@@ -122,10 +89,16 @@ const Page: FC<Props> = async ({ searchParams }) => {
             >
               Sign up
             </Link>
-          </p>
-        </CardFooter>
+          </AuthCardFooter>
+        ) : undefined
+      }
+    >
+      {credentialEnabled && (
+        <CredentialForm providerName={serviceName ?? 'credentials'} />
       )}
-    </Card>
+
+      <PasskeySigninButton credentialEnabled={credentialEnabled} />
+    </AuthCard>
   )
 }
 

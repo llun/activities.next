@@ -259,7 +259,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
   )
 }
 
-const GearListSkeleton: FC = () => (
+export const GearListSkeleton: FC = () => (
   <div className="space-y-6">
     <p role="status" className="sr-only">
       Loading gear

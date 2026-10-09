@@ -33,6 +33,12 @@ interface Props {
    * on a phone too, instead of dropping below it full width.
    */
   inline?: boolean
+  /**
+   * Always stack the label and hint above the control, whatever the viewport.
+   * For a form in a narrow single column (the auth cards, a dialog), where the
+   * two-column row from `sm` has no room for its control.
+   */
+  stacked?: boolean
   className?: string
 }
 
@@ -56,6 +62,7 @@ export const FormRow: FC<Props> = ({
   children,
   wide = false,
   inline = false,
+  stacked = false,
   className
 }) => {
   const generatedId = useId()
@@ -69,12 +76,14 @@ export const FormRow: FC<Props> = ({
         'px-4 py-4',
         inline
           ? 'flex items-center justify-between gap-4'
-          : cn(
-              'flex flex-col gap-3 sm:grid sm:items-center sm:gap-6',
-              wide
-                ? 'sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]'
-                : 'sm:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]'
-            ),
+          : stacked
+            ? 'flex flex-col gap-2'
+            : cn(
+                'flex flex-col gap-3 sm:grid sm:items-center sm:gap-6',
+                wide
+                  ? 'sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]'
+                  : 'sm:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]'
+              ),
         className
       )}
     >

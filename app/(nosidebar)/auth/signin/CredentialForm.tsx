@@ -2,11 +2,13 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { FC, FormEvent, useState } from 'react'
+import { FC, FormEvent, useRef, useState } from 'react'
 
+import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { authClient } from '@/lib/services/auth/auth-client'
 import { normalizeEmail } from '@/lib/utils/normalizeEmail'
 
@@ -27,13 +29,23 @@ const requiresTwoFactor = (
 
 export const CredentialForm: FC<Props> = ({ providerName }) => {
   const [error, setError] = useState<string>()
+  const [fieldError, setFieldError] = useState<{
+    field: 'email' | 'password'
+    message: string
+  }>()
   const [loading, setLoading] = useState(false)
   const searchParams = useSearchParams()
   const router = useRouter()
+  const emailInputRef = useRef<HTMLInputElement>(null)
+  const passwordInputRef = useRef<HTMLInputElement>(null)
+
+  const clearFieldError = (field: 'email' | 'password') =>
+    setFieldError((current) => (current?.field === field ? undefined : current))
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(undefined)
+    setFieldError(undefined)
     setLoading(true)
 
     const formData = new FormData(e.currentTarget)
@@ -41,12 +53,15 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
     const password = formData.get('password')
 
     if (typeof email !== 'string' || !email.trim()) {
-      setError('Email is required')
+      setFieldError({ field: 'email', message: 'Email is required' })
+      // Focus moves to the invalid input so its description is read.
+      emailInputRef.current?.focus()
       setLoading(false)
       return
     }
     if (typeof password !== 'string' || !password) {
-      setError('Password is required')
+      setFieldError({ field: 'password', message: 'Password is required' })
+      passwordInputRef.current?.focus()
       setLoading(false)
       return
     }
@@ -89,14 +104,52 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
     // string (leaking them into history, logs, and Referer). POST keeps the
     // credentials in the request body in every case.
     <form onSubmit={handleSubmit} method="post" className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="inputEmail">Email</Label>
-        <Input name="email" type="email" id="inputEmail" />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="inputPassword">Password</Label>
-        <Input name="password" type="password" id="inputPassword" />
-      </div>
+      <Frame divided>
+        <FormRow stacked label="Email" htmlFor="inputEmail">
+          <Input
+            ref={emailInputRef}
+            name="email"
+            type="email"
+            id="inputEmail"
+            aria-invalid={fieldError?.field === 'email' ? true : undefined}
+            aria-describedby={
+              fieldError?.field === 'email' ? 'inputEmail-error' : undefined
+            }
+            onChange={() => clearFieldError('email')}
+          />
+          {fieldError?.field === 'email' && (
+            <p
+              id="inputEmail-error"
+              className="mt-2 text-xs text-destructive-text"
+            >
+              {fieldError.message}
+            </p>
+          )}
+        </FormRow>
+        <FormRow stacked label="Password" htmlFor="inputPassword">
+          <Input
+            ref={passwordInputRef}
+            name="password"
+            type="password"
+            id="inputPassword"
+            aria-invalid={fieldError?.field === 'password' ? true : undefined}
+            aria-describedby={
+              fieldError?.field === 'password'
+                ? 'inputPassword-error'
+                : undefined
+            }
+            onChange={() => clearFieldError('password')}
+          />
+          {fieldError?.field === 'password' && (
+            <p
+              id="inputPassword-error"
+              className="mt-2 text-xs text-destructive-text"
+            >
+              {fieldError.message}
+            </p>
+          )}
+        </FormRow>
+      </Frame>
       <div className="text-right">
         <Link
           href="/auth/forgot-password"
@@ -106,7 +159,7 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
         </Link>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <Alert title={error} />}
 
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? 'Signing in…' : `Sign in with ${providerName}`}

@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { FC } from 'react'
 
+import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getBaseURL } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -121,6 +122,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
   return (
     <div>
       <AuthorizeCard
+        logoSrc={getAuthLogoSrc()}
         searchParams={params}
         client={{ name: client.name ?? null, website: client.website ?? null }}
         actors={actors}

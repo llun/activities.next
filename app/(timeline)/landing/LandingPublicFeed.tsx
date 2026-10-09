@@ -51,14 +51,20 @@ export const LandingPublicFeed: FC<LandingPublicFeedProps> = ({
         </div>
       </div>
 
-      <Posts
-        framed={false}
-        host={host}
-        currentTime={currentTime}
-        statuses={statuses}
-        showActions={false}
-        showReadOnlyStats
-      />
+      {/* The posts are the post list frame like every other list of posts: a
+          flat `rounded-lg border` card in the column's gutter from `md` up,
+          full-bleed below `md` as everywhere. The column itself has no padding
+          on a phone (the frame's mobile margin resolves to nothing there), so
+          the gutter is `md:p-5` only. */}
+      <div className="md:p-5">
+        <Posts
+          host={host}
+          currentTime={currentTime}
+          statuses={statuses}
+          showActions={false}
+          showReadOnlyStats
+        />
+      </div>
 
       <div className="px-5 py-4 text-center text-xs text-muted-foreground">
         Sign in to see the full timeline, reply, and follow across the

@@ -205,4 +205,73 @@ describe('CredentialForm', () => {
     })
     expect(push).toHaveBeenCalledWith('/')
   })
+
+  it('announces a failed sign-in as an alert', async () => {
+    vi.mocked(authClient.signIn.email).mockResolvedValue({
+      data: null,
+      error: { message: 'Invalid email or password' }
+    } as never)
+    render(<CredentialForm providerName="credentials" />)
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    await signIn('me@example.com', 'wrong')
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Invalid email or password'
+    )
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('marks a missing field inline, without an alert, and clears it on the next try', async () => {
+    vi.mocked(authClient.signIn.email).mockResolvedValue({
+      data: {},
+      error: null
+    } as never)
+    render(<CredentialForm providerName="credentials" />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+    })
+
+    const email = screen.getByLabelText('Email')
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+    expect(email).toHaveAccessibleDescription('Email is required')
+    expect(email).toHaveFocus()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(authClient.signIn.email).not.toHaveBeenCalled()
+
+    // A second empty submit moves focus back to the invalid input.
+    const submit = screen.getByRole('button', { name: /sign in/i })
+    submit.focus()
+    await act(async () => {
+      fireEvent.click(submit)
+    })
+    expect(email).toHaveFocus()
+
+    await signIn('me@example.com', 'hunter2')
+    expect(email).not.toHaveAttribute('aria-invalid')
+    expect(screen.queryByText('Email is required')).not.toBeInTheDocument()
+  })
+
+  it('marks a missing password on the password field and clears it when it is edited', async () => {
+    render(<CredentialForm providerName="credentials" />)
+
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'me@example.com' }
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+    })
+
+    const password = screen.getByLabelText('Password')
+    expect(password).toHaveAttribute('aria-invalid', 'true')
+    expect(password).toHaveAccessibleDescription('Password is required')
+    expect(password).toHaveFocus()
+    expect(screen.getByLabelText('Email')).not.toHaveAttribute('aria-invalid')
+
+    fireEvent.change(password, { target: { value: 'h' } })
+    expect(password).not.toHaveAttribute('aria-invalid')
+    expect(screen.queryByText('Password is required')).not.toBeInTheDocument()
+  })
 })

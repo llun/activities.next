@@ -4,6 +4,13 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
+import { ActorFitnessDashboard } from '@/app/(timeline)/fitness/ActorFitnessDashboard'
+import { OverviewHeaderSlot } from '@/app/(timeline)/fitness/FitnessOverviewHeader'
+import { RecentFitnessActivities } from '@/app/(timeline)/fitness/RecentFitnessActivities'
+import {
+  readActivityTypeParam,
+  resolveActivityTypeFilter
+} from '@/app/(timeline)/fitness/activityFilter'
 import { PageHeader } from '@/lib/components/page-header'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
@@ -14,14 +21,6 @@ import { getActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
-import { ActorFitnessDashboard } from './ActorFitnessDashboard'
-import { OverviewHeaderSlot } from './FitnessOverviewHeader'
-import { RecentFitnessActivities } from './RecentFitnessActivities'
-import {
-  readActivityTypeParam,
-  resolveActivityTypeFilter
-} from './activityFilter'
 
 export const dynamic = 'force-dynamic'
 

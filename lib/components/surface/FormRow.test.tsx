@@ -71,4 +71,17 @@ describe('FormRow', () => {
       screen.getByRole('radiogroup', { name: 'Shade by' })
     ).toBeInTheDocument()
   })
+
+  it('names a stacked control by its label and describes it by its hint', () => {
+    render(
+      <FormRow stacked label="Email" htmlFor="email" hint="We never share it">
+        {({ describedBy }) => (
+          <input id="email" aria-describedby={describedBy} />
+        )}
+      </FormRow>
+    )
+
+    const input = screen.getByRole('textbox', { name: 'Email' })
+    expect(input).toHaveAccessibleDescription('We never share it')
+  })
 })

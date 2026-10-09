@@ -261,4 +261,107 @@ describe('ResetPasswordForm', () => {
     }
     expect(mockResetPassword).toHaveBeenCalledTimes(1)
   })
+
+  it('marks a mismatch on the confirm field, without an alert, and clears it when edited', async () => {
+    render(<ResetPasswordForm initialCode="code" />)
+
+    fireEvent.change(screen.getByLabelText(/^new password/i), {
+      target: { value: 'password-one' }
+    })
+    fireEvent.change(screen.getByLabelText(/confirm new password/i), {
+      target: { value: 'password-two' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /reset password/i }))
+
+    const confirm = screen.getByLabelText(/confirm new password/i)
+    expect(confirm).toHaveAttribute('aria-invalid', 'true')
+    expect(confirm).toHaveAccessibleDescription('Passwords do not match')
+    expect(confirm).toHaveFocus()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mockResetPassword).not.toHaveBeenCalled()
+
+    fireEvent.change(confirm, { target: { value: 'password-one' } })
+    expect(confirm).not.toHaveAttribute('aria-invalid')
+    expect(screen.queryByText('Passwords do not match')).not.toBeInTheDocument()
+  })
+
+  it('marks a missing reset code and a short password on their own fields', () => {
+    render(<ResetPasswordForm />)
+
+    // Blank spaces pass the native `required` check, so our own rule runs.
+    fireEvent.change(screen.getByLabelText(/reset code/i), {
+      target: { value: '   ' }
+    })
+    fireEvent.change(screen.getByLabelText(/^new password/i), {
+      target: { value: 'password123' }
+    })
+    fireEvent.change(screen.getByLabelText(/confirm new password/i), {
+      target: { value: 'password123' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /reset password/i }))
+    expect(screen.getByLabelText(/reset code/i)).toHaveAccessibleDescription(
+      'Reset code is required'
+    )
+    expect(screen.getByLabelText(/reset code/i)).toHaveFocus()
+
+    fireEvent.change(screen.getByLabelText(/reset code/i), {
+      target: { value: 'code' }
+    })
+    fireEvent.change(screen.getByLabelText(/^new password/i), {
+      target: { value: 'short' }
+    })
+    fireEvent.change(screen.getByLabelText(/confirm new password/i), {
+      target: { value: 'short' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /reset password/i }))
+
+    expect(screen.getByLabelText(/^new password/i)).toHaveAccessibleDescription(
+      'Password must be at least 8 characters long'
+    )
+    expect(screen.getByLabelText(/^new password/i)).toHaveFocus()
+    expect(screen.getByLabelText(/reset code/i)).not.toHaveAttribute(
+      'aria-invalid'
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('focuses the first invalid input when several are invalid', () => {
+    render(<ResetPasswordForm initialCode="code" />)
+
+    fireEvent.change(screen.getByLabelText(/^new password/i), {
+      target: { value: 'short' }
+    })
+    fireEvent.change(screen.getByLabelText(/confirm new password/i), {
+      target: { value: 'other' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /reset password/i }))
+
+    expect(screen.getByLabelText(/^new password/i)).toHaveFocus()
+    expect(screen.getByLabelText(/^new password/i)).toHaveAccessibleDescription(
+      'Password must be at least 8 characters long'
+    )
+  })
+
+  it('confirms a reset as a polite status and offers the way back to sign in', async () => {
+    mockResetPassword.mockResolvedValueOnce({
+      success: true,
+      message: 'Password reset successfully'
+    })
+    render(<ResetPasswordForm initialCode="code" />)
+
+    fireEvent.change(screen.getByLabelText(/^new password/i), {
+      target: { value: 'long-enough-password' }
+    })
+    fireEvent.change(screen.getByLabelText(/confirm new password/i), {
+      target: { value: 'long-enough-password' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /reset password/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Password reset successfully'
+    )
+    expect(
+      screen.getByRole('link', { name: 'Continue to sign in' })
+    ).toHaveAttribute('href', '/auth/signin')
+  })
 })
