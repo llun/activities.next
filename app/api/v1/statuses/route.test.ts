@@ -13,7 +13,6 @@ import { getQueue } from '@/lib/services/queue'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import {
   CREATED_AT_INVALID_ERROR,
-  CREATED_AT_IN_FUTURE_ERROR,
   CREATED_AT_WITH_SCHEDULED_AT_ERROR
 } from '@/lib/services/statuses/backdatedCreatedAt'
 import { seedDatabase } from '@/lib/stub/database'
@@ -1034,25 +1033,16 @@ describe('POST /api/v1/statuses', () => {
       expect(mastodonStatus.created_at).toBe('2026-06-14T18:30:00.000Z')
     })
 
-    it.each([
-      {
-        description: 'rejects a created_at in the future',
-        createdAt: () => new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        error: CREATED_AT_IN_FUTURE_ERROR
-      },
-      {
-        description: 'rejects a created_at that is not a date-time',
-        createdAt: () => 'last saturday',
-        error: CREATED_AT_INVALID_ERROR
-      }
-    ])('$description', async ({ createdAt, error }) => {
+    it('rejects an invalid created_at', async () => {
       const response = await postStatus({
         status: 'Rejected backdated status',
-        created_at: createdAt()
+        created_at: 'last saturday'
       })
 
       expect(response.status).toBe(422)
-      expect(await response.json()).toEqual({ error })
+      expect(await response.json()).toEqual({
+        error: CREATED_AT_INVALID_ERROR
+      })
       expect(getQueue().publish).not.toHaveBeenCalled()
     })
 

@@ -553,8 +553,10 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   is more than one minute in the future, or is combined with `scheduled_at`. A
   poll's `expires_in` still counts from the time of the request. A backdated
   status lands at its backdated position on timelines, not at the top as a new
-  post, so clients polling with `since_id`/`min_id` will not pick it up. Mastodon
-  clients never send it.
+  post, so clients polling with `since_id`/`min_id` will not pick it up, and a
+  backdated direct message older than a conversation's latest message does not
+  mark the conversation unread or move it up the conversations list (its mention
+  notification still arrives). Mastodon clients never send it.
 - **`?format=activities_next`** — timeline endpoints and
   `GET /api/v1/trends/statuses` accept this query flag to return the raw internal
   status JSON instead of the Mastodon status shape (the web `/explore` Posts tab
