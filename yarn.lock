@@ -4120,11 +4120,11 @@ __metadata:
   linkType: hard
 
 "brace-expansion@npm:^5.0.8":
-  version: 5.0.9
-  resolution: "brace-expansion@npm:5.0.9"
+  version: 5.0.12
+  resolution: "brace-expansion@npm:5.0.12"
   dependencies:
     balanced-match: "npm:^4.0.2"
-  checksum: 10c0/3dea38884a1c3c8b1c9c44a7402a0c76fca460f70cffb3127242b0b4cbf4472019e022ade021eec44838ff19f1dac2625dfd11dd459d7e1e055b0698a8d52fec
+  checksum: 10c0/a40ac64d3bdb5bb222456514d3633c1f627f03b844f509c69e70f98b78be0ce85e21b44bbfecdd0ddd4cc0855ca4242b41ea96ddccf88c7c3c7a84405474bb3a
   languageName: node
   linkType: hard
 
@@ -4803,9 +4803,9 @@ __metadata:
   linkType: hard
 
 "fast-copy@npm:^4.0.0":
-  version: 4.0.2
-  resolution: "fast-copy@npm:4.0.2"
-  checksum: 10c0/f8e51483ce1761e3ba21a07cbd2149afd99a62230aa8025acc6ce4c818000a52c94ebb80960d63953ff01677b7886841f250395e462ad9a54bef39cce1834343
+  version: 4.1.2
+  resolution: "fast-copy@npm:4.1.2"
+  checksum: 10c0/f9645bbf6160839aa6b2831acd61b702ee5f3802982dd27e8da352085ba4356053f5df8f64238a08b607fd450361f12d415127569f87008504bc8731d1d137d1
   languageName: node
   linkType: hard
 
@@ -5143,9 +5143,9 @@ __metadata:
   linkType: hard
 
 "http-cache-semantics@npm:^4.1.1, http-cache-semantics@npm:^4.2.0":
-  version: 4.2.0
-  resolution: "http-cache-semantics@npm:4.2.0"
-  checksum: 10c0/45b66a945cf13ec2d1f29432277201313babf4a01d9e52f44b31ca923434083afeca03f18417f599c9ab3d0e7b618ceb21257542338b57c54b710463b4a53e37
+  version: 4.3.0
+  resolution: "http-cache-semantics@npm:4.3.0"
+  checksum: 10c0/b9668e271b4a99cba067bfa6f286b12eff1408a24e090ca16f0f5fa826ac07f67b4b8c7aa6e7458596d890683f3c172f647a00ca516a8f0158c80d7e4ebe0316
   languageName: node
   linkType: hard
 
