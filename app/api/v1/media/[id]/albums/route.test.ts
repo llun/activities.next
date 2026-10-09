@@ -5,6 +5,7 @@ import { seedGalleryRouteFixtures } from '@/lib/services/gallery/galleryRouteFix
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { GET, OPTIONS } from './route'
 
@@ -75,6 +76,50 @@ describe('/api/v1/media/[id]/albums', () => {
     return created.album.id
   }
 
+  // Photos a test made, with their posts: removed after it.
+  const madeStatuses: string[] = []
+
+  const makePhoto = async ({
+    name,
+    actorId = ACTOR1_ID,
+    inGallery = true
+  }: {
+    name: string
+    actorId?: string
+    inGallery?: boolean
+  }) => {
+    const media = await database.createMedia({
+      actorId,
+      original: {
+        path: `/test/albums-route-${name}.jpg`,
+        bytes: 1000,
+        mimeType: 'image/jpeg',
+        metaData: { width: 100, height: 100 }
+      },
+      details: { inGallery }
+    })
+    const statusId = `${actorId}/statuses/albums-route-${name}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: name
+    })
+    madeStatuses.push(statusId)
+    await database.createAttachment({
+      actorId,
+      statusId,
+      mediaType: 'image/jpeg',
+      url: `https://media.test/albums-route-${name}.jpg`,
+      width: 100,
+      height: 100,
+      mediaId: media!.id
+    })
+    return { mediaId: media!.id, statusId }
+  }
+
   beforeAll(async () => {
     await prepare()
     await database.migrate()
@@ -106,8 +151,12 @@ describe('/api/v1/media/[id]/albums', () => {
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     for (const id of made.splice(0)) {
       await database.deleteGalleryAlbum({ id, actorId: ACTOR1_ID })
+    }
+    for (const statusId of madeStatuses.splice(0)) {
+      await database.deleteStatus({ statusId })
     }
   })
 
@@ -185,6 +234,34 @@ describe('/api/v1/media/[id]/albums', () => {
     expect((await response.json()).addable).toBe(false)
   })
 
+  it('marks a photo kept out of the gallery as not addable', async () => {
+    const { mediaId } = await makePhoto({
+      name: 'not-in-gallery',
+      inGallery: false
+    })
+
+    const response = await get(mediaId)
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).addable).toBe(false)
+  })
+
+  it('marks a photo whose post was deleted as not addable, but still lists its albums', async () => {
+    const { mediaId, statusId } = await makePhoto({ name: 'post-deleted' })
+    const holding = await createAlbum('Kept after delete', {
+      mediaIds: [mediaId]
+    })
+    await database.deleteStatus({ statusId })
+
+    const response = await get(mediaId)
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.addable).toBe(false)
+    // The menu can still take the photo out of the album that holds it.
+    expect(body.albumIds).toEqual([holding])
+  })
+
   describe('media that is not the caller', () => {
     it('answers the same 404 for another account media and for a missing id', async () => {
       await createAlbum('Mine only', { mediaIds: [ids.kingfisher] })
@@ -204,12 +281,71 @@ describe('/api/v1/media/[id]/albums', () => {
       allowsMethod(foreign, 'GET')
     })
 
-    it('never shows the owner albums to another account', async () => {
+    it('never reads the owner’s albums for a request it refuses', async () => {
+      await createAlbum('Mine only', { mediaIds: [ids.kingfisher] })
+      const summaries = vi.spyOn(database, 'getGalleryAlbumSummaries')
+      const holding = vi.spyOn(database, 'getAlbumsForMedia')
       signIn(seedActor2.email)
 
-      const text = await (await get(ids.kingfisher)).text()
+      const foreign = await get(ids.kingfisher)
+      const missing = await get('999999')
+      const malformed = await get('not-a-number')
 
-      expect(text).not.toContain('Mine only')
+      expect([foreign.status, missing.status, malformed.status]).toEqual([
+        404, 404, 404
+      ])
+      // The 404 is decided before any album is looked up.
+      expect(summaries).not.toHaveBeenCalled()
+      expect(holding).not.toHaveBeenCalled()
+    })
+
+    describe('another actor of the same account', () => {
+      let siblingMediaId = ''
+
+      beforeAll(async () => {
+        const actor1 = await database.getActorFromId({ id: ACTOR1_ID })
+        const siblingId = await database.createActorForAccount({
+          accountId: actor1!.account!.id,
+          username: 'albums-route-sibling',
+          domain: 'llun.test',
+          privateKey: 'privateKey-albums-route-sibling',
+          publicKey: 'publicKey-albums-route-sibling'
+        })
+        const photo = await makePhoto({
+          name: 'sibling',
+          actorId: siblingId
+        })
+        siblingMediaId = photo.mediaId
+        // The post and photo stay for the tests below (afterEach would drop
+        // the post), so they are kept out of the per-test cleanup.
+        madeStatuses.splice(0)
+      })
+
+      it('answers the same 404 as for a missing id, though the account owns the photo', async () => {
+        // The account-level lookup finds it: only the actor check refuses.
+        const lookup = await database.getMediaByIdForAccount({
+          mediaId: siblingMediaId,
+          accountId: (await database.getActorFromId({ id: ACTOR1_ID }))!
+            .account!.id
+        })
+        expect(lookup?.actorId).not.toBe(ACTOR1_ID)
+
+        const sibling = await get(siblingMediaId)
+        const missing = await get('999999')
+
+        expect(sibling.status).toBe(404)
+        expect(await sibling.json()).toEqual(await missing.json())
+        allowsMethod(sibling, 'GET')
+      })
+
+      it('does not read the owner’s albums for it', async () => {
+        await createAlbum('Primary only')
+        const summaries = vi.spyOn(database, 'getGalleryAlbumSummaries')
+
+        await get(siblingMediaId)
+
+        expect(summaries).not.toHaveBeenCalled()
+      })
     })
   })
 })
