@@ -1780,7 +1780,12 @@ describe('Post', () => {
           currentActor={status.actor ?? undefined}
           currentTime={currentTime}
           showActions
-          status={status}
+          status={{
+            ...status,
+            reactions: [
+              { name: '🔥', count: 2, me: false, url: null, static_url: null }
+            ]
+          }}
           onShowAttachment={vi.fn()}
         />
       )
@@ -1791,6 +1796,11 @@ describe('Post', () => {
       const actions = screen.getByRole('group', { name: 'Post actions' })
       expect(actions).toHaveClass('-ml-13')
       expect(actions).toHaveClass('mt-3')
+      // The reaction chips go full-bleed with the action row, or they line up
+      // with nothing.
+      expect(
+        screen.getByLabelText('Add 🔥 reaction, 2').parentElement
+      ).toHaveClass('-ml-13')
     })
 
     it('hands bookmark and react to the overflow menu when the post is narrow', async () => {

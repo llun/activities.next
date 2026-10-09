@@ -117,7 +117,7 @@ describe('LoadMoreButton', () => {
     )
   })
 
-  it('attaches containerRef to the wrapper div', () => {
+  it('puts containerClassName on the containerRef wrapper when both are passed', () => {
     const containerRef = createRef<HTMLDivElement>()
     const { container } = render(
       <LoadMoreButton
@@ -126,8 +126,8 @@ describe('LoadMoreButton', () => {
         onClick={() => {}}
       />
     )
-    expect(container.firstElementChild?.tagName).toBe('DIV')
     expect(containerRef.current).toBe(container.firstElementChild)
+    expect(container.firstElementChild).toHaveClass('mt-6')
   })
 
   it('forwards button props such as size and aria attributes to the button', () => {
