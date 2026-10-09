@@ -8,6 +8,7 @@ import {
   saveStravaSettings
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -52,7 +53,10 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
   const [isConnected, setIsConnected] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState<{
+    tone: 'info' | 'success'
+    text: string
+  } | null>(null)
   const [error, setError] = useState('')
   const [showUnlinkDialog, setShowUnlinkDialog] = useState(false)
   const [archiveActorHandle, setArchiveActorHandle] = useState('')
@@ -94,7 +98,10 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
     const checkUrlParams = () => {
       const params = new URLSearchParams(window.location.search)
       if (params.get('success') === 'true') {
-        setMessage('Successfully connected to Strava!')
+        setMessage({
+          tone: 'success',
+          text: 'Successfully connected to Strava!'
+        })
         setIsConnected(true)
         window.history.replaceState(
           {},
@@ -133,7 +140,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setMessage('')
+    setMessage(null)
     setIsLoading(true)
 
     try {
@@ -149,12 +156,18 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
       }
 
       if (data.authorizeUrl) {
-        setMessage('Redirecting to Strava for authorization...')
+        setMessage({
+          tone: 'info',
+          text: 'Redirecting to Strava for authorization...'
+        })
         window.location.href = data.authorizeUrl
         return
       }
 
-      setMessage(data.message || 'Strava settings saved successfully!')
+      setMessage({
+        tone: 'success',
+        text: data.message || 'Strava settings saved successfully!'
+      })
     } catch (err) {
       setError(
         err instanceof Error && err.message
@@ -168,13 +181,16 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
 
   const handleUnlink = async () => {
     setError('')
-    setMessage('')
+    setMessage(null)
     setIsLoading(true)
 
     try {
       const data = await deleteStravaSettings()
 
-      setMessage(data.message || 'Settings removed successfully!')
+      setMessage({
+        tone: 'success',
+        text: data.message || 'Settings removed successfully!'
+      })
       setIsConfigured(false)
       setIsConnected(false)
       setClientId('')
@@ -281,29 +297,20 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
             </p>
             {(defaultVisibility === 'public' ||
               defaultVisibility === 'unlisted') && (
-              <div className="rounded-md bg-yellow-50 p-3 dark:bg-yellow-950">
-                <p
-                  role="alert"
-                  className="text-sm text-yellow-800 dark:text-yellow-200"
-                >
-                  Anyone on the fediverse can read these posts. An activity you
-                  marked &quot;Only you&quot; on Strava will still be posted for
-                  everyone, with its route map and stats.
-                </p>
-              </div>
+              <Alert
+                tone="warning"
+                title="Anyone on the fediverse can read these posts."
+              >
+                An activity you marked &quot;Only you&quot; on Strava will still
+                be posted for everyone, with its route map and stats.
+              </Alert>
             )}
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {message && <p className="text-sm text-green-600">{message}</p>}
+          {message && <Alert tone={message.tone} title={message.text} />}
 
-          {isConnected && (
-            <div className="rounded-md bg-green-50 p-3 dark:bg-green-950">
-              <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                ✓ Connected to Strava
-              </p>
-            </div>
-          )}
+          {isConnected && <Alert tone="success" title="Connected to Strava" />}
 
           {webhookUrl && (
             <div className="space-y-2">
@@ -322,11 +329,10 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
           )}
 
           {isConfigured && !isConnected && (
-            <div className="rounded-md bg-yellow-50 p-3 dark:bg-yellow-950">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                Credentials saved but not connected. Please reconnect.
-              </p>
-            </div>
+            <Alert
+              tone="warning"
+              title="Credentials saved but not connected. Please reconnect."
+            />
           )}
 
           <div className="flex gap-2">

@@ -21,9 +21,6 @@ import {
   useState
 } from 'react'
 
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
-import { FITNESS_STAT_STRIP_CLASS } from '@/lib/components/fitness/FitnessStatCell'
 import {
   AnnualCalendar,
   AnnualCalendarHandle
@@ -44,6 +41,8 @@ import {
 } from '@/lib/components/fitness/calendar/calendarShared'
 import { useElementWidth } from '@/lib/components/fitness/calendar/useElementWidth'
 import { RefreshButton } from '@/lib/components/refresh-button'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import {
   formatMonthShort,
@@ -608,7 +607,7 @@ function FitnessOverview({
       )}
 
       {status === 'error' && (
-        <FitnessAlert
+        <Alert
           title={
             showingPrevious && result
               ? `Showing previous results for ${formatRange(result.range.from, result.range.to)}`
@@ -633,14 +632,13 @@ function FitnessOverview({
           {showingPrevious
             ? `We couldn’t load ${formatRange(applied.from, applied.to)}. Check your connection and try again. Totals and calendar below are from the previous range.`
             : 'Check your connection and try again. Nothing is shown for this range until it loads.'}
-        </FitnessAlert>
+        </Alert>
       )}
 
       <FitnessSummaryStrip
         totals={totals}
         loading={loading}
         className={cn(
-          FITNESS_STAT_STRIP_CLASS,
           'transition-opacity duration-150',
           loading && 'opacity-60'
         )}
@@ -831,7 +829,7 @@ function FitnessOverview({
       </section>
 
       {isEmpty ? (
-        <FitnessEmptyState
+        <EmptyState
           icon={CalendarDays}
           title={`No activities recorded in ${formatRange(applied.from, applied.to)}.`}
           action={
@@ -856,7 +854,7 @@ function FitnessOverview({
             </Link>
             .
           </p>
-        </FitnessEmptyState>
+        </EmptyState>
       ) : unavailable ? null : (
         <ActivityTypeBreakdown
           summary={shown?.summary ?? []}

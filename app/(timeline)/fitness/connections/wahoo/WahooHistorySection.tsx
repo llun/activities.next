@@ -10,6 +10,7 @@ import {
   retryWahooHistory,
   startWahooHistory
 } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -268,11 +269,7 @@ export const WahooHistorySection = ({
           {error}
         </p>
       )}
-      {message && (
-        <p role="status" className="text-sm text-green-700 dark:text-green-400">
-          {message}
-        </p>
-      )}
+      {message && <Alert tone="success" title={message} />}
     </section>
   )
 }

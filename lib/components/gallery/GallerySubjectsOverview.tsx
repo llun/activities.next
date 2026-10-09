@@ -4,13 +4,12 @@ import { Images, ListChecks, MapPin, Shapes } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useMemo, useState } from 'react'
 
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
-import { FITNESS_STAT_STRIP_CLASS } from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatCell } from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { GalleryCategorySection } from '@/lib/components/gallery/GalleryCategorySection'
 import { GALLERY_CATEGORY_LABELS } from '@/lib/components/gallery/galleryCategories'
 import { formatCountryCount } from '@/lib/components/gallery/galleryTaxonomy'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import type {
   GallerySubjectGroupCategory,
   GallerySubjectsResponse
@@ -72,9 +71,9 @@ export const GallerySubjectsOverview: FC<Props> = ({
 
   if (data.groups.length === 0 && data.unidentifiedCount === 0) {
     return (
-      <FitnessEmptyState icon={Images} title="No photos in your gallery yet">
+      <EmptyState icon={Images} title="No photos in your gallery yet">
         Photos and videos you post with “Add to gallery” on will appear here.
-      </FitnessEmptyState>
+      </EmptyState>
     )
   }
 
@@ -88,28 +87,24 @@ export const GallerySubjectsOverview: FC<Props> = ({
 
   return (
     <div className="space-y-6">
-      <FitnessStatGrid
-        variant="summary"
-        columns={showPlaces ? 4 : 3}
-        className={FITNESS_STAT_STRIP_CLASS}
-      >
-        <FitnessStatCell
+      <StatStrip variant="summary" columns={showPlaces ? 4 : 3}>
+        <StatCell
           label="Photos and videos"
           icon={Images}
           value={`${numberFormat.format(totals.photos)}${suffix}`}
         />
-        <FitnessStatCell
+        <StatCell
           label="Species"
           icon={ListChecks}
           value={`${numberFormat.format(totals.species)}${suffix}`}
         />
-        <FitnessStatCell
+        <StatCell
           label="Without a subject"
           icon={Shapes}
           value={numberFormat.format(data.unidentifiedCount)}
         />
         {data.countryCount !== null ? (
-          <FitnessStatCell
+          <StatCell
             label="Places"
             icon={MapPin}
             value={
@@ -138,7 +133,7 @@ export const GallerySubjectsOverview: FC<Props> = ({
             }
           />
         ) : null}
-      </FitnessStatGrid>
+      </StatStrip>
 
       {groups.length > 1 ? (
         <div

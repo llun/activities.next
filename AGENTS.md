@@ -319,6 +319,10 @@ The durable rule source moved to [docs/architecture.md](docs/architecture.md#age
 
 The durable rule source lives in [docs/architecture.md](docs/architecture.md#agents-fitness-overview-calendar); read it before changing this subsystem.
 
+## Surfaces (Shared Surface Kit)
+
+The durable rule source lives in [docs/architecture.md](docs/architecture.md#agents-surfaces); read it before changing page layout or adding a panel, list, form, empty state, alert, tab row or loading state.
+
 ## Settings Forms (Client Components)
 
 The durable rule source moved to [docs/architecture.md](docs/architecture.md#agents-settings-forms-client-components); read it before changing this subsystem.

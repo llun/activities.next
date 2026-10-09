@@ -38,7 +38,7 @@ const EnvVarName: FC<{ name: string }> = ({ name }) => (
 )
 
 // Amber callout matching the env-lock badge: this section looks like the saved
-// settings above it, so it has to say plainly that Update does not reach it.
+// settings above it, so it has to say plainly that Save does not reach it.
 const EnvNotice: FC<{ children: ReactNode }> = ({ children }) => (
   <div className="flex items-start gap-2.5 rounded-lg bg-amber-100 px-3.5 py-2.5 text-[13px] leading-5 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
     <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -226,7 +226,7 @@ export const EnvBlockBuilder: FC = () => {
       description="Infrastructure is configured in .env, not the database: pick an area, fill in the values, paste the block into your .env, then restart. Nothing typed here is sent or stored anywhere."
     >
       <EnvNotice>
-        The <strong>Update</strong> button above does not save any of this — the
+        The <strong>Save</strong> buttons above do not save any of this — the
         server reads {area.subject} from the environment at boot, never from the
         database.
       </EnvNotice>

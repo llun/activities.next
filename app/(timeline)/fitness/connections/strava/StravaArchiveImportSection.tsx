@@ -14,6 +14,7 @@ import {
   startStravaArchiveImport
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -36,7 +37,10 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
   const [isArchiveActionLoading, setIsArchiveActionLoading] = useState(false)
   const [isArchivePolling, setIsArchivePolling] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [archiveMessage, setArchiveMessage] = useState('')
+  const [archiveMessage, setArchiveMessage] = useState<{
+    tone: 'info' | 'success' | 'warning'
+    text: string
+  } | null>(null)
   const [archiveError, setArchiveError] = useState('')
   const [activeArchiveImport, setActiveArchiveImport] =
     useState<ActiveStravaArchiveImport | null>(null)
@@ -67,14 +71,17 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
 
       if (activeImport.status === 'importing') {
         setArchiveError('')
-        setArchiveMessage('A Strava archive import is currently running.')
+        setArchiveMessage({
+          tone: 'info',
+          text: 'A Strava archive import is currently running.'
+        })
       } else {
         const failedMessage =
           activeImport.lastError ||
           activeImport.firstFailureMessage ||
           'Strava archive import failed. Retry or cancel before importing a new archive.'
         setArchiveError(failedMessage)
-        setArchiveMessage('')
+        setArchiveMessage(null)
       }
 
       return activeImport
@@ -135,8 +142,11 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
 
           setArchiveMessage(
             result.status === 'completed'
-              ? 'Strava archive import completed.'
-              : 'Strava archive import finished with partial failures.'
+              ? { tone: 'success', text: 'Strava archive import completed.' }
+              : {
+                  tone: 'warning',
+                  text: 'Strava archive import finished with partial failures.'
+                }
           )
           setArchiveError('')
           return
@@ -204,11 +214,14 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
     }
 
     setArchiveError('')
-    setArchiveMessage('')
+    setArchiveMessage(null)
     setArchiveBatchResult(null)
     setIsArchiveImporting(true)
     setIsUploading(true)
-    setArchiveMessage('Uploading archive to storage…')
+    setArchiveMessage({
+      tone: 'info',
+      text: 'Uploading archive to storage…'
+    })
 
     // Give React a tick to render the uploading state
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -219,9 +232,10 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
         archiveVisibility
       )
       setArchiveBatchId(result.batchId)
-      setArchiveMessage(
-        'Strava archive uploaded. Import started in the background.'
-      )
+      setArchiveMessage({
+        tone: 'success',
+        text: 'Strava archive uploaded. Import started in the background.'
+      })
       setArchiveFile(null)
       const activeImport = await syncActiveArchiveImportState({
         showLoadError: false
@@ -247,7 +261,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
     }
 
     setArchiveError('')
-    setArchiveMessage('')
+    setArchiveMessage(null)
     setIsArchiveActionLoading(true)
 
     try {
@@ -258,7 +272,10 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
       }
       setArchiveBatchResult(null)
       setIsArchivePolling(true)
-      setArchiveMessage('Retrying Strava archive import...')
+      setArchiveMessage({
+        tone: 'info',
+        text: 'Retrying Strava archive import...'
+      })
     } catch (retryError) {
       const retryMessage =
         retryError instanceof Error
@@ -276,7 +293,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
     }
 
     setArchiveError('')
-    setArchiveMessage('')
+    setArchiveMessage(null)
     setIsArchiveActionLoading(true)
 
     try {
@@ -285,9 +302,10 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
       setArchiveFile(null)
       setIsArchivePolling(false)
       setArchiveBatchId(null)
-      setArchiveMessage(
-        'Cancelled remaining archive import. Already imported activities were kept.'
-      )
+      setArchiveMessage({
+        tone: 'success',
+        text: 'Cancelled remaining archive import. Already imported activities were kept.'
+      })
     } catch (cancelError) {
       const cancelMessage =
         cancelError instanceof Error
@@ -422,7 +440,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
         <p className="text-sm text-destructive">{archiveError}</p>
       )}
       {archiveMessage && (
-        <p className="text-sm text-green-600">{archiveMessage}</p>
+        <Alert tone={archiveMessage.tone} title={archiveMessage.text} />
       )}
     </div>
   )

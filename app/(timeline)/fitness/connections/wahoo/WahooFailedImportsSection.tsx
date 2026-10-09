@@ -7,6 +7,7 @@ import {
   getWahooFailedImports,
   retryWahooFailedImport
 } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 
 interface Props {
@@ -179,11 +180,7 @@ export const WahooFailedImportsSection = ({
           {error}
         </p>
       )}
-      {message && (
-        <p role="status" className="text-sm text-green-700 dark:text-green-400">
-          {message}
-        </p>
-      )}
+      {message && <Alert tone="success" title={message} />}
     </section>
   )
 }

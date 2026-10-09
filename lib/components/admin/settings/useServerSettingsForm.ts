@@ -10,7 +10,7 @@ import {
 // A settings form keyed by dotted setting keys (e.g. `instance.name`). Sections
 // save independently: each SaveBar drives its own saving/saved/error status and
 // patches only its keys, matching the design where every section has its own
-// Update button.
+// Save button.
 
 type Values = Record<string, unknown>
 

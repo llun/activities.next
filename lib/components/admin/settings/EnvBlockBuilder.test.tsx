@@ -43,10 +43,10 @@ describe('EnvBlockBuilder', () => {
     Reflect.deleteProperty(navigator, 'clipboard')
   })
 
-  it('says the Update button above does not save anything here', () => {
+  it('says the Save buttons above do not save anything here', () => {
     render(<EnvBlockBuilder />)
     expect(
-      screen.getByText(/does not save any of this/, { exact: false })
+      screen.getByText(/do not save any of this/, { exact: false })
     ).toHaveTextContent(
       'the server reads storage from the environment at boot, never from the database'
     )
@@ -174,7 +174,7 @@ describe('EnvBlockBuilder', () => {
     expect(area.getByText('mapbox')).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: STORAGE_AREA })).toBeNull()
     expect(
-      screen.getByText(/does not save any of this/, { exact: false })
+      screen.getByText(/do not save any of this/, { exact: false })
     ).toHaveTextContent('the server reads fitness maps from the environment')
   })
 

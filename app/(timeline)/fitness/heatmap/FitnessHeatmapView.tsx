@@ -18,8 +18,6 @@ import {
   triggerFitnessRouteHeatmap,
   unshareFitnessRouteHeatmap
 } from '@/lib/client'
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
-import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
 import {
   HeatmapRegionPicker,
   PickerRegion,
@@ -28,6 +26,8 @@ import {
   withRegionIds
 } from '@/lib/components/fitness/HeatmapRegionPicker'
 import { RegionHeatmapDetail } from '@/lib/components/fitness/RegionHeatmapDetail'
+import { Alert } from '@/lib/components/surface/Alert'
+import { Section } from '@/lib/components/surface/Section'
 import {
   HeatmapRegion,
   deserializeRegions,
@@ -734,10 +734,10 @@ export const FitnessHeatmapView: FC<Props> = ({
 
   return (
     <div className="space-y-6">
-      {error && <FitnessAlert title={error} />}
+      {error && <Alert title={error} />}
 
       {/* Region list — each opens its own heatmap page. */}
-      <FitnessSection
+      <Section
         title="Regions"
         meta={`${regions.length} region${regions.length === 1 ? '' : 's'} · ${generatedCount} generated`}
         description="Open a region to view its heatmap and generate it."
@@ -751,7 +751,7 @@ export const FitnessHeatmapView: FC<Props> = ({
           onRegionRemoved={handleRegionRemoved}
           onRegionSaved={handleRegionSaved}
         />
-      </FitnessSection>
+      </Section>
     </div>
   )
 }

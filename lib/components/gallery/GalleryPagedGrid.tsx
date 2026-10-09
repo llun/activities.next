@@ -4,12 +4,12 @@ import { Images } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getGalleryMedia } from '@/lib/client'
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
 import {
   GalleryGrid,
   type GalleryGridSelection
 } from '@/lib/components/gallery/GalleryGrid'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import type {
   GalleryItemEntity,
   GalleryMediaPage
@@ -168,7 +168,7 @@ export const GalleryPagedGrid: FC<Props> = ({
           albumsOwnerId={albumsOwnerId}
         />
       ) : error || nextMaxId ? null : (
-        <FitnessEmptyState icon={Images} title={emptyTitle} />
+        <EmptyState icon={Images} title={emptyTitle} />
       )}
       {error ? (
         <p role="alert" className="text-destructive text-sm">
