@@ -454,6 +454,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   per minute (429, in process): a signed-in viewer by actor, a logged-out one
   by client address only when `ACTIVITIES_TRUST_PROXY_IP_HEADERS` is on, and
   otherwise not limited here.
+- **`GET /api/v1/media/:id/albums`** — owner-only, non-Mastodon, for the add to
+  album menu (taking `read` or `read:statuses`, or the web session). It answers
+  `albums` (every album of the caller, last updated first, each with `id`,
+  `title`, `visibility` and the `itemCount` the owner sees), `albumIds` (the
+  ones that hold this photo) and `addable` (whether the photo is posted and in
+  the caller's gallery, so it can be added; a photo that is not can still be
+  taken out). Media that does not exist and media that is somebody else's both
+  answer 404. Adding and removing use the album `items` routes above.
 - **`?format=activities_next`** — timeline endpoints and
   `GET /api/v1/trends/statuses` accept this query flag to return the raw internal
   status JSON instead of the Mastodon status shape (the web `/explore` Posts tab
