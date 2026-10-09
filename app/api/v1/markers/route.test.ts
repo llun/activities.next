@@ -219,6 +219,22 @@ describe('/api/v1/markers', () => {
       expect(await response.json()).toEqual({})
     })
 
+    it('keeps the stored marker for an epoch-ms value beyond the future bound', async () => {
+      const kept = '019a0000-0000-7000-8000-000000000004'
+      await postNotificationsMarker(kept)
+
+      const response = await postNotificationsMarker(
+        String(Date.now() + 2 * 86400000)
+      )
+
+      expect(response.status).toBe(200)
+      const [stored] = await database.getMarkers({
+        actorId: ACTOR1_ID,
+        timelines: ['notifications']
+      })
+      expect(stored).toMatchObject({ lastReadId: kept, version: 1 })
+    })
+
     it("accepts a non-v7 id naming one of the caller's own notifications", async () => {
       // A v4 row the previous build wrote and nothing has rewritten yet.
       const id = 'c0ffee00-0000-4000-8000-000000000000'

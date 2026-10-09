@@ -331,8 +331,12 @@ product or security decision, not a gap to be closed.
   UUIDv7 strings (see **Notification ids are time-ordered UUIDv7s** above),
   which can't be numbers, so it emits a deterministic integer derived from the
   group's most-recent notification `createdAt` (epoch ms) — the same
-  millisecond that notification's UUIDv7 encodes. It is never a cursor, but
-  some clients do send it back as a read marker: Phanpy posts it as the
+  millisecond that notification's UUIDv7 encodes. This server cannot resolve it
+  as a cursor: Phanpy's background poller calls
+  `GET /api/v1/notifications?limit=1&since_id=<most_recent_notification_id as
+a string>`, which returns an empty page, so that poller never detects new
+  notifications (pre-existing behaviour). Some clients also send it back as a
+  read marker: Phanpy posts it as the
   `notifications` marker's `last_read_id`, and `POST /api/v1/markers` stores an
   epoch-ms value as the highest UUIDv7 for that millisecond, so it compares
   correctly against real notification ids. Pagination uses the `Link` header and

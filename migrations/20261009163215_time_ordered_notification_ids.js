@@ -18,7 +18,8 @@ import { rewriteNotificationIds } from '../lib/database/sql/notificationIdRewrit
  * WHAT ELSE STORES A NOTIFICATION ID. Only `markers.lastReadId` for the
  * `notifications` timeline. A marker on a rewritten row follows it; a marker on
  * a non-v7 id that names no notification (dismissed or cleared earlier) is
- * reset to the highest v7 id for the millisecond it was last written. A notification's group key falls back to its id
+ * reset to the highest v7 id for the millisecond it was last written. A
+ * notification's group key falls back to its id
  * (`groupKey || id`, `ungrouped-<id>`) only when it is serialized; nothing
  * persists that fallback, so there is nothing else to repoint.
  *

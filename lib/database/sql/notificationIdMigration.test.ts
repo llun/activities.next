@@ -31,6 +31,7 @@ describe('time-ordered notification ids migration', () => {
       table.string('actorId').notNullable()
       table.string('timeline').notNullable()
       table.text('lastReadId').notNullable()
+      table.integer('version').notNullable().defaultTo(1)
       table.datetime('updatedAt').notNullable().defaultTo(database.fn.now())
     })
   })
@@ -124,13 +125,14 @@ describe('time-ordered notification ids migration', () => {
       database('notifications').where('id', existingV7).count({ cnt: '*' })
     ).resolves.toEqual([{ cnt: 1 }])
     const markers = await database('markers')
-      .select('timeline', 'lastReadId')
+      .select('timeline', 'lastReadId', 'version')
       .orderBy('timeline')
     expect(markers).toEqual([
-      { timeline: 'home', lastReadId: markedId },
+      { timeline: 'home', lastReadId: markedId, version: 1 },
       {
         timeline: 'notifications',
-        lastReadId: await idCreatedAt(markedCreatedAt)
+        lastReadId: await idCreatedAt(markedCreatedAt),
+        version: 2
       }
     ])
   })
@@ -198,11 +200,19 @@ describe('time-ordered notification ids migration', () => {
 
     await expectAllTimeOrdered(1000)
     const markers = await database('markers')
-      .select('id', 'lastReadId')
+      .select('id', 'lastReadId', 'version')
       .orderBy('id')
     expect(markers).toEqual([
-      { id: 'marker-a', lastReadId: await idCreatedAt(firstChunkCreatedAt) },
-      { id: 'marker-b', lastReadId: await idCreatedAt(thirdChunkCreatedAt) }
+      {
+        id: 'marker-a',
+        lastReadId: await idCreatedAt(firstChunkCreatedAt),
+        version: 2
+      },
+      {
+        id: 'marker-b',
+        lastReadId: await idCreatedAt(thirdChunkCreatedAt),
+        version: 2
+      }
     ])
   })
 
@@ -261,15 +271,19 @@ describe('time-ordered notification ids migration', () => {
     await migration.up(database)
 
     const markers = await database('markers')
-      .select('id', 'lastReadId')
+      .select('id', 'lastReadId', 'version')
       .orderBy('id')
     const repaired = getMaxTimeOrderedIdForMs(Date.UTC(2026, 9, 1, 8, 9, 10))
     expect(isPublicId(repaired)).toBe(true)
     expect(markers).toEqual([
-      { id: 'marker-home', lastReadId: orphanId },
-      { id: 'marker-orphan', lastReadId: repaired },
-      { id: 'marker-row', lastReadId: await idCreatedAt(rowCreatedAt) },
-      { id: 'marker-v7', lastReadId: untouchedV7 }
+      { id: 'marker-home', lastReadId: orphanId, version: 1 },
+      { id: 'marker-orphan', lastReadId: repaired, version: 2 },
+      {
+        id: 'marker-row',
+        lastReadId: await idCreatedAt(rowCreatedAt),
+        version: 2
+      },
+      { id: 'marker-v7', lastReadId: untouchedV7, version: 1 }
     ])
     await expect(
       rewriteNotificationIds(database, { dryRun: true })

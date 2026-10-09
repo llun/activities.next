@@ -20,9 +20,12 @@ export interface MastodonNotificationGroup {
   // Mastodon iOS app types it `Int` and crashes on a string. This service uses
   // UUID notification ids, which can't be numbers, so we emit a deterministic
   // integer derived from the group's most-recent notification timestamp (epoch
-  // ms). Clients never use it as a pagination cursor (that's the Link header +
-  // the string page_min_id/page_max_id below), so the synthesized number is
-  // safe. Some do post it back as the notifications read marker (Phanpy), and
+  // ms). It is not a cursor this server can resolve: Phanpy's background poller
+  // calls GET /api/v1/notifications?limit=1&since_id=<it as a string>, which
+  // returns an empty page, so that poller never detects new notifications
+  // (pre-existing). Pagination itself uses the Link header + the string
+  // page_min_id/page_max_id below. Some clients also post it back as the
+  // notifications read marker (Phanpy), and
   // POST /api/v1/markers translates an epoch-ms value into the highest UUIDv7
   // for that millisecond — keep it epoch ms. Keep page_min_id/page_max_id as
   // the real UUID cursors the server can resolve.

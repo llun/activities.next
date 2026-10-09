@@ -24,6 +24,7 @@ describe('rewriteNotificationIds runRewrite', () => {
       table.string('actorId').notNullable()
       table.string('timeline').notNullable()
       table.text('lastReadId').notNullable()
+      table.integer('version').notNullable().defaultTo(1)
       table.datetime('updatedAt').notNullable().defaultTo(database.fn.now())
     })
     // A row the previous build wrote during the rollout, and the marker an
@@ -78,8 +79,9 @@ describe('rewriteNotificationIds runRewrite', () => {
 
     const [row] = await database('notifications').select('id')
     expect(isPublicId(row.id)).toBe(true)
-    const [marker] = await database('markers').select('lastReadId')
+    const [marker] = await database('markers').select('lastReadId', 'version')
     expect(marker.lastReadId).toBe(row.id)
+    expect(marker.version).toBe(2)
 
     // A second run over a clean table is a no-op that still passes.
     await expect(
