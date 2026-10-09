@@ -1,11 +1,19 @@
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+import { PostListSkeleton } from '@/lib/components/posts/PostListSkeleton'
+import {
+  MOBILE_FEED_SURFACE_CLASS,
+  POST_LIST_FRAME_CLASS
+} from '@/lib/components/posts/feedLayout'
+import { cn } from '@/lib/utils'
 
 export const TimelineLoading: FC = () => {
   return (
-    <div aria-busy="true" aria-label="Loading timeline" className="space-y-6">
+    <div aria-busy="true" className="space-y-6">
+      <span role="status" className="sr-only">
+        Loading timeline
+      </span>
       <PageHeader
         flushOnMobile
         actionsInMobileBar
@@ -15,7 +23,7 @@ export const TimelineLoading: FC = () => {
 
       <section
         aria-label="Post composer"
-        className={`rounded-xl border bg-card p-4 shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+        className={cn(POST_LIST_FRAME_CLASS, 'p-4', MOBILE_FEED_SURFACE_CLASS)}
       >
         <div className="flex items-start gap-3">
           <div className="skeleton size-12 shrink-0 rounded-full" />
@@ -44,32 +52,7 @@ export const TimelineLoading: FC = () => {
         className="max-md:-mt-6 max-md:ml-[calc(50%_-_50vw)] max-md:h-px max-md:w-screen max-md:bg-border md:hidden"
       />
 
-      <section
-        aria-label="Timeline posts"
-        className={`divide-y overflow-hidden rounded-xl border bg-card shadow-sm max-md:-mt-6 ${MOBILE_FEED_SURFACE_CLASS}`}
-      >
-        {[0, 1, 2].map((index) => (
-          <div key={index} className="flex gap-3 px-4 py-3">
-            <div className="skeleton size-10 shrink-0 rounded-full" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="skeleton h-4 w-32 rounded" />
-                <div className="skeleton h-3 w-20 rounded" />
-              </div>
-              <div className="space-y-1.5">
-                <div className="skeleton h-4 w-full rounded" />
-                <div className="skeleton h-4 w-4/5 rounded" />
-              </div>
-              <div className="flex gap-6 pt-2">
-                <div className="skeleton h-4 w-8 rounded" />
-                <div className="skeleton h-4 w-8 rounded" />
-                <div className="skeleton h-4 w-8 rounded" />
-                <div className="skeleton h-4 w-8 rounded" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </section>
+      <PostListSkeleton className="max-md:-mt-6" />
     </div>
   )
 }

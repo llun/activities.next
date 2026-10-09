@@ -1,4 +1,5 @@
 import { LucideIcon } from 'lucide-react'
+import Link from 'next/link'
 import { FC, ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
@@ -20,6 +21,14 @@ interface Props {
    */
   onSelect?: () => void
   selected?: boolean
+  /**
+   * Makes the cell a link to the list behind the number (a profile's followers
+   * count), with the same hover and focus treatment as a pressed-state button.
+   * `onSelect` wins if both are given.
+   */
+  href?: string
+  /** Passed to the link; pass `false` for a per-user route (see architecture). */
+  prefetch?: boolean
 }
 
 // The cell paints an OPAQUE background (the strip's 1px gaps cut into hairline
@@ -33,6 +42,9 @@ const IDLE_BACKGROUND = 'bg-background'
 // itself and checks the contrast of what is actually rendered.
 export const SELECTED_BACKGROUND =
   'bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))]'
+
+const LINK_CLASS =
+  'cursor-pointer outline-none transition-colors hover:bg-muted focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset'
 
 const SELECTABLE_CLASS =
   'relative w-full cursor-pointer text-left outline-none transition-colors hover:bg-muted focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:content-[""]'
@@ -53,7 +65,9 @@ export const StatCell: FC<Props> = ({
   value,
   loading = false,
   onSelect,
-  selected = false
+  selected = false,
+  href,
+  prefetch
 }) => {
   const valueClass = cn(
     'text-xl font-semibold tabular-nums break-words',
@@ -82,6 +96,24 @@ export const StatCell: FC<Props> = ({
       aria-hidden="true"
     />
   )
+
+  if (!onSelect && href) {
+    // Like the button, a link holds phrasing content only, so the label and
+    // value are spans in reading order ("Followers 30"), not a `dl`.
+    return (
+      <Link
+        href={href}
+        prefetch={prefetch}
+        className={cn(CELL_CLASS, IDLE_BACKGROUND, LINK_CLASS)}
+      >
+        {icon}
+        <span className="flex min-w-0 flex-col-reverse">
+          <span className="text-muted-foreground text-sm">{label}</span>{' '}
+          <span className={cn('block', valueClass)}>{valueContent}</span>
+        </span>
+      </Link>
+    )
+  }
 
   if (!onSelect) {
     return (

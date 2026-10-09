@@ -1,5 +1,6 @@
 'use client'
 
+import { Users } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useMemo } from 'react'
 
@@ -8,6 +9,8 @@ import {
   CustomEmojiText
 } from '@/lib/components/actors/ActorDisplayName'
 import { FollowAction } from '@/lib/components/follow-action/follow-action'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
@@ -17,13 +20,16 @@ interface Props {
   isLoggedIn: boolean
   blockedActorIds?: string[]
   emptyMessage?: string
+  /** Muted copy under the empty message, saying how the list fills up. */
+  emptyHint?: string
 }
 
 export const FollowList: FC<Props> = ({
   users,
   isLoggedIn,
   blockedActorIds = [],
-  emptyMessage = 'No accounts yet'
+  emptyMessage = 'No accounts yet',
+  emptyHint
 }) => {
   const blockedActorIdSet = useMemo(
     () => new Set(blockedActorIds),
@@ -32,14 +38,14 @@ export const FollowList: FC<Props> = ({
 
   if (users.length === 0) {
     return (
-      <div className="p-8 text-center text-sm text-muted-foreground">
-        {emptyMessage}
-      </div>
+      <EmptyState icon={Users} titleAs="h2" title={emptyMessage}>
+        {emptyHint}
+      </EmptyState>
     )
   }
 
   return (
-    <div className="divide-y">
+    <FramedList>
       {users.map((user) => {
         const displayName = user.name || user.username
         const cleanName = displayName.replaceAll(/:[^\s:]{1,64}:/g, '').trim()
@@ -52,7 +58,10 @@ export const FollowList: FC<Props> = ({
         const summary = htmlToPlainText(user.summary)
 
         return (
-          <div key={user.id} className="flex items-center gap-3 px-5 py-4">
+          <FramedListItem
+            key={user.id}
+            className="flex items-center gap-3 py-4"
+          >
             <Link href={`/@${user.username}@${user.domain}`} prefetch={false}>
               <Avatar className="h-12 w-12">
                 <AvatarImage src={user.iconUrl} />
@@ -81,9 +90,9 @@ export const FollowList: FC<Props> = ({
             {!blockedActorIdSet.has(user.id) ? (
               <FollowAction targetActorId={user.id} isLoggedIn={isLoggedIn} />
             ) : null}
-          </div>
+          </FramedListItem>
         )
       })}
-    </div>
+    </FramedList>
   )
 }

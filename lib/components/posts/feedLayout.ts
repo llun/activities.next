@@ -1,12 +1,23 @@
 /**
+ * The one frame every list of posts sits in: the surface kit's flat
+ * `rounded-lg border bg-background`, with no shadow, and `divide-y` hairlines
+ * between the rows (set by the feed itself). Home, bookmarks, favorites, tags,
+ * lists, profile tabs, status replies, explore and search all draw their posts
+ * with `Posts` / `TimelineFeed`, which wear it, and their loading skeletons
+ * wear it too so nothing jumps when the posts arrive.
+ */
+export const POST_LIST_FRAME_CLASS = 'rounded-lg border bg-background'
+
+/**
  * Below `md` a feed region owns the full phone width: it spans the viewport,
  * cancels the enclosing shell's horizontal padding (whatever it is), and drops
- * its outer border, shadow and corner rounding, while keeping its separators,
- * internal padding, and the borders of nested controls and cards. Above `md`
- * the desktop frame is untouched.
+ * its outer border and corner rounding, while keeping its separators, internal
+ * padding, and the borders of nested controls and cards. Above `md` the desktop
+ * frame is untouched.
  *
- * Apply this to the element that owns a feed region's outer frame: the feed
- * itself, its loading skeleton, its empty state, and the home composer.
+ * Apply this, with `POST_LIST_FRAME_CLASS`, to the element that owns a feed
+ * region's outer frame: the feed itself, its loading skeleton and the home
+ * composer.
  *
  * The margin is viewport-relative on purpose. The shared `/` loading boundary
  * renders under two different shells — the signed-in content column (`px-4`)
@@ -21,12 +32,12 @@
  * logged-out loading shell; overlay-scrollbar viewports land exactly.)
  */
 export const MOBILE_FEED_SURFACE_CLASS =
-  'max-md:mx-[calc(50%_-_50vw)] max-md:w-auto max-md:rounded-none max-md:border-0 max-md:shadow-none'
+  'max-md:mx-[calc(50%_-_50vw)] max-md:w-auto max-md:rounded-none max-md:border-0'
 
 /**
  * The logged-out status page is the one place below `md` where the thread is
  * not full-bleed: its post, its replies and the "Join the conversation" block
- * are separate inset cards, level with the cards of `PublicFooter`, instead of
+ * are separate inset frames, level with the cards of `PublicFooter`, instead of
  * one frame spanning the viewport. Every class is `max-md:`-scoped, so from
  * `md` up the single desktop frame is untouched.
  *
@@ -39,12 +50,11 @@ export const MOBILE_FEED_SURFACE_CLASS =
  * adds the background through `MOBILE_INSET_CARD_CLASS`.
  */
 export const MOBILE_INSET_STACK_CLASS =
-  'max-md:flex max-md:flex-col max-md:gap-6 max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:shadow-none'
+  'max-md:flex max-md:flex-col max-md:gap-6 max-md:rounded-none max-md:border-0 max-md:bg-transparent'
 
-export const MOBILE_INSET_CARD_FRAME_CLASS =
-  'max-md:rounded-2xl max-md:border max-md:shadow-sm'
+export const MOBILE_INSET_CARD_FRAME_CLASS = 'max-md:rounded-lg max-md:border'
 
-export const MOBILE_INSET_CARD_CLASS = `${MOBILE_INSET_CARD_FRAME_CLASS} max-md:bg-background/80`
+export const MOBILE_INSET_CARD_CLASS = `${MOBILE_INSET_CARD_FRAME_CLASS} max-md:bg-background`
 
 /**
  * A `Posts` feed that is one more inset card below `md`, for a logged-out

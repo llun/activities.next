@@ -621,7 +621,7 @@ describe('HashtagTimeline', () => {
       )
 
       fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
-      const busy = await screen.findByRole('button', { name: 'Loading...' })
+      const busy = await screen.findByRole('button', { name: 'Loading more' })
       expect(busy).toBeDisabled()
 
       await act(async () => {

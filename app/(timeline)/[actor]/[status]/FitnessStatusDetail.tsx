@@ -14,6 +14,7 @@ import {
   Footprints,
   Gauge,
   Globe,
+  Heart,
   HeartPulse,
   Image as ImageIcon,
   Lock,
@@ -21,6 +22,7 @@ import {
   Mail,
   MessageCircle,
   Mountain,
+  Repeat2,
   Route,
   Unlock,
   Watch,
@@ -44,7 +46,10 @@ import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { Actions } from '@/lib/components/posts/actions/actions'
 import type { PostMenuExtraItem } from '@/lib/components/posts/actions/post-menu'
 import { ActorAvatar } from '@/lib/components/posts/actor'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+import {
+  MOBILE_FEED_SURFACE_CLASS,
+  POST_LIST_FRAME_CLASS
+} from '@/lib/components/posts/feedLayout'
 import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
 import { Media } from '@/lib/components/posts/media'
 import { Post } from '@/lib/components/posts/post'
@@ -58,6 +63,9 @@ import {
   SectionNavSelect,
   type SectionNavSelectTab
 } from '@/lib/components/section-nav-select'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { StatCell } from '@/lib/components/surface/StatCell'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
@@ -197,8 +205,9 @@ const Card: FC<{
   padded?: boolean
 }> = ({ className, children, padded = true }) => (
   <div
+    data-slot="fitness-card"
     className={cn(
-      'rounded-xl border bg-card shadow-sm',
+      'rounded-lg border bg-background',
       padded && 'p-5',
       className
     )}
@@ -1484,10 +1493,10 @@ export const FitnessStatusDetail: FC<Props> = ({
           Nothing has to round itself in compensation: this card paints the only
           background in the subtree that reaches its corners — neither the `p-5`
           body nor the footer strip paints one of its own — so give either of
-          them a background and it will need `rounded-t-xl`/`rounded-b-xl` to
+          them a background and it will need `rounded-t-lg`/`rounded-b-lg` to
           stop the square fill bleeding past the border. Nothing inside is
           `position: sticky` either, so no descendant loses a scrollport here. */}
-      <div className="rounded-xl border bg-card shadow-sm">
+      <div data-slot="fitness-card" className="rounded-lg border bg-background">
         <div className="p-5">
           <div className="flex items-center gap-3">
             <div className="shrink-0">
@@ -1792,12 +1801,7 @@ export const FitnessStatusDetail: FC<Props> = ({
       {/* When the route-data load fails and there is no map panel to host the
           banner, surface the error here so the failure is never invisible. */}
       {routeDataError && !shouldRenderMapPanel ? (
-        <div
-          role="alert"
-          className="rounded-lg border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
-        >
-          {routeDataError}
-        </div>
+        <Alert tone="warning" title={routeDataError} />
       ) : null}
 
       <div
@@ -2202,25 +2206,19 @@ export const FitnessStatusDetail: FC<Props> = ({
 
         {activeSection === 'comments' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: 'Boosts', value: status.totalShares },
-                { label: 'Likes', value: status.totalLikes },
-                { label: 'Comments', value: replies.length }
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-xl border bg-background p-3.5 text-center shadow-sm"
-                >
-                  <div className="text-2xl font-semibold tabular-nums">
-                    {stat.value}
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    {stat.label}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <StatStrip variant="counts" columns={3}>
+              <StatCell
+                label="Boosts"
+                icon={Repeat2}
+                value={status.totalShares}
+              />
+              <StatCell label="Likes" icon={Heart} value={status.totalLikes} />
+              <StatCell
+                label="Comments"
+                icon={MessageCircle}
+                value={replies.length}
+              />
+            </StatStrip>
 
             {currentActor ? (
               <StatusReplyBox
@@ -2238,16 +2236,20 @@ export const FitnessStatusDetail: FC<Props> = ({
 
             {threadTree.totalDescendants > 0 ? (
               <div
-                className={`divide-y rounded-xl border bg-card shadow-sm ${commentsSurfaceClass}`}
+                className={cn(
+                  POST_LIST_FRAME_CLASS,
+                  'divide-y',
+                  commentsSurfaceClass
+                )}
               >
                 {threadTree.descendants.map((node) => renderCommentNode(node))}
               </div>
             ) : (
-              <p
-                className={`rounded-xl border border-dashed bg-background p-6 text-center text-sm text-muted-foreground ${commentsSurfaceClass}`}
-              >
-                No comments yet.
-              </p>
+              <EmptyState icon={MessageCircle} title="No comments yet">
+                {currentActor
+                  ? 'Be the first to reply to this activity.'
+                  : 'Replies to this activity show up here.'}
+              </EmptyState>
             )}
           </div>
         )}

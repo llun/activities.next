@@ -146,10 +146,7 @@ const renderSearchPage = (params = '') => {
 }
 
 const selectTab = (name: string) => {
-  fireEvent.mouseDown(screen.getByRole('tab', { name }), {
-    button: 0,
-    ctrlKey: false
-  })
+  fireEvent.click(screen.getByRole('radio', { name }))
 }
 
 const withoutDOMException = async (callback: () => Promise<void>) => {
@@ -416,7 +413,7 @@ describe('SearchPageClient', () => {
 
     renderSearchPage('q=trail')
 
-    expect(await screen.findByText('Searching...')).toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent('Searching')
     const signal = mockSearch.mock.calls[0][0].signal as AbortSignal
     expect(signal.aborted).toBe(false)
 
@@ -426,7 +423,7 @@ describe('SearchPageClient', () => {
 
     expect(signal.aborted).toBe(true)
     expect(screen.getByText('No search yet')).toBeInTheDocument()
-    expect(screen.queryByText('Searching...')).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
 
     await act(async () => {
       pendingSearch.resolve(emptySearchResult())
@@ -635,7 +632,7 @@ describe('SearchPageClient', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
     expect(
-      await screen.findByRole('button', { name: 'Loading...' })
+      await screen.findByRole('button', { name: 'Loading more' })
     ).toBeDisabled()
 
     selectTab('Posts')
@@ -674,9 +671,9 @@ describe('SearchPageClient', () => {
     expect(await screen.findByText('Runner 0')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
 
-    expect(
-      await screen.findByText('Failed to load more results. Please try again.')
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to load more results'
+    )
     expect(screen.getByText('Runner 0')).toBeInTheDocument()
     expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
@@ -684,9 +681,7 @@ describe('SearchPageClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
 
     expect(await screen.findByText('Next Runner')).toBeInTheDocument()
-    expect(
-      screen.queryByText('Failed to load more results. Please try again.')
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('aborts active pagination requests when unmounted', async () => {
@@ -725,9 +720,24 @@ describe('SearchPageClient', () => {
 
     renderSearchPage('q=trail')
 
-    const heading = await screen.findByText('Search failed')
-    expect(heading).toBeInTheDocument()
-    expect(heading.closest('div')).toHaveAttribute('aria-live', 'assertive')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Search failed')
+  })
+
+  it('searches again when Retry is pressed after a failure', async () => {
+    mockSearch
+      .mockRejectedValueOnce(new Error('network failed'))
+      .mockResolvedValueOnce({
+        ...emptySearchResult(),
+        accounts: [account('trail-account', 'Trail Runner', 'trail')]
+      })
+
+    renderSearchPage('q=trail&type=accounts')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText('Trail Runner')).toBeInTheDocument()
+    expect(mockSearch).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('ignores aborted searches when DOMException is unavailable', async () => {
@@ -739,9 +749,9 @@ describe('SearchPageClient', () => {
       // findByText asserts the loading state appeared; chaining
       // toBeInTheDocument races with React detaching the node once the aborted
       // search settles, so rely on findByText alone here.
-      await screen.findByText('Searching...')
+      await screen.findByRole('status')
       await waitFor(() => {
-        expect(screen.queryByText('Searching...')).not.toBeInTheDocument()
+        expect(screen.queryByRole('status')).not.toBeInTheDocument()
       })
       expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
     })
@@ -753,8 +763,8 @@ describe('SearchPageClient', () => {
 
     renderSearchPage('q=trail')
 
-    const status = await screen.findByText('Searching...')
-    expect(status.closest('div')).toHaveAttribute('aria-live', 'polite')
+    // A polite live region names the wait; nothing else announces it.
+    expect(await screen.findByRole('status')).toHaveTextContent('Searching')
 
     await act(async () => {
       pendingSearch.resolve(emptySearchResult())

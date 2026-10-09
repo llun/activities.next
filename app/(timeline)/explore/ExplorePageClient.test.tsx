@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import {
@@ -97,10 +97,12 @@ const status = (overrides: Partial<StatusNote> = {}): StatusNote => ({
   ...overrides
 })
 
+const mockReplace = vi.fn()
+
 const renderExplore = (tabParam: string | null, currentTime: number) => {
   const params = new URLSearchParams(tabParam ? { tab: tabParam } : {})
   mockUseSearchParams.mockReturnValue(params)
-  mockUseRouter.mockReturnValue({ replace: vi.fn(), push: vi.fn() })
+  mockUseRouter.mockReturnValue({ replace: mockReplace, push: vi.fn() })
   return render(
     <ExplorePageClient
       host={HOST}
@@ -113,6 +115,7 @@ const renderExplore = (tabParam: string | null, currentTime: number) => {
 
 describe('ExplorePageClient', () => {
   beforeEach(() => {
+    mockReplace.mockReset()
     mockGetTrendingTags.mockReset().mockResolvedValue([])
     mockGetTrendingStatuses.mockReset().mockResolvedValue([])
     mockGetTrendingLinks.mockReset().mockResolvedValue([])
@@ -143,33 +146,35 @@ describe('ExplorePageClient', () => {
     expect(mockGetTrendingStatuses).not.toHaveBeenCalled()
   })
 
-  // The loading rows use the shared `.skeleton` utility (#E6E6E6 / #333333
-  // with the shimmer), not `bg-muted`, which sits almost on the card and made
-  // the bars near-invisible.
   it.each([
-    ['hashtags', null, mockGetTrendingTags],
-    ['posts', 'posts', mockGetTrendingStatuses]
+    ['hashtags', null, mockGetTrendingTags, 'Loading trends'],
+    ['posts', 'posts', mockGetTrendingStatuses, 'Loading posts']
   ])(
-    'draws the %s loading rows with the shared skeleton utility',
-    (_tab, tabParam, loader) => {
+    'announces the %s loading state to assistive tech without painting text',
+    (_tab, tabParam, loader, announcement) => {
       loader.mockReturnValue(new Promise(() => {}))
-      const { container } = renderExplore(tabParam, Date.now())
+      renderExplore(tabParam, Date.now())
 
-      const rows = container.querySelectorAll('[aria-hidden="true"]')
-      expect(rows.length).toBeGreaterThan(0)
-      const bars = container.querySelectorAll('[aria-hidden="true"] .skeleton')
-      expect(bars.length).toBeGreaterThan(0)
-      expect(
-        container.querySelectorAll('[aria-hidden="true"] [class*="bg-muted"]')
-      ).toHaveLength(0)
+      const status = screen.getByRole('status')
+      expect(status).toHaveTextContent(announcement)
+      expect(status.querySelector('.sr-only')).toHaveTextContent(announcement)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     }
   )
 
-  it('shows the empty note when no hashtags are trending', async () => {
+  it('shows the empty state when no hashtags are trending', async () => {
     renderExplore(null, Date.now())
 
     expect(
-      await screen.findByText(/Nothing is trending right now/)
+      await screen.findByText('Nothing is trending right now')
+    ).toBeInTheDocument()
+  })
+
+  it('shows the empty state when no posts are trending', async () => {
+    renderExplore('posts', Date.now())
+
+    expect(
+      await screen.findByText('No posts are trending right now')
     ).toBeInTheDocument()
   })
 
@@ -198,24 +203,24 @@ describe('ExplorePageClient', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows the error note when loading trends fails', async () => {
+  it('shows an error alert when loading trends fails', async () => {
     mockGetTrendingTags.mockRejectedValue(new Error('boom'))
 
     renderExplore(null, Date.now())
 
-    expect(
-      await screen.findByText(/Couldn't load trends right now/)
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Couldn't load trends right now"
+    )
   })
 
-  it('retries the active tab when the Try again button is clicked', async () => {
+  it('retries the active tab when the Retry button is clicked', async () => {
     mockGetTrendingTags
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValueOnce([tag('fediverse')])
 
     renderExplore(null, Date.now())
 
-    const retry = await screen.findByRole('button', { name: 'Try again' })
+    const retry = await screen.findByRole('button', { name: 'Retry' })
     fireEvent.click(retry)
 
     expect(await screen.findByText('#fediverse')).toBeInTheDocument()
@@ -226,36 +231,44 @@ describe('ExplorePageClient', () => {
     renderExplore('news', Date.now())
 
     expect(
-      await screen.findByText(/No trending links right now/)
+      await screen.findByText('No trending links right now')
     ).toBeInTheDocument()
     expect(mockGetTrendingLinks).toHaveBeenCalledWith(20)
   })
 
-  it('applies the mobile feed surface and desktop bleed overrides only when on the posts tab', async () => {
-    mockGetTrendingStatuses.mockResolvedValue([status()])
-    const { container: postsContainer } = renderExplore('posts', Date.now())
-    await screen.findByText('Gravel season is here')
+  it('offers the three sections as tabs with the current one chosen', async () => {
+    renderExplore('posts', Date.now())
 
-    const postsWrapper = postsContainer.querySelector(
-      'div.md\\:\\[--post-media-bleed-left\\:4\\.75rem\\]'
-    )
-    expect(postsWrapper).toBeInTheDocument()
-    expect(postsWrapper).toHaveClass('max-md:p-0')
-    expect(postsWrapper).toHaveClass('max-md:backdrop-blur-none')
-    expect(postsWrapper).toHaveClass('max-md:mx-[calc(50%_-_50vw)]')
-    expect(postsWrapper).toHaveClass('md:[--post-media-bleed-left:4.75rem]')
-    expect(postsWrapper).toHaveClass('md:[--post-media-bleed-right:1.5rem]')
+    const group = screen.getByRole('radiogroup', { name: 'Explore sections' })
+    expect(within(group).getAllByRole('radio')).toHaveLength(3)
+    expect(within(group).getByRole('radio', { name: 'Posts' })).toBeChecked()
+    expect(
+      within(group).getByRole('radio', { name: 'Hashtags' })
+    ).not.toBeChecked()
+    await screen.findByText('No posts are trending right now')
+  })
 
-    mockGetTrendingTags.mockResolvedValue([tag('fediverse')])
-    const { container: defaultContainer } = renderExplore(null, Date.now())
-    await screen.findByText('#fediverse')
+  it('switches tab through the URL, keeping the scroll position', async () => {
+    renderExplore(null, Date.now())
+    await screen.findByText('Nothing is trending right now')
 
-    const defaultWrapper = defaultContainer.querySelector(
-      'div.md\\:\\[--post-media-bleed-left\\:4\\.75rem\\]'
-    )
-    expect(defaultWrapper).toBeInTheDocument()
-    expect(defaultWrapper).not.toHaveClass('max-md:p-0')
-    expect(defaultWrapper).not.toHaveClass('max-md:backdrop-blur-none')
-    expect(defaultWrapper).not.toHaveClass('max-md:mx-[calc(50%_-_50vw)]')
+    fireEvent.click(screen.getByRole('radio', { name: 'Posts' }))
+    expect(mockReplace).toHaveBeenLastCalledWith('/explore?tab=posts', {
+      scroll: false
+    })
+
+    fireEvent.click(screen.getByRole('radio', { name: 'News' }))
+    expect(mockReplace).toHaveBeenLastCalledWith('/explore?tab=news', {
+      scroll: false
+    })
+  })
+
+  it('drops the tab parameter when going back to hashtags', async () => {
+    renderExplore('posts', Date.now())
+    await screen.findByText('No posts are trending right now')
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Hashtags' }))
+
+    expect(mockReplace).toHaveBeenLastCalledWith('/explore', { scroll: false })
   })
 })

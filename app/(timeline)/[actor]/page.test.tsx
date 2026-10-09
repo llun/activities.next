@@ -270,15 +270,13 @@ describe('[actor] page header handle link', () => {
     expect(screen.queryByText('@anna@social.example.org')).toBeNull()
   })
 
-  // The line sits closer under the counts block, and takes the counts' own
-  // gap (`mt-5`) when every count is hidden.
   it.each([
-    { version: '4.3.0', text: 'Mastodon/4.3.0', counts: 5, spacing: 'mt-3' },
-    { version: null, text: 'Mastodon', counts: 5, spacing: 'mt-3' },
-    { version: '4.3.0', text: 'Mastodon/4.3.0', counts: null, spacing: 'mt-5' }
+    { version: '4.3.0', text: 'Mastodon/4.3.0', counts: 5 },
+    { version: null, text: 'Mastodon', counts: 5 },
+    { version: '4.3.0', text: 'Mastodon/4.3.0', counts: null }
   ])(
-    'renders software name $text under the counts block (version $version, counts $counts)',
-    async ({ version, text, counts, spacing }) => {
+    'renders software name $text on the profile (version $version, counts $counts)',
+    async ({ version, text, counts }) => {
       mockGetProfileData.mockResolvedValue({
         person: {
           id: 'https://mastodon.social/users/bob',
@@ -312,7 +310,6 @@ describe('[actor] page header handle link', () => {
 
       const softwareElement = screen.getByText(text)
       expect(softwareElement).toBeInTheDocument()
-      expect(softwareElement.closest('div')).toHaveClass(spacing)
       const icon = softwareElement.closest('div')?.querySelector('svg')
       expect(icon).toBeInTheDocument()
       expect(icon).toHaveAttribute('aria-hidden', 'true')

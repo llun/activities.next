@@ -1,6 +1,11 @@
 'use client'
 
-import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  MessageCircle
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -15,6 +20,7 @@ import {
   getStatusReplyTargetId
 } from '@/lib/components/posts/threadModel'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
 import {
@@ -412,7 +418,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
                   // an inset card at every width and its first row meets the
                   // card's top corners.
                   currentActor && 'max-md:rounded-none',
-                  !currentActor && index === 0 && 'rounded-t-2xl'
+                  !currentActor && index === 0 && 'rounded-t-lg'
                 )}
               >
                 <div data-testid={`status-${ancestor.id}`}>
@@ -500,7 +506,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         className={cn(
           'border-b bg-background p-4',
           currentActor && 'max-md:rounded-none',
-          !currentActor && tree.ancestors.length === 0 && 'rounded-t-2xl'
+          !currentActor && tree.ancestors.length === 0 && 'rounded-t-lg'
         )}
       >
         <div data-testid={`status-${status.id}`}>
@@ -598,8 +604,10 @@ export const StatusThread: FC<StatusThreadProps> = ({
           ) : null}
         </div>
       ) : (
-        <div className="p-8 text-center text-sm text-muted-foreground">
-          No replies yet
+        <div className="p-4">
+          <EmptyState icon={MessageCircle} title="No replies yet">
+            {currentActor ? 'Be the first to reply.' : 'Replies show up here.'}
+          </EmptyState>
         </div>
       )}
 

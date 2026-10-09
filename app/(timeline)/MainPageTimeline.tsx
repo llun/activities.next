@@ -1,5 +1,7 @@
 'use client'
 
+import { Home } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -12,7 +14,11 @@ import { useAnnouncements } from '@/lib/components/announcements/useAnnouncement
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
 import { PostBox } from '@/lib/components/post-box/post-box'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+import { PostListSkeleton } from '@/lib/components/posts/PostListSkeleton'
+import {
+  MOBILE_FEED_SURFACE_CLASS,
+  POST_LIST_FRAME_CLASS
+} from '@/lib/components/posts/feedLayout'
 import { ReplyToast } from '@/lib/components/posts/reply-toast'
 import {
   reconcileStatusesMetadata,
@@ -24,6 +30,8 @@ import { getStatusReplyTargetId } from '@/lib/components/posts/timelineModel'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { RefreshButton } from '@/lib/components/refresh-button'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
@@ -36,6 +44,7 @@ import {
 } from '@/lib/types/domain/status'
 import { TimelineContext } from '@/lib/types/domain/timeline'
 import { StatusReaction } from '@/lib/types/mastodon/statusReaction'
+import { cn } from '@/lib/utils'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
 interface MainPageTimelineProps {
@@ -395,6 +404,12 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
     }
   }, [])
 
+  const showsEmptyState =
+    currentStatuses.length === 0 &&
+    !isLoadingMoreStatuses &&
+    !isRefreshing &&
+    !fetchError
+
   return (
     <div className="space-y-6">
       <ScrollToTopButton
@@ -437,7 +452,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       />
 
       <section
-        className={`rounded-xl border bg-card p-4 shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+        className={cn(POST_LIST_FRAME_CLASS, 'p-4', MOBILE_FEED_SURFACE_CLASS)}
       >
         {/* The home timeline keeps a top composer for brand-new posts. Reply,
             quote, and edit happen inline in the feed via the shared composer,
@@ -459,7 +474,11 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
         className="max-md:-mt-6 max-md:ml-[calc(50%_-_50vw)] max-md:h-px max-md:w-screen max-md:bg-border md:hidden"
       />
 
-      <section className="max-md:-mt-6">
+      {/* The section is pulled up (`-mt-6`) so a full-bleed feed meets the
+          composer's divider. The empty panel is inset, not full-bleed, so it
+          keeps the normal gap instead of sitting on the hairline (a margin on
+          the panel itself would collapse into the section's). */}
+      <section className={cn(!showsEmptyState && 'max-md:-mt-6')}>
         {currentStatuses.length > 0 ? (
           <TimelineFeed
             host={host}
@@ -480,20 +499,23 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             onReactionsChanged={onReactionsChanged}
           />
         ) : isLoadingMoreStatuses || isRefreshing ? (
-          <div
-            className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
-          >
-            <p className="text-sm font-medium">Loading timeline...</p>
+          <div role="status">
+            <span className="sr-only">Loading timeline</span>
+            <PostListSkeleton />
           </div>
         ) : fetchError ? null : (
-          <div
-            className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
+          <EmptyState
+            icon={Home}
+            titleAs="h2"
+            title="Your timeline is empty"
+            action={
+              <Button asChild variant="outline" size="sm">
+                <Link href="/explore">Find people to follow</Link>
+              </Button>
+            }
           >
-            <h2 className="mb-2 text-xl font-semibold">
-              Your timeline is empty
-            </h2>
-            <p>Follow some people to see their posts here.</p>
-          </div>
+            Follow some people to see their posts here.
+          </EmptyState>
         )}
         {hasMoreStatuses && (
           <div
@@ -505,16 +527,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
       </section>
 
       {fetchError && (
-        <div className="p-4 text-center text-sm text-destructive" role="alert">
-          <p>{fetchError}</p>
-          <button
-            type="button"
-            onClick={handleRetry}
-            className="mt-2 rounded-md border border-destructive px-3 py-1 text-xs font-semibold hover:bg-destructive/10"
-          >
-            Retry
-          </button>
-        </div>
+        <Alert title={fetchError} onRetry={handleRetry}>
+          Check your connection and try again.
+        </Alert>
       )}
 
       {hasMoreStatuses && (

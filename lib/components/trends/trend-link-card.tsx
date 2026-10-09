@@ -16,7 +16,8 @@ const getDomain = (card: PreviewCard) => {
 }
 
 // One trending news link — preview image, "publisher · domain", a 2-line title
-// and description. Reuses the existing link-card anatomy.
+// and description. It is one row of a `FramedList`: the caller wraps it in a
+// `FramedListItem` without padding (`className="p-0"`).
 export const TrendLinkCard = ({ link }: TrendLinkCardProps) => {
   const domain = getDomain(link)
 
@@ -25,7 +26,7 @@ export const TrendLinkCard = ({ link }: TrendLinkCardProps) => {
       href={safeExternalHref(link.url)}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex gap-4 rounded-xl border bg-card p-3 shadow-sm transition-colors hover:bg-muted"
+      className="flex gap-4 px-4 py-3 transition-colors hover:bg-muted focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset outline-none"
     >
       {link.image && (
         <img
@@ -44,7 +45,7 @@ export const TrendLinkCard = ({ link }: TrendLinkCardProps) => {
           {link.title}
         </div>
         {link.description && (
-          <div className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">
+          <div className="line-clamp-2 text-sm leading-snug text-muted-foreground">
             {link.description}
           </div>
         )}

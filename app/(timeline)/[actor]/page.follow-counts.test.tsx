@@ -154,4 +154,80 @@ describe('[actor] page follow counts display', () => {
       }
     }
   )
+
+  it('links the Following and Followers counts to their lists and leaves Posts as plain text', async () => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://llun.social/users/testuser',
+        preferredUsername: 'testuser',
+        summary: ''
+      } as never,
+      statusesCount: 100,
+      followingCount: 15,
+      followersCount: 30,
+      statuses: [],
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      isInternalAccount: true,
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@testuser@llun.social' })
+    })
+    render(element)
+
+    expect(screen.getByRole('link', { name: /Following/ })).toHaveAttribute(
+      'href',
+      '/@testuser@llun.social/following'
+    )
+    expect(screen.getByRole('link', { name: /Followers/ })).toHaveAttribute(
+      'href',
+      '/@testuser@llun.social/followers'
+    )
+    expect(screen.queryByRole('link', { name: /Posts/ })).toBeNull()
+    expect(
+      screen.getAllByRole('heading', { level: 1 }),
+      'one h1 on the profile'
+    ).toHaveLength(1)
+  })
+
+  it.each([
+    [
+      'falls back to the username when the actor has no display name',
+      '',
+      'testuser'
+    ],
+    ['uses the display name when there is one', 'Test User', 'Test User']
+  ])('h1 %s', async (_title, name, expected) => {
+    mockGetProfileData.mockResolvedValue({
+      person: {
+        id: 'https://llun.social/users/testuser',
+        preferredUsername: 'testuser',
+        name,
+        summary: ''
+      } as never,
+      statusesCount: 1,
+      followingCount: 1,
+      followersCount: 1,
+      statuses: [],
+      statusPagination: { nextPageUrl: null, prevPageUrl: null },
+      attachments: [],
+      isInternalAccount: true,
+      hasFitnessData: false,
+      hasGalleryMedia: false,
+      gallerySubviews: []
+    })
+
+    const element = await Page({
+      params: Promise.resolve({ actor: '@testuser@llun.social' })
+    })
+    render(element)
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: expected })
+    ).toBeInTheDocument()
+  })
 })

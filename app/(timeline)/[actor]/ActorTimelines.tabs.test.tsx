@@ -32,16 +32,6 @@ vi.mock('./ActorMediaGallery', async () => ({
     .MockActorMediaGallery
 }))
 
-vi.mock('@/lib/components/ui/tabs', async () => {
-  const utils = await import('./ActorTimelines.testUtils')
-  return {
-    Tabs: utils.MockTabs,
-    TabsContent: utils.MockTabsContent,
-    TabsList: utils.MockTabsList,
-    TabsTrigger: utils.MockTabsTrigger
-  }
-})
-
 vi.mock('@/lib/components/ui/button', async () => ({
   Button: (await import('./ActorTimelines.testUtils')).MockButton
 }))
@@ -55,7 +45,7 @@ describe('ActorTimelines', () => {
 
   describe('Pixelfed profile timeline view', () => {
     it('removes the tab bar completely when isPixelfed is true', () => {
-      const { container } = render(
+      render(
         <ActorTimelines
           host="localhost:3000"
           actorId="https://pixelfed.social/users/dansup"
@@ -69,24 +59,22 @@ describe('ActorTimelines', () => {
       )
 
       expect(
-        screen.queryByRole('button', { name: 'Media' })
+        screen.queryByRole('radio', { name: 'Media' })
+      ).not.toBeInTheDocument()
+      expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('radio', { name: 'Posts' })
       ).not.toBeInTheDocument()
       expect(
-        container.querySelector('[data-active-tab]')
+        screen.queryByRole('radio', { name: 'Replies' })
       ).not.toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Posts' })
-      ).not.toBeInTheDocument()
-      expect(
-        screen.queryByRole('button', { name: 'Replies' })
-      ).not.toBeInTheDocument()
-      expect(
-        screen.queryByRole('button', { name: 'Fitness' })
+        screen.queryByRole('radio', { name: 'Fitness' })
       ).not.toBeInTheDocument()
     })
 
     it('renders standard Posts, Replies, and Media tabs when isPixelfed is false and media is present', () => {
-      const { container } = render(
+      render(
         <ActorTimelines
           host="localhost:3000"
           actorId="https://mastodon.social/users/someone"
@@ -99,16 +87,10 @@ describe('ActorTimelines', () => {
         />
       )
 
-      expect(screen.getByRole('button', { name: 'Posts' })).toBeInTheDocument()
-      expect(
-        screen.getByRole('button', { name: 'Replies' })
-      ).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Media' })).toBeInTheDocument()
-      expect(
-        container
-          .querySelector('[data-active-tab]')
-          ?.getAttribute('data-active-tab')
-      ).toBe('posts')
+      expect(screen.getByRole('radio', { name: 'Posts' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Replies' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Media' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Posts' })).toBeChecked()
     })
 
     it('enables load more on the Media tab when isPixelfed is true', async () => {
@@ -176,10 +158,10 @@ describe('ActorTimelines', () => {
       )
 
       expect(
-        screen.queryByRole('button', { name: 'Posts' })
+        screen.queryByRole('radio', { name: 'Posts' })
       ).not.toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Replies' })
+        screen.queryByRole('radio', { name: 'Replies' })
       ).not.toBeInTheDocument()
       expect(screen.getByTestId('mock-media-gallery')).toBeInTheDocument()
     })
@@ -245,9 +227,7 @@ describe('ActorTimelines', () => {
       fireEvent.click(loadMoreButton)
 
       const errorAlert = await screen.findByRole('alert')
-      expect(errorAlert).toHaveTextContent(
-        'Failed to load more posts. Please try again.'
-      )
+      expect(errorAlert).toHaveTextContent('Failed to load more posts')
 
       mockGetActorStatuses.mockResolvedValueOnce({
         statuses: [createStatus('https://framatube.org/videos/watch/2')],
@@ -279,11 +259,11 @@ describe('ActorTimelines', () => {
         />
       )
 
-      expect(screen.getByRole('button', { name: 'Posts' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Posts' })).toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Replies' })
+        screen.queryByRole('radio', { name: 'Replies' })
       ).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Media' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Media' })).toBeInTheDocument()
     })
 
     it('omits the Media tab when there are no attachments or statuses with media', () => {
@@ -298,12 +278,10 @@ describe('ActorTimelines', () => {
         />
       )
 
-      expect(screen.getByRole('button', { name: 'Posts' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Posts' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Replies' })).toBeInTheDocument()
       expect(
-        screen.getByRole('button', { name: 'Replies' })
-      ).toBeInTheDocument()
-      expect(
-        screen.queryByRole('button', { name: 'Media' })
+        screen.queryByRole('radio', { name: 'Media' })
       ).not.toBeInTheDocument()
     })
 
@@ -323,15 +301,15 @@ describe('ActorTimelines', () => {
         />
       )
 
-      expect(screen.getByRole('button', { name: 'Posts' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Media' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Posts' })).toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Media' })).toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Replies' })
+        screen.queryByRole('radio', { name: 'Replies' })
       ).not.toBeInTheDocument()
     })
 
     it('does not show tabs when only one tab (Posts) is available', () => {
-      const { container } = render(
+      render(
         <ActorTimelines
           host="localhost:3000"
           actorId="https://mastodon.social/users/verge"
@@ -343,17 +321,15 @@ describe('ActorTimelines', () => {
       )
 
       expect(
-        screen.queryByRole('button', { name: 'Posts' })
+        screen.queryByRole('radio', { name: 'Posts' })
       ).not.toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Replies' })
+        screen.queryByRole('radio', { name: 'Replies' })
       ).not.toBeInTheDocument()
       expect(
-        screen.queryByRole('button', { name: 'Media' })
+        screen.queryByRole('radio', { name: 'Media' })
       ).not.toBeInTheDocument()
-      expect(
-        container.querySelector('[data-active-tab]')
-      ).not.toBeInTheDocument()
+      expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
       expect(
         screen.getByText('https://mastodon.social/statuses/1')
       ).toBeInTheDocument()
@@ -368,7 +344,7 @@ describe('ActorTimelines', () => {
         prevPageUrl: null
       })
 
-      const { container } = render(
+      render(
         <ActorTimelines
           host="localhost:3000"
           actorId="https://mastodon.social/users/verge"
@@ -383,9 +359,7 @@ describe('ActorTimelines', () => {
         />
       )
 
-      expect(
-        container.querySelector('[data-active-tab]')
-      ).not.toBeInTheDocument()
+      expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
       const loadMoreButton = screen.getByRole('button', { name: 'Load more' })
       expect(loadMoreButton).toBeInTheDocument()
 

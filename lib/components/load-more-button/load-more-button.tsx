@@ -29,7 +29,7 @@ export interface LoadMoreButtonProps extends Omit<
 
 export const LoadMoreButton: FC<LoadMoreButtonProps> = ({
   isLoading = false,
-  loadingText = 'Loading...',
+  loadingText = 'Loading more',
   children = 'Load more',
   error,
   disabled,
@@ -55,7 +55,7 @@ export const LoadMoreButton: FC<LoadMoreButtonProps> = ({
         // The design's 36px pill is 110px wide. "Load more" alone is about
         // 106px with the default size's padding, so the floor makes up the
         // rest — and keeps the pill from changing width when it swaps to
-        // "Loading...". A longer caller-provided label is wider than the floor
+        // "Loading more". A longer caller-provided label is wider than the floor
         // and unaffected, and so is a `size="sm"` pill, which the design does
         // not draw.
         (props.size ?? 'default') === 'default' && 'min-w-[110px]',

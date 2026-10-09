@@ -1,5 +1,6 @@
 'use client'
 
+import { Activity } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import {
@@ -7,11 +8,11 @@ import {
   getFitnessGearActivities
 } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+import { PostListSkeleton } from '@/lib/components/posts/PostListSkeleton'
 import { Posts } from '@/lib/components/posts/posts'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
-import { Button } from '@/lib/components/ui/button'
-import { Card } from '@/lib/components/ui/card'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status } from '@/lib/types/domain/status'
@@ -145,7 +146,7 @@ export const GearActivitiesFeed: FC<Props> = ({
     offsetRef.current = 0
     // Reset here too, not only in `loadMore`'s `finally`: that branch is
     // skipped for a request this effect has just superseded, which would leave
-    // the new gear's "Load more" disabled and reading "Loading..." forever.
+    // the new gear's "Load more" disabled and reading "Loading more" forever.
     isLoadingMoreRef.current = false
     setIsLoadingMore(false)
     setIsLoading(true)
@@ -153,7 +154,7 @@ export const GearActivitiesFeed: FC<Props> = ({
     // otherwise stay on screen with the previous gear's `hasMore`, and a
     // "Load more" clicked in that window would page from the wrong offset and
     // skip the rows in between. `error` resets with them — left behind, the
-    // previous gear's failure sits above the new gear's "Loading..." until
+    // previous gear's failure sits above the new gear's loading skeleton until
     // this fetch resolves, reporting a bike's outage on a device's page.
     setStatuses([])
     setHasMore(false)
@@ -256,26 +257,30 @@ export const GearActivitiesFeed: FC<Props> = ({
   // "no activities" under its own error message.
   const reportsEmptyHistory = statuses.length === 0 && !hasMore && !error
 
+  // A first load that failed left nothing to page from: `hasMore` is false, so
+  // there is no "Load more" and no sentinel, and the effect re-runs only on a
+  // gear change. The alert's Retry is then the reader's only way out short of
+  // reloading the page.
+  const canRetry = !isLoading && statuses.length === 0
+
   return (
     <div className="space-y-4">
       {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
+        <Alert
+          title={error}
+          onRetry={
+            canRetry ? () => setRetryToken((token) => token + 1) : undefined
+          }
+        />
       )}
 
       {isLoading ? (
-        <Card
-          className={`p-6 text-sm text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
-        >
-          Loading...
-        </Card>
+        <div role="status">
+          <span className="sr-only">Loading activities</span>
+          <PostListSkeleton />
+        </div>
       ) : reportsEmptyHistory ? (
-        <Card
-          className={`p-6 text-sm text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
-        >
-          {emptyMessage}
-        </Card>
+        <EmptyState icon={Activity} title={emptyMessage} />
       ) : (
         <Posts
           host={host}
@@ -297,22 +302,6 @@ export const GearActivitiesFeed: FC<Props> = ({
           isLoading={isLoadingMore}
           onClick={loadMore}
         />
-      )}
-
-      {/* A first load that failed left nothing to page from: `hasMore` is
-          false, so there is no "Load more" and no sentinel, and the effect
-          re-runs only on a gear change. Without this the reader's only way out
-          is reloading the page. */}
-      {error && !isLoading && statuses.length === 0 && (
-        <div className="text-center">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setRetryToken((token) => token + 1)}
-          >
-            Try again
-          </Button>
-        </div>
       )}
     </div>
   )

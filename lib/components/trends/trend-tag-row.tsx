@@ -17,7 +17,9 @@ interface TrendTagRowProps {
 }
 
 // One trending hashtag — name, "{n} people" line, and a 7-day usage sparkline.
-// Links to the hashtag timeline, matching the rest of the app.
+// Links to the hashtag timeline, matching the rest of the app. It is one row
+// of a `FramedList`: the caller wraps it in a `FramedListItem` without padding
+// (`className="p-0"`), so the whole row is the link's hover target.
 export const TrendTagRow = ({ tag, compact = false }: TrendTagRowProps) => {
   const history = getTagUsesHistory(tag)
   const people = getTagPeoplePast2Days(tag)
@@ -26,7 +28,7 @@ export const TrendTagRow = ({ tag, compact = false }: TrendTagRowProps) => {
     <Link
       href={`/tags/${encodeURIComponent(tag.name)}`}
       prefetch={false}
-      className="flex items-center justify-between gap-4 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted"
+      className="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset outline-none"
     >
       <div className="min-w-0">
         <div

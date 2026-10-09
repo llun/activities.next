@@ -7,7 +7,6 @@ import { getHashtagTimeline } from '@/lib/client'
 import { useMobileNavigation } from '@/lib/components/layout/mobile-navigation-context'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import {
   removeOriginalStatus,
@@ -15,6 +14,7 @@ import {
 } from '@/lib/components/posts/statusArray'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote, StatusPoll } from '@/lib/types/domain/status'
@@ -173,8 +173,8 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
         // chrome; the heading sits in `PublicShell`'s column at every width.
         <div>
           <div className="flex items-center gap-2">
-            <Hash className="size-6 text-muted-foreground" />
-            <h1 className="text-2xl font-semibold">{tag}</h1>
+            <Hash className="size-5 text-muted-foreground" />
+            <h1 className="text-xl font-semibold tracking-tight">{tag}</h1>
           </div>
           <p className="text-sm text-muted-foreground">{postCountLabel}</p>
         </div>
@@ -197,12 +197,9 @@ export const HashtagTimeline: FC<HashtagTimelineProps> = ({
           onReactionsChanged={onReactionsChanged}
         />
       ) : (
-        <div
-          className={`rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
-        >
-          <h2 className="text-xl font-semibold mb-2">No posts with #{tag}</h2>
-          <p>Be the first to post with this hashtag.</p>
-        </div>
+        <EmptyState icon={Hash} titleAs="h2" title={`No posts with #${tag}`}>
+          Be the first to post with this hashtag.
+        </EmptyState>
       )}
 
       {hasMoreStatuses && lastStatusIdRef.current && (

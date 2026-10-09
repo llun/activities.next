@@ -32,6 +32,7 @@ import {
 } from '@/lib/components/fitness/routeLineStyle'
 import { ResizableMapContainer } from '@/lib/components/map/ResizableMapContainer'
 import { Media } from '@/lib/components/posts/media'
+import { Alert } from '@/lib/components/surface/Alert'
 import type { Attachment } from '@/lib/types/domain/attachment'
 import {
   type PublicMapProvider,
@@ -790,9 +791,11 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
       {interactive &&
       !shouldRenderInteractiveMap &&
       (routeDataError || mapLoadError) ? (
-        <div className="absolute inset-x-3 top-3 rounded-md border border-amber-300 bg-amber-50/95 px-3 py-2 text-xs text-amber-900 shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-          {routeDataError || mapLoadError}
-        </div>
+        <Alert
+          tone="warning"
+          title={routeDataError || mapLoadError}
+          className="absolute inset-x-3 top-3 bg-background px-3 py-2 shadow-sm"
+        />
       ) : null}
     </ResizableMapContainer>
   )

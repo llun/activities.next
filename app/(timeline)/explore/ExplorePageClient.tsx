@@ -1,6 +1,6 @@
 'use client'
 
-import { Newspaper, TrendingUp } from 'lucide-react'
+import { Compass } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -10,18 +10,21 @@ import {
   getTrendingTags
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+import { PostListSkeleton } from '@/lib/components/posts/PostListSkeleton'
 import { Posts } from '@/lib/components/posts/posts'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { TrendLinkCard } from '@/lib/components/trends/trend-link-card'
 import { TrendTagRow } from '@/lib/components/trends/trend-tag-row'
-import { Button } from '@/lib/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import type { Status } from '@/lib/types/domain/status'
 import type { PreviewCard } from '@/lib/types/mastodon/previewCard'
 import type { Tag } from '@/lib/types/mastodon/tag'
-import { cn } from '@/lib/utils'
 
 type ExploreTab = 'tags' | 'posts' | 'news'
 
@@ -44,66 +47,23 @@ const tabs: { value: ExploreTab; label: string }[] = [
 const getExploreTab = (value: string | null): ExploreTab =>
   value === 'posts' || value === 'news' ? value : 'tags'
 
-const SkeletonRows = ({ count = 4 }: { count?: number }) => (
-  <div className="space-y-2 px-3 py-2" aria-hidden="true">
+// Tag-shaped rows (a name over a "people" line, and a sparkline) in a frame,
+// for the Hashtags and News tabs; the Posts tab draws `PostListSkeleton`.
+const TrendRowsSkeleton = ({ count = 4 }: { count?: number }) => (
+  <Frame divided>
     {Array.from({ length: count }).map((_, index) => (
-      <div key={index} className="flex items-center justify-between gap-4 py-2">
-        <div className="w-full space-y-2">
-          <div className="skeleton h-3.5 w-32 rounded" />
-          <div className="skeleton h-3 w-48 rounded" />
+      <div
+        key={index}
+        className="flex items-center justify-between gap-4 px-4 py-3"
+      >
+        <div className="min-w-0 space-y-2">
+          <SkeletonBar className="h-4 w-32" />
+          <SkeletonBar className="h-3 w-48 max-w-full" />
         </div>
-        <div className="skeleton h-6 w-14 rounded" />
+        <SkeletonBar className="h-6 w-14 shrink-0" />
       </div>
     ))}
-  </div>
-)
-
-// Post-shaped rows for the posts tab, mirroring the shared Posts article
-// geometry (px-4 py-3 rows, size-10 avatar, text bars) so the loader matches
-// the loaded feed. The tag-shaped SkeletonRows above stay for the other tabs.
-const PostSkeletonRows = ({ count = 4 }: { count?: number }) => (
-  <div className="divide-y divide-border" aria-hidden="true">
-    {Array.from({ length: count }).map((_, index) => (
-      <div key={index} className="px-4 py-3">
-        <div className="flex gap-3">
-          <div className="skeleton size-10 shrink-0 rounded-full" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="skeleton h-3.5 w-32 rounded" />
-            <div className="skeleton h-3 w-full rounded" />
-            <div className="skeleton h-3 w-2/3 rounded" />
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-)
-
-const EmptyNote = ({
-  children,
-  action
-}: {
-  children: React.ReactNode
-  action?: React.ReactNode
-}) => (
-  <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
-    <span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-      <TrendingUp className="size-[18px]" />
-    </span>
-    <p className="max-w-sm text-sm text-muted-foreground">{children}</p>
-    {action && <div className="pt-1">{action}</div>}
-  </div>
-)
-
-const NewsEmptyNote = () => (
-  <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
-    <span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-      <Newspaper className="size-[18px]" />
-    </span>
-    <p className="max-w-sm text-sm text-muted-foreground">
-      No trending links right now. Links start trending once enough people share
-      the same article in a few days.
-    </p>
-  </div>
+  </Frame>
 )
 
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
@@ -115,7 +75,7 @@ interface ListState<T> {
 
 const initialState = <T,>(): ListState<T> => ({ status: 'idle', items: [] })
 
-// The /explore page body — a segmented tab strip over three trend lists
+// The /explore page body — a segmented control over three trend lists
 // (hashtags, posts, news). Each list is fetched lazily the first time its tab
 // is shown and cached for the rest of the session.
 export const ExplorePageClient = ({
@@ -198,54 +158,57 @@ export const ExplorePageClient = ({
 
   const renderBody = () => {
     if (activeState.status === 'loading' || activeState.status === 'idle') {
-      if (tab === 'posts') return <PostSkeletonRows count={4} />
-      return <SkeletonRows count={4} />
+      return (
+        <div role="status">
+          <span className="sr-only">
+            {tab === 'posts' ? 'Loading posts' : 'Loading trends'}
+          </span>
+          {tab === 'posts' ? (
+            <PostListSkeleton rows={4} />
+          ) : (
+            <TrendRowsSkeleton count={4} />
+          )}
+        </div>
+      )
     }
     if (activeState.status === 'error') {
-      // The loader flips the tab back to 'loading' immediately, so the retry
+      // The loader flips the tab back to 'loading' immediately, so the Retry
       // button unmounts on click — no separate in-flight guard is needed.
       return (
-        <EmptyNote
-          action={
-            <Button variant="outline" size="sm" onClick={reloadActiveTab}>
-              Try again
-            </Button>
-          }
-        >
-          Couldn&apos;t load trends right now. Try again in a moment.
-        </EmptyNote>
+        <Alert title="Couldn't load trends right now" onRetry={reloadActiveTab}>
+          Try again in a moment.
+        </Alert>
       )
     }
     if (tab === 'tags') {
       if (tagsState.items.length === 0) {
         return (
-          <EmptyNote>
-            Nothing is trending right now. Trends appear once enough people use
-            a hashtag in the same few days.
-          </EmptyNote>
+          <EmptyState icon={Compass} title="Nothing is trending right now">
+            Trends appear once enough people use a hashtag in the same few days.
+          </EmptyState>
         )
       }
       return (
-        <div className="divide-y divide-border">
+        <FramedList aria-label="Trending hashtags">
           {tagsState.items.map((item) => (
-            <TrendTagRow key={item.name} tag={item} />
+            <FramedListItem key={item.name} className="p-0">
+              <TrendTagRow tag={item} />
+            </FramedListItem>
           ))}
-        </div>
+        </FramedList>
       )
     }
     if (tab === 'posts') {
       if (postsState.items.length === 0) {
         return (
-          <EmptyNote>
-            No posts are trending right now. Posts trend as people reply, boost,
-            and favourite them.
-          </EmptyNote>
+          <EmptyState icon={Compass} title="No posts are trending right now">
+            Posts trend as people reply, boost, and favourite them.
+          </EmptyState>
         )
       }
       return (
         <Posts
           host={host}
-          framed={false}
           currentTime={currentTime}
           statuses={postsState.items}
           currentActor={currentActor}
@@ -268,50 +231,40 @@ export const ExplorePageClient = ({
       )
     }
     if (linksState.items.length === 0) {
-      return <NewsEmptyNote />
+      return (
+        <EmptyState icon={Compass} title="No trending links right now">
+          Links start trending once enough people share the same article in a
+          few days.
+        </EmptyState>
+      )
     }
     return (
-      <div className="space-y-2 p-1">
+      <FramedList aria-label="Trending links">
         {linksState.items.map((item) => (
-          <TrendLinkCard key={item.url} link={item} />
+          <FramedListItem key={item.url} className="p-0">
+            <TrendLinkCard link={item} />
+          </FramedListItem>
         ))}
-      </div>
+      </FramedList>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
         title="Explore"
         description="What's gaining traction across the fediverse right now."
       />
 
-      <Tabs value={tab} onValueChange={onTabChange} className="w-full">
-        <TabsList className="grid h-auto w-full grid-cols-3 rounded-lg p-1">
-          {tabs.map((entry) => (
-            <TabsTrigger key={entry.value} value={entry.value}>
-              {entry.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <SegmentedControl
+        aria-label="Explore sections"
+        items={tabs}
+        value={tab}
+        onValueChange={onTabChange}
+        className="sm:w-fit"
+      />
 
-      <div
-        className={cn(
-          'rounded-2xl border bg-card/80 p-2 shadow-sm backdrop-blur',
-          'md:[--post-media-bleed-left:4.75rem] md:[--post-media-bleed-right:1.5rem]',
-          tab === 'posts' && MOBILE_FEED_SURFACE_CLASS,
-          tab === 'posts' && 'max-md:p-0',
-          // `backdrop-filter` makes this wrapper the containing block for
-          // `position: fixed` descendants, and the edit-history panel is
-          // `max-md:fixed` so it escapes the feed's clip. Only the posts tab
-          // renders posts, so only it needs the containing block removed below
-          // `md`; from `md` up the panel is absolute again and the blur stays.
-          tab === 'posts' && 'max-md:backdrop-blur-none'
-        )}
-      >
-        {renderBody()}
-      </div>
+      {renderBody()}
     </div>
   )
 }

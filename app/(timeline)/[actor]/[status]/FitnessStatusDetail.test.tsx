@@ -566,7 +566,9 @@ describe('FitnessStatusDetail', () => {
         'Activity file'
       )) as HTMLSelectElement
       // The switcher is its own card, beside the activity card.
-      const switcherCard = select.closest('div.rounded-xl') as HTMLElement
+      const switcherCard = select.closest(
+        '[data-slot="fitness-card"]'
+      ) as HTMLElement
       expect(switcherCard).toContainElement(screen.getByText('Activity file'))
       // A card of its own, beside the activity card rather than inside it: the
       // activity card is the one holding the file position in its footer, and the

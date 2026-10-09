@@ -1,79 +1,59 @@
 import { FC } from 'react'
 
 import { MobileNavigationTrigger } from '@/lib/components/layout/mobile-navigation-trigger'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+import { PostListSkeleton } from '@/lib/components/posts/PostListSkeleton'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 
-import { ProfileCardSection } from './ProfileCardSection'
+import { ProfileCover } from './ProfileCover'
 
+// The profile's shape while it loads: the cover, the avatar over the name,
+// handle and bio, the counts strip, the tab track and a framed list of posts.
 export const ProfileLoading: FC = () => {
   return (
     <div
       aria-busy="true"
-      aria-label="Loading profile"
       className="flex flex-col gap-6 md:pt-8 group-data-[shell=public]/shell:pt-0"
     >
+      <span role="status" className="sr-only">
+        Loading profile
+      </span>
       <MobileNavigationTrigger variant="floating" />
-      <ProfileCardSection
-        className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm"
-        signedInClassName="max-md:shadow-none"
-      >
-        <div className="skeleton h-36 md:h-52" />
+      <section aria-label="Profile" className="flex flex-col gap-4">
+        <ProfileCover>
+          <SkeletonBar className="h-36 rounded-none md:h-52" />
+        </ProfileCover>
 
-        <div className="relative px-6 pb-6">
-          <div className="skeleton -mt-10 h-20 w-20 rounded-full border-4 border-background" />
+        <div className="relative px-4">
+          <SkeletonBar className="-mt-14 size-20 rounded-full border-4 border-background" />
 
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="min-w-0 space-y-2">
-              <div className="skeleton h-7 w-48 rounded-md" />
-              <div className="skeleton h-4 w-32 rounded-md" />
+              <SkeletonBar className="h-7 w-48 max-w-full" />
+              <SkeletonBar className="h-4 w-32" />
             </div>
-            <div className="skeleton h-9 w-28 shrink-0 rounded-md" />
+            <SkeletonBar className="h-9 w-28 shrink-0" />
           </div>
 
           <div className="mt-4 space-y-2">
-            <div className="skeleton h-4 w-3/4 rounded" />
-            <div className="skeleton h-4 w-1/2 rounded" />
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-6">
-            <div className="skeleton h-4 w-16 rounded" />
-            <div className="skeleton h-4 w-20 rounded" />
-            <div className="skeleton h-4 w-20 rounded" />
+            <SkeletonBar className="h-4 w-3/4" />
+            <SkeletonBar className="h-4 w-1/2" />
           </div>
         </div>
-      </ProfileCardSection>
 
-      <div className="space-y-4">
-        <div className="flex gap-2">
-          <div className="skeleton h-9 w-20 rounded-lg" />
-          <div className="skeleton h-9 w-20 rounded-lg" />
-          <div className="skeleton h-9 w-20 rounded-lg" />
-        </div>
-
-        <div
-          className={`divide-y overflow-hidden rounded-xl border bg-card shadow-sm ${MOBILE_FEED_SURFACE_CLASS}`}
-        >
+        <StatStrip variant="counts" columns={3}>
           {[0, 1, 2].map((index) => (
-            <div key={index} className="flex gap-3 px-4 py-3">
-              <div className="skeleton size-10 shrink-0 rounded-full" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="skeleton h-4 w-32 rounded" />
-                  <div className="skeleton h-3 w-20 rounded" />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="skeleton h-4 w-full rounded" />
-                  <div className="skeleton h-4 w-4/5 rounded" />
-                </div>
-                <div className="flex gap-6 pt-2">
-                  <div className="skeleton h-4 w-8 rounded" />
-                  <div className="skeleton h-4 w-8 rounded" />
-                  <div className="skeleton h-4 w-8 rounded" />
-                </div>
-              </div>
+            <div key={index} className="bg-background space-y-2 px-4 py-3">
+              <SkeletonBar className="h-6 w-12" />
+              <SkeletonBar className="h-4 w-20" />
             </div>
           ))}
-        </div>
+        </StatStrip>
+      </section>
+
+      <div className="space-y-4">
+        <SkeletonBar className="h-11 w-full rounded-lg sm:w-80" />
+        <PostListSkeleton />
       </div>
     </div>
   )
