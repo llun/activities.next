@@ -12,7 +12,7 @@ import { parseApiError } from './http'
 const SUGGESTIONS_URL = '/api/v1/gallery/albums/suggestions'
 
 export interface GetGalleryAlbumSuggestionsOptions {
-  /** The viewer's named IANA zone: which local day a photo and an activity are on. */
+  /** The viewer's named IANA zone: which local day an activity is on. */
   timeZone?: string
 }
 

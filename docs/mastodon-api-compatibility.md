@@ -464,16 +464,20 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   answer 404. Adding and removing use the album `items` routes above.
 - **Gallery album suggestions** — owner-only, non-Mastodon, computed on demand and
   never stored; they take `read` or `read:statuses` (or the web session).
-  `GET /api/v1/gallery/albums/suggestions?time_zone=` (an IANA zone name; the day a photo
-  was taken and the day of an activity are both read in it, default `UTC`; 422
-  otherwise) returns `suggestions`, most
+  `GET /api/v1/gallery/albums/suggestions?time_zone=` (an IANA zone name; the day of an
+  activity is read in it, default `UTC`; 422 otherwise. A photo's day is its UTC
+  date, as an album shows it, and a photo day matches an activity on that date or
+  on the zone's date of any of its photos) returns `suggestions`, most
   recent first, each with `id`, `kind` (`trip`, `species` or `activity_day`),
   `title`, `photoCount`, `firstAt`, `lastAt`, `preview`, `mediaIds` (at most
   2,000, newest first) and `truncated`, `placeCount`, `speciesCount` and
   `activityCount`. A title speaks only for the photos a visitor could see and names a
   place only when all of them show that one place, so a hidden location, a
-  threatened species or a trip through several places never appears in it;
-  a suggestion an existing album already holds in full is left out.
+  threatened species or a trip through several places never appears in it; with
+  no such photo it is a generic "Trip", "Species series" or "Day out", and
+  "Activity day" appears only when one of the day's activities is on a post a
+  visitor can read. A suggestion an existing album already holds in full (the
+  `mediaIds` it offers) is left out.
   `GET /api/v1/gallery/albums/suggestions/media?media_ids=1,2,3` (1 to 100 ids)
   returns `items`, the owner's gallery photos in the order asked, leaving out
   any that are not. Reads are limited to 20 (suggestions) and 120 (photos) per
