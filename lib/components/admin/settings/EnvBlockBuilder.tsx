@@ -71,16 +71,16 @@ const EnvFields: FC<EnvFieldsProps> = ({ fields, values, onChange }) => (
 )
 
 // The generated block. Fixed dark surface in both themes: it is a terminal
-// excerpt, not page chrome. In dark mode it steps down to neutral-950 so it
-// never reads as a panel raised above its section, and the hairline ring is
-// what actually draws the edge — measured, the section around it is the same
-// #0a0a0a, so without the ring there would be no visible block.
+// excerpt, not page chrome. The `dark` class re-resolves the theme tokens to
+// their dark values for the block alone, so it is built from the same tokens as
+// everything else (card surface, foreground text, border ring) while staying
+// dark on a light page. The hairline ring is what draws its edge on a dark one.
 const EnvBlockPreview: FC<{ lines: EnvBlockLine[] }> = ({ lines }) => {
   const { copied, copy } = useCopyToClipboard(2000)
   const block = lines.map(({ name, value }) => `${name}=${value}`).join('\n')
 
   return (
-    <div className="mx-4 my-4 rounded-lg bg-neutral-900 p-4 ring-1 ring-white/10 dark:bg-neutral-950">
+    <div className="dark mx-4 my-4 rounded-lg bg-card p-4 text-foreground ring-1 ring-border">
       {/* The button sits in normal flow above the block, not overlaid on it.
           The design mock overlays it at the top right, but that only works at
           desktop width: a `pre`'s inline scroll extent is max(clientWidth,
@@ -94,24 +94,24 @@ const EnvBlockPreview: FC<{ lines: EnvBlockLine[] }> = ({ lines }) => {
           onClick={() => copy(block)}
           className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
             copied
-              ? 'border-white/40 text-white'
-              : 'border-white/20 text-white/75 hover:bg-white/10'
+              ? 'border-foreground/40 text-foreground'
+              : 'border-input text-muted-foreground hover:bg-muted'
           }`}
         >
           {copied ? <Check className="size-3" aria-hidden /> : null}
           {copied ? 'Copied' : 'Copy .env block'}
         </button>
       </div>
-      <pre className="overflow-x-auto font-mono text-[12.5px] leading-6 text-neutral-200">
+      <pre className="overflow-x-auto font-mono text-[12.5px] leading-6 text-foreground">
         {lines.map(({ name, value, masked }) => (
           <div key={name}>
             <span className="text-primary">{name}</span>
-            <span className="text-neutral-500">=</span>
+            <span className="text-muted-foreground">=</span>
             {masked ? MASK : value}
           </div>
         ))}
       </pre>
-      <p className="mt-2 text-[11px] text-neutral-400">
+      <p className="mt-2 text-xs text-muted-foreground">
         Secrets are masked above but included when you copy.
       </p>
     </div>

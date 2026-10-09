@@ -134,9 +134,9 @@ describe('RequestPasswordResetForm', () => {
     fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
     fireEvent.click(submitButton)
 
-    // Button should now be disabled and text should change to 'Sending...'
+    // Button should now be disabled and text should change to 'Sending…'
     expect(submitButton).toBeDisabled()
-    expect(screen.getByText('Sending...')).toBeInTheDocument()
+    expect(screen.getByText('Sending…')).toBeInTheDocument()
     expect(mockRequestPasswordReset).toHaveBeenCalledTimes(1)
 
     // Attempting a second submit while in flight should not trigger additional calls

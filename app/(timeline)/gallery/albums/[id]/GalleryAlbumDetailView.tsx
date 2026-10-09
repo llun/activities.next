@@ -590,11 +590,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
             )}
           </div>
 
-          {loadError ? (
-            <p role="alert" className="text-destructive text-sm">
-              {loadError}
-            </p>
-          ) : null}
+          {loadError ? <Alert title={loadError} /> : null}
           {nextMaxId ? (
             <LoadMoreButton
               isLoading={isLoading}
@@ -633,11 +629,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
               This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          {deleteError ? (
-            <p className="text-destructive text-sm" role="alert">
-              {deleteError}
-            </p>
-          ) : null}
+          {deleteError ? <Alert title={deleteError} /> : null}
           <DialogFooter>
             <Button
               variant="outline"

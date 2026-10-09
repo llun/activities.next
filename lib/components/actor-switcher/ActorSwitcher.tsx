@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { cancelActorDeletion, switchActor } from '@/lib/client'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import {
   DropdownMenu,
@@ -222,12 +223,12 @@ export function ActorSwitcher({
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {isPendingDeletion ? (
-                      <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <span className="text-warning-text flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         Pending deletion
                       </span>
                     ) : isDeleting ? (
-                      <span className="text-destructive">Deleting...</span>
+                      <span className="text-destructive-text">Deleting…</span>
                     ) : (
                       getHandle(actor)
                     )}
@@ -260,11 +261,7 @@ export function ActorSwitcher({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {error ? (
-        <p role="alert" className="text-sm text-destructive mt-1 px-2">
-          {error}
-        </p>
-      ) : null}
+      {error ? <Alert title={error} className="mt-1" /> : null}
 
       <AddActorDialog
         open={isDialogOpen}

@@ -24,7 +24,7 @@ export const BookmarkButton: FC<BookmarkButtonProps> = ({ state }) => {
         disabled={isLoading}
         className={cn(
           ACTION_BUTTON_CLASS,
-          isBookmarked ? 'text-amber-500' : 'hover:text-amber-500'
+          isBookmarked ? 'text-bookmark-icon' : 'hover:text-bookmark-icon'
         )}
         onClick={(e) => {
           e.stopPropagation()

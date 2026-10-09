@@ -138,7 +138,7 @@ export const getWearState = (
       barWidth,
       barClassName: 'bg-destructive',
       caption: 'replace due',
-      captionClassName: 'text-destructive'
+      captionClassName: 'text-destructive-text'
     }
   }
 
@@ -148,9 +148,9 @@ export const getWearState = (
       percent,
       barPercent,
       barWidth,
-      barClassName: 'bg-amber-500',
+      barClassName: 'bg-warning',
       caption: 'due soon',
-      captionClassName: 'text-amber-600 dark:text-amber-500'
+      captionClassName: 'text-warning-text'
     }
   }
 

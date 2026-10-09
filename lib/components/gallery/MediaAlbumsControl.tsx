@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, Folder, Loader2, Plus } from 'lucide-react'
+import { ChevronDown, Folder, Plus } from 'lucide-react'
 import Link from 'next/link'
 import {
   FC,
@@ -21,6 +21,7 @@ import {
   getAlbumsPillLabel
 } from '@/lib/components/gallery/mediaAlbumsUi'
 import { useMediaAlbums } from '@/lib/components/gallery/useMediaAlbums'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import {
@@ -144,36 +145,28 @@ export const MediaAlbumsControl: FC<Props> = ({
     return variant === 'row'
       ? frame(
           <div className={className}>
-            <p
-              role="status"
-              className="text-muted-foreground flex items-center gap-2 text-xs"
-            >
-              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-              Loading albums…
+            <p role="status">
+              <span className="sr-only">Loading albums</span>
+              <SkeletonBar className="h-6 w-40" />
             </p>
           </div>
         )
       : null
   }
   if (status === 'error') {
-    // The lightbox pill sits on its always-dark backdrop and is centred.
+    // The lightbox pill sits on its always-dark backdrop and is centred; the
+    // `dark` class gives it the dark values of the theme tokens.
     const onDark = variant === 'pill'
     return frame(
-      <div className={cn('text-xs', onDark && 'text-center', className)}>
-        <p
-          role="alert"
-          className={onDark ? 'text-red-300' : 'text-destructive'}
-        >
+      <div className={cn('text-xs', onDark && 'dark text-center', className)}>
+        <p role="alert" className="text-destructive-text">
           {albums.loadError}
         </p>
         <Button
           type="button"
           variant="link"
           size="sm"
-          className={cn(
-            'h-auto p-0 text-xs pointer-coarse:min-h-10',
-            onDark && 'text-orange-300'
-          )}
+          className="h-auto p-0 text-xs pointer-coarse:min-h-10"
           onClick={() => void albums.reload()}
         >
           Try again
@@ -185,7 +178,8 @@ export const MediaAlbumsControl: FC<Props> = ({
   const holding = options.filter((album) => memberIds.includes(album.id))
   const names = getAlbumOptionNames(options)
   const titleId = `${uid}-title`
-  // The lightbox backdrop is dark in both themes, so its menu is too.
+  // The lightbox backdrop is dark in both themes, so its menu is too: `dark`
+  // re-resolves the theme tokens to their dark values for the subtree.
   const dark = variant === 'pill'
 
   const moveFocus = (event: KeyboardEvent<HTMLUListElement>) => {
@@ -212,7 +206,7 @@ export const MediaAlbumsControl: FC<Props> = ({
         type="button"
         aria-haspopup="dialog"
         aria-expanded={menuOpen}
-        className="focus-visible:ring-ring/60 relative inline-flex h-9 items-center gap-2 rounded-full bg-white/12 px-3.5 text-sm font-medium text-white outline-none hover:bg-white/20 focus-visible:ring-[3px] pointer-coarse:h-10 pointer-coarse:px-4 aria-expanded:bg-white/20 aria-expanded:ring-2 aria-expanded:ring-orange-400/80"
+        className="focus-visible:ring-ring/60 relative inline-flex h-9 items-center gap-2 rounded-full bg-white/12 px-3.5 text-sm font-medium text-white outline-none hover:bg-white/20 focus-visible:ring-[3px] pointer-coarse:h-10 pointer-coarse:px-4 aria-expanded:bg-white/20 aria-expanded:ring-2 aria-expanded:ring-primary-text/80"
       >
         <Folder className="size-4" aria-hidden="true" />
         {getAlbumsPillLabel(holding.length)}
@@ -242,8 +236,7 @@ export const MediaAlbumsControl: FC<Props> = ({
         <p
           role="alert"
           className={cn(
-            'text-xs',
-            dark ? 'text-red-300' : 'text-destructive',
+            'text-xs text-destructive-text',
             menuOpen && 'px-2 pt-1'
           )}
         >
@@ -287,25 +280,17 @@ export const MediaAlbumsControl: FC<Props> = ({
           // list (and, at the very least, the menu) instead of hiding the
           // New album action below the fold.
           'flex max-h-(--radix-popover-content-available-height) w-72 max-w-[calc(100vw-2rem)] flex-col overflow-y-auto p-1.5',
-          dark && 'border-white/15 bg-neutral-800 text-neutral-50'
+          dark && 'dark'
         )}
       >
         <p
           id={titleId}
-          className={cn(
-            'px-2 py-1.5 text-xs font-medium',
-            dark ? 'text-neutral-400' : 'text-muted-foreground'
-          )}
+          className="px-2 py-1.5 text-xs font-medium text-muted-foreground"
         >
           Add to album
         </p>
         {options.length === 0 ? (
-          <p
-            className={cn(
-              'px-2 py-2 text-sm',
-              dark ? 'text-neutral-400' : 'text-muted-foreground'
-            )}
-          >
+          <p className="px-2 py-2 text-sm text-muted-foreground">
             You have no albums yet.
           </p>
         ) : (
@@ -321,8 +306,7 @@ export const MediaAlbumsControl: FC<Props> = ({
                 <li key={album.id}>
                   <label
                     className={cn(
-                      'flex min-h-9 cursor-pointer items-center gap-2.5 rounded-md px-2 text-sm pointer-coarse:min-h-10',
-                      dark ? 'hover:bg-white/10' : 'hover:bg-accent',
+                      'flex min-h-9 cursor-pointer items-center gap-2.5 rounded-md px-2 text-sm hover:bg-accent pointer-coarse:min-h-10',
                       blocked && 'cursor-not-allowed opacity-60'
                     )}
                   >
@@ -343,10 +327,7 @@ export const MediaAlbumsControl: FC<Props> = ({
                       {album.title}
                     </span>
                     <span
-                      className={cn(
-                        'shrink-0 text-xs tabular-nums',
-                        dark ? 'text-neutral-400' : 'text-muted-foreground'
-                      )}
+                      className="shrink-0 text-xs tabular-nums text-muted-foreground"
                       aria-hidden="true"
                     >
                       {album.itemCount.toLocaleString('en-US')}
@@ -358,17 +339,12 @@ export const MediaAlbumsControl: FC<Props> = ({
           </ul>
         )}
         {addable ? null : (
-          <p
-            className={cn(
-              'px-2 pt-1 pb-1.5 text-xs',
-              dark ? 'text-neutral-400' : 'text-muted-foreground'
-            )}
-          >
+          <p className="px-2 pt-1 pb-1.5 text-xs text-muted-foreground">
             {NOT_ADDABLE_HINT}
           </p>
         )}
         {menuOpen ? messages : null}
-        <div className={cn('mt-1 border-t pt-1', dark && 'border-white/15')}>
+        <div className="mt-1 border-t pt-1">
           <button
             type="button"
             disabled={!addable}
@@ -376,12 +352,7 @@ export const MediaAlbumsControl: FC<Props> = ({
               setMenuOpen(false)
               setCreateOpen(true)
             }}
-            className={cn(
-              'focus-visible:ring-ring/50 flex min-h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-2 text-sm font-medium outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-10',
-              dark
-                ? 'text-orange-300 hover:bg-white/10'
-                : 'text-primary-text hover:bg-accent'
-            )}
+            className="focus-visible:ring-ring/50 flex min-h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-2 text-sm font-medium text-primary-text outline-none hover:bg-accent focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 pointer-coarse:min-h-10"
           >
             <Plus className="size-4" aria-hidden="true" />
             New album with this photo
@@ -413,7 +384,7 @@ export const MediaAlbumsControl: FC<Props> = ({
     return (
       <div
         ref={rootRef}
-        className={cn('flex flex-col items-center gap-2', className)}
+        className={cn('dark flex flex-col items-center gap-2', className)}
         onTouchStart={stopPortalledTouch}
         onTouchMove={stopPortalledTouch}
         onTouchEnd={stopPortalledTouch}

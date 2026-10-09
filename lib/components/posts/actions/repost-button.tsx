@@ -43,7 +43,9 @@ export const RepostButton: FC<RepostButtonProps> = ({
       aria-label={repostLabel}
       className={cn(
         ACTION_BUTTON_CLASS,
-        repostedStatusId !== null ? 'text-green-500' : 'hover:text-green-500'
+        repostedStatusId !== null
+          ? 'text-repost-icon'
+          : 'hover:text-repost-icon'
       )}
       onClick={async (e) => {
         e.stopPropagation()

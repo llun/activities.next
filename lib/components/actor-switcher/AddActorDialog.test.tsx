@@ -286,7 +286,16 @@ describe('AddActorDialog', () => {
       fireEvent.submit(input.closest('form')!)
 
       expect(screen.getByText('Username is required')).toBeInTheDocument()
+      expect(input).toHaveAccessibleDescription('Username is required')
+      expect(input).toBeInvalid()
+      expect(input).toHaveFocus()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       expect(createActor).not.toHaveBeenCalled()
+
+      fireEvent.change(input, { target: { value: 'valid_name' } })
+      expect(input).not.toBeInvalid()
+      expect(input).not.toHaveAccessibleDescription('Username is required')
+      expect(screen.queryByText('Username is required')).not.toBeInTheDocument()
     })
 
     it('shows error when username contains invalid characters', async () => {
@@ -359,9 +368,7 @@ describe('AddActorDialog', () => {
       fireEvent.submit(input.closest('form')!)
 
       await waitFor(() => {
-        expect(
-          screen.getByRole('button', { name: 'Creating...' })
-        ).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Creating…' })).toBeDisabled()
       })
       expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
 
@@ -513,9 +520,7 @@ describe('AddActorDialog', () => {
       fireEvent.submit(input.closest('form')!)
 
       await waitFor(() => {
-        expect(
-          screen.getByRole('button', { name: 'Creating...' })
-        ).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Creating…' })).toBeDisabled()
       })
 
       // Close dialog while create is in-flight
@@ -575,9 +580,7 @@ describe('AddActorDialog', () => {
       fireEvent.submit(input.closest('form')!)
 
       await waitFor(() => {
-        expect(
-          screen.getByRole('button', { name: 'Creating...' })
-        ).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Creating…' })).toBeDisabled()
       })
 
       // Close dialog while in flight

@@ -11,6 +11,7 @@ import {
   startWahooHistory
 } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -183,9 +184,10 @@ export const WahooHistorySection = ({
       </form>
 
       {isLoading && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Loading import status…
-        </p>
+        <div role="status" className="space-y-2">
+          <span className="sr-only">Loading import status</span>
+          <SkeletonBar className="h-10 w-full" />
+        </div>
       )}
       {currentImport && (
         <div className="space-y-3 rounded-md border p-4 text-sm">
@@ -213,11 +215,7 @@ export const WahooHistorySection = ({
               aria-label="History import progress"
             />
           )}
-          {currentImport.lastError && (
-            <p role="alert" className="text-destructive">
-              {currentImport.lastError}
-            </p>
-          )}
+          {currentImport.lastError && <Alert title={currentImport.lastError} />}
           <div className="flex flex-wrap gap-2">
             {isInProgress(currentImport.status) && (
               <Button
@@ -264,11 +262,7 @@ export const WahooHistorySection = ({
           </p>
         </div>
       )}
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
+      {error && <Alert title={error} />}
       {message && <Alert tone="success" title={message} />}
     </section>
   )

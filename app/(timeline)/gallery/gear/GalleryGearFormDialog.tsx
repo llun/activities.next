@@ -1,8 +1,9 @@
 'use client'
 
-import { FC, FormEvent, useEffect, useState } from 'react'
+import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import { createGalleryGear, updateGalleryGear } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -41,6 +42,8 @@ export const GalleryGearFormDialog: FC<Props> = ({
   const [productUrl, setProductUrl] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
 
   // Seed the fields whenever the dialog opens so a cancelled edit never leaks
   // into the next one, and an "Add" that follows an "Edit" starts empty.
@@ -51,6 +54,7 @@ export const GalleryGearFormDialog: FC<Props> = ({
     setModel(gear?.model ?? '')
     setProductUrl(gear?.productUrl ?? '')
     setError(null)
+    setNameError(null)
   }, [open, gear])
 
   const isEditing = Boolean(gear)
@@ -60,11 +64,15 @@ export const GalleryGearFormDialog: FC<Props> = ({
     event.preventDefault()
     const resolvedName = name.trim() || joinBrandModel(brand, model)
     if (!resolvedName) {
-      setError(`Give the ${noun} a name.`)
+      setError(null)
+      setNameError(`Give the ${noun} a name.`)
+      // Focus moves to the invalid input so its description is read.
+      nameInputRef.current?.focus()
       return
     }
 
     setError(null)
+    setNameError(null)
     setIsSaving(true)
     const fields = {
       name: resolvedName,
@@ -103,15 +111,31 @@ export const GalleryGearFormDialog: FC<Props> = ({
             <Label htmlFor="gallery-gear-name">Name</Label>
             <Input
               id="gallery-gear-name"
+              ref={nameInputRef}
               value={name}
               maxLength={255}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value)
+                setNameError(null)
+              }}
               disabled={isSaving}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={
+                nameError ? 'gallery-gear-name-error' : undefined
+              }
             />
             <p className="text-xs text-muted-foreground">
               Shown everywhere instead of brand and model. Leave it empty to use
               both.
             </p>
+            {nameError ? (
+              <p
+                id="gallery-gear-name-error"
+                className="text-xs text-destructive-text"
+              >
+                {nameError}
+              </p>
+            ) : null}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -121,7 +145,10 @@ export const GalleryGearFormDialog: FC<Props> = ({
                 id="gallery-gear-brand"
                 value={brand}
                 maxLength={255}
-                onChange={(event) => setBrand(event.target.value)}
+                onChange={(event) => {
+                  setBrand(event.target.value)
+                  setNameError(null)
+                }}
                 disabled={isSaving}
               />
             </div>
@@ -131,7 +158,10 @@ export const GalleryGearFormDialog: FC<Props> = ({
                 id="gallery-gear-model"
                 value={model}
                 maxLength={255}
-                onChange={(event) => setModel(event.target.value)}
+                onChange={(event) => {
+                  setModel(event.target.value)
+                  setNameError(null)
+                }}
                 disabled={isSaving}
               />
             </div>
@@ -156,11 +186,7 @@ export const GalleryGearFormDialog: FC<Props> = ({
             </p>
           </div>
 
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
+          {error && <Alert title={error} />}
 
           <DialogFooter>
             <Button

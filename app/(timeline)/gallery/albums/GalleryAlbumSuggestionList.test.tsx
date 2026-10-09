@@ -75,7 +75,7 @@ describe('GalleryAlbumSuggestionList', () => {
     })
 
     expect(screen.getByRole('alert')).toHaveTextContent('Too many requests')
-    const retry = screen.getByRole('button', { name: 'Try again' })
+    const retry = screen.getByRole('button', { name: 'Retry' })
     fireEvent.click(retry)
     expect(onRetry).toHaveBeenCalledTimes(1)
   })

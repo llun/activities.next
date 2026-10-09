@@ -544,6 +544,9 @@ describe('@theme utility mappings', () => {
     'control-off',
     'like-text',
     'like-icon',
+    'bookmark-icon',
+    'repost-icon',
+    'reply-icon',
     'surface-chrome',
     'surface-accent'
   ])('maps --color-%s to its token', (name) => {

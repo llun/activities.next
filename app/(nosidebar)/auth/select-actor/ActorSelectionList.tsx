@@ -5,6 +5,7 @@ import { useState } from 'react'
 
 import { switchActor } from '@/lib/client'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 
 interface ActorInfo {
@@ -48,6 +49,11 @@ export function ActorSelectionList({ actors }: ActorSelectionListProps) {
 
   return (
     <div className="space-y-2">
+      {/* Outside the buttons: a button's children are presentational, so a
+          status inside one would only be folded into its name. */}
+      <p role="status" className="sr-only">
+        {isLoading !== null ? 'Switching account' : ''}
+      </p>
       {actors.map((actor) => (
         <button
           key={actor.id}
@@ -72,9 +78,7 @@ export function ActorSelectionList({ actors }: ActorSelectionListProps) {
               {getHandle(actor)}
             </p>
           </div>
-          {isLoading === actor.id && (
-            <span className="text-sm text-muted-foreground">Loading...</span>
-          )}
+          {isLoading === actor.id && <SkeletonBar className="h-4 w-12" />}
         </button>
       ))}
     </div>

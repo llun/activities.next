@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, FormEvent, useEffect, useState } from 'react'
+import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import {
   COMPONENT_TYPE_OPTIONS,
@@ -10,6 +10,7 @@ import {
   createFitnessGearComponent,
   updateFitnessGearComponent
 } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -61,6 +62,8 @@ export const GearComponentFormDialog: FC<Props> = ({
   const [productUrl, setProductUrl] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [dateError, setDateError] = useState<string | null>(null)
+  const addedDateInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -87,18 +90,21 @@ export const GearComponentFormDialog: FC<Props> = ({
       setProductUrl('')
     }
     setError(null)
+    setDateError(null)
   }, [open, component])
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setError(null)
-    setIsSaving(true)
+    setDateError(null)
 
     if (addedMode === 'date' && !addedDate) {
-      setError('Please select an added date.')
-      setIsSaving(false)
+      setDateError('Please select an added date.')
+      addedDateInputRef.current?.focus()
       return
     }
+
+    setIsSaving(true)
 
     const addedAtMs =
       addedMode === 'date' && addedDate
@@ -226,9 +232,12 @@ export const GearComponentFormDialog: FC<Props> = ({
               <Select
                 id="component-added"
                 value={addedMode}
-                onChange={(event) =>
+                onChange={(event) => {
                   setAddedMode(event.target.value as AddedMode)
-                }
+                  // The date input unmounts on "Since beginning"; its error
+                  // goes with it.
+                  setDateError(null)
+                }}
                 disabled={isSaving}
               >
                 <option value="beginning">Since beginning</option>
@@ -237,12 +246,28 @@ export const GearComponentFormDialog: FC<Props> = ({
               {addedMode === 'date' && (
                 <Input
                   type="date"
+                  ref={addedDateInputRef}
                   aria-label="Added date"
                   required
                   value={addedDate}
-                  onChange={(event) => setAddedDate(event.target.value)}
+                  onChange={(event) => {
+                    setAddedDate(event.target.value)
+                    setDateError(null)
+                  }}
                   disabled={isSaving}
+                  aria-invalid={dateError ? true : undefined}
+                  aria-describedby={
+                    dateError ? 'component-added-error' : undefined
+                  }
                 />
+              )}
+              {dateError && (
+                <p
+                  id="component-added-error"
+                  className="text-xs text-destructive-text"
+                >
+                  {dateError}
+                </p>
               )}
               <p className="text-xs text-muted-foreground">
                 Distance counts from this date.
@@ -286,7 +311,7 @@ export const GearComponentFormDialog: FC<Props> = ({
             </p>
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <Alert title={error} />}
 
           <DialogFooter>
             <Button

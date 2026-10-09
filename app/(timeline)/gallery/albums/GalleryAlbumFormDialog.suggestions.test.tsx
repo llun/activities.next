@@ -381,7 +381,7 @@ describe('GalleryAlbumFormDialog suggestions', () => {
       />
     )
     expect(screen.getByRole('alert')).toHaveTextContent('Too many requests')
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(reload).toHaveBeenCalledTimes(1)
     failed.unmount()
 

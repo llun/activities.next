@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { FC, useEffect, useState } from 'react'
 
 import { getStatusById } from '@/lib/client'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { QuoteState, StatusQuote } from '@/lib/types/domain/status'
 import type { Status as MastodonStatus } from '@/lib/types/mastodon/status'
@@ -82,14 +83,17 @@ export const QuoteCard: FC<Props> = ({ quote, currentTime, className }) => {
 
   if (!loaded) {
     return (
+      // Not a live region: a feed can hold several quote cards, and each
+      // announcing itself would break "one status per screen".
       <div
         className={cn(
-          'mt-2 rounded-xl border border-border/60 bg-muted/10 px-3 py-2 text-sm text-muted-foreground',
+          'mt-2 rounded-lg border border-border/60 bg-muted/10 px-3 py-3',
           className
         )}
         aria-busy="true"
       >
-        Loading quoted post…
+        <span className="sr-only">Loading quoted post</span>
+        <SkeletonBar className="h-4 w-2/3" />
       </div>
     )
   }

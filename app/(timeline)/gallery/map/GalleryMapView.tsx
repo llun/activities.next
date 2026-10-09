@@ -197,7 +197,7 @@ export const GalleryMapView: FC<Props> = ({
       ) : null}
 
       {isPreview && mapPublic && isLoadingPreview ? (
-        <div className="skeleton h-[420px] rounded-xl" aria-busy="true" />
+        <div className="skeleton h-[420px] rounded-lg" aria-busy="true" />
       ) : isPublicPreviewOff ? (
         <Alert title="Your map is private">
           Visitors see no map until you switch on Public map in{' '}

@@ -1,6 +1,5 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { FitnessRouteHeatmapData } from '@/lib/client'
@@ -24,6 +23,7 @@ import {
   HeatmapTileFetcher,
   useHeatmapTiles
 } from '@/lib/components/fitness/useHeatmapTiles'
+import { MapLoadingOverlay } from '@/lib/components/map/MapLoadingOverlay'
 import {
   HEAT_COUNT_COLOR_STOPS,
   HEAT_COUNT_SATURATION,
@@ -464,14 +464,7 @@ export const RouteHeatmapMapKit: FC<RouteHeatmapMapKitProps> = ({
         aria-label="Fitness route heatmap"
         className="h-full w-full"
       />
-      {!isMapLoaded && (
-        <div
-          role="status"
-          className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/60 text-sm text-muted-foreground"
-        >
-          <Loader2 className="size-4 animate-spin" /> Loading map…
-        </div>
-      )}
+      {!isMapLoaded && <MapLoadingOverlay />}
       {isMapLoaded && (
         <div className="pointer-events-none absolute left-3 top-3 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
           {APPLE_MAPS_LABEL}

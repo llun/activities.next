@@ -43,6 +43,7 @@ import { useElementWidth } from '@/lib/components/fitness/calendar/useElementWid
 import { RefreshButton } from '@/lib/components/refresh-button'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 import {
   formatMonthShort,
@@ -502,7 +503,14 @@ function FitnessOverview({
         <span className="text-foreground font-semibold">
           {formatMonthShort(monthParts.month)} {monthParts.year}
         </span>{' '}
-        · {loading ? 'Loading activity…' : monthCaption(displayRange, today)}
+        ·{' '}
+        {loading ? (
+          // The overview's own live region says "Loading {range}" for this
+          // fetch, so the caption placeholder stays silent.
+          <SkeletonBar className="inline-block h-3 w-28 align-middle" />
+        ) : (
+          monthCaption(displayRange, today)
+        )}
       </p>
       {legend}
     </div>

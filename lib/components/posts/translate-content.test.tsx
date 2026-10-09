@@ -158,7 +158,7 @@ describe('TranslateContent', () => {
     fireEvent.click(await findTranslateButton())
 
     expect(
-      await screen.findByText(/Couldn't translate this post/)
+      await screen.findByText(/Couldn’t translate this post/)
     ).toBeInTheDocument()
     expect(screen.getByText('Hello world')).toBeInTheDocument()
   })
@@ -171,9 +171,29 @@ describe('TranslateContent', () => {
     fireEvent.click(await findTranslateButton())
 
     expect(
-      await screen.findByText(/Couldn't translate this post/)
+      await screen.findByText(/Couldn’t translate this post/)
     ).toBeInTheDocument()
     expect(screen.getByText('Hello world')).toBeInTheDocument()
+  })
+
+  it('announces the failure as an alert and translates again on Retry', async () => {
+    mockCapability(true, 'fr')
+    ;(translateStatus as jest.Mock)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(translation)
+    renderContent('en')
+
+    fireEvent.click(await findTranslateButton())
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Couldn’t translate this post/
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText('Bonjour le monde')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(translateStatus).toHaveBeenCalledTimes(2)
   })
 
   it('renders "Translated to <Target>" when source is unknown and backend detects no source', async () => {

@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 
@@ -138,6 +144,18 @@ describe('InstanceSettingsForm', () => {
     )
     // Still dirty (the value was not adopted), so Save stays enabled.
     expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeEnabled()
+  })
+
+  it('names the languages group by its label and describes it by the hint', () => {
+    renderForm()
+
+    const languages = screen.getByRole('group', { name: 'Languages' })
+    expect(languages).toHaveAccessibleDescription(
+      /Primary languages of this instance/
+    )
+    // The chips live inside the group the row names.
+    expect(within(languages).getByText('English')).toBeInTheDocument()
+    expect(within(languages).getByText('ไทย')).toBeInTheDocument()
   })
 
   it('adopts the server-resolved values and clears dirty after a save', async () => {

@@ -1,9 +1,11 @@
 'use client'
 
-import { Check, Loader2, Search, Sparkles, X } from 'lucide-react'
+import { Check, Search, Sparkles, X } from 'lucide-react'
 import { FC } from 'react'
 
 import type { SubjectSuggestionsEntity } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -141,7 +143,7 @@ export const SubjectSuggestions: FC<Props> = ({
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Sparkles
             aria-hidden="true"
-            className="size-3.5 shrink-0 text-green-700 dark:text-green-400"
+            className="size-3.5 shrink-0 text-success-text"
           />
           <span>
             Suggested by {suggestions.model}
@@ -153,13 +155,12 @@ export const SubjectSuggestions: FC<Props> = ({
       ) : null}
 
       {suggesting ? (
-        <p
-          role="status"
-          className="flex items-center gap-2 text-sm text-muted-foreground"
-        >
-          <Loader2 className="size-3.5 animate-spin" />
-          Reading details…
-        </p>
+        <div role="status" className="flex flex-wrap gap-2">
+          <span className="sr-only">Reading details</span>
+          <SkeletonBar className="h-8 w-28 rounded-full" />
+          <SkeletonBar className="h-8 w-20 rounded-full" />
+          <SkeletonBar className="h-8 w-32 rounded-full" />
+        </div>
       ) : null}
 
       {hasChips ? (
@@ -189,9 +190,7 @@ export const SubjectSuggestions: FC<Props> = ({
                 <span
                   className={cn(
                     'font-medium',
-                    selected
-                      ? 'text-green-700 dark:text-green-400'
-                      : 'text-muted-foreground'
+                    selected ? 'text-success-text' : 'text-muted-foreground'
                   )}
                 >
                   {toPercent(candidate.confidence)}%
@@ -223,11 +222,7 @@ export const SubjectSuggestions: FC<Props> = ({
         </Button>
       ) : null}
 
-      {error ? (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <Alert title={error} /> : null}
 
       {canSearch ? (
         <button

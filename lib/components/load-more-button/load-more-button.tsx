@@ -2,6 +2,7 @@
 
 import { ComponentProps, FC, ReactNode, Ref } from 'react'
 
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -86,11 +87,7 @@ export const LoadMoreButton: FC<LoadMoreButtonProps> = ({
         ref={containerRef}
         className={cn(defaultContainerClass, containerClassName)}
       >
-        {error && (
-          <p className="mb-3 text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <Alert title={error} className="mb-3" />}
         {button}
       </div>
     )

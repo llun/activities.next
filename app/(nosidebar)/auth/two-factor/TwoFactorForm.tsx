@@ -126,7 +126,7 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? 'Verifying...' : 'Verify and sign in'}
+        {loading ? 'Verifying…' : 'Verify and sign in'}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">

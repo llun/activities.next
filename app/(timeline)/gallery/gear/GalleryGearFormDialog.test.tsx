@@ -101,10 +101,21 @@ describe('GalleryGearFormDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Save camera' }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
+    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription(
       'Give the camera a name.'
     )
+    expect(screen.getByLabelText('Name')).toBeInvalid()
+    expect(screen.getByLabelText('Name')).toHaveFocus()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(mockCreate).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('Name'), {
+      target: { value: 'X100V' }
+    })
+    expect(screen.getByLabelText('Name')).not.toBeInvalid()
+    expect(
+      screen.queryByText('Give the camera a name.')
+    ).not.toBeInTheDocument()
   })
 
   it('edits an existing gear, sending blanks as clears', async () => {

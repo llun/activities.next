@@ -61,7 +61,7 @@ export const RequestPasswordResetForm: FC = () => {
       {message && <p className="text-sm text-muted-foreground">{message}</p>}
 
       <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? 'Sending...' : 'Send reset link'}
+        {isLoading ? 'Sending…' : 'Send reset link'}
       </Button>
     </form>
   )

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
 import { mute as muteAccount, unmute as unmuteAccount } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import {
@@ -91,11 +92,7 @@ export const MuteAction: FC<MuteActionProps> = ({
           {isSubmitting ? <Loader2 className="animate-spin" /> : <VolumeX />}
           Unmute
         </Button>
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
+        {error ? <Alert title={error} /> : null}
       </div>
     )
   }
@@ -139,11 +136,7 @@ export const MuteAction: FC<MuteActionProps> = ({
             />
             Also hide notifications from this actor
           </label>
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
+          {error ? <Alert title={error} /> : null}
           <DialogFooter>
             <Button
               type="button"

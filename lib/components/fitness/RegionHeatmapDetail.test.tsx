@@ -157,9 +157,9 @@ describe('RegionHeatmapDetail', () => {
       />
     )
 
-    // The stalled banner (role="status") carries its own Retry; the empty
+    // The stalled banner (a warning alert) carries its own Retry; the empty
     // "No heatmap yet" block is suppressed in favour of the banner.
-    const banner = screen.getByRole('status')
+    const banner = screen.getByRole('alert')
     expect(banner).toHaveTextContent(/taking longer than expected/i)
     expect(screen.queryByText('No heatmap yet')).not.toBeInTheDocument()
 
@@ -360,6 +360,35 @@ describe('RegionHeatmapDetail', () => {
   it('surfaces a generation error', () => {
     render(<RegionHeatmapDetail {...defaultProps} error="queue unavailable" />)
     expect(screen.getByRole('alert')).toHaveTextContent('queue unavailable')
+  })
+
+  it('announces one "Loading heatmap" status while the first read is in flight', () => {
+    render(<RegionHeatmapDetail {...defaultProps} isLoading />)
+
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.getByRole('status')).toHaveTextContent('Loading heatmap')
+    expect(screen.queryByText(/Loading heatmap…/)).not.toBeInTheDocument()
+    expect(screen.queryByText('No heatmap yet')).not.toBeInTheDocument()
+  })
+
+  it('shows a partial route cache as a warning, not an error', () => {
+    render(
+      <RegionHeatmapDetail
+        {...defaultProps}
+        heatmap={{ ...completedHeatmap, isPartial: true }}
+      />
+    )
+
+    const warning = screen.getByText(/Partial route cache capped at 1M files/)
+    expect(warning.closest('[data-slot="alert"]')).toHaveAttribute(
+      'data-tone',
+      'warning'
+    )
+    // A standing note at load: it is not announced assertively.
+    expect(warning.closest('[data-slot="alert"]')).not.toHaveAttribute(
+      'role',
+      'alert'
+    )
   })
 
   it('keeps the whole-world title read-only even when onRename is provided', () => {

@@ -429,14 +429,14 @@ export const AuthorizeCard: FC<Props> = ({
               onClick={handleDeny}
               disabled={isSubmitting || isSwitching}
             >
-              {submittingAction === 'deny' ? 'Denying...' : 'Deny'}
+              {submittingAction === 'deny' ? 'Denying…' : 'Deny'}
             </Button>
             <Button
               className="flex-1"
               type="submit"
               disabled={isSubmitting || isSwitching}
             >
-              {submittingAction === 'approve' ? 'Approving...' : 'Approve'}
+              {submittingAction === 'approve' ? 'Approving…' : 'Approve'}
             </Button>
           </div>
         </form>

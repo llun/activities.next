@@ -506,11 +506,7 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
               linked to this gear. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          {deleteError && (
-            <p className="text-sm text-destructive" role="alert">
-              {deleteError}
-            </p>
-          )}
+          {deleteError && <Alert title={deleteError} />}
           <DialogFooter>
             <Button
               variant="outline"
@@ -524,7 +520,7 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
               onClick={handleDeleteGear}
               disabled={isDeleting}
             >
-              {isDeleting ? 'Deleting...' : 'Delete gear'}
+              {isDeleting ? 'Deleting…' : 'Delete gear'}
             </Button>
           </DialogFooter>
         </DialogContent>

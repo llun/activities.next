@@ -39,12 +39,21 @@ interface LanguagesPickerProps {
   value: string[]
   onChange: (value: string[]) => void
   disabled?: boolean
+  /** The id its `FormRow` label points at. */
+  id?: string
+  /** The row's label, which a `<label for>` cannot give a group of chips. */
+  'aria-labelledby'?: string
+  /** The row's hint. */
+  'aria-describedby'?: string
 }
 
 export const LanguagesPicker: FC<LanguagesPickerProps> = ({
   value,
   onChange,
-  disabled
+  disabled,
+  id,
+  'aria-labelledby': labelledBy,
+  'aria-describedby': describedBy
 }) => {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -63,7 +72,13 @@ export const LanguagesPicker: FC<LanguagesPickerProps> = ({
   )
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div
+      id={id}
+      role="group"
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
+      className="flex flex-wrap items-center gap-2"
+    >
       {value.map((code) => (
         <span
           key={code}

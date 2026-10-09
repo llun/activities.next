@@ -43,7 +43,7 @@ export const GalleryAlbumHero: FC<Props> = ({
   }
 
   return (
-    <div className="bg-muted/40 relative aspect-[4/3] w-full overflow-hidden rounded-xl border sm:aspect-[16/7]">
+    <div className="bg-muted/40 relative aspect-[4/3] w-full overflow-hidden rounded-lg border sm:aspect-[16/7]">
       <GalleryAlbumThumb item={cover} loading="eager" quality="full" />
       <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/75 via-black/30 to-transparent p-4 text-white sm:p-6">
         <h1 className="text-2xl font-semibold tracking-tight break-words sm:text-3xl">

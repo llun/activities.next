@@ -42,8 +42,7 @@ interface BadgeProps {
 }
 
 // Small inline pill used for the unread count, "New" flag, and admin lifecycle
-// status. The app has no shared shadcn Badge primitive (NotificationBadge is an
-// absolute-positioned overlay), so this maps the design tones to token classes.
+// status, mapping the design tones to theme-token classes.
 export const AnnouncementBadge: FC<BadgeProps> = ({
   tone = 'orange',
   className,
@@ -51,8 +50,7 @@ export const AnnouncementBadge: FC<BadgeProps> = ({
 }) => {
   const tones: Record<NonNullable<BadgeProps['tone']>, string> = {
     orange: 'border-primary/30 bg-primary/10 text-primary-text',
-    green:
-      'border-green-600/30 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    green: 'border-success/30 bg-success/10 text-success-text',
     gray: 'border-border bg-muted text-muted-foreground'
   }
   return (
@@ -272,7 +270,7 @@ const AnnouncementsPanel: FC<{
         )}
       </div>
 
-      <div className="text-sm leading-relaxed break-words [&_a]:text-sky-600 [&_a]:underline [&_a]:underline-offset-2 dark:[&_a]:text-sky-400 [&_p]:mb-2 last:[&_p]:mb-0">
+      <div className="text-sm leading-relaxed break-words [&_a]:text-(color:--link-color) [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-(color:--link-color-hover) [&_p]:mb-2 last:[&_p]:mb-0">
         {content}
       </div>
 

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { getAllStatsBuckets } from '@/app/(timeline)/admin/actions'
 import type {
@@ -255,6 +255,34 @@ describe('StatsOverview', () => {
         expect(screen.getByRole('radio', { name: '7d' })).toBeChecked()
       )
       expect(screen.getByText('40 new in the last 7d')).toBeInTheDocument()
+    })
+
+    it('announces a failed window and offers Retry, which reads it again', async () => {
+      vi.mocked(getAllStatsBuckets)
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce(bucketsOf({ statuses: 77 }))
+      renderOverview()
+
+      fireEvent.click(screen.getByRole('radio', { name: '90d' }))
+
+      // The reason ("boom") is not shown; the copy says what happened and
+      // which window is still on screen.
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('We couldn’t load the last 90d')
+      expect(alert).toHaveTextContent('Still showing the last 7d')
+      expect(alert).not.toHaveTextContent('boom')
+      expect(screen.getByText('40 new in the last 7d')).toBeInTheDocument()
+
+      // Let the failed read finish settling before Retry is pressed.
+      await act(async () => {})
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      await waitFor(() =>
+        expect(screen.getByText('77 new in the last 90d')).toBeInTheDocument()
+      )
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(vi.mocked(getAllStatsBuckets)).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('radio', { name: '90d' })).toBeChecked()
     })
   })
 })

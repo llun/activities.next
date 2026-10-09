@@ -269,7 +269,7 @@ describe('MediaDetailsDialog smart subjects', () => {
       suggestionsPending: { m1: true }
     })
 
-    expect(screen.getByRole('status')).toHaveTextContent('Reading details…')
+    expect(screen.getByRole('status')).toHaveTextContent('Reading details')
     expect(
       screen.queryByRole('button', { name: 'Suggest subjects' })
     ).not.toBeInTheDocument()

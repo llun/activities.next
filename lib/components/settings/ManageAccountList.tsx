@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { FC, useState } from 'react'
 
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -218,11 +219,7 @@ export const ManageAccountList: FC<ManageAccountListProps> = ({
             <DialogTitle>{dialogTitle}</DialogTitle>
             <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
-          {error ? (
-            <p role="alert" className="text-destructive-text text-sm">
-              {error}
-            </p>
-          ) : null}
+          {error ? <Alert title={error} /> : null}
           <DialogFooter>
             <Button
               type="button"

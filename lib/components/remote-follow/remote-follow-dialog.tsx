@@ -3,6 +3,7 @@
 import { FC, FormEvent, useEffect, useRef, useState } from 'react'
 
 import { getRemoteFollowUrl } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -52,6 +53,7 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
   const [account, setAccount] = useState(readRememberedAccount)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldError, setFieldError] = useState<string | null>(null)
   // Identifies the one lookup whose result still matters. Closing the dialog
   // or starting another lookup bumps it, and a settling request compares the
   // token it captured before acting — so a result the visitor walked away from
@@ -64,6 +66,7 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
   // on open is un-set by the visitor simply reopening the dialog to retry,
   // which put the abandoned navigation right back.
   const attemptRef = useRef(0)
+  const accountInputRef = useRef<HTMLInputElement>(null)
 
   // Leaving the page abandons the lookup too. Radix does not push a history
   // entry, so a browser or Android system Back unmounts this without ever
@@ -80,6 +83,7 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
     if (!nextOpen) {
       attemptRef.current += 1
       setError(null)
+      setFieldError(null)
       setIsLoading(false)
     }
     setOpen(nextOpen)
@@ -88,10 +92,12 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setError(null)
+    setFieldError(null)
 
     const trimmedAccount = account.trim()
     if (!trimmedAccount || /\s/.test(trimmedAccount)) {
-      setError('Enter your address, for example username@mastodon.social')
+      setFieldError('Enter your address, for example username@mastodon.social')
+      accountInputRef.current?.focus()
       return
     }
 
@@ -138,6 +144,7 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
               <Label htmlFor="remote-follow-account">Your address</Label>
               <Input
                 id="remote-follow-account"
+                ref={accountInputRef}
                 autoFocus
                 autoCapitalize="none"
                 autoCorrect="off"
@@ -146,11 +153,24 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
                 placeholder="E.g. username@mastodon.social"
                 value={account}
                 disabled={isLoading}
-                onChange={(event) => setAccount(event.target.value)}
+                onChange={(event) => {
+                  setAccount(event.target.value)
+                  setFieldError(null)
+                }}
+                aria-invalid={fieldError ? true : undefined}
+                aria-describedby={
+                  fieldError ? 'remote-follow-account-error' : undefined
+                }
               />
-              {error ? (
-                <p className="text-sm text-destructive">{error}</p>
+              {fieldError ? (
+                <p
+                  id="remote-follow-account-error"
+                  className="text-xs text-destructive-text"
+                >
+                  {fieldError}
+                </p>
               ) : null}
+              {error ? <Alert title={error} /> : null}
             </div>
             <DialogFooter>
               <Button
@@ -162,7 +182,7 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading || !account.trim()}>
-                {isLoading ? 'Redirecting...' : 'Go'}
+                {isLoading ? 'Redirecting…' : 'Go'}
               </Button>
             </DialogFooter>
           </form>

@@ -241,7 +241,7 @@ const StatTile: FC<{
   <div className="rounded-lg border bg-background p-3.5">
     <div className="flex items-center gap-1.5 text-muted-foreground">
       {Icon ? <Icon className="size-3.5" /> : null}
-      <span className="text-[11px] font-medium uppercase tracking-wide">
+      <span className="text-xs font-medium uppercase tracking-wide">
         {label}
       </span>
     </div>
@@ -260,7 +260,7 @@ const StatTile: FC<{
       {value}
     </div>
     {sub ? (
-      <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
     ) : null}
   </div>
 )
@@ -1745,7 +1745,7 @@ export const FitnessStatusDetail: FC<Props> = ({
         <Card padded={false} className="p-4">
           <label
             htmlFor="activity-file-select"
-            className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+            className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
           >
             Activity file
           </label>
@@ -1902,6 +1902,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 routeDataError={routeDataError}
                 isRouteDataLoading={isRouteDataLoading}
                 interactive
+                announceLoading={false}
                 onOpenMap={() => {
                   if (mapAttachmentIndex >= 0) {
                     onShowAttachment(status.attachments, mapAttachmentIndex)
@@ -1970,7 +1971,7 @@ export const FitnessStatusDetail: FC<Props> = ({
               <div className="pt-1">
                 <div
                   className={cn(
-                    'grid text-[11px] leading-4 tabular-nums text-muted-foreground',
+                    'grid text-xs leading-4 tabular-nums text-muted-foreground',
                     GRAPH_HEIGHT_CLASSNAME
                   )}
                 >
@@ -2087,13 +2088,13 @@ export const FitnessStatusDetail: FC<Props> = ({
                             width={tooltipWidth}
                             height={tooltipHeight}
                             rx="4"
-                            className="fill-slate-900/90"
+                            className="fill-foreground/90"
                           />
                           <text
                             x={tooltipWidth / 2}
                             y="20"
                             textAnchor="middle"
-                            className="fill-white text-[11px] font-bold"
+                            className="fill-background text-xs font-bold"
                           >
                             {powerRange}
                           </text>
@@ -2101,7 +2102,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                             x={tooltipWidth / 2}
                             y="38"
                             textAnchor="middle"
-                            className="fill-slate-300 text-[11px]"
+                            className="fill-background/80 text-xs"
                           >
                             {formatDuration(Math.round(value * 60))} (
                             {percentage.toFixed(1)}%)
@@ -2145,7 +2146,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 </span>
 
                 {/* X-Axis labels */}
-                <div className="relative mt-2 flex h-6 border-t border-border pt-2 text-[11px] tabular-nums text-muted-foreground">
+                <div className="relative mt-2 flex h-6 border-t border-border pt-2 text-xs tabular-nums text-muted-foreground">
                   {/* A label at the start of every other bucket (every 50 W),
                       except the ones the end label below would sit on. */}
                   {getPowerAxisTickIndices(histogramLayout.barCount).map(

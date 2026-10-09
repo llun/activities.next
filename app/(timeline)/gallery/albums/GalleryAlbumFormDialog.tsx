@@ -9,6 +9,7 @@ import {
   updateGalleryAlbum
 } from '@/lib/client'
 import { GALLERY_ALBUM_ITEMS_BATCH } from '@/lib/client/galleryAlbums'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -154,6 +155,8 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   const [selected, setSelected] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [titleError, setTitleError] = useState<string | null>(null)
+  const [photosError, setPhotosError] = useState<string | null>(null)
   // Set once the album exists but a later step failed, so a retry opens it
   // instead of creating a second one.
   const [createdId, setCreatedId] = useState<string | null>(null)
@@ -173,6 +176,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   // Whether the owner typed the title themselves: a suggestion fills it only
   // while they have not.
   const titleEdited = useRef(false)
+  const titleInputRef = useRef<HTMLInputElement>(null)
 
   // Seed the fields whenever the dialog opens so a cancelled edit never leaks
   // into the next one.
@@ -183,6 +187,8 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
     setVisibility(album?.visibility ?? DEFAULT_GALLERY_ALBUM_VISIBILITY)
     setSelected(intent === 'create' ? (initialMediaIds ?? []) : [])
     setError(null)
+    setTitleError(null)
+    setPhotosError(null)
     setCreatedId(null)
     setPickerCover(null)
     setTab(initialTab)
@@ -227,8 +233,10 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
     if (!titleEdited.current || !title.trim()) {
       setTitle(suggestion.title)
       titleEdited.current = false
+      setTitleError(null)
     }
     setError(null)
+    setPhotosError(null)
   }
 
   const handleSubmit = async (event: FormEvent) => {
@@ -239,13 +247,17 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
       return
     }
 
+    setTitleError(null)
+    setPhotosError(null)
     const trimmedTitle = title.trim()
     if (showFields && !trimmedTitle) {
-      setError('Give the album a title.')
+      setTitleError('Give the album a title.')
+      // Focus moves to the invalid input so its description is read.
+      titleInputRef.current?.focus()
       return
     }
     if (intent === 'add' && selected.length === 0) {
-      setError('Choose at least one photo.')
+      setPhotosError('Choose at least one photo.')
       return
     }
 
@@ -362,15 +374,29 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                   <Label htmlFor="gallery-album-title">Title</Label>
                   <Input
                     id="gallery-album-title"
+                    ref={titleInputRef}
                     value={title}
                     maxLength={MAX_GALLERY_ALBUM_TITLE_LENGTH}
                     onChange={(event) => {
                       titleEdited.current = true
                       setTitle(event.target.value)
+                      setTitleError(null)
                     }}
                     disabled={isLocked}
                     autoComplete="off"
+                    aria-invalid={titleError ? true : undefined}
+                    aria-describedby={
+                      titleError ? 'gallery-album-title-error' : undefined
+                    }
                   />
+                  {titleError ? (
+                    <p
+                      id="gallery-album-title-error"
+                      className="text-destructive-text text-xs"
+                    >
+                      {titleError}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="gallery-album-description">
@@ -546,11 +572,12 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
             ) : null}
           </div>
 
-          {error ? (
-            <p role="alert" className="text-destructive text-sm">
-              {error}
+          {photosError ? (
+            <p role="alert" className="text-destructive-text text-xs">
+              {photosError}
             </p>
           ) : null}
+          {error ? <Alert title={error} /> : null}
 
           <DialogFooter className="flex-col sm:flex-row sm:items-center sm:justify-between">
             {showPicker ? (

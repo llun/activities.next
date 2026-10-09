@@ -72,7 +72,7 @@ export const StatusContextIndicator: FC<StatusContextIndicatorProps> = ({
           {handle}
         </span>
         {hasCw ? (
-          <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+          <span className="shrink-0 rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning-text">
             CW: {parentPreview.spoilerText || 'Sensitive content'}
           </span>
         ) : snippet ? (

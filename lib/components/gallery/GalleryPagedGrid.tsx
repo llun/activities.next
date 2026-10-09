@@ -9,6 +9,7 @@ import {
   type GalleryGridSelection
 } from '@/lib/components/gallery/GalleryGrid'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import type {
   GalleryItemEntity,
@@ -170,11 +171,7 @@ export const GalleryPagedGrid: FC<Props> = ({
       ) : error || nextMaxId ? null : (
         <EmptyState icon={Images} title={emptyTitle} />
       )}
-      {error ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      ) : null}
+      {error ? <Alert title={error} /> : null}
       {nextMaxId ? (
         <LoadMoreButton
           isLoading={isLoading}

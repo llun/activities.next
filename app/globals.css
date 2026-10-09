@@ -41,6 +41,9 @@
   --color-info-text: var(--info-text);
   --color-like-text: var(--like-text);
   --color-like-icon: var(--like-icon);
+  --color-bookmark-icon: var(--bookmark-icon);
+  --color-repost-icon: var(--repost-icon);
+  --color-reply-icon: var(--reply-icon);
   --color-surface-chrome: var(--surface-chrome);
   --color-surface-accent: var(--surface-accent);
   --color-accent-foreground: var(--accent-foreground);
@@ -144,6 +147,17 @@
      "N likes" heart under a post. Not --destructive, which turns maroon in dark
      mode and would read as a destructive action. Exposed as `text-like-icon`. */
   --like-icon: oklch(63.7% 0.237 25.331);
+  /* The other post action colours, named for the action rather than borrowed
+     from the status tones: a bookmark is not a warning and a repost is not a
+     success, and the -text shades of those tones are dark enough to blur the
+     difference between "on" and "off" on the icon. Tailwind's amber-500
+     (bookmarked, and the hover on the unbookmarked one), green-500 (reposted
+     or hovering) and blue-500 (hovering reply), the same in both themes.
+     Exposed as `text-bookmark-icon`, `text-repost-icon` and
+     `text-reply-icon`. */
+  --bookmark-icon: oklch(76.9% 0.188 70.08);
+  --repost-icon: oklch(72.3% 0.219 149.579);
+  --reply-icon: oklch(62.3% 0.214 259.815);
   /* Status tones for the surface kit's Alert (and anything else that must say
      success, warning or info), as distinct from --destructive for errors. As
      with --primary vs --primary-text, the plain token is the FILL or accent
@@ -225,6 +239,10 @@
 }
 
 .dark {
+  /* Native scrollbars and form controls follow the tokens for a `.dark` subtree
+     inside the light theme too (the photo viewer's album menu, the .env block);
+     on <html> the theme script sets the same value inline. */
+  color-scheme: dark;
   --background: hsl(0 0% 3.9%);
   --foreground: hsl(0 0% 98%);
   --card: hsl(0 0% 9%);
@@ -256,6 +274,10 @@
   --like-text: hsl(0 91% 71%);
   /* Like icon (see the light block): the same red-500 in both themes. */
   --like-icon: oklch(63.7% 0.237 25.331);
+  /* Bookmark, repost and reply icons (see the light block): unchanged in dark. */
+  --bookmark-icon: oklch(76.9% 0.188 70.08);
+  --repost-icon: oklch(72.3% 0.219 149.579);
+  --reply-icon: oklch(62.3% 0.214 259.815);
   /* Status tones (see the light block). Fills step down to deep shades that
      keep white (or near-white) foreground text at 4.5:1; the -text shades go UP
      in lightness (green-400, amber-400, blue-300) to clear 4.5:1 on the dark

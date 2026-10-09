@@ -1,6 +1,6 @@
 'use client'
 
-import { Crosshair, Loader2, LocateFixed } from 'lucide-react'
+import { Crosshair, LocateFixed } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 
 import { Box, boxFromPoints } from '@/lib/components/fitness/mapGeometry'
@@ -15,6 +15,7 @@ import {
   mutedStandardMapType,
   pageToCoordinate
 } from '@/lib/components/fitness/mapkitSurface'
+import { MapLoadingOverlay } from '@/lib/components/map/MapLoadingOverlay'
 import { Button } from '@/lib/components/ui/button'
 import { LatLng } from '@/lib/fitness/regions'
 import { cn } from '@/lib/utils'
@@ -320,14 +321,7 @@ export const RegionMapKit: FC<RegionMapKitProps> = ({
     >
       <div ref={containerRef} className="h-full w-full" />
 
-      {!isReady && (
-        <div
-          role="status"
-          className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/60 text-sm text-muted-foreground"
-        >
-          <Loader2 className="size-4 animate-spin" /> Loading map…
-        </div>
-      )}
+      {!isReady && <MapLoadingOverlay />}
 
       {isReady && (
         <>

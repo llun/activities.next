@@ -172,7 +172,7 @@ describe('GalleryAlbumSuggestionReview', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Too many requests'
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(
       await screen.findAllByRole('button', { name: /^Select Photo \d+$/ })

@@ -18,6 +18,7 @@ import {
   ZONE_OUTLINE_WIDTH_PX
 } from '@/lib/components/fitness/PrivacyZoneMapKit'
 import { circleToPolygon } from '@/lib/components/fitness/mapGeometry'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -267,6 +268,13 @@ const sanitizeDraftRadius = (value: unknown): FitnessPrivacyRadiusMeters => {
   return radius > 0 ? radius : DEFAULT_DRAFT_RADIUS
 }
 
+type DraftField = 'coordinates' | 'radius'
+
+interface DraftFieldError {
+  field: DraftField
+  message: string
+}
+
 interface BrowserCurrentLocationError {
   code: number | 'unavailable'
   message: string
@@ -408,6 +416,9 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
   saveRef.current = save
   copyRef.current = copy
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
+  const latitudeInputRef = useRef<HTMLInputElement>(null)
+  const longitudeInputRef = useRef<HTMLInputElement>(null)
+  const radiusSelectRef = useRef<HTMLSelectElement>(null)
   const mapRef = useRef<MapboxMap | null>(null)
   const markerCoordinatesRef = useRef<[number, number] | null>(null)
   const isHydratingSettingsRef = useRef(true)
@@ -436,6 +447,9 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
     useState(false)
   const [isMapReady, setIsMapReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Validation of the draft fields, shown under the input it is about rather
+  // than as a request failure.
+  const [fieldError, setFieldError] = useState<DraftFieldError | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [mapLoadError, setMapLoadError] = useState<string | null>(null)
 
@@ -545,6 +559,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
         isHydratingSettingsRef.current = true
         setIsLoading(true)
         setError(null)
+        setFieldError(null)
 
         const locations = await loadRef.current()
 
@@ -713,6 +728,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
           setLatitudeInput(lngLat.lat.toFixed(6))
           setLongitudeInput(lngLat.lng.toFixed(6))
           setError(null)
+          setFieldError(null)
           setMessage(null)
         })
 
@@ -777,7 +793,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
 
   const buildDraftLocation = (): {
     location: PrivacyLocationInput | null
-    error: string | null
+    error: DraftFieldError | null
   } => {
     const hasLatitude = latitudeInput.trim().length > 0
     const hasLongitude = longitudeInput.trim().length > 0
@@ -792,7 +808,10 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
     if (hasLatitude !== hasLongitude) {
       return {
         location: null,
-        error: 'Latitude and longitude must be provided together.'
+        error: {
+          field: 'coordinates',
+          message: 'Latitude and longitude must be provided together.'
+        }
       }
     }
 
@@ -802,21 +821,30 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
     if (latitude === null || !isLatitudeValid(latitude)) {
       return {
         location: null,
-        error: 'Latitude must be between -90 and 90.'
+        error: {
+          field: 'coordinates',
+          message: 'Latitude must be between -90 and 90.'
+        }
       }
     }
 
     if (longitude === null || !isLongitudeValid(longitude)) {
       return {
         location: null,
-        error: 'Longitude must be between -180 and 180.'
+        error: {
+          field: 'coordinates',
+          message: 'Longitude must be between -180 and 180.'
+        }
       }
     }
 
     if (draftRadiusMeters <= 0) {
       return {
         location: null,
-        error: 'Hide radius must be greater than 0.'
+        error: {
+          field: 'radius',
+          message: 'Hide radius must be greater than 0.'
+        }
       }
     }
 
@@ -867,19 +895,42 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
     }
   }
 
+  // Shows a field error and moves focus to the invalid control, so the linked
+  // message is read with it.
+  const showFieldError = (draftError: DraftFieldError) => {
+    setFieldError(draftError)
+    if (draftError.field === 'radius') {
+      radiusSelectRef.current?.focus()
+      return
+    }
+    const latitudeIsBad =
+      latitudeInput.trim().length === 0 ||
+      draftError.message.startsWith('Latitude must be between')
+    ;(latitudeIsBad ? latitudeInputRef : longitudeInputRef).current?.focus()
+  }
+
+  const clearCoordinatesError = () =>
+    setFieldError((current) =>
+      current?.field === 'coordinates' ? null : current
+    )
+
   const handleAddLocation = () => {
     setError(null)
+    setFieldError(null)
     setMessage(null)
 
     const { location, error: locationError } = buildDraftLocation()
 
     if (locationError) {
-      setError(locationError)
+      showFieldError(locationError)
       return
     }
 
     if (!location) {
-      setError('Set latitude and longitude before adding a privacy location.')
+      showFieldError({
+        field: 'coordinates',
+        message: 'Set latitude and longitude before adding a privacy location.'
+      })
       return
     }
 
@@ -896,6 +947,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
 
   const handleUseCurrentLocation = async () => {
     setError(null)
+    setFieldError(null)
     setMessage(null)
     setIsLocatingCurrentPosition(true)
 
@@ -911,6 +963,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
 
   const handleRemoveLocation = (index: number) => {
     setError(null)
+    setFieldError(null)
     setMessage(null)
 
     setPrivacyLocations((current) => {
@@ -926,11 +979,12 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
 
   const handleSave = async () => {
     setError(null)
+    setFieldError(null)
     setMessage(null)
 
     const { location, error: locationError } = buildDraftLocation()
     if (locationError) {
-      setError(locationError)
+      showFieldError(locationError)
       return
     }
 
@@ -951,6 +1005,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
 
   const handleClear = async () => {
     setError(null)
+    setFieldError(null)
     setMessage(null)
 
     const saved = await saveSettings([])
@@ -969,6 +1024,9 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
   // settings are known. Otherwise the user builds a list against an empty form
   // and is told to "save settings to apply" against a disabled Save button.
   const isEditingDisabled = isLoading || !hasLoadedSettings || isSaving
+  const coordinatesError =
+    fieldError?.field === 'coordinates' ? fieldError.message : null
+  const radiusError = fieldError?.field === 'radius' ? fieldError.message : null
 
   // A layout effect, so the parent's copy of the flag updates in the same commit
   // instead of one render behind the controls it gates.
@@ -1011,6 +1069,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
                 setLatitudeInput(latitude.toFixed(6))
                 setLongitudeInput(longitude.toFixed(6))
                 setError(null)
+                setFieldError(null)
                 setMessage(null)
               }}
               onReady={() => setIsMapReady(true)}
@@ -1037,17 +1096,25 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
           <Label htmlFor="privacyHomeLatitude">Latitude</Label>
           <Input
             id="privacyHomeLatitude"
+            ref={latitudeInputRef}
             type="text"
             inputMode="decimal"
             placeholder="e.g. 37.774900"
             value={latitudeInput}
-            onChange={(event) => setLatitudeInput(event.target.value)}
+            onChange={(event) => {
+              setLatitudeInput(event.target.value)
+              clearCoordinatesError()
+            }}
             onBlur={() => {
               if (!isHydratingSettingsRef.current) {
                 flyToMarker()
               }
             }}
             disabled={isEditingDisabled}
+            aria-invalid={coordinatesError ? true : undefined}
+            aria-describedby={
+              coordinatesError ? 'privacy-coordinates-error' : undefined
+            }
           />
         </div>
 
@@ -1055,33 +1122,55 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
           <Label htmlFor="privacyHomeLongitude">Longitude</Label>
           <Input
             id="privacyHomeLongitude"
+            ref={longitudeInputRef}
             type="text"
             inputMode="decimal"
             placeholder="e.g. -122.419400"
             value={longitudeInput}
-            onChange={(event) => setLongitudeInput(event.target.value)}
+            onChange={(event) => {
+              setLongitudeInput(event.target.value)
+              clearCoordinatesError()
+            }}
             onBlur={() => {
               if (!isHydratingSettingsRef.current) {
                 flyToMarker()
               }
             }}
             disabled={isEditingDisabled}
+            aria-invalid={coordinatesError ? true : undefined}
+            aria-describedby={
+              coordinatesError ? 'privacy-coordinates-error' : undefined
+            }
           />
         </div>
+        {coordinatesError ? (
+          <p
+            id="privacy-coordinates-error"
+            className="text-xs text-destructive-text md:col-span-2"
+          >
+            {coordinatesError}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="privacyHideRadiusMeters">Hide Radius</Label>
         <Select
           id="privacyHideRadiusMeters"
+          ref={radiusSelectRef}
           className="h-10"
           value={String(draftRadiusMeters)}
           onChange={(event) => {
             setDraftRadiusMeters(
               sanitizeDraftRadius(Number(event.target.value))
             )
+            setFieldError((current) =>
+              current?.field === 'radius' ? null : current
+            )
           }}
           disabled={isEditingDisabled}
+          aria-invalid={radiusError ? true : undefined}
+          aria-describedby={radiusError ? 'privacy-radius-error' : undefined}
         >
           {NON_ZERO_RADIUS_OPTIONS.map((radius) => (
             <option key={radius} value={radius}>
@@ -1090,6 +1179,14 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
           ))}
         </Select>
         <p className="text-xs text-muted-foreground">{copy.hideRadiusHelp}</p>
+        {radiusError ? (
+          <p
+            id="privacy-radius-error"
+            className="text-xs text-destructive-text"
+          >
+            {radiusError}
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -1100,7 +1197,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
             isEditingDisabled || isFooterBusy || isLocatingCurrentPosition
           }
         >
-          {isLocatingCurrentPosition ? 'Locating...' : 'Use current location'}
+          {isLocatingCurrentPosition ? 'Locating…' : 'Use current location'}
         </Button>
         <Button
           variant="outline"
@@ -1153,13 +1250,13 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
         // Derived from the condition, not stored in `error`, which every
         // action handler clears — the guard below must never be left
         // unexplained.
-        <p className="text-sm text-destructive">
-          Failed to load your saved privacy locations. Editing and saving are
-          disabled so the locations you already have are not overwritten.
-        </p>
+        <Alert title="Failed to load your saved privacy locations.">
+          Editing and saving are disabled so the locations you already have are
+          not overwritten.
+        </Alert>
       ) : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      {message ? <p className="text-sm text-green-600">{message}</p> : null}
+      {error ? <Alert title={error} /> : null}
+      {message ? <p className="text-sm text-success-text">{message}</p> : null}
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -1168,7 +1265,7 @@ export const PrivacyLocationsEditor: FC<PrivacyLocationsEditorProps> = ({
             isEditingDisabled || isFooterBusy || isLocatingCurrentPosition
           }
         >
-          {isSaving ? 'Saving...' : copy.saveButton}
+          {isSaving ? 'Saving…' : copy.saveButton}
         </Button>
         <Button
           variant="outline"

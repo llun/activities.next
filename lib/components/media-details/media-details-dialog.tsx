@@ -34,6 +34,7 @@ import {
   updateMediaDetails
 } from '@/lib/client'
 import { MediaAlbumsControl } from '@/lib/components/gallery/MediaAlbumsControl'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
@@ -398,11 +399,7 @@ const SubjectLookupStatus: FC<{
   return (
     <div className="text-xs text-muted-foreground">
       {content}
-      {error ? (
-        <p role="alert" className="text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <Alert title={error} className="text-foreground mt-2" /> : null}
     </div>
   )
 }
@@ -458,11 +455,7 @@ const PlaceLookupStatus: FC<{
   return (
     <div className="text-xs text-muted-foreground">
       {content}
-      {error ? (
-        <p role="alert" className="text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <Alert title={error} className="text-foreground mt-2" /> : null}
     </div>
   )
 }
@@ -1450,11 +1443,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                   </Button>
                 ) : null}
               </div>
-              {describeError ? (
-                <p role="alert" className="text-xs text-destructive">
-                  {describeError}
-                </p>
-              ) : null}
+              {describeError ? <Alert title={describeError} /> : null}
               <CheckRow
                 id={idFor('decorative')}
                 checked={draft.decorative}
@@ -1477,11 +1466,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                 draft.lensGearId,
                 withCurrent(lenses, draft.lensGearId, details?.lens?.name)
               )}
-              {gearError ? (
-                <p role="alert" className="text-xs text-destructive">
-                  {gearError}
-                </p>
-              ) : null}
+              {gearError ? <Alert title={gearError} /> : null}
               {/* A new tab: the dialog also opens from the composer's upload
                   flow, and navigating here would unmount the composer and lose
                   its unposted text and attachments. */}
@@ -1600,9 +1585,7 @@ export const MediaDetailsDialog: FC<Props> = ({
 
         <footer className="flex items-center justify-end gap-2 border-t px-5 py-3">
           {saveError ? (
-            <p role="alert" className="mr-auto text-xs text-destructive">
-              {saveError}
-            </p>
+            <Alert title={saveError} className="mr-auto flex-1 py-2" />
           ) : null}
           <Button
             type="button"

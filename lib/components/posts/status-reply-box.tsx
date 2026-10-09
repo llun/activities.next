@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, Loader2 } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -26,6 +26,7 @@ import {
 import { UploadMediaButton } from '@/lib/components/post-box/upload-media-button'
 import { ActorInfo } from '@/lib/components/posts/actor'
 import { ReplyTargetContent } from '@/lib/components/posts/reply-target-content'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
@@ -363,7 +364,7 @@ export const StatusReplyBox: FC<Props> = ({
             ) : null}
           </div>
           {targetPreview.spoilerText ? (
-            <div className="mt-1 font-medium text-amber-600 dark:text-amber-400">
+            <div className="mt-1 font-medium text-warning-text">
               CW: {targetPreview.spoilerText}
             </div>
           ) : null}
@@ -467,8 +468,11 @@ export const StatusReplyBox: FC<Props> = ({
                     onClick={() => onRemoveAttachment(index)}
                   >
                     {item.isLoading ? (
-                      <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded">
-                        <Loader2 className="animate-spin text-primary size-4" />
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-0 overflow-hidden rounded opacity-70"
+                      >
+                        <SkeletonBar className="h-full rounded-none" />
                       </div>
                     ) : null}
                   </div>
@@ -477,7 +481,9 @@ export const StatusReplyBox: FC<Props> = ({
             )}
 
             {warningMsg ? (
-              <div className="text-xs text-destructive mt-2">{warningMsg}</div>
+              <div role="alert" className="text-xs text-destructive-text mt-2">
+                {warningMsg}
+              </div>
             ) : null}
 
             <div className="flex items-center mt-2">
@@ -558,7 +564,7 @@ export const StatusReplyBox: FC<Props> = ({
                   type="submit"
                   size="sm"
                 >
-                  {isPosting ? 'Posting...' : 'Post'}
+                  {isPosting ? 'Posting…' : 'Post'}
                 </Button>
               </div>
             </div>

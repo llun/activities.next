@@ -3,6 +3,7 @@
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { formRowLabelId } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Section } from '@/lib/components/surface/Section'
@@ -174,14 +175,21 @@ export const InstanceSettingsForm: FC<InstanceSettingsFormProps> = ({
             />
           </SettingsField>
 
+          {/* `htmlFor` here is the row's id base (it derives the label and hint
+              ids the group is wired to), not a `<label for>` target: the group
+              is not a labelable element and is named through
+              `aria-labelledby`. */}
           <SettingsField
             label="Languages"
+            htmlFor="instance-languages"
             wide
             help="Primary languages of this instance, advertised for search and trends. The first one is the default."
             locked={lock('instance.languages').locked}
             envVar={lock('instance.languages').envVar}
           >
             <LanguagesPicker
+              id="instance-languages"
+              aria-labelledby={formRowLabelId('instance-languages')}
               value={values['instance.languages'] as string[]}
               disabled={lock('instance.languages').locked}
               onChange={(next) => setValue('instance.languages', next)}

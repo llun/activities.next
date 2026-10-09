@@ -8,6 +8,7 @@ import {
   retryWahooFailedImport
 } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 
 interface Props {
@@ -123,9 +124,11 @@ export const WahooFailedImportsSection = ({
       </div>
 
       {isLoading && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Loading workout errors…
-        </p>
+        <div role="status" className="space-y-2">
+          <span className="sr-only">Loading workout errors</span>
+          <SkeletonBar className="h-10 w-full" />
+          <SkeletonBar className="h-10 w-full" />
+        </div>
       )}
       {!isLoading && imports.length === 0 && !error && (
         <p className="text-sm text-muted-foreground">
@@ -175,11 +178,7 @@ export const WahooFailedImportsSection = ({
           server.
         </p>
       )}
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
+      {error && <Alert title={error} />}
       {message && <Alert tone="success" title={message} />}
     </section>
   )

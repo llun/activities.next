@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, MapPin, X } from 'lucide-react'
+import { MapPin, X } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { GalleryMapKit } from '@/lib/components/gallery/GalleryMapKit'
@@ -8,6 +8,7 @@ import { GalleryPlacesList } from '@/lib/components/gallery/GalleryPlacesList'
 import { formatGalleryDate } from '@/lib/components/gallery/galleryCategories'
 import { createGalleryMarkerElement } from '@/lib/components/gallery/galleryMapMarker'
 import { getPointBounds } from '@/lib/components/gallery/galleryPlaces'
+import { MapLoadingOverlay } from '@/lib/components/map/MapLoadingOverlay'
 import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
@@ -380,14 +381,7 @@ const GalleryGlMapSurface: FC<GalleryGlMapProps> = ({
   return (
     <>
       <div ref={containerRef} className="h-full w-full" />
-      {!isLoaded && (
-        <div
-          role="status"
-          className="bg-muted/60 text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 text-sm"
-        >
-          <Loader2 className="size-4 animate-spin" /> Loading map…
-        </div>
-      )}
+      {!isLoaded && <MapLoadingOverlay />}
       {isLoaded && (
         <div className="bg-background/90 text-muted-foreground pointer-events-none absolute top-3 left-3 rounded px-2 py-1 text-xs shadow-sm">
           {provider.label}
@@ -619,7 +613,7 @@ export const GalleryMap: FC<GalleryMapProps> = ({
           aria-label="Gallery map"
           data-map-provider={providerType}
           className={cn(
-            'bg-muted relative overflow-hidden rounded-xl border',
+            'bg-muted relative overflow-hidden rounded-lg border',
             MAP_HEIGHT_CLASS
           )}
         >

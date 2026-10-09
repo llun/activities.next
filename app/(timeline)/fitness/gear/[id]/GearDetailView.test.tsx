@@ -756,7 +756,7 @@ describe('GearDetailView', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('disables buttons and shows Deleting... while deletion is in flight', async () => {
+    it('disables buttons and shows Deleting… while deletion is in flight', async () => {
       const deferred = createDeferred<void>()
       mockGetFitnessGearList.mockResolvedValue([
         createGear({ retiredAt: Date.UTC(2026, 0, 1) })
@@ -770,7 +770,7 @@ describe('GearDetailView', () => {
 
       fireEvent.click(confirmBtn)
 
-      expect(confirmBtn).toHaveTextContent('Deleting...')
+      expect(confirmBtn).toHaveTextContent('Deleting…')
       expect(confirmBtn).toBeDisabled()
       expect(cancelBtn).toBeDisabled()
 

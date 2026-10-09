@@ -10,6 +10,7 @@ import {
   Clock,
   Flame,
   Globe,
+  Hourglass,
   Loader2,
   Maximize,
   Pencil,
@@ -23,6 +24,9 @@ import { HeatmapShareEmbed } from '@/lib/components/fitness/HeatmapShareEmbed'
 import { RouteHeatmapMap } from '@/lib/components/fitness/RouteHeatmapMap'
 import type { HeatmapTileFetcher } from '@/lib/components/fitness/useHeatmapTiles'
 import { ResizableMapContainer } from '@/lib/components/map/ResizableMapContainer'
+import { Alert } from '@/lib/components/surface/Alert'
+import { Frame } from '@/lib/components/surface/Frame'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 import { formatRectRegion } from '@/lib/fitness/regions'
 import { formatRelativeTime } from '@/lib/fitness/relativeTime'
@@ -78,9 +82,9 @@ interface TaskMeta {
 
 const TASK_META: Record<TaskState, TaskMeta> = {
   generating: {
-    icon: <Loader2 className="size-3.5 animate-spin" />,
+    icon: <Hourglass className="size-3.5" />,
     label: 'Generating…',
-    className: 'text-blue-600 dark:text-blue-400'
+    className: 'text-info-text'
   },
   pending: {
     icon: <Clock className="size-3.5" />,
@@ -90,12 +94,12 @@ const TASK_META: Record<TaskState, TaskMeta> = {
   completed: {
     icon: <Check className="size-3.5" />,
     label: 'Completed',
-    className: 'text-green-600 dark:text-green-500'
+    className: 'text-success-text'
   },
   partial: {
     icon: <AlertTriangle className="size-3.5" />,
     label: 'Partial',
-    className: 'text-amber-600 dark:text-amber-500'
+    className: 'text-warning-text'
   },
   failed: {
     icon: <AlertTriangle className="size-3.5" />,
@@ -172,7 +176,7 @@ const GenerationTaskRow: FC<GenerationTaskRowProps> = ({
           >
             <span
               className={cn(
-                'block h-full rounded-full bg-blue-500 transition-[width] duration-500 dark:bg-blue-400',
+                'block h-full rounded-full bg-info-text transition-[width] duration-500',
                 progressPercent == null && 'w-1/3 animate-pulse'
               )}
               style={
@@ -498,51 +502,43 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
         )}
       </div>
 
-      {error && (
-        <div
-          role="alert"
-          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {error}
-        </div>
-      )}
+      {error && <Alert title={error} />}
 
       {pollingStalled && (
-        <div
-          role="status"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300"
-        >
-          <span className="inline-flex items-center gap-2">
-            <AlertTriangle className="size-4" />
-            This route cache is taking longer than expected.
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 px-2.5 text-xs"
-            disabled={isRetrying}
-            onClick={onRetry}
-          >
-            <RefreshCw className={cn('size-3', isRetrying && 'animate-spin')} />
-            Retry
-          </Button>
-        </div>
+        <Alert
+          tone="warning"
+          title="This route cache is taking longer than expected."
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isRetrying}
+              onClick={onRetry}
+            >
+              <RefreshCw
+                className={cn('size-3', isRetrying && 'animate-spin')}
+              />
+              Retry
+            </Button>
+          }
+        />
       )}
 
       {showLoading ? (
-        <div
-          role="status"
-          className="flex h-[420px] items-center justify-center gap-2 rounded-xl border bg-muted/40 text-sm text-muted-foreground"
-        >
-          <Loader2 className="size-4 animate-spin" /> Loading heatmap…
+        <div role="status">
+          <span className="sr-only">Loading heatmap</span>
+          <SkeletonBar className="h-[420px] rounded-lg" />
         </div>
       ) : hasMap ? (
         <div>
           {isPartial && (
-            <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
-              Partial route cache capped at 1M files.
-            </div>
+            <Alert
+              tone="warning"
+              live={false}
+              className="mb-3"
+              title="Partial route cache capped at 1M files."
+            />
           )}
           <ResizableMapContainer
             defaultHeight={420}
@@ -550,7 +546,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             minHeight={240}
             maxHeight={900}
             showQuickToggle
-            className="overflow-hidden rounded-xl border"
+            className="overflow-hidden rounded-lg border"
           >
             <RouteHeatmapMap
               heatmap={heatmap}
@@ -561,7 +557,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
           </ResizableMapContainer>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
-              <Check className="size-3.5 text-green-600 dark:text-green-500" />
+              <Check className="size-3.5 text-success-text" />
               Current version · generated{' '}
               {formatRelativeTime(currentTime - heatmap.updatedAt)}
               <span className="text-muted-foreground/60">·</span> only the
@@ -589,11 +585,11 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
       ) : showEmptyState ? (
         <div
           {...(busy ? { role: 'status' } : {})}
-          className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-14 text-center"
+          className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-6 py-14 text-center"
         >
           <span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             {busy ? (
-              <Loader2 className="size-5 animate-spin" />
+              <Hourglass className="size-5" />
             ) : (
               <Flame className="size-5" />
             )}
@@ -626,7 +622,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
         </div>
       ) : null}
 
-      <section className="rounded-xl border bg-card p-4 shadow-sm">
+      <Frame className="p-4">
         <div className="mb-1 flex items-center justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Generation tasks
@@ -647,7 +643,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
           />
         ) : generationQueued ? (
           <div className="flex items-center gap-1.5 py-3 text-xs text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin" />
+            <Hourglass className="size-3.5" />
             Route cache queued
           </div>
         ) : (
@@ -655,7 +651,7 @@ export const RegionHeatmapDetail: FC<RegionHeatmapDetailProps> = ({
             No generation runs yet for this region.
           </p>
         )}
-      </section>
+      </Frame>
     </div>
   )
 }

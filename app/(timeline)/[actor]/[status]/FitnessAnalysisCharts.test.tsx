@@ -434,7 +434,9 @@ describe('FitnessAnalysisCharts', () => {
         />
       )
 
-      expect(screen.getByText('Loading analysis data…')).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Loading analysis data'
+      )
     })
 
     it('renders separate graphs by default and allows toggling display mode', () => {

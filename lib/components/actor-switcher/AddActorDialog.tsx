@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { createActor, getActorDomains, switchActor } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -36,8 +37,10 @@ export function AddActorDialog({
   const [domainsLoaded, setDomainsLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldError, setFieldError] = useState<string | null>(null)
 
   const createRequestIdRef = useRef(0)
+  const usernameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open || domainsLoaded) {
@@ -82,14 +85,19 @@ export function AddActorDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setFieldError(null)
 
     if (!username.trim()) {
-      setError('Username is required')
+      setFieldError('Username is required')
+      usernameInputRef.current?.focus()
       return
     }
 
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      setError('Username can only contain letters, numbers, and underscores')
+      setFieldError(
+        'Username can only contain letters, numbers, and underscores'
+      )
+      usernameInputRef.current?.focus()
       return
     }
 
@@ -142,6 +150,7 @@ export function AddActorDialog({
       createRequestIdRef.current++
       setUsername('')
       setError(null)
+      setFieldError(null)
       setIsLoading(false)
     }
   }, [open])
@@ -160,6 +169,7 @@ export function AddActorDialog({
       createRequestIdRef.current++
       setUsername('')
       setError(null)
+      setFieldError(null)
       setIsLoading(false)
     }
     onOpenChange(newOpen)
@@ -221,16 +231,30 @@ export function AddActorDialog({
               <Label htmlFor="username">Username</Label>
               <Input
                 id="username"
+                ref={usernameInputRef}
                 placeholder="username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value)
+                  setFieldError(null)
+                }}
                 disabled={isLoading}
+                aria-invalid={fieldError ? true : undefined}
+                aria-describedby={fieldError ? 'username-error' : undefined}
               />
               <p className="text-sm text-muted-foreground">
                 Your new handle will be @{username || 'username'}@
                 {selectedDomain}
               </p>
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {fieldError && (
+                <p
+                  id="username-error"
+                  className="text-xs text-destructive-text"
+                >
+                  {fieldError}
+                </p>
+              )}
+              {error && <Alert title={error} />}
             </div>
           </div>
           <DialogFooter>
@@ -243,7 +267,7 @@ export function AddActorDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading || !username.trim()}>
-              {isLoading ? 'Creating...' : 'Create actor'}
+              {isLoading ? 'Creating…' : 'Create actor'}
             </Button>
           </DialogFooter>
         </form>
