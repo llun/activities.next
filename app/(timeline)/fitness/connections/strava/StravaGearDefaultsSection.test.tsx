@@ -108,7 +108,7 @@ describe('getGearOptionsForSport', () => {
 })
 
 // Radix's DropdownMenu opens on ArrowDown from its trigger — the same way the
-// activity page's gear picker is driven in `FitnessStatusDetail.test.tsx`.
+// activity page's gear picker is driven in `FitnessStatusDetail.gear.test.tsx`.
 const openMenu = async (triggerName: string | RegExp) => {
   fireEvent.keyDown(await screen.findByRole('button', { name: triggerName }), {
     key: 'ArrowDown'

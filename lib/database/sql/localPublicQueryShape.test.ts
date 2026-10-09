@@ -11,7 +11,7 @@ import { Timeline } from '@/lib/services/timelines/types'
 // the plan that had this query at ~27s on the landing page. Without a test that
 // looks at the SQL itself, that revert lands silently and green.
 //
-// Capturing knex's `query` event follows the precedent in `status.test.ts`
+// Capturing knex's `query` event follows the precedent in `statusLookup.test.ts`
 // (the batched-hydration tests). It is preferred over asserting on a builder's
 // `toSQL()` here because it observes what the production path actually sends,
 // rather than a builder the test constructed for itself.

@@ -11,7 +11,7 @@ import { POST } from './route'
 // (write:notifications). Complements preferences/route.test.ts (a read route)
 // so both scope directions have end-to-end, non-mocked-guard coverage; the
 // other swapped routes share the identical OAuthGuardAnyScope mechanism, which
-// is unit-tested in lib/services/guards/OAuthGuard.test.ts.
+// is unit-tested in lib/services/guards/OAuthGuard.token.test.ts.
 
 const hashToken = (token: string) =>
   crypto

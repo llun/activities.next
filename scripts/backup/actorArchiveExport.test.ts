@@ -5,20 +5,20 @@
  *
  * It lives in its own file because reaching `exportActorArchive` at all means
  * mocking `@/lib/database`, `@/lib/config` and half of `./productionArchive` at
- * module scope. `actorArchive.test.ts` beside it never goes through those — it
- * calls the exported pieces directly, handing each one a real test database and
- * a hand-built `HostRuleConfig` — and blanket mocks here would be mocks it
- * neither wants nor can see around.
+ * module scope. `actorArchive.attachments.test.ts` beside it never goes
+ * through those — it calls the exported pieces directly, handing each one a
+ * real test database and a hand-built `HostRuleConfig` — and blanket mocks here
+ * would be mocks it neither wants nor can see around.
  *
  * Three source-text guards used to stand in for this and each one was defeated
  * in review by a different spelling of the same bug — recompute the deadline
  * per attachment and every attachment finds a full budget ahead of it, so the
  * feature does nothing while every result still looks right. A regex can say
  * where an expression is WRITTEN; only running the thing can say how often it
- * is EVALUATED. The remaining source guard in `actorArchive.test.ts` covers a
- * genuinely different property (the deadline never becomes an abort signal),
- * which only misbehaves once real time elapses and so cannot be tested here
- * either.
+ * is EVALUATED. The remaining source guard in
+ * `actorArchive.attachments.test.ts` covers a genuinely different property (the
+ * deadline never becomes an abort signal), which only misbehaves once real time
+ * elapses and so cannot be tested here either.
  */
 import fs from 'fs/promises'
 import os from 'os'

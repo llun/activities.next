@@ -168,173 +168,203 @@ describe('OAuth provider token grants', () => {
     await database.destroy()
   })
 
-  it('issues an access token through authorize, consent and token exchange', async () => {
-    const signIn = await call('/sign-in/email', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: EMAIL, password: PASSWORD })
-    })
-    expect(signIn.status).toBe(200)
+  // The first sign-in, authorize, consent and token exchange for CLIENT_ID. It
+  // runs once: the refresh-token check and the second-session check below both
+  // read what this flow left in the database.
+  describe('authorization code flow', () => {
+    type CallResult = Awaited<ReturnType<typeof call>>
+    const parseBody = <T>(text: string): T => {
+      try {
+        return JSON.parse(text) as T
+      } catch {
+        return {} as T
+      }
+    }
 
-    // PKCE is mandatory for this provider, so a flow without it never reaches
-    // the code path under test.
-    const codeVerifier = crypto.randomBytes(32).toString('base64url')
-    const codeChallenge = crypto
-      .createHash('sha256')
-      .update(codeVerifier)
-      .digest('base64url')
-
-    const authorize = await call(
-      `/oauth2/authorize?${new URLSearchParams({
-        client_id: CLIENT_ID,
-        redirect_uri: REDIRECT_URI,
-        response_type: 'code',
-        scope: 'read write',
-        state: 'state-value',
-        code_challenge: codeChallenge,
-        code_challenge_method: 'S256'
-      })}`,
-      { method: 'GET', redirect: 'manual' }
-    )
-    // Redirects to our own consent screen, carrying better-auth's signed query.
-    expect(authorize.status).toBe(302)
-    expect(authorize.location).toContain('/oauth/authorize?')
-
-    // AuthorizeCard forwards that signed query back with the approval; without
-    // it the consent endpoint answers "missing oauth query".
-    const oauthQuery = authorize.location?.slice(
-      authorize.location.indexOf('?')
-    )
-    const consent = await call('/oauth2/consent', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        accept: true,
-        scope: 'read write',
-        oauth_query: oauthQuery
-      })
-    })
-    // The regression this guards: approving consent INSERTs an oauthConsent
-    // row, so a column the plugin writes and the schema lacks surfaces here as
-    // a 500 and the authorize page falls through to `server_error`.
-    expect(consent.status).toBe(200)
-
-    const consentBody = JSON.parse(consent.text) as { url?: string }
-    const code = consentBody.url
-      ? new URL(consentBody.url).searchParams.get('code')
-      : null
-    expect(code).toBeTruthy()
-
-    const token = await call('/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded',
-        // This client is registered for client_secret_basic.
-        authorization: `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')}`
-      },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code: code as string,
-        redirect_uri: REDIRECT_URI,
-        code_verifier: codeVerifier
-      }).toString()
-    })
-    // Writes an oauthAccessToken row, which is the second place a missing
-    // plugin column shows up.
-    expect(token.status).toBe(200)
-
-    const tokenBody = JSON.parse(token.text) as {
+    let signIn: CallResult
+    let authorize: CallResult
+    let consent: CallResult
+    let code: string | null
+    let token: CallResult
+    let tokenBody: {
       access_token?: string
       token_type?: string
       scope?: string
     }
-    expect(tokenBody.access_token).toBeTruthy()
-    expect(tokenBody.token_type).toBe('Bearer')
-    expect(tokenBody.scope).toBe('read write')
 
-    // Scoped to this client: the app-token test shares the table, and an
-    // unscoped first() returns its client_credentials row (userId null) when
-    // that test happens to run first.
-    const stored = await database('oauthAccessToken')
-      .where('clientId', CLIENT_ID)
-      .first()
-    expect(stored).toBeDefined()
-    expect(stored?.userId).toBe(accountId)
-    expect(stored?.referenceId).toBe(actorId)
+    beforeAll(async () => {
+      signIn = await call('/sign-in/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: EMAIL, password: PASSWORD })
+      })
 
-    // No refresh token: better-auth mints one only for `offline_access`, which
-    // this server does not offer, so the `refresh_token` grant is neither
-    // advertised nor served (see OAUTH_GRANT_TYPES).
-    const refreshTokens = await database('oauthRefreshToken').where(
-      'clientId',
-      CLIENT_ID
-    )
-    expect(refreshTokens).toEqual([])
+      // PKCE is mandatory for this provider, so a flow without it never reaches
+      // the code path under test.
+      const codeVerifier = crypto.randomBytes(32).toString('base64url')
+      const codeChallenge = crypto
+        .createHash('sha256')
+        .update(codeVerifier)
+        .digest('base64url')
 
-    // A new browser session must be able to authorize the same client without
-    // losing the actor reference that was bound to the first consent. With an
-    // existing consent, better-auth redirects straight to the client with a
-    // code; it must not show the consent page again or mint an actor-less token.
-    for (const name of Object.keys(jar)) delete jar[name]
-    const secondSignIn = await call('/sign-in/email', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: EMAIL, password: PASSWORD })
+      authorize = await call(
+        `/oauth2/authorize?${new URLSearchParams({
+          client_id: CLIENT_ID,
+          redirect_uri: REDIRECT_URI,
+          response_type: 'code',
+          scope: 'read write',
+          state: 'state-value',
+          code_challenge: codeChallenge,
+          code_challenge_method: 'S256'
+        })}`,
+        { method: 'GET', redirect: 'manual' }
+      )
+
+      // AuthorizeCard forwards that signed query back with the approval; without
+      // it the consent endpoint answers "missing oauth query".
+      const oauthQuery = authorize.location?.slice(
+        authorize.location.indexOf('?')
+      )
+      consent = await call('/oauth2/consent', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          accept: true,
+          scope: 'read write',
+          oauth_query: oauthQuery
+        })
+      })
+
+      const consentBody = parseBody<{ url?: string }>(consent.text)
+      code = consentBody.url
+        ? new URL(consentBody.url).searchParams.get('code')
+        : null
+
+      token = await call('/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          // This client is registered for client_secret_basic.
+          authorization: `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')}`
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: code as string,
+          redirect_uri: REDIRECT_URI,
+          code_verifier: codeVerifier
+        }).toString()
+      })
+      tokenBody = parseBody(token.text)
     })
-    expect(secondSignIn.status).toBe(200)
 
-    const secondCodeVerifier = crypto.randomBytes(32).toString('base64url')
-    const secondCodeChallenge = crypto
-      .createHash('sha256')
-      .update(secondCodeVerifier)
-      .digest('base64url')
-    const secondAuthorize = await call(
-      `/oauth2/authorize?${new URLSearchParams({
-        client_id: CLIENT_ID,
-        redirect_uri: REDIRECT_URI,
-        response_type: 'code',
-        scope: 'read write',
-        state: 'second-state-value',
-        code_challenge: secondCodeChallenge,
-        code_challenge_method: 'S256'
-      })}`,
-      { method: 'GET', redirect: 'manual' }
-    )
-    expect(secondAuthorize.status).toBe(302)
-    expect(secondAuthorize.location).toContain(`${REDIRECT_URI}?`)
-    expect(secondAuthorize.location).not.toContain('/oauth/authorize?')
+    it('issues an access token through authorize, consent and token exchange', async () => {
+      expect(signIn.status).toBe(200)
 
-    const secondCode = secondAuthorize.location
-      ? new URL(secondAuthorize.location).searchParams.get('code')
-      : null
-    expect(secondCode).toBeTruthy()
+      // Redirects to our own consent screen, carrying better-auth's signed query.
+      expect(authorize.status).toBe(302)
+      expect(authorize.location).toContain('/oauth/authorize?')
 
-    const secondToken = await call('/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded',
-        authorization: `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')}`
-      },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code: secondCode as string,
-        redirect_uri: REDIRECT_URI,
-        code_verifier: secondCodeVerifier
-      }).toString()
+      // The regression this guards: approving consent INSERTs an oauthConsent
+      // row, so a column the plugin writes and the schema lacks surfaces here as
+      // a 500 and the authorize page falls through to `server_error`.
+      expect(consent.status).toBe(200)
+      expect(code).toBeTruthy()
+
+      // Writes an oauthAccessToken row, which is the second place a missing
+      // plugin column shows up.
+      expect(token.status).toBe(200)
+      expect(tokenBody.access_token).toBeTruthy()
+      expect(tokenBody.token_type).toBe('Bearer')
+      expect(tokenBody.scope).toBe('read write')
+
+      // Scoped to this client: the app-token test shares the table, and an
+      // unscoped first() returns its client_credentials row (userId null) when
+      // that test happens to run first.
+      const stored = await database('oauthAccessToken')
+        .where('clientId', CLIENT_ID)
+        .first()
+      expect(stored).toBeDefined()
+      expect(stored?.userId).toBe(accountId)
+      expect(stored?.referenceId).toBe(actorId)
     })
-    expect(secondToken.status).toBe(200)
 
-    const tokens = await database('oauthAccessToken')
-      .where('clientId', CLIENT_ID)
-      .select<{ userId: string; referenceId: string }[]>([
-        'userId',
-        'referenceId'
+    it('does not mint a refresh token', async () => {
+      // No refresh token: better-auth mints one only for `offline_access`, which
+      // this server does not offer, so the `refresh_token` grant is neither
+      // advertised nor served (see OAUTH_GRANT_TYPES).
+      const refreshTokens = await database('oauthRefreshToken').where(
+        'clientId',
+        CLIENT_ID
+      )
+      expect(refreshTokens).toEqual([])
+    })
+
+    it('reuses stored consent for a second session without losing the actor reference', async () => {
+      // A new browser session must be able to authorize the same client without
+      // losing the actor reference that was bound to the first consent. With an
+      // existing consent, better-auth redirects straight to the client with a
+      // code; it must not show the consent page again or mint an actor-less token.
+      for (const name of Object.keys(jar)) delete jar[name]
+      const secondSignIn = await call('/sign-in/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: EMAIL, password: PASSWORD })
+      })
+      expect(secondSignIn.status).toBe(200)
+
+      const secondCodeVerifier = crypto.randomBytes(32).toString('base64url')
+      const secondCodeChallenge = crypto
+        .createHash('sha256')
+        .update(secondCodeVerifier)
+        .digest('base64url')
+      const secondAuthorize = await call(
+        `/oauth2/authorize?${new URLSearchParams({
+          client_id: CLIENT_ID,
+          redirect_uri: REDIRECT_URI,
+          response_type: 'code',
+          scope: 'read write',
+          state: 'second-state-value',
+          code_challenge: secondCodeChallenge,
+          code_challenge_method: 'S256'
+        })}`,
+        { method: 'GET', redirect: 'manual' }
+      )
+      expect(secondAuthorize.status).toBe(302)
+      expect(secondAuthorize.location).toContain(`${REDIRECT_URI}?`)
+      expect(secondAuthorize.location).not.toContain('/oauth/authorize?')
+
+      const secondCode = secondAuthorize.location
+        ? new URL(secondAuthorize.location).searchParams.get('code')
+        : null
+      expect(secondCode).toBeTruthy()
+
+      const secondToken = await call('/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          authorization: `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')}`
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: secondCode as string,
+          redirect_uri: REDIRECT_URI,
+          code_verifier: secondCodeVerifier
+        }).toString()
+      })
+      expect(secondToken.status).toBe(200)
+
+      const tokens = await database('oauthAccessToken')
+        .where('clientId', CLIENT_ID)
+        .select<{ userId: string; referenceId: string }[]>([
+          'userId',
+          'referenceId'
+        ])
+      expect(tokens).toHaveLength(2)
+      expect(tokens).toEqual([
+        { userId: accountId, referenceId: actorId },
+        { userId: accountId, referenceId: actorId }
       ])
-    expect(tokens).toHaveLength(2)
-    expect(tokens).toEqual([
-      { userId: accountId, referenceId: actorId },
-      { userId: accountId, referenceId: actorId }
-    ])
+    })
   })
 
   // A Mastodon client asks for an app-level token before any user is involved:

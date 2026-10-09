@@ -267,27 +267,33 @@ describe('useAutoResizeTextarea', () => {
     expect(windowRemoveSpy).toHaveBeenCalledWith('resize', expect.any(Function))
   })
 
-  it('observes width changes via ResizeObserver and adjusts height', () => {
+  describe('ResizeObserver', () => {
     let resizeCallback: (
       entries: Array<{ contentRect: { width: number } }>
-    ) => void = () => {}
-    const disconnectSpy = vi.fn()
-    const observeSpy = vi.fn()
+    ) => void
+    let disconnectSpy: ReturnType<typeof vi.fn>
+    let observeSpy: ReturnType<typeof vi.fn>
+    let originalResizeObserver: typeof ResizeObserver
+    let unmount: () => void
 
-    class MockResizeObserver {
-      constructor(cb: any) {
-        resizeCallback = cb
+    beforeEach(() => {
+      resizeCallback = () => {}
+      disconnectSpy = vi.fn()
+      observeSpy = vi.fn()
+
+      class MockResizeObserver {
+        constructor(cb: any) {
+          resizeCallback = cb
+        }
+        observe = observeSpy
+        unobserve = vi.fn()
+        disconnect = disconnectSpy
       }
-      observe = observeSpy
-      unobserve = vi.fn()
-      disconnect = disconnectSpy
-    }
 
-    const originalResizeObserver = globalThis.ResizeObserver
-    globalThis.ResizeObserver =
-      MockResizeObserver as unknown as typeof ResizeObserver
+      originalResizeObserver = globalThis.ResizeObserver
+      globalThis.ResizeObserver =
+        MockResizeObserver as unknown as typeof ResizeObserver
 
-    try {
       vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue({
         width: 300,
         height: 72,
@@ -308,11 +314,19 @@ describe('useAutoResizeTextarea', () => {
       const ref = createRef<HTMLTextAreaElement>()
       ref.current = textarea
 
-      const { unmount } = renderHook(() => useAutoResizeTextarea(ref, 'text'))
+      ;({ unmount } = renderHook(() => useAutoResizeTextarea(ref, 'text')))
+    })
 
+    afterEach(() => {
+      globalThis.ResizeObserver = originalResizeObserver
+    })
+
+    it('observes the textarea and measures its height on mount', () => {
       expect(observeSpy).toHaveBeenCalledWith(textarea)
       expect(textarea.style.height).toBe('100px')
+    })
 
+    it('adjusts the height when the width changes significantly', () => {
       // Width changed significantly (e.g. 300 -> 200 causing more line wrapping)
       Object.defineProperty(textarea, 'scrollHeight', {
         configurable: true,
@@ -324,42 +338,49 @@ describe('useAutoResizeTextarea', () => {
       })
 
       expect(textarea.style.height).toBe('150px')
+    })
 
-      // Height changed but width difference < 0.5 (e.g. 200 -> 200.2)
+    it('ignores a width change under 0.5px', () => {
+      // Height changed but width difference < 0.5 (e.g. 300 -> 300.2)
       Object.defineProperty(textarea, 'scrollHeight', {
         configurable: true,
         value: 200
       })
 
       act(() => {
-        resizeCallback([{ contentRect: { width: 200.2 } }])
+        resizeCallback([{ contentRect: { width: 300.2 } }])
       })
 
       // Should not have updated height because width didn't change >= 0.5
-      expect(textarea.style.height).toBe('150px')
-
-      unmount()
-      expect(disconnectSpy).toHaveBeenCalled()
-    } finally {
-      globalThis.ResizeObserver = originalResizeObserver
-    }
-  })
-
-  it('adjusts height on window and visualViewport resize and cleans up listeners', () => {
-    const viewportAddSpy = vi.fn()
-    const viewportRemoveSpy = vi.fn()
-    const mockViewport = {
-      addEventListener: viewportAddSpy,
-      removeEventListener: viewportRemoveSpy
-    }
-
-    const originalVisualViewport = window.visualViewport
-    Object.defineProperty(window, 'visualViewport', {
-      configurable: true,
-      value: mockViewport
+      expect(textarea.style.height).toBe('100px')
     })
 
-    try {
+    it('disconnects the observer on unmount', () => {
+      unmount()
+      expect(disconnectSpy).toHaveBeenCalled()
+    })
+  })
+
+  describe('window and visualViewport resize', () => {
+    let viewportAddSpy: ReturnType<typeof vi.fn>
+    let viewportRemoveSpy: ReturnType<typeof vi.fn>
+    let originalVisualViewport: VisualViewport | null
+    let unmount: () => void
+
+    beforeEach(() => {
+      viewportAddSpy = vi.fn()
+      viewportRemoveSpy = vi.fn()
+      const mockViewport = {
+        addEventListener: viewportAddSpy,
+        removeEventListener: viewportRemoveSpy
+      }
+
+      originalVisualViewport = window.visualViewport
+      Object.defineProperty(window, 'visualViewport', {
+        configurable: true,
+        value: mockViewport
+      })
+
       Object.defineProperty(textarea, 'scrollHeight', {
         configurable: true,
         value: 100
@@ -368,14 +389,17 @@ describe('useAutoResizeTextarea', () => {
       const ref = createRef<HTMLTextAreaElement>()
       ref.current = textarea
 
-      const { unmount } = renderHook(() => useAutoResizeTextarea(ref, 'text'))
+      ;({ unmount } = renderHook(() => useAutoResizeTextarea(ref, 'text')))
+    })
 
-      expect(viewportAddSpy).toHaveBeenCalledWith(
-        'resize',
-        expect.any(Function)
-      )
+    afterEach(() => {
+      Object.defineProperty(window, 'visualViewport', {
+        configurable: true,
+        value: originalVisualViewport
+      })
+    })
 
-      // Trigger window resize
+    it('adjusts the height on window resize', () => {
       Object.defineProperty(textarea, 'scrollHeight', {
         configurable: true,
         value: 130
@@ -386,8 +410,14 @@ describe('useAutoResizeTextarea', () => {
       })
 
       expect(textarea.style.height).toBe('130px')
+    })
 
-      // Trigger visualViewport resize callback
+    it('adjusts the height on visualViewport resize', () => {
+      expect(viewportAddSpy).toHaveBeenCalledWith(
+        'resize',
+        expect.any(Function)
+      )
+
       const viewportResizeHandler = viewportAddSpy.mock.calls[0][1]
       Object.defineProperty(textarea, 'scrollHeight', {
         configurable: true,
@@ -399,17 +429,21 @@ describe('useAutoResizeTextarea', () => {
       })
 
       expect(textarea.style.height).toBe('160px')
+    })
+
+    it('removes both resize listeners on unmount', () => {
+      const windowRemoveSpy = vi.spyOn(window, 'removeEventListener')
 
       unmount()
+
       expect(viewportRemoveSpy).toHaveBeenCalledWith(
         'resize',
         expect.any(Function)
       )
-    } finally {
-      Object.defineProperty(window, 'visualViewport', {
-        configurable: true,
-        value: originalVisualViewport
-      })
-    }
+      expect(windowRemoveSpy).toHaveBeenCalledWith(
+        'resize',
+        expect.any(Function)
+      )
+    })
   })
 })

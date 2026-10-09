@@ -294,10 +294,13 @@ TEST_DATABASE_USERNAME=activities \
 TEST_DATABASE_PASSWORD=activities \
 yarn test --maxWorkers=2 \
   lib/database/sql/media.test.ts \
+  lib/database/sql/mediaAccountListing.test.ts \
+  lib/database/sql/mediaMutations.test.ts \
   lib/database/sql/mediaDetails.test.ts \
   lib/database/sql/gallery.test.ts \
   lib/database/sql/galleryMedia.test.ts \
   lib/database/sql/galleryAlbums.test.ts \
+  lib/database/sql/galleryAlbumsVisibility.test.ts \
   lib/database/sql/galleryAlbumSuggestions.test.ts \
   lib/services/gallery/galleryQueries.test.ts \
   lib/services/gallery/galleryAlbumQueries.test.ts \
@@ -308,13 +311,20 @@ yarn test --maxWorkers=2 \
   lib/services/gallery/uploadMediaDetails.test.ts \
   lib/database/sql/galleryLookupCache.test.ts \
   lib/database/sql/fitnessFile.test.ts \
+  lib/database/sql/fitnessFileActivityStats.test.ts \
+  lib/database/sql/fitnessFileOverviewWindows.test.ts \
   lib/database/sql/fitnessGear.test.ts \
+  lib/database/sql/fitnessGearComponents.test.ts \
+  lib/database/sql/fitnessGearDevice.test.ts \
   lib/database/sql/fitnessGearComponentPeriods.test.ts \
   lib/database/sql/fitnessRouteHeatmapTile.test.ts \
+  lib/database/sql/fitnessRouteHeatmapTileClaim.test.ts \
+  lib/database/sql/fitnessRouteHeatmapTileClaimRace.test.ts \
   lib/database/sql/queueJob.test.ts \
   lib/database/sql/statusDeletionQueue.test.ts \
   lib/database/sql/stravaArchiveImport.test.ts \
-  lib/database/sql/list.test.ts
+  lib/database/sql/list.test.ts \
+  lib/database/sql/listMembershipEligibility.test.ts
 ```
 
 3. When finished, stop the container:
@@ -945,7 +955,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   handler, cannot be pinned by the table; it goes in `GUARDED_BY_OWN_CODE` with
   the test that pins its scopes. `MULTI_METHOD`
   entries must name every guarded method the route exports.
-  `lib/services/guards/OAuthGuard.test.ts` covers what each guard then does
+  `lib/services/guards/OAuthGuard.{session,token,accountState}.test.ts` cover what each guard then does
   (no session, wrong scope, a parent scope, unconfirmed accounts) once, for
   every route. Two routes keep an end-to-end check against the real guard, as
   a canary that guard and route still fit together:

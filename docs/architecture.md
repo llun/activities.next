@@ -1241,7 +1241,7 @@ legacy shape left to copy.
   `https://i.ytimg.com`, which is an **unconditional** `img-src` source rather
   than one of `remoteMediaSources`, so narrowing (or emptying)
   `ACTIVITIES_ALLOW_REMOTE_MEDIA_DOMAINS` cannot blank the thumbnail of every
-  video card. `next.config.test.ts` pins that against the emptied allowlist.
+  video card. `next.config.csp.test.ts` pins that against the emptied allowlist.
   **Nothing loads from the player until the reader presses play** — a live
   iframe per row is a megabyte of player code and a Google request for every
   video that merely scrolled past — and **the card is mounted under a React

@@ -1,0 +1,931 @@
+import {
+  createLocalAccount,
+  withFreshDatabase
+} from '@/lib/database/sql/listTestHelpers'
+import { Database } from '@/lib/database/types'
+import { TEST_DOMAIN } from '@/lib/stub/const'
+import { FollowStatus } from '@/lib/types/domain/follow'
+import { ListRepliesPolicy } from '@/lib/types/domain/list'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+
+// Replies-policy scenarios: a list member (memberFollowed) authors one reply of
+// each kind. The PARENT's author is what the policy filters on.
+type ReplyScenario =
+  | 'nonReply'
+  | 'selfReply'
+  | 'replyToOwner'
+  | 'replyToMember'
+  | 'replyToFollowed'
+  | 'replyToStranger'
+  | 'replyToAbsent'
+
+const ALL_REPLY_SCENARIOS: ReplyScenario[] = [
+  'nonReply',
+  'selfReply',
+  'replyToOwner',
+  'replyToMember',
+  'replyToFollowed',
+  'replyToStranger',
+  'replyToAbsent'
+]
+
+const setupRepliesPolicyFixture = async (
+  database: Database,
+  repliesPolicy: ListRepliesPolicy
+) => {
+  for (const username of [
+    'owner',
+    'memberFollowed',
+    'memberUnfollowed',
+    'followedNonMember',
+    'stranger'
+  ]) {
+    await createLocalAccount(database, username)
+  }
+  const actor = async (username: string) => {
+    const found = await database.getActorFromUsername({
+      username,
+      domain: TEST_DOMAIN
+    })
+    if (!found) throw new Error(`${username} not created`)
+    return found
+  }
+  const owner = await actor('owner')
+  const memberFollowed = await actor('memberFollowed')
+  const memberUnfollowed = await actor('memberUnfollowed')
+  const followedNonMember = await actor('followedNonMember')
+  const stranger = await actor('stranger')
+
+  // Owner follows memberFollowed and followedNonMember (Accepted).
+  for (const target of [memberFollowed, followedNonMember]) {
+    await database.createFollow({
+      actorId: owner.id,
+      targetActorId: target.id,
+      status: FollowStatus.enum.Accepted,
+      inbox: `${target.id}/inbox`,
+      sharedInbox: `${target.id}/inbox`
+    })
+  }
+
+  const note = async (actorId: string, localId: string, reply = '') => {
+    const id = `${actorId}/statuses/${localId}`
+    await database.createNote({
+      id,
+      url: id,
+      actorId,
+      text: 'reply policy candidate',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      reply
+    })
+    return id
+  }
+
+  // Parent statuses authored by each kind of actor.
+  const parentSelf = await note(memberFollowed.id, 'parent-self')
+  const parentOwner = await note(owner.id, 'parent-owner')
+  const parentMember = await note(memberUnfollowed.id, 'parent-member')
+  const parentFollowed = await note(followedNonMember.id, 'parent-followed')
+  const parentStranger = await note(stranger.id, 'parent-stranger')
+  const absentParent = `https://nowhere.${TEST_DOMAIN}/statuses/missing`
+
+  // Reply candidates, all authored by a list member so they reach the join.
+  const ids: Record<ReplyScenario, string> = {
+    nonReply: await note(memberFollowed.id, 'non-reply'),
+    selfReply: await note(memberFollowed.id, 'self-reply', parentSelf),
+    replyToOwner: await note(memberFollowed.id, 'reply-owner', parentOwner),
+    replyToMember: await note(memberFollowed.id, 'reply-member', parentMember),
+    replyToFollowed: await note(
+      memberFollowed.id,
+      'reply-followed',
+      parentFollowed
+    ),
+    replyToStranger: await note(
+      memberFollowed.id,
+      'reply-stranger',
+      parentStranger
+    ),
+    replyToAbsent: await note(memberFollowed.id, 'reply-absent', absentParent)
+  }
+
+  const list = await database.createList({
+    actorId: owner.id,
+    title: 'Reply policy list',
+    repliesPolicy
+  })
+  await database.addListAccounts({
+    listId: list.id,
+    actorId: owner.id,
+    targetActorIds: [memberFollowed.id, memberUnfollowed.id]
+  })
+
+  const timeline = await database.getListTimeline({
+    listId: list.id,
+    actorId: owner.id
+  })
+  return { ids, timelineIds: new Set(timeline.map((status) => status.id)) }
+}
+
+describe('ListDatabase timeline', () => {
+  it('returns statuses from list members in the list timeline', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/1`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'hello from a list member',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Timeline list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const statuses = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id
+      })
+      expect(statuses.map((status) => status.id)).toContain(statusId)
+    })
+  })
+
+  it('shows posts published after a member is added (new-status fan-out)', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      // Add the member to the list BEFORE any post exists, so the row can only
+      // appear via the new-status fan-out (addStatusToListTimelines), not the
+      // add-account backfill.
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Fan-out list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const statusId = `${member.id}/statuses/after-add`
+      const status = await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'posted after being added to the list',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      await database.addStatusToListTimelines({ status })
+
+      const statuses = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id
+      })
+      expect(statuses.map((item) => item.id)).toContain(statusId)
+    })
+  })
+
+  it('removes a member’s posts from the list timeline when the member is removed', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/1`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'hello from a list member',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Timeline list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+      expect(
+        (
+          await database.getListTimeline({ listId: list.id, actorId: owner.id })
+        ).map((status) => status.id)
+      ).toContain(statusId)
+
+      await database.removeListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+      expect(
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).toHaveLength(0)
+    })
+  })
+
+  it('drops the materialized feed when the list is deleted', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/1`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'hello from a list member',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Timeline list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      await database.deleteList({ id: list.id, actorId: owner.id })
+
+      // The list and its materialized rows are gone; reading by the same id
+      // returns nothing rather than stale posts.
+      expect(
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).toHaveLength(0)
+    })
+  })
+
+  it('excludes member statuses the owner cannot see from the list timeline', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const publicId = `${member.id}/statuses/public`
+      await database.createNote({
+        id: publicId,
+        url: publicId,
+        actorId: member.id,
+        text: 'public post',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      // A direct post addressed to someone other than the owner must not leak
+      // into the owner's list timeline.
+      const directId = `${member.id}/statuses/direct`
+      await database.createNote({
+        id: directId,
+        url: directId,
+        actorId: member.id,
+        text: 'secret to a stranger',
+        to: ['https://stranger.example/users/x'],
+        cc: []
+      })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Visibility list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const ids = (
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).map((status) => status.id)
+      expect(ids).toContain(publicId)
+      expect(ids).not.toContain(directId)
+    })
+  })
+
+  it('applies visibility before the limit so a hidden run cannot strand visible posts', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      // One visible post, then two newer non-visible posts. If visibility were
+      // applied only after LIMIT, fetching the newest two would yield only the
+      // hidden pair and return an empty page, stranding the visible post.
+      const visibleId = `${member.id}/statuses/0-visible`
+      await database.createNote({
+        id: visibleId,
+        url: visibleId,
+        actorId: member.id,
+        text: 'visible',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      for (const suffix of ['1-direct', '2-direct']) {
+        const directId = `${member.id}/statuses/${suffix}`
+        await database.createNote({
+          id: directId,
+          url: directId,
+          actorId: member.id,
+          text: 'hidden',
+          to: ['https://stranger.example/users/x'],
+          cc: []
+        })
+      }
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Limit list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const statuses = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        limit: 2
+      })
+      expect(statuses.map((status) => status.id)).toEqual([visibleId])
+    })
+  })
+
+  it('hydrates the owner action state in the list timeline', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/liked`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'like me',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      // The owner has acted on the member's post; the list timeline must reflect
+      // it (the timeline is hydrated for the owner, who is the viewer).
+      await database.createLike({ actorId: owner.id, statusId })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Action state list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      const statuses = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id
+      })
+      const liked = statuses.find((status) => status.id === statusId)
+      expect(liked).toBeDefined()
+      expect((liked as { isActorLiked?: boolean }).isActorLiked).toBe(true)
+    })
+  })
+
+  it.each([
+    ['none', ['nonReply', 'selfReply', 'replyToOwner']],
+    ['list', ['nonReply', 'selfReply', 'replyToOwner', 'replyToMember']],
+    ['followed', ['nonReply', 'selfReply', 'replyToOwner', 'replyToFollowed']]
+  ] as [ListRepliesPolicy, ReplyScenario[]][])(
+    'honors repliesPolicy=%s in the list timeline',
+    async (repliesPolicy, visibleScenarios) => {
+      await withFreshDatabase(async (database) => {
+        const { ids, timelineIds } = await setupRepliesPolicyFixture(
+          database,
+          repliesPolicy
+        )
+        for (const scenario of ALL_REPLY_SCENARIOS) {
+          expect(timelineIds.has(ids[scenario])).toBe(
+            visibleScenarios.includes(scenario)
+          )
+        }
+      })
+    }
+  )
+
+  it('applies block and mute filtering to the list timeline', async () => {
+    await withFreshDatabase(async (database) => {
+      const usernames = [
+        'mod-owner',
+        'mod-clean',
+        'mod-blocked',
+        'mod-blocked-by',
+        'mod-muted',
+        'mod-muted-expired',
+        'mod-muted-by'
+      ]
+      for (const username of usernames)
+        await createLocalAccount(database, username)
+      const actor = async (username: string) => {
+        const found = await database.getActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+        if (!found) throw new Error(`${username} not created`)
+        return found
+      }
+      const owner = await actor('mod-owner')
+      const clean = await actor('mod-clean')
+      const blocked = await actor('mod-blocked')
+      const blockedBy = await actor('mod-blocked-by')
+      const muted = await actor('mod-muted')
+      const mutedExpired = await actor('mod-muted-expired')
+      const mutedBy = await actor('mod-muted-by')
+
+      const post = async (author: { id: string }, localId: string) => {
+        const id = `${author.id}/statuses/${localId}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: author.id,
+          text: `moderation ${localId}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        return id
+      }
+      const cleanId = await post(clean, 'clean')
+      const blockedId = await post(blocked, 'blocked')
+      const blockedById = await post(blockedBy, 'blocked-by')
+      const mutedId = await post(muted, 'muted')
+      const mutedExpiredId = await post(mutedExpired, 'muted-expired')
+      const mutedById = await post(mutedBy, 'muted-by')
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Moderation list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [
+          clean.id,
+          blocked.id,
+          blockedBy.id,
+          muted.id,
+          mutedExpired.id,
+          mutedBy.id
+        ]
+      })
+
+      // Owner blocks `blocked`; `blockedBy` blocks owner (reverse direction).
+      await database.createBlock({
+        actorId: owner.id,
+        targetActorId: blocked.id,
+        uri: `${owner.id}/blocks/blocked`
+      })
+      await database.createBlock({
+        actorId: blockedBy.id,
+        targetActorId: owner.id,
+        uri: `${blockedBy.id}/blocks/owner`
+      })
+      // Owner mutes `muted` indefinitely, and `mutedExpired` with a past expiry.
+      await database.createMute({
+        actorId: owner.id,
+        targetActorId: muted.id,
+        notifications: true,
+        endsAt: null
+      })
+      await database.createMute({
+        actorId: owner.id,
+        targetActorId: mutedExpired.id,
+        notifications: true,
+        endsAt: Date.now() - 60_000
+      })
+      // `mutedBy` mutes the owner — mutes are one-directional, so this must NOT
+      // hide their posts from the owner's list (unlike blocks).
+      await database.createMute({
+        actorId: mutedBy.id,
+        targetActorId: owner.id,
+        notifications: true,
+        endsAt: null
+      })
+
+      const ids = (
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).map((status) => status.id)
+
+      // Active blocks (either direction) and active mutes are hidden.
+      expect(ids).not.toContain(blockedId)
+      expect(ids).not.toContain(blockedById)
+      expect(ids).not.toContain(mutedId)
+      // Unmoderated members, expired mutes, and reverse-only mutes still show.
+      expect(ids).toContain(cleanId)
+      expect(ids).toContain(mutedExpiredId)
+      expect(ids).toContain(mutedById)
+    })
+  })
+
+  it('hides a member reblog of a blocked or muted original author', async () => {
+    await withFreshDatabase(async (database) => {
+      const usernames = [
+        'rb-owner',
+        'rb-member',
+        'rb-blocked',
+        'rb-muted',
+        'rb-clean'
+      ]
+      for (const username of usernames)
+        await createLocalAccount(database, username)
+      const actor = async (username: string) => {
+        const found = await database.getActorFromUsername({
+          username,
+          domain: TEST_DOMAIN
+        })
+        if (!found) throw new Error(`${username} not created`)
+        return found
+      }
+      const owner = await actor('rb-owner')
+      const member = await actor('rb-member')
+      const blocked = await actor('rb-blocked')
+      const muted = await actor('rb-muted')
+      const clean = await actor('rb-clean')
+
+      // Original posts authored by the (to-be) blocked/muted/clean accounts.
+      const original = async (author: { id: string }, localId: string) => {
+        const id = `${author.id}/statuses/${localId}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: author.id,
+          text: `original ${localId}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        return id
+      }
+      const origBlocked = await original(blocked, 'orig-blocked')
+      const origMuted = await original(muted, 'orig-muted')
+      const origClean = await original(clean, 'orig-clean')
+
+      // The list member boosts each original post.
+      const announce = async (localId: string, originalStatusId: string) => {
+        const id = `${member.id}/statuses/${localId}`
+        await database.createAnnounce({
+          id,
+          actorId: member.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          originalStatusId
+        })
+        return id
+      }
+      const annBlocked = await announce('ann-blocked', origBlocked)
+      const annMuted = await announce('ann-muted', origMuted)
+      const annClean = await announce('ann-clean', origClean)
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Reblog moderation list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+      await database.createBlock({
+        actorId: owner.id,
+        targetActorId: blocked.id,
+        uri: `${owner.id}/blocks/rb-blocked`
+      })
+      await database.createMute({
+        actorId: owner.id,
+        targetActorId: muted.id,
+        notifications: true,
+        endsAt: null
+      })
+
+      const ids = (
+        await database.getListTimeline({ listId: list.id, actorId: owner.id })
+      ).map((status) => status.id)
+
+      // A boost is hidden when its ORIGINAL author is blocked/muted, matching
+      // the home feed's getRelevantStatusActorIds behaviour.
+      expect(ids).not.toContain(annBlocked)
+      expect(ids).not.toContain(annMuted)
+      expect(ids).toContain(annClean)
+    })
+  })
+
+  it('returns an empty page when the pagination cursor status is gone', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      const statusId = `${member.id}/statuses/1`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: member.id,
+        text: 'a list member post',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Cursor list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      // A deleted/unknown cursor must terminate pagination with an empty page,
+      // not silently drop the cursor and re-return the newest page (a loop).
+      const page = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        maxStatusId: `${member.id}/statuses/deleted-cursor`
+      })
+      expect(page).toEqual([])
+    })
+  })
+
+  it('paginates with a valid max_id cursor (older statuses only)', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      // Three posts, oldest → newest by createdAt.
+      const ids: string[] = []
+      for (let i = 1; i <= 3; i++) {
+        const id = `${member.id}/statuses/${i}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: member.id,
+          text: `post ${i}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          createdAt: 1000 * i
+        })
+        ids.push(id)
+      }
+      const [older, middle, newer] = ids
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Pagination list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      // Newest-first with no cursor.
+      const firstPage = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id
+      })
+      expect(firstPage.map((status) => status.id)).toEqual([
+        newer,
+        middle,
+        older
+      ])
+
+      // max_id at the middle returns only the strictly-older page.
+      const olderPage = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        maxStatusId: middle
+      })
+      expect(olderPage.map((status) => status.id)).toEqual([older])
+    })
+  })
+
+  it('distinguishes min_id (adjacent page) from since_id (newest slice)', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member) throw new Error('actors not created')
+
+      // Five posts, oldest → newest by createdAt.
+      const ids: string[] = []
+      for (let i = 1; i <= 5; i++) {
+        const id = `${member.id}/statuses/${i}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: member.id,
+          text: `post ${i}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          createdAt: 1000 * i
+        })
+        ids.push(id)
+      }
+      const [oldest, second, middle, fourth, newest] = ids
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Cursor list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      // since_id: the two NEWEST statuses above the cursor.
+      const sincePage = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        sinceStatusId: oldest,
+        limit: 2
+      })
+      expect(sincePage.map((status) => status.id)).toEqual([newest, fourth])
+
+      // min_id: the two OLDEST statuses above the cursor (the adjacent page),
+      // returned newest-first — a different slice than since_id.
+      const minPage = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        minStatusId: oldest,
+        limit: 2
+      })
+      expect(minPage.map((status) => status.id)).toEqual([middle, second])
+    })
+  })
+
+  it('paginates from a cursor that exists but is not in the list partition', async () => {
+    await withFreshDatabase(async (database) => {
+      await createLocalAccount(database, 'owner')
+      await createLocalAccount(database, 'member')
+      await createLocalAccount(database, 'other')
+      const owner = await database.getActorFromUsername({
+        username: 'owner',
+        domain: TEST_DOMAIN
+      })
+      const member = await database.getActorFromUsername({
+        username: 'member',
+        domain: TEST_DOMAIN
+      })
+      const other = await database.getActorFromUsername({
+        username: 'other',
+        domain: TEST_DOMAIN
+      })
+      if (!owner || !member || !other) throw new Error('actors not created')
+
+      // Member posts at createdAt 1000/2000/3000.
+      const memberIds: string[] = []
+      for (let i = 1; i <= 3; i++) {
+        const id = `${member.id}/statuses/${i}`
+        await database.createNote({
+          id,
+          url: id,
+          actorId: member.id,
+          text: `member ${i}`,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          createdAt: 1000 * i
+        })
+        memberIds.push(id)
+      }
+      const [m1000, m2000] = memberIds
+
+      // A non-member status that exists in `statuses` but is never materialized
+      // into the list partition, at a createdAt between the member posts.
+      const outsiderId = `${other.id}/statuses/outsider`
+      await database.createNote({
+        id: outsiderId,
+        url: outsiderId,
+        actorId: other.id,
+        text: 'not on the list',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        createdAt: 2500
+      })
+
+      const list = await database.createList({
+        actorId: owner.id,
+        title: 'Fallback cursor list'
+      })
+      await database.addListAccounts({
+        listId: list.id,
+        actorId: owner.id,
+        targetActorIds: [member.id]
+      })
+
+      // The cursor resolves from `statuses` (not the partition), so it has no row
+      // id — pagination must fall back to a strict createdAt compare without
+      // emitting an invalid empty Knex group, returning only strictly-older
+      // member posts.
+      const page = await database.getListTimeline({
+        listId: list.id,
+        actorId: owner.id,
+        maxStatusId: outsiderId
+      })
+      expect(page.map((status) => status.id)).toEqual([m2000, m1000])
+    })
+  })
+})
