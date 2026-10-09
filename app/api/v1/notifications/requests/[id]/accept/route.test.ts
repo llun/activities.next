@@ -77,7 +77,28 @@ describe('POST /api/v1/notifications/requests/[id]/accept', () => {
     })
   })
 
-  it('returns 404 when the request does not exist', async () => {
+  it('allow-lists the sender so future notifications skip the requests queue', async () => {
+    mockDatabase.getNotificationRequest.mockResolvedValueOnce({
+      sourceActorId: SOURCE_ACTOR_ID,
+      notificationsCount: 1
+    })
+
+    const id = urlToId(SOURCE_ACTOR_ID)
+    await POST(
+      new NextRequest(
+        `https://llun.test/api/v1/notifications/requests/${id}/accept`,
+        { method: 'POST' }
+      ),
+      { params: Promise.resolve({ id }) }
+    )
+
+    expect(mockDatabase.updateActor).toHaveBeenCalledExactlyOnceWith({
+      actorId: mockCurrentActor.id,
+      appendNotificationAcceptedSenders: [SOURCE_ACTOR_ID]
+    })
+  })
+
+  it('returns 404 and allow-lists nobody when the request does not exist', async () => {
     mockDatabase.getNotificationRequest.mockResolvedValueOnce(null)
 
     const id = urlToId(SOURCE_ACTOR_ID)
@@ -92,5 +113,6 @@ describe('POST /api/v1/notifications/requests/[id]/accept', () => {
 
     expect(response.status).toBe(404)
     expect(mockDatabase.acceptNotificationRequests).not.toHaveBeenCalled()
+    expect(mockDatabase.updateActor).not.toHaveBeenCalled()
   })
 })

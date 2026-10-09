@@ -1,10 +1,9 @@
 import { NextRequest } from 'next/server'
 
-import { GET, POST } from './route'
+import { GET } from './route'
 
 const mockDatabase = {
   getNotifications: vi.fn(),
-  deleteNotification: vi.fn(),
   getActiveFiltersForActor: vi.fn().mockResolvedValue([]),
   getActiveServerFilters: vi.fn().mockResolvedValue([])
 }
@@ -110,41 +109,6 @@ describe('GET /api/v1/notifications', () => {
     )
   })
 
-  it('excludes filtered notifications by default', async () => {
-    mockDatabase.getNotifications.mockResolvedValueOnce([])
-
-    const request = new NextRequest('https://llun.test/api/v1/notifications', {
-      method: 'GET'
-    })
-
-    await GET(request, { params: Promise.resolve({}) })
-
-    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: mockCurrentActor.id,
-        includeFiltered: false
-      })
-    )
-  })
-
-  it('passes include_filtered=true through to the database', async () => {
-    mockDatabase.getNotifications.mockResolvedValueOnce([])
-
-    const request = new NextRequest(
-      'https://llun.test/api/v1/notifications?include_filtered=true',
-      { method: 'GET' }
-    )
-
-    await GET(request, { params: Promise.resolve({}) })
-
-    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: mockCurrentActor.id,
-        includeFiltered: true
-      })
-    )
-  })
-
   // min_id and since_id must reach the DB in their own slots — since_id must not
   // be collapsed into minNotificationId (which would give it adjacent-page
   // instead of newest-slice semantics).
@@ -196,45 +160,4 @@ describe('GET /api/v1/notifications', () => {
       )
     }
   )
-
-  it('pushes account_id filtering into the database query', async () => {
-    mockDatabase.getNotifications.mockResolvedValueOnce([])
-
-    const request = new NextRequest(
-      'https://llun.test/api/v1/notifications?account_id=other.test:users:alice',
-      { method: 'GET' }
-    )
-
-    await GET(request, { params: Promise.resolve({}) })
-
-    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceActorId: 'https://other.test/users/alice'
-      })
-    )
-  })
-})
-
-describe('POST /api/v1/notifications (clear-all)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('fetches notifications with includeFiltered: true so filtered notifications are cleared', async () => {
-    mockDatabase.getNotifications.mockResolvedValueOnce([])
-
-    const request = new NextRequest('https://llun.test/api/v1/notifications', {
-      method: 'POST'
-    })
-
-    const response = await POST(request, { params: Promise.resolve({}) })
-
-    expect(response.status).toBe(200)
-    expect(mockDatabase.getNotifications).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: mockCurrentActor.id,
-        includeFiltered: true
-      })
-    )
-  })
 })

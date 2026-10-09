@@ -139,4 +139,174 @@ describe('BlockAction', () => {
     )
     expect(refresh).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['signed out', false, relationship()],
+    ['the relationship is unknown', true, null]
+  ])('renders nothing when %s', (_name, isLoggedIn, initialRelationship) => {
+    const { container } = render(
+      <BlockAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn={isLoggedIn}
+        initialRelationship={initialRelationship}
+      />
+    )
+
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('asks for confirmation before blocking and can be cancelled', async () => {
+    render(
+      <BlockAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Block account' })
+    expect(blockMock).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+    expect(blockMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Block' })).toBeInTheDocument()
+  })
+
+  it('blocks the account, closes the dialog, offers Unblock and refreshes', async () => {
+    blockMock.mockResolvedValue(relationship({ blocking: true }))
+    render(
+      <BlockAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Block account' })
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Block' }))
+    })
+
+    expect(blockMock).toHaveBeenCalledWith({
+      targetActorId: 'https://example.test/users/target'
+    })
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(
+      await screen.findByRole('button', { name: 'Unblock' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['the request returns nothing', null],
+    [
+      'the server does not report the account as blocked',
+      relationship({ blocking: false })
+    ]
+  ])('keeps the dialog open with an error when %s', async (_name, result) => {
+    blockMock.mockResolvedValue(result)
+    render(
+      <BlockAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Block account' })
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Block' }))
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Failed to block account. Please try again.'
+    )
+    expect(
+      screen.getByRole('dialog', { name: 'Block account' })
+    ).toBeInTheDocument()
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('forgets a block error when the dialog is cancelled and reopened', async () => {
+    blockMock.mockResolvedValue(null)
+    render(
+      <BlockAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship()}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Block account' })
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Block' }))
+    })
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+    await screen.findByRole('dialog', { name: 'Block account' })
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('unblocks the account, offers Block again and refreshes', async () => {
+    unblockMock.mockResolvedValue(relationship({ blocking: false }))
+    render(
+      <BlockAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship({ blocking: true })}
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Unblock' }))
+    })
+
+    expect(unblockMock).toHaveBeenCalledWith({
+      targetActorId: 'https://example.test/users/target'
+    })
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Block' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Unblock' })
+    ).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['the request returns nothing', null],
+    [
+      'the server still reports the account as blocked',
+      relationship({ blocking: true })
+    ]
+  ])('shows an error and stays blocked when %s', async (_name, result) => {
+    unblockMock.mockResolvedValue(result)
+    render(
+      <BlockAction
+        targetActorId="https://example.test/users/target"
+        isLoggedIn
+        initialRelationship={relationship({ blocking: true })}
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Unblock' }))
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Failed to unblock account. Please try again.'
+    )
+    expect(screen.getByRole('button', { name: 'Unblock' })).toBeEnabled()
+    expect(refresh).not.toHaveBeenCalled()
+  })
 })

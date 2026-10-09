@@ -2,9 +2,11 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 
+import { getHashtagTimeline } from '@/lib/client'
 import { MobileNavigationProvider } from '@/lib/components/layout/mobile-navigation-context'
+import { createDeferred } from '@/lib/testing/deferred'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusAnnounce, StatusType } from '@/lib/types/domain/status'
 
@@ -440,6 +442,195 @@ describe('HashtagTimeline', () => {
       })
       expect(heading).toBeInTheDocument()
       expect(screen.getByText('1 post')).not.toHaveClass('md:hidden')
+    })
+  })
+
+  describe('empty state', () => {
+    it('invites the first post when there are no statuses and nothing more to load', () => {
+      render(<HashtagTimeline {...baseProps} statuses={[]} postCount={0} />)
+
+      expect(
+        screen.getByRole('heading', {
+          level: 2,
+          name: 'No posts with #fediverse'
+        })
+      ).toBeInTheDocument()
+      expect(screen.queryByTestId('posts')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Load more' })
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('loading more statuses', () => {
+    type TimelinePage = Awaited<ReturnType<typeof getHashtagTimeline>>
+    const loadMore = vi.mocked(getHashtagTimeline)
+    const clickLoadMore = async () => {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+      })
+    }
+
+    beforeEach(() => {
+      loadMore.mockReset()
+    })
+
+    it('appends the next page, paging from the last status when no cursor was given', async () => {
+      loadMore.mockResolvedValue({
+        statuses: [createStatus('status-2')],
+        nextMaxStatusId: null
+      } as unknown as TimelinePage)
+      render(
+        <HashtagTimeline {...baseProps} statuses={[createStatus('status-1')]} />
+      )
+
+      await clickLoadMore()
+
+      expect(loadMore).toHaveBeenCalledWith({
+        tag: 'fediverse',
+        maxStatusId: 'status-1'
+      })
+      expect(screen.getByTestId('post-status-1')).toBeInTheDocument()
+      expect(screen.getByTestId('post-status-2')).toBeInTheDocument()
+    })
+
+    it('pages from the server-provided cursor and then from the cursor of each result', async () => {
+      loadMore
+        .mockResolvedValueOnce({
+          statuses: [createStatus('status-2')],
+          nextMaxStatusId: 'cursor-2'
+        } as unknown as TimelinePage)
+        .mockResolvedValueOnce({
+          statuses: [createStatus('status-3')],
+          nextMaxStatusId: null
+        } as unknown as TimelinePage)
+      render(
+        <HashtagTimeline
+          {...baseProps}
+          statuses={[createStatus('status-1')]}
+          nextMaxStatusId="cursor-1"
+        />
+      )
+
+      await clickLoadMore()
+      await clickLoadMore()
+
+      expect(loadMore).toHaveBeenNthCalledWith(1, {
+        tag: 'fediverse',
+        maxStatusId: 'cursor-1'
+      })
+      expect(loadMore).toHaveBeenNthCalledWith(2, {
+        tag: 'fediverse',
+        maxStatusId: 'cursor-2'
+      })
+      expect(screen.getByTestId('post-status-3')).toBeInTheDocument()
+    })
+
+    it('loads from the cursor when the first page is empty but more exist', async () => {
+      loadMore.mockResolvedValue({
+        statuses: [createStatus('status-9')],
+        nextMaxStatusId: null
+      } as unknown as TimelinePage)
+      render(
+        <HashtagTimeline
+          {...baseProps}
+          statuses={[]}
+          postCount={0}
+          nextMaxStatusId="cursor-1"
+        />
+      )
+
+      expect(screen.getByText('No posts with #fediverse')).toBeInTheDocument()
+      await clickLoadMore()
+
+      expect(loadMore).toHaveBeenCalledWith({
+        tag: 'fediverse',
+        maxStatusId: 'cursor-1'
+      })
+      expect(screen.getByTestId('post-status-9')).toBeInTheDocument()
+    })
+
+    it('skips ahead without appending when a page is empty but has a cursor', async () => {
+      loadMore
+        .mockResolvedValueOnce({
+          statuses: [],
+          nextMaxStatusId: 'cursor-skip'
+        } as unknown as TimelinePage)
+        .mockResolvedValueOnce({
+          statuses: [createStatus('status-5')],
+          nextMaxStatusId: null
+        } as unknown as TimelinePage)
+      render(
+        <HashtagTimeline {...baseProps} statuses={[createStatus('status-1')]} />
+      )
+
+      await clickLoadMore()
+      expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+      await clickLoadMore()
+
+      expect(loadMore).toHaveBeenNthCalledWith(2, {
+        tag: 'fediverse',
+        maxStatusId: 'cursor-skip'
+      })
+      expect(screen.getByTestId('post-status-5')).toBeInTheDocument()
+    })
+
+    it('removes the Load more button once an empty page has no cursor', async () => {
+      loadMore.mockResolvedValue({
+        statuses: [],
+        nextMaxStatusId: null
+      } as unknown as TimelinePage)
+      render(
+        <HashtagTimeline {...baseProps} statuses={[createStatus('status-1')]} />
+      )
+
+      await clickLoadMore()
+
+      expect(
+        screen.queryByRole('button', { name: 'Load more' })
+      ).not.toBeInTheDocument()
+      expect(screen.getByTestId('post-status-1')).toBeInTheDocument()
+    })
+
+    it('keeps the posts and lets the reader retry when loading fails', async () => {
+      loadMore
+        .mockRejectedValueOnce(new Error('network down'))
+        .mockResolvedValueOnce({
+          statuses: [createStatus('status-2')],
+          nextMaxStatusId: null
+        } as unknown as TimelinePage)
+      render(
+        <HashtagTimeline {...baseProps} statuses={[createStatus('status-1')]} />
+      )
+
+      await clickLoadMore()
+
+      expect(screen.getByTestId('post-status-1')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+
+      await clickLoadMore()
+
+      expect(screen.getByTestId('post-status-2')).toBeInTheDocument()
+    })
+
+    it('shows a disabled busy button while loading', async () => {
+      const pending = createDeferred<TimelinePage>()
+      loadMore.mockReturnValue(pending.promise)
+      render(
+        <HashtagTimeline {...baseProps} statuses={[createStatus('status-1')]} />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+      const busy = await screen.findByRole('button', { name: 'Loading...' })
+      expect(busy).toBeDisabled()
+
+      await act(async () => {
+        pending.resolve({
+          statuses: [createStatus('status-2')],
+          nextMaxStatusId: null
+        } as unknown as TimelinePage)
+      })
+      expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
     })
   })
 })

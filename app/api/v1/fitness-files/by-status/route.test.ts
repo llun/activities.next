@@ -7,7 +7,13 @@ import {
   ACTOR1_ID,
   seedActor1
 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTOR3_ID, seedActor3 } from '@/lib/stub/seed/actor3'
+import { ACTOR5_ID, seedActor5 } from '@/lib/stub/seed/actor5'
+import { seedActor6 } from '@/lib/stub/seed/actor6'
+import { FollowStatus } from '@/lib/types/domain/follow'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { logger } from '@/lib/utils/logger'
 
 import { GET } from './route'
 
@@ -394,5 +400,224 @@ describe('GET /api/v1/fitness-files/by-status', () => {
       totalWorkKj: 630,
       elevationSeries: [50, 60, 70]
     })
+  })
+})
+
+describe('GET /api/v1/fitness-files/by-status access rules', () => {
+  const database = getTestSQLDatabase()
+  const routeContext = { params: Promise.resolve({}) }
+
+  beforeAll(async () => {
+    await database.migrate()
+    await seedDatabase(database)
+    mockDatabase = database
+    // test2 follows test1 (accepted); test5 only has a pending request.
+    await database.createFollow({
+      actorId: ACTOR2_ID,
+      targetActorId: ACTOR1_ID,
+      status: FollowStatus.enum.Accepted,
+      inbox: `${ACTOR2_ID}/inbox`,
+      sharedInbox: 'https://llun.test/inbox'
+    })
+    await database.createFollow({
+      actorId: ACTOR5_ID,
+      targetActorId: ACTOR1_ID,
+      status: FollowStatus.enum.Requested,
+      inbox: 'https://llun.test/users/test5/inbox',
+      sharedInbox: 'https://llun.test/inbox'
+    })
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerSession.mockResolvedValue(null)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const request = (statusId?: string) =>
+    new NextRequest(
+      `https://llun.test/api/v1/fitness-files/by-status${
+        statusId === undefined
+          ? ''
+          : `?statusId=${encodeURIComponent(statusId)}`
+      }`
+    )
+
+  const createStatusWithFile = async (
+    slug: string,
+    { to, cc }: { to: string[]; cc: string[] }
+  ) => {
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/${slug}`,
+      url: `${ACTOR1_ID}/statuses/${slug}`,
+      actorId: ACTOR1_ID,
+      text: slug,
+      to,
+      cc
+    })
+    const file = await database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      statusId: status.id,
+      path: `fitness/${slug}.fit`,
+      fileName: `${slug}.fit`,
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 1_024
+    })
+    return { status, file: file! }
+  }
+
+  it('requires a statusId', async () => {
+    const response = await GET(request(), routeContext)
+
+    expect(response.status).toBe(400)
+  })
+
+  it('returns not found for a status that does not exist', async () => {
+    const response = await GET(
+      request(`${ACTOR1_ID}/statuses/nope`),
+      routeContext
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  it('returns an empty list for a readable status that has no fitness files', async () => {
+    const status = await database.createNote({
+      id: `${ACTOR1_ID}/statuses/by-status-no-files`,
+      url: `${ACTOR1_ID}/statuses/by-status-no-files`,
+      actorId: ACTOR1_ID,
+      text: 'no files',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+
+    const response = await GET(request(status.id), routeContext)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ files: [] })
+  })
+
+  it('serves an unlisted status to a signed-out reader', async () => {
+    const { status, file } = await createStatusWithFile('by-status-unlisted', {
+      to: [ACTOR1_FOLLOWER_URL],
+      cc: [ACTIVITY_STREAM_PUBLIC]
+    })
+
+    const response = await GET(request(status.id), routeContext)
+    const json = (await response.json()) as { files: Array<{ id: string }> }
+
+    expect(response.status).toBe(200)
+    expect(json.files.map((item) => item.id)).toEqual([file.id])
+  })
+
+  describe('followers-only status', () => {
+    // A fresh status per test: createNote recovers from a duplicate id, so a
+    // shared id would quietly reuse the previous test's status and files.
+    let sequence = 0
+    const create = () =>
+      createStatusWithFile(`by-status-followers-${(sequence += 1)}`, {
+        to: [ACTOR1_FOLLOWER_URL],
+        cc: []
+      })
+
+    it('is served to an accepted follower', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+      const { status } = await create()
+
+      const response = await GET(request(status.id), routeContext)
+
+      expect(response.status).toBe(200)
+    })
+
+    it('is hidden from someone whose follow request is still pending', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor5.email }
+      })
+      const { status } = await create()
+
+      const response = await GET(request(status.id), routeContext)
+
+      expect(response.status).toBe(404)
+    })
+
+    it('is hidden from a signed-in stranger', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor6.email }
+      })
+      const { status } = await create()
+
+      const response = await GET(request(status.id), routeContext)
+
+      expect(response.status).toBe(404)
+    })
+  })
+
+  describe('direct status', () => {
+    let sequence = 0
+    const create = () =>
+      createStatusWithFile(`by-status-direct-${(sequence += 1)}`, {
+        to: [ACTOR3_ID],
+        cc: []
+      })
+
+    it('is served to the mentioned actor', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor3.email }
+      })
+      const { status } = await create()
+
+      const response = await GET(request(status.id), routeContext)
+
+      expect(response.status).toBe(200)
+    })
+
+    it('is hidden from an accepted follower who was not mentioned', async () => {
+      mockGetServerSession.mockResolvedValue({
+        user: { email: seedActor2.email }
+      })
+      const { status } = await create()
+
+      const response = await GET(request(status.id), routeContext)
+
+      expect(response.status).toBe(404)
+    })
+  })
+
+  it('returns a server error and logs when the lookup fails', async () => {
+    vi.spyOn(logger, 'error').mockImplementation(() => logger)
+    vi.spyOn(database, 'getStatus').mockRejectedValueOnce(
+      new Error('db unavailable')
+    )
+
+    const response = await GET(request('anything'), routeContext)
+
+    expect(response.status).toBe(500)
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Error fetching fitness files by status',
+        statusId: 'anything',
+        error: 'db unavailable'
+      })
+    )
+  })
+
+  it('returns a server error when there is no database', async () => {
+    mockDatabase = null
+    try {
+      const response = await GET(request('anything'), routeContext)
+      expect(response.status).toBe(500)
+    } finally {
+      mockDatabase = database
+    }
   })
 })

@@ -4,9 +4,18 @@ import { MediaStorageType } from '@/lib/config/mediaStorage'
 import { Database } from '@/lib/database/types'
 import { deleteMediaFile } from '@/lib/services/medias'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
+import { Actor } from '@/lib/types/domain/actor'
 
 import { S3FitnessStorage } from './S3StorageFile'
-import { deleteFitnessFile, getEffectiveFitnessStorageConfig } from './index'
+import {
+  deleteFitnessFile,
+  getEffectiveFitnessStorageConfig,
+  getFitnessFile,
+  getFitnessFileBuffer,
+  getPresignedFitnessFileUrl,
+  saveFitnessFile,
+  verifyPresignedFitnessFileUpload
+} from './index'
 import { LocalFileFitnessStorage } from './localFile'
 
 vi.mock('@/lib/config', () => ({
@@ -211,5 +220,306 @@ describe('getEffectiveFitnessStorageConfig', () => {
     mockGetConfig.mockReturnValue(mediaOnlyConfig)
 
     expect(getEffectiveFitnessStorageConfig()).toBeNull()
+  })
+})
+
+describe('fitness file storage dispatch', () => {
+  const originalEnv = process.env
+  const actor = { id: 'https://llun.test/users/test1' } as Actor
+  const fitnessFile = {
+    id: 'fitness-1',
+    actorId: actor.id,
+    path: '2026-01-01/run.fit'
+  } as FitnessFile
+  const database = {
+    getFitnessFile: vi.fn(),
+    deleteFitnessFile: vi.fn()
+  } as unknown as jest.Mocked<Database>
+
+  const localConfig = {
+    type: FitnessStorageType.LocalFile,
+    path: '/tmp/fitness'
+  }
+  const s3Config = {
+    type: FitnessStorageType.S3Storage,
+    bucket: 'bucket',
+    region: 'us-east-1',
+    prefix: 'fitness/'
+  }
+
+  const storage = {
+    saveFile: vi.fn(),
+    getFile: vi.fn(),
+    deleteFile: vi.fn(),
+    getPresignedForSaveFileUrl: vi.fn(),
+    verifyPresignedUpload: vi.fn()
+  }
+
+  const useStorage = (fitnessStorage?: unknown) => {
+    mockGetConfig.mockReturnValue({
+      host: 'llun.test',
+      fitnessStorage
+    } as unknown as ReturnType<typeof getConfig>)
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env = { ...originalEnv }
+    delete process.env.ACTIVITIES_FITNESS_STORAGE_TYPE
+    vi.spyOn(LocalFileFitnessStorage, 'getStorage').mockReturnValue(
+      storage as never
+    )
+    vi.spyOn(S3FitnessStorage, 'getStorage').mockReturnValue(storage as never)
+    database.getFitnessFile.mockResolvedValue(fitnessFile)
+    // vi.clearAllMocks keeps queued and persistent implementations, so drop
+    // whatever a previous test set on the shared storage double.
+    for (const method of Object.values(storage)) {
+      method.mockReset()
+    }
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  afterAll(() => {
+    process.env = originalEnv
+  })
+
+  describe('saveFitnessFile', () => {
+    const upload = { file: new File(['x'], 'run.fit') }
+
+    it.each([
+      ['local', localConfig, LocalFileFitnessStorage],
+      ['s3', s3Config, S3FitnessStorage]
+    ])(
+      'saves through the %s backend with the configured host',
+      async (_, config, backend) => {
+        useStorage(config)
+        storage.saveFile.mockResolvedValue({ id: 'saved' })
+
+        await expect(saveFitnessFile(database, actor, upload)).resolves.toEqual(
+          {
+            id: 'saved'
+          }
+        )
+
+        expect(backend.getStorage).toHaveBeenCalledWith(
+          config,
+          'llun.test',
+          database
+        )
+        expect(storage.saveFile).toHaveBeenCalledWith(actor, upload)
+      }
+    )
+
+    it('returns null when no fitness storage is configured', async () => {
+      useStorage(undefined)
+
+      await expect(saveFitnessFile(database, actor, upload)).resolves.toBeNull()
+      expect(storage.saveFile).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('getFitnessFile', () => {
+    it('reads the stored path from the backend', async () => {
+      useStorage(localConfig)
+      storage.getFile.mockResolvedValue({ type: 'buffer' })
+
+      await expect(getFitnessFile(database, 'fitness-1')).resolves.toEqual({
+        type: 'buffer'
+      })
+      expect(database.getFitnessFile).toHaveBeenCalledWith({ id: 'fitness-1' })
+      expect(storage.getFile).toHaveBeenCalledWith('2026-01-01/run.fit')
+    })
+
+    it('does not reload metadata the caller already has', async () => {
+      useStorage(s3Config)
+      storage.getFile.mockResolvedValue({ type: 'redirect' })
+
+      await getFitnessFile(database, 'fitness-1', {
+        ...fitnessFile,
+        path: 'other/path.fit'
+      })
+
+      expect(database.getFitnessFile).not.toHaveBeenCalled()
+      expect(storage.getFile).toHaveBeenCalledWith('other/path.fit')
+    })
+
+    it('returns null for an unknown file without touching storage', async () => {
+      useStorage(localConfig)
+      database.getFitnessFile.mockResolvedValue(null)
+
+      await expect(getFitnessFile(database, 'missing')).resolves.toBeNull()
+      expect(storage.getFile).not.toHaveBeenCalled()
+    })
+
+    it('returns null when no fitness storage is configured', async () => {
+      useStorage(undefined)
+
+      await expect(getFitnessFile(database, 'fitness-1')).resolves.toBeNull()
+    })
+  })
+
+  describe('getFitnessFileBuffer', () => {
+    it('refuses to run without storage so a wrong environment is not reported as missing data', async () => {
+      useStorage(undefined)
+
+      await expect(getFitnessFileBuffer(database, 'fitness-1')).rejects.toThrow(
+        'Fitness storage is not configured'
+      )
+    })
+
+    it('throws when the object is missing from storage', async () => {
+      useStorage(localConfig)
+      storage.getFile.mockResolvedValue(null)
+
+      await expect(getFitnessFileBuffer(database, 'fitness-1')).rejects.toThrow(
+        'Fitness file not found in storage'
+      )
+    })
+
+    it('returns the bytes of a buffered file', async () => {
+      useStorage(localConfig)
+      storage.getFile.mockResolvedValue({
+        type: 'buffer',
+        buffer: Buffer.from('abc'),
+        contentType: 'application/vnd.ant.fit'
+      })
+
+      await expect(
+        getFitnessFileBuffer(database, 'fitness-1')
+      ).resolves.toEqual(Buffer.from('abc'))
+    })
+
+    it('downloads the bytes from the redirect url when storage hands one back', async () => {
+      useStorage(s3Config)
+      storage.getFile.mockResolvedValue({
+        type: 'redirect',
+        redirectUrl: 'https://bucket.example.com/signed'
+      })
+      const fetchMock = vi.fn().mockResolvedValue(new Response('from-s3'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const buffer = await getFitnessFileBuffer(database, 'fitness-1')
+
+      expect(buffer.toString()).toBe('from-s3')
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://bucket.example.com/signed'
+      )
+    })
+
+    it('throws with the status when the redirect download fails', async () => {
+      useStorage(s3Config)
+      storage.getFile.mockResolvedValue({
+        type: 'redirect',
+        redirectUrl: 'https://bucket.example.com/signed'
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(new Response('denied', { status: 403 }))
+      )
+
+      await expect(getFitnessFileBuffer(database, 'fitness-1')).rejects.toThrow(
+        'Failed to download fitness file from redirect URL (403)'
+      )
+    })
+  })
+
+  describe('deleteFitnessFile', () => {
+    it('returns false for an unknown file without touching storage', async () => {
+      useStorage(localConfig)
+      database.getFitnessFile.mockResolvedValue(null)
+
+      await expect(deleteFitnessFile(database, 'missing')).resolves.toBe(false)
+      expect(storage.deleteFile).not.toHaveBeenCalled()
+    })
+
+    it('returns false and keeps the record when no fitness storage is configured', async () => {
+      useStorage(undefined)
+
+      await expect(deleteFitnessFile(database, 'fitness-1')).resolves.toBe(
+        false
+      )
+      expect(database.deleteFitnessFile).not.toHaveBeenCalled()
+    })
+
+    it('loads the metadata itself when the caller passes none', async () => {
+      useStorage(localConfig)
+      storage.deleteFile.mockResolvedValue(true)
+      database.deleteFitnessFile.mockResolvedValue(true)
+
+      await expect(deleteFitnessFile(database, 'fitness-1')).resolves.toBe(true)
+
+      expect(storage.deleteFile).toHaveBeenCalledWith('2026-01-01/run.fit')
+      expect(database.deleteFitnessFile).toHaveBeenCalledWith({
+        id: 'fitness-1'
+      })
+    })
+  })
+
+  describe('presigned uploads', () => {
+    const input = {
+      fileName: 'export.zip',
+      contentType: 'application/zip',
+      size: 10
+    }
+
+    it('are issued by the s3 backend', async () => {
+      useStorage(s3Config)
+      storage.getPresignedForSaveFileUrl.mockResolvedValue({
+        url: 'https://bucket.example.com/signed',
+        fitnessFileId: 'fitness-1'
+      })
+
+      await expect(
+        getPresignedFitnessFileUrl(database, actor, input)
+      ).resolves.toEqual({
+        url: 'https://bucket.example.com/signed',
+        fitnessFileId: 'fitness-1'
+      })
+      expect(storage.getPresignedForSaveFileUrl).toHaveBeenCalledWith(
+        actor,
+        input
+      )
+    })
+
+    it.each([
+      ['local storage', localConfig],
+      ['unconfigured storage', undefined]
+    ])('are not issued for %s', async (_, config) => {
+      useStorage(config)
+
+      await expect(
+        getPresignedFitnessFileUrl(database, actor, input)
+      ).resolves.toBeNull()
+      expect(storage.getPresignedForSaveFileUrl).not.toHaveBeenCalled()
+    })
+
+    it('are verified by the s3 backend', async () => {
+      useStorage(s3Config)
+      storage.verifyPresignedUpload.mockResolvedValue(true)
+
+      await expect(
+        verifyPresignedFitnessFileUpload(database, actor, fitnessFile)
+      ).resolves.toBe(true)
+      expect(storage.verifyPresignedUpload).toHaveBeenCalledWith(
+        actor,
+        fitnessFile
+      )
+    })
+
+    it.each([
+      ['local storage', localConfig],
+      ['unconfigured storage', undefined]
+    ])('are never verified for %s', async (_, config) => {
+      useStorage(config)
+
+      await expect(
+        verifyPresignedFitnessFileUpload(database, actor, fitnessFile)
+      ).resolves.toBe(false)
+      expect(storage.verifyPresignedUpload).not.toHaveBeenCalled()
+    })
   })
 })

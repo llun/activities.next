@@ -3,8 +3,9 @@ import { NextRequest } from 'next/server'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 
-import { OPTIONS, PATCH } from './route'
+import { DELETE, GET, OPTIONS, PATCH, PUT } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -36,7 +37,7 @@ vi.mock('@/lib/config', () => ({
   })
 }))
 
-describe('PATCH /api/v2/filters/:id', () => {
+describe('/api/v2/filters/:id', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {
@@ -55,6 +56,10 @@ describe('PATCH /api/v2/filters/:id', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   // Rails `resources` maps update to both PATCH and PUT, so Mastodon clients may
@@ -113,5 +118,263 @@ describe('PATCH /api/v2/filters/:id', () => {
     expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
       'PATCH'
     )
+  })
+
+  const idRequest = (
+    id: string,
+    method: 'GET' | 'PUT' | 'DELETE',
+    body?: string,
+    contentType = 'application/json'
+  ) =>
+    new NextRequest(`https://llun.test/api/v2/filters/${id}`, {
+      method,
+      headers: {
+        'Content-Type': contentType,
+        Origin: 'https://llun.test',
+        Referer: 'https://llun.test/'
+      },
+      body
+    })
+  const context = (id: string) => ({ params: Promise.resolve({ id }) })
+
+  const createFilterFor = (actorId: string, title: string) =>
+    database.createFilter({
+      actorId,
+      title,
+      context: ['home'],
+      filterAction: 'warn',
+      expiresAt: null,
+      keywords: [{ keyword: `${title}-word`, wholeWord: true }]
+    })
+
+  it.each([
+    { method: 'GET' as const, handler: GET, body: undefined },
+    {
+      method: 'PUT' as const,
+      handler: PUT,
+      body: JSON.stringify({ title: 'x' })
+    },
+    { method: 'DELETE' as const, handler: DELETE, body: undefined }
+  ])('$method answers 404 for an unknown filter id', async (testCase) => {
+    const { method, handler, body } = testCase
+
+    const response = await handler(
+      idRequest('missing', method, body),
+      context('missing')
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  describe('GET', () => {
+    it('returns the filter with its keywords in the Mastodon shape', async () => {
+      const filter = await createFilterFor(ACTOR1_ID, 'get-own')
+
+      const response = await GET(
+        idRequest(filter.id, 'GET'),
+        context(filter.id)
+      )
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({
+        id: filter.id,
+        title: 'get-own',
+        context: ['home'],
+        filter_action: 'warn',
+        keywords: [{ keyword: 'get-own-word', whole_word: true }]
+      })
+    })
+
+    it("answers 404 for another account's filter instead of exposing it", async () => {
+      const foreign = await createFilterFor(ACTOR2_ID, 'get-foreign')
+
+      const response = await GET(
+        idRequest(foreign.id, 'GET'),
+        context(foreign.id)
+      )
+
+      expect(response.status).toBe(404)
+    })
+  })
+
+  describe('PUT', () => {
+    it('adds, renames and removes keywords through keywords_attributes', async () => {
+      const filter = await database.createFilter({
+        actorId: ACTOR1_ID,
+        title: 'put-keywords',
+        context: ['home'],
+        filterAction: 'warn',
+        expiresAt: null,
+        keywords: [
+          { keyword: 'keep-me', wholeWord: false },
+          { keyword: 'drop-me', wholeWord: false }
+        ]
+      })
+      const existing =
+        (await database.getFilterKeywords({
+          actorId: ACTOR1_ID,
+          filterId: filter.id
+        })) ?? []
+      const keep = existing.find((k) => k.keyword === 'keep-me')!
+      const drop = existing.find((k) => k.keyword === 'drop-me')!
+
+      const response = await PUT(
+        idRequest(
+          filter.id,
+          'PUT',
+          JSON.stringify({
+            keywords_attributes: [
+              { id: keep.id, keyword: 'renamed', whole_word: true },
+              { id: drop.id, _destroy: true },
+              { keyword: 'brand-new' }
+            ]
+          })
+        ),
+        context(filter.id)
+      )
+
+      expect(response.status).toBe(200)
+      const stored = await database.getFilterKeywords({
+        actorId: ACTOR1_ID,
+        filterId: filter.id
+      })
+      expect(
+        stored
+          ?.map((k) => ({ keyword: k.keyword, wholeWord: k.wholeWord }))
+          .sort((a, b) => a.keyword.localeCompare(b.keyword))
+      ).toEqual([
+        { keyword: 'brand-new', wholeWord: false },
+        { keyword: 'renamed', wholeWord: true }
+      ])
+    })
+
+    it('accepts a form-encoded body', async () => {
+      const filter = await createFilterFor(ACTOR1_ID, 'put-form')
+
+      const response = await PUT(
+        idRequest(
+          filter.id,
+          'PUT',
+          new URLSearchParams([
+            ['title', 'put-form-renamed'],
+            ['context[]', 'notifications']
+          ]).toString(),
+          'application/x-www-form-urlencoded'
+        ),
+        context(filter.id)
+      )
+
+      expect(response.status).toBe(200)
+      expect(
+        await database.getFilter({ actorId: ACTOR1_ID, id: filter.id })
+      ).toMatchObject({
+        title: 'put-form-renamed',
+        context: ['notifications']
+      })
+    })
+
+    it('sets the expiry to now plus expires_in seconds', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      const now = new Date('2026-03-01T12:00:00Z').getTime()
+      vi.setSystemTime(now)
+      const filter = await createFilterFor(ACTOR1_ID, 'put-expiry')
+
+      const response = await PUT(
+        idRequest(filter.id, 'PUT', JSON.stringify({ expires_in: 3600 })),
+        context(filter.id)
+      )
+
+      expect(response.status).toBe(200)
+      const stored = await database.getFilter({
+        actorId: ACTOR1_ID,
+        id: filter.id
+      })
+      expect(stored?.expiresAt).toBe(now + 3_600_000)
+    })
+
+    it.each([
+      { description: 'a blank title', body: JSON.stringify({ title: '  ' }) },
+      {
+        description: 'an empty context',
+        body: JSON.stringify({ context: [] })
+      },
+      {
+        description: 'an unparseable expiry',
+        body: JSON.stringify({ expires_in: 'soon' })
+      },
+      { description: 'malformed JSON', body: '{' }
+    ])(
+      'answers 422 and leaves the filter untouched for $description',
+      async ({ body }) => {
+        const filter = await createFilterFor(ACTOR1_ID, 'put-invalid')
+
+        const response = await PUT(
+          idRequest(filter.id, 'PUT', body),
+          context(filter.id)
+        )
+
+        expect(response.status).toBe(422)
+        expect(
+          await database.getFilter({ actorId: ACTOR1_ID, id: filter.id })
+        ).toMatchObject({ title: 'put-invalid', context: ['home'] })
+      }
+    )
+
+    it("cannot modify another account's filter", async () => {
+      const foreign = await createFilterFor(ACTOR2_ID, 'put-foreign')
+
+      const response = await PUT(
+        idRequest(foreign.id, 'PUT', JSON.stringify({ title: 'hijacked' })),
+        context(foreign.id)
+      )
+
+      expect(response.status).toBe(404)
+      expect(
+        await database.getFilter({ actorId: ACTOR2_ID, id: foreign.id })
+      ).toMatchObject({ title: 'put-foreign' })
+    })
+  })
+
+  describe('DELETE', () => {
+    it('deletes the filter', async () => {
+      const filter = await createFilterFor(ACTOR1_ID, 'delete-own')
+
+      const response = await DELETE(
+        idRequest(filter.id, 'DELETE'),
+        context(filter.id)
+      )
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({})
+      expect(
+        await database.getFilter({ actorId: ACTOR1_ID, id: filter.id })
+      ).toBeNull()
+    })
+
+    it('answers 404 when deleting the same filter twice', async () => {
+      const filter = await createFilterFor(ACTOR1_ID, 'delete-twice')
+      await DELETE(idRequest(filter.id, 'DELETE'), context(filter.id))
+
+      const response = await DELETE(
+        idRequest(filter.id, 'DELETE'),
+        context(filter.id)
+      )
+
+      expect(response.status).toBe(404)
+    })
+
+    it("cannot delete another account's filter", async () => {
+      const foreign = await createFilterFor(ACTOR2_ID, 'delete-foreign')
+
+      const response = await DELETE(
+        idRequest(foreign.id, 'DELETE'),
+        context(foreign.id)
+      )
+
+      expect(response.status).toBe(404)
+      expect(
+        await database.getFilter({ actorId: ACTOR2_ID, id: foreign.id })
+      ).not.toBeNull()
+    })
   })
 })

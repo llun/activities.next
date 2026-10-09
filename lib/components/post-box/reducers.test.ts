@@ -2,14 +2,25 @@ import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 
 import {
   addAttachment,
+  addPollChoice,
   createDefaultState,
+  removeAttachment,
+  removeFitnessFile,
+  removePollChoice,
   resetExtension,
   setAttachments,
   setContentWarning,
   setContentWarningVisibility,
   setFitnessFile,
+  setFitnessFileUploaded,
+  setFitnessFileUploading,
+  setPollDurationInSeconds,
+  setPollType,
   setPollVisibility,
-  statusExtensionReducer
+  setQuoteApprovalPolicy,
+  setVisibility,
+  statusExtensionReducer,
+  updateAttachment
 } from './reducers'
 
 describe('post-box reducers', () => {
@@ -284,5 +295,277 @@ describe('post-box reducers', () => {
         expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:poster-a')
       }
     )
+  })
+
+  describe('poll choices', () => {
+    it('appends an empty choice with a key distinct from the existing ones', () => {
+      const state = createDefaultState()
+
+      const next = statusExtensionReducer(state, addPollChoice(4))
+
+      expect(next.poll.choices).toHaveLength(3)
+      expect(next.poll.choices[2].text).toBe('')
+      expect(new Set(next.poll.choices.map((choice) => choice.key)).size).toBe(
+        3
+      )
+    })
+
+    it('stops adding choices at the instance limit', () => {
+      let state = createDefaultState()
+      state = statusExtensionReducer(state, addPollChoice(3))
+
+      const next = statusExtensionReducer(state, addPollChoice(3))
+
+      expect(next).toBe(state)
+      expect(next.poll.choices).toHaveLength(3)
+    })
+
+    it('removes the choice at the given index', () => {
+      let state = createDefaultState()
+      state = statusExtensionReducer(state, addPollChoice(4))
+      state.poll.choices.forEach((choice, index) => {
+        choice.text = `option ${index}`
+      })
+
+      const next = statusExtensionReducer(state, removePollChoice(1))
+
+      expect(next.poll.choices.map((choice) => choice.text)).toEqual([
+        'option 0',
+        'option 2'
+      ])
+    })
+
+    it('keeps the minimum of two choices', () => {
+      const state = createDefaultState()
+
+      const next = statusExtensionReducer(state, removePollChoice(0))
+
+      expect(next).toBe(state)
+      expect(next.poll.choices).toHaveLength(2)
+    })
+  })
+
+  describe('poll settings', () => {
+    it('stores the poll duration without touching the other poll fields', () => {
+      const state = createDefaultState()
+
+      const next = statusExtensionReducer(state, setPollDurationInSeconds(300))
+
+      expect(next.poll).toEqual({ ...state.poll, durationInSeconds: 300 })
+    })
+
+    it('stores whether the poll allows one or several answers', () => {
+      const next = statusExtensionReducer(
+        createDefaultState(),
+        setPollType('anyOf')
+      )
+
+      expect(next.poll.pollType).toBe('anyOf')
+    })
+
+    it('resets the duration when a poll replaces existing attachments', () => {
+      const state = {
+        ...createDefaultState(),
+        attachments: [attachment('a')],
+        poll: { ...createDefaultState().poll, durationInSeconds: 300 as const }
+      }
+
+      const next = statusExtensionReducer(state, setPollVisibility(true))
+
+      expect(next.poll.durationInSeconds).toBe(
+        createDefaultState().poll.durationInSeconds
+      )
+    })
+
+    it('keeps the chosen duration when a poll is toggled with no attachments', () => {
+      const state = {
+        ...createDefaultState(),
+        poll: { ...createDefaultState().poll, durationInSeconds: 300 as const }
+      }
+
+      const next = statusExtensionReducer(state, setPollVisibility(true))
+
+      expect(next.poll.durationInSeconds).toBe(300)
+      expect(next.poll.showing).toBe(true)
+    })
+  })
+
+  describe('attachment edits', () => {
+    beforeEach(() => {
+      global.URL.revokeObjectURL = vi.fn()
+    })
+
+    it('replaces only the attachment with the matching id', () => {
+      const state = {
+        ...createDefaultState(),
+        attachments: [attachment('a'), attachment('b'), attachment('c')]
+      }
+      const edited = { ...attachment('b'), name: 'described' }
+
+      const next = statusExtensionReducer(state, updateAttachment('b', edited))
+
+      expect(next.attachments).toEqual([
+        attachment('a'),
+        edited,
+        attachment('c')
+      ])
+    })
+
+    it('ignores an update for an unknown id', () => {
+      const state = {
+        ...createDefaultState(),
+        attachments: [attachment('a')]
+      }
+
+      expect(
+        statusExtensionReducer(state, updateAttachment('zzz', attachment('x')))
+      ).toBe(state)
+    })
+
+    it('removes an attachment and revokes its blob preview and poster', () => {
+      const state = {
+        ...createDefaultState(),
+        attachments: [
+          attachment('a'),
+          {
+            ...attachment('b'),
+            url: 'blob:preview-b',
+            posterUrl: 'blob:poster-b'
+          }
+        ]
+      }
+
+      const next = statusExtensionReducer(state, removeAttachment('b'))
+
+      expect(next.attachments).toEqual([attachment('a')])
+      expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2)
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-b')
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:poster-b')
+    })
+
+    it('does not revoke remote URLs when removing an attachment', () => {
+      const state = {
+        ...createDefaultState(),
+        attachments: [attachment('a')]
+      }
+
+      statusExtensionReducer(state, removeAttachment('a'))
+
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+    })
+
+    it('ignores the removal of an unknown id', () => {
+      const state = {
+        ...createDefaultState(),
+        attachments: [attachment('a')]
+      }
+
+      expect(statusExtensionReducer(state, removeAttachment('zzz'))).toBe(state)
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+    })
+
+    it('revokes blob previews of every attachment on reset', () => {
+      const state = {
+        ...createDefaultState(),
+        attachments: [
+          { ...attachment('a'), url: 'blob:preview-a' },
+          { ...attachment('b'), posterUrl: 'blob:poster-b' },
+          attachment('c')
+        ]
+      }
+
+      const next = statusExtensionReducer(state, resetExtension())
+
+      expect(next.attachments).toEqual([])
+      expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2)
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-a')
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:poster-b')
+    })
+  })
+
+  describe('composer settings', () => {
+    it('stores the chosen visibility', () => {
+      const next = statusExtensionReducer(
+        createDefaultState(),
+        setVisibility('direct')
+      )
+
+      expect(next.visibility).toBe('direct')
+    })
+
+    it('stores the chosen quote policy', () => {
+      const next = statusExtensionReducer(
+        createDefaultState(),
+        setQuoteApprovalPolicy('nobody')
+      )
+
+      expect(next.quoteApprovalPolicy).toBe('nobody')
+    })
+  })
+
+  describe('fitness file', () => {
+    const file = new File(['<gpx/>'], 'run.gpx', {
+      type: 'application/gpx+xml'
+    })
+
+    it('attaches the file as not yet uploading and forces private visibility', () => {
+      const next = statusExtensionReducer(
+        createDefaultState(),
+        setFitnessFile(file)
+      )
+
+      expect(next.fitnessFile).toEqual({ file, uploading: false })
+      expect(next.visibility).toBe('private')
+    })
+
+    it('tracks upload progress and then the uploaded id', () => {
+      let state = statusExtensionReducer(
+        createDefaultState(),
+        setFitnessFile(file)
+      )
+
+      state = statusExtensionReducer(state, setFitnessFileUploading(true))
+      expect(state.fitnessFile).toEqual({ file, uploading: true })
+
+      state = statusExtensionReducer(state, setFitnessFileUploaded('fit-1'))
+      expect(state.fitnessFile).toEqual({
+        file,
+        uploading: false,
+        uploadedId: 'fit-1'
+      })
+    })
+
+    it('ignores upload updates when no fitness file is attached', () => {
+      const state = createDefaultState()
+
+      expect(statusExtensionReducer(state, setFitnessFileUploading(true))).toBe(
+        state
+      )
+      expect(
+        statusExtensionReducer(state, setFitnessFileUploaded('fit-1'))
+      ).toBe(state)
+    })
+
+    it('removes the attached fitness file', () => {
+      const attached = statusExtensionReducer(
+        createDefaultState(),
+        setFitnessFile(file)
+      )
+
+      const next = statusExtensionReducer(attached, removeFitnessFile())
+
+      expect(next.fitnessFile).toBeUndefined()
+    })
+
+    it('drops the fitness file when a poll is started', () => {
+      const attached = statusExtensionReducer(
+        createDefaultState(),
+        setFitnessFile(file)
+      )
+
+      const next = statusExtensionReducer(attached, setPollVisibility(true))
+
+      expect(next.fitnessFile).toBeUndefined()
+    })
   })
 })

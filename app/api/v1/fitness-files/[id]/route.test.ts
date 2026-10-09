@@ -7,10 +7,11 @@ import {
   ACTOR1_ID,
   seedActor1
 } from '@/lib/stub/seed/actor1'
-import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
+import { logger } from '@/lib/utils/logger'
 
-import { GET } from './route'
+import { GET, PATCH } from './route'
 
 const mockGetServerSession = vi.fn()
 vi.mock('@/lib/services/auth/getSession', () => ({
@@ -18,6 +19,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
 }))
 
 vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
   getConfig: vi.fn().mockReturnValue({
     host: 'llun.test',
     allowEmails: []
@@ -32,6 +34,12 @@ vi.mock('@/lib/database', () => ({
 const mockGetFitnessFile = vi.fn()
 vi.mock('@/lib/services/fitness-files', () => ({
   getFitnessFile: (...args: unknown[]) => mockGetFitnessFile(...args)
+}))
+
+const mockEvaluateGearServiceReminders = vi.fn()
+vi.mock('@/lib/services/fitness-gears/serviceReminders', () => ({
+  evaluateGearServiceReminders: (...args: unknown[]) =>
+    mockEvaluateGearServiceReminders(...args)
 }))
 
 vi.mock('next/headers', () => ({
@@ -224,5 +232,304 @@ describe('GET /api/v1/fitness-files/[id]', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(mockGetFitnessFile).toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/v1/fitness-files/[id] failure paths', () => {
+  const database = getTestSQLDatabase()
+
+  beforeAll(async () => {
+    await database.migrate()
+    await seedDatabase(database)
+    mockDatabase = database
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.spyOn(logger, 'warn').mockImplementation(() => logger)
+    vi.spyOn(logger, 'error').mockImplementation(() => logger)
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const get = (id: string) =>
+    GET(new NextRequest(`https://llun.test/api/v1/fitness-files/${id}`), {
+      params: Promise.resolve({ id })
+    })
+
+  const createOwnedFile = (slug: string) =>
+    database.createFitnessFile({
+      actorId: ACTOR1_ID,
+      path: `fitness/${slug}.fit`,
+      fileName: `${slug}.fit`,
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 10
+    })
+
+  it('returns not found for an id that does not exist', async () => {
+    const response = await get('no-such-file')
+
+    expect(response.status).toBe(404)
+    expect(mockGetFitnessFile).not.toHaveBeenCalled()
+  })
+
+  it('answers a stranger exactly as it answers a missing id', async () => {
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor2.email }
+    })
+    const file = await createOwnedFile('stranger-probe')
+
+    const strangerResponse = await get(file!.id)
+    const missingResponse = await get('no-such-file')
+
+    expect(strangerResponse.status).toBe(404)
+    expect(await strangerResponse.text()).toBe(await missingResponse.text())
+    expect(mockGetFitnessFile).not.toHaveBeenCalled()
+  })
+
+  it('returns not found when the owner’s file has disappeared from storage', async () => {
+    const file = await createOwnedFile('missing-from-storage')
+    mockGetFitnessFile.mockResolvedValue(null)
+
+    const response = await get(file!.id)
+
+    expect(response.status).toBe(404)
+  })
+
+  it('redirects the owner to the storage url when the backend serves one', async () => {
+    const file = await createOwnedFile('redirect-owner')
+    mockGetFitnessFile.mockResolvedValue({
+      type: 'redirect',
+      redirectUrl: 'https://bucket.example.com/signed?x=1'
+    })
+
+    const response = await get(file!.id)
+
+    expect(response.status).toBe(302)
+    expect(response.headers.get('Location')).toBe(
+      'https://bucket.example.com/signed?x=1'
+    )
+  })
+
+  it('returns a server error and logs when storage throws', async () => {
+    const file = await createOwnedFile('storage-throws')
+    mockGetFitnessFile.mockRejectedValue(new Error('disk on fire'))
+
+    const response = await get(file!.id)
+
+    expect(response.status).toBe(500)
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Error retrieving fitness file',
+        fileId: file!.id,
+        error: 'disk on fire'
+      })
+    )
+  })
+
+  it('returns a server error when there is no database', async () => {
+    mockDatabase = null
+    try {
+      const response = await get('anything')
+      expect(response.status).toBe(500)
+    } finally {
+      mockDatabase = database
+    }
+  })
+})
+
+describe('PATCH /api/v1/fitness-files/[id] (assign gear)', () => {
+  const database = getTestSQLDatabase()
+
+  beforeAll(async () => {
+    await database.migrate()
+    await seedDatabase(database)
+    mockDatabase = database
+  })
+
+  afterAll(async () => {
+    await database.destroy()
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+  })
+
+  const patch = (
+    id: string,
+    body: unknown,
+    headers: Record<string, string> = { Origin: 'https://llun.test' }
+  ) =>
+    PATCH(
+      new NextRequest(`https://llun.test/api/v1/fitness-files/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: typeof body === 'string' ? body : JSON.stringify(body)
+      }),
+      { params: Promise.resolve({ id }) }
+    )
+
+  const createFile = (actorId: string, slug: string) =>
+    database.createFitnessFile({
+      actorId,
+      path: `fitness/${slug}.fit`,
+      fileName: `${slug}.fit`,
+      fileType: 'fit',
+      mimeType: 'application/vnd.ant.fit',
+      bytes: 10
+    })
+
+  const storedGearId = async (id: string) =>
+    (await database.getFitnessFile({ id }))?.gearId
+
+  it('attributes the owner’s activity to the owner’s gear and checks its service reminders', async () => {
+    const file = await createFile(ACTOR1_ID, 'patch-assign')
+    const gear = await database.createFitnessGear({
+      actorId: ACTOR1_ID,
+      kind: 'bike',
+      name: 'Patch bike'
+    })
+
+    const response = await patch(file!.id, { gearId: gear.id })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ id: file!.id, gearId: gear.id })
+    expect(await storedGearId(file!.id)).toBe(gear.id)
+    expect(mockEvaluateGearServiceReminders).toHaveBeenCalledWith({
+      database,
+      actorId: ACTOR1_ID,
+      gearIds: [gear.id]
+    })
+  })
+
+  it.each([
+    ['null', null],
+    ['a blank string', '   ']
+  ])('clears the attribution when gearId is %s', async (_, gearId) => {
+    const file = await createFile(ACTOR1_ID, `patch-clear-${typeof gearId}`)
+    const gear = await database.createFitnessGear({
+      actorId: ACTOR1_ID,
+      kind: 'bike',
+      name: 'Clear bike'
+    })
+    await database.setFitnessFileGear({
+      fitnessFileId: file!.id,
+      actorId: ACTOR1_ID,
+      gearId: gear.id
+    })
+
+    expect(await storedGearId(file!.id)).toBe(gear.id)
+
+    const response = await patch(file!.id, { gearId })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ id: file!.id, gearId: null })
+    expect(await storedGearId(file!.id)).toBeFalsy()
+    expect(mockEvaluateGearServiceReminders).not.toHaveBeenCalled()
+  })
+
+  it('answers 404 and changes nothing for someone else’s activity', async () => {
+    const file = await createFile(ACTOR2_ID, 'patch-not-mine')
+    const gear = await database.createFitnessGear({
+      actorId: ACTOR1_ID,
+      kind: 'bike',
+      name: 'My bike'
+    })
+
+    const response = await patch(file!.id, { gearId: gear.id })
+
+    expect(response.status).toBe(404)
+    expect(await storedGearId(file!.id)).toBeFalsy()
+    expect(mockEvaluateGearServiceReminders).not.toHaveBeenCalled()
+  })
+
+  it('answers 404 and changes nothing for gear that belongs to someone else', async () => {
+    const file = await createFile(ACTOR1_ID, 'patch-foreign-gear')
+    const foreignGear = await database.createFitnessGear({
+      actorId: ACTOR2_ID,
+      kind: 'bike',
+      name: 'Their bike'
+    })
+
+    const response = await patch(file!.id, { gearId: foreignGear.id })
+
+    expect(response.status).toBe(404)
+    expect(await storedGearId(file!.id)).toBeFalsy()
+  })
+
+  it('answers 404 for a recording device, which a ride is never done on', async () => {
+    const file = await createFile(ACTOR1_ID, 'patch-device')
+    const device = await database.createFitnessGear({
+      actorId: ACTOR1_ID,
+      kind: 'device',
+      name: 'Head unit',
+      deviceKey: 'name:patch head unit'
+    })
+
+    const response = await patch(file!.id, { gearId: device.id })
+
+    expect(response.status).toBe(404)
+    expect(await storedGearId(file!.id)).toBeFalsy()
+  })
+
+  it('answers 404 for an unknown activity', async () => {
+    const response = await patch('no-such-file', { gearId: null })
+
+    expect(response.status).toBe(404)
+  })
+
+  it.each([
+    ['gearId is missing', {}],
+    ['gearId is not a string', { gearId: 12 }]
+  ])('answers 422 when %s', async (_, body) => {
+    const file = await createFile(ACTOR1_ID, 'patch-invalid')
+
+    const response = await patch(file!.id, body)
+
+    expect(response.status).toBe(422)
+  })
+
+  it('answers 400 for a body that is not JSON', async () => {
+    const file = await createFile(ACTOR1_ID, 'patch-bad-json')
+
+    const response = await patch(file!.id, '{not json')
+
+    expect(response.status).toBe(400)
+  })
+
+  it('rejects a cross-site request before looking at the session', async () => {
+    const file = await createFile(ACTOR1_ID, 'patch-csrf')
+
+    const response = await patch(
+      file!.id,
+      { gearId: null },
+      { Origin: 'https://evil.example' }
+    )
+
+    expect(response.status).toBe(403)
+    expect(mockGetServerSession).not.toHaveBeenCalled()
+  })
+
+  it('redirects a signed-out caller to sign in', async () => {
+    mockGetServerSession.mockResolvedValue(null)
+    const file = await createFile(ACTOR1_ID, 'patch-signed-out')
+
+    const response = await patch(file!.id, { gearId: null })
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('Location')).toContain('/auth/signin')
   })
 })

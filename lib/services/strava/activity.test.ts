@@ -1,10 +1,18 @@
+import { logger } from '@/lib/utils/logger'
+
 import {
   buildGpxFromStravaStreams,
   buildStravaActivitySummary,
   buildTcxFromStravaStreams,
+  getStravaActivity,
+  getStravaActivityDurationSeconds,
+  getStravaActivityPhotos,
+  getStravaActivityStartTimeMs,
   getStravaActivityStreams,
   getStravaActivityUrl,
-  getStravaUpload
+  getStravaUpload,
+  getValidStravaAccessToken,
+  isSupportedStravaPhotoMimeType
 } from './activity'
 
 const mockFetch = vi.fn()
@@ -244,6 +252,35 @@ describe('buildGpxFromStravaStreams', () => {
     expect(result).not.toContain('<fast>')
     expect(result).not.toContain('& Run')
   })
+
+  it('writes heart rate, cadence, speed and temperature as track point extensions', () => {
+    const gpx = buildGpxFromStravaStreams(
+      { id: 1, name: 'Ride', sport_type: 'Ride', start_date: undefined },
+      {
+        latlng: { type: 'latlng', data: [[1, 2]] },
+        heartrate: { type: 'heartrate', data: [140] },
+        cadence: { type: 'cadence', data: [85] },
+        velocity_smooth: { type: 'velocity_smooth', data: [7.5] },
+        temp: { type: 'temp', data: [21] }
+      }
+    )
+
+    expect(gpx).toContain(
+      '<trkpt lat="1" lon="2"><extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>140</gpxtpx:hr><gpxtpx:cad>85</gpxtpx:cad><gpxtpx:speed>7.5</gpxtpx:speed><gpxtpx:atemp>21</gpxtpx:atemp></gpxtpx:TrackPointExtension></extensions></trkpt>'
+    )
+  })
+
+  it('omits timestamps when the activity has no start date', () => {
+    const gpx = buildGpxFromStravaStreams(
+      { id: 1, name: 'Ride', sport_type: 'Ride' },
+      {
+        latlng: { type: 'latlng', data: [[1, 2]] },
+        time: { type: 'time', data: [10] }
+      }
+    )
+
+    expect(gpx).not.toContain('<time>')
+  })
 })
 
 describe('buildTcxFromStravaStreams', () => {
@@ -322,6 +359,42 @@ describe('buildTcxFromStravaStreams', () => {
     )
 
     expect(result).toContain('Sport="Run &amp; Bike &lt;test&gt;"')
+  })
+
+  it('writes position, heart rate, cadence, speed and power per trackpoint', () => {
+    const tcx = buildTcxFromStravaStreams(
+      { sport_type: 'Ride', start_date: '2025-01-01T00:00:00Z' },
+      {
+        time: { type: 'time', data: [0, 5] },
+        latlng: {
+          type: 'latlng',
+          data: [
+            [1, 2],
+            [3, 4]
+          ]
+        },
+        heartrate: { type: 'heartrate', data: [120, 130] },
+        cadence: { type: 'cadence', data: [80, 82] },
+        velocity_smooth: { type: 'velocity_smooth', data: [5, 6] },
+        watts: { type: 'watts', data: [200, 210] }
+      }
+    )
+
+    expect(tcx).toContain(
+      '<Trackpoint><Time>2025-01-01T00:00:05.000Z</Time><Position><LatitudeDegrees>3</LatitudeDegrees><LongitudeDegrees>4</LongitudeDegrees></Position><HeartRateBpm><Value>130</Value></HeartRateBpm><Cadence>82</Cadence><Extensions><ns3:TPX xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><ns3:Speed>6</ns3:Speed><ns3:Watts>210</ns3:Watts></ns3:TPX></Extensions></Trackpoint>'
+    )
+  })
+
+  it('omits the track and start time when the activity has no usable start date', () => {
+    const tcx = buildTcxFromStravaStreams(
+      { sport_type: 'Run', start_date: 'not a date', elapsed_time: 600 },
+      { time: { type: 'time', data: [0, 5] } }
+    )
+
+    expect(tcx).toContain('<TotalTimeSeconds>5</TotalTimeSeconds>')
+    expect(tcx).not.toContain('<Track>')
+    expect(tcx).not.toContain('StartTime=')
+    expect(tcx).not.toContain('<Id>')
   })
 })
 
@@ -406,6 +479,57 @@ describe('buildStravaActivitySummary', () => {
 
     expect(summary).toContain('Kayaking')
   })
+
+  it('puts the name, distance with duration and elevation on separate lines, then the description', () => {
+    expect(
+      buildStravaActivitySummary({
+        id: 1,
+        name: '  Morning Run  ',
+        sport_type: 'Run',
+        distance: 12345,
+        elapsed_time: 3725,
+        total_elevation_gain: 80.4,
+        description: '  Felt great  '
+      })
+    ).toBe('🏃 Morning Run\n12.3 km in 1:02:05 • 80 m gain\nFelt great')
+  })
+
+  it.each([
+    ['distance only', { distance: 5000 }, '5.00 km'],
+    ['duration only', { moving_time: 600 }, '10:00'],
+    ['elevation only', { total_elevation_gain: 30 }, '30 m gain']
+  ])('shows %s on the metrics line', (_, metrics, expected) => {
+    const summary = buildStravaActivitySummary({
+      id: 1,
+      name: 'Walk',
+      sport_type: 'Walk',
+      ...metrics
+    })
+
+    expect(summary.split('\n')[1]).toBe(expected)
+  })
+
+  it('falls back to the sport label on the second line when there are no metrics', () => {
+    const summary = buildStravaActivitySummary({
+      id: 1,
+      name: 'Stretch',
+      sport_type: 'Yoga'
+    })
+
+    const [firstLine, secondLine] = summary.split('\n')
+    expect(firstLine).toContain('Stretch')
+    expect(secondLine).toBe('Yoga')
+  })
+
+  it('uses the legacy type field when sport_type is absent', () => {
+    expect(
+      buildStravaActivitySummary({
+        id: 1,
+        type: 'Run',
+        name: 'Loop'
+      }).startsWith('🏃')
+    ).toBe(true)
+  })
 })
 
 describe('getStravaActivityUrl', () => {
@@ -423,5 +547,392 @@ describe('getStravaActivityUrl', () => {
     expect(getStravaActivityUrl('')).toBeNull()
     expect(getStravaActivityUrl(null)).toBeNull()
     expect(getStravaActivityUrl(undefined)).toBeNull()
+  })
+})
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  })
+
+describe('getStravaActivityStartTimeMs', () => {
+  it('parses start_date into epoch milliseconds', () => {
+    expect(
+      getStravaActivityStartTimeMs({
+        id: 1,
+        start_date: '2025-01-02T03:04:05Z'
+      })
+    ).toBe(Date.UTC(2025, 0, 2, 3, 4, 5))
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['unparseable', 'yesterday-ish']
+  ])('returns undefined when start_date is %s', (_, startDate) => {
+    expect(
+      getStravaActivityStartTimeMs({ id: 1, start_date: startDate })
+    ).toBeUndefined()
+  })
+})
+
+describe('getStravaActivityDurationSeconds', () => {
+  it.each([
+    ['elapsed time when both are positive', 3600, 3000, 3600],
+    ['moving time when elapsed time is zero', 0, 3000, 3000],
+    ['moving time when elapsed time is missing', undefined, 3000, 3000],
+    ['moving time when elapsed time is not finite', Number.NaN, 3000, 3000],
+    ['zero when neither is positive', 0, -5, 0],
+    ['zero when both are missing', undefined, undefined, 0]
+  ])('uses %s', (_, elapsed, moving, expected) => {
+    expect(
+      getStravaActivityDurationSeconds({
+        elapsed_time: elapsed,
+        moving_time: moving
+      })
+    ).toBe(expected)
+  })
+})
+
+describe('isSupportedStravaPhotoMimeType', () => {
+  it.each([
+    ['image/jpeg', true],
+    ['image/png', true],
+    ['image/gif', false],
+    ['video/mp4', false]
+  ])('%s -> %s', (mime, expected) => {
+    expect(isSupportedStravaPhotoMimeType(mime)).toBe(expected)
+  })
+})
+
+describe('getStravaActivity', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('requests the encoded activity with the bearer token and returns the payload', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ id: 42, name: 'Ride' }))
+
+    const result = await getStravaActivity({
+      activityId: 'a/b 42',
+      accessToken: 'token-1'
+    })
+
+    expect(result).toEqual({ id: 42, name: 'Ride' })
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://www.strava.com/api/v3/activities/a%2Fb%2042',
+      { method: 'GET', headers: { Authorization: 'Bearer token-1' } }
+    )
+  })
+
+  it.each([
+    [
+      'the Strava message',
+      jsonResponse({ message: 'Authorization Error' }, 401),
+      'Failed to fetch Strava activity (401): Authorization Error'
+    ],
+    [
+      'the first error message',
+      jsonResponse({ errors: [{}, { message: 'bad field' }] }, 400),
+      'Failed to fetch Strava activity (400): bad field'
+    ],
+    [
+      'the raw body when it is not JSON',
+      new Response('upstream exploded', { status: 502 }),
+      'Failed to fetch Strava activity (502): upstream exploded'
+    ],
+    [
+      'the status text when the body is empty',
+      new Response('', { status: 503, statusText: 'Service Unavailable' }),
+      'Failed to fetch Strava activity (503): Service Unavailable'
+    ]
+  ])('throws including %s', async (_, response, message) => {
+    mockFetch.mockResolvedValueOnce(response)
+
+    await expect(
+      getStravaActivity({ activityId: '1', accessToken: 't' })
+    ).rejects.toThrow(message)
+  })
+})
+
+describe('getStravaActivityPhotos', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+    vi.spyOn(logger, 'warn').mockImplementation(() => logger)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('requests the photos endpoint with the bearer token', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse([]))
+
+    await getStravaActivityPhotos({ activityId: '99', accessToken: 'tok' })
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://www.strava.com/api/v3/activities/99/photos?size=2048',
+      { method: 'GET', headers: { Authorization: 'Bearer tok' } }
+    )
+  })
+
+  it('picks the largest numeric size for each photo and drops entries with no usable url', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          unique_id: 'p1',
+          urls: { '100': 'https://img/p1-100', '2048': 'https://img/p1-2048' }
+        },
+        { unique_id: 7, urls: { thumb: 'https://img/p2-thumb' } },
+        { unique_id: 'p3', urls: { '600': '   ', '100': null } },
+        { unique_id: 'p4', urls: null }
+      ])
+    )
+
+    const photos = await getStravaActivityPhotos({
+      activityId: '1',
+      accessToken: 't'
+    })
+
+    expect(photos).toEqual([
+      { id: 'p1', url: 'https://img/p1-2048' },
+      { id: '7', url: 'https://img/p2-thumb' }
+    ])
+  })
+
+  it('lists the activity primary photo first and de-duplicates it against the photo list', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse([
+        { unique_id: 'primary', urls: { '2048': 'https://img/primary' } },
+        { unique_id: 'other', urls: { '2048': 'https://img/other' } }
+      ])
+    )
+
+    const photos = await getStravaActivityPhotos({
+      activityId: '1',
+      accessToken: 't',
+      activity: {
+        id: 1,
+        photos: {
+          primary: {
+            unique_id: 'primary',
+            urls: { '600': 'https://img/primary' }
+          }
+        }
+      }
+    })
+
+    expect(photos).toEqual([
+      { id: 'primary', url: 'https://img/primary' },
+      { id: 'other', url: 'https://img/other' }
+    ])
+  })
+
+  it('caps the result at the requested limit', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        [1, 2, 3, 4, 5].map((n) => ({
+          unique_id: `p${n}`,
+          urls: { '2048': `https://img/${n}` }
+        }))
+      )
+    )
+
+    const photos = await getStravaActivityPhotos({
+      activityId: '1',
+      accessToken: 't',
+      limit: 2
+    })
+
+    expect(photos.map((photo) => photo.id)).toEqual(['p1', 'p2'])
+  })
+
+  it('returns no photos for a limit of zero', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse([{ unique_id: 'p', urls: { '2048': 'https://img/p' } }])
+    )
+
+    await expect(
+      getStravaActivityPhotos({ activityId: '1', accessToken: 't', limit: 0 })
+    ).resolves.toEqual([])
+  })
+
+  it('ignores a photos payload that is not a list', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ message: 'nope' }))
+
+    await expect(
+      getStravaActivityPhotos({ activityId: '1', accessToken: 't' })
+    ).resolves.toEqual([])
+  })
+
+  it('still returns the primary photo and logs a warning when the photos request fails', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ message: 'Rate Limit Exceeded' }, 429)
+    )
+
+    const photos = await getStravaActivityPhotos({
+      activityId: '77',
+      accessToken: 't',
+      activity: {
+        id: 77,
+        photos: {
+          primary: { unique_id: 12, urls: { '600': 'https://img/12' } }
+        }
+      }
+    })
+
+    expect(photos).toEqual([{ id: '12', url: 'https://img/12' }])
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to fetch Strava activity photos',
+        activityId: '77',
+        status: 429,
+        error: 'Rate Limit Exceeded'
+      })
+    )
+  })
+})
+
+describe('getValidStravaAccessToken', () => {
+  const NOW = new Date('2025-06-01T12:00:00.000Z').getTime()
+  const baseSettings = {
+    id: 'settings-1',
+    actorId: 'https://llun.test/users/runner',
+    accessToken: 'old-access',
+    refreshToken: 'refresh-1',
+    clientId: 'client-1',
+    clientSecret: 'secret-1',
+    tokenExpiresAt: NOW - 1000
+  }
+  const updateFitnessSettings = vi.fn()
+  const database = { updateFitnessSettings } as unknown as Parameters<
+    typeof getValidStravaAccessToken
+  >[0]['database']
+  const getToken = (overrides: Record<string, unknown> = {}) =>
+    getValidStravaAccessToken({
+      database,
+      fitnessSettings: {
+        ...baseSettings,
+        ...overrides
+      } as unknown as Parameters<
+        typeof getValidStravaAccessToken
+      >[0]['fitnessSettings']
+    })
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    mockFetch.mockReset()
+    updateFitnessSettings.mockReset()
+    vi.spyOn(logger, 'warn').mockImplementation(() => logger)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('returns null when no access token is stored', async () => {
+    await expect(getToken({ accessToken: undefined })).resolves.toBeNull()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['the expiry is unknown', undefined],
+    ['the token is valid for more than a minute', NOW + 120_000],
+    ['the token is valid for one millisecond past the buffer', NOW + 60_001]
+  ])('returns the stored token without refreshing when %s', async (_, exp) => {
+    await expect(getToken({ tokenExpiresAt: exp })).resolves.toBe('old-access')
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a token that expires exactly at the edge of the one minute buffer', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        access_token: 'new-access',
+        refresh_token: 'refresh-2',
+        expires_at: 1_800_000_000
+      })
+    )
+
+    await expect(getToken({ tokenExpiresAt: NOW + 60_000 })).resolves.toBe(
+      'new-access'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes a token that expires within the one minute buffer and stores the new credentials', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        access_token: 'new-access',
+        refresh_token: 'refresh-2',
+        expires_at: 1_800_000_000
+      })
+    )
+
+    const token = await getToken({ tokenExpiresAt: NOW + 30_000 })
+
+    expect(token).toBe('new-access')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const [url, init] = mockFetch.mock.calls[0]
+    expect(url).toBe('https://www.strava.com/oauth/token')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({
+      client_id: 'client-1',
+      client_secret: 'secret-1',
+      grant_type: 'refresh_token',
+      refresh_token: 'refresh-1'
+    })
+    expect(updateFitnessSettings).toHaveBeenCalledWith({
+      id: 'settings-1',
+      accessToken: 'new-access',
+      refreshToken: 'refresh-2',
+      tokenExpiresAt: 1_800_000_000_000
+    })
+  })
+
+  it.each([
+    ['refresh token', { refreshToken: undefined }],
+    ['client id', { clientId: undefined }],
+    ['client secret', { clientSecret: undefined }]
+  ])(
+    'keeps the stale token and warns without calling Strava when the %s is missing',
+    async (_, overrides) => {
+      await expect(getToken(overrides)).resolves.toBe('old-access')
+
+      expect(mockFetch).not.toHaveBeenCalled()
+      expect(updateFitnessSettings).not.toHaveBeenCalled()
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Strava token appears expired and cannot be refreshed',
+          actorId: baseSettings.actorId
+        })
+      )
+    }
+  )
+
+  it('keeps the stale token, stores nothing and warns when Strava rejects the refresh', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ message: 'Bad Request' }, 400)
+    )
+
+    await expect(getToken()).resolves.toBe('old-access')
+
+    expect(updateFitnessSettings).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to refresh Strava access token',
+        actorId: baseSettings.actorId,
+        status: 400,
+        error: 'Bad Request'
+      })
+    )
+  })
+
+  it('propagates a network failure during refresh', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('socket hang up'))
+
+    await expect(getToken()).rejects.toThrow('socket hang up')
+    expect(updateFitnessSettings).not.toHaveBeenCalled()
   })
 })
