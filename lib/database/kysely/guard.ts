@@ -15,6 +15,10 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 // the pool. Each library's open transaction is recorded in an
 // AsyncLocalStorage frame for the async context that runs its callback, and
 // the other library's root connection acquisition checks for a live frame.
+//
+// The frame follows async context, so work started WITHOUT `await` inside a
+// transaction is refused too. Work started inside a transaction, awaited or
+// not, must use the transaction object.
 
 export class MixedDatabaseTransactionError extends Error {
   constructor(message: string) {

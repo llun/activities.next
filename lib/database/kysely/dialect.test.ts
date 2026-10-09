@@ -52,3 +52,16 @@ describe('timestampValue', () => {
     expect(compiled.parameters).toEqual([at, at])
   })
 })
+
+describe('timestamp column types', () => {
+  it('rejects a bare number as a comparison operand', () => {
+    const db = kyselyFor(sqlite)
+    // A bare number type-checks nowhere else and fails on PostgreSQL, so the
+    // column reads as a branded EpochMs that only timestampValue() produces.
+    db.selectFrom('likes')
+      .select('statusId')
+      // @ts-expect-error a plain number is not an EpochMs
+      .where('createdAt', '<', 123)
+      .compile()
+  })
+})

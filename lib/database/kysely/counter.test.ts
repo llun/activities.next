@@ -7,6 +7,7 @@ import {
   getCounterValue,
   increaseCounterValue
 } from '@/lib/database/kysely/counter'
+import { timestampValue } from '@/lib/database/kysely/dialect'
 import { increaseCounterValue as increaseKnexCounterValue } from '@/lib/database/sql/utils/counter'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
@@ -35,6 +36,26 @@ describe('Kysely counter helpers', () => {
       .select(['value', 'createdAt', 'updatedAt'])
       .where('id', '=', id)
       .executeTakeFirst()
+
+  it('compares a timestamp column through timestampValue() on both backends', async () => {
+    const at = new Date('2026-03-05T12:00:00.000Z')
+    await increaseCounterValue(kyselyFor(instance), 'counter-compare', 1, at)
+    const matching = async (operand: ReturnType<typeof timestampValue>) =>
+      (
+        await kyselyFor(instance)
+          .selectFrom('counters')
+          .select('id')
+          .where('id', '=', 'counter-compare')
+          .where('createdAt', '<', operand)
+          .execute()
+      ).length
+    const before = at.getTime() - 1
+    const after = at.getTime() + 1
+    expect(await matching(timestampValue(after))).toBe(1)
+    expect(await matching(timestampValue(new Date(after)))).toBe(1)
+    expect(await matching(timestampValue(before))).toBe(0)
+    expect(await matching(timestampValue(new Date(before)))).toBe(0)
+  })
 
   it('creates a missing counter at the increment', async () => {
     const at = new Date('2026-03-01T00:00:00.000Z')

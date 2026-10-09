@@ -108,6 +108,17 @@ describe('mixing Knex and Kysely transactions', () => {
     expect(await likedActorIds('root-query-')).toEqual(['root-query-knex'])
   })
 
+  // The guard follows async context, so work started without `await` inside
+  // the transaction is refused too.
+  it('refuses fire-and-forget root Kysely work inside a Knex transaction', async () => {
+    let started: Promise<unknown> | undefined
+    await instance.transaction(async () => {
+      started = kyselyFor(instance).selectFrom('likes').selectAll().execute()
+      started.catch(() => undefined)
+    })
+    await expect(started).rejects.toThrow(MixedDatabaseTransactionError)
+  })
+
   // Spike failure 2: "cannot start a transaction within a transaction".
   it('fails fast when a root Kysely transaction opens inside a Knex transaction', async () => {
     await instance.transaction(async () => {

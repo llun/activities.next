@@ -267,8 +267,10 @@ const HEADER = `// GENERATED FILE — do not edit by hand.
 // The select side is what the Knex-backed Kysely driver returns on BOTH
 // backends after normalisation (lib/database/kysely/normalize.ts); the
 // insert/update side is what both backends accept:
-// - Timestamp: read as epoch milliseconds, written as a Date (compare with
-//   timestampValue() from lib/database/kysely/dialect.ts).
+// - Timestamp: read as epoch milliseconds (branded as EpochMs), written as a
+//   Date. Compare a timestamp column only through timestampValue() from
+//   lib/database/kysely/dialect.ts: a bare number does not type-check, because
+//   PostgreSQL rejects it.
 // - booleans, int8 and numeric read as boolean and number.
 // - Json: read parsed, written as a JSON string.
 // - Nullable<T> adds null; WithDefault<T> makes the column optional on insert
@@ -278,7 +280,9 @@ const HEADER = `// GENERATED FILE — do not edit by hand.
 //   changes what is read back; it is typed as either.
 import type { ColumnType, InsertType, SelectType, UpdateType } from 'kysely'
 
-export type Timestamp = ColumnType<number, Date, Date>
+// A plain number is not assignable to EpochMs, so comparing one fails to compile.
+export type EpochMs = number & { readonly __brand: 'EpochMs' }
+export type Timestamp = ColumnType<EpochMs, Date, Date>
 export type Json = ColumnType<unknown, string, string>
 export type Nullable<T> = ColumnType<
   SelectType<T> | null,
