@@ -7,6 +7,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { addGalleryAlbumItems, getGalleryAlbums } from '@/lib/client'
 import { GalleryAlbumAddError } from '@/lib/client/galleryAlbums'
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
+import { createDeferred } from '@/lib/testing/deferred'
 import { GALLERY_ALBUM_FULL_MESSAGE } from '@/lib/types/database/galleryAlbums'
 
 import { GalleryAddToAlbumDialog } from './GalleryAddToAlbumDialog'
@@ -95,6 +96,18 @@ describe('GalleryAddToAlbumDialog', () => {
     await screen.findAllByRole('radio')
   })
 
+  it('picks an album from a tap anywhere on its row', async () => {
+    renderDialog()
+
+    const radios = await screen.findAllByRole('radio')
+    // The count and the title are part of the row's label, not dead space.
+    fireEvent.click(screen.getByText('1'))
+    expect(radios[1]).toBeChecked()
+    fireEvent.click(screen.getAllByText('Kruger')[0])
+    expect(radios[0]).toBeChecked()
+    expect(radios[1]).not.toBeChecked()
+  })
+
   it('adds the selection to the chosen album and reports what happened', async () => {
     addMock.mockResolvedValue(outcome())
     const { onAdded, onOpenChange } = renderDialog()
@@ -143,7 +156,7 @@ describe('GalleryAddToAlbumDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add 3 photos' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      '“Garden birds” is full: an album holds at most 2,000 photos. Added 1 of 3; the other 2 were not added.'
+      '“Garden birds” is full: an album holds at most 2,000 photos. Added 1 of 3. The other 2 photos were not added.'
     )
     expect(onAdded).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
@@ -159,7 +172,7 @@ describe('GalleryAddToAlbumDialog', () => {
     fireEvent.click(await screen.findByRole('radio', { name: /^Garden/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Add 2 photos' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Couldn’t finish adding to “Garden birds”. Server is down Nothing was added.'
+      'Couldn’t finish adding to “Garden birds”. Server is down. Nothing was added.'
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Add 2 photos' }))
@@ -167,8 +180,8 @@ describe('GalleryAddToAlbumDialog', () => {
   })
 
   it('cannot be closed while the add is running', async () => {
-    let finish: (value: ReturnType<typeof outcome>) => void = () => {}
-    addMock.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+    const pending = createDeferred<ReturnType<typeof outcome>>()
+    addMock.mockReturnValue(pending.promise)
     const { onOpenChange } = renderDialog()
 
     fireEvent.click(await screen.findByRole('radio', { name: /^Garden/ }))
@@ -181,7 +194,7 @@ describe('GalleryAddToAlbumDialog', () => {
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(onOpenChange).not.toHaveBeenCalled()
 
-    finish(outcome())
+    pending.resolve(outcome())
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 

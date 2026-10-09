@@ -214,15 +214,31 @@ describe('GalleryRecentView', () => {
         'data-selecting',
         'yes'
       )
-      expect(screen.getByRole('button', { name: 'Cancel' })).toHaveAttribute(
-        'aria-pressed',
-        'true'
-      )
+      // The label says which mode it is in; a pressed state on top of a
+      // changing label would say it twice.
+      expect(
+        screen.getByRole('button', { name: 'Cancel' })
+      ).not.toHaveAttribute('aria-pressed')
+      expect(screen.getByText(/Select mode is on/)).toBeInTheDocument()
       const bar = screen.getByRole('region', { name: 'Selection' })
       expect(bar).toHaveTextContent('0 selected')
       expect(
         within(bar).getByRole('button', { name: 'Add to album' })
-      ).toBeDisabled()
+      ).toHaveAttribute('aria-disabled', 'true')
+    })
+
+    it('sends focus to the bar from a skip link', () => {
+      renderRecent()
+      expect(
+        screen.queryByRole('button', { name: 'Skip to selection bar' })
+      ).not.toBeInTheDocument()
+      startSelecting()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Skip to selection bar' })
+      )
+
+      expect(screen.getByRole('region', { name: 'Selection' })).toHaveFocus()
     })
 
     it('counts the picks and turns a pick off again', () => {
@@ -249,11 +265,21 @@ describe('GalleryRecentView', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }))
       const bar = screen.getByRole('region', { name: 'Selection' })
       expect(bar).toHaveTextContent('3 selected')
-      expect(
-        within(bar).getByRole('button', { name: 'Select all loaded' })
-      ).toBeDisabled()
+      // Spent, but still the focused button: it is not natively disabled.
+      const selectAll = within(bar).getByRole('button', {
+        name: 'Select all loaded'
+      })
+      expect(selectAll).toHaveAttribute('aria-disabled', 'true')
+      fireEvent.click(selectAll)
+      expect(bar).toHaveTextContent('3 selected')
 
-      fireEvent.click(within(bar).getByRole('button', { name: 'Clear' }))
+      const clear = within(bar).getByRole('button', { name: 'Clear' })
+      clear.focus()
+      fireEvent.click(clear)
+      expect(bar).toHaveTextContent('0 selected')
+      expect(clear).toHaveAttribute('aria-disabled', 'true')
+      expect(clear).toHaveFocus()
+      fireEvent.click(clear)
       expect(bar).toHaveTextContent('0 selected')
     })
 
@@ -363,12 +389,58 @@ describe('GalleryRecentView', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Add 250 photos' }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        '“Kruger” is full: an album holds at most 2,000 photos. Added 100 of 250; the other 150 were not added.'
+        '“Kruger” is full: an album holds at most 2,000 photos. Added 100 of 250. The other 150 photos were not added.'
       )
       // The selection is kept so the owner can choose another album.
       expect(
         screen.getByRole('region', { name: 'Selection' })
       ).toHaveTextContent('250 selected')
+    })
+
+    it('keeps earlier batches and says so when a later batch fails', async () => {
+      let calls = 0
+      answerWith((ids) => {
+        calls += 1
+        return calls === 1
+          ? accepted(ids)
+          : { status: 500, body: { error: 'Server is down' } }
+      })
+      renderRecent(250)
+      startSelecting()
+      fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add to album' }))
+      fireEvent.click(await screen.findByRole('radio', { name: /^Kruger/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add 250 photos' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Couldn’t finish adding to “Kruger”. Server is down. Added 100 of 250. The other 150 photos were not added.'
+      )
+      // Not the full-album wording, and the selection is kept for a retry.
+      expect(screen.getByRole('alert')).not.toHaveTextContent('is full')
+      expect(
+        screen.getByRole('region', { name: 'Selection' })
+      ).toHaveTextContent('250 selected')
+    })
+
+    it('hands focus to the Select button when an add finishes', async () => {
+      answerWith((ids) => accepted(ids))
+      renderRecent()
+      startSelecting()
+      fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add to album' }))
+      fireEvent.click(await screen.findByRole('radio', { name: /^Kruger/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add 1 photo' }))
+      await screen.findByText(/Added 1 photo to “Kruger”/)
+
+      // The bar that had focus is gone with select mode.
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Select' })).toHaveFocus()
+      )
+      // The result is in a status region that was on the page already.
+      expect(
+        screen.getByText(/Added 1 photo to “Kruger”/).closest('[role="status"]')
+      ).toBeInTheDocument()
     })
 
     it('reports photos the server skipped', async () => {

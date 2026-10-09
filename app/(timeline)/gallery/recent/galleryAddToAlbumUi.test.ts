@@ -72,7 +72,7 @@ describe('describeAddFailure', () => {
         requested: 250
       })
     ).toBe(
-      '“Kruger” is full: an album holds at most 2,000 photos. Added 90 of 250; the other 158 were not added.'
+      '“Kruger” is full: an album holds at most 2,000 photos. Added 90 of 250. 1 photo was already there. 1 photo couldn’t be added. The other 158 photos were not added.'
     )
   })
 
@@ -86,7 +86,49 @@ describe('describeAddFailure', () => {
         requested: 3
       })
     ).toBe(
-      'Couldn’t finish adding to “Kruger”. Network down Nothing was added.'
+      'Couldn’t finish adding to “Kruger”. Network down. Nothing was added.'
+    )
+  })
+
+  it('keeps a server message that already ends a sentence', () => {
+    expect(
+      describeAddFailure({
+        title: 'Kruger',
+        message: 'Try again later.',
+        isFull: false,
+        earlier: null,
+        requested: 3
+      })
+    ).toBe(
+      'Couldn’t finish adding to “Kruger”. Try again later. Nothing was added.'
+    )
+  })
+
+  it('reports earlier batches that were kept when a later batch fails', () => {
+    expect(
+      describeAddFailure({
+        title: 'Kruger',
+        message: 'Network down',
+        isFull: false,
+        earlier: outcome(['1', '2', '3'], [], []),
+        requested: 5
+      })
+    ).toBe(
+      'Couldn’t finish adding to “Kruger”. Network down. Added 3 of 5. The other 2 photos were not added.'
+    )
+  })
+
+  it('accounts for photos that were already there and a single one left', () => {
+    expect(
+      describeAddFailure({
+        title: 'Kruger',
+        message: 'Network down',
+        isFull: false,
+        earlier: outcome(['1'], ['2', '3'], []),
+        requested: 4
+      })
+    ).toBe(
+      'Couldn’t finish adding to “Kruger”. Network down. Added 1 of 4. 2 photos were already there. The other photo was not added.'
     )
   })
 })

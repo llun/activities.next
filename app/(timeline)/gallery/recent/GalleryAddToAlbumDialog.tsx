@@ -37,6 +37,8 @@ interface Props {
   onNewAlbum: () => void
   /** Every photo was handled (some may be skipped or already there). */
   onAdded: (summary: { albumId: string; message: string }) => void
+  /** Where focus goes once the dialog has closed (`preventDefault` to take over). */
+  onCloseAutoFocus?: (event: Event) => void
 }
 
 type AlbumLoad =
@@ -56,7 +58,8 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
   mediaIds,
   onOpenChange,
   onNewAlbum,
-  onAdded
+  onAdded,
+  onCloseAutoFocus
 }) => {
   const [load, setLoad] = useState<AlbumLoad>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
@@ -137,6 +140,7 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
       <DialogContent
         className="flex max-h-[90dvh] flex-col gap-4 overflow-hidden p-4 sm:max-w-md sm:p-6"
         showCloseButton={!isAdding}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <DialogTitle className="pr-8">
@@ -205,7 +209,7 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
                   <div
                     key={album.id}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg border p-3 pointer-coarse:min-h-12',
+                      'flex items-center rounded-lg border pl-3',
                       albumId === album.id && 'border-primary bg-primary/5'
                     )}
                   >
@@ -215,10 +219,12 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
                       aria-label={names[index]}
                       className="shrink-0"
                     />
+                    {/* The whole row is the label, so a tap anywhere on it
+                        (the title, the count, the padding) picks the album. */}
                     <Label
                       htmlFor={id}
                       aria-hidden="true"
-                      className="min-w-0 flex-1 cursor-pointer gap-2 font-medium"
+                      className="min-w-0 flex-1 cursor-pointer gap-3 py-3 pr-3 pl-3 font-medium pointer-coarse:min-h-12"
                     >
                       {album.visibility === 'private' ? (
                         <Lock
@@ -231,14 +237,13 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
                           aria-hidden="true"
                         />
                       )}
-                      <span className="truncate">{album.title}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {album.title}
+                      </span>
+                      <span className="text-muted-foreground shrink-0 text-xs font-normal tabular-nums">
+                        {formatCount(album.itemCount)}
+                      </span>
                     </Label>
-                    <span
-                      aria-hidden="true"
-                      className="text-muted-foreground shrink-0 text-xs tabular-nums"
-                    >
-                      {formatCount(album.itemCount)}
-                    </span>
                   </div>
                 )
               })}

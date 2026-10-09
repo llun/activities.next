@@ -9,6 +9,10 @@ type Outcome = Pick<GalleryAlbumItemsResult, 'added' | 'existing' | 'skipped'>
 
 const quoted = (title: string) => `“${title}”`
 
+// A server message is a bare phrase, so it gets its full stop when it has none.
+const endSentence = (text: string) =>
+  /[.!?…]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`
+
 /** What a finished add did, one sentence per kind of result. */
 export const describeAddResult = (title: string, outcome: Outcome): string => {
   const { added, existing, skipped } = outcome
@@ -55,15 +59,33 @@ export const describeAddFailure = ({
 }): string => {
   const kept = earlier ? earlier.added.length : 0
   const already = earlier ? earlier.existing.length : 0
-  const rest = Math.max(
-    requested - kept - already - (earlier?.skipped.length ?? 0),
-    0
-  )
+  const skippedEarlier = earlier ? earlier.skipped.length : 0
+  const rest = Math.max(requested - kept - already - skippedEarlier, 0)
   const head = isFull
     ? `${quoted(title)} is full: an album holds at most ${MAX_GALLERY_ALBUM_ITEMS.toLocaleString('en-US')} photos.`
-    : `Couldn’t finish adding to ${quoted(title)}. ${message}`
-  if (kept === 0) {
+    : `Couldn’t finish adding to ${quoted(title)}. ${endSentence(message)}`
+  if (kept === 0 && already === 0 && skippedEarlier === 0) {
     return `${head} ${isFull ? 'No photos were added.' : 'Nothing was added.'}`
   }
-  return `${head} Added ${kept.toLocaleString('en-US')} of ${requested.toLocaleString('en-US')}; the other ${rest.toLocaleString('en-US')} were not added.`
+  // Every photo asked for is accounted for: added, already there, not
+  // addable, or not reached.
+  const parts = [
+    `Added ${kept.toLocaleString('en-US')} of ${requested.toLocaleString('en-US')}.`
+  ]
+  if (already > 0) {
+    parts.push(
+      `${pluralize(already, 'photo')} ${already === 1 ? 'was' : 'were'} already there.`
+    )
+  }
+  if (skippedEarlier > 0) {
+    parts.push(`${pluralize(skippedEarlier, 'photo')} couldn’t be added.`)
+  }
+  if (rest > 0) {
+    parts.push(
+      rest === 1
+        ? 'The other photo was not added.'
+        : `The other ${rest.toLocaleString('en-US')} photos were not added.`
+    )
+  }
+  return `${head} ${parts.join(' ')}`
 }

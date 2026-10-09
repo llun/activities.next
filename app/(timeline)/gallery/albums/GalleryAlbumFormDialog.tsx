@@ -67,6 +67,11 @@ interface Props {
   onOpenChange: (open: boolean) => void
   /** Called with the album id once everything asked for is saved. */
   onSaved: (albumId: string) => void
+  /**
+   * Where focus goes once the dialog has closed, for a caller whose opening
+   * button is gone by then (`preventDefault` and focus something).
+   */
+  onCloseAutoFocus?: (event: Event) => void
 }
 
 const VISIBILITY_COPY: Record<
@@ -105,7 +110,8 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   initialMediaIds,
   initialItems,
   onOpenChange,
-  onSaved
+  onSaved,
+  onCloseAutoFocus
 }) => {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -228,6 +234,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
           showFields && showPicker ? 'sm:max-w-4xl' : 'sm:max-w-xl'
         )}
         showCloseButton={!isSaving}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <DialogTitle>{TITLES[intent]}</DialogTitle>

@@ -2,7 +2,7 @@
 
 import { CheckSquare, Images, X } from 'lucide-react'
 import Link from 'next/link'
-import { FC, useCallback, useMemo, useState } from 'react'
+import { FC, useCallback, useMemo, useRef, useState } from 'react'
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
 import { GalleryPagedGrid } from '@/lib/components/gallery/GalleryPagedGrid'
@@ -26,7 +26,10 @@ import {
 } from '@/lib/types/database/gallery'
 
 import { GalleryAddToAlbumDialog } from './GalleryAddToAlbumDialog'
-import { GallerySelectionBar } from './GallerySelectionBar'
+import {
+  GALLERY_SELECTION_BAR_ID,
+  GallerySelectionBar
+} from './GallerySelectionBar'
 
 interface Props {
   actorId: string
@@ -64,6 +67,11 @@ export const GalleryRecentView: FC<Props> = ({
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
+
+  const selectButton = useRef<HTMLButtonElement>(null)
+  // Set when an add or create finished, so the dialog that closes hands focus
+  // to the Select button: the bar that had it is gone with select mode.
+  const finished = useRef(false)
 
   const selectedSet = useMemo(() => new Set(selected), [selected])
   const selectedItems = useMemo(
@@ -103,7 +111,15 @@ export const GalleryRecentView: FC<Props> = ({
         .filter((id) => !current.includes(id))
     ])
 
+  const restoreFocus = (event: Event) => {
+    if (!finished.current) return
+    finished.current = false
+    event.preventDefault()
+    selectButton.current?.focus()
+  }
+
   const finish = (result: Outcome) => {
+    finished.current = true
     setOutcome(result)
     stopSelecting()
   }
@@ -115,9 +131,9 @@ export const GalleryRecentView: FC<Props> = ({
         description="Your newest photos and videos first"
         actions={
           <Button
+            ref={selectButton}
             type="button"
             variant="outline"
-            aria-pressed={isSelecting}
             className="pointer-coarse:h-10"
             onClick={() => {
               setOutcome(null)
@@ -140,30 +156,47 @@ export const GalleryRecentView: FC<Props> = ({
         active={filter}
         onChange={setFilter}
       />
-      {outcome ? (
-        <div
-          role="status"
-          className="bg-card flex items-start gap-3 rounded-lg border px-3 py-2.5 text-sm"
-        >
-          <p className="min-w-0 flex-1 break-words">
-            {outcome.message}{' '}
-            <Link
-              href={`/gallery/albums/${encodeURIComponent(outcome.albumId)}`}
-              prefetch={false}
-              className="text-primary-text font-medium hover:underline"
+      {/* Always on the page (hidden visually while empty), so the result is
+          announced when it appears. */}
+      <div role="status" aria-live="polite" className="empty:sr-only">
+        {outcome ? (
+          <div className="bg-card flex items-start gap-3 rounded-lg border px-3 py-2.5 text-sm">
+            <p className="min-w-0 flex-1 break-words">
+              {outcome.message}{' '}
+              <Link
+                href={`/gallery/albums/${encodeURIComponent(outcome.albumId)}`}
+                prefetch={false}
+                className="text-primary-text font-medium hover:underline"
+              >
+                Open album
+              </Link>
+            </p>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => setOutcome(null)}
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 flex size-6 shrink-0 items-center justify-center rounded outline-none focus-visible:ring-[3px] pointer-coarse:size-10"
             >
-              Open album
-            </Link>
-          </p>
-          <button
-            type="button"
-            aria-label="Dismiss"
-            onClick={() => setOutcome(null)}
-            className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 flex size-6 shrink-0 items-center justify-center rounded outline-none focus-visible:ring-[3px] pointer-coarse:size-10"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
-        </div>
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div role="status" aria-live="polite" className="sr-only">
+        {isSelecting
+          ? 'Select mode is on. Choose photos, then add them to an album.'
+          : ''}
+      </div>
+      {isSelecting ? (
+        <button
+          type="button"
+          className="bg-background focus-visible:ring-ring/50 sr-only rounded-md border px-3 py-2 text-sm font-medium focus:not-sr-only focus-visible:ring-[3px]"
+          onClick={() =>
+            document.getElementById(GALLERY_SELECTION_BAR_ID)?.focus()
+          }
+        >
+          Skip to selection bar
+        </button>
       ) : null}
       <GalleryPagedGrid
         // A different filter is a different query, so a fresh grid.
@@ -199,6 +232,7 @@ export const GalleryRecentView: FC<Props> = ({
           setIsCreateOpen(true)
         }}
         onAdded={finish}
+        onCloseAutoFocus={restoreFocus}
       />
       <GalleryAlbumFormDialog
         open={isCreateOpen}
@@ -207,6 +241,7 @@ export const GalleryRecentView: FC<Props> = ({
         initialMediaIds={selected}
         initialItems={selectedItems}
         onOpenChange={setIsCreateOpen}
+        onCloseAutoFocus={restoreFocus}
         onSaved={(albumId) =>
           finish({
             albumId,
