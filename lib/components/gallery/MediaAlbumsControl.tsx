@@ -2,7 +2,16 @@
 
 import { ChevronDown, Folder, Loader2, Plus } from 'lucide-react'
 import Link from 'next/link'
-import { FC, KeyboardEvent, ReactNode, useId, useState } from 'react'
+import {
+  FC,
+  KeyboardEvent,
+  ReactNode,
+  TouchEvent,
+  useEffect,
+  useId,
+  useRef,
+  useState
+} from 'react'
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
 import { AlbumUndoToast } from '@/lib/components/gallery/AlbumUndoToast'
@@ -46,8 +55,25 @@ interface Props {
    * titled section.
    */
   renderFrame?: (content: ReactNode) => ReactNode
+  /** Called with the album's id after a change to what an album holds. */
+  onChange?: (albumId: string) => void
   className?: string
 }
+
+/**
+ * The open menu and the New album dialog are portalled out of the control but
+ * are still its React children, so their touches would bubble to the
+ * lightbox's swipe track and move the photo. Touches that did not start in the
+ * control's own markup stop here.
+ */
+const stopPortalledTouch = (event: TouchEvent<HTMLElement>) => {
+  if (!event.currentTarget.contains(event.target as Node)) {
+    event.stopPropagation()
+  }
+}
+
+/** The lightbox is `aria-modal`: what opens over it belongs inside it. */
+const MODAL_SELECTOR = '[role="dialog"][aria-modal="true"]'
 
 const AlbumChip: FC<{ album: MediaAlbumOptionEntity }> = ({ album }) => (
   <li>
@@ -77,12 +103,18 @@ export const MediaAlbumsControl: FC<Props> = ({
   ownerId,
   variant,
   renderFrame,
+  onChange,
   className
 }) => {
   const uid = useId()
-  const albums = useMediaAlbums(mediaId)
+  const albums = useMediaAlbums(mediaId, onChange)
   const [menuOpen, setMenuOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  // In the lightbox the menu renders inside the modal: portalled to the body
+  // it would be outside `aria-modal`, where a screen reader may skip it.
+  const [modal, setModal] = useState<HTMLElement | null>(null)
 
   const {
     status,
@@ -103,6 +135,14 @@ export const MediaAlbumsControl: FC<Props> = ({
   const frame = (content: ReactNode) =>
     renderFrame ? renderFrame(content) : content
 
+  useEffect(() => {
+    setModal(
+      variant === 'pill'
+        ? (rootRef.current?.closest<HTMLElement>(MODAL_SELECTOR) ?? null)
+        : null
+    )
+  }, [variant, status])
+
   if (status === 'hidden') return null
   if (status === 'loading') {
     return variant === 'row'
@@ -120,16 +160,24 @@ export const MediaAlbumsControl: FC<Props> = ({
       : null
   }
   if (status === 'error') {
+    // The lightbox pill sits on its always-dark backdrop and is centred.
+    const onDark = variant === 'pill'
     return frame(
-      <div className={cn('text-xs', className)}>
-        <p role="alert" className="text-destructive">
+      <div className={cn('text-xs', onDark && 'text-center', className)}>
+        <p
+          role="alert"
+          className={onDark ? 'text-red-300' : 'text-destructive'}
+        >
           {albums.loadError}
         </p>
         <Button
           type="button"
           variant="link"
           size="sm"
-          className="h-auto p-0 text-xs"
+          className={cn(
+            'h-auto p-0 text-xs',
+            onDark && 'text-orange-300 pointer-coarse:min-h-10'
+          )}
           onClick={() => void albums.reload()}
         >
           Try again
@@ -164,6 +212,7 @@ export const MediaAlbumsControl: FC<Props> = ({
   const trigger =
     variant === 'pill' ? (
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="dialog"
         aria-expanded={menuOpen}
@@ -178,6 +227,7 @@ export const MediaAlbumsControl: FC<Props> = ({
         type="button"
         variant="outline"
         size="sm"
+        ref={triggerRef}
         aria-haspopup="dialog"
         aria-expanded={menuOpen}
         className="pointer-coarse:h-10"
@@ -228,6 +278,7 @@ export const MediaAlbumsControl: FC<Props> = ({
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align="start"
+        container={modal}
         aria-labelledby={titleId}
         data-albums-menu=""
         className={cn(
@@ -343,6 +394,12 @@ export const MediaAlbumsControl: FC<Props> = ({
       intent="create"
       initialMediaIds={[mediaId]}
       onOpenChange={setCreateOpen}
+      // The "New album" button that opened it went with the menu, so focus
+      // goes back to the control's own button.
+      onCloseAutoFocus={(event) => {
+        event.preventDefault()
+        triggerRef.current?.focus()
+      }}
       // The new album holds the photo: read the menu's data again.
       onSaved={() => void albums.reload()}
     />
@@ -350,7 +407,14 @@ export const MediaAlbumsControl: FC<Props> = ({
 
   if (variant === 'pill') {
     return (
-      <div className={cn('flex flex-col items-center gap-2', className)}>
+      <div
+        ref={rootRef}
+        className={cn('flex flex-col items-center gap-2', className)}
+        onTouchStart={stopPortalledTouch}
+        onTouchMove={stopPortalledTouch}
+        onTouchEnd={stopPortalledTouch}
+        onTouchCancel={stopPortalledTouch}
+      >
         {menu}
         {feedback}
         {createDialog}

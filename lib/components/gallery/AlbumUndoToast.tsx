@@ -39,6 +39,11 @@ export const AlbumUndoToast: FC<Props> = ({
 
   useEffect(() => {
     setUndone(false)
+    // The toast instance outlives its message. Pressing Undo replaces the
+    // message and removes the button the focus (or pointer) was on, and the
+    // browser fires no blur or leave for a removed node, so a wait that was
+    // paused by it would never end.
+    setPaused(false)
   }, [toast.id])
 
   useEffect(() => {

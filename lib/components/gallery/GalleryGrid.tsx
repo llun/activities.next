@@ -1,7 +1,7 @@
 'use client'
 
 import { Check, Video } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useRef, useState } from 'react'
 
 import { formatGalleryDate } from '@/lib/components/gallery/galleryCategories'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
@@ -26,6 +26,11 @@ interface Props {
    * then offers each photo's albums menu.
    */
   albumsOwnerId?: string | null
+  /**
+   * Called once the viewer closes, with the ids of the albums whose photos
+   * its albums pill changed, so a page that shows one of them can refresh.
+   */
+  onAlbumsChanged?: (albumIds: string[]) => void
   className?: string
 }
 
@@ -52,9 +57,11 @@ export const GalleryGrid: FC<Props> = ({
   showCaption = false,
   selection,
   albumsOwnerId,
+  onAlbumsChanged,
   className
 }) => {
   const [modalIndex, setModalIndex] = useState<number | null>(null)
+  const changedAlbums = useRef(new Set<string>())
 
   return (
     <>
@@ -137,7 +144,14 @@ export const GalleryGrid: FC<Props> = ({
         }
         initialSelection={modalIndex ?? 0}
         albumsOwnerId={albumsOwnerId}
-        onClosed={() => setModalIndex(null)}
+        onAlbumsChange={(albumId) => changedAlbums.current.add(albumId)}
+        onClosed={() => {
+          setModalIndex(null)
+          if (changedAlbums.current.size === 0) return
+          const changed = [...changedAlbums.current]
+          changedAlbums.current.clear()
+          onAlbumsChanged?.(changed)
+        }}
       />
     </>
   )

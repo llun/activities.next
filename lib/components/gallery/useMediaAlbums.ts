@@ -40,7 +40,11 @@ const errorText = (error: unknown, fallback: string) =>
  * here belongs to a form: a toggle is saved as soon as it is made (and put
  * back when the save fails), so the host dialog's own Save never sees it.
  */
-export const useMediaAlbums = (mediaId: string) => {
+export const useMediaAlbums = (
+  mediaId: string,
+  /** Called with the album's id after a write that changed its photos. */
+  onChange?: (albumId: string) => void
+) => {
   const [status, setStatus] = useState<MediaAlbumsStatus>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [albums, setAlbums] = useState<MediaAlbumOptionEntity[]>([])
@@ -59,8 +63,10 @@ export const useMediaAlbums = (mediaId: string) => {
   // The ids being written right now, readable between renders.
   const busyRef = useRef(new Set<string>())
   const mounted = useRef(true)
-  const stateRef = useRef({ albums, memberIds })
-  stateRef.current = { albums, memberIds }
+  const stateRef = useRef({ albums, memberIds, addable, status })
+  stateRef.current = { albums, memberIds, addable, status }
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
 
   useEffect(() => {
     mounted.current = true
@@ -69,27 +75,43 @@ export const useMediaAlbums = (mediaId: string) => {
     }
   }, [])
 
-  const load = useCallback(async () => {
-    const current = ++generation.current
-    setStatus('loading')
-    setLoadError(null)
-    try {
-      const response = await getMediaAlbums(mediaId)
-      if (current !== generation.current || !mounted.current) return
-      if (!response) {
-        setStatus('hidden')
-        return
+  // `quiet` reads the data again without leaving `ready`: the menu, its
+  // message and the focus inside it stay where they are while the answer
+  // comes. A failed quiet read keeps what was shown.
+  const load = useCallback(
+    async (quiet = false) => {
+      const current = ++generation.current
+      if (!quiet) {
+        setStatus('loading')
+        setLoadError(null)
       }
-      setAlbums(response.albums)
-      setMemberIds(response.albumIds)
-      setAddable(response.addable)
-      setStatus('ready')
-    } catch (error) {
-      if (current !== generation.current || !mounted.current) return
-      setLoadError(errorText(error, 'Failed to load albums.'))
-      setStatus('error')
-    }
-  }, [mediaId])
+      try {
+        const response = await getMediaAlbums(mediaId)
+        if (current !== generation.current || !mounted.current) return
+        if (!response) {
+          setStatus('hidden')
+          return
+        }
+        setAlbums(response.albums)
+        setMemberIds(response.albumIds)
+        setAddable(response.addable)
+        setStatus('ready')
+      } catch (error) {
+        if (current !== generation.current || !mounted.current) return
+        if (quiet) return
+        setLoadError(errorText(error, 'Failed to load albums.'))
+        setStatus('error')
+      }
+    },
+    [mediaId]
+  )
+
+  // Reading again after a change made elsewhere (a new album holding the
+  // photo) is quiet once there is something on screen to keep.
+  const reload = useCallback(
+    () => load(stateRef.current.status === 'ready'),
+    [load]
+  )
 
   useEffect(() => {
     setAlbums([])
@@ -135,7 +157,11 @@ export const useMediaAlbums = (mediaId: string) => {
   const setMembership = useCallback(
     async (albumId: string, wanted: boolean, offerUndo = true) => {
       if (busyRef.current.has(albumId)) return
-      const { albums: knownAlbums, memberIds: knownMembers } = stateRef.current
+      const {
+        albums: knownAlbums,
+        memberIds: knownMembers,
+        addable: canAdd
+      } = stateRef.current
       const album = knownAlbums.find((candidate) => candidate.id === albumId)
       if (!album || knownMembers.includes(albumId) === wanted) return
 
@@ -166,12 +192,16 @@ export const useMediaAlbums = (mediaId: string) => {
           }
         }
         if (generationAtStart !== generation.current || !mounted.current) return
+        // Undoing a removal is an add, which a photo that can no longer be
+        // added (its post was deleted, say) would only refuse.
+        const canUndo = offerUndo && (wanted || canAdd)
         say(
           wanted
             ? albumAddedMessage(album.title)
             : albumRemovedMessage(album.title),
-          offerUndo ? () => void setMembership(albumId, !wanted, false) : null
+          canUndo ? () => void setMembership(albumId, !wanted, false) : null
         )
+        onChangeRef.current?.(albumId)
       } catch (error) {
         if (generationAtStart !== generation.current || !mounted.current) return
         setMemberIds((current) =>
@@ -183,9 +213,11 @@ export const useMediaAlbums = (mediaId: string) => {
         )
         setCount(albumId, previousCount)
         const message = `Couldn’t ${wanted ? 'add to' : 'remove from'} “${album.title}”. ${errorText(error, 'Try again.')}`
+        // The alert that shows the message speaks it; the always-on live
+        // region would say it a second time.
         setWriteError(message)
         setToast(null)
-        setAnnouncement(message)
+        setAnnouncement('')
       } finally {
         markBusy(albumId, false)
       }
@@ -214,6 +246,6 @@ export const useMediaAlbums = (mediaId: string) => {
     announcement,
     toggle,
     dismissToast,
-    reload: load
+    reload
   }
 }

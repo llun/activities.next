@@ -21,11 +21,13 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
     medias,
     initialSelection,
     albumsOwnerId,
+    onAlbumsChange,
     onClosed
   }: {
     medias: Attachment[] | null
     initialSelection: number
     albumsOwnerId?: string | null
+    onAlbumsChange?: (albumId: string) => void
     onClosed: () => void
   }) =>
     medias ? (
@@ -35,6 +37,8 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
         </span>
         <span data-testid="modal-selection">{initialSelection}</span>
         <span data-testid="modal-owner">{albumsOwnerId ?? 'none'}</span>
+        <button onClick={() => onAlbumsChange?.('a1')}>Pill added to a1</button>
+        <button onClick={() => onAlbumsChange?.('a2')}>Pill added to a2</button>
         <button onClick={onClosed}>Close viewer</button>
       </div>
     ) : null
@@ -173,6 +177,62 @@ describe('GalleryGrid', () => {
         screen.getByRole('button', { name: 'Open media 2' })
       ).not.toHaveAttribute('aria-pressed')
       expect(screen.queryByTestId('select-mark')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('albums changed from the viewer', () => {
+    const openFirst = () =>
+      fireEvent.click(screen.getAllByRole('button', { name: /^Open media/ })[0])
+
+    it('tells the page which albums changed once, when the viewer closes', () => {
+      const onAlbumsChanged = vi.fn()
+      render(
+        <GalleryGrid
+          items={items}
+          albumsOwnerId="owner"
+          onAlbumsChanged={onAlbumsChanged}
+        />
+      )
+      openFirst()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Pill added to a1' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Pill added to a2' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Pill added to a1' }))
+      // Not under the viewer: the photo being looked at must not change.
+      expect(onAlbumsChanged).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+      expect(onAlbumsChanged).toHaveBeenCalledTimes(1)
+      expect(onAlbumsChanged).toHaveBeenCalledWith(['a1', 'a2'])
+    })
+
+    it('says nothing when nothing changed, and starts afresh the next time', () => {
+      const onAlbumsChanged = vi.fn()
+      render(
+        <GalleryGrid
+          items={items}
+          albumsOwnerId="owner"
+          onAlbumsChanged={onAlbumsChanged}
+        />
+      )
+      openFirst()
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+      expect(onAlbumsChanged).not.toHaveBeenCalled()
+
+      openFirst()
+      fireEvent.click(screen.getByRole('button', { name: 'Pill added to a2' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+      expect(onAlbumsChanged).toHaveBeenCalledWith(['a2'])
+    })
+
+    it('closes quietly when the page did not ask to know', () => {
+      render(<GalleryGrid items={items} albumsOwnerId="owner" />)
+      openFirst()
+      fireEvent.click(screen.getByRole('button', { name: 'Pill added to a1' }))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+
+      expect(screen.queryByTestId('modal-ids')).not.toBeInTheDocument()
     })
   })
 })

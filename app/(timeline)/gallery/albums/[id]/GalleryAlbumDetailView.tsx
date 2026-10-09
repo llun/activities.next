@@ -576,7 +576,17 @@ export const GalleryAlbumDetailView: FC<Props> = ({
                 })}
               </ul>
             ) : (
-              <GalleryGrid items={items} albumsOwnerId={ownerId} />
+              <GalleryGrid
+                items={items}
+                albumsOwnerId={ownerId}
+                // The lightbox pill can take a photo out of this very album;
+                // the grid, facts and count behind it are read again when the
+                // viewer closes (not under it, which would swap the photo
+                // being looked at and lose its Undo).
+                onAlbumsChanged={(albumIds) => {
+                  if (albumIds.includes(album.id)) void refreshAll()
+                }}
+              />
             )}
           </div>
 

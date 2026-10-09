@@ -217,4 +217,120 @@ describe('MediasModal albums pill', () => {
       expect(getMediaAlbumsMock).toHaveBeenLastCalledWith('m2')
     )
   })
+
+  it('opens its menu inside the modal viewer so a screen reader keeps it', async () => {
+    renderModal()
+    fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+    const menu = await screen.findByRole('dialog', { name: 'Add to album' })
+
+    expect(
+      screen.getByRole('dialog', { name: 'Media viewer' }).contains(menu)
+    ).toBe(true)
+  })
+
+  describe('touch and click from the menu', () => {
+    const track = () =>
+      document.querySelector<HTMLElement>('[style*="translateX"]')!
+
+    it('does not swipe the photo from a flick that starts in the menu', async () => {
+      renderModal()
+      fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+      const menu = await screen.findByRole('dialog', { name: 'Add to album' })
+      const title = within(menu).getByText('Add to album', { selector: 'p' })
+
+      fireEvent.touchStart(title, { touches: [{ clientX: 300 }] })
+      fireEvent.touchMove(title, { touches: [{ clientX: 100 }] })
+      fireEvent.touchEnd(title)
+
+      expect(track().style.transition).toBe('none')
+      expect(track().style.transform).not.toContain('-100px')
+    })
+
+    it('still swipes from the photo itself', async () => {
+      renderModal()
+      await screen.findByRole('button', { name: 'In 1 album' })
+      const image = document.querySelector('img')!
+
+      fireEvent.touchStart(image, { touches: [{ clientX: 300 }] })
+      fireEvent.touchMove(image, { touches: [{ clientX: 100 }] })
+      fireEvent.touchEnd(image)
+
+      expect(track().style.transition).toContain('transform')
+    })
+
+    it('closes only the menu when the backdrop is pressed, then the viewer on the next press', async () => {
+      const { onClosed } = renderModal()
+      fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+      await screen.findByRole('dialog', { name: 'Add to album' })
+      const backdrop = screen.getByRole('dialog', { name: 'Media viewer' })
+
+      fireEvent.pointerDown(backdrop)
+      fireEvent.click(backdrop)
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('dialog', { name: 'Add to album' })
+        ).not.toBeInTheDocument()
+      )
+      expect(onClosed).not.toHaveBeenCalled()
+
+      fireEvent.pointerDown(backdrop)
+      fireEvent.click(backdrop)
+      expect(onClosed).toHaveBeenCalledTimes(1)
+    })
+
+    it('closes the viewer from the backdrop as before when no menu is open', async () => {
+      const { onClosed } = renderModal()
+      await screen.findByRole('button', { name: 'In 1 album' })
+      const backdrop = screen.getByRole('dialog', { name: 'Media viewer' })
+
+      fireEvent.pointerDown(backdrop)
+      fireEvent.click(backdrop)
+
+      expect(onClosed).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not count a press inside the menu as one that closed it', async () => {
+      const { onClosed } = renderModal()
+      fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+      const menu = await screen.findByRole('dialog', { name: 'Add to album' })
+      const backdrop = screen.getByRole('dialog', { name: 'Media viewer' })
+
+      // A press inside the menu leaves it open and must not arm the swallow.
+      fireEvent.pointerDown(within(menu).getAllByRole('checkbox')[0])
+      fireEvent.pointerUp(menu)
+      expect(
+        screen.getByRole('dialog', { name: 'Add to album' })
+      ).toBeInTheDocument()
+      fireEvent.keyDown(menu, { key: 'Escape' })
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('dialog', { name: 'Add to album' })
+        ).not.toBeInTheDocument()
+      )
+
+      fireEvent.pointerDown(backdrop)
+      fireEvent.click(backdrop)
+      expect(onClosed).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('tells its host which album the pill changed', async () => {
+    addMock.mockResolvedValue({
+      added: ['m1'],
+      existing: [],
+      skipped: [],
+      album: buildAlbumCard('a2', { itemCount: 2 })
+    })
+    const onAlbumsChange = vi.fn()
+    renderModal({ onAlbumsChange })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+    const menu = await screen.findByRole('dialog', { name: 'Add to album' })
+    fireEvent.click(
+      within(menu).getByRole('checkbox', { name: /^Garden birds/ })
+    )
+
+    await waitFor(() => expect(onAlbumsChange).toHaveBeenCalledWith('a2'))
+  })
 })

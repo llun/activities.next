@@ -42,6 +42,8 @@ interface Props {
    * without it there is none and nothing is requested.
    */
   albumsOwnerId?: string | null
+  /** Called with an album's id after the albums pill changed what it holds. */
+  onAlbumsChange?: (albumId: string) => void
   onClosed: () => void
 }
 
@@ -51,6 +53,7 @@ export const MediasModal: FC<Props> = ({
   initialSelection,
   ownerName,
   albumsOwnerId,
+  onAlbumsChange,
   onClosed
 }) => {
   const [modalGifPlaying, setModalGifPlaying] = useState<boolean | null>(null)
@@ -65,6 +68,10 @@ export const MediasModal: FC<Props> = ({
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
   const isSwipeGesture = useRef(false)
+  // The press that closed the albums menu is the start of a click that would
+  // reach the backdrop and close the viewer too; it only meant to close the
+  // menu.
+  const swallowBackdropClick = useRef(false)
   const swipeTrackRef = useRef<HTMLDivElement>(null)
   // Public details, keyed by media id, so going back to a photo reuses the
   // answer. The cache belongs to one viewing session: it is dropped whenever
@@ -311,7 +318,19 @@ export const MediasModal: FC<Props> = ({
       aria-modal="true"
       aria-label="Media viewer"
       className="fixed inset-0 z-50 flex flex-col bg-black/90"
-      onClick={handleClose}
+      onPointerDownCapture={(e) => {
+        const target = e.target as Element
+        swallowBackdropClick.current =
+          Boolean(document.querySelector(ALBUMS_MENU_SELECTOR)) &&
+          !target.closest(ALBUMS_MENU_SELECTOR)
+      }}
+      onClick={() => {
+        if (swallowBackdropClick.current) {
+          swallowBackdropClick.current = false
+          return
+        }
+        handleClose()
+      }}
     >
       {/* Header */}
       <div
@@ -471,6 +490,7 @@ export const MediasModal: FC<Props> = ({
                           mediaId={albumsMediaId}
                           ownerId={albumsOwnerId}
                           variant="pill"
+                          onChange={onAlbumsChange}
                           className="mt-2 w-full px-4"
                         />
                       ) : null}

@@ -5,7 +5,7 @@ import '@testing-library/jest-dom'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 
 import { AlbumUndoToast } from './AlbumUndoToast'
-import type { AlbumToast } from './useMediaAlbums'
+import { ALBUM_TOAST_DURATION_MS, type AlbumToast } from './useMediaAlbums'
 
 const toast = (overrides: Partial<AlbumToast> = {}): AlbumToast => ({
   id: 1,
@@ -60,6 +60,32 @@ describe('AlbumUndoToast', () => {
       vi.advanceTimersByTime(1)
     })
     expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it('goes away after the default time, and not a moment before', () => {
+    const onDismiss = vi.fn()
+    render(<AlbumUndoToast toast={toast()} onDismiss={onDismiss} />)
+
+    act(() => {
+      vi.advanceTimersByTime(ALBUM_TOAST_DURATION_MS - 1)
+    })
+    expect(onDismiss).not.toHaveBeenCalled()
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it('never goes away by itself when the time is zero', () => {
+    const onDismiss = vi.fn()
+    render(
+      <AlbumUndoToast toast={toast()} onDismiss={onDismiss} durationMs={0} />
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(ALBUM_TOAST_DURATION_MS * 10)
+    })
+    expect(onDismiss).not.toHaveBeenCalled()
   })
 
   it('waits while the pointer is on it and starts again when it leaves', () => {
@@ -123,6 +149,38 @@ describe('AlbumUndoToast', () => {
     act(() => {
       vi.advanceTimersByTime(400)
     })
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it('is not left waiting when Undo is pressed with focus on it', () => {
+    const onDismiss = vi.fn()
+    const { rerender } = render(
+      <AlbumUndoToast
+        toast={toast({ id: 1 })}
+        onDismiss={onDismiss}
+        durationMs={1000}
+      />
+    )
+    // Focus is on Undo, which holds the wait.
+    fireEvent.focus(screen.getByRole('button', { name: 'Undo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+    // The replacement message has nothing to undo, so the focused button is
+    // removed without a blur.
+    rerender(
+      <AlbumUndoToast
+        toast={toast({ id: 2, message: 'Removed from “Kruger”', undo: null })}
+        onDismiss={onDismiss}
+        durationMs={1000}
+      />
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Undo' })
+    ).not.toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 

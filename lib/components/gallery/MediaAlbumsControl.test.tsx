@@ -18,6 +18,7 @@ import {
 } from '@/lib/client'
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
 import type { MediaAlbumsResponse } from '@/lib/services/gallery/galleryAlbumEntities'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { MediaAlbumsControl } from './MediaAlbumsControl'
 import { NOT_ADDABLE_HINT } from './mediaAlbumsUi'
@@ -51,6 +52,7 @@ const formDialogProps = vi.hoisted(() => ({
     initialMediaIds?: string[]
     onOpenChange: (open: boolean) => void
     onSaved: (albumId: string) => void
+    onCloseAutoFocus?: (event: Event) => void
   }
 }))
 
@@ -60,6 +62,7 @@ vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog', () => ({
     initialMediaIds?: string[]
     onOpenChange: (open: boolean) => void
     onSaved: (albumId: string) => void
+    onCloseAutoFocus?: (event: Event) => void
   }) => {
     formDialogProps.current = props
     return props.open ? <div role="dialog" aria-label="New album" /> : null
@@ -257,8 +260,8 @@ describe('MediaAlbumsControl', () => {
 
   describe('adding and removing', () => {
     it('adds at once, announces it, and offers Undo', async () => {
-      let finish: (value: ReturnType<typeof result>) => void = () => {}
-      addMock.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+      const pending = createDeferred<ReturnType<typeof result>>()
+      addMock.mockReturnValue(pending.promise)
       renderControl()
       const menu = await openMenu()
       const box = within(menu).getByRole('checkbox', {
@@ -272,7 +275,7 @@ describe('MediaAlbumsControl', () => {
       expect(box).toHaveAttribute('aria-busy', 'true')
       expect(addMock).toHaveBeenCalledWith('a2', ['m1'])
 
-      await act(async () => finish(result(4)))
+      await act(async () => pending.resolve(result(4)))
 
       expect(box).not.toHaveAttribute('aria-busy')
       const toast = screen.getByTestId('album-toast')
@@ -336,6 +339,46 @@ describe('MediaAlbumsControl', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('speaks a failed change once: the alert says it, the live region does not', async () => {
+      addMock.mockRejectedValue(new Error('Server is down'))
+      renderControl()
+      const menu = await openMenu()
+
+      fireEvent.click(
+        within(menu).getByRole('checkbox', { name: /^Garden birds/ })
+      )
+
+      expect(await within(menu).findByRole('alert')).toHaveTextContent(
+        'Server is down'
+      )
+      const live = screen
+        .getAllByRole('status')
+        .find((node) => node.classList.contains('sr-only'))
+      expect(live).toBeEmptyDOMElement()
+    })
+
+    it('tells the host which album changed, after a write that worked', async () => {
+      addMock.mockResolvedValueOnce(result(4))
+      removeMock.mockResolvedValueOnce(result(13))
+      addMock.mockRejectedValueOnce(new Error('Server is down'))
+      const onChange = vi.fn()
+      renderControl('row', { onChange })
+      const menu = await openMenu()
+
+      fireEvent.click(
+        within(menu).getByRole('checkbox', { name: /^Garden birds/ })
+      )
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith('a2'))
+      fireEvent.click(within(menu).getAllByRole('checkbox')[0])
+      await waitFor(() => expect(onChange).toHaveBeenLastCalledWith('a1'))
+      expect(onChange).toHaveBeenCalledTimes(2)
+
+      // A failed write changed nothing.
+      fireEvent.click(within(menu).getAllByRole('checkbox')[2])
+      await screen.findByRole('alert')
+      expect(onChange).toHaveBeenCalledTimes(2)
+    })
+
     it('puts a failed add back and says why', async () => {
       addMock.mockRejectedValue(new Error('Server is down'))
       renderControl()
@@ -384,15 +427,15 @@ describe('MediaAlbumsControl', () => {
     })
 
     it('ignores a second press while an album is being written', async () => {
-      let finish: (value: ReturnType<typeof result>) => void = () => {}
-      addMock.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+      const pending = createDeferred<ReturnType<typeof result>>()
+      addMock.mockReturnValue(pending.promise)
       renderControl()
       const menu = await openMenu()
       const box = within(menu).getByRole('checkbox', { name: /^Garden birds/ })
 
       fireEvent.click(box)
       fireEvent.click(box)
-      await act(async () => finish(result(4)))
+      await act(async () => pending.resolve(result(4)))
 
       expect(addMock).toHaveBeenCalledTimes(1)
       expect(removeMock).not.toHaveBeenCalled()
@@ -488,6 +531,34 @@ describe('MediaAlbumsControl', () => {
       await waitFor(() => expect(removeMock).toHaveBeenCalledWith('a1', ['m1']))
     })
 
+    it('offers no Undo for a removal, since putting it back would be refused', async () => {
+      removeMock.mockResolvedValue(result(13))
+      renderControl()
+      const menu = await openMenu()
+
+      fireEvent.click(within(menu).getAllByRole('checkbox')[0])
+
+      await waitFor(() =>
+        expect(screen.getByTestId('album-toast')).toHaveTextContent(
+          'Removed from “Kruger”'
+        )
+      )
+      expect(
+        screen.queryByRole('button', { name: 'Undo' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('still offers Undo for a removal when the photo can be added', async () => {
+      getMediaAlbumsMock.mockResolvedValue(response({ addable: true }))
+      removeMock.mockResolvedValue(result(13))
+      renderControl()
+      const menu = await openMenu()
+
+      fireEvent.click(within(menu).getAllByRole('checkbox')[0])
+
+      expect(await screen.findByRole('button', { name: 'Undo' })).toBeVisible()
+    })
+
     it('says so beside the row too', async () => {
       renderControl()
 
@@ -542,6 +613,64 @@ describe('MediaAlbumsControl', () => {
     })
   })
 
+  describe('reading again after a new album', () => {
+    it('keeps the control, its message and its focus while the answer comes', async () => {
+      addMock.mockResolvedValue(result(4))
+      renderControl('pill')
+      const menu = await openMenu('In 1 album')
+      fireEvent.click(
+        within(menu).getByRole('checkbox', { name: /^Garden birds/ })
+      )
+      await screen.findByTestId('album-toast')
+
+      const pending = createDeferred<MediaAlbumsResponse>()
+      getMediaAlbumsMock.mockReturnValue(pending.promise)
+      await act(async () => formDialogProps.current?.onSaved('a4'))
+
+      // Still there while the second read is out: no unmount, no flash.
+      expect(
+        screen.getByRole('button', { name: 'In 2 albums' })
+      ).toBeInTheDocument()
+      expect(screen.getByTestId('album-toast')).toBeInTheDocument()
+
+      await act(async () =>
+        pending.resolve(response({ albumIds: ['a1', 'a2', 'a3'] }))
+      )
+      expect(
+        screen.getByRole('button', { name: 'In 3 albums' })
+      ).toBeInTheDocument()
+    })
+
+    it('keeps what it showed when the second read fails', async () => {
+      renderControl('pill')
+      await screen.findByRole('button', { name: 'In 1 album' })
+
+      getMediaAlbumsMock.mockRejectedValue(new Error('Server is down'))
+      await act(async () => formDialogProps.current?.onSaved('a4'))
+
+      expect(getMediaAlbumsMock).toHaveBeenCalledTimes(2)
+      expect(
+        screen.getByRole('button', { name: 'In 1 album' })
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('hands focus back to its button when the New album dialog closes', async () => {
+      renderControl('pill')
+      const menu = await openMenu('In 1 album')
+      fireEvent.click(
+        within(menu).getByRole('button', { name: 'New album with this photo' })
+      )
+      await screen.findByRole('dialog', { name: 'New album' })
+      const event = new Event('focus', { cancelable: true })
+
+      act(() => formDialogProps.current?.onCloseAutoFocus?.(event))
+
+      expect(event.defaultPrevented).toBe(true)
+      expect(screen.getByRole('button', { name: 'In 1 album' })).toHaveFocus()
+    })
+  })
+
   describe('pill', () => {
     it('counts the albums that hold the photo', async () => {
       renderControl('pill')
@@ -576,6 +705,72 @@ describe('MediaAlbumsControl', () => {
       expect(menu).toHaveAttribute('data-albums-menu')
     })
 
+    it('renders its menu inside the modal viewer it sits in, not on the body', async () => {
+      render(
+        <div role="dialog" aria-modal="true" aria-label="Media viewer">
+          <MediaAlbumsControl mediaId="m1" ownerId="owner" variant="pill" />
+        </div>
+      )
+
+      const menu = await openMenu('In 1 album')
+
+      expect(
+        within(screen.getByRole('dialog', { name: 'Media viewer' })).getByRole(
+          'dialog',
+          { name: 'Add to album' }
+        )
+      ).toBe(menu)
+    })
+
+    it('keeps touches in its menu and dialog from reaching the viewer’s swipe handlers', async () => {
+      const onTouchStart = vi.fn()
+      const onTouchMove = vi.fn()
+      const onTouchEnd = vi.fn()
+      render(
+        <div
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          <MediaAlbumsControl mediaId="m1" ownerId="owner" variant="pill" />
+        </div>
+      )
+      const menu = await openMenu('In 1 album')
+
+      // A flick over the menu's title, which is not a control.
+      const title = within(menu).getByText('Add to album', { selector: 'p' })
+      fireEvent.touchStart(title, { touches: [{ clientX: 200 }] })
+      fireEvent.touchMove(title, { touches: [{ clientX: 100 }] })
+      fireEvent.touchEnd(title)
+
+      expect(onTouchStart).not.toHaveBeenCalled()
+      expect(onTouchMove).not.toHaveBeenCalled()
+      expect(onTouchEnd).not.toHaveBeenCalled()
+
+      // The control's own markup is not portalled, so it is left alone.
+      fireEvent.touchStart(screen.getByRole('button', { name: 'In 1 album' }))
+      expect(onTouchStart).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows a failed load in colours that read on the dark backdrop, centred', async () => {
+      getMediaAlbumsMock.mockRejectedValue(new Error('Server is down'))
+      renderControl('pill')
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveClass('text-red-300')
+      expect(alert.parentElement).toHaveClass('text-center')
+      expect(screen.getByRole('button', { name: 'Try again' })).toHaveClass(
+        'text-orange-300'
+      )
+    })
+
+    it('shows a failed load in the theme colours on the row', async () => {
+      getMediaAlbumsMock.mockRejectedValue(new Error('Server is down'))
+      renderControl('row')
+
+      expect(await screen.findByRole('alert')).toHaveClass('text-destructive')
+    })
+
     it('adds from the menu with a dark toast', async () => {
       addMock.mockResolvedValue(result(4))
       renderControl('pill')
@@ -595,10 +790,8 @@ describe('MediaAlbumsControl', () => {
   })
 
   it('reads again for another photo and drops the earlier photo’s late answer', async () => {
-    let answerFirst: (value: MediaAlbumsResponse) => void = () => {}
-    getMediaAlbumsMock.mockReturnValueOnce(
-      new Promise((resolve) => (answerFirst = resolve))
-    )
+    const first = createDeferred<MediaAlbumsResponse>()
+    getMediaAlbumsMock.mockReturnValueOnce(first.promise)
     getMediaAlbumsMock.mockResolvedValueOnce(
       response({ albums: [], albumIds: [] })
     )
@@ -606,7 +799,7 @@ describe('MediaAlbumsControl', () => {
 
     rerender(<MediaAlbumsControl mediaId="m2" ownerId="owner" variant="row" />)
     await screen.findByText('Not in any album yet.')
-    await act(async () => answerFirst(response()))
+    await act(async () => first.resolve(response()))
 
     expect(getMediaAlbumsMock).toHaveBeenNthCalledWith(2, 'm2')
     expect(screen.getByText('Not in any album yet.')).toBeVisible()
