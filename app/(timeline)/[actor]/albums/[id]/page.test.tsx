@@ -5,7 +5,10 @@ import {
   GalleryAlbumMatrix,
   seedGalleryAlbumMatrix
 } from '@/lib/services/gallery/galleryAlbumMatrixFixtures'
+import { PUBLIC_GALLERY_AUDIENCE } from '@/lib/services/gallery/galleryAudience'
+import { EXTERNAL_ACTOR1 } from '@/lib/stub/seed/external1'
 import { Actor } from '@/lib/types/domain/actor'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 import { PublicGalleryAlbumView } from './PublicGalleryAlbumView'
 import Page, { generateMetadata } from './page'
@@ -162,7 +165,10 @@ describe('public album page', () => {
 
     it.each([
       ['an account that does not exist', '@nobody@llun.test'],
-      ['a remote account', '@someone@remote.example'],
+      [
+        'a handle on another server that nobody seeded',
+        '@someone@remote.example'
+      ],
       ['a handle without a domain', '@test6'],
       ['a path without an @', 'test6@llun.test'],
       ['a handle with a third part', '@test6@llun.test@x']
@@ -170,6 +176,69 @@ describe('public album page', () => {
       await expect(
         Page(params(matrix.albums.mixed, encodeURIComponent(raw)))
       ).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    it('is not-found for a remote actor, even one that holds a public album with a public photo', async () => {
+      // A remote actor row exists (`@test1@llun.dev`) but has no local account.
+      // Give it everything a local owner's visible album has, so the only thing
+      // standing between the handle and a rendered page is the account check.
+      const remote = (await database.getActorFromId({ id: EXTERNAL_ACTOR1 }))!
+      expect(remote.account).toBeFalsy()
+      const media = await database.createMedia({
+        actorId: EXTERNAL_ACTOR1,
+        original: {
+          path: '/test/remote-album.jpg',
+          bytes: 1000,
+          mimeType: 'image/jpeg',
+          metaData: { width: 400, height: 300 }
+        },
+        details: { inGallery: true, takenAt: Date.UTC(2026, 0, 1) }
+      })
+      const statusId = `${EXTERNAL_ACTOR1}/statuses/remote-album`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: EXTERNAL_ACTOR1,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: 'remote'
+      })
+      await database.createAttachment({
+        actorId: EXTERNAL_ACTOR1,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: 'https://media.test/remote-album.jpg',
+        width: 400,
+        height: 300,
+        mediaId: media!.id
+      })
+      const created = await database.createGalleryAlbumWithinLimit({
+        actorId: EXTERNAL_ACTOR1,
+        title: 'Remote',
+        visibility: 'public',
+        limit: 50,
+        mediaIds: [media!.id],
+        itemLimit: 2000
+      })
+      if (created.status !== 'created') throw new Error('album not created')
+
+      // Visible to the audience, so only the account check can refuse it.
+      expect(
+        await database.getGalleryAlbum({
+          id: created.album.id,
+          actorId: EXTERNAL_ACTOR1,
+          audience: PUBLIC_GALLERY_AUDIENCE
+        })
+      ).not.toBeNull()
+      const remoteHandle = encodeURIComponent(
+        `@${remote.username}@${remote.domain}`
+      )
+      await expect(
+        Page(params(created.album.id, remoteHandle))
+      ).rejects.toBeInstanceOf(NotFoundError)
+      expect(
+        await generateMetadata(params(created.album.id, remoteHandle))
+      ).toMatchObject({ title: 'Album' })
     })
 
     it('is not-found for a malformed handle escape', async () => {
