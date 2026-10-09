@@ -400,6 +400,80 @@ code at `1`.
 - Stops instead of looping when a pass selects rows but changes none of them
   (its `UPDATE`s are not taking effect), and says so.
 
+## Notification ID Rewrite
+
+The `rewriteNotificationIds.ts` script rewrites every notification id that is
+not time-ordered (a random UUIDv4, from before notifications got UUIDv7 ids)
+into a UUIDv7 minted from the row's `createdAt`, and repoints the
+`notifications` read marker that named it. It runs the same code as the
+`20261009163215_time_ordered_notification_ids` migration
+(`lib/database/sql/notificationIdRewrite.js`).
+
+### Why it is needed
+
+Clients such as Ivory sort notifications, and compare the notifications read
+marker, by id (see
+[Mastodon API compatibility](mastodon-api-compatibility.md)). The migration
+rewrites every v4 id it finds, but `yarn migrate` runs **first**, while the
+**previous** image keeps serving traffic and keeps minting v4 ids — right up to
+the end of the rollout. Those rows do not age out: a v4 id almost always sorts
+above every v7 id, so an id-ordering client keeps them at the top of the list
+for good and may set its read marker to one, making newer notifications look
+read. `yarn migrate` is a no-op once knex has recorded the migration, so this
+script is how they get rewritten.
+
+### When to Use
+
+Run it once **after the new build is fully rolled out** — when no pod of the
+previous build is still serving. It is safe at any later point too, for example
+after restoring a backup taken before or during the rollout.
+
+### Usage
+
+```bash
+# Preview how many ids would be rewritten (recommended first step)
+NODE_ENV=production ./scripts/maintenance/rewriteNotificationIds.ts --dry-run
+
+# Rewrite
+NODE_ENV=production ./scripts/maintenance/rewriteNotificationIds.ts
+
+# Smaller passes on a busy database
+NODE_ENV=production ./scripts/maintenance/rewriteNotificationIds.ts --batch-size 100
+
+# Show help
+./scripts/maintenance/rewriteNotificationIds.ts --help
+```
+
+### Options
+
+- `--dry-run [true|false]` - Count the ids that would be rewritten without writing anything
+- `--batch-size <n>` - Rows read per pass (default 500)
+- `--help` - Display help message
+
+### Output and exit code
+
+The script reports how many notifications it scanned, how many ids it
+rewrote, how many markers it repointed, and how many ids are still not
+time-ordered. **Exit code `0` means every notification id is time-ordered.**
+`1` means some are not, including in `--dry-run`, where nothing was written. If
+a live run still exits `1`, a pod of the previous build is probably still
+serving: finish the rollout and run it again.
+
+### Safety
+
+- Idempotent and safe to run repeatedly against a live production database:
+  rows that already have a UUIDv7 id are never touched.
+- Each chunk of up to 200 rows, and the marker pointing into it, is rewritten in
+  its own short transaction, one at a time, so the script holds a single pooled
+  connection and an interrupted run leaves nothing half-done; re-running
+  resumes.
+- Prints the resolved database target before doing anything — verify it is
+  production, since `.env.local` shadows `.env.production` even under
+  `NODE_ENV=production`.
+- Ids clients cached before a rewrite stop resolving; see
+  [Mastodon API compatibility](mastodon-api-compatibility.md) for what clients
+  see and how they recover.
+
 ## Gallery Lookup Backfill
 
 Fills in place names, country codes and GBIF/IUCN subject status for gallery media that was uploaded before those lookups existed, or whose lookup never finished. See [Gallery Lookups](environment-variables.md#gallery-lookups) for what is sent where.

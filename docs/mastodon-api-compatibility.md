@@ -57,20 +57,35 @@ product or security decision, not a gap to be closed.
   and clients rely on it: Ivory sorts the notification list, and compares the
   `notifications` read marker, by id. `createNotification` therefore mints the
   id with `generatePublicId(createdAt)` — the same scheme as a status or
-  account `publicId` — so ids compare chronologically as plain strings and the
-  id order always matches the server's `(createdAt, id)` page order. Do not go
-  back to `crypto.randomUUID()`: a random v4 id put Ivory's notification list in
-  a random order. The `20261009163215_time_ordered_notification_ids` migration
-  rewrote every earlier v4 id from its row's `createdAt` and repointed the
-  `notifications` marker's `last_read_id` with it. Two things it could not
-  carry over: ids a client cached before it ran (a notification id, a
-  `max_id`/`min_id`/`since_id` cursor, an `ungrouped-<id>` group key) no longer
-  resolve, so such a client has to reload its list from the top; and the
-  previous build kept minting v4 ids while the migration ran ahead of the
-  rollout, so the few notifications written in that window keep a v4 id that
-  sorts out of place in an id-ordering client until it ages out of the list.
-  Unlike status and account ids, notification ids are still opaque on input:
-  there is no legacy-form resolver, a notification id is only ever the row id.
+  account `publicId` — so v7 ids compare chronologically as plain strings, and
+  for v7 ids the id order matches the server's `(createdAt, id)` page order.
+  Do not go back to `crypto.randomUUID()`: a random v4 id put Ivory's
+  notification list in a random order.
+
+  Ids minted before this were rewritten by the
+  `20261009163215_time_ordered_notification_ids` migration, which also
+  repointed the stored `notifications` marker. The previous build keeps minting
+  v4 ids while that migration runs ahead of the rollout, and those leftovers do
+  **not** age out: a v4 id almost always sorts above every v7 id, so an
+  id-ordering client pins it to the top of the list for good and may set its
+  read marker to it, making every newer notification look read. Run the
+  [Notification ID Rewrite](./maintenance.md#notification-id-rewrite) once the
+  rollout completes to rewrite them. As a backstop, `POST /api/v1/markers` only
+  moves the `notifications` marker to a UUIDv7 or to one of the caller's own
+  notifications; any other `last_read_id` leaves the stored marker unchanged
+  and the response reports the stored one (no error), so a client with a stale
+  cache cannot poison it.
+
+  Ids a client cached before the rewrite no longer resolve — there is no alias
+  from an old id to its new one, and notification ids have no legacy-form
+  resolver. What such a client sees: a cached `min_id` or `since_id` returns
+  empty pages with no `Link` header (an unresolvable lower-bound cursor ends
+  pagination), so the client sees nothing new until it reloads from the top; a
+  cached `max_id` is ignored and returns the newest page again, which a client
+  may append to its list as duplicates; `GET` or dismiss of an old id is a
+  404, as is `GET` of an `ungrouped-<old id>` group (dismissing one is a
+  no-op). The remedy is a full refresh of the
+  client's notification list (reloading it from the top, without a cursor).
 
 - **`PUT /api/v1/statuses/:id` accepts `visibility`, and widening it drops the
   edit history.** Mastodon cannot change a posted status's visibility; this

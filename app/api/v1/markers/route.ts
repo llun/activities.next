@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { Database } from '@/lib/database/types'
 import {
   OAuthGuardAnyScope,
   corsErrorResponse
@@ -12,6 +13,7 @@ import {
   readRequestBodyWithLimit
 } from '@/lib/utils/boundedRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
+import { isPublicId } from '@/lib/utils/publicId'
 import { ERROR_413, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -67,6 +69,29 @@ export const GET = traceApiRoute(
     guardOptions
   )
 )
+
+// Notification ids are time-ordered UUIDv7s, and clients compare the
+// notifications marker against them by id. A client still holding ids cached
+// before the time-ordered-ids migration (or one of the few random v4 ids the
+// previous build wrote during the rollout, since rewritten) would otherwise
+// move the marker to a v4 id that sorts above every real notification, making
+// everything newer look read. So the notifications marker only moves to a
+// UUIDv7 or to one of the caller's own notifications; anything else leaves the
+// stored marker as it is, and the response reports that stored marker.
+const isAcceptedNotificationsMarker = async (
+  database: Pick<Database, 'getNotifications'>,
+  actorId: string,
+  lastReadId: string
+): Promise<boolean> => {
+  if (isPublicId(lastReadId)) return true
+  const [notification] = await database.getNotifications({
+    actorId,
+    ids: [lastReadId],
+    limit: 1,
+    includeFiltered: true
+  })
+  return Boolean(notification)
+}
 
 const parseBody = async (req: Request): Promise<unknown> => {
   const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
@@ -140,6 +165,22 @@ export const POST = traceApiRoute(
       for (const timeline of TIMELINES) {
         const input = parsed.data[timeline]
         if (!input) continue
+        if (
+          timeline === 'notifications' &&
+          !(await isAcceptedNotificationsMarker(
+            database,
+            currentActor.id,
+            input.last_read_id
+          ))
+        ) {
+          written.push(
+            ...(await database.getMarkers({
+              actorId: currentActor.id,
+              timelines: [timeline]
+            }))
+          )
+          continue
+        }
         written.push(
           await database.upsertMarker({
             actorId: currentActor.id,
