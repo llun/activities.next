@@ -4,6 +4,7 @@ import { Filter as FilterIcon, Pencil, Trash2 } from 'lucide-react'
 import { FC } from 'react'
 
 import type { ClientFilter } from '@/lib/client'
+import { FramedListItem } from '@/lib/components/surface/FramedList'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import type { FilterContext } from '@/lib/types/domain/filter'
@@ -25,7 +26,7 @@ const ContextChips: FC<{ context: FilterContext[] }> = ({ context }) => {
       {labels.map((label) => (
         <span
           key={label}
-          className="inline-flex items-center rounded-full bg-[hsl(0_0%_94%)] px-2 py-0.5 text-[11px] font-medium text-[#6A6A6A] dark:text-[hsl(0_0%_35%)]"
+          className="bg-muted text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
         >
           {label}
         </span>
@@ -53,7 +54,7 @@ export const FilterRow: FC<FilterRowProps> = ({
   const expired = isFilterExpired(filter.expires_at, currentTime)
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border p-3">
+    <FramedListItem className="flex items-center gap-3">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
         <FilterIcon className="size-[17px]" />
       </span>
@@ -97,11 +98,11 @@ export const FilterRow: FC<FilterRowProps> = ({
           aria-label={`Delete filter ${filter.title}`}
           onClick={onDelete}
           disabled={deleting}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[hsl(0_84.2%_60.2%/0.4)] text-[hsl(0_72%_45%)] transition-colors hover:bg-[hsl(0_72%_45%/0.08)] disabled:pointer-events-none disabled:opacity-50"
+          className="border-destructive/40 text-destructive-text hover:bg-destructive/10 inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:pointer-events-none disabled:opacity-50"
         >
           <Trash2 className="size-[15px]" />
         </button>
       </div>
-    </div>
+    </FramedListItem>
   )
 }

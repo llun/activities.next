@@ -5,6 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { FC, useCallback, useEffect, useState } from 'react'
 
 import { type Passkey, getPasskeys } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
+import { SkeletonRows } from '@/lib/components/surface/Skeleton'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -73,7 +79,7 @@ const PasskeyRow: FC<{
 }> = ({ passkey, showDomain, isPrimary, onRemove }) => {
   const added = formatAddedDate(passkey.createdAt)
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+    <FramedListItem className="flex items-center justify-between gap-4">
       <div className="flex min-w-0 items-center gap-3">
         <Fingerprint className="text-muted-foreground size-5 shrink-0" />
         <div className="min-w-0">
@@ -94,7 +100,7 @@ const PasskeyRow: FC<{
       <Button variant="outline" size="sm" onClick={() => onRemove(passkey.id)}>
         Remove
       </Button>
-    </div>
+    </FramedListItem>
   )
 }
 
@@ -109,7 +115,7 @@ const DomainOption: FC<{
     role="radio"
     aria-checked={selected}
     onClick={() => onSelect(domain.domain)}
-    className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+    className={`flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors ${
       selected ? 'border-primary bg-primary/5 ring-primary ring-1' : ''
     }`}
   >
@@ -262,44 +268,63 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
 
   const createDisabled = adding && selectedDomain === currentDomain
 
+  const addPasskeyButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => openDialog(currentDomain)}
+    >
+      <Plus className="size-4" />
+      Add passkey
+    </Button>
+  )
+
   return (
-    <div className="space-y-4">
-      {error && <p className="text-destructive text-sm">{error}</p>}
-      {success && <p className="text-sm text-green-600">{success}</p>}
-
-      {loading ? (
-        <p className="text-muted-foreground text-sm">Loading passkeys…</p>
-      ) : passkeys.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          No passkeys registered yet.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {passkeys.map((passkey) => (
-            <PasskeyRow
-              key={passkey.id}
-              passkey={passkey}
-              showDomain={multiDomain}
-              isPrimary={primaryDomains.has(passkey.domain)}
-              onRemove={handleDelete}
-            />
-          ))}
-        </div>
-      )}
-
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => openDialog(currentDomain)}
+    <>
+      <Section
+        icon={Fingerprint}
+        title="Passkeys"
+        description="Use biometrics or a hardware key to sign in without a password. Each passkey works only on the domain it was created for."
+        actions={passkeys.length > 0 ? addPasskeyButton : undefined}
       >
-        <Plus className="size-4" />
-        Add passkey
-      </Button>
+        {error && <Alert title={error} />}
+        {success && <Alert tone="success" title={success} />}
+
+        {loading ? (
+          <Frame className="p-4">
+            <SkeletonRows
+              rows={2}
+              rowClassName="h-12"
+              label="Loading passkeys"
+            />
+          </Frame>
+        ) : passkeys.length === 0 ? (
+          <EmptyState
+            icon={Fingerprint}
+            title="No passkeys registered yet"
+            action={addPasskeyButton}
+          >
+            Add one to sign in with your fingerprint, face or a security key.
+          </EmptyState>
+        ) : (
+          <FramedList aria-label="Passkeys">
+            {passkeys.map((passkey) => (
+              <PasskeyRow
+                key={passkey.id}
+                passkey={passkey}
+                showDomain={multiDomain}
+                isPrimary={primaryDomains.has(passkey.domain)}
+                onRemove={handleDelete}
+              />
+            ))}
+          </FramedList>
+        )}
+      </Section>
 
       <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="flex-row items-start gap-3 space-y-0 text-left">
-            <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
+            <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg">
               <Fingerprint className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
@@ -353,7 +378,7 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
 
           {/* Surface failures inside the dialog — the page-level message below
               sits behind the modal overlay while the dialog is open. */}
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {error && <p className="text-destructive-text text-sm">{error}</p>}
 
           <DialogFooter>
             <Button
@@ -373,6 +398,6 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }

@@ -41,14 +41,21 @@ interface SaveBarProps {
   saving: boolean
   saved: boolean
   error?: string | null
-  onSave: () => void
+  /** Called when Save is pressed. Not needed with `submit`. */
+  onSave?: () => void
+  /**
+   * Make Save the form's submit button: the enclosing `<form>` handles the
+   * press (and Enter in its fields) through its own `onSubmit` or `action`,
+   * instead of `onSave`.
+   */
+  submit?: boolean
   className?: string
 }
 
 /**
  * A form's footer, for `Frame`'s `footer` slot: the state on the left
- * ("Unsaved changes" with a dot when dirty, "Saved" with a tick after a save,
- * the error in the alert colour) and the primary Save button on the right,
+ * ("Unsaved changes" with a dot when dirty, "All changes saved" with a tick
+ * after a save, a muted "No unsaved changes" when clean, the error in the alert colour) and the primary Save button on the right,
  * disabled while the form is clean or saving, with a spinner inside while it
  * saves. The button is always "Save". Dirty wins over Saved, so a fresh edit
  * never claims the form is already saved.
@@ -59,6 +66,7 @@ export const SaveBar: FC<SaveBarProps> = ({
   saved,
   error,
   onSave,
+  submit = false,
   className
 }) => (
   <div
@@ -87,15 +95,17 @@ export const SaveBar: FC<SaveBarProps> = ({
           ) : saved ? (
             <>
               <Check aria-hidden="true" className="text-success-text size-4" />
-              Saved
+              All changes saved
             </>
-          ) : null}
+          ) : (
+            'No unsaved changes'
+          )}
         </p>
       )}
     </div>
     <Button
-      type="button"
-      onClick={onSave}
+      type={submit ? 'submit' : 'button'}
+      onClick={submit ? undefined : onSave}
       disabled={saving || !dirty}
       className="shrink-0"
     >

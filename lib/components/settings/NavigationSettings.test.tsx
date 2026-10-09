@@ -218,22 +218,27 @@ describe('NavigationSettings', () => {
     expect(screen.getByText('Timeline is already first')).toBeVisible()
   })
 
-  it('announces a failed save, and nothing on a save that worked', async () => {
+  it('announces a failed save as an alert, and nothing on a save that worked', async () => {
     mockUpdate.mockResolvedValueOnce(false)
     renderSettings(<NavigationSettings />)
 
-    // The caption changes twice per save and a keyboard reorder saves on every
-    // keystroke, so it must not talk over each row's own announcement.
-    expect(
-      screen
-        .getByText('Saved to your account settings as you change it.')
-        .closest('[role="status"]')
-    ).toBeNull()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
 
-    const failure = await screen.findByText(/Couldn't save your changes/)
-    expect(failure.closest('[role="status"]')).not.toBeNull()
+    const failure = await screen.findByText('Couldn’t save your changes')
+    expect(failure.closest('[role="alert"]')).not.toBeNull()
+  })
+
+  it('shows the Saved tick in the section actions after a save that worked', async () => {
+    renderSettings(<NavigationSettings />)
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
+
+    const section = screen.getByRole('region', { name: 'Sidebar items' })
+    await waitFor(() =>
+      expect(within(section).getByRole('status')).toHaveTextContent('Saved')
+    )
   })
 
   it('keeps the retry under the finger that pressed it while its save runs', async () => {
@@ -252,22 +257,21 @@ describe('NavigationSettings', () => {
     expect(document.activeElement).toBe(retry)
   })
 
-  it('says a retry worked, having announced the failure it clears', async () => {
+  it('says a retry worked: the alert clears and the Saved tick appears', async () => {
     mockUpdate.mockResolvedValueOnce(false)
     renderSettings(<NavigationSettings />)
     fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
 
-    // Pressing it unmounts the button, so without this the outcome of the only
-    // recovery the page offers reaches a screen reader as silence.
-    const confirmation = await screen.findByText('Your changes are saved.')
-    expect(confirmation.closest('[role="status"]')).not.toBeNull()
-    // On screen the footer goes back to the line that explains there is no Save
-    // button, rather than keeping the confirmation until the next write.
-    expect(
-      screen.getByText('Saved to your account settings as you change it.')
-    ).toBeVisible()
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Try again' })
+      ).not.toBeInTheDocument()
+    )
+    const section = screen.getByRole('region', { name: 'Sidebar items' })
+    expect(within(section).getByRole('status')).toHaveTextContent('Saved')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('reorders by dragging one row onto another', async () => {
@@ -442,7 +446,7 @@ describe('NavigationSettings', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
 
     const retry = await screen.findByRole('button', { name: 'Try again' })
-    expect(screen.getByText(/Couldn't save your changes/)).toBeInTheDocument()
+    expect(screen.getByText('Couldn’t save your changes')).toBeInTheDocument()
 
     mockUpdate.mockResolvedValue(true)
     fireEvent.click(retry)

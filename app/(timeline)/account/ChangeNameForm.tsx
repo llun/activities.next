@@ -3,9 +3,10 @@
 import { FC, useState } from 'react'
 
 import { updateAccountName } from '@/lib/client'
-import { Button } from '@/lib/components/ui/button'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 
 interface Props {
   currentName: string
@@ -13,20 +14,23 @@ interface Props {
 
 export const ChangeNameForm: FC<Props> = ({ currentName }) => {
   const [name, setName] = useState(currentName)
-  const [message, setMessage] = useState('')
+  // What the account holds now, so Save knows when there is nothing to save.
+  const [savedName, setSavedName] = useState(currentName)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setMessage('')
+    setSaved(false)
     setIsLoading(true)
 
     try {
       await updateAccountName({ name })
 
-      setMessage('Name updated successfully!')
+      setSavedName(name)
+      setSaved(true)
     } catch (err) {
       setError(
         err instanceof Error
@@ -43,28 +47,33 @@ export const ChangeNameForm: FC<Props> = ({ currentName }) => {
     // input is NAMED (name="name"), so on a native (pre-hydration/no-JS) submit it
     // is a successful control and a method-less <form> — which defaults to GET —
     // would serialize the name into the URL. POST keeps it in the request body.
-    <form onSubmit={handleSubmit} method="post" className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="inputName">Name</Label>
-        <Input
-          name="name"
-          type="text"
-          id="inputName"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Your full name"
-          maxLength={255}
-        />
-      </div>
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      {message && <p className="text-sm text-green-600">{message}</p>}
-
-      <div className="flex justify-end">
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Updating...' : 'Update name'}
-        </Button>
-      </div>
+    <form onSubmit={handleSubmit} method="post">
+      <Frame
+        footer={
+          <SaveBar
+            submit
+            dirty={name !== savedName}
+            saving={isLoading}
+            saved={saved}
+            error={error}
+          />
+        }
+      >
+        <FormRow label="Name" htmlFor="inputName">
+          <Input
+            name="name"
+            type="text"
+            id="inputName"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+              setSaved(false)
+            }}
+            placeholder="Your full name"
+            maxLength={255}
+          />
+        </FormRow>
+      </Frame>
     </form>
   )
 }

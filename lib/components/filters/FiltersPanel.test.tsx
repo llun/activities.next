@@ -60,17 +60,20 @@ const renderPanel = (scope: 'account' | 'server' = 'account') =>
 // The Edit buttons carry no per-filter label; these tests list one filter.
 const editButton = () => screen.getByRole('button', { name: /Edit/ })
 
+// The header action; the empty state offers a second "Add filter" below it.
+const addButton = () => screen.getAllByRole('button', { name: 'Add filter' })[0]
+
 const deleteButton = (title: string) =>
   screen.getByRole('button', { name: `Delete filter ${title}` })
 
 const fillAndSaveNewFilter = (title: string, keyword: string) => {
-  fireEvent.click(screen.getByRole('button', { name: /Add new filter/ }))
+  fireEvent.click(addButton())
   fireEvent.change(screen.getByLabelText('Title'), { target: { value: title } })
   fireEvent.change(
     screen.getByRole('textbox', { name: 'Keyword or phrase 1' }),
     { target: { value: keyword } }
   )
-  fireEvent.click(screen.getByRole('button', { name: 'Create filter' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 }
 
 describe('FiltersPanel', () => {
@@ -81,7 +84,7 @@ describe('FiltersPanel', () => {
   })
 
   describe('listing', () => {
-    it('shows a loading message, then the account filters', async () => {
+    it('shows a loading status, then the account filters as one list', async () => {
       mockClient.getFilters.mockResolvedValue([
         makeFilter(),
         makeFilter({ id: 'f-2', title: 'Politics' })
@@ -89,10 +92,12 @@ describe('FiltersPanel', () => {
 
       renderPanel()
 
-      expect(screen.getByText('Loading filters…')).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent('Loading filters')
+      expect(screen.queryByText('Spoilers')).not.toBeInTheDocument()
       expect(await screen.findByText('Spoilers')).toBeInTheDocument()
       expect(screen.getByText('Politics')).toBeInTheDocument()
-      expect(screen.queryByText('Loading filters…')).not.toBeInTheDocument()
+      expect(screen.getByRole('list', { name: 'Filters' })).toBeInTheDocument()
+      expect(screen.queryByText('Loading filters')).toBeNull()
     })
 
     it('hides read-only server filters that the account endpoint merges in', async () => {
@@ -110,18 +115,50 @@ describe('FiltersPanel', () => {
     it('shows the empty state when there are no filters', async () => {
       renderPanel()
 
-      expect(await screen.findByText(/No filters yet/)).toBeInTheDocument()
+      expect(await screen.findByText('No filters yet')).toBeInTheDocument()
+      expect(
+        screen.getByText('Add one to start hiding unwanted posts.')
+      ).toBeInTheDocument()
     })
 
-    it('shows an error instead of the empty state when loading fails', async () => {
+    it('opens the editor from the empty state action', async () => {
+      renderPanel()
+      await screen.findByText('No filters yet')
+
+      // The header and the empty state both offer the action.
+      const [, emptyStateAction] = screen.getAllByRole('button', {
+        name: 'Add filter'
+      })
+      fireEvent.click(emptyStateAction)
+
+      expect(
+        await screen.findByRole('heading', { level: 2, name: 'Add filter' })
+      ).toBeInTheDocument()
+    })
+
+    it('shows an alert instead of the empty state when loading fails', async () => {
       mockClient.getFilters.mockRejectedValue(new Error('offline'))
 
       renderPanel()
 
-      expect(
-        await screen.findByText('Failed to load filters. Please try again.')
-      ).toBeInTheDocument()
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Failed to load filters. Please try again.'
+      )
       expect(screen.queryByText(/No filters yet/)).not.toBeInTheDocument()
+    })
+
+    it('refetches and lists the filters when Retry is pressed after a failed load', async () => {
+      mockClient.getFilters.mockRejectedValueOnce(new Error('network'))
+      mockClient.getFilters.mockResolvedValueOnce([makeFilter()])
+
+      renderPanel()
+      await screen.findByRole('alert')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      expect(await screen.findByText('Spoilers')).toBeInTheDocument()
+      expect(mockClient.getFilters).toHaveBeenCalledTimes(2)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
     it('uses the instance-wide endpoints and explains server filters for the server scope', async () => {
@@ -137,7 +174,11 @@ describe('FiltersPanel', () => {
       expect(
         screen.getByRole('heading', { name: 'Server filters' })
       ).toBeInTheDocument()
-      expect(screen.getByText('How server filters behave')).toBeInTheDocument()
+      expect(
+        screen
+          .getByText('How server filters behave')
+          .closest('[data-slot="alert"]')
+      ).toHaveAttribute('data-tone', 'info')
     })
 
     it('does not show the server-filter explainer in the account scope', async () => {
@@ -200,9 +241,7 @@ describe('FiltersPanel', () => {
         await screen.findByText('Failed to create filter. Please try again.')
       ).toBeInTheDocument()
       expect(screen.getByLabelText('Title')).toHaveValue('Politics')
-      expect(
-        screen.getByRole('button', { name: 'Create filter' })
-      ).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
     })
 
     it('shows the thrown message when the request fails at the network layer', async () => {
@@ -236,11 +275,9 @@ describe('FiltersPanel', () => {
       fillAndSaveNewFilter('Politics', 'election')
 
       await waitFor(() =>
-        expect(
-          screen.getByRole('button', { name: 'Create filter' })
-        ).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
       )
-      expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
       pending.resolve(makeFilter({ id: 'f-new', title: 'Politics' }))
       expect(await screen.findByText('Politics')).toBeInTheDocument()
     })
@@ -249,8 +286,8 @@ describe('FiltersPanel', () => {
       renderPanel()
       await screen.findByText(/No filters yet/)
 
-      fireEvent.click(screen.getByRole('button', { name: /Add new filter/ }))
-      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      fireEvent.click(addButton())
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
 
       expect(screen.getByText(/No filters yet/)).toBeInTheDocument()
       expect(mockClient.createFilter).not.toHaveBeenCalled()
@@ -263,8 +300,8 @@ describe('FiltersPanel', () => {
       fillAndSaveNewFilter('Politics', 'election')
       await screen.findByText('Failed to create filter. Please try again.')
 
-      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-      fireEvent.click(screen.getByRole('button', { name: /Add new filter/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      fireEvent.click(addButton())
 
       expect(
         screen.queryByText('Failed to create filter. Please try again.')
@@ -286,7 +323,7 @@ describe('FiltersPanel', () => {
       fireEvent.change(screen.getByLabelText('Title'), {
         target: { value: 'Spoilers (TV)' }
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
       expect(await screen.findByText('Spoilers (TV)')).toBeInTheDocument()
       expect(mockClient.updateFilter).toHaveBeenCalledWith('f-1', {
@@ -310,12 +347,15 @@ describe('FiltersPanel', () => {
       await screen.findByText('Spam')
 
       fireEvent.click(editButton())
-      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+      fireEvent.change(screen.getByLabelText('Title'), {
+        target: { value: 'Spam v2' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
       expect(await screen.findByText('Spam v2')).toBeInTheDocument()
       expect(mockClient.updateServerFilter).toHaveBeenCalledWith(
         's-1',
-        expect.objectContaining({ title: 'Spam' })
+        expect.objectContaining({ title: 'Spam v2' })
       )
       expect(mockClient.updateFilter).not.toHaveBeenCalled()
     })
@@ -327,12 +367,15 @@ describe('FiltersPanel', () => {
       await screen.findByText('Spoilers')
 
       fireEvent.click(editButton())
-      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+      fireEvent.change(screen.getByLabelText('Title'), {
+        target: { value: 'Spoilers (TV)' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
       expect(
         await screen.findByText('Failed to save changes. Please try again.')
       ).toBeInTheDocument()
-      expect(screen.getByLabelText('Title')).toHaveValue('Spoilers')
+      expect(screen.getByLabelText('Title')).toHaveValue('Spoilers (TV)')
     })
 
     it('leaves the list unchanged when editing is cancelled', async () => {
@@ -410,6 +453,11 @@ describe('FiltersPanel', () => {
         expect(
           await screen.findByText('Failed to delete filter. Please try again.')
         ).toBeInTheDocument()
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'Failed to delete filter. Please try again.'
+        )
+        // A failed delete is not a failed load, so it offers no Retry.
+        expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
         expect(screen.getByText('Spoilers')).toBeInTheDocument()
         expect(deleteButton('Spoilers')).toBeEnabled()
       }
@@ -431,15 +479,11 @@ describe('FiltersPanel', () => {
       for (const edit of screen.getAllByRole('button', { name: /Edit/ })) {
         expect(edit).toBeDisabled()
       }
-      expect(
-        screen.getByRole('button', { name: /Add new filter/ })
-      ).toBeDisabled()
+      expect(addButton()).toBeDisabled()
 
       pending.resolve(true)
       await waitFor(() => expect(deleteButton('Politics')).toBeEnabled())
-      expect(
-        screen.getByRole('button', { name: /Add new filter/ })
-      ).toBeEnabled()
+      expect(addButton()).toBeEnabled()
     })
 
     it('shows the empty state after the last filter is deleted', async () => {

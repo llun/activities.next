@@ -2,12 +2,14 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { AppearanceSection } from '@/lib/components/settings/AppearanceSection'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
-import { ThemeControl } from '@/lib/components/theme'
-import { Button } from '@/lib/components/ui/button'
+import { NativeFormSaveBar } from '@/lib/components/settings/NativeFormSaveBar'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { Section } from '@/lib/components/surface/Section'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
@@ -46,146 +48,130 @@ const Page = async () => {
         description="Profile, appearance, and privacy for this actor."
       />
 
-      <form action="/api/v1/accounts/profile" method="post">
-        <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold">Appearance</h2>
-            <p className="text-sm text-muted-foreground">
-              Theme for this device, and how posts appear on your timeline.
-            </p>
-          </div>
+      <form
+        action="/api/v1/accounts/profile"
+        method="post"
+        className="space-y-6"
+      >
+        <AppearanceSection>
+          <FormRow
+            label="Post line limit"
+            htmlFor="postLineLimitInput"
+            hint="Number of lines to show before a “Show more” button appears. Set to “No limit” to always show full post content."
+          >
+            {({ describedBy }) => (
+              <Select
+                id="postLineLimitInput"
+                name="postLineLimit"
+                aria-describedby={describedBy}
+                defaultValue={String(settings?.postLineLimit ?? 5)}
+              >
+                <option value="5">5 lines</option>
+                <option value="10">10 lines</option>
+                <option value="0">No limit</option>
+              </Select>
+            )}
+          </FormRow>
+        </AppearanceSection>
 
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Theme</div>
-            {/* Device-local preference (persisted in localStorage), so it saves
-                instantly and sits outside the Update/Cancel form flow below. */}
-            <ThemeControl variant="full" />
-            <p className="text-[0.8rem] text-muted-foreground">
-              System follows this device&apos;s setting. Saved instantly on this
-              device — no Update needed.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="postLineLimitInput">Post line limit</Label>
-            <Select
-              id="postLineLimitInput"
-              name="postLineLimit"
-              defaultValue={String(settings?.postLineLimit ?? 5)}
+        <Section
+          title="Profile"
+          description="Public information visible on your profile."
+        >
+          <Frame divided>
+            <FormRow
+              label="Handle"
+              htmlFor="handleInput"
+              hint="Your unique identifier on the fediverse"
             >
-              <option value="5">5 lines</option>
-              <option value="10">10 lines</option>
-              <option value="0">No limit</option>
-            </Select>
-            <p className="text-[0.8rem] text-muted-foreground">
-              Number of lines to show before a &quot;Show more&quot; button
-              appears. Set to &quot;No limit&quot; to always show full post
-              content.
-            </p>
-          </div>
-        </section>
-
-        <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold">Profile</h2>
-            <p className="text-sm text-muted-foreground">
-              Public information visible on your profile.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Handle</Label>
-            <Input value={`@${profile.username}@${profile.domain}`} disabled />
-            <p className="text-[0.8rem] text-muted-foreground">
-              Your unique identifier on the fediverse
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="nameInput">Name</Label>
-            <Input
-              type="text"
-              id="nameInput"
-              name="name"
-              aria-describedby="nameHelp"
-              defaultValue={profile.name || ''}
-              placeholder="Your display name"
+              {({ describedBy }) => (
+                <Input
+                  id="handleInput"
+                  aria-describedby={describedBy}
+                  value={`@${profile.username}@${profile.domain}`}
+                  disabled
+                />
+              )}
+            </FormRow>
+            <FormRow
+              label="Name"
+              htmlFor="nameInput"
+              hint="Name that you want to show in profile"
+            >
+              {({ describedBy }) => (
+                <Input
+                  type="text"
+                  id="nameInput"
+                  name="name"
+                  aria-describedby={describedBy}
+                  defaultValue={profile.name || ''}
+                  placeholder="Your display name"
+                />
+              )}
+            </FormRow>
+            <FormRow label="Summary" htmlFor="summaryInput">
+              <Textarea
+                rows={3}
+                name="summary"
+                id="summaryInput"
+                defaultValue={profile.summary || ''}
+                placeholder="A brief description about yourself"
+              />
+            </FormRow>
+            <ImageUploadField
+              fieldName="iconUrl"
+              currentUrl={profile.iconUrl || null}
+              label="Icon image"
+              previewType="thumbnail"
             />
-            <p id="nameHelp" className="text-[0.8rem] text-muted-foreground">
-              Name that you want to show in profile
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="summaryInput">Summary</Label>
-            <Textarea
-              rows={3}
-              name="summary"
-              id="summaryInput"
-              defaultValue={profile.summary || ''}
-              placeholder="A brief description about yourself"
+            <ImageUploadField
+              fieldName="headerImageUrl"
+              currentUrl={profile.headerImageUrl || null}
+              label="Header image"
+              previewType="landscape"
             />
-          </div>
+          </Frame>
+        </Section>
 
-          <ImageUploadField
-            fieldName="iconUrl"
-            currentUrl={profile.iconUrl || null}
-            label="Icon image"
-            previewType="thumbnail"
-          />
+        <Section title="Privacy" description="Control who can follow you.">
+          <Frame divided>
+            <FormRow
+              label="Manually approve followers"
+              htmlFor="manuallyApprovesFollowersInput"
+              hint="When enabled, you must manually approve each follow request"
+              inline
+            >
+              {({ describedBy }) => (
+                <>
+                  <input
+                    type="hidden"
+                    name="manuallyApprovesFollowers_marker"
+                    value="true"
+                  />
+                  <Switch
+                    id="manuallyApprovesFollowersInput"
+                    name="manuallyApprovesFollowers"
+                    aria-describedby={describedBy}
+                    defaultChecked={profile.manuallyApprovesFollowers ?? true}
+                  />
+                </>
+              )}
+            </FormRow>
+          </Frame>
+        </Section>
 
-          <ImageUploadField
-            fieldName="headerImageUrl"
-            currentUrl={profile.headerImageUrl || null}
-            label="Header image"
-            previewType="landscape"
-          />
-        </section>
-
-        <section className="mb-6 space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold">Privacy</h2>
-            <p className="text-sm text-muted-foreground">
-              Control who can follow you.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <Label htmlFor="manuallyApprovesFollowersInput">
-                Manually approve followers
-              </Label>
-              <p className="text-[0.8rem] text-muted-foreground">
-                When enabled, you must manually approve each follow request
-              </p>
-            </div>
-            <input
-              type="hidden"
-              name="manuallyApprovesFollowers_marker"
-              value="true"
-            />
-            <Switch
-              id="manuallyApprovesFollowersInput"
-              name="manuallyApprovesFollowers"
-              defaultChecked={profile.manuallyApprovesFollowers ?? true}
-            />
-          </div>
-        </section>
-
-        <div className="flex justify-end">
-          <Button type="submit">Update</Button>
+        {/* One form spans several Sections, so the bar stays in reach. */}
+        <div className="sticky bottom-0 z-10 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <Frame className="px-4 py-3">
+            <NativeFormSaveBar />
+          </Frame>
         </div>
       </form>
 
-      <section className="space-y-4 rounded-2xl border border-destructive/20 bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold text-destructive">
-            Danger Zone
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Irreversible actions for this actor.
-          </p>
-        </div>
+      <Section
+        title="Danger zone"
+        description="Irreversible actions for this actor."
+      >
         <DeleteActorSection
           actorId={actor.id}
           actorUsername={actor.username}
@@ -194,7 +180,7 @@ const Page = async () => {
           isOnlyActor={actors.filter((a) => !a.deletionStatus).length <= 1}
           deletionStatus={actor.deletionStatus ?? null}
         />
-      </section>
+      </Section>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { Bell, Mail } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useCallback, useEffect, useState } from 'react'
 
@@ -12,8 +13,19 @@ import {
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import { ActorSelector } from '@/lib/components/settings/ActorSelector'
-import { Label } from '@/lib/components/ui/label'
+import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { SavedIndicator } from '@/lib/components/surface/SaveBar'
+import { Section } from '@/lib/components/surface/Section'
+import { SkeletonRows } from '@/lib/components/surface/Skeleton'
+import {
+  TABLE_CELL_CLASS,
+  TABLE_HEAD_ROW_CLASS,
+  TableFrame
+} from '@/lib/components/surface/TableFrame'
 import { Switch } from '@/lib/components/ui/switch'
+import { cn } from '@/lib/utils'
 import { urlBase64ToUint8Array } from '@/lib/utils/urlBase64ToUint8Array'
 
 interface NotificationTypeConfig {
@@ -247,19 +259,18 @@ export const NotificationSettings: FC<Props> = ({
 
   const pushEnabled = pushState === 'enabled'
   const pushConfigured = pushState === 'enabled' || pushState === 'disabled'
+  const statusMessage = emailStatusMessage || pushStatusMessage
+  const saveFailed = statusMessage !== null && statusMessage !== 'Saved'
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Notification Settings"
+        title="Notification settings"
         description={
           <>
             Control which notifications are sent and how. Email notifications go
             to <span className="font-medium">{accountEmail}</span>.{' '}
-            <Link
-              href="/settings"
-              className="text-blue-600 hover:text-blue-800 underline"
-            >
+            <Link href="/settings" className="text-primary-text underline">
               Change email address
             </Link>
           </>
@@ -269,154 +280,179 @@ export const NotificationSettings: FC<Props> = ({
       <ActorSelector actors={actors} selectedActorId={actorId} />
 
       {/* Channel master toggles */}
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Channels</h2>
-          <p className="text-sm text-muted-foreground">
-            Enable or disable notification delivery channels.
-          </p>
-        </div>
-
-        <div className="space-y-4">
+      <Section
+        icon={Bell}
+        title="Channels"
+        description="Enable or disable notification delivery channels."
+      >
+        <Frame divided className="overflow-hidden">
           {/* Email master toggle */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <Label className="cursor-pointer">Email ({accountEmail})</Label>
-              <p className="text-xs text-muted-foreground">
-                {emailMasterEnabled
-                  ? 'Email notifications are enabled.'
-                  : 'Email notifications are disabled.'}
-              </p>
-            </div>
-            <Switch
-              checked={emailMasterEnabled}
-              disabled={emailSaving}
-              onCheckedChange={handleEmailMasterToggle}
-            />
-          </div>
+          <FormRow
+            label={`Email (${accountEmail})`}
+            htmlFor="email-master"
+            hint={
+              emailMasterEnabled
+                ? 'Email notifications are enabled.'
+                : 'Email notifications are disabled.'
+            }
+            inline
+          >
+            {({ describedBy }) => (
+              <Switch
+                id="email-master"
+                aria-describedby={describedBy}
+                checked={emailMasterEnabled}
+                disabled={emailSaving}
+                onCheckedChange={handleEmailMasterToggle}
+              />
+            )}
+          </FormRow>
 
           {/* Push master toggle */}
           {pushState === 'loading' && (
-            <p className="text-sm text-muted-foreground">
-              Loading push notification status…
-            </p>
-          )}
-          {pushState === 'unsupported' && (
-            <p className="text-sm text-muted-foreground">
-              Push notifications are not supported by your browser.
-            </p>
-          )}
-          {pushState === 'not_configured' && (
-            <p className="text-sm text-muted-foreground">
-              Push notifications are not configured on this server.
-            </p>
-          )}
-          {pushState === 'permission_denied' && (
-            <p className="text-sm text-muted-foreground">
-              Notification permission was denied. Please enable it in your
-              browser&apos;s site settings and reload the page.
-            </p>
-          )}
-          {pushState === 'error' && (
-            <p className="text-sm text-destructive">
-              An error occurred with push notifications. Please reload the page
-              and try again.
-            </p>
-          )}
-          {pushConfigured && (
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label className="cursor-pointer">Push Notifications</Label>
-                <p className="text-xs text-muted-foreground">
-                  {pushEnabled
-                    ? 'Push notifications are active in this browser.'
-                    : 'Enable to receive notifications even when the tab is closed.'}
-                </p>
-              </div>
-              <Switch
-                checked={pushEnabled}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    handlePushEnable()
-                  } else {
-                    handlePushDisable()
-                  }
-                }}
+            <div className="px-4 py-4">
+              <SkeletonRows
+                rows={1}
+                rowClassName="h-10"
+                label="Loading push notification status"
               />
             </div>
           )}
-        </div>
-      </section>
+          {pushState === 'unsupported' && (
+            <Alert
+              tone="info"
+              flush
+              title="Push notifications are not supported by your browser."
+            />
+          )}
+          {pushState === 'not_configured' && (
+            <Alert
+              tone="info"
+              flush
+              title="Push notifications are not configured on this server."
+            />
+          )}
+          {pushState === 'permission_denied' && (
+            <Alert
+              tone="warning"
+              flush
+              title="Notification permission was denied."
+            >
+              Please enable it in your browser&apos;s site settings and reload
+              the page.
+            </Alert>
+          )}
+          {pushState === 'error' && (
+            <Alert flush title="An error occurred with push notifications.">
+              Please reload the page and try again.
+            </Alert>
+          )}
+          {pushConfigured && (
+            <FormRow
+              label="Push notifications"
+              htmlFor="push-master"
+              hint={
+                pushEnabled
+                  ? 'Push notifications are active in this browser.'
+                  : 'Enable to receive notifications even when the tab is closed.'
+              }
+              inline
+            >
+              {({ describedBy }) => (
+                <Switch
+                  id="push-master"
+                  aria-describedby={describedBy}
+                  checked={pushEnabled}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      handlePushEnable()
+                    } else {
+                      handlePushDisable()
+                    }
+                  }}
+                />
+              )}
+            </FormRow>
+          )}
+        </Frame>
+      </Section>
 
       {/* Event preferences table */}
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Event Preferences</h2>
-          <p className="text-sm text-muted-foreground">
-            Choose which events trigger notifications for each channel.
-          </p>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2 pr-4 font-medium">Event</th>
-                <th className="text-center py-2 px-4 font-medium min-w-[80px]">
-                  Email
-                </th>
-                <th className="text-center py-2 px-4 font-medium min-w-[80px]">
-                  Push
-                </th>
+      <Section
+        icon={Mail}
+        title="Event preferences"
+        description="Choose which events trigger notifications for each channel."
+        actions={<SavedIndicator saved={statusMessage === 'Saved'} />}
+      >
+        {saveFailed ? (
+          <Alert title="Failed to save">
+            Your last change may not have been saved. Try the switch again.
+          </Alert>
+        ) : null}
+        <TableFrame aria-label="Event preferences">
+          <thead>
+            <tr className={TABLE_HEAD_ROW_CLASS}>
+              <th className={cn(TABLE_CELL_CLASS, 'px-4 font-medium')}>
+                Event
+              </th>
+              <th
+                className={cn(
+                  TABLE_CELL_CLASS,
+                  'min-w-[80px] text-center font-medium'
+                )}
+              >
+                Email
+              </th>
+              <th
+                className={cn(
+                  TABLE_CELL_CLASS,
+                  'min-w-[80px] text-center font-medium'
+                )}
+              >
+                Push
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {notificationTypes.map((nt) => (
+              <tr key={nt.key} className="border-b last:border-0">
+                <td className={cn(TABLE_CELL_CLASS, 'px-4 py-3')}>
+                  <div>
+                    <span className="font-medium">{nt.label}</span>
+                    <p className="text-muted-foreground text-xs">
+                      {nt.description}
+                    </p>
+                  </div>
+                </td>
+                <td className={cn(TABLE_CELL_CLASS, 'text-center')}>
+                  <Switch
+                    id={`email-${nt.key}`}
+                    aria-label={`${nt.label} email notifications`}
+                    checked={
+                      emailMasterEnabled && emailSettings[nt.key] !== false
+                    }
+                    disabled={!emailMasterEnabled || emailSaving}
+                    onCheckedChange={(checked) =>
+                      handleEmailTypeToggle(nt.key, checked)
+                    }
+                  />
+                </td>
+                <td className={cn(TABLE_CELL_CLASS, 'text-center')}>
+                  <Switch
+                    id={`push-${nt.key}`}
+                    aria-label={`${nt.label} push notifications`}
+                    checked={pushEnabled && pushSettings[nt.key] !== false}
+                    disabled={!pushEnabled || pushSaving}
+                    onCheckedChange={(checked) =>
+                      handlePushTypeToggle(nt.key, checked)
+                    }
+                  />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {notificationTypes.map((nt) => (
-                <tr key={nt.key} className="border-b last:border-0">
-                  <td className="py-3 pr-4">
-                    <div>
-                      <span className="font-medium">{nt.label}</span>
-                      <p className="text-xs text-muted-foreground">
-                        {nt.description}
-                      </p>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <Switch
-                      id={`email-${nt.key}`}
-                      aria-label={`${nt.label} email notifications`}
-                      checked={
-                        emailMasterEnabled && emailSettings[nt.key] !== false
-                      }
-                      disabled={!emailMasterEnabled || emailSaving}
-                      onCheckedChange={(checked) =>
-                        handleEmailTypeToggle(nt.key, checked)
-                      }
-                    />
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <Switch
-                      id={`push-${nt.key}`}
-                      aria-label={`${nt.label} push notifications`}
-                      checked={pushEnabled && pushSettings[nt.key] !== false}
-                      disabled={!pushEnabled || pushSaving}
-                      onCheckedChange={(checked) =>
-                        handlePushTypeToggle(nt.key, checked)
-                      }
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {(emailStatusMessage || pushStatusMessage) && (
-          <p className="text-sm text-muted-foreground">
-            {emailStatusMessage || pushStatusMessage}
-          </p>
-        )}
-      </section>
+            ))}
+          </tbody>
+        </TableFrame>
+      </Section>
     </div>
   )
 }

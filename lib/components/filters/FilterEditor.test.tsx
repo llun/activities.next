@@ -95,6 +95,109 @@ describe('FilterEditor', () => {
       expect(screen.queryByText('Show anyway')).not.toBeInTheDocument()
     })
   })
+
+  describe('saving', () => {
+    const renderNew = (
+      props: Partial<Parameters<typeof FilterEditor>[0]> = {}
+    ) => {
+      const onSave = vi.fn()
+      const onCancel = vi.fn()
+      render(
+        <FilterEditor
+          initial={null}
+          scope="account"
+          currentTime={0}
+          saving={false}
+          error={null}
+          onCancel={onCancel}
+          onSave={onSave}
+          {...props}
+        />
+      )
+      return { onSave, onCancel }
+    }
+
+    it('keeps Save disabled until a keyword has text', () => {
+      renderNew()
+
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+
+      fireEvent.change(screen.getByLabelText('Keyword or phrase 1'), {
+        target: { value: 'spoiler' }
+      })
+
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+      expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    })
+
+    it('saves the new filter with the title and keyword', () => {
+      const { onSave } = renderNew()
+
+      fireEvent.change(screen.getByLabelText('Title'), {
+        target: { value: 'Spoilers' }
+      })
+      fireEvent.change(screen.getByLabelText('Keyword or phrase 1'), {
+        target: { value: ' spoiler ' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Spoilers',
+          filterAction: 'warn',
+          keywords: [{ keyword: 'spoiler', wholeWord: true }]
+        })
+      )
+    })
+
+    it('leaves an existing filter clean until something changes', () => {
+      renderNew({
+        initial: {
+          ...filterWithAction('warn'),
+          keywords: [{ id: 'k1', keyword: 'spoiler', whole_word: true }]
+        } as unknown as ClientFilter
+      })
+
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+
+      fireEvent.click(screen.getByRole('radio', { name: /Hide completely/i }))
+
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+    })
+
+    it('shows the save error in the bar and goes back with Back', () => {
+      const { onCancel } = renderNew({ error: 'Failed to create filter.' })
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Failed to create filter.'
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+      expect(onCancel).toHaveBeenCalledTimes(1)
+    })
+
+    it('moves between the action options with the arrow keys', () => {
+      renderNew()
+
+      const warn = screen.getByRole('radio', { name: /Hide with a warning/i })
+      fireEvent.keyDown(warn, { key: 'ArrowDown' })
+
+      expect(
+        screen.getByRole('radio', { name: /Hide completely/i })
+      ).toHaveAttribute('aria-checked', 'true')
+    })
+
+    it('does not add a second h1 to the page', () => {
+      renderNew()
+
+      expect(
+        screen.queryByRole('heading', { level: 1 })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { level: 2, name: 'Add filter' })
+      ).toBeInTheDocument()
+    })
+  })
 })
 
 const existingFilter = (overrides: Partial<ClientFilter> = {}): ClientFilter =>
@@ -139,15 +242,14 @@ describe('FilterEditor form behaviour', () => {
 
   const keywordInput = (index: number) =>
     screen.getByRole('textbox', { name: `Keyword or phrase ${index}` })
-  const saveButton = (name: RegExp = /Create filter|Save changes/) =>
-    screen.getByRole('button', { name })
+  const saveButton = (name = 'Save') => screen.getByRole('button', { name })
 
   describe('creating a filter', () => {
     it('starts with the home context, warn action, no expiry and one blank whole-word keyword', () => {
       renderEditor()
 
       expect(
-        screen.getByRole('heading', { name: 'Add new filter' })
+        screen.getByRole('heading', { level: 2, name: 'Add filter' })
       ).toBeInTheDocument()
       expect(
         screen.getByRole('checkbox', { name: /Home and lists/ })
@@ -165,20 +267,20 @@ describe('FilterEditor form behaviour', () => {
 
     it('blocks saving until a keyword has text', () => {
       renderEditor()
-      expect(saveButton(/Create filter/)).toBeDisabled()
+      expect(saveButton()).toBeDisabled()
 
       fireEvent.change(keywordInput(1), { target: { value: '   ' } })
-      expect(saveButton(/Create filter/)).toBeDisabled()
+      expect(saveButton()).toBeDisabled()
 
       fireEvent.change(keywordInput(1), { target: { value: 'spoiler' } })
-      expect(saveButton(/Create filter/)).toBeEnabled()
+      expect(saveButton()).toBeEnabled()
     })
 
     it('saves the defaults with an "Untitled filter" title when none is given', () => {
       const { onSave } = renderEditor()
       fireEvent.change(keywordInput(1), { target: { value: ' spoiler ' } })
 
-      fireEvent.click(saveButton(/Create filter/))
+      fireEvent.click(saveButton())
 
       expect(onSave).toHaveBeenCalledWith({
         title: 'Untitled filter',
@@ -205,7 +307,7 @@ describe('FilterEditor form behaviour', () => {
       fireEvent.click(screen.getByRole('button', { name: /Add keyword/ }))
       fireEvent.change(keywordInput(3), { target: { value: 'ballot box' } })
 
-      fireEvent.click(saveButton(/Create filter/))
+      fireEvent.click(saveButton())
 
       expect(onSave).toHaveBeenCalledWith({
         title: 'Politics',
@@ -224,7 +326,7 @@ describe('FilterEditor form behaviour', () => {
       fireEvent.change(keywordInput(1), { target: { value: 'spoiler' } })
       fireEvent.click(screen.getByRole('checkbox', { name: /Home and lists/ }))
 
-      fireEvent.click(saveButton(/Create filter/))
+      fireEvent.click(saveButton())
 
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({ context: ['home'] })
@@ -240,7 +342,7 @@ describe('FilterEditor form behaviour', () => {
       fireEvent.click(
         screen.getByRole('button', { name: 'Remove keyword discard' })
       )
-      fireEvent.click(saveButton(/Create filter/))
+      fireEvent.click(saveButton())
 
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -280,10 +382,15 @@ describe('FilterEditor form behaviour', () => {
     it('sends unchanged keywords with their ids so they are kept, not recreated', () => {
       const { onSave } = renderEditor({ initial: existingFilter() })
 
-      fireEvent.click(saveButton(/Save changes/))
+      // Save stays disabled until something changes; rename to make it dirty.
+      expect(saveButton()).toBeDisabled()
+      fireEvent.change(screen.getByLabelText('Title'), {
+        target: { value: 'Renamed' }
+      })
+      fireEvent.click(saveButton())
 
       expect(onSave).toHaveBeenCalledWith({
-        title: 'Spoilers',
+        title: 'Renamed',
         context: ['home', 'public'],
         filterAction: 'hide',
         expiresIn: null,
@@ -300,7 +407,7 @@ describe('FilterEditor form behaviour', () => {
       fireEvent.click(
         screen.getByRole('button', { name: 'Remove keyword finale' })
       )
-      fireEvent.click(saveButton(/Save changes/))
+      fireEvent.click(saveButton())
 
       const { keywords } = onSave.mock.calls[0][0]
       expect(keywords).toEqual([
@@ -313,7 +420,7 @@ describe('FilterEditor form behaviour', () => {
       const { onSave } = renderEditor({ initial: existingFilter() })
 
       fireEvent.change(keywordInput(2), { target: { value: '  ' } })
-      fireEvent.click(saveButton(/Save changes/))
+      fireEvent.click(saveButton())
 
       expect(onSave.mock.calls[0][0].keywords).toEqual([
         { id: 'k-1', keyword: 'finale', wholeWord: true },
@@ -328,7 +435,7 @@ describe('FilterEditor form behaviour', () => {
       fireEvent.click(
         screen.getByRole('switch', { name: /Whole word for season finale/ })
       )
-      fireEvent.click(saveButton(/Save changes/))
+      fireEvent.click(saveButton())
 
       expect(onSave.mock.calls[0][0].keywords[0]).toEqual({
         id: 'k-1',
@@ -449,17 +556,17 @@ describe('FilterEditor form behaviour', () => {
       ).toBeInTheDocument()
     })
 
-    it('disables saving and cancelling while a save is in flight', () => {
+    it('disables saving and going back while a save is in flight', () => {
       renderEditor({ initial: existingFilter(), saving: true })
 
-      expect(saveButton(/Save changes/)).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+      expect(saveButton()).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
     })
 
-    it.each(['Back', 'Cancel'])('calls onCancel from the %s button', (name) => {
+    it('calls onCancel from the Back button', () => {
       const { onCancel, onSave } = renderEditor({ initial: existingFilter() })
 
-      fireEvent.click(screen.getByRole('button', { name }))
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }))
 
       expect(onCancel).toHaveBeenCalledTimes(1)
       expect(onSave).not.toHaveBeenCalled()
@@ -469,7 +576,7 @@ describe('FilterEditor form behaviour', () => {
       renderEditor({ initial: existingFilter({ keywords: [] }) })
 
       expect(screen.getByText(/No keywords yet/)).toBeInTheDocument()
-      expect(saveButton(/Save changes/)).toBeDisabled()
+      expect(saveButton()).toBeDisabled()
     })
   })
 })

@@ -154,7 +154,9 @@ describe('InstanceSettingsForm', () => {
     })
     fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
-    await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByText('All changes saved')).toBeInTheDocument()
+    )
     expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeDisabled()
   })
 })

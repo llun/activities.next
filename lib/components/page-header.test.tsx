@@ -71,6 +71,22 @@ describe('PageHeader', () => {
     }
   )
 
+  it('renders the child title as an h2 in section mode so the page keeps one h1', () => {
+    render(
+      <>
+        <PageHeader title="Settings" />
+        <PageHeaderSectionProvider>
+          <PageHeader title="General" />
+        </PageHeaderSectionProvider>
+      </>
+    )
+
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'General' })
+    ).toBeInTheDocument()
+  })
+
   it('keeps actions inline by default when stackActionsOnMobile is not set', () => {
     const { container } = render(
       <PageHeader

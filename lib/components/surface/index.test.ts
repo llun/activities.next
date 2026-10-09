@@ -19,6 +19,7 @@ describe('surface kit index', () => {
     'SaveBar',
     'SavedIndicator',
     'Section',
+    'SectionSkeleton',
     'SegmentedControl',
     'SkeletonBar',
     'SkeletonRows',

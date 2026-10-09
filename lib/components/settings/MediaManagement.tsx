@@ -1,5 +1,6 @@
 'use client'
 
+import { HardDrive, Image as ImageIcon, Music } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ReactNode, useEffect, useState } from 'react'
@@ -11,14 +12,11 @@ import {
   ItemsPerPageDropdown,
   getFileStatusLink
 } from '@/lib/components/settings/fileManagementShared'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -117,153 +115,137 @@ export function MediaManagement({
 
       {settings}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Storage Usage</CardTitle>
-          <CardDescription>
-            Your current storage usage across all media
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Progress value={percentUsed} aria-label="Storage quota used" />
-            {/* Mono caption under the bar: what is used of the quota on the
-                left, the share of it on the right. */}
-            <div className="text-muted-foreground flex justify-between font-mono text-xs">
-              <span>
-                {formatFileSize(currentUsed)} / {formatFileSize(limit)}
-              </span>
-              <span>{percentUsed.toFixed(1)}%</span>
-            </div>
+      <Section
+        icon={HardDrive}
+        title="Storage usage"
+        description="Your current storage usage across all media."
+      >
+        <Frame className="space-y-1.5 px-4 py-4">
+          <Progress value={percentUsed} aria-label="Storage quota used" />
+          {/* Mono caption under the bar: what is used of the quota on the
+              left, the share of it on the right. */}
+          <div className="text-muted-foreground flex justify-between font-mono text-xs">
+            <span>
+              {formatFileSize(currentUsed)} / {formatFileSize(limit)}
+            </span>
+            <span>{percentUsed.toFixed(1)}%</span>
           </div>
-        </CardContent>
-      </Card>
+        </Frame>
+      </Section>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Your Media</CardTitle>
-              <CardDescription>
-                All media files you have uploaded
-              </CardDescription>
-            </div>
-            <ItemsPerPageDropdown
-              itemsPerPage={itemsPerPage}
-              onChange={handleItemsPerPageChange}
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          {medias.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No media uploaded yet.
-            </p>
-          ) : (
-            <>
-              <div className="space-y-2">
-                {medias.map((media) => {
-                  const isVideo = media.mimeType.startsWith('video')
-                  const isAudio = media.mimeType.startsWith('audio')
-                  const postLink = media.statusId
-                    ? getFileStatusLink(media.actorId, media.statusId)
-                    : null
-
-                  return (
-                    <div
-                      key={media.id}
-                      className="flex items-center gap-4 rounded-lg border p-4"
-                    >
-                      {/* Square Preview */}
-                      <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border bg-muted">
-                        {isVideo ? (
-                          <video
-                            src={media.url}
-                            className="h-full w-full object-cover"
-                            muted
-                          />
-                        ) : isAudio ? (
-                          <div className="flex h-full w-full items-center justify-center bg-muted">
-                            <svg
-                              className="h-8 w-8 text-muted-foreground"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
-                              />
-                            </svg>
-                          </div>
-                        ) : (
-                          <img
-                            src={media.url}
-                            alt={media.description || 'Media'}
-                            className="h-full w-full object-cover"
-                          />
-                        )}
-                      </div>
-
-                      {/* Media Info */}
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-muted-foreground">
-                            ID: {media.id}
-                          </span>
-                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs">
-                            {media.mimeType}
-                          </span>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {media.width} × {media.height} •{' '}
-                          {formatFileSize(media.bytes)}
-                        </div>
-                        {media.description && (
-                          <div className="text-sm">{media.description}</div>
-                        )}
-                        {postLink && (
-                          <div className="pt-1">
-                            <Link
-                              href={postLink}
-                              className="text-xs text-primary-text hover:underline"
-                            >
-                              View in post →
-                            </Link>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Delete Button */}
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDeleteClick(media)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
-
+      <Section
+        icon={ImageIcon}
+        title="Your media"
+        description="All media files you have uploaded."
+        actions={
+          <ItemsPerPageDropdown
+            itemsPerPage={itemsPerPage}
+            onChange={handleItemsPerPageChange}
+          />
+        }
+      >
+        {medias.length === 0 ? (
+          <EmptyState icon={ImageIcon} title="No media uploaded yet">
+            Photos and videos you attach to posts appear here, with the space
+            they use.
+          </EmptyState>
+        ) : (
+          <FramedList
+            aria-label="Your media"
+            footer={
               <FileListPagination
+                className="mt-0 border-t-0 pt-0"
                 currentPage={currentPage}
                 itemsPerPage={itemsPerPage}
                 totalItems={totalItems}
                 onPageChange={goToPage}
               />
-            </>
-          )}
-        </CardContent>
-      </Card>
+            }
+          >
+            {medias.map((media) => {
+              const isVideo = media.mimeType.startsWith('video')
+              const isAudio = media.mimeType.startsWith('audio')
+              const postLink = media.statusId
+                ? getFileStatusLink(media.actorId, media.statusId)
+                : null
+
+              return (
+                <FramedListItem
+                  key={media.id}
+                  className="flex items-center gap-4"
+                >
+                  {/* Square Preview */}
+                  <div className="bg-muted size-20 flex-shrink-0 overflow-hidden rounded-md border">
+                    {isVideo ? (
+                      <video
+                        src={media.url}
+                        className="h-full w-full object-cover"
+                        muted
+                      />
+                    ) : isAudio ? (
+                      <div className="bg-muted flex h-full w-full items-center justify-center">
+                        <Music
+                          aria-hidden="true"
+                          className="text-muted-foreground size-8"
+                        />
+                      </div>
+                    ) : (
+                      <img
+                        src={media.url}
+                        alt={media.description || 'Media'}
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                  </div>
+
+                  {/* Media Info */}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-muted-foreground font-mono text-xs break-all">
+                        ID: {media.id}
+                      </span>
+                      <span className="bg-muted rounded-md px-2 py-0.5 text-xs">
+                        {media.mimeType}
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground text-sm">
+                      {media.width} × {media.height} •{' '}
+                      {formatFileSize(media.bytes)}
+                    </div>
+                    {media.description && (
+                      <div className="text-sm">{media.description}</div>
+                    )}
+                    {postLink && (
+                      <div className="pt-1">
+                        <Link
+                          href={postLink}
+                          className="text-primary-text text-xs hover:underline"
+                        >
+                          View in post →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Delete Button */}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeleteClick(media)}
+                  >
+                    Delete
+                  </Button>
+                </FramedListItem>
+              )
+            })}
+          </FramedList>
+        )}
+      </Section>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Media</DialogTitle>
+            <DialogTitle>Delete media</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete this media? This action cannot be
               undone. Posts containing this media will show a placeholder image.

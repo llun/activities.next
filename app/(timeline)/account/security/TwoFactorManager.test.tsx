@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { useRouter } from 'next/navigation'
 import QRCode from 'qrcode'
 
@@ -56,6 +62,41 @@ describe('TwoFactorManager', () => {
     })
   })
 
+  it('shows the off state as a warning alert whose action is Set up', () => {
+    render(<TwoFactorManager enabled={false} serviceName="Activities" />)
+
+    const alert = screen
+      .getByText('Two-factor authentication is off')
+      .closest('[role="alert"]')
+    expect(alert).toHaveAttribute('data-tone', 'warning')
+    expect(
+      within(alert as HTMLElement).getByRole('button', { name: 'Set up' })
+    ).toBeInTheDocument()
+  })
+
+  it('asks for the current password when Set up is pressed without one', async () => {
+    render(<TwoFactorManager enabled={false} serviceName="Activities" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set up' }))
+
+    expect(
+      await screen.findByText('Current password is required')
+    ).toBeInTheDocument()
+    expect(mockEnable).not.toHaveBeenCalled()
+  })
+
+  it('shows the on state as a success alert, with no Set up action', () => {
+    render(<TwoFactorManager enabled serviceName="Activities" />)
+
+    const alert = screen
+      .getByText('Two-factor authentication is on')
+      .closest('[role="status"]')
+    expect(alert).toHaveAttribute('data-tone', 'success')
+    expect(
+      screen.queryByRole('button', { name: 'Set up' })
+    ).not.toBeInTheDocument()
+  })
+
   it('starts setup and renders the authenticator QR data', async () => {
     mockEnable.mockResolvedValue({
       data: {
@@ -71,7 +112,7 @@ describe('TwoFactorManager', () => {
     fireEvent.change(screen.getByLabelText('Current password'), {
       target: { value: 'password' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Set up 2FA' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set up' }))
 
     await waitFor(() => {
       expect(mockEnable).toHaveBeenCalledWith({
@@ -109,7 +150,7 @@ describe('TwoFactorManager', () => {
     fireEvent.change(screen.getByLabelText('Current password'), {
       target: { value: 'password' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Set up 2FA' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set up' }))
 
     await screen.findByLabelText('Verification code')
     fireEvent.change(screen.getByLabelText('Verification code'), {
@@ -145,7 +186,7 @@ describe('TwoFactorManager', () => {
     fireEvent.change(screen.getByLabelText('Current password'), {
       target: { value: 'password' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Set up 2FA' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set up' }))
 
     expect(await screen.findByText('Failed to start setup')).toBeInTheDocument()
     expect(screen.queryByLabelText('Verification code')).not.toBeInTheDocument()
@@ -172,7 +213,9 @@ describe('TwoFactorManager', () => {
     // The "2FA is off" label renders only after the awaited disable() resolves
     // and React re-renders; use findByText so the assertion waits for that
     // re-render instead of racing it.
-    expect(await screen.findByText('2FA is off')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Two-factor authentication is off')
+    ).toBeInTheDocument()
     expect(mockRefresh).toHaveBeenCalled()
   })
 

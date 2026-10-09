@@ -27,7 +27,7 @@ export const LogoutButton = () => {
       <Button variant="outline" onClick={handleSignOut}>
         Logout
       </Button>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-destructive-text text-sm">{error}</p>}
     </div>
   )
 }

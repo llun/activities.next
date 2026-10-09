@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 const BLOCKS_PAGE_LIMIT = 80
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Blocked Accounts'
+  title: 'Activities.next: Blocked accounts'
 }
 
 const Page = async () => {
@@ -44,20 +44,18 @@ const Page = async () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Blocked Accounts"
+        title="Blocked accounts"
         description="Manage actors hidden from your timelines and notifications."
       />
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <BlocksList
-          accounts={accounts}
-          nextMaxId={
-            blocks.length === BLOCKS_PAGE_LIMIT
-              ? (blocks[blocks.length - 1]?.id ?? null)
-              : null
-          }
-        />
-      </section>
+      <BlocksList
+        accounts={accounts}
+        nextMaxId={
+          blocks.length === BLOCKS_PAGE_LIMIT
+            ? (blocks[blocks.length - 1]?.id ?? null)
+            : null
+        }
+      />
     </div>
   )
 }

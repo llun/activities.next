@@ -2,22 +2,17 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import { FC } from 'react'
 
+import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Activities.next: Verify Email'
+  title: 'Activities.next: Verify email'
 }
 
 interface Props {
@@ -54,53 +49,42 @@ const Page: FC<Props> = async ({ searchParams }) => {
   const actor = await getActorFromSession(database, session)
   const isLoggedIn = !!(actor && actor.account)
 
+  const destination = isLoggedIn
+    ? { href: '/account', label: 'Go to account' }
+    : { href: '/auth/signin', label: 'Sign in' }
+
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">
-            {isSuccess ? 'Email Verified!' : 'Verification Failed'}
-          </CardTitle>
-          <CardDescription>
-            {isSuccess
-              ? `Your email has been successfully changed to ${newEmail}`
-              : 'The verification link is invalid or has expired'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="space-y-6">
+      <PageHeader
+        title="Verify email"
+        description="Confirm a change to the email address on your account."
+      />
+
+      <Section title="Email change">
+        <Alert
+          tone={isSuccess ? 'success' : 'error'}
+          title={isSuccess ? 'Email verified' : 'Verification failed'}
+          action={
+            <Button asChild>
+              <Link href={destination.href}>{destination.label}</Link>
+            </Button>
+          }
+        >
           {isSuccess ? (
-            <div className="space-y-2 text-center">
-              <p className="text-sm text-muted-foreground">
-                You can now use your new email address to sign in.
-              </p>
-              {!isLoggedIn && (
-                <p className="text-sm font-medium">
+            <>
+              Your email has been successfully changed to {newEmail}. You can
+              now use your new email address to sign in.
+              {!isLoggedIn ? (
+                <span className="text-foreground mt-1 block font-medium">
                   Please sign in with your new email address.
-                </p>
-              )}
-            </div>
+                </span>
+              ) : null}
+            </>
           ) : (
-            <p className="text-center text-sm text-muted-foreground">
-              Please request a new email change from your account settings.
-            </p>
+            'The verification link is invalid or has expired. Please request a new email change from your account settings.'
           )}
-        </CardContent>
-        <CardFooter className="justify-center gap-2">
-          {isSuccess && !isLoggedIn ? (
-            <Link href="/auth/signin">
-              <Button>Sign In</Button>
-            </Link>
-          ) : isLoggedIn ? (
-            <Link href="/account">
-              <Button>Go to Account</Button>
-            </Link>
-          ) : (
-            <Link href="/auth/signin">
-              <Button>Sign In</Button>
-            </Link>
-          )}
-        </CardFooter>
-      </Card>
+        </Alert>
+      </Section>
     </div>
   )
 }

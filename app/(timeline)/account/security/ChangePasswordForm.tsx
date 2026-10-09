@@ -3,22 +3,30 @@
 import { FC, useState } from 'react'
 
 import { changeAccountPassword } from '@/lib/client'
-import { Button } from '@/lib/components/ui/button'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 
 export const ChangePasswordForm: FC = () => {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [message, setMessage] = useState('')
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+
+  const dirty = Boolean(currentPassword || newPassword || confirmPassword)
+
+  const edit = (set: (value: string) => void) => (value: string) => {
+    set(value)
+    setSaved(false)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setMessage('')
+    setSaved(false)
 
     if (newPassword !== confirmPassword) {
       setError('New passwords do not match')
@@ -35,7 +43,7 @@ export const ChangePasswordForm: FC = () => {
     try {
       await changeAccountPassword({ currentPassword, newPassword })
 
-      setMessage('Password changed successfully!')
+      setSaved(true)
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
@@ -55,51 +63,58 @@ export const ChangePasswordForm: FC = () => {
     // `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but a
     // method-less <form> defaults to GET — POST keeps the current/new password out
     // of the URL if a `name` attribute is added later.
-    <form onSubmit={handleSubmit} method="post" className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="currentPassword">Current Password</Label>
-        <Input
-          type="password"
-          id="currentPassword"
-          value={currentPassword}
-          onChange={(e) => setCurrentPassword(e.target.value)}
-          required
-        />
-      </div>
+    <form onSubmit={handleSubmit} method="post">
+      <Frame
+        divided
+        footer={
+          <SaveBar
+            submit
+            dirty={dirty}
+            saving={isLoading}
+            saved={saved}
+            error={error}
+          />
+        }
+      >
+        <FormRow label="Current password" htmlFor="currentPassword">
+          <Input
+            type="password"
+            id="currentPassword"
+            value={currentPassword}
+            onChange={(e) => edit(setCurrentPassword)(e.target.value)}
+            required
+          />
+        </FormRow>
 
-      <div className="space-y-2">
-        <Label htmlFor="newPassword">New Password</Label>
-        <Input
-          type="password"
-          id="newPassword"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          required
-          minLength={8}
-        />
-        <p className="text-[0.8rem] text-muted-foreground">
-          Must be at least 8 characters long
-        </p>
-      </div>
+        <FormRow
+          label="New password"
+          htmlFor="newPassword"
+          hint="Must be at least 8 characters long"
+        >
+          {({ describedBy }) => (
+            <Input
+              type="password"
+              id="newPassword"
+              aria-describedby={describedBy}
+              value={newPassword}
+              onChange={(e) => edit(setNewPassword)(e.target.value)}
+              required
+              minLength={8}
+            />
+          )}
+        </FormRow>
 
-      <div className="space-y-2">
-        <Label htmlFor="confirmPassword">Confirm New Password</Label>
-        <Input
-          type="password"
-          id="confirmPassword"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-          minLength={8}
-        />
-      </div>
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      {message && <p className="text-sm text-green-600">{message}</p>}
-
-      <Button type="submit" disabled={isLoading}>
-        {isLoading ? 'Changing Password...' : 'Change Password'}
-      </Button>
+        <FormRow label="Confirm new password" htmlFor="confirmPassword">
+          <Input
+            type="password"
+            id="confirmPassword"
+            value={confirmPassword}
+            onChange={(e) => edit(setConfirmPassword)(e.target.value)}
+            required
+            minLength={8}
+          />
+        </FormRow>
+      </Frame>
     </form>
   )
 }

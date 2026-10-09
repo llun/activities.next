@@ -17,11 +17,11 @@ import path from 'path'
 // copy, lower the number here in the same change.
 const BASELINE = {
   /** A string literal carrying both `rounded-2xl` and `shadow-sm`. */
-  sectionPanels: 50,
+  sectionPanels: 25,
   /** Raw Tailwind palette colour utilities. */
-  rawColours: 210,
+  rawColours: 194,
   /** "Loading…" / "Loading..." as JSX text or a bare string. */
-  loadingText: 5
+  loadingText: 4
 }
 
 const ROOT = process.cwd()

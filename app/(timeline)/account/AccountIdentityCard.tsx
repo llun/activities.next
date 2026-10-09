@@ -1,5 +1,6 @@
 import { FC } from 'react'
 
+import { Frame } from '@/lib/components/surface/Frame'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 
 interface Props {
@@ -19,7 +20,7 @@ export const AccountIdentityCard: FC<Props> = ({ name, email, iconUrl }) => {
   const initial = [...displayName][0]?.toUpperCase() || '?'
 
   return (
-    <section className="flex items-center gap-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
+    <Frame className="flex items-center gap-4 px-4 py-4">
       <Avatar className="h-16 w-16" aria-hidden="true">
         {iconUrl && <AvatarImage src={iconUrl} alt="" />}
         <AvatarFallback className="bg-(--skeleton) text-xl font-semibold text-muted-foreground dark:bg-input">
@@ -27,13 +28,13 @@ export const AccountIdentityCard: FC<Props> = ({ name, email, iconUrl }) => {
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0">
-        <h2 className="truncate text-xl font-semibold">{displayName}</h2>
+        <p className="truncate text-base font-semibold">{displayName}</p>
         {/* Show the email beneath only when a distinct name is the heading, so
             it never renders twice (case-insensitive — emails are). */}
         {displayName.toLowerCase() !== email.toLowerCase() && (
           <p className="truncate text-sm text-muted-foreground">{email}</p>
         )}
       </div>
-    </section>
+    </Frame>
   )
 }

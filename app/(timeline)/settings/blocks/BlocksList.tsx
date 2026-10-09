@@ -19,7 +19,8 @@ export const BlocksList: FC<BlocksListProps> = ({ accounts, nextMaxId }) => (
     actionLabel="Unblock"
     actionIcon={Ban}
     failureMessage="Failed to unblock account. Please try again."
-    emptyText="No blocked accounts."
+    emptyText="No blocked accounts"
+    emptyHint="Block someone from their profile and they will show up here."
     emptyPageText="No blocked accounts on this page."
     dialogTitle="Unblock account"
     dialogDescription="This actor may appear in timelines and interact with your posts again."

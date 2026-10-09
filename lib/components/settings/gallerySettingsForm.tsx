@@ -4,8 +4,8 @@ import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getGallerySettings, updateGallerySettings } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { SavedIndicator } from '@/lib/components/surface/SaveBar'
-import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
 import type { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
 import type { GallerySettings } from '@/lib/types/database/gallery'
@@ -38,6 +38,9 @@ export const useGallerySettingsForm = <K extends keyof GallerySettings>({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savingKeys, setSavingKeys] = useState<ReadonlySet<K>>(() => new Set())
   const [savedStatus, setSavedStatus] = useState<string | null>(null)
+  // Which control the tick belongs to, so a page with several sections can show
+  // it beside the section that was just saved.
+  const [savedKey, setSavedKey] = useState<K | null>(null)
   // Each load gets a number; only the newest one may apply its result, so a
   // retry cannot be overwritten by an older request that finishes later.
   const loadRequest = useRef(0)
@@ -85,6 +88,7 @@ export const useGallerySettingsForm = <K extends keyof GallerySettings>({
     const previous = settings?.[key]
     clearSavedTimer()
     setSavedStatus(null)
+    setSavedKey(null)
     setSettings((current) => (current ? { ...current, [key]: value } : current))
     setSaveError(null)
     setSavingKeys((current) => new Set(current).add(key))
@@ -95,9 +99,11 @@ export const useGallerySettingsForm = <K extends keyof GallerySettings>({
         current ? { ...current, [key]: saved[key] } : current
       )
       setSavedStatus(SAVED_STATUS)
+      setSavedKey(key)
       savedTimer.current = setTimeout(() => {
         savedTimer.current = null
         setSavedStatus(null)
+        setSavedKey(null)
       }, SAVED_STATUS_MS)
     } catch {
       if (!isLatest()) return
@@ -123,6 +129,7 @@ export const useGallerySettingsForm = <K extends keyof GallerySettings>({
     loadError,
     saveError,
     savedStatus,
+    savedKey,
     savingKeys,
     loadSettings,
     save
@@ -134,6 +141,11 @@ interface StatusProps {
   saveError: string | null
   savedStatus: string | null
   onRetry: () => void
+  /**
+   * Draw the "Saved" tick here (the default). A page that puts the tick in its
+   * sections' actions passes `false`, and this only carries the errors.
+   */
+  showSaved?: boolean
 }
 
 /** The load error with Retry, the save error, and the polite "Saved" tick. */
@@ -141,12 +153,13 @@ export const GallerySettingsStatus: FC<StatusProps> = ({
   loadError,
   saveError,
   savedStatus,
-  onRetry
+  onRetry,
+  showSaved = true
 }) => (
-  <div className="min-h-5 space-y-3">
+  <div className={showSaved ? 'min-h-5 space-y-3' : 'space-y-3 empty:hidden'}>
     {loadError && <Alert title={loadError} onRetry={onRetry} />}
     {saveError && <Alert title={saveError} />}
-    <SavedIndicator saved={savedStatus !== null} />
+    {showSaved ? <SavedIndicator saved={savedStatus !== null} /> : null}
   </div>
 )
 
@@ -162,6 +175,7 @@ interface ToggleRowProps {
   onCheckedChange: (checked: boolean) => void
 }
 
+// The switch stays at the end of the label's row on a phone too (`inline`).
 export const ToggleRow: FC<ToggleRowProps> = ({
   id,
   label,
@@ -172,24 +186,26 @@ export const ToggleRow: FC<ToggleRowProps> = ({
   notice,
   onCheckedChange
 }) => (
-  <div className="flex items-center justify-between gap-4">
-    <div className="min-w-0 space-y-0.5">
-      <Label htmlFor={id} className="cursor-pointer">
-        {label}
-      </Label>
-      <p className="text-[0.8rem] text-muted-foreground">{description}</p>
-      {notice && (
-        <p className="text-[0.8rem] text-muted-foreground">{notice}</p>
-      )}
-    </div>
-    <div className="shrink-0">
+  <FormRow
+    label={label}
+    htmlFor={id}
+    inline
+    hint={
+      <>
+        {description}
+        {notice ? <span className="mt-0.5 block">{notice}</span> : null}
+      </>
+    }
+  >
+    {({ describedBy }) => (
       <Switch
         id={id}
+        aria-describedby={describedBy}
         checked={checked}
         disabled={disabled}
         aria-busy={busy}
         onCheckedChange={onCheckedChange}
       />
-    </div>
-  </div>
+    )}
+  </FormRow>
 )

@@ -5,12 +5,14 @@ import { FC, useMemo, useState } from 'react'
 import { PreferencesInput, updatePreferences } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
 import { usePlaybackPreferences } from '@/lib/components/preferences/PlaybackPreferencesContext'
-import { Button } from '@/lib/components/ui/button'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
+import { Section } from '@/lib/components/surface/Section'
 import { Label } from '@/lib/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
 import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
-import { cn } from '@/lib/utils'
 
 type PostingVisibility = PreferencesInput['visibility']
 type QuotePolicy = PreferencesInput['quotePolicy']
@@ -60,33 +62,6 @@ const MEDIA_DISPLAY: { value: ExpandMedia; label: string; help: string }[] = [
     help: 'Every attachment needs a click to show.'
   }
 ]
-
-// A label/description on the left with its control on the right.
-interface ControlRowProps {
-  label: string
-  description?: string
-  htmlFor?: string
-  children: React.ReactNode
-}
-
-const ControlRow: FC<ControlRowProps> = ({
-  label,
-  description,
-  htmlFor,
-  children
-}) => (
-  <div className="flex items-center justify-between gap-4">
-    <div className="min-w-0 space-y-0.5">
-      <Label htmlFor={htmlFor} className="cursor-pointer">
-        {label}
-      </Label>
-      {description && (
-        <p className="text-[0.8rem] text-muted-foreground">{description}</p>
-      )}
-    </div>
-    <div className="shrink-0">{children}</div>
-  </div>
-)
 
 interface Props {
   initialPreferences: PreferencesInput
@@ -166,183 +141,179 @@ export const PreferencesSettings: FC<Props> = ({ initialPreferences }) => {
         description="Defaults for what you post and how your timeline reads. Apps using the Mastodon API pick these up automatically."
       />
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Posting defaults</h2>
-          <p className="text-sm text-muted-foreground">
-            Applied to every new post; you can still change them per post in the
-            composer.
-          </p>
-        </div>
+      <Section
+        title="Posting defaults"
+        description="Applied to every new post; you can still change them per post in the composer."
+      >
+        <Frame divided>
+          <FormRow label="Posting privacy" htmlFor="posting-visibility">
+            <Select
+              id="posting-visibility"
+              value={preferences.visibility}
+              onChange={(event) =>
+                update('visibility', event.target.value as PostingVisibility)
+              }
+            >
+              {VISIBILITIES.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </FormRow>
 
-        <div className="space-y-2">
-          <Label htmlFor="posting-visibility">Posting privacy</Label>
-          <Select
-            id="posting-visibility"
-            value={preferences.visibility}
-            onChange={(event) =>
-              update('visibility', event.target.value as PostingVisibility)
-            }
+          <FormRow
+            label="Who can quote"
+            htmlFor="posting-quote-policy"
+            hint="Applies to new public and unlisted posts; quotes of restricted posts always need your approval."
           >
-            {VISIBILITIES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </div>
+            {({ describedBy }) => (
+              <Select
+                id="posting-quote-policy"
+                aria-describedby={describedBy}
+                value={preferences.quotePolicy}
+                onChange={(event) =>
+                  update('quotePolicy', event.target.value as QuotePolicy)
+                }
+              >
+                {QUOTE_POLICIES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </FormRow>
 
-        <div className="space-y-2">
-          <Label htmlFor="posting-quote-policy">Who can quote</Label>
-          <Select
-            id="posting-quote-policy"
-            value={preferences.quotePolicy}
-            onChange={(event) =>
-              update('quotePolicy', event.target.value as QuotePolicy)
-            }
+          <FormRow
+            label="Posting language"
+            htmlFor="posting-language"
+            hint="Lets readers filter public timelines by languages they understand."
           >
-            {QUOTE_POLICIES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-          <p className="text-[0.8rem] text-muted-foreground">
-            Applies to new public and unlisted posts; quotes of restricted posts
-            always need your approval.
-          </p>
-        </div>
+            {({ describedBy }) => (
+              <Select
+                id="posting-language"
+                aria-describedby={describedBy}
+                value={preferences.language}
+                onChange={(event) => update('language', event.target.value)}
+              >
+                {languageOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </FormRow>
 
-        <div className="space-y-2">
-          <Label htmlFor="posting-language">Posting language</Label>
-          <Select
-            id="posting-language"
-            value={preferences.language}
-            onChange={(event) => update('language', event.target.value)}
+          <FormRow
+            label="Mark media as sensitive by default"
+            htmlFor="posting-sensitive"
+            hint="Every attachment starts hidden behind the sensitive overlay."
+            inline
           >
-            {languageOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-          <p className="text-[0.8rem] text-muted-foreground">
-            Lets readers filter public timelines by languages they understand.
-          </p>
-        </div>
+            {({ describedBy }) => (
+              <Switch
+                id="posting-sensitive"
+                aria-describedby={describedBy}
+                checked={preferences.sensitive}
+                onCheckedChange={(checked) => update('sensitive', checked)}
+              />
+            )}
+          </FormRow>
+        </Frame>
+      </Section>
 
-        <ControlRow
-          label="Mark media as sensitive by default"
-          description="Every attachment starts hidden behind the sensitive overlay."
-          htmlFor="posting-sensitive"
-        >
-          <Switch
-            id="posting-sensitive"
-            checked={preferences.sensitive}
-            onCheckedChange={(checked) => update('sensitive', checked)}
-          />
-        </ControlRow>
-      </section>
-
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Reading</h2>
-          <p className="text-sm text-muted-foreground">
-            How posts from other people display for you.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <div id="media-display-label" className="text-sm font-medium">
-            Media display
-          </div>
-          <RadioGroup
-            aria-labelledby="media-display-label"
-            value={preferences.expandMedia}
-            onValueChange={(value) =>
-              update('expandMedia', value as ExpandMedia)
-            }
-            className="gap-0 overflow-hidden rounded-xl border"
-          >
-            {MEDIA_DISPLAY.map((option, index) => {
-              const active = preferences.expandMedia === option.value
-              return (
-                <div
-                  key={option.value}
-                  className={cn(
-                    // 68 high including the divider under it, as the design
-                    // draws the row: 14 above the title, 16 below the helper.
-                    'flex min-h-[68px] items-start gap-3 px-4 pt-3.5 pb-4 transition-colors hover:bg-muted/50',
-                    index < MEDIA_DISPLAY.length - 1 && 'border-b',
-                    active && 'bg-primary/5'
-                  )}
-                >
-                  <RadioGroupItem
-                    id={`media-${option.value}`}
-                    value={option.value}
-                    className="mt-px"
-                  />
-                  {/* The shared Label is a flex ROW (it lays an icon beside its
-                      text), which put the title and the helper side by side;
-                      this row stacks them, with the helper 1 below the title. */}
-                  <Label
-                    htmlFor={`media-${option.value}`}
-                    className="min-w-0 flex-1 cursor-pointer flex-col items-start gap-px font-normal"
+      <Section
+        title="Reading"
+        description="How posts from other people display for you."
+      >
+        <Frame divided>
+          <FormRow label="Media display">
+            {({ labelledBy }) => (
+              <RadioGroup
+                aria-labelledby={labelledBy}
+                value={preferences.expandMedia}
+                onValueChange={(value) =>
+                  update('expandMedia', value as ExpandMedia)
+                }
+                className="gap-1"
+              >
+                {MEDIA_DISPLAY.map((option) => (
+                  <div
+                    key={option.value}
+                    className="hover:bg-muted/50 flex items-start gap-3 rounded-md px-2 py-2 transition-colors"
                   >
-                    <span className="block text-sm font-medium">
-                      {option.label}
-                    </span>
-                    <span className="block text-xs text-muted-foreground">
-                      {option.help}
-                    </span>
-                  </Label>
-                </div>
-              )
-            })}
-          </RadioGroup>
-        </div>
+                    <RadioGroupItem
+                      id={`media-${option.value}`}
+                      value={option.value}
+                      className="mt-0.5"
+                    />
+                    {/* The shared Label is a flex ROW (it lays an icon beside
+                        its text), which would put the title and the helper side
+                        by side; this one stacks them. */}
+                    <Label
+                      htmlFor={`media-${option.value}`}
+                      className="min-w-0 flex-1 cursor-pointer flex-col items-start gap-px font-normal"
+                    >
+                      <span className="block text-sm font-medium">
+                        {option.label}
+                      </span>
+                      <span className="text-muted-foreground block text-xs">
+                        {option.help}
+                      </span>
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            )}
+          </FormRow>
 
-        <ControlRow
-          label="Always expand posts marked with content warnings"
-          description="Skip the “show more” click on CW posts."
-          htmlFor="reading-spoilers"
-        >
-          <Switch
-            id="reading-spoilers"
-            checked={preferences.expandSpoilers}
-            onCheckedChange={(checked) => update('expandSpoilers', checked)}
-          />
-        </ControlRow>
+          <FormRow
+            label="Always expand posts marked with content warnings"
+            htmlFor="reading-spoilers"
+            hint="Skip the “show more” click on CW posts."
+            inline
+          >
+            {({ describedBy }) => (
+              <Switch
+                id="reading-spoilers"
+                aria-describedby={describedBy}
+                checked={preferences.expandSpoilers}
+                onCheckedChange={(checked) => update('expandSpoilers', checked)}
+              />
+            )}
+          </FormRow>
 
-        <ControlRow
-          label="Autoplay animated GIFs"
-          description="Off keeps GIFs paused until you choose to play them."
-          htmlFor="reading-gifs"
-        >
-          <Switch
-            id="reading-gifs"
-            checked={preferences.autoplayGifs}
-            onCheckedChange={(checked) => update('autoplayGifs', checked)}
-          />
-        </ControlRow>
-      </section>
+          <FormRow
+            label="Autoplay animated GIFs"
+            htmlFor="reading-gifs"
+            hint="Off keeps GIFs paused until you choose to play them."
+            inline
+          >
+            {({ describedBy }) => (
+              <Switch
+                id="reading-gifs"
+                aria-describedby={describedBy}
+                checked={preferences.autoplayGifs}
+                onCheckedChange={(checked) => update('autoplayGifs', checked)}
+              />
+            )}
+          </FormRow>
+        </Frame>
+      </Section>
 
-      <div className="flex items-center justify-end gap-3">
-        {error && <p className="text-sm text-destructive">{error}</p>}
+      <Frame className="px-4 py-3">
         {/* Dirty wins over "Saved": if the user edits again (even while a save
-            is in flight) the badge must not claim the form is saved. */}
-        {!error && dirty && (
-          <span className="text-sm text-muted-foreground">Unsaved changes</span>
-        )}
-        {!error && !dirty && saved && (
-          <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-            Saved
-          </span>
-        )}
-        <Button onClick={handleSave} disabled={saving || !dirty}>
-          {saving ? 'Saving…' : 'Save changes'}
-        </Button>
-      </div>
+            is in flight) the bar must not claim the form is saved. */}
+        <SaveBar
+          dirty={dirty}
+          saving={saving}
+          saved={saved}
+          error={error}
+          onSave={handleSave}
+        />
+      </Frame>
     </div>
   )
 }

@@ -25,6 +25,7 @@ describe('SaveBar', () => {
     renderBar()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(screen.queryByText('Unsaved changes')).toBeNull()
+    expect(screen.getByText('No unsaved changes')).toBeInTheDocument()
   })
 
   it('says Unsaved changes and enables Save when dirty', () => {
@@ -34,14 +35,14 @@ describe('SaveBar', () => {
     expect(onSave).toHaveBeenCalledTimes(1)
   })
 
-  it('shows Saved after a save, and Unsaved wins over it once edited again', () => {
+  it('shows All changes saved after a save, and Unsaved wins over it once edited again', () => {
     const { rerender } = render(
       <SaveBar dirty={false} saving={false} saved onSave={vi.fn()} />
     )
-    expect(screen.getByText('Saved')).toBeInTheDocument()
+    expect(screen.getByText('All changes saved')).toBeInTheDocument()
 
     rerender(<SaveBar dirty saving={false} saved onSave={vi.fn()} />)
-    expect(screen.queryByText('Saved')).toBeNull()
+    expect(screen.queryByText('All changes saved')).toBeNull()
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
   })
 
@@ -56,6 +57,33 @@ describe('SaveBar', () => {
     renderBar({ dirty: true, error: 'Could not save' })
     expect(screen.getByRole('alert')).toHaveTextContent('Could not save')
     expect(screen.queryByText('Unsaved changes')).toBeNull()
+  })
+})
+
+describe('SaveBar as a submit button', () => {
+  it('submits the enclosing form instead of calling onSave', () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault())
+    const onSave = vi.fn()
+    render(
+      <form onSubmit={onSubmit}>
+        <SaveBar dirty saving={false} saved={false} submit onSave={onSave} />
+      </form>
+    )
+
+    const button = screen.getByRole('button', { name: 'Save' })
+    expect(button).toHaveAttribute('type', 'submit')
+    fireEvent.click(button)
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('stays a plain button without submit', () => {
+    renderBar({ dirty: true })
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute(
+      'type',
+      'button'
+    )
   })
 })
 

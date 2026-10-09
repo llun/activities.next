@@ -19,7 +19,8 @@ export const MutesList: FC<MutesListProps> = ({ accounts, nextMaxId }) => (
     actionLabel="Unmute"
     actionIcon={VolumeX}
     failureMessage="Failed to unmute account. Please try again."
-    emptyText="No muted accounts."
+    emptyText="No muted accounts"
+    emptyHint="Mute someone from their profile and they will show up here."
     emptyPageText="No muted accounts on this page."
     dialogTitle="Unmute account"
     dialogDescription="This actor's posts and notifications will appear in your timelines and notifications again."
