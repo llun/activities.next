@@ -50,7 +50,7 @@ describe('GET /api/users/[username]/quote_authorizations/[id]', () => {
     guardActorId = ACTOR1_ID
   })
 
-  // Seeds a quoted status owned by `ownerId` (skipped with `createQuoted:
+  // Seeds a quoted status owned by `quotedOwnerId` (skipped with `createQuoted:
   // false`, leaving the edge pointing at a status that does not exist) plus a
   // quote edge in `state` whose stamp lives under ACTOR1 (the actor the guard
   // resolves).
