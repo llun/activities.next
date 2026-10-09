@@ -528,6 +528,18 @@ describe('Sidebar', () => {
         expect(row?.className).toContain('env(safe-area-inset-bottom,0px)')
       }
     })
+
+    it('leaves the bottom inset to the drawer panel in the drawer', () => {
+      const { container } = renderSidebar(
+        <Sidebar variant="drawer" lists={[]} user={user} />
+      )
+
+      const row = container
+        .querySelector(`aside a[href="/${user.handle}"]`)
+        ?.closest('aside > div')
+      expect(row).toHaveClass('pb-4')
+      expect(row?.className).not.toContain('safe-area-inset-bottom')
+    })
   })
 
   describe('drawer variant', () => {

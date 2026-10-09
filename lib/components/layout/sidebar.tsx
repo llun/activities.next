@@ -280,6 +280,13 @@ export function Sidebar({
     />
   )
 
+  // The fixed sidebar clears the home indicator itself; inside the drawer the
+  // panel already pads by the inset, so adding it here would double it.
+  const accountRowClassName = cn(
+    'border-t px-4 pt-4',
+    isDrawer ? 'pb-4' : 'pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]'
+  )
+
   return (
     <TooltipProvider delayDuration={0}>
       {/* Full sidebar - Desktop / Drawer. h-dvh, not h-screen: iOS Safari's
@@ -549,7 +556,7 @@ export function Sidebar({
         </nav>
 
         {currentActor && actors.length > 0 ? (
-          <div className="border-t px-4 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
+          <div className={accountRowClassName}>
             <ActorSwitcher
               currentActor={currentActor}
               actors={actors}
@@ -558,7 +565,7 @@ export function Sidebar({
           </div>
         ) : (
           user && (
-            <div className="border-t px-4 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
+            <div className={accountRowClassName}>
               <Link
                 href={`/${user.handle}`}
                 onClick={onNavigate}
