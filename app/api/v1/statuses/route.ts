@@ -30,6 +30,10 @@ import { resolveQuoteForCreate } from '@/lib/services/quotes/resolveQuoteForCrea
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { getReadableStatus } from '@/lib/services/statusRouteAccess'
+import {
+  CREATED_AT_WITH_SCHEDULED_AT_ERROR,
+  parseBackdatedCreatedAt
+} from '@/lib/services/statuses/backdatedCreatedAt'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import { getAttachmentsFromMediaIds } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
@@ -95,6 +99,9 @@ const NoteSchema = z
     language: z.string().trim().min(1).optional(),
     sensitive: Booleanish.optional().default(false),
     scheduled_at: z.string().optional(),
+    // Activities.next extension: backdate an immediate status. Validated
+    // (format, not in the future) by parseBackdatedCreatedAt below.
+    created_at: z.string().optional(),
     poll: PollSchema.optional()
   })
   .refine(
@@ -197,6 +204,28 @@ export const POST = traceApiRoute(
             req,
             allowedMethods: CORS_HEADERS,
             data: { error: limitError },
+            responseStatusCode: 422
+          })
+        }
+
+        // created_at backdates an immediate status (an Activities.next
+        // extension). A scheduled status is published at its scheduled time,
+        // so the two cannot be combined.
+        const backdated = parseBackdatedCreatedAt(note.created_at, Date.now())
+        if (!backdated.ok) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: backdated.error },
+            responseStatusCode: 422
+          })
+        }
+        const createdAt = backdated.createdAt
+        if (createdAt !== undefined && note.scheduled_at?.trim()) {
+          return apiResponse({
+            req,
+            allowedMethods: CORS_HEADERS,
+            data: { error: CREATED_AT_WITH_SCHEDULED_AT_ERROR },
             responseStatusCode: 422
           })
         }
@@ -423,6 +452,7 @@ export const POST = traceApiRoute(
             sensitive: note.sensitive,
             language: note.language ?? null,
             application,
+            createdAt,
             database
           })
         } else {
@@ -479,6 +509,7 @@ export const POST = traceApiRoute(
             sensitive: note.sensitive,
             language: note.language ?? null,
             application,
+            createdAt,
             database
           })
         }

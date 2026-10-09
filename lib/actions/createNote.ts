@@ -342,6 +342,9 @@ interface CreateNoteFromUserInputParams {
   // The registered OAuth client (Mastodon "application") that authored the
   // status, when created via an app token. Omitted for web-session creates.
   application?: { name: string; website: string | null }
+  // Backdate the status (ms since epoch); omitted means now. The publicId is
+  // minted from this time so id order keeps matching createdAt order.
+  createdAt?: number
   database: Database
 }
 export const createNoteFromUserInput = async ({
@@ -357,6 +360,7 @@ export const createNoteFromUserInput = async ({
   sensitive = false,
   language = null,
   application,
+  createdAt,
   database
 }: CreateNoteFromUserInputParams) =>
   withSpan('actions', 'createNoteFromUser', { text, replyNoteId }, async () => {
@@ -413,7 +417,7 @@ export const createNoteFromUserInput = async ({
       return null
     }
 
-    const postId = generatePublicId()
+    const postId = generatePublicId(createdAt)
     const statusId = getLocalStatusId({
       actorId: currentActor.id,
       statusId: postId
@@ -491,7 +495,8 @@ export const createNoteFromUserInput = async ({
       language,
       quoteApprovalPolicy,
       applicationName: application?.name ?? null,
-      applicationWebsite: application?.website ?? null
+      applicationWebsite: application?.website ?? null,
+      createdAt
     })
 
     // Quote handling (FEP-044f). The caller has already authorized the quote
@@ -621,7 +626,8 @@ export const createNoteFromUserInput = async ({
       mediaIds
     })
 
-    const attachmentsCreatedAt = Date.now()
+    // A backdated status's attachments are backdated with it.
+    const attachmentsCreatedAt = createdAt ?? Date.now()
     await Promise.all([
       addStatusToTimelines(database, createdStatus),
       ...attachments.map((attachment, index) => {

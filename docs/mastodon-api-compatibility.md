@@ -542,6 +542,17 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   returns `items`, the owner's gallery photos in the order asked, leaving out
   any that are not. Reads are limited to 20 (suggestions) and 120 (photos) per
   actor per minute (429, in process).
+- **Backdated statuses** — `POST /api/v1/statuses` accepts an optional
+  `created_at` (JSON or form field): an ISO 8601 date-time with `Z` or an
+  offset, for example to post a photo album dated at the end of the event it
+  records. The status, its poll and its attachments are stored with that time,
+  the status's UUIDv7 `id` is minted from it (so id order still matches
+  `created_at` order on every timeline), and the federated `Create`/`Note`
+  carries it as `published`. A blank value means now. It is answered with a
+  422 `{ error }` when it is not a date-time with a zone, is before 1970, is
+  more than one minute in the future, or is combined with `scheduled_at`. A
+  poll's `expires_in` still counts from the time of the request. Mastodon
+  clients never send it.
 - **`?format=activities_next`** — timeline endpoints and
   `GET /api/v1/trends/statuses` accept this query flag to return the raw internal
   status JSON instead of the Mastodon status shape (the web `/explore` Posts tab
