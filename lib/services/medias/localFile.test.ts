@@ -767,7 +767,7 @@ describe('LocalFileStorage.saveFile with a video', () => {
   })
 })
 
-// Mirrors `S3StorageFile.test.ts`'s block of the same name: a thumbnail
+// Mirrors `S3StorageFile.saveFile.test.ts`'s block of the same name: a thumbnail
 // uploaded beside the file is client input on both drivers, and the two must
 // answer it identically.
 describe('LocalFileStorage.saveFile with a caller-supplied thumbnail', () => {

@@ -2,32 +2,28 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within
-} from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 
 import {
   createDirectMessage,
   getConversationStatuses,
   getConversations,
-  hideConversation,
-  markConversationRead,
-  searchAccounts
+  markConversationRead
 } from '@/lib/client'
-import type { DirectConversationView } from '@/lib/client'
 import { createDeferred } from '@/lib/testing/deferred'
 import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
-import { ActorProfile } from '@/lib/types/domain/actor'
-import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
-import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
+import { Status, StatusNote } from '@/lib/types/domain/status'
 
 import { MessagesPage } from './MessagesPage'
+import {
+  conversation,
+  currentActor,
+  currentTime,
+  renderMessagesPage,
+  resetMessagesPageMocks,
+  status
+} from './MessagesPage.testUtils'
 
 vi.mock('@/lib/client', () => ({
   createDirectMessage: vi.fn(),
@@ -50,112 +46,9 @@ vi.mock('@/lib/components/posts/posts', () => ({
   )
 }))
 
-const currentTime = new Date('2026-05-17T12:00:00.000Z').getTime()
-
-const currentActor: ActorProfile = {
-  id: 'https://example.com/users/me',
-  username: 'me',
-  domain: 'example.com',
-  name: 'Me',
-  followersUrl: 'https://example.com/users/me/followers',
-  inboxUrl: 'https://example.com/users/me/inbox',
-  sharedInboxUrl: 'https://example.com/inbox',
-  followingCount: 0,
-  followersCount: 0,
-  statusCount: 0,
-  lastStatusAt: null,
-  createdAt: currentTime
-}
-
-const account = (id: string, name: string): MastodonAccount =>
-  ({
-    id,
-    username: name.toLowerCase(),
-    acct: `${name.toLowerCase()}@example.com`,
-    display_name: name,
-    avatar: '',
-    avatar_static: '',
-    header: '',
-    header_static: ''
-  }) as MastodonAccount
-
-const status = (id: string, text: string): StatusNote => ({
-  id,
-  actorId: currentActor.id,
-  actor: currentActor,
-  to: [],
-  cc: [],
-  edits: [],
-  isLocalActor: true,
-  createdAt: currentTime,
-  updatedAt: currentTime,
-  type: StatusType.enum.Note,
-  url: `https://example.com/statuses/${id}`,
-  text,
-  summary: null,
-  reply: '',
-  replies: [],
-  actorAnnounceStatusId: null,
-  isActorLiked: false,
-  isActorBookmarked: false,
-  totalLikes: 0,
-  totalShares: 0,
-  attachments: [],
-  tags: []
-})
-
-const conversation = ({
-  id,
-  participantName,
-  unread = false
-}: {
-  id: string
-  participantName: string
-  unread?: boolean
-}): DirectConversationView => ({
-  id,
-  actorId: currentActor.id,
-  conversationId: `conversation-${id}`,
-  rootStatusId: `root-${id}`,
-  participantActorIds: [`https://example.com/users/${participantName}`],
-  lastStatusId: `last-${id}`,
-  lastStatus: status(`last-${id}`, `Last ${participantName}`),
-  lastStatusCreatedAt: currentTime,
-  unread,
-  readAt: unread ? null : currentTime,
-  hiddenAt: null,
-  createdAt: currentTime,
-  updatedAt: currentTime,
-  accounts: [account(`account-${id}`, participantName)]
-})
-
-const renderMessagesPage = (
-  conversations: DirectConversationView[],
-  initialConversationId: string | null = conversations[0]?.id ?? null,
-  initialStatuses: Status[] = [],
-  initialNextMaxStatusId: string | null = null,
-  initialHasMoreConversations = false
-) =>
-  render(
-    <MessagesPage
-      host="example.com"
-      conversations={conversations}
-      initialConversationId={initialConversationId}
-      initialStatuses={initialStatuses}
-      initialNextMaxStatusId={initialNextMaxStatusId}
-      currentActor={currentActor}
-      initialHasMoreConversations={initialHasMoreConversations}
-    />
-  )
-
 describe('MessagesPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    ;(createDirectMessage as jest.Mock).mockResolvedValue({})
-    ;(getConversations as jest.Mock).mockResolvedValue({ conversations: [] })
-    ;(hideConversation as jest.Mock).mockResolvedValue(true)
-    ;(markConversationRead as jest.Mock).mockResolvedValue(true)
-    ;(searchAccounts as jest.Mock).mockResolvedValue([])
+    resetMessagesPageMocks()
   })
 
   it('converts HTML conversation previews to readable plain text', async () => {
@@ -513,97 +406,111 @@ describe('MessagesPage', () => {
     })
   })
 
-  it('does not let stale load-more requests clear the active scroll anchor', async () => {
-    const initialThread = createDeferred<{
-      statuses: Status[]
-      nextMaxStatusId: string | null
-    }>()
-    const staleOlderThread = createDeferred<{
-      statuses: Status[]
-      nextMaxStatusId: string | null
-    }>()
-    const secondThread = createDeferred<{
-      statuses: Status[]
-      nextMaxStatusId: string | null
-    }>()
-    const reloadedThread = createDeferred<{
-      statuses: Status[]
-      nextMaxStatusId: string | null
-    }>()
-    const activeOlderThread = createDeferred<{
-      statuses: Status[]
-      nextMaxStatusId: string | null
-    }>()
-    ;(getConversationStatuses as jest.Mock)
-      .mockReturnValueOnce(initialThread.promise)
-      .mockReturnValueOnce(staleOlderThread.promise)
-      .mockReturnValueOnce(secondThread.promise)
-      .mockReturnValueOnce(reloadedThread.promise)
-      .mockReturnValueOnce(activeOlderThread.promise)
+  describe('stale load-more requests after switching conversations', () => {
+    type ThreadPage = { statuses: Status[]; nextMaxStatusId: string | null }
 
-    renderMessagesPage([
-      conversation({ id: 'first', participantName: 'Ada' }),
-      conversation({ id: 'second', participantName: 'Bea' })
-    ])
+    // Ada's Load more is left in flight, the reader switches to Bea and back,
+    // and a second Load more on the reloaded Ada thread is the active one.
+    const startStaleAndActiveLoadMore = async () => {
+      const initialThread = createDeferred<ThreadPage>()
+      const staleOlderThread = createDeferred<ThreadPage>()
+      const secondThread = createDeferred<ThreadPage>()
+      const reloadedThread = createDeferred<ThreadPage>()
+      const activeOlderThread = createDeferred<ThreadPage>()
+      ;(getConversationStatuses as jest.Mock)
+        .mockReturnValueOnce(initialThread.promise)
+        .mockReturnValueOnce(staleOlderThread.promise)
+        .mockReturnValueOnce(secondThread.promise)
+        .mockReturnValueOnce(reloadedThread.promise)
+        .mockReturnValueOnce(activeOlderThread.promise)
 
-    const thread = screen.getByLabelText('Message thread')
-    Object.defineProperty(thread, 'scrollHeight', {
-      configurable: true,
-      value: 600
-    })
+      renderMessagesPage([
+        conversation({ id: 'first', participantName: 'Ada' }),
+        conversation({ id: 'second', participantName: 'Bea' })
+      ])
 
-    await act(async () => {
-      initialThread.resolve({
-        statuses: [status('first-newest', 'First newest')],
-        nextMaxStatusId: 'older-cursor'
+      const thread = screen.getByLabelText('Message thread')
+      Object.defineProperty(thread, 'scrollHeight', {
+        configurable: true,
+        value: 600
+      })
+
+      await act(async () => {
+        initialThread.resolve({
+          statuses: [status('first-newest', 'First newest')],
+          nextMaxStatusId: 'older-cursor'
+        })
+      })
+      expect(await screen.findByText('First newest')).toBeInTheDocument()
+
+      thread.scrollTop = 240
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+      fireEvent.click(screen.getByRole('button', { name: /Bea/i }))
+
+      await act(async () => {
+        secondThread.resolve({
+          statuses: [status('second-newest', 'Second newest')],
+          nextMaxStatusId: null
+        })
+      })
+      expect(await screen.findByText('Second newest')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: /Ada/i }))
+      await act(async () => {
+        reloadedThread.resolve({
+          statuses: [status('first-newest', 'First newest')],
+          nextMaxStatusId: 'older-cursor'
+        })
+      })
+      expect(await screen.findByText('First newest')).toBeInTheDocument()
+
+      thread.scrollTop = 240
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+      Object.defineProperty(thread, 'scrollHeight', {
+        configurable: true,
+        value: 900
+      })
+
+      return { thread, staleOlderThread, activeOlderThread }
+    }
+
+    const resolveBothOlderThreads = async ({
+      staleOlderThread,
+      activeOlderThread
+    }: Awaited<ReturnType<typeof startStaleAndActiveLoadMore>>) => {
+      await act(async () => {
+        staleOlderThread.resolve({
+          statuses: [status('stale-older', 'Stale older')],
+          nextMaxStatusId: null
+        })
+        activeOlderThread.resolve({
+          statuses: [status('active-older', 'Active older')],
+          nextMaxStatusId: null
+        })
+      })
+    }
+
+    it('drops the statuses a stale load-more returns', async () => {
+      const pending = await startStaleAndActiveLoadMore()
+
+      await resolveBothOlderThreads(pending)
+
+      expect(await screen.findByText('Active older')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.queryByText('Stale older')).not.toBeInTheDocument()
       })
     })
-    expect(await screen.findByText('First newest')).toBeInTheDocument()
 
-    thread.scrollTop = 240
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
-    fireEvent.click(screen.getByRole('button', { name: /Bea/i }))
+    it('keeps the scroll anchor for the active load-more when a stale one resolves too', async () => {
+      const pending = await startStaleAndActiveLoadMore()
 
-    await act(async () => {
-      secondThread.resolve({
-        statuses: [status('second-newest', 'Second newest')],
-        nextMaxStatusId: null
+      await resolveBothOlderThreads(pending)
+
+      expect(await screen.findByText('Active older')).toBeInTheDocument()
+      await waitFor(() => {
+        expect(pending.thread.scrollTop).toBe(540)
       })
-    })
-    expect(await screen.findByText('Second newest')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /Ada/i }))
-    await act(async () => {
-      reloadedThread.resolve({
-        statuses: [status('first-newest', 'First newest')],
-        nextMaxStatusId: 'older-cursor'
-      })
-    })
-    expect(await screen.findByText('First newest')).toBeInTheDocument()
-
-    thread.scrollTop = 240
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
-
-    Object.defineProperty(thread, 'scrollHeight', {
-      configurable: true,
-      value: 900
-    })
-
-    await act(async () => {
-      staleOlderThread.resolve({
-        statuses: [status('stale-older', 'Stale older')],
-        nextMaxStatusId: null
-      })
-      activeOlderThread.resolve({
-        statuses: [status('active-older', 'Active older')],
-        nextMaxStatusId: null
-      })
-    })
-
-    expect(await screen.findByText('Active older')).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.queryByText('Stale older')).not.toBeInTheDocument()
-      expect(thread.scrollTop).toBe(540)
     })
   })
 
@@ -635,379 +542,6 @@ describe('MessagesPage', () => {
         replyStatus: expect.objectContaining({ id: 'last-first' })
       })
     })
-  })
-
-  it('lists recipient search results and adds the chosen account on click', async () => {
-    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-      statuses: [],
-      nextMaxStatusId: null
-    })
-    ;(searchAccounts as jest.Mock).mockResolvedValue([
-      account('account-ada', 'Ada'),
-      account('account-adam', 'Adam')
-    ])
-
-    renderMessagesPage([], null)
-
-    const recipientInput = screen.getByPlaceholderText('@user@example.com')
-    fireEvent.change(recipientInput, { target: { value: 'ad' } })
-    fireEvent.keyDown(recipientInput, { key: 'Enter' })
-
-    const resultsList = await screen.findByLabelText('Recipient search results')
-    expect(within(resultsList).getByText('Ada')).toBeInTheDocument()
-    expect(within(resultsList).getByText('Adam')).toBeInTheDocument()
-    expect(searchAccounts).toHaveBeenCalledWith(
-      expect.objectContaining({
-        q: 'ad',
-        resolve: true,
-        limit: 5,
-        signal: expect.any(AbortSignal)
-      })
-    )
-
-    fireEvent.click(within(resultsList).getByText('Adam'))
-
-    expect(
-      screen.queryByLabelText('Recipient search results')
-    ).not.toBeInTheDocument()
-    expect(screen.getByText('Adam')).toBeInTheDocument()
-  })
-
-  it('searches recipients as the query changes without a search button', async () => {
-    vi.useFakeTimers()
-    try {
-      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-        statuses: [],
-        nextMaxStatusId: null
-      })
-      ;(searchAccounts as jest.Mock).mockResolvedValue([
-        account('account-ada', 'Ada')
-      ])
-
-      renderMessagesPage([], null)
-
-      expect(
-        screen.queryByRole('button', { name: 'Search recipients' })
-      ).not.toBeInTheDocument()
-
-      fireEvent.change(
-        screen.getByRole('textbox', { name: 'Search recipients' }),
-        { target: { value: 'ada' } }
-      )
-
-      await act(async () => {
-        vi.advanceTimersByTime(300)
-        await Promise.resolve()
-        await Promise.resolve()
-      })
-
-      expect(searchAccounts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          q: 'ada',
-          resolve: true,
-          limit: 5,
-          signal: expect.any(AbortSignal)
-        })
-      )
-      expect(
-        screen.getByLabelText('Recipient search results')
-      ).toBeInTheDocument()
-      expect(screen.getByText('Ada')).toBeInTheDocument()
-
-      fireEvent.change(
-        screen.getByRole('textbox', { name: 'Search recipients' }),
-        { target: { value: 'bob' } }
-      )
-
-      await act(async () => {
-        await Promise.resolve()
-      })
-
-      expect(screen.queryByText('Ada')).not.toBeInTheDocument()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('shows and clears not-found feedback for debounced recipient searches', async () => {
-    vi.useFakeTimers()
-    try {
-      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-        statuses: [],
-        nextMaxStatusId: null
-      })
-      ;(searchAccounts as jest.Mock).mockResolvedValue([])
-
-      renderMessagesPage([], null)
-
-      const recipientInput = screen.getByRole('textbox', {
-        name: 'Search recipients'
-      })
-
-      fireEvent.change(recipientInput, { target: { value: 'missing' } })
-
-      await act(async () => {
-        vi.advanceTimersByTime(300)
-        await Promise.resolve()
-        await Promise.resolve()
-      })
-
-      expect(searchAccounts).toHaveBeenCalledTimes(1)
-      expect(screen.getByRole('alert')).toHaveTextContent('Account not found')
-
-      fireEvent.change(recipientInput, { target: { value: 'next' } })
-
-      expect(screen.queryByText('Account not found')).not.toBeInTheDocument()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('cancels the pending debounced recipient search when Enter searches immediately', async () => {
-    vi.useFakeTimers()
-    try {
-      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-        statuses: [],
-        nextMaxStatusId: null
-      })
-      ;(searchAccounts as jest.Mock).mockResolvedValue([
-        account('account-ada', 'Ada')
-      ])
-
-      renderMessagesPage([], null)
-
-      const recipientInput = screen.getByRole('textbox', {
-        name: 'Search recipients'
-      })
-      fireEvent.change(recipientInput, { target: { value: 'ada' } })
-      fireEvent.keyDown(recipientInput, { key: 'Enter' })
-
-      await act(async () => {
-        await Promise.resolve()
-        await Promise.resolve()
-      })
-
-      expect(searchAccounts).toHaveBeenCalledTimes(1)
-      expect(searchAccounts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          q: 'ada',
-          resolve: true,
-          limit: 5,
-          signal: expect.any(AbortSignal)
-        })
-      )
-
-      await act(async () => {
-        vi.advanceTimersByTime(300)
-        await Promise.resolve()
-        await Promise.resolve()
-      })
-
-      expect(searchAccounts).toHaveBeenCalledTimes(1)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('cancels a pending recipient search when selecting an existing conversation', async () => {
-    vi.useFakeTimers()
-    try {
-      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-        statuses: [],
-        nextMaxStatusId: null
-      })
-      ;(searchAccounts as jest.Mock).mockResolvedValue([])
-
-      renderMessagesPage(
-        [conversation({ id: 'first', participantName: 'Ada' })],
-        null
-      )
-
-      const recipientInput = screen.getByRole('textbox', {
-        name: 'Search recipients'
-      })
-      fireEvent.change(recipientInput, { target: { value: 'missing' } })
-      fireEvent.click(screen.getByRole('button', { name: /Ada/ }))
-
-      await act(async () => {
-        vi.advanceTimersByTime(300)
-        await Promise.resolve()
-        await Promise.resolve()
-      })
-
-      expect(searchAccounts).not.toHaveBeenCalled()
-      expect(screen.queryByText('Account not found')).not.toBeInTheDocument()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('ignores stale recipient search results when the query changes during an in-flight lookup', async () => {
-    vi.useFakeTimers()
-    try {
-      ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-        statuses: [],
-        nextMaxStatusId: null
-      })
-      const adaSearch = createDeferred<MastodonAccount[]>()
-      const bobSearch = createDeferred<MastodonAccount[]>()
-      ;(searchAccounts as jest.Mock)
-        .mockReturnValueOnce(adaSearch.promise)
-        .mockReturnValueOnce(bobSearch.promise)
-
-      renderMessagesPage([], null)
-
-      const recipientInput = screen.getByRole('textbox', {
-        name: 'Search recipients'
-      })
-      fireEvent.change(recipientInput, { target: { value: 'ada' } })
-
-      await act(async () => {
-        vi.advanceTimersByTime(300)
-        await Promise.resolve()
-      })
-
-      expect(searchAccounts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          q: 'ada',
-          resolve: true,
-          limit: 5,
-          signal: expect.any(AbortSignal)
-        })
-      )
-      const firstSearchSignal = (searchAccounts as jest.Mock).mock.calls[0][0]
-        .signal as AbortSignal
-
-      fireEvent.change(recipientInput, { target: { value: 'bob' } })
-
-      expect(firstSearchSignal.aborted).toBe(true)
-
-      await act(async () => {
-        adaSearch.resolve([account('account-ada', 'Ada')])
-        await Promise.resolve()
-        await Promise.resolve()
-      })
-
-      expect(screen.queryByText('Ada')).not.toBeInTheDocument()
-
-      await act(async () => {
-        vi.advanceTimersByTime(300)
-        await Promise.resolve()
-      })
-
-      expect(searchAccounts).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          q: 'bob',
-          resolve: true,
-          limit: 5,
-          signal: expect.any(AbortSignal)
-        })
-      )
-
-      await act(async () => {
-        bobSearch.resolve([account('account-bob', 'Bob')])
-        await Promise.resolve()
-        await Promise.resolve()
-      })
-
-      expect(screen.getByText('Bob')).toBeInTheDocument()
-      expect(screen.queryByText('Ada')).not.toBeInTheDocument()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('loads additional conversations when the user clicks Load more in the sidebar', async () => {
-    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-      statuses: [],
-      nextMaxStatusId: null
-    })
-    ;(getConversations as jest.Mock).mockResolvedValue({
-      conversations: [conversation({ id: 'older', participantName: 'Bea' })]
-    })
-
-    renderMessagesPage(
-      [conversation({ id: 'newest', participantName: 'Ada' })],
-      'newest',
-      [],
-      null,
-      true
-    )
-
-    const sidebarLoadMore = screen.getByRole('button', { name: 'Load more' })
-    fireEvent.click(sidebarLoadMore)
-
-    await waitFor(() => {
-      expect(getConversations).toHaveBeenCalledWith({
-        limit: 21,
-        maxId: 'newest'
-      })
-    })
-
-    expect(await screen.findByText('Bea')).toBeInTheDocument()
-    await waitFor(() => {
-      expect(
-        screen.queryByRole('button', { name: 'Load more' })
-      ).not.toBeInTheDocument()
-    })
-  })
-
-  it('keeps the Load more button when the server still has more conversations', async () => {
-    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-      statuses: [],
-      nextMaxStatusId: null
-    })
-    const extraConversations = Array.from({ length: 21 }, (_, index) =>
-      conversation({ id: `extra-${index}`, participantName: `Person${index}` })
-    )
-    ;(getConversations as jest.Mock).mockResolvedValue({
-      conversations: extraConversations
-    })
-
-    renderMessagesPage(
-      [conversation({ id: 'newest', participantName: 'Ada' })],
-      'newest',
-      [],
-      null,
-      true
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
-
-    await waitFor(() => {
-      expect(getConversations).toHaveBeenCalledTimes(1)
-    })
-
-    // After loading, 21 fetched + 1 existing = 22; only the first 20 fetched
-    // should be appended and the Load more button should remain.
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
-    })
-  })
-
-  it('shows an error and keeps the Load more button when loading more conversations fails', async () => {
-    ;(getConversationStatuses as jest.Mock).mockResolvedValue({
-      statuses: [],
-      nextMaxStatusId: null
-    })
-    ;(getConversations as jest.Mock).mockRejectedValue(new Error('boom'))
-
-    renderMessagesPage(
-      [conversation({ id: 'newest', participantName: 'Ada' })],
-      'newest',
-      [],
-      null,
-      true
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Could not load more conversations'
-    )
-    expect(
-      screen.getByRole('button', { name: 'Load more' })
-    ).toBeInTheDocument()
   })
 
   it('renders the recipient input and Send button without a Search recipients button', () => {

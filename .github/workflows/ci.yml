@@ -202,10 +202,13 @@ jobs:
         run: |
           yarn test --maxWorkers=2 \
             lib/database/sql/media.test.ts \
+            lib/database/sql/mediaAccountListing.test.ts \
+            lib/database/sql/mediaMutations.test.ts \
             lib/database/sql/mediaDetails.test.ts \
             lib/database/sql/gallery.test.ts \
             lib/database/sql/galleryMedia.test.ts \
             lib/database/sql/galleryAlbums.test.ts \
+            lib/database/sql/galleryAlbumsVisibility.test.ts \
             lib/database/sql/galleryAlbumSuggestions.test.ts \
             lib/services/gallery/galleryAlbumQueries.test.ts \
             lib/services/gallery/galleryAlbumVisitor.test.ts \
@@ -216,13 +219,20 @@ jobs:
             lib/services/gallery/uploadMediaDetails.test.ts \
             lib/database/sql/galleryLookupCache.test.ts \
             lib/database/sql/fitnessFile.test.ts \
+            lib/database/sql/fitnessFileActivityStats.test.ts \
+            lib/database/sql/fitnessFileOverviewWindows.test.ts \
             lib/database/sql/fitnessGear.test.ts \
+            lib/database/sql/fitnessGearComponents.test.ts \
+            lib/database/sql/fitnessGearDevice.test.ts \
             lib/database/sql/fitnessGearComponentPeriods.test.ts \
             lib/database/sql/fitnessRouteHeatmapTile.test.ts \
+            lib/database/sql/fitnessRouteHeatmapTileClaim.test.ts \
+            lib/database/sql/fitnessRouteHeatmapTileClaimRace.test.ts \
             lib/database/sql/queueJob.test.ts \
             lib/database/sql/statusDeletionQueue.test.ts \
             lib/database/sql/stravaArchiveImport.test.ts \
-            lib/database/sql/list.test.ts
+            lib/database/sql/list.test.ts \
+            lib/database/sql/listMembershipEligibility.test.ts
         env:
           TEST_DATABASE_TYPE: pg
           TEST_DATABASE_HOST: 127.0.0.1

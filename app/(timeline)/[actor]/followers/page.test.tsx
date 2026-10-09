@@ -5,6 +5,11 @@ import '@testing-library/jest-dom'
 import { render, screen, within } from '@testing-library/react'
 import { notFound } from 'next/navigation'
 
+import {
+  createFollowListActor,
+  createFollowRecord,
+  createLocalProfileData
+} from '@/app/(timeline)/[actor]/followListPage.testUtils'
 import { getProfileData } from '@/app/(timeline)/[actor]/getProfileData'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isLocalFederationDomain } from '@/lib/services/federation/domainPolicy'
@@ -325,83 +330,32 @@ describe('[actor] followers page', () => {
   it('hydrates followers in batch preserving follow order and filtering missing actors', async () => {
     mockGetServerAuthSession.mockResolvedValue(null)
     mockIsLocalFederationDomain.mockResolvedValue(true)
-    mockGetProfileData.mockResolvedValue({
-      person: {
-        id: 'https://llun.social/users/localuser',
-        preferredUsername: 'localuser'
-      } as never,
-      followersCount: 2,
-      followingCount: 0,
-      statusesCount: 0,
-      attachments: [],
-      isInternalAccount: true,
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: [],
-      statuses: [],
-      statusPagination: { nextPageUrl: null, prevPageUrl: null }
-    })
+    mockGetProfileData.mockResolvedValue(
+      createLocalProfileData({ followersCount: 2, followingCount: 0 })
+    )
     mockDatabase.getFollowers.mockResolvedValue([
-      {
+      createFollowRecord({
         id: 'follow-1',
         actorId: 'https://llun.social/users/follower1',
         targetActorId: 'https://llun.social/users/localuser',
-        status: 'Accepted',
-        createdAt: 2,
-        updatedAt: 2
-      },
-      {
+        timestamp: 2
+      }),
+      createFollowRecord({
         id: 'follow-2',
         actorId: 'https://llun.social/users/missing',
         targetActorId: 'https://llun.social/users/localuser',
-        status: 'Accepted',
-        createdAt: 1,
-        updatedAt: 1
-      },
-      {
+        timestamp: 1
+      }),
+      createFollowRecord({
         id: 'follow-3',
         actorId: 'https://llun.social/users/follower2',
         targetActorId: 'https://llun.social/users/localuser',
-        status: 'Accepted',
-        createdAt: 0,
-        updatedAt: 0
-      }
+        timestamp: 0
+      })
     ])
     mockDatabase.getActorsFromIds.mockResolvedValue([
-      {
-        id: 'https://llun.social/users/follower2',
-        username: 'follower2',
-        domain: 'llun.social',
-        name: 'Follower 2',
-        summary: '',
-        iconUrl: '',
-        headerImageUrl: '',
-        followersUrl: 'https://llun.social/users/follower2/followers',
-        inboxUrl: 'https://llun.social/users/follower2/inbox',
-        sharedInboxUrl: 'https://llun.social/inbox',
-        followingCount: 0,
-        followersCount: 0,
-        statusCount: 0,
-        lastStatusAt: null,
-        createdAt: 0
-      },
-      {
-        id: 'https://llun.social/users/follower1',
-        username: 'follower1',
-        domain: 'llun.social',
-        name: 'Follower 1',
-        summary: '',
-        iconUrl: '',
-        headerImageUrl: '',
-        followersUrl: 'https://llun.social/users/follower1/followers',
-        inboxUrl: 'https://llun.social/users/follower1/inbox',
-        sharedInboxUrl: 'https://llun.social/inbox',
-        followingCount: 0,
-        followersCount: 0,
-        statusCount: 0,
-        lastStatusAt: null,
-        createdAt: 0
-      }
+      createFollowListActor('follower2', 'Follower 2'),
+      createFollowListActor('follower1', 'Follower 1')
     ])
 
     const element = await Page({

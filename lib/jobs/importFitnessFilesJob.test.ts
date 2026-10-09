@@ -18,6 +18,8 @@ import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 import { getPublicIdTimestamp, isPublicId } from '@/lib/utils/publicId'
 
+import { createImportFileHelpers } from './importFitnessFilesJob.testUtils'
+
 vi.mock('@/lib/services/queue', async () => ({
   getQueue: vi.fn().mockReturnValue({
     publish: vi.fn().mockResolvedValue(undefined)
@@ -77,54 +79,10 @@ describe('importFitnessFilesJob', () => {
     mockDeleteMediaFile.mockResolvedValue(true)
   })
 
-  const createFitnessFile = (
-    fileType: 'fit' | 'tcx',
-    path: string,
-    importBatchId: string
-  ) =>
-    database.createFitnessFile({
-      actorId: actor.id,
-      path,
-      fileName: path.split('/').pop()!,
-      fileType,
-      mimeType:
-        fileType === 'fit' ? 'application/vnd.ant.fit' : 'application/tcx+xml',
-      bytes: 1_024,
-      importBatchId
-    })
-
-  const routedActivity: FitnessActivityData = {
-    coordinates: [
-      { lat: 13.7563, lng: 100.5018 },
-      { lat: 13.76, lng: 100.505 }
-    ],
-    trackPoints: [],
-    totalDistanceMeters: 18_000,
-    totalDurationSeconds: 3_000,
-    startTime: new Date('2026-02-01T08:00:00.000Z')
-  }
-
-  const importWithActivity = async (
-    fileId: string,
-    batchId: string,
-    options: {
-      overlapFitnessFileIds?: string[]
-      notifyOnComplete?: boolean
-      publishSendNote?: boolean
-      preferRicherPrimary?: boolean
-      replacePrimaryFileId?: string
-      preserveExistingMapOnRetry?: boolean
-    } = {}
-  ) => {
-    mockParseFitnessFile.mockResolvedValueOnce(routedActivity)
-    return importFitnessFiles(database, {
-      actorId: actor.id,
-      batchId,
-      fitnessFileIds: [fileId],
-      visibility: 'public',
-      ...options
-    })
-  }
+  const { createFitnessFile, routedActivity } = createImportFileHelpers(
+    database,
+    () => actor
+  )
 
   it('records a reason when status creation rejects with a non-Error', async () => {
     const file = await database.createFitnessFile({
@@ -220,99 +178,116 @@ describe('importFitnessFilesJob', () => {
     expect(updated?.mapImageEmailPath).toBeUndefined()
   })
 
-  it('creates local-only merged status, marks primary, and queues processing', async () => {
-    const firstFile = await database.createFitnessFile({
-      actorId: actor.id,
-      path: 'fitness/import-overlap-a.fit',
-      fileName: 'import-overlap-a.fit',
-      fileType: 'fit',
-      mimeType: 'application/vnd.ant.fit',
-      bytes: 1_024,
-      importBatchId: 'batch-overlap'
-    })
-    const secondFile = await database.createFitnessFile({
-      actorId: actor.id,
-      path: 'fitness/import-overlap-b.fit',
-      fileName: 'import-overlap-b.fit',
-      fileType: 'fit',
-      mimeType: 'application/vnd.ant.fit',
-      bytes: 1_024,
-      importBatchId: 'batch-overlap'
-    })
+  describe('importing two overlapping files', () => {
+    let importRun = 0
+    let firstFileId: string
+    let secondFileId: string
+    let firstActivity: FitnessActivityData
 
-    expect(firstFile).toBeDefined()
-    expect(secondFile).toBeDefined()
+    beforeEach(async () => {
+      importRun += 1
+      const batchId = `batch-overlap-${importRun}`
+      const firstFile = await createFitnessFile(
+        'fit',
+        `fitness/import-overlap-${importRun}-a.fit`,
+        batchId
+      )
+      const secondFile = await createFitnessFile(
+        'fit',
+        `fitness/import-overlap-${importRun}-b.fit`,
+        batchId
+      )
 
-    const firstActivity: FitnessActivityData = {
-      coordinates: [],
-      trackPoints: [],
-      totalDistanceMeters: 5_000,
-      totalDurationSeconds: 1_000,
-      startTime: new Date('2026-01-01T00:00:00.000Z')
-    }
-    const secondActivity: FitnessActivityData = {
-      coordinates: [],
-      trackPoints: [],
-      totalDistanceMeters: 4_500,
-      totalDurationSeconds: 1_000,
-      startTime: new Date('2026-01-01T00:03:20.000Z')
-    }
+      expect(firstFile).toBeDefined()
+      expect(secondFile).toBeDefined()
+      firstFileId = firstFile!.id
+      secondFileId = secondFile!.id
 
-    mockParseFitnessFile
-      .mockResolvedValueOnce(firstActivity)
-      .mockResolvedValueOnce(secondActivity)
-
-    await importFitnessFilesJob(database, {
-      id: 'import-job-1',
-      name: IMPORT_FITNESS_FILES_JOB_NAME,
-      data: {
-        actorId: actor.id,
-        batchId: 'batch-overlap',
-        fitnessFileIds: [firstFile!.id, secondFile!.id],
-        visibility: 'public'
+      firstActivity = {
+        coordinates: [],
+        trackPoints: [],
+        totalDistanceMeters: 5_000,
+        totalDurationSeconds: 1_000,
+        startTime: new Date('2026-01-01T00:00:00.000Z')
       }
-    })
-
-    const updatedFirst = await database.getFitnessFile({ id: firstFile!.id })
-    const updatedSecond = await database.getFitnessFile({ id: secondFile!.id })
-
-    expect(updatedFirst?.statusId).toBeDefined()
-    expect(updatedSecond?.statusId).toBe(updatedFirst?.statusId)
-    expect(updatedFirst?.isPrimary).toBe(true)
-    expect(updatedSecond?.isPrimary).toBe(false)
-    expect(updatedFirst?.importStatus).toBe('completed')
-    expect(updatedSecond?.importStatus).toBe('completed')
-    expect(updatedSecond?.processingStatus).toBe('completed')
-
-    const status = await database.getStatus({
-      statusId: updatedFirst!.statusId!,
-      withReplies: false
-    })
-    expect(status?.to).toContain(ACTIVITY_STREAM_PUBLIC)
-
-    // The status URI tail is a v7 publicId minted from the (earliest,
-    // backdated) activity start time, not `now` — so it sorts with the
-    // activity rather than with the moment the import ran.
-    expect(status?.publicId).toBeTruthy()
-    expect(isPublicId(status?.publicId as string)).toBe(true)
-    expect(status?.id).toBe(`${actor.id}/statuses/${status?.publicId}`)
-    expect(getPublicIdTimestamp(status?.publicId as string)).toBe(
-      firstActivity.startTime!.getTime()
-    )
-
-    expect(getQueue().publish).toHaveBeenCalledTimes(1)
-    expect(getQueue().publish).toHaveBeenCalledWith({
-      id: expect.any(String),
-      name: PROCESS_FITNESS_FILE_JOB_NAME,
-      data: {
-        actorId: actor.id,
-        statusId: updatedFirst!.statusId,
-        fitnessFileId: firstFile!.id,
-        publishSendNote: false,
-        // The default: this batch's publisher did not opt in, so the import
-        // stays silent even though the status is brand new.
-        notifyOnComplete: false
+      const secondActivity: FitnessActivityData = {
+        coordinates: [],
+        trackPoints: [],
+        totalDistanceMeters: 4_500,
+        totalDurationSeconds: 1_000,
+        startTime: new Date('2026-01-01T00:03:20.000Z')
       }
+
+      mockParseFitnessFile
+        .mockResolvedValueOnce(firstActivity)
+        .mockResolvedValueOnce(secondActivity)
+
+      await importFitnessFilesJob(database, {
+        id: 'import-job-1',
+        name: IMPORT_FITNESS_FILES_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          batchId,
+          fitnessFileIds: [firstFileId, secondFileId],
+          visibility: 'public'
+        }
+      })
+    })
+
+    it('merges two overlapping files into one status and marks the first primary', async () => {
+      const updatedFirst = await database.getFitnessFile({ id: firstFileId })
+      const updatedSecond = await database.getFitnessFile({ id: secondFileId })
+
+      expect(updatedFirst?.statusId).toBeDefined()
+      expect(updatedSecond?.statusId).toBe(updatedFirst?.statusId)
+      expect(updatedFirst?.isPrimary).toBe(true)
+      expect(updatedSecond?.isPrimary).toBe(false)
+      expect(updatedFirst?.importStatus).toBe('completed')
+      expect(updatedSecond?.importStatus).toBe('completed')
+      expect(updatedSecond?.processingStatus).toBe('completed')
+
+      const status = await database.getStatus({
+        statusId: updatedFirst!.statusId!,
+        withReplies: false
+      })
+      expect(status?.to).toContain(ACTIVITY_STREAM_PUBLIC)
+    })
+
+    it('mints the status publicId from the backdated activity start time', async () => {
+      const updatedFirst = await database.getFitnessFile({ id: firstFileId })
+      const status = await database.getStatus({
+        statusId: updatedFirst!.statusId!,
+        withReplies: false
+      })
+
+      // The status URI tail is a v7 publicId minted from the (earliest,
+      // backdated) activity start time, not `now` — so it sorts with the
+      // activity rather than with the moment the import ran.
+      expect(status?.publicId).toBeTruthy()
+      expect(isPublicId(status?.publicId as string)).toBe(true)
+      expect(status?.id).toBe(`${actor.id}/statuses/${status?.publicId}`)
+      expect(getPublicIdTimestamp(status?.publicId as string)).toBe(
+        firstActivity.startTime!.getTime()
+      )
+    })
+
+    it('queues one process job for the primary file with notifyOnComplete false', async () => {
+      const updatedFirst = await database.getFitnessFile({ id: firstFileId })
+
+      expect(getQueue().publish).toHaveBeenCalledTimes(1)
+      expect(getQueue().publish).toHaveBeenCalledWith({
+        id: expect.any(String),
+        name: PROCESS_FITNESS_FILE_JOB_NAME,
+        data: {
+          actorId: actor.id,
+          statusId: updatedFirst!.statusId,
+          fitnessFileId: firstFileId,
+          publishSendNote: false,
+          // The default: this batch's publisher did not opt in, so the import
+          // stays silent even though the status is brand new.
+          notifyOnComplete: false
+        }
+      })
     })
   })
 
@@ -801,388 +776,6 @@ describe('importFitnessFilesJob', () => {
     expect(updated?.statusId).toBeDefined()
   })
 
-  it('prefers outdoor file (with coordinates) as primary when merging indoor and outdoor cycling', async () => {
-    const indoorFile = await database.createFitnessFile({
-      actorId: actor.id,
-      path: 'fitness/indoor-cycling.fit',
-      fileName: 'indoor-cycling.fit',
-      fileType: 'fit',
-      mimeType: 'application/vnd.ant.fit',
-      bytes: 1_024,
-      importBatchId: 'batch-indoor-outdoor'
-    })
-    const outdoorFile = await database.createFitnessFile({
-      actorId: actor.id,
-      path: 'fitness/outdoor-cycling.fit',
-      fileName: 'outdoor-cycling.fit',
-      fileType: 'fit',
-      mimeType: 'application/vnd.ant.fit',
-      bytes: 1_024,
-      importBatchId: 'batch-indoor-outdoor'
-    })
-
-    expect(indoorFile).toBeDefined()
-    expect(outdoorFile).toBeDefined()
-
-    const indoorActivity: FitnessActivityData = {
-      coordinates: [],
-      trackPoints: [],
-      totalDistanceMeters: 20_000,
-      totalDurationSeconds: 3_600,
-      startTime: new Date('2026-02-01T08:00:00.000Z')
-    }
-    const outdoorActivity: FitnessActivityData = {
-      coordinates: [
-        { lat: 13.7563, lng: 100.5018 },
-        { lat: 13.76, lng: 100.505 }
-      ],
-      trackPoints: [],
-      totalDistanceMeters: 18_000,
-      totalDurationSeconds: 3_000,
-      startTime: new Date('2026-02-01T08:01:00.000Z')
-    }
-
-    mockParseFitnessFile
-      .mockResolvedValueOnce(indoorActivity)
-      .mockResolvedValueOnce(outdoorActivity)
-
-    await importFitnessFilesJob(database, {
-      id: 'import-job-indoor-outdoor',
-      name: IMPORT_FITNESS_FILES_JOB_NAME,
-      data: {
-        actorId: actor.id,
-        batchId: 'batch-indoor-outdoor',
-        fitnessFileIds: [indoorFile!.id, outdoorFile!.id],
-        visibility: 'public'
-      }
-    })
-
-    const updatedIndoor = await database.getFitnessFile({ id: indoorFile!.id })
-    const updatedOutdoor = await database.getFitnessFile({
-      id: outdoorFile!.id
-    })
-
-    expect(updatedIndoor?.statusId).toBeDefined()
-    expect(updatedOutdoor?.statusId).toBe(updatedIndoor?.statusId)
-    expect(updatedOutdoor?.isPrimary).toBe(true)
-    expect(updatedIndoor?.isPrimary).toBe(false)
-
-    expect(getQueue().publish).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: expect.objectContaining({ fitnessFileId: outdoorFile!.id })
-      })
-    )
-  })
-
-  it('opts in to promoting a richer Wahoo FIT file while preserving the existing status', async () => {
-    const tcxFile = await createFitnessFile(
-      'tcx',
-      'fitness/wahoo-upgrade-tcx.tcx',
-      'batch-wahoo-upgrade'
-    )
-    const wahooFile = await createFitnessFile(
-      'fit',
-      'fitness/wahoo-upgrade-fit.fit',
-      'batch-wahoo-upgrade'
-    )
-    await importWithActivity(tcxFile!.id, 'wahoo-upgrade-initial')
-    const existing = await database.getFitnessFile({ id: tcxFile!.id })
-    ;(getQueue().publish as jest.Mock).mockClear()
-
-    const groups = await importWithActivity(
-      wahooFile!.id,
-      'wahoo-upgrade-second-device',
-      {
-        overlapFitnessFileIds: [tcxFile!.id],
-        notifyOnComplete: true,
-        publishSendNote: true,
-        preferRicherPrimary: true
-      }
-    )
-
-    const upgradedTcx = await database.getFitnessFile({ id: tcxFile!.id })
-    const upgradedWahoo = await database.getFitnessFile({ id: wahooFile!.id })
-    expect(upgradedWahoo?.statusId).toBe(existing?.statusId)
-    expect(upgradedWahoo?.isPrimary).toBe(true)
-    expect(upgradedTcx?.isPrimary).toBe(false)
-    expect(groups).toHaveLength(1)
-    expect(groups[0]?.statusCreated).toBe(false)
-    expect(groups[0]?.primaryFitnessFileId).toBe(wahooFile!.id)
-    expect(groups[0]?.processJob?.data).toEqual(
-      expect.objectContaining({
-        fitnessFileId: wahooFile!.id,
-        publishSendNote: false,
-        notifyOnComplete: false
-      })
-    )
-    expect(getQueue().publish).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps the existing TCX primary when richer-primary preference is absent', async () => {
-    const tcxFile = await createFitnessFile(
-      'tcx',
-      'fitness/wahoo-no-upgrade-tcx.tcx',
-      'batch-wahoo-no-upgrade'
-    )
-    const wahooFile = await createFitnessFile(
-      'fit',
-      'fitness/wahoo-no-upgrade-fit.fit',
-      'batch-wahoo-no-upgrade'
-    )
-    await importWithActivity(tcxFile!.id, 'wahoo-no-upgrade-initial')
-    const existing = await database.getFitnessFile({ id: tcxFile!.id })
-    ;(getQueue().publish as jest.Mock).mockClear()
-
-    const groups = await importWithActivity(
-      wahooFile!.id,
-      'wahoo-no-upgrade-second-device',
-      { overlapFitnessFileIds: [tcxFile!.id] }
-    )
-
-    const keptTcx = await database.getFitnessFile({ id: tcxFile!.id })
-    const keptWahoo = await database.getFitnessFile({ id: wahooFile!.id })
-    expect(keptWahoo?.statusId).toBe(existing?.statusId)
-    expect(keptTcx?.isPrimary).toBe(true)
-    expect(keptWahoo?.isPrimary).toBe(false)
-    expect(groups[0]?.primaryFitnessFileId).toBe(tcxFile!.id)
-    expect(groups[0]?.processJob).toBeNull()
-    expect(getQueue().publish).not.toHaveBeenCalled()
-  })
-
-  it('replaces an earlier Wahoo revision in the same status when requested', async () => {
-    const earlierWahooFile = await createFitnessFile(
-      'fit',
-      'fitness/wahoo-revision-earlier.fit',
-      'batch-wahoo-revision'
-    )
-    const latestWahooFile = await createFitnessFile(
-      'fit',
-      'fitness/wahoo-revision-latest.fit',
-      'batch-wahoo-revision'
-    )
-    await importWithActivity(earlierWahooFile!.id, 'wahoo-revision-initial')
-    const existing = await database.getFitnessFile({
-      id: earlierWahooFile!.id
-    })
-    const gear = await database.createFitnessGear({
-      actorId: actor.id,
-      kind: 'bike',
-      name: 'Wahoo revision bike'
-    })
-    await database.setFitnessFileGear({
-      actorId: actor.id,
-      fitnessFileId: earlierWahooFile!.id,
-      gearId: gear.id
-    })
-    await database.updateFitnessFileActivityData(earlierWahooFile!.id, {
-      hasMapData: true,
-      mapImagePath: 'medias/2026-07-26/wahoo-old-route-map.webp',
-      mapImageEmailPath: 'medias/2026-07-26/wahoo-old-route-map.jpg'
-    })
-    await database.createAttachment({
-      actorId: actor.id,
-      statusId: existing!.statusId!,
-      mediaType: 'image/jpeg',
-      url: 'https://example.com/user-attachment.jpg',
-      width: 320,
-      height: 240,
-      name: 'user-attachment.jpg'
-    })
-    ;(getQueue().publish as jest.Mock).mockClear()
-
-    const groups = await importWithActivity(
-      latestWahooFile!.id,
-      'wahoo-revision-update',
-      {
-        overlapFitnessFileIds: [earlierWahooFile!.id],
-        notifyOnComplete: true,
-        publishSendNote: true,
-        replacePrimaryFileId: earlierWahooFile!.id
-      }
-    )
-
-    const earlier = await database.getFitnessFile({
-      id: earlierWahooFile!.id
-    })
-    const latest = await database.getFitnessFile({ id: latestWahooFile!.id })
-    expect(latest?.statusId).toBe(existing?.statusId)
-    expect(latest?.isPrimary).toBe(true)
-    expect(latest?.gearId).toBe(gear.id)
-    expect(latest?.hasMapData).toBe(true)
-    expect(latest?.mapImagePath).toBe(
-      'medias/2026-07-26/wahoo-old-route-map.webp'
-    )
-    expect(latest?.mapImageEmailPath).toBe(
-      'medias/2026-07-26/wahoo-old-route-map.jpg'
-    )
-    expect(earlier?.isPrimary).toBe(false)
-    expect(earlier?.mapImagePath).toBeUndefined()
-    expect(earlier?.mapImageEmailPath).toBeUndefined()
-    await expect(
-      database.getAttachments({ statusId: existing!.statusId! })
-    ).resolves.toMatchObject([
-      expect.objectContaining({
-        url: 'https://example.com/user-attachment.jpg'
-      })
-    ])
-    expect(groups[0]?.statusCreated).toBe(false)
-    expect(groups[0]?.primaryFitnessFileId).toBe(latestWahooFile!.id)
-    expect(groups[0]?.processJob?.data).toEqual(
-      expect.objectContaining({
-        fitnessFileId: latestWahooFile!.id,
-        publishSendNote: false,
-        notifyOnComplete: false
-      })
-    )
-    expect(getQueue().publish).toHaveBeenCalledTimes(1)
-  })
-
-  it('preserves the promoted generated map when retrying after a process job publish failure', async () => {
-    const earlier = await createFitnessFile(
-      'fit',
-      'fitness/wahoo-map-retry-earlier.fit',
-      'batch-wahoo-map-retry'
-    )
-    const promoted = await createFitnessFile(
-      'fit',
-      'fitness/wahoo-map-retry-promoted.fit',
-      'batch-wahoo-map-retry'
-    )
-    await importWithActivity(earlier!.id, 'wahoo-map-retry-initial')
-    const existing = await database.getFitnessFile({ id: earlier!.id })
-    await database.updateFitnessFileActivityData(earlier!.id, {
-      hasMapData: true,
-      mapImagePath: 'medias/2026-07-26/wahoo-map-retry.webp',
-      mapImageEmailPath: 'medias/2026-07-26/wahoo-map-retry.jpg'
-    })
-
-    const publishMock = getQueue().publish as jest.Mock
-    publishMock.mockClear()
-    publishMock.mockRejectedValueOnce(new Error('process queue unavailable'))
-
-    await importWithActivity(promoted!.id, 'wahoo-map-retry-promote', {
-      overlapFitnessFileIds: [earlier!.id],
-      replacePrimaryFileId: earlier!.id
-    })
-
-    const afterFailedPublish = await database.getFitnessFile({
-      id: promoted!.id
-    })
-    expect(afterFailedPublish?.statusId).toBe(existing?.statusId)
-    expect(afterFailedPublish?.isPrimary).toBe(true)
-    expect(afterFailedPublish?.mapImagePath).toBe(
-      'medias/2026-07-26/wahoo-map-retry.webp'
-    )
-    expect(afterFailedPublish?.mapImageEmailPath).toBe(
-      'medias/2026-07-26/wahoo-map-retry.jpg'
-    )
-
-    publishMock.mockResolvedValue(undefined)
-    const groups = await importWithActivity(
-      promoted!.id,
-      'wahoo-map-retry-again',
-      { preserveExistingMapOnRetry: true }
-    )
-
-    const afterRetry = await database.getFitnessFile({ id: promoted!.id })
-    expect(afterRetry?.mapImagePath).toBe(
-      'medias/2026-07-26/wahoo-map-retry.webp'
-    )
-    expect(afterRetry?.mapImageEmailPath).toBe(
-      'medias/2026-07-26/wahoo-map-retry.jpg'
-    )
-    expect(groups[0]?.processJob).toEqual(
-      expect.objectContaining({
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: expect.objectContaining({
-          fitnessFileId: promoted!.id,
-          statusId: existing?.statusId
-        })
-      })
-    )
-    expect(publishMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('picks the longest outdoor file as primary when multiple outdoor cycling files are merged', async () => {
-    const shorterOutdoor = await database.createFitnessFile({
-      actorId: actor.id,
-      path: 'fitness/outdoor-short.fit',
-      fileName: 'outdoor-short.fit',
-      fileType: 'fit',
-      mimeType: 'application/vnd.ant.fit',
-      bytes: 1_024,
-      importBatchId: 'batch-multi-outdoor'
-    })
-    const longerOutdoor = await database.createFitnessFile({
-      actorId: actor.id,
-      path: 'fitness/outdoor-long.fit',
-      fileName: 'outdoor-long.fit',
-      fileType: 'fit',
-      mimeType: 'application/vnd.ant.fit',
-      bytes: 1_024,
-      importBatchId: 'batch-multi-outdoor'
-    })
-
-    expect(shorterOutdoor).toBeDefined()
-    expect(longerOutdoor).toBeDefined()
-
-    const shorterActivity: FitnessActivityData = {
-      coordinates: [
-        { lat: 13.7563, lng: 100.5018 },
-        { lat: 13.757, lng: 100.5025 }
-      ],
-      trackPoints: [],
-      totalDistanceMeters: 10_000,
-      totalDurationSeconds: 1_800,
-      startTime: new Date('2026-02-02T07:00:00.000Z')
-    }
-    const longerActivity: FitnessActivityData = {
-      coordinates: [
-        { lat: 13.7563, lng: 100.5018 },
-        { lat: 13.76, lng: 100.508 }
-      ],
-      trackPoints: [],
-      totalDistanceMeters: 30_000,
-      totalDurationSeconds: 5_400,
-      startTime: new Date('2026-02-02T07:01:00.000Z')
-    }
-
-    mockParseFitnessFile
-      .mockResolvedValueOnce(shorterActivity)
-      .mockResolvedValueOnce(longerActivity)
-
-    await importFitnessFilesJob(database, {
-      id: 'import-job-multi-outdoor',
-      name: IMPORT_FITNESS_FILES_JOB_NAME,
-      data: {
-        actorId: actor.id,
-        batchId: 'batch-multi-outdoor',
-        fitnessFileIds: [shorterOutdoor!.id, longerOutdoor!.id],
-        visibility: 'public'
-      }
-    })
-
-    const updatedShorter = await database.getFitnessFile({
-      id: shorterOutdoor!.id
-    })
-    const updatedLonger = await database.getFitnessFile({
-      id: longerOutdoor!.id
-    })
-
-    expect(updatedShorter?.statusId).toBeDefined()
-    expect(updatedLonger?.statusId).toBe(updatedShorter?.statusId)
-    expect(updatedLonger?.isPrimary).toBe(true)
-    expect(updatedShorter?.isPrimary).toBe(false)
-
-    expect(getQueue().publish).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: expect.objectContaining({ fitnessFileId: longerOutdoor!.id })
-      })
-    )
-  })
-
   it('marks parse failures and still processes valid files', async () => {
     const failedFile = await database.createFitnessFile({
       actorId: actor.id,
@@ -1234,299 +827,5 @@ describe('importFitnessFilesJob', () => {
     expect(success?.importStatus).toBe('completed')
     expect(success?.statusId).toBeDefined()
     expect(getQueue().publish).toHaveBeenCalledTimes(1)
-  })
-
-  describe('import notification opt-in', () => {
-    const createFile = async (name: string) => {
-      const file = await database.createFitnessFile({
-        actorId: actor.id,
-        path: `fitness/${name}.fit`,
-        fileName: `${name}.fit`,
-        fileType: 'fit',
-        mimeType: 'application/vnd.ant.fit',
-        bytes: 1_024,
-        importBatchId: 'batch-notify-optin'
-      })
-      return file!.id
-    }
-
-    const stubParse = (count: number) => {
-      for (let index = 0; index < count; index += 1) {
-        mockParseFitnessFile.mockResolvedValueOnce({
-          coordinates: [],
-          trackPoints: [],
-          totalDistanceMeters: 5_000 + index,
-          totalDurationSeconds: 1_500 + index,
-          // Distinct start times so the files do not merge as one overlapping
-          // activity — the point is several separate imports in one batch.
-          startTime: new Date(Date.UTC(2026, 0, 2 + index))
-        })
-      }
-    }
-
-    it('stays silent for a bulk batch that did not opt in', async () => {
-      // This job is the funnel for every bulk import: the Strava archive
-      // walker, the multi-file upload endpoint, retry-all, the recovery
-      // scripts. Each activity in a batch gets its own brand-new status, so
-      // inferring "notify" from that alone would mail once per activity — a
-      // 500-ride archive import would send 500 emails.
-      const fitnessFileIds = await Promise.all([
-        createFile('bulk-a'),
-        createFile('bulk-b'),
-        createFile('bulk-c')
-      ])
-      stubParse(3)
-
-      await importFitnessFilesJob(database, {
-        id: 'job-bulk-silent',
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
-          actorId: actor.id,
-          batchId: 'batch-notify-optin',
-          fitnessFileIds
-        }
-      })
-
-      const publishes = (getQueue().publish as jest.Mock).mock.calls
-        .map(([message]) => message)
-        .filter((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
-      expect(publishes.length).toBeGreaterThan(0)
-      for (const message of publishes) {
-        expect(message.data.notifyOnComplete).toBe(false)
-      }
-    })
-
-    it('notifies when the publisher opted in and the status is new', async () => {
-      const fitnessFileIds = [await createFile('single-opt-in')]
-      stubParse(1)
-
-      await importFitnessFilesJob(database, {
-        id: 'job-single-notify',
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
-          actorId: actor.id,
-          batchId: 'batch-notify-optin-single',
-          fitnessFileIds,
-          notifyOnComplete: true
-        }
-      })
-
-      const publish = (getQueue().publish as jest.Mock).mock.calls
-        .map(([message]) => message)
-        .find((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
-      expect(publish?.data.notifyOnComplete).toBe(true)
-    })
-  })
-
-  describe('federation opt-in', () => {
-    const createFile = async (name: string) => {
-      const file = await database.createFitnessFile({
-        actorId: actor.id,
-        path: `fitness/${name}.fit`,
-        fileName: `${name}.fit`,
-        fileType: 'fit',
-        mimeType: 'application/vnd.ant.fit',
-        bytes: 1_024,
-        importBatchId: 'batch-federation-optin'
-      })
-      return file!.id
-    }
-
-    const stubParse = (startDay: number) => {
-      mockParseFitnessFile.mockResolvedValueOnce({
-        coordinates: [],
-        trackPoints: [],
-        totalDistanceMeters: 9_000,
-        totalDurationSeconds: 2_400,
-        startTime: new Date(Date.UTC(2026, 2, startDay))
-      })
-    }
-
-    const getProcessJobs = () =>
-      (getQueue().publish as jest.Mock).mock.calls
-        .map(([message]) => message)
-        .filter((message) => message.name === PROCESS_FITNESS_FILE_JOB_NAME)
-
-    it.each([
-      {
-        description: 'stays local without an opt-in',
-        requested: undefined,
-        expected: false
-      },
-      {
-        description: 'federates on opt-in',
-        requested: true,
-        expected: true
-      }
-    ])('$description', async ({ requested, expected }) => {
-      const fitnessFileIds = [await createFile(`optin-${String(requested)}`)]
-      stubParse(3)
-
-      await importFitnessFilesJob(database, {
-        id: `job-federation-${String(requested)}`,
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
-          actorId: actor.id,
-          batchId: 'batch-federation-optin',
-          fitnessFileIds,
-          ...(requested === undefined ? {} : { publishSendNote: requested })
-        }
-      })
-
-      const publish = getProcessJobs().at(-1)
-      expect(publish?.data.publishSendNote).toBe(expected)
-    })
-
-    it('does not federate again when the import re-runs over an existing status', async () => {
-      // Retries and the recovery scripts re-drive this job over statuses that
-      // are already live. Their Create has been delivered, so a second one
-      // would post the same ride to every follower twice.
-      const fitnessFileIds = [await createFile('rerun')]
-      stubParse(6)
-
-      await importFitnessFilesJob(database, {
-        id: 'job-federation-first',
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
-          actorId: actor.id,
-          batchId: 'batch-federation-optin',
-          fitnessFileIds,
-          publishSendNote: true
-        }
-      })
-      expect(getProcessJobs().at(-1)?.data.publishSendNote).toBe(true)
-
-      stubParse(6)
-      await importFitnessFilesJob(database, {
-        id: 'job-federation-rerun',
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
-          actorId: actor.id,
-          batchId: 'batch-federation-optin',
-          fitnessFileIds,
-          publishSendNote: true
-        }
-      })
-
-      expect(getProcessJobs().at(-1)?.data.publishSendNote).toBe(false)
-    })
-
-    it('returns the process job instead of publishing it when deferred', async () => {
-      const fitnessFileIds = [await createFile('deferred')]
-      stubParse(8)
-
-      const groups = await importFitnessFiles(
-        database,
-        {
-          actorId: actor.id,
-          batchId: 'batch-federation-optin',
-          fitnessFileIds,
-          publishSendNote: true
-        },
-        { deferProcessJobPublishes: true }
-      )
-
-      expect(getProcessJobs()).toHaveLength(0)
-      expect(groups).toHaveLength(1)
-      expect(groups[0].statusCreated).toBe(true)
-      expect(groups[0].processJob).toEqual(
-        expect.objectContaining({
-          name: PROCESS_FITNESS_FILE_JOB_NAME,
-          data: expect.objectContaining({
-            statusId: groups[0].statusId,
-            fitnessFileId: fitnessFileIds[0],
-            publishSendNote: true
-          })
-        })
-      )
-    })
-  })
-
-  describe('recording device', () => {
-    it('resolves the device from the parsed file and links the activity', async () => {
-      const file = await database.createFitnessFile({
-        actorId: actor.id,
-        path: 'fitness/device-link.fit',
-        fileName: 'device-link.fit',
-        fileType: 'fit',
-        mimeType: 'application/vnd.ant.fit',
-        bytes: 1_024,
-        importBatchId: 'batch-device-link'
-      })
-
-      mockParseFitnessFile.mockResolvedValue({
-        coordinates: [],
-        trackPoints: [],
-        totalDistanceMeters: 20_000,
-        totalDurationSeconds: 3_600,
-        startTime: new Date('2026-01-09T00:00:00.000Z'),
-        deviceName: 'Hammerhead Karoo 3',
-        deviceManufacturer: 'hammerhead'
-      })
-
-      await importFitnessFilesJob(database, {
-        id: 'import-job-device-link',
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
-          actorId: actor.id,
-          batchId: 'batch-device-link',
-          fitnessFileIds: [file!.id],
-          visibility: 'public'
-        }
-      })
-
-      const updated = await database.getFitnessFile({ id: file!.id })
-      expect(updated?.deviceGearId).toBeDefined()
-
-      const device = await database.getFitnessGear({
-        id: updated?.deviceGearId as string,
-        actorId: actor.id
-      })
-      expect(device).toMatchObject({
-        kind: 'device',
-        brand: 'Hammerhead',
-        model: 'Karoo 3',
-        deviceKey: 'name:hammerhead karoo 3'
-      })
-
-      await database.deleteFitnessGear({
-        id: device!.id,
-        actorId: actor.id
-      })
-    })
-
-    it('links nothing when the parsed file names no device', async () => {
-      const file = await database.createFitnessFile({
-        actorId: actor.id,
-        path: 'fitness/device-none.fit',
-        fileName: 'device-none.fit',
-        fileType: 'fit',
-        mimeType: 'application/vnd.ant.fit',
-        bytes: 1_024,
-        importBatchId: 'batch-device-none'
-      })
-
-      mockParseFitnessFile.mockResolvedValue({
-        coordinates: [],
-        trackPoints: [],
-        totalDistanceMeters: 20_000,
-        totalDurationSeconds: 3_600,
-        startTime: new Date('2026-01-09T00:00:00.000Z')
-      })
-
-      await importFitnessFilesJob(database, {
-        id: 'import-job-device-none',
-        name: IMPORT_FITNESS_FILES_JOB_NAME,
-        data: {
-          actorId: actor.id,
-          batchId: 'batch-device-none',
-          fitnessFileIds: [file!.id],
-          visibility: 'public'
-        }
-      })
-
-      const updated = await database.getFitnessFile({ id: file!.id })
-      expect(updated?.deviceGearId).toBeUndefined()
-    })
   })
 })
