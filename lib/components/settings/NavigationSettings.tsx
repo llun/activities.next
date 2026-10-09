@@ -177,7 +177,7 @@ export const NavigationSettings: FC<Props> = ({
           </>
         }
       >
-        <SaveFailure />
+        <SaveFailure onRetrySaved={() => announce('Your changes are saved')} />
         <FramedList aria-label="Sidebar items">
           {rows.map(({ item, isHidden, isFeatureOff }, index) => {
             const draggable = !isFeatureOff
@@ -355,12 +355,18 @@ export const NavigationSettings: FC<Props> = ({
 // There is no Save button: every change is written as it happens. The quiet
 // "Saved" tick sits in the section's actions; a failed save gets an alert with
 // the one recovery the page offers.
+//
+// The tick is deliberately not a live region. It changes twice per save and a
+// keyboard reorder saves on every keystroke, so announcing it would bury each
+// row's own "moved up, position 2 of 10" under "Saved". Only a save that needs
+// the user speaks: the failure (the alert) and the retry that settles it
+// (`onRetrySaved`).
 const SaveStatus = () => {
   const { saveState } = useNavPreferences()
-  return <SavedIndicator saved={saveState === 'saved'} />
+  return <SavedIndicator saved={saveState === 'saved'} announce={false} />
 }
 
-const SaveFailure = () => {
+const SaveFailure: FC<{ onRetrySaved: () => void }> = ({ onRetrySaved }) => {
   const { saveState, retry } = useNavPreferences()
   const failed = saveState === 'error'
   // A retry is followed across the save it starts, so the button that started
@@ -373,11 +379,14 @@ const SaveFailure = () => {
 
   useEffect(() => {
     // The retry has an outcome once the store leaves `saving`: it worked (the
-    // tick in the actions says so) or it failed again (the alert re-arms).
+    // tick in the actions says so, and the page's live region speaks it,
+    // because pressing Try again unmounts the alert and would otherwise leave a
+    // screen reader with silence) or it failed again (the alert re-arms).
     if (retrying && (saveState === 'saved' || saveState === 'error')) {
       setRetrying(false)
+      if (saveState === 'saved') onRetrySaved()
     }
-  }, [retrying, saveState])
+  }, [retrying, saveState, onRetrySaved])
 
   if (!failed && !retrying) return null
 

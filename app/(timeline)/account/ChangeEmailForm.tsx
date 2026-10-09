@@ -57,13 +57,16 @@ export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
           label="Change email address"
           hint="We will send a verification link to the new address."
         >
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setIsChanging(true)}
-          >
-            Change email
-          </Button>
+          {({ describedBy }) => (
+            <Button
+              type="button"
+              variant="outline"
+              aria-describedby={describedBy}
+              onClick={() => setIsChanging(true)}
+            >
+              Change email
+            </Button>
+          )}
         </FormRow>
         {message && <Alert tone="success" flush title={message} />}
       </>
@@ -110,7 +113,7 @@ export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
           Cancel
         </Button>
         <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Sending...' : 'Send verification email'}
+          {isLoading ? 'Sending…' : 'Send verification email'}
         </Button>
       </div>
     </form>

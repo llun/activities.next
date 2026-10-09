@@ -67,11 +67,51 @@ describe('TwoFactorManager', () => {
 
     const alert = screen
       .getByText('Two-factor authentication is off')
-      .closest('[role="alert"]')
+      .closest('[data-slot="alert"]')
     expect(alert).toHaveAttribute('data-tone', 'warning')
     expect(
       within(alert as HTMLElement).getByRole('button', { name: 'Set up' })
     ).toBeInTheDocument()
+  })
+
+  it('reaches the password field before the Set up button', () => {
+    render(<TwoFactorManager enabled={false} serviceName="Activities" />)
+
+    const password = screen.getByLabelText('Current password')
+    const setUp = screen.getByRole('button', { name: 'Set up' })
+    expect(
+      password.compareDocumentPosition(setUp) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(password).toHaveAccessibleDescription(
+      'Enter your password, then choose Set up.'
+    )
+  })
+
+  it('names each password field by its own row, not two fields "Current password"', () => {
+    render(<TwoFactorManager enabled serviceName="Activities" />)
+
+    expect(screen.queryByLabelText('Current password')).toBeNull()
+    expect(screen.getByLabelText('Generate backup codes')).toHaveAttribute(
+      'type',
+      'password'
+    )
+    expect(screen.getByLabelText('Disable 2FA')).toHaveAttribute(
+      'type',
+      'password'
+    )
+    expect(screen.getByLabelText('Disable 2FA')).toHaveAccessibleDescription(
+      'Password sign-ins will no longer ask for a verification code.'
+    )
+  })
+
+  it('does not announce the standing on/off state as an alert', () => {
+    const { rerender } = render(
+      <TwoFactorManager enabled={false} serviceName="Activities" />
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    rerender(<TwoFactorManager enabled serviceName="Activities" />)
+    expect(screen.queryByRole('status')).toBeNull()
   })
 
   it('asks for the current password when Set up is pressed without one', async () => {
@@ -90,7 +130,7 @@ describe('TwoFactorManager', () => {
 
     const alert = screen
       .getByText('Two-factor authentication is on')
-      .closest('[role="status"]')
+      .closest('[data-slot="alert"]')
     expect(alert).toHaveAttribute('data-tone', 'success')
     expect(
       screen.queryByRole('button', { name: 'Set up' })
@@ -198,7 +238,7 @@ describe('TwoFactorManager', () => {
     render(<TwoFactorManager enabled={true} serviceName="Activities" />)
 
     fireEvent.change(
-      screen.getByLabelText('Current password', {
+      screen.getByLabelText('Disable 2FA', {
         selector: '#twoFactorDisablePassword'
       }),
       {
@@ -227,7 +267,7 @@ describe('TwoFactorManager', () => {
     render(<TwoFactorManager enabled={true} serviceName="Activities" />)
 
     fireEvent.change(
-      screen.getByLabelText('Current password', {
+      screen.getByLabelText('Generate backup codes', {
         selector: '#twoFactorBackupPassword'
       }),
       {

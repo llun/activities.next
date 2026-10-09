@@ -452,7 +452,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
             label="Sign out of this device"
             hint="You can sign in again at any time."
           >
-            <LogoutButton />
+            {({ describedBy }) => <LogoutButton describedBy={describedBy} />}
           </FormRow>
         </Frame>
       </Section>

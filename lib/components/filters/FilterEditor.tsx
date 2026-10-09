@@ -450,8 +450,10 @@ export const FilterEditor: FC<FilterEditorProps> = ({
       <Frame className="px-4 py-3">
         <SaveBar
           // A filter with no non-empty keywords matches nothing, so block
-          // saving until at least one keyword has text.
-          dirty={dirty && hasKeyword}
+          // saving until at least one keyword has text, and say so rather than
+          // claim there is nothing to save.
+          dirty={dirty}
+          disabledReason={hasKeyword ? undefined : 'Add a keyword to save'}
           saving={saving}
           saved={false}
           error={error}

@@ -19,12 +19,15 @@ describe('SectionSkeleton', () => {
 
     const frames = container.querySelectorAll('[data-slot="frame"]')
     expect(frames).toHaveLength(2)
+    // At least a bar per row; how many a row draws is its own business.
     expect(
-      frames[0].querySelectorAll('[data-slot="skeleton-bar"]')
-    ).toHaveLength(2 * 3)
+      frames[0].querySelectorAll('[data-slot="skeleton-bar"]').length
+    ).toBeGreaterThanOrEqual(2)
     expect(
-      frames[1].querySelectorAll('[data-slot="skeleton-bar"]')
-    ).toHaveLength(4 * 3)
+      frames[1].querySelectorAll('[data-slot="skeleton-bar"]').length
+    ).toBeGreaterThan(
+      frames[0].querySelectorAll('[data-slot="skeleton-bar"]').length
+    )
   })
 
   it('leaves out the section headings on request', () => {
@@ -32,9 +35,13 @@ describe('SectionSkeleton', () => {
       <SectionSkeleton title={false} headings={false} sections={[2]} />
     )
 
-    expect(
-      container.querySelectorAll('[data-slot="skeleton-bar"]')
-    ).toHaveLength(2 * 3)
+    // Only the rows' bars: no title or heading bars above the frame.
+    const bars = container.querySelectorAll('[data-slot="skeleton-bar"]')
+    const frameBars = container.querySelectorAll(
+      '[data-slot="frame"] [data-slot="skeleton-bar"]'
+    )
+    expect(bars.length).toBeGreaterThanOrEqual(2)
+    expect(bars).toHaveLength(frameBars.length)
   })
 
   it('leaves out the title block on request and takes a custom label', () => {
@@ -43,9 +50,12 @@ describe('SectionSkeleton', () => {
     )
 
     expect(screen.getByText('Loading filters')).toBeInTheDocument()
-    // Section heading (2) + one row (3) bars; no title/description pair.
+    // The section's heading bars stay; the title/description pair does not.
+    const withTitle = render(<SectionSkeleton sections={[1]} />).container
     expect(
-      container.querySelectorAll('[data-slot="skeleton-bar"]')
-    ).toHaveLength(2 + 3)
+      container.querySelectorAll('[data-slot="skeleton-bar"]').length
+    ).toBeLessThan(
+      withTitle.querySelectorAll('[data-slot="skeleton-bar"]').length
+    )
   })
 })

@@ -49,6 +49,13 @@ interface Props {
    * `overflow-hidden`) draws the outline around it.
    */
   flush?: boolean
+  /**
+   * Whether it speaks when it appears (default). Turn it off for a row that is
+   * simply part of the page at load, such as the danger zone or a standing
+   * "two-factor is off" state: that is content to read, not news to announce,
+   * so it drops the `alert` / `status` role.
+   */
+  live?: boolean
   className?: string
 }
 
@@ -67,12 +74,13 @@ export const Alert: FC<Props> = ({
   action,
   onRetry,
   flush = false,
+  live = true,
   className
 }) => {
   const { Icon, rule, icon, role } = TONES[tone]
   return (
     <div
-      role={role}
+      role={live ? role : undefined}
       data-slot="alert"
       data-tone={tone}
       className={cn(

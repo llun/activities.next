@@ -2,13 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within
-} from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { cancelActorDeletion, setDefaultActor, switchActor } from '@/lib/client'
 
@@ -341,7 +335,7 @@ describe('ActorsSection', () => {
     fireEvent.keyDown(trigger, { key: 'ArrowDown' })
     await screen.findByRole('menu')
 
-    expect(screen.getByText('Deleting...')).toBeInTheDocument()
+    expect(screen.getByText('Deleting…')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Cancel' })
     ).not.toBeInTheDocument()
@@ -426,7 +420,7 @@ describe('ActorsSection', () => {
     })
   })
 
-  it('draws the trigger and menu monograms on the neutral tokens, not Tailwind grays', async () => {
+  it('names the actor menu by its row and describes it with the row hint', () => {
     render(
       <ActorsSection
         currentActor={actors[0]}
@@ -435,31 +429,10 @@ describe('ActorsSection', () => {
       />
     )
 
-    const expectNeutralMonogram = (monogram: Element | null) => {
-      expect(monogram).toHaveClass(
-        'bg-(--skeleton)',
-        'font-semibold',
-        'text-muted-foreground',
-        'dark:bg-input'
-      )
-      expect(monogram?.className).not.toMatch(/gray-/)
-    }
-
     const trigger = screen.getByRole('button', { name: /alice/i })
-    const triggerMonogram = trigger.querySelector(
-      '[data-slot="avatar-fallback"]'
+    expect(trigger).toHaveAccessibleName(/^Actor\b.*alice/i)
+    expect(trigger).toHaveAccessibleDescription(
+      /Select an actor from the dropdown/
     )
-    expect(triggerMonogram).toHaveTextContent('A')
-    expectNeutralMonogram(triggerMonogram)
-
-    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
-    const menu = await screen.findByRole('menu')
-    const items = within(menu).getAllByRole('menuitem')
-    expect(items).toHaveLength(2)
-    for (const item of items) {
-      const monogram = item.querySelector('[data-slot="avatar-fallback"]')
-      expectNeutralMonogram(monogram)
-      expect(monogram).toHaveClass('text-xs')
-    }
   })
 })

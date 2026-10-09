@@ -55,7 +55,7 @@ describe('ChangeNameForm', () => {
       expect(mockUpdateAccountName).toHaveBeenCalledWith({
         name: 'Augusta Ada King'
       })
-      expect(screen.getByText('All changes saved')).toBeInTheDocument()
+      expect(screen.getByText('Saved')).toBeInTheDocument()
     })
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })

@@ -272,6 +272,9 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
     <Button
       variant="outline"
       size="sm"
+      // Held in the header, disabled, while the list loads, so it is there from
+      // the first paint rather than popping in.
+      disabled={loading}
       onClick={() => openDialog(currentDomain)}
     >
       <Plus className="size-4" />
@@ -285,7 +288,7 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
         icon={Fingerprint}
         title="Passkeys"
         description="Use biometrics or a hardware key to sign in without a password. Each passkey works only on the domain it was created for."
-        actions={passkeys.length > 0 ? addPasskeyButton : undefined}
+        actions={loading || passkeys.length > 0 ? addPasskeyButton : undefined}
       >
         {error && <Alert title={error} />}
         {success && <Alert tone="success" title={success} />}

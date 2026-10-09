@@ -113,7 +113,7 @@ describe('ChangePasswordForm', () => {
         currentPassword: 'old-secret-123',
         newPassword: 'brand-new-secret-123'
       })
-      expect(screen.getByText('All changes saved')).toBeInTheDocument()
+      expect(screen.getByText('Saved')).toBeInTheDocument()
     })
 
     expect(currentInput).toHaveValue('')

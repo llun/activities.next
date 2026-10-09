@@ -49,7 +49,13 @@ export const AppearanceSection: FC<Props> = ({ children }) => {
           label="Theme"
           hint="System follows this device’s setting. Saved instantly on this device."
         >
-          <ThemeControl variant="full" onSelect={handleSelect} />
+          {({ describedBy }) => (
+            <ThemeControl
+              variant="full"
+              onSelect={handleSelect}
+              describedBy={describedBy}
+            />
+          )}
         </FormRow>
         {children}
       </Frame>

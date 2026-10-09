@@ -51,9 +51,9 @@ export function DeleteActorSection({
   if (deletionStatus) {
     return (
       <Frame className="overflow-hidden">
-        <Alert tone="warning" title="Deletion in progress" flush>
+        <Alert tone="warning" title="Deletion in progress" flush live={false}>
           {deletionStatus === 'deleting'
-            ? 'This actor is currently being deleted...'
+            ? 'This actor is currently being deleted…'
             : 'This actor is scheduled for deletion.'}
         </Alert>
       </Frame>
@@ -66,6 +66,7 @@ export function DeleteActorSection({
         <Alert
           title="Delete this actor"
           flush
+          live={false}
           action={
             <Button
               variant="destructive"

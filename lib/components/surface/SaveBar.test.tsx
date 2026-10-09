@@ -35,14 +35,14 @@ describe('SaveBar', () => {
     expect(onSave).toHaveBeenCalledTimes(1)
   })
 
-  it('shows All changes saved after a save, and Unsaved wins over it once edited again', () => {
+  it('shows Saved after a save, and Unsaved wins over it once edited again', () => {
     const { rerender } = render(
       <SaveBar dirty={false} saving={false} saved onSave={vi.fn()} />
     )
-    expect(screen.getByText('All changes saved')).toBeInTheDocument()
+    expect(screen.getByText('Saved')).toBeInTheDocument()
 
     rerender(<SaveBar dirty saving={false} saved onSave={vi.fn()} />)
-    expect(screen.queryByText('All changes saved')).toBeNull()
+    expect(screen.queryByText('Saved')).toBeNull()
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
   })
 
@@ -57,6 +57,17 @@ describe('SaveBar', () => {
     renderBar({ dirty: true, error: 'Could not save' })
     expect(screen.getByRole('alert')).toHaveTextContent('Could not save')
     expect(screen.queryByText('Unsaved changes')).toBeNull()
+  })
+})
+
+describe('SaveBar with a disabledReason', () => {
+  it('keeps Save off but still says there are unsaved changes, and why', () => {
+    renderBar({ dirty: true, disabledReason: 'Add a keyword to save' })
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument()
+    expect(screen.getByText(/Add a keyword to save/)).toBeInTheDocument()
+    expect(screen.queryByText('No unsaved changes')).toBeNull()
   })
 })
 
@@ -97,5 +108,17 @@ describe('SavedIndicator', () => {
     rerender(<SavedIndicator saved />)
     expect(screen.getByRole('status')).toHaveTextContent('Saved')
     expect(screen.getByRole('status')).toBe(region)
+  })
+
+  it('drops the live region but still shows the tick with announce off', () => {
+    const { rerender } = render(
+      <SavedIndicator saved={false} announce={false} />
+    )
+    expect(screen.queryByRole('status')).toBeNull()
+
+    rerender(<SavedIndicator saved announce={false} />)
+    expect(screen.getByText('Saved')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(document.querySelector('[aria-live]')).toBeNull()
   })
 })

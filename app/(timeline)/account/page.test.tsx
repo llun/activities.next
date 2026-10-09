@@ -53,18 +53,6 @@ describe('/account', () => {
     getActorsForAccount.mockResolvedValue([])
   })
 
-  it('marks a verified email with the shared success Badge', async () => {
-    getActorFromSession.mockResolvedValue(actorWithAccount(1_700_000_000_000))
-
-    render(await Page({ searchParams: Promise.resolve({}) }))
-
-    const badge = screen.getByText('Verified')
-    expect(badge).toHaveClass('bg-green-100', 'text-green-800')
-    // The design's dark green, which the hand-rolled pill never had.
-    expect(badge.className).toContain('dark:bg-[#163B24]')
-    expect(badge.className).toContain('dark:text-[#69D390]')
-  })
-
   it('shows no badge while the email is unverified', async () => {
     getActorFromSession.mockResolvedValue(actorWithAccount(null))
 

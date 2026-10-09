@@ -12,6 +12,7 @@ import {
 
 import { getPasskeys } from '@/lib/client'
 import { authClient } from '@/lib/services/auth/auth-client'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { PasskeyManager } from './PasskeyManager'
 
@@ -157,5 +158,30 @@ describe('PasskeyManager', () => {
       ).toBeInTheDocument()
     )
     expect(within(dialog).getByText('Add a passkey')).toBeInTheDocument()
+  })
+
+  it('has Add passkey in the header, disabled, while the list loads', async () => {
+    const deferred = createDeferred<unknown[]>()
+    mockGetPasskeys.mockReturnValue(deferred.promise)
+
+    render(
+      <PasskeyManager
+        domains={[{ domain: 'llun.social', primary: true }]}
+        currentDomain="llun.social"
+        handlePrefix="anna"
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /add passkey/i })).toBeDisabled()
+
+    deferred.resolve([])
+    await waitFor(() =>
+      expect(screen.getByText('No passkeys registered yet')).toBeInTheDocument()
+    )
+    // The empty state carries the one Add passkey action from here on.
+    expect(screen.getByRole('button', { name: /add passkey/i })).toBeEnabled()
+    expect(
+      screen.getAllByRole('button', { name: /add passkey/i })
+    ).toHaveLength(1)
   })
 })

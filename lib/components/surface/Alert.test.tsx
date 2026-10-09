@@ -63,6 +63,17 @@ describe('Alert', () => {
     expect(alert).toHaveTextContent('Mind the gap.')
   })
 
+  it('drops the live role for a row that is just part of the page', () => {
+    render(
+      <Alert tone="warning" live={false} title="Two-factor is off">
+        Add an authenticator app.
+      </Alert>
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByText('Two-factor is off')).toBeVisible()
+  })
+
   it('has no action row without either', () => {
     render(<Alert title="Saved" tone="success" />)
     expect(screen.queryByRole('button')).toBeNull()

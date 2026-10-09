@@ -128,6 +128,37 @@ describe('FilterEditor', () => {
 
       expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
       expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+      expect(screen.queryByText(/Add a keyword to save/)).toBeNull()
+    })
+
+    it('says why Save is off while a typed title has no keyword yet', () => {
+      renderNew()
+
+      fireEvent.change(screen.getByLabelText('Title'), {
+        target: { value: 'Spoilers' }
+      })
+
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+      expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument()
+      expect(screen.getByText(/Add a keyword to save/)).toBeInTheDocument()
+      expect(screen.queryByText('No unsaved changes')).toBeNull()
+    })
+
+    it('does not call it clean when every keyword of a saved filter is cleared', () => {
+      renderNew({
+        initial: {
+          ...filterWithAction('warn'),
+          keywords: [{ id: 'k1', keyword: 'spoiler', whole_word: true }]
+        } as unknown as ClientFilter
+      })
+
+      fireEvent.change(screen.getByLabelText('Keyword or phrase 1'), {
+        target: { value: '' }
+      })
+
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+      expect(screen.getByText(/Add a keyword to save/)).toBeInTheDocument()
+      expect(screen.queryByText('No unsaved changes')).toBeNull()
     })
 
     it('saves the new filter with the title and keyword', () => {

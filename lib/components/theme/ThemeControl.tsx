@@ -24,12 +24,15 @@ interface ThemeControlProps {
   className?: string
   /** Called after the user picks a mode, once it has been applied. */
   onSelect?: (mode: ThemeMode) => void
+  /** The id of the text that describes the control, for `aria-describedby`. */
+  describedBy?: string
 }
 
 export const ThemeControl: FC<ThemeControlProps> = ({
   variant = 'full',
   className,
-  onSelect
+  onSelect,
+  describedBy
 }) => {
   const { theme, setTheme } = useTheme()
   const compact = variant === 'compact'
@@ -38,6 +41,7 @@ export const ThemeControl: FC<ThemeControlProps> = ({
     <div
       role="group"
       aria-label="Theme"
+      aria-describedby={describedBy}
       className={cn(
         compact
           ? 'inline-flex gap-0.5 rounded-full border bg-card p-0.5 shadow-sm'

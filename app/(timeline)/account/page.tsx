@@ -115,7 +115,7 @@ const Page = async ({
         title="Email address"
         description="Used for sign-in and account notifications."
       >
-        <Frame divided>
+        <Frame divided className="overflow-hidden">
           <FormRow label="Current email" htmlFor="currentEmail">
             <div className="flex items-center gap-2">
               <Input

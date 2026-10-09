@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
 
-export const LogoutButton = () => {
+export const LogoutButton = ({ describedBy }: { describedBy?: string }) => {
   const [error, setError] = useState<string>()
 
   const handleSignOut = () => {
@@ -24,7 +24,11 @@ export const LogoutButton = () => {
 
   return (
     <div className="space-y-1">
-      <Button variant="outline" onClick={handleSignOut}>
+      <Button
+        variant="outline"
+        aria-describedby={describedBy}
+        onClick={handleSignOut}
+      >
         Logout
       </Button>
       {error && <p className="text-destructive-text text-sm">{error}</p>}

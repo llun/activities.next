@@ -98,7 +98,7 @@ describe('PreferencesSettings', () => {
         expect.objectContaining({ language: 'de' })
       )
     )
-    expect(await screen.findByText('All changes saved')).toBeInTheDocument()
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
     // After a successful save the form is no longer dirty, so Save disables
     // again until the next change.
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
@@ -142,7 +142,7 @@ describe('PreferencesSettings', () => {
       )
     )
 
-    expect(await screen.findByText('All changes saved')).toBeInTheDocument()
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
     expect(screen.getByTestId('context-val').textContent).toBe('true')
   })
 
