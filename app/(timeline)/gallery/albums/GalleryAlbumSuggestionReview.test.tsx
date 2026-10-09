@@ -327,6 +327,41 @@ describe('GalleryAlbumSuggestionReview', () => {
       expect(screen.getByTestId('selected')).toHaveTextContent('own-1,s-1,s-2')
     })
 
+    it('shows the full grid and "Select all" again when the review is remounted for another suggestion', async () => {
+      // The dialog keys the review by suggestion (and by each Use).
+      const view = (key: string, ids: string[]) => (
+        <GalleryAlbumSuggestionReview
+          key={key}
+          suggestion={buildSuggestion('t', {
+            mediaIds: ids,
+            photoCount: ids.length
+          })}
+          selected={[]}
+          onChange={() => {}}
+        />
+      )
+      const { rerender } = render(view('trip:1', ['t-1', 't-2', 't-3', 't-4']))
+      await screen.findAllByRole('button', {
+        name: /^Select (Kingfisher|Heron)/
+      })
+      fireEvent.change(screen.getByLabelText('Place'), {
+        target: { value: 'Hyde Park' }
+      })
+      expect(shown()).toHaveLength(2)
+      expect(
+        screen.getByRole('button', { name: 'Select all shown' })
+      ).toBeInTheDocument()
+
+      rerender(view('species:2', ['t-1', 't-2', 't-3']))
+
+      await waitFor(() => expect(shown()).toHaveLength(3))
+      expect(screen.getByLabelText('Place')).toHaveValue('')
+      expect(
+        screen.getByRole('button', { name: 'Select all' })
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
+    })
+
     it('does not submit the dialog form when Enter is pressed in a date field', async () => {
       const onSubmit = vi.fn((event) => event.preventDefault())
       render(

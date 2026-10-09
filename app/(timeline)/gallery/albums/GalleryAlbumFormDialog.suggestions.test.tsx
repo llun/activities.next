@@ -3,6 +3,7 @@
  */
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
 import type { GalleryAlbumSuggestionsState } from '@/app/(timeline)/gallery/albums/useGalleryAlbumSuggestions'
@@ -34,6 +35,10 @@ vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumPicker', () => ({
   )
 }))
 
+// How many times the review grid has been mounted: the dialog keys it so that
+// its filters start afresh.
+const reviewMounts = vi.hoisted(() => ({ count: 0 }))
+
 vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumSuggestionReview', () => ({
   GalleryAlbumSuggestionReview: ({
     suggestion,
@@ -45,30 +50,34 @@ vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumSuggestionReview', () => ({
     selected: string[]
     onChange: (ids: string[]) => void
     onItemsLoaded?: (items: unknown[]) => void
-  }) => (
-    <div data-testid="review">
-      <span data-testid="review-of">{suggestion.id}</span>
-      <span data-testid="review-selected">{selected.join(',')}</span>
-      <button type="button" onClick={() => onChange(selected.slice(1))}>
-        untick first
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          onItemsLoaded?.([
-            buildGalleryItem(suggestion.mediaIds[1], {
-              attachment: {
-                ...buildGalleryItem(suggestion.mediaIds[1]).attachment,
-                name: 'Second photo'
-              }
-            })
-          ])
-        }
-      >
-        report photos
-      </button>
-    </div>
-  )
+  }) => {
+    const [mount] = useState(() => (reviewMounts.count += 1))
+    return (
+      <div data-testid="review">
+        <span data-testid="review-mount">{mount}</span>
+        <span data-testid="review-of">{suggestion.id}</span>
+        <span data-testid="review-selected">{selected.join(',')}</span>
+        <button type="button" onClick={() => onChange(selected.slice(1))}>
+          untick first
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onItemsLoaded?.([
+              buildGalleryItem(suggestion.mediaIds[1], {
+                attachment: {
+                  ...buildGalleryItem(suggestion.mediaIds[1]).attachment,
+                  name: 'Second photo'
+                }
+              })
+            ])
+          }
+        >
+          report photos
+        </button>
+      </div>
+    )
+  }
 }))
 
 const create = vi.mocked(createGalleryAlbum)
@@ -292,6 +301,30 @@ describe('GalleryAlbumFormDialog suggestions', () => {
     expect(screen.getByLabelText('Title')).toHaveValue('Common kingfisher')
     expect(screen.getByTestId('review-selected')).toHaveTextContent('k1,k2,k3')
     expect(screen.getByTestId('review-of')).toHaveTextContent(species.id)
+  })
+
+  it('starts the review grid afresh for another suggestion and for the same one used again', () => {
+    renderDialog({ initialTab: 'suggestions' })
+    const mount = () => screen.getByTestId('review-mount').textContent
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /^Use 3 photos from Kruger/ })
+    )
+    const first = mount()
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /^Use 3 photos from Common kingfisher/
+      })
+    )
+    const second = mount()
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /^Use 3 photos from Common kingfisher/
+      })
+    )
+
+    expect(second).not.toBe(first)
+    expect(mount()).not.toBe(second)
   })
 
   it('shows the cover from the photos the review grid has read', () => {

@@ -466,8 +466,8 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   never stored; they take `read` or `read:statuses` (or the web session).
   `GET /api/v1/gallery/albums/suggestions?time_zone=` (an IANA zone name; the day of an
   activity is read in it, default `UTC`; 422 otherwise. A photo's day is its UTC
-  date, as an album shows it, and a photo day matches an activity on that date or
-  on the zone's date of any of its photos) returns `suggestions`, most
+  date, as an album shows it, and a photo day matches an activity on that date, or, when
+  none is on it, on the zone's date of any of its photos) returns `suggestions`, most
   recent first, each with `id`, `kind` (`trip`, `species` or `activity_day`),
   `title`, `photoCount`, `firstAt`, `lastAt`, `preview`, `mediaIds` (at most
   2,000, newest first) and `truncated`, `placeCount`, `speciesCount` and

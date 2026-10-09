@@ -80,9 +80,11 @@ type SuggestionDatabase = Pick<
   | 'getStatus'
 >
 
-// Activities are looked up for the newest photo days only, in windows of this
-// many local days (the oldest photo day of a window is at most this far from
-// its newest), and for at most this many windows a request. An activity-day
+// Activities are looked up for the newest photo days only, in windows of photo
+// days at most this many days from newest to oldest, and for at most this many
+// windows a request. The window also takes in the viewer-local dates of those
+// photos, which can fall one day beyond each end, so it reads up to two more
+// days (33) than that. An activity-day
 // suggestion is only ever one of the newest, so older photo days are not worth a
 // query; an owner with photos on many days still costs a bounded number of
 // reads.
@@ -230,12 +232,21 @@ const findActivityDays = async (
       localDays[localDays.length - 1] as DateKey
     )
     for (const { day, activityDays } of group) {
-      const found: ActivityDay = { count: 0, statusIds: [] }
-      for (const activityDay of activityDays) {
-        const activity = counts.get(activityDay)
-        if (!activity) continue
-        found.count += activity.count
-        found.statusIds.push(...activity.statusIds)
+      // The photo day's own (UTC) date first. Only when no activity is on it
+      // are the viewer-local dates tried, and then only their activities count:
+      // a day never takes the activities of two readings at once.
+      const own = counts.get(day)
+      const found: ActivityDay = own
+        ? { count: own.count, statusIds: [...own.statusIds] }
+        : { count: 0, statusIds: [] }
+      if (!own) {
+        for (const activityDay of activityDays) {
+          if (activityDay === day) continue
+          const activity = counts.get(activityDay)
+          if (!activity) continue
+          found.count += activity.count
+          found.statusIds.push(...activity.statusIds)
+        }
       }
       if (found.count > 0) matched.set(day, found)
     }

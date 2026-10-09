@@ -164,6 +164,9 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   const [tab, setTab] = useState<GalleryAlbumPickerTab>(initialTab)
   const [activeSuggestion, setActiveSuggestion] =
     useState<GalleryAlbumSuggestionEntity | null>(null)
+  // Bumped by every Use, so the review grid starts afresh (filters cleared)
+  // for a different suggestion and for the same one used again.
+  const [reviewRun, setReviewRun] = useState(0)
   const [reviewItems, setReviewItems] = useState<
     ReadonlyMap<string, GalleryItemEntity>
   >(new Map())
@@ -220,6 +223,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   const handleUseSuggestion = (suggestion: GalleryAlbumSuggestionEntity) => {
     setSelected(suggestion.mediaIds.slice(0, capacity))
     setActiveSuggestion(suggestion)
+    setReviewRun((run) => run + 1)
     if (!titleEdited.current || !title.trim()) {
       setTitle(suggestion.title)
       titleEdited.current = false
@@ -517,6 +521,7 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                       />
                       {activeSuggestion ? (
                         <GalleryAlbumSuggestionReview
+                          key={`${activeSuggestion.id}:${reviewRun}`}
                           suggestion={activeSuggestion}
                           selected={selected}
                           onChange={setSelected}

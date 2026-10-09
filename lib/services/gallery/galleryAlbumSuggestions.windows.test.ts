@@ -371,6 +371,84 @@ describe('getGalleryAlbumSuggestions: activity-day titles and coverage', () => {
     ])
   })
 
+  describe('matching a photo day to the activities of two readings', () => {
+    // Five photos from 18:00 to 22:00 UTC on 5 Mar: 5 Mar by their UTC date, and
+    // 03:00 to 07:00 on 6 Mar in Tokyo.
+    const photos = Array.from({ length: 5 }, (_, index) =>
+      buildIndexRow(index + 1, { takenAt: Date.UTC(2026, 2, 5, 18 + index) })
+    )
+    // 09:00 on 5 Mar in Tokyo, and 07:00 on 6 Mar in Tokyo.
+    const onFifth = Date.UTC(2026, 2, 5, 0)
+    const onSixth = Date.UTC(2026, 2, 5, 22)
+
+    it('falls back to the viewer-local day when the UTC date has no activity', async () => {
+      const { database } = buildDatabase({
+        owner: () => photos,
+        activities: [{ startTime: onSixth, statusId: 'public-post' }],
+        statuses: { 'public-post': { to: [PUBLIC] } }
+      })
+
+      const { suggestions } = await getGalleryAlbumSuggestions({
+        database,
+        owner,
+        timeZone: 'Asia/Tokyo'
+      })
+
+      expect(suggestions).toHaveLength(1)
+      expect(suggestions[0]).toMatchObject({
+        id: 'activity_day:2026-03-05',
+        title: 'Activity day, 5 Mar 2026',
+        activityCount: 1
+      })
+    })
+
+    it('counts only the UTC date’s activities when it has some, and takes its public post from them alone', async () => {
+      const { database } = buildDatabase({
+        owner: () => photos,
+        activities: [
+          { startTime: onFifth, statusId: 'private-post' },
+          { startTime: onSixth, statusId: 'public-post' }
+        ],
+        statuses: {
+          'private-post': { to: [`${owner.id}/followers`] },
+          'public-post': { to: [PUBLIC] }
+        }
+      })
+
+      const { suggestions } = await getGalleryAlbumSuggestions({
+        database,
+        owner,
+        timeZone: 'Asia/Tokyo'
+      })
+
+      expect(suggestions).toHaveLength(1)
+      // One activity, not two, and the 6 Mar post is not read: no "Activity day".
+      expect(suggestions[0]).toMatchObject({
+        id: 'activity_day:2026-03-05',
+        title: '5 Mar 2026',
+        activityCount: 1
+      })
+      expect(getStatusMock(database)).not.toHaveBeenCalledWith(
+        expect.objectContaining({ statusId: 'public-post' })
+      )
+    })
+
+    it('finds no activity for a viewer in a zone where neither reading has one', async () => {
+      const { database } = buildDatabase({
+        owner: () => photos,
+        activities: [{ startTime: Date.UTC(2026, 2, 20), statusId: 'p' }]
+      })
+
+      const { suggestions } = await getGalleryAlbumSuggestions({
+        database,
+        owner,
+        timeZone: 'Asia/Tokyo'
+      })
+
+      expect(suggestions).toEqual([])
+    })
+  })
+
   it('titles a species by the name of a photo a visitor can see, not the owner’s newest', async () => {
     const species = (id: number, name: string) =>
       buildIndexRow(id, {

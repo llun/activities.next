@@ -139,7 +139,8 @@ export const groupPhotosByDay = (
  * The days an activity could be on for the photos of one UTC day: the day
  * itself (right for a photo whose `takenAt` is a wall clock) and the day each
  * photo falls on in the viewer's zone (right for one whose `takenAt` is a real
- * instant). A photo day is matched by an activity on any of them.
+ * instant). The caller matches the UTC day first and tries the others only when
+ * it has no activity, so it never counts the activities of both readings.
  */
 export const photoActivityDays = (
   utcDay: string,
