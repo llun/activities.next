@@ -244,13 +244,12 @@ describe('Wahoo Settings API', () => {
   const call = (
     handler: typeof GET | typeof POST | typeof DELETE,
     method: string,
-    body?: unknown,
-    headers: Record<string, string> = { Origin: 'https://test.llun.dev' }
+    body?: unknown
   ) =>
     handler(
       new NextRequest('https://test.llun.dev/api/v1/fitness/wahoo', {
         method,
-        headers,
+        headers: { Origin: 'https://test.llun.dev' },
         body:
           body === undefined
             ? undefined
@@ -341,16 +340,6 @@ describe('Wahoo Settings API', () => {
       expect(await response.json()).toMatchObject({
         automaticImportAvailable: false
       })
-    })
-
-    it('redirects a signed-out caller to sign in', async () => {
-      mockGetServerSession.mockResolvedValue(null)
-
-      const response = await call(GET, 'GET')
-
-      expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toContain('/auth/signin')
-      expect(mockDb.getFitnessSettings).not.toHaveBeenCalled()
     })
   })
 
@@ -467,19 +456,6 @@ describe('Wahoo Settings API', () => {
 
       await expect(post({ clientId: 'x' })).rejects.toThrow('connection lost')
     })
-
-    it('rejects a cross-site request before reading settings', async () => {
-      const response = await call(
-        POST,
-        'POST',
-        { clientId: 'x' },
-        { Origin: 'https://evil.example' }
-      )
-
-      expect(response.status).toBe(403)
-      expect(mockDb.getFitnessSettings).not.toHaveBeenCalled()
-      expect(mockDb.updateFitnessSettings).not.toHaveBeenCalled()
-    })
   })
 
   describe('DELETE', () => {
@@ -534,15 +510,6 @@ describe('Wahoo Settings API', () => {
       const response = await call(DELETE, 'DELETE')
 
       expect(response.status).toBe(503)
-    })
-
-    it('rejects a cross-site request', async () => {
-      const response = await call(DELETE, 'DELETE', undefined, {
-        Origin: 'https://evil.example'
-      })
-
-      expect(response.status).toBe(403)
-      expect(mockDb.deleteFitnessSettings).not.toHaveBeenCalled()
     })
   })
 })

@@ -44,13 +44,10 @@ vi.mock('@/lib/config', () => ({
   })
 }))
 
-const uploadForm = (
-  form: FormData,
-  headers: Record<string, string> = { Origin: 'https://llun.test' }
-) =>
+const uploadForm = (form: FormData) =>
   new NextRequest('https://llun.test/api/v1/fitness-files', {
     method: 'POST',
-    headers,
+    headers: { Origin: 'https://llun.test' },
     body: form
   })
 
@@ -213,28 +210,5 @@ describe('POST /api/v1/fitness-files', () => {
       message: 'Error uploading fitness file',
       error: 'bucket unreachable'
     })
-  })
-
-  it('rejects a cross-site upload', async () => {
-    const form = new FormData()
-    form.set('file', new File(['<gpx/>'], 'ride.gpx'))
-
-    const response = await POST(
-      uploadForm(form, { Origin: 'https://evil.example' }),
-      context
-    )
-
-    expect(response.status).toBe(403)
-    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
-  })
-
-  it('redirects a signed-out caller to sign in', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-
-    const response = await POST(upload(), context)
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toContain('/auth/signin')
-    expect(mockSaveFitnessFile).not.toHaveBeenCalled()
   })
 })

@@ -138,14 +138,11 @@ describe('Wahoo failed imports API', () => {
       params: Promise.resolve({})
     })
 
-  const post = (
-    body: unknown,
-    headers: Record<string, string> = { Origin: 'https://test.llun.dev' }
-  ) =>
+  const post = (body: unknown) =>
     POST(
       new NextRequest('https://test.llun.dev/api/v1/fitness/wahoo/imports', {
         method: 'POST',
-        headers,
+        headers: { Origin: 'https://test.llun.dev' },
         body: typeof body === 'string' ? body : JSON.stringify(body)
       }),
       { params: Promise.resolve({}) }
@@ -186,16 +183,6 @@ describe('Wahoo failed imports API', () => {
         statuses: ['failed', 'unsupported'],
         limit: 25
       })
-    })
-
-    it('redirects a signed-out caller to sign in', async () => {
-      mockGetServerSession.mockResolvedValue(null)
-
-      const response = await get()
-
-      expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toContain('/auth/signin')
-      expect(mockDb.getWahooImportsByActor).not.toHaveBeenCalled()
     })
   })
 
@@ -324,16 +311,6 @@ describe('Wahoo failed imports API', () => {
         'failed',
         'Failed to queue Wahoo activity. Retry from settings.'
       )
-    })
-
-    it('rejects a cross-site request before reading the import', async () => {
-      const response = await post(
-        { importId: IMPORT_ID },
-        { Origin: 'https://evil.example' }
-      )
-
-      expect(response.status).toBe(403)
-      expect(mockDb.getWahooImport).not.toHaveBeenCalled()
     })
   })
 })

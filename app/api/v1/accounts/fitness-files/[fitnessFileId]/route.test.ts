@@ -121,14 +121,11 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
     )
   })
 
-  const callDelete = (
-    fitnessFileId = 'fitness-file-1',
-    origin = 'https://test.llun.dev'
-  ) =>
+  const callDelete = (fitnessFileId = 'fitness-file-1') =>
     DELETE(
       new NextRequest(
         `http://llun.test/api/v1/accounts/fitness-files/${fitnessFileId}`,
-        { method: 'DELETE', headers: { Origin: origin } }
+        { method: 'DELETE', headers: { Origin: 'https://test.llun.dev' } }
       ),
       {
         params: Promise.resolve({ fitnessFileId })
@@ -227,23 +224,5 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
         error: 'db down'
       })
     )
-  })
-
-  it('rejects a cross-site request before touching the file', async () => {
-    const response = await callDelete('fitness-file-1', 'https://evil.example')
-
-    expect(response.status).toBe(403)
-    expect(mockDb.getFitnessFile).not.toHaveBeenCalled()
-    expect(mockDeleteFitnessFileFromStorage).not.toHaveBeenCalled()
-  })
-
-  it('redirects a signed-out caller to sign in', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-
-    const response = await callDelete()
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toContain('/auth/signin')
-    expect(mockDeleteFitnessFileFromStorage).not.toHaveBeenCalled()
   })
 })

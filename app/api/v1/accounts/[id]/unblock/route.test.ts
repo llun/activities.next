@@ -41,6 +41,7 @@ vi.mock('@/lib/services/queue', () => ({
 
 const REMOTE_ID = 'https://remote.test/users/blocked'
 const UNKNOWN_ID = 'https://remote.test/users/never-seen'
+const OTHER_ID = 'https://remote.test/users/other-blocked'
 
 const post = (id: string) =>
   POST(
@@ -75,6 +76,8 @@ describe('POST /api/v1/accounts/:id/unblock', () => {
     mockPublish.mockResolvedValue(undefined)
     vi.restoreAllMocks()
     await database.deleteBlock({ actorId: ACTOR1_ID, targetActorId: REMOTE_ID })
+    await database.deleteBlock({ actorId: ACTOR1_ID, targetActorId: OTHER_ID })
+    await database.deleteBlock({ actorId: ACTOR1_ID, targetActorId: ACTOR1_ID })
   })
 
   const isBlocking = () =>
@@ -157,10 +160,9 @@ describe('POST /api/v1/accounts/:id/unblock', () => {
   })
 
   it('leaves blocks on other accounts untouched', async () => {
-    const otherId = 'https://remote.test/users/other-blocked'
     await database.createBlock({
       actorId: ACTOR1_ID,
-      targetActorId: otherId,
+      targetActorId: OTHER_ID,
       uri: `${ACTOR1_ID}#blocks/other`
     })
     await database.createBlock({
@@ -172,9 +174,8 @@ describe('POST /api/v1/accounts/:id/unblock', () => {
     await post(urlToId(REMOTE_ID))
 
     expect(
-      await database.isBlocking({ actorId: ACTOR1_ID, targetActorId: otherId })
+      await database.isBlocking({ actorId: ACTOR1_ID, targetActorId: OTHER_ID })
     ).toBe(true)
-    await database.deleteBlock({ actorId: ACTOR1_ID, targetActorId: otherId })
   })
 
   it('does nothing and returns the relationship when the target is the current actor', async () => {
@@ -194,10 +195,6 @@ describe('POST /api/v1/accounts/:id/unblock', () => {
       })
     ).toBe(true)
     expect(mockPublish).not.toHaveBeenCalled()
-    await database.deleteBlock({
-      actorId: ACTOR1_ID,
-      targetActorId: ACTOR1_ID
-    })
   })
 
   it('returns 400 when the account id is empty', async () => {

@@ -29,13 +29,13 @@ vi.mock('@/lib/config', () => ({
   })
 }))
 
-const buildRequest = (
-  body: unknown,
-  headers: Record<string, string> = { origin: 'https://llun.test' }
-) =>
+const buildRequest = (body: unknown) =>
   new NextRequest('https://llun.test/api/v1/actors/default', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', ...headers },
+    headers: {
+      'content-type': 'application/json',
+      origin: 'https://llun.test'
+    },
     body: typeof body === 'string' ? body : JSON.stringify(body)
   })
 

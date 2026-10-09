@@ -526,6 +526,63 @@ describe('PostMenu', () => {
       expect(labels).toContain('Change visibility')
       expect(labels).toContain('Delete post')
     })
+
+    it('does not run a disabled extra item', async () => {
+      const onSelect = vi.fn()
+      render(
+        <PostMenu
+          status={ownStatus}
+          isOwner
+          canEdit={false}
+          extraItems={[
+            {
+              key: 'react',
+              icon: <span />,
+              label: 'React',
+              disabled: true,
+              onSelect
+            }
+          ]}
+        />
+      )
+
+      const menu = await openMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'React' }))
+
+      expect(onSelect).not.toHaveBeenCalled()
+    })
+
+    it('runs a deferUntilClosed item only after the menu has closed', async () => {
+      // Radix would call onSelect straight from the click without the
+      // deferral, so record whether the menu was still mounted at call time.
+      let menuOpenAtSelect: boolean | undefined
+      const onSelect = vi.fn(() => {
+        menuOpenAtSelect = screen.queryByRole('menu') !== null
+      })
+      render(
+        <PostMenu
+          status={ownStatus}
+          isOwner
+          canEdit={false}
+          extraItems={[
+            {
+              key: 'react',
+              icon: <span />,
+              label: 'React',
+              deferUntilClosed: true,
+              onSelect
+            }
+          ]}
+        />
+      )
+
+      const menu = await openMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'React' }))
+
+      await waitFor(() => expect(onSelect).toHaveBeenCalledTimes(1))
+      expect(menuOpenAtSelect).toBe(false)
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    })
   })
 
   describe('manual translation', () => {
@@ -994,65 +1051,6 @@ describe('PostMenu', () => {
         expect(
           screen.getByRole('menuitem', { name: 'Unblock Maythee' })
         ).toBeInTheDocument()
-      })
-    })
-
-    describe('extra action items', () => {
-      it('does not run a disabled extra item', async () => {
-        const onSelect = vi.fn()
-        render(
-          <PostMenu
-            status={ownStatus}
-            isOwner
-            canEdit={false}
-            extraItems={[
-              {
-                key: 'react',
-                icon: <span />,
-                label: 'React',
-                disabled: true,
-                onSelect
-              }
-            ]}
-          />
-        )
-
-        const menu = await openMenu()
-        fireEvent.click(within(menu).getByRole('menuitem', { name: 'React' }))
-
-        expect(onSelect).not.toHaveBeenCalled()
-      })
-
-      it('runs a deferUntilClosed item only after the menu has closed', async () => {
-        // Radix would call onSelect straight from the click without the
-        // deferral, so record whether the menu was still mounted at call time.
-        let menuOpenAtSelect: boolean | undefined
-        const onSelect = vi.fn(() => {
-          menuOpenAtSelect = screen.queryByRole('menu') !== null
-        })
-        render(
-          <PostMenu
-            status={ownStatus}
-            isOwner
-            canEdit={false}
-            extraItems={[
-              {
-                key: 'react',
-                icon: <span />,
-                label: 'React',
-                deferUntilClosed: true,
-                onSelect
-              }
-            ]}
-          />
-        )
-
-        const menu = await openMenu()
-        fireEvent.click(within(menu).getByRole('menuitem', { name: 'React' }))
-
-        await waitFor(() => expect(onSelect).toHaveBeenCalledTimes(1))
-        expect(menuOpenAtSelect).toBe(false)
-        expect(screen.queryByRole('menu')).not.toBeInTheDocument()
       })
     })
 

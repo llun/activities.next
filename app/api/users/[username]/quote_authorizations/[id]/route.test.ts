@@ -50,23 +50,30 @@ describe('GET /api/users/[username]/quote_authorizations/[id]', () => {
     guardActorId = ACTOR1_ID
   })
 
-  // Seeds a quoted status owned by `ownerId` plus a quote edge in `state`
-  // whose stamp lives under ACTOR1 (the actor the guard resolves).
+  // Seeds a quoted status owned by `ownerId` (skipped with `createQuoted:
+  // false`, leaving the edge pointing at a status that does not exist) plus a
+  // quote edge in `state` whose stamp lives under ACTOR1 (the actor the guard
+  // resolves).
   const seedEdge = async (
     state: QuoteState,
-    { quotedOwnerId = ACTOR1_ID }: { quotedOwnerId?: string } = {}
+    {
+      quotedOwnerId = ACTOR1_ID,
+      createQuoted = true
+    }: { quotedOwnerId?: string; createQuoted?: boolean } = {}
   ) => {
     counter += 1
     const quotedStatusId = `${quotedOwnerId}/statuses/quoted-${counter}`
     const statusId = `${QUOTING_STATUS_ID}-${counter}`
-    await database.createNote({
-      id: quotedStatusId,
-      url: quotedStatusId,
-      actorId: quotedOwnerId,
-      text: 'quoted note',
-      to: [ACTIVITY_STREAM_PUBLIC],
-      cc: []
-    })
+    if (createQuoted) {
+      await database.createNote({
+        id: quotedStatusId,
+        url: quotedStatusId,
+        actorId: quotedOwnerId,
+        text: 'quoted note',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+    }
     const stampUri = buildQuoteAuthorizationUri(ACTOR1_ID, statusId)
     await database.createStatusQuote({
       statusId,
@@ -157,18 +164,10 @@ describe('GET /api/users/[username]/quote_authorizations/[id]', () => {
     expect(response.status).toBe(404)
   })
 
-  it('returns 404 when the quoted status no longer exists', async () => {
-    counter += 1
-    const statusId = `${QUOTING_STATUS_ID}-${counter}`
-    const stampUri = buildQuoteAuthorizationUri(ACTOR1_ID, statusId)
+  it('returns 404 when the quoted status is missing', async () => {
     // An accepted edge pointing at a status that was never created, so the
     // state check passes and only the missing-status branch can answer 404.
-    await database.createStatusQuote({
-      statusId,
-      quotedStatusId: `${ACTOR1_ID}/statuses/never-created-${counter}`,
-      state: 'accepted',
-      authorizationUri: stampUri
-    })
+    const { stampUri } = await seedEdge('accepted', { createQuoted: false })
 
     const response = await get(stampUri)
 

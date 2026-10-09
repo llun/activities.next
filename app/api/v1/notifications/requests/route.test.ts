@@ -210,7 +210,7 @@ describe('GET /api/v1/notifications/requests', () => {
       ['abc', '40'],
       ['1000', '80']
     ])(
-      'clamps limit=%s to an effective page size of %s',
+      'resolves limit=%s to an effective page size of %s',
       async (limit, effectiveLimit) => {
         await makeRequests()
 
