@@ -21,8 +21,8 @@ export interface MobileCompactHeaderProps {
   as?: 'h1' | 'p'
   /**
    * Overlay hung just below the bar (`top-full`) without taking space — the
-   * home timeline's "N new posts" pill, which stays reachable on scroll
-   * because the bar is sticky.
+   * home timeline's "N new posts" and announcements pills, which stay
+   * reachable on scroll because the bar is sticky.
    */
   bottomSlot?: ReactNode
   /**

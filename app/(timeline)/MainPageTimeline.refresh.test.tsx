@@ -29,10 +29,17 @@ vi.mock('@/lib/client', () => ({
   getTimeline: vi.fn()
 }))
 
-vi.mock('@/lib/components/announcements/AnnouncementBanner', async () => ({
-  AnnouncementBanner: (await import('./MainPageTimeline.testUtils'))
-    .MockAnnouncementBanner
+vi.mock('@/lib/components/announcements/useAnnouncements', () => ({
+  useAnnouncements: () => ({ mode: 'pill' })
 }))
+
+vi.mock('@/lib/components/announcements/AnnouncementBanner', async () => {
+  const utils = await import('./MainPageTimeline.testUtils')
+  return {
+    AnnouncementPill: utils.MockAnnouncementPill,
+    AnnouncementIconButton: utils.MockAnnouncementIcon
+  }
+})
 
 vi.mock('@/lib/components/page-header', async () => ({
   PageHeader: (await import('./MainPageTimeline.testUtils')).MockPageHeader

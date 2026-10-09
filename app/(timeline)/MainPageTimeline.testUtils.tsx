@@ -10,20 +10,22 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 
-export const MockAnnouncementBanner = () => (
-  <div data-testid="announcement-banner" />
+export const MockAnnouncementPill = () => (
+  <div data-testid="announcement-pill" />
+)
+
+export const MockAnnouncementIcon = () => (
+  <div data-testid="announcement-icon" />
 )
 
 export const MockPageHeader = ({
   actions,
   bottomSlot,
-  banner,
   flushOnMobile,
   actionsInMobileBar
 }: {
   actions?: ReactNode
   bottomSlot?: ReactNode
-  banner?: ReactNode
   flushOnMobile?: boolean
   actionsInMobileBar?: boolean
 }) => (
@@ -32,9 +34,8 @@ export const MockPageHeader = ({
     data-flush-on-mobile={String(Boolean(flushOnMobile))}
     data-actions-in-mobile-bar={String(Boolean(actionsInMobileBar))}
   >
-    {banner}
-    {actions}
-    {bottomSlot}
+    <div data-testid="header-actions">{actions}</div>
+    <div data-testid="header-bottom-slot">{bottomSlot}</div>
   </div>
 )
 

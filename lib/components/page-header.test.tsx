@@ -355,25 +355,6 @@ describe('PageHeader', () => {
       }
     )
 
-    it('renders the banner between the bar and the header box', () => {
-      const { container } = render(
-        <MobileNavigationProvider>
-          <PageHeader
-            title="Timeline"
-            description="Latest posts"
-            banner={<div data-testid="banner">Maintenance tonight</div>}
-          />
-        </MobileNavigationProvider>
-      )
-
-      const children = Array.from(container.children)
-      const bannerIndex = children.indexOf(screen.getByTestId('banner'))
-      expect(children.indexOf(getBar(container))).toBe(bannerIndex - 1)
-      expect(children[bannerIndex + 1]).toContainElement(
-        container.querySelector('.max-w-content') as HTMLElement
-      )
-    })
-
     // The home timeline: the bar carries the title and Refresh, so the box is
     // hidden and the full-bleed composer meets the bar's hairline directly.
     it('lets the content meet the bar when the box is empty with flushOnMobile', () => {
