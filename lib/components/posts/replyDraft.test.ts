@@ -12,7 +12,6 @@ import { Tag } from '@/lib/types/domain/tag'
 
 import {
   computeMentionText,
-  createTextSnippet,
   extractParticipants,
   prepareReplyDraft
 } from './replyDraft'
@@ -266,8 +265,6 @@ describe('replyDraft', () => {
         authorName: 'Alice Wonder',
         authorHandle: '@alice@remote.social',
         authorIconUrl: 'https://remote.social/avatars/alice.png',
-        textSnippet:
-          'Hello world from Alice! Check out this link: https://example.com',
         spoilerText: undefined,
         visibility: 'public',
         language: 'en',
@@ -393,7 +390,6 @@ describe('replyDraft', () => {
         mentionMode: 'author-only'
       })
       expect(draft.targetPreview.isPoll).toBe(true)
-      expect(draft.targetPreview.textSnippet).toBe('What is your favorite pet?')
       expect(draft.initialText).toBe('@alice@remote.social ')
     })
 
@@ -429,70 +425,6 @@ describe('replyDraft', () => {
       })
       expect(draft.initialText).toBe('')
       expect(draft.cursorPosition).toBe(0)
-    })
-  })
-
-  describe('prepareReplyDraft text snippet', () => {
-    const quote = {
-      quotedStatusId: 'https://remote.social/@a/1',
-      state: 'accepted' as const
-    }
-
-    it.each([
-      {
-        description: 'keeps an unclosed angle bracket in local plain text',
-        isLocalActor: true,
-        text: 'for i<n do something useful',
-        expected: 'for i<n do something useful'
-      },
-      {
-        description: 'renders local markdown to plain text',
-        isLocalActor: true,
-        text: '**bold** and `code`',
-        expected: 'bold and code'
-      },
-      {
-        description: 'flattens remote Mastodon mention html',
-        isLocalActor: false,
-        text: '<p><span class="h-card" translate="no"><a href="https://mastodon.in.th/@null" class="u-url mention">@<span>null</span></a></span> isn&#39;t it supposed to degrade enamel?</p>',
-        expected: "@null isn't it supposed to degrade enamel?"
-      },
-      {
-        description: 'shortens a Mastodon long link like the body does',
-        isLocalActor: false,
-        text: '<p>see <a href="https://example.com/longpath"><span class="invisible">https://</span><span class="ellipsis">example.com/long</span><span class="invisible">path</span></a></p>',
-        expected: 'see example.com/long…'
-      },
-      {
-        description: 'hides the quote fallback when the status has a quote',
-        isLocalActor: false,
-        quote,
-        text: '<p>my take</p><p class="quote-inline">RE: <a href="https://remote.social/@a/1">https://remote.social/@a/1</a></p>',
-        expected: 'my take'
-      },
-      {
-        description: 'keeps the quote fallback when the status has no quote',
-        isLocalActor: false,
-        text: '<p>my take</p><p class="quote-inline">RE: <a href="https://remote.social/@a/1">https://remote.social/@a/1</a></p>',
-        expected: 'my take RE: https://remote.social/@a/1'
-      }
-    ])('$description', ({ isLocalActor, text, expected, quote }) => {
-      const draft = prepareReplyDraft({
-        targetStatus: { ...baseNote, isLocalActor, text, quote },
-        currentViewer: viewer
-      })
-      expect(draft.targetPreview.textSnippet).toBe(expected)
-    })
-  })
-
-  describe('createTextSnippet', () => {
-    it('strips html tags and truncates to maxLength', () => {
-      const longHtml =
-        '<p>This is a <b>bold</b> statement with <a href="#">link</a> and lots of words that should be truncated when they exceed the limit.</p>'
-      const snippet = createTextSnippet(longHtml, 40)
-      expect(snippet.length).toBeLessThanOrEqual(40)
-      expect(snippet.includes('<p>')).toBe(false)
-      expect(snippet.endsWith('…')).toBe(true)
     })
   })
 })
