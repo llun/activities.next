@@ -1980,6 +1980,13 @@ describe('FitnessStatusDetail', () => {
           .getAllByRole('button')
           .map((button) => button.textContent)
       ).toEqual(['Reply', 'Boost', 'Like', 'Bookmark', '', 'More'])
+      // This page passes `fullBleed={false}`: the card footer's own padding
+      // already puts the row at the status's left edge, so the avatar-column
+      // pull (`-ml-13`) would drag it outside the card, and `mt-3` rides along
+      // with that pull. One assertion each, since `.not.toHaveClass(a, b)`
+      // passes when EITHER class is missing.
+      expect(actions).not.toHaveClass('-ml-13')
+      expect(actions).not.toHaveClass('mt-3')
     })
 
     it('renders no action row for a logged-out reader', () => {

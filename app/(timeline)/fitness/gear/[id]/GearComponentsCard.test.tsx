@@ -232,6 +232,7 @@ describe('GearComponentsCard', () => {
       act(() => deliverWidth?.(390))
 
       for (const cell of columnCells(7)) {
+        expect(cell).not.toHaveClass('sticky')
         expect((cell as HTMLElement).style.scrollSnapAlign).toBe('start')
       }
       const scroller = screen.getByRole('table').parentElement as HTMLElement

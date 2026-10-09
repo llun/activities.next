@@ -213,7 +213,8 @@ const expectViewerSurface = (card: HTMLElement, signedIn: boolean) => {
     expect(card).not.toHaveClass('max-md:flex')
   } else {
     expect(card).toHaveClass(...tokens(MOBILE_INSET_STACK_CLASS))
-    expect(card).not.toHaveClass('md:mt-4', 'max-md:w-auto')
+    expect(card).not.toHaveClass('md:mt-4')
+    expect(card).not.toHaveClass('max-md:w-auto')
   }
 }
 

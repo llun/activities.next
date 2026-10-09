@@ -1772,6 +1772,27 @@ describe('Post', () => {
       ])
     })
 
+    it('pulls the action row back over the avatar column by default', () => {
+      observeWidth(900)
+      render(
+        <Post
+          host="activities.local"
+          currentActor={status.actor ?? undefined}
+          currentTime={currentTime}
+          showActions
+          status={status}
+          onShowAttachment={vi.fn()}
+        />
+      )
+
+      // Neither class is observable in jsdom layout, so pin them: `-ml-13`
+      // pulls the row back to the post's left edge and `mt-3` rides along with
+      // it in `Actions`' `fullBleed` default. One assertion each.
+      const actions = screen.getByRole('group', { name: 'Post actions' })
+      expect(actions).toHaveClass('-ml-13')
+      expect(actions).toHaveClass('mt-3')
+    })
+
     it('hands bookmark and react to the overflow menu when the post is narrow', async () => {
       observeWidth(320)
       render(

@@ -65,42 +65,60 @@ describe('composerValidation', () => {
     const overLimitText = 'a'.repeat(501)
 
     it.each([
-      ['empty text, no attachments', '', { attachments: [] }, false],
-      [
-        'whitespace-only text, no attachments',
-        '   \n\t  ',
-        { attachments: [] },
-        false
-      ],
-      ['non-empty text within limit', 'Hello world', { attachments: [] }, true],
-      ['text over the limit', overLimitText, { attachments: [] }, false],
-      [
-        'empty text with a media attachment',
-        '',
-        { attachments: [sampleAttachment] },
-        true
-      ],
-      [
-        'whitespace text with a media attachment',
-        '   ',
-        { attachments: [sampleAttachment] },
-        true
-      ],
-      [
-        'empty text with a fitness file',
-        '',
-        { attachments: [], fitnessFile: {} },
-        true
-      ],
-      [
-        'media attached but text over the limit',
-        overLimitText,
-        { attachments: [sampleAttachment] },
-        false
-      ]
-    ])('%s -> %s', (_case, text, attachments, expected) => {
-      expect(hasNewPostContent(text, attachments, 500)).toBe(expected)
-    })
+      {
+        case: 'empty text, no attachments',
+        text: '',
+        att: { attachments: [] },
+        expected: false
+      },
+      {
+        case: 'whitespace-only text, no attachments',
+        text: '   \n\t  ',
+        att: { attachments: [] },
+        expected: false
+      },
+      {
+        case: 'non-empty text within limit',
+        text: 'Hello world',
+        att: { attachments: [] },
+        expected: true
+      },
+      {
+        case: 'text over the limit',
+        text: overLimitText,
+        att: { attachments: [] },
+        expected: false
+      },
+      {
+        case: 'empty text with a media attachment',
+        text: '',
+        att: { attachments: [sampleAttachment] },
+        expected: true
+      },
+      {
+        case: 'whitespace text with a media attachment',
+        text: '   ',
+        att: { attachments: [sampleAttachment] },
+        expected: true
+      },
+      {
+        case: 'empty text with a fitness file',
+        text: '',
+        att: { attachments: [], fitnessFile: {} },
+        expected: true
+      },
+      {
+        case: 'media attached but text over the limit',
+        text: overLimitText,
+        att: { attachments: [sampleAttachment] },
+        expected: false
+      }
+    ])(
+      'hasNewPostContent for $case is $expected',
+      ({ text, att, expected }) => {
+        expect(hasNewPostContent(text, att, 500)).toBe(expected)
+      }
+    )
   })
 
   describe('hasEditPostContent', () => {
@@ -125,35 +143,56 @@ describe('composerValidation', () => {
     }
 
     it.each([
-      ['blank text, nothing attached', emptyStatus, '', [], false],
-      ['whitespace text, nothing attached', emptyStatus, '   ', [], false],
-      ['text within limit', baseEditableStatus, 'Updated text', [], true],
-      [
-        'text over the limit',
-        baseEditableStatus,
-        'a'.repeat(501),
-        [sampleAttachment],
-        false
-      ],
-      [
-        'blank text with a new attachment',
-        emptyStatus,
-        '',
-        [sampleAttachment],
-        true
-      ],
-      [
-        'blank text with a preserved attachment on the status',
-        statusWithPreserved,
-        '',
-        [],
-        true
-      ]
-    ])('%s -> %s', (_case, status, text, attachments, expected) => {
-      expect(hasEditPostContent(status, text, { attachments }, 500)).toBe(
-        expected
-      )
-    })
+      {
+        case: 'blank text, nothing attached',
+        status: emptyStatus,
+        text: '',
+        attachments: [],
+        expected: false
+      },
+      {
+        case: 'whitespace text, nothing attached',
+        status: emptyStatus,
+        text: '   ',
+        attachments: [],
+        expected: false
+      },
+      {
+        case: 'text within limit',
+        status: baseEditableStatus,
+        text: 'Updated text',
+        attachments: [],
+        expected: true
+      },
+      {
+        case: 'text over the limit',
+        status: baseEditableStatus,
+        text: 'a'.repeat(501),
+        attachments: [sampleAttachment],
+        expected: false
+      },
+      {
+        case: 'blank text with a new attachment',
+        status: emptyStatus,
+        text: '',
+        attachments: [sampleAttachment],
+        expected: true
+      },
+      {
+        case: 'blank text with a preserved attachment on the status',
+        status: statusWithPreserved,
+        text: '',
+        attachments: [],
+        expected: true
+      }
+    ])(
+      'hasEditPostContent for $case is $expected',
+      ({ status, text, attachments, expected }) => {
+        expect(hasEditPostContent(status, text, { attachments }, 500)).toBe(
+          expected
+        )
+      }
+    )
   })
 
   describe('getEditableStatusText', () => {
@@ -196,42 +235,54 @@ describe('composerValidation', () => {
     }
 
     it.each([
-      [
-        'there is no status being edited',
-        { editStatus: null, value: 'Hello', attachments: [] },
-        false
-      ],
-      ['text, warning and attachments match the baseline', {}, false],
-      ['text is modified', { value: 'Modified message' }, true],
-      [
-        'content warning text is modified',
-        { contentWarning: 'Different warning' },
-        true
-      ],
-      [
-        'content warning is hidden but the baseline had one',
-        { contentWarningVisible: false },
-        true
-      ],
-      [
-        'content warning is hidden and the baseline had no summary',
-        {
+      {
+        case: 'there is no status being edited',
+        overrides: { editStatus: null, value: 'Hello', attachments: [] },
+        expected: false
+      },
+      {
+        case: 'text, warning and attachments match the baseline',
+        overrides: {},
+        expected: false
+      },
+      {
+        case: 'text is modified',
+        overrides: { value: 'Modified message' },
+        expected: true
+      },
+      {
+        case: 'content warning text is modified',
+        overrides: { contentWarning: 'Different warning' },
+        expected: true
+      },
+      {
+        case: 'content warning is hidden but the baseline had one',
+        overrides: { contentWarningVisible: false },
+        expected: true
+      },
+      {
+        case: 'content warning is hidden and the baseline had no summary',
+        overrides: {
           editStatus: statusNoSummary,
           value: statusNoSummary.text,
           contentWarning: 'draft warning',
           contentWarningVisible: false
         },
-        false
-      ],
-      ['an attachment is removed', { attachments: [] }, true],
-      [
-        'an attachment is added',
-        { attachments: [sampleAttachment, extraAttachment] },
-        true
-      ],
-      [
-        'attachments are reordered',
-        {
+        expected: false
+      },
+      {
+        case: 'an attachment is removed',
+        overrides: { attachments: [] },
+        expected: true
+      },
+      {
+        case: 'an attachment is added',
+        overrides: { attachments: [sampleAttachment, extraAttachment] },
+        expected: true
+      },
+      {
+        case: 'attachments are reordered',
+        overrides: {
           editStatus: statusWithTwo,
           value: statusWithTwo.text,
           contentWarning: statusWithTwo.summary!,
@@ -240,9 +291,9 @@ describe('composerValidation', () => {
             { ...sampleAttachment, id: 'm1' }
           ]
         },
-        true
-      ]
-    ])('is dirty when %s -> %s', (_case, overrides, expected) => {
+        expected: true
+      }
+    ])('isEditDirty when $case is $expected', ({ overrides, expected }) => {
       expect(isEditDirty({ ...baseline, ...overrides })).toBe(expected)
     })
   })
@@ -258,30 +309,37 @@ describe('composerValidation', () => {
     }
 
     it.each([
-      ['the edit is not dirty', {}, false],
-      [
-        'the edit is dirty with valid content within the limit',
-        { value: 'Changed text' },
-        true
-      ],
-      [
-        'the edit is dirty but exceeds the character limit',
-        { value: 'a'.repeat(501) },
-        false
-      ],
-      [
-        'the edit is dirty but has empty content and no attachments',
-        {
+      {
+        case: 'the edit is not dirty',
+        overrides: {},
+        expected: false
+      },
+      {
+        case: 'the edit is dirty with valid content within the limit',
+        overrides: { value: 'Changed text' },
+        expected: true
+      },
+      {
+        case: 'the edit is dirty but exceeds the character limit',
+        overrides: { value: 'a'.repeat(501) },
+        expected: false
+      },
+      {
+        case: 'the edit is dirty but has empty content and no attachments',
+        overrides: {
           editStatus: { ...baseEditableStatus, attachments: [] },
           value: '',
           contentWarning: '',
           contentWarningVisible: false,
           attachments: []
         },
-        false
-      ]
-    ])('submittable when %s -> %s', (_case, overrides, expected) => {
-      expect(isEditSubmittable({ ...baseline, ...overrides })).toBe(expected)
-    })
+        expected: false
+      }
+    ])(
+      'isEditSubmittable when $case is $expected',
+      ({ overrides, expected }) => {
+        expect(isEditSubmittable({ ...baseline, ...overrides })).toBe(expected)
+      }
+    )
   })
 })

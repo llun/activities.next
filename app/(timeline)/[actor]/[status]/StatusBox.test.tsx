@@ -115,11 +115,11 @@ describe('StatusBox', () => {
   })
 
   it.each([
-    ['detail', true],
-    ['comment', false]
+    { variant: 'detail', centred: true },
+    { variant: 'comment', centred: false }
   ] as const)(
-    'centres the header row on the avatar for the %s variant: %s',
-    (variant, centred) => {
+    'header row centring for the $variant variant is $centred',
+    ({ variant, centred }) => {
       const { container } = render(
         <StatusBox
           host="activities.local"

@@ -117,7 +117,7 @@ describe('LoadMoreButton', () => {
     )
   })
 
-  it('attaches containerRef to the wrapper when containerClassName is also passed', () => {
+  it('attaches containerRef to the wrapper div', () => {
     const containerRef = createRef<HTMLDivElement>()
     const { container } = render(
       <LoadMoreButton

@@ -185,7 +185,7 @@ describe('TimelineFeed', () => {
     expect(screen.getByText('In reply to a post')).toBeInTheDocument()
   })
 
-  it('renders a self-thread <= 3 posts with Thread label, connector rails, and in chronological order', () => {
+  it('renders a self-thread <= 3 posts with Thread label in chronological order', () => {
     render(
       <TimelineFeed
         host="activities.local"
@@ -296,7 +296,7 @@ describe('TimelineFeed', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('renders a multi-author conversation with Conversation label and connector rails', () => {
+  it('renders a multi-author conversation with Conversation label', () => {
     render(
       <TimelineFeed
         host="activities.local"

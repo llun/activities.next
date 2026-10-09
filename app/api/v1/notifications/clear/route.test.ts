@@ -69,7 +69,6 @@ describe('POST /api/v1/notifications/clear', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    mockDatabase = database
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })

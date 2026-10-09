@@ -977,6 +977,12 @@ describe('AnnualCalendar', () => {
       expect(within(rows[1]).getByLabelText('Legend')).toBeInTheDocument()
     })
   })
+
+  it('sizes to its container, never the viewport', () => {
+    const { container } = renderCalendar()
+
+    expect(container.innerHTML).not.toMatch(/class="[^"]*\b(sm|md|lg|xl):/)
+  })
 })
 
 describe('AnnualCalendar dates as keys', () => {
@@ -997,11 +1003,5 @@ describe('AnnualCalendar dates as keys', () => {
     expect(container.querySelectorAll('[data-date="2026-03-29"]')).toHaveLength(
       1
     )
-  })
-
-  it('sizes to its container, never the viewport', () => {
-    const { container } = renderCalendar()
-
-    expect(container.innerHTML).not.toMatch(/class="[^"]*\b(sm|md|lg|xl):/)
   })
 })
