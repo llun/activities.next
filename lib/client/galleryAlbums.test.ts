@@ -5,6 +5,8 @@ import {
   addGalleryAlbumItems,
   createGalleryAlbum,
   deleteGalleryAlbum,
+  getAccountGalleryAlbum,
+  getAccountGalleryAlbums,
   getGalleryAlbum,
   getGalleryAlbumItems,
   getGalleryAlbums,
@@ -194,5 +196,79 @@ describe('gallery albums client module', () => {
     })
 
     await expect(getGalleryAlbum('missing')).rejects.toThrow('Not Found')
+  })
+  describe('reading another account’s public albums', () => {
+    const ACCOUNT = 'https://llun.test/users/ann'
+
+    it('getAccountGalleryAlbums reads the account list, with the account id in the path', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ albums: [], photoCount: 0 }))
+
+      expect(await getAccountGalleryAlbums(ACCOUNT)).toEqual({
+        albums: [],
+        photoCount: 0
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/llun.test:users:ann/gallery/albums',
+        { method: 'GET', headers: { Accept: 'application/json' } }
+      )
+    })
+
+    it('getAccountGalleryAlbums leaves a public id as it is', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ albums: [], photoCount: 0 }))
+
+      await getAccountGalleryAlbums('0194f6a1-7b2c-7d3e-8f4a-5b6c7d8e9f0a')
+
+      expect(String(fetchMock.mock.calls[0][0])).toBe(
+        '/api/v1/accounts/0194f6a1-7b2c-7d3e-8f4a-5b6c7d8e9f0a/gallery/albums'
+      )
+    })
+
+    it('getAccountGalleryAlbum encodes the album id and sends the paging options', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ album: { id: 'a/b' } }))
+
+      await getAccountGalleryAlbum(ACCOUNT, 'a/b', {
+        maxId: '10:2',
+        limit: 30,
+        sort: 'taken_asc',
+        subject: 'sci:alcedo atthis'
+      })
+
+      expect(String(fetchMock.mock.calls[0][0])).toBe(
+        '/api/v1/accounts/llun.test:users:ann/gallery/albums/a%2Fb?max_id=10%3A2&limit=30&sort=taken_asc&subject=sci%3Aalcedo+atthis'
+      )
+      expect(fetchMock.mock.calls[0][1]).toEqual({
+        method: 'GET',
+        headers: { Accept: 'application/json' }
+      })
+    })
+
+    it('getAccountGalleryAlbum sends no query without options', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ album: { id: 'a1' } }))
+
+      await getAccountGalleryAlbum(ACCOUNT, 'a1')
+
+      expect(String(fetchMock.mock.calls[0][0])).toBe(
+        '/api/v1/accounts/llun.test:users:ann/gallery/albums/a1'
+      )
+    })
+
+    it('rejects with the API message, or a plain one when there is none', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Not Found' }), {
+        status: 404
+      })
+      await expect(getAccountGalleryAlbum(ACCOUNT, 'a1')).rejects.toThrow(
+        'Not Found'
+      )
+
+      fetchMock.mockResponseOnce('', { status: 500 })
+      await expect(getAccountGalleryAlbum(ACCOUNT, 'a1')).rejects.toThrow(
+        'Failed to load the album.'
+      )
+
+      fetchMock.mockResponseOnce('', { status: 500 })
+      await expect(getAccountGalleryAlbums(ACCOUNT)).rejects.toThrow(
+        'Failed to load albums.'
+      )
+    })
   })
 })

@@ -3,17 +3,20 @@ import type {
   GalleryAlbumDetailResponse,
   GalleryAlbumItemsResult,
   GalleryAlbumListResponse,
-  GalleryAlbumMediaPage
+  GalleryAlbumMediaPage,
+  GalleryAlbumViewResponse
 } from '@/lib/services/gallery/galleryAlbumEntities'
 import type {
   GalleryAlbumSort,
   GalleryAlbumVisibility
 } from '@/lib/types/database/galleryAlbums'
+import { toIdPathSegment } from '@/lib/utils/urlToId'
 
 import { parseApiError } from './http'
 
 // The owner's album routes. Every call is for the signed-in owner; a missing
-// album and somebody else's are the same 404.
+// album and somebody else's are the same 404. The `getAccount…` calls at the
+// end read any account's public albums, as the signed-in or logged-out viewer.
 
 const ALBUMS_URL = '/api/v1/gallery/albums'
 
@@ -218,4 +221,53 @@ export const removeGalleryAlbumItems = async (
   }
   if (!album) throw new Error('Choose at least one photo.')
   return { removed, album }
+}
+
+const accountAlbumsUrl = (actorId: string) =>
+  `/api/v1/accounts/${toIdPathSegment(actorId)}/gallery/albums`
+
+/**
+ * An account's albums as the viewer may open them: for anyone but the owner,
+ * the public albums with something they can see, counted from what they can
+ * see.
+ */
+export const getAccountGalleryAlbums = async (
+  actorId: string
+): Promise<GalleryAlbumListResponse> => {
+  const response = await fetch(accountAlbumsUrl(actorId), {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  })
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to load albums.'))
+  }
+  return (await response.json()) as GalleryAlbumListResponse
+}
+
+/**
+ * A page of one account's album, with its facts and species from the photos the
+ * viewer can see. Rejects when the album is private, missing, or has nothing
+ * this viewer can see (one and the same 404).
+ */
+export const getAccountGalleryAlbum = async (
+  actorId: string,
+  albumId: string,
+  options: GetGalleryAlbumItemsOptions = {}
+): Promise<GalleryAlbumViewResponse> => {
+  const query = new URLSearchParams()
+  if (options.maxId) query.set('max_id', options.maxId)
+  if (options.limit !== undefined) query.set('limit', String(options.limit))
+  if (options.sort) query.set('sort', options.sort)
+  if (options.subject) query.set('subject', options.subject)
+  const search = query.toString()
+  const response = await fetch(
+    `${accountAlbumsUrl(actorId)}/${encodeURIComponent(albumId)}${
+      search ? `?${search}` : ''
+    }`,
+    { method: 'GET', headers: { Accept: 'application/json' } }
+  )
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to load the album.'))
+  }
+  return (await response.json()) as GalleryAlbumViewResponse
 }
