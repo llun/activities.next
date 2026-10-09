@@ -22,10 +22,12 @@ type Lockable<QB> = { forUpdate(): QB }
 export const forUpdate = <QB extends Lockable<QB>>(db: Db, query: QB): QB =>
   getDialectName(db) === 'sqlite' ? query : query.forUpdate()
 
-// The only way to compare a timestamp column: a bare number does not
-// type-check (the column reads as EpochMs). A timestamp operand for comparisons. Timestamp columns read back as epoch
-// milliseconds, but each backend has to be sent a Date: node-postgres
-// serialises it as a timestamptz literal (a bare number would be rejected),
-// and the SQLite driver binds it as epoch milliseconds, the same as Knex.
+// Compare timestamp columns only through timestampValue(). A bare number does
+// not type-check, but a value read back from a timestamp column is also EpochMs
+// and still type-checks, so pass it through timestampValue() too. Timestamp
+// columns read back as epoch milliseconds, but each backend has to be sent a
+// Date: node-postgres serialises it as a timestamptz literal (a bare number
+// would be rejected), and the SQLite driver binds it as epoch milliseconds,
+// the same as Knex.
 export const timestampValue = (value: number | Date) =>
   sql<EpochMs>`${value instanceof Date ? value : new Date(value)}`

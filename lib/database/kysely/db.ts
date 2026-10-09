@@ -8,8 +8,8 @@
 // insert/update side is what both backends accept:
 // - Timestamp: read as epoch milliseconds (branded as EpochMs), written as a
 //   Date. Compare a timestamp column only through timestampValue() from
-//   lib/database/kysely/dialect.ts: a bare number does not type-check, because
-//   PostgreSQL rejects it.
+//   lib/database/kysely/dialect.ts: the brand stops bare numbers (PostgreSQL
+//   rejects them), not read-back values, which must go through it too.
 // - booleans, int8 and numeric read as boolean and number.
 // - Json: read parsed, written as a JSON string.
 // - Nullable<T> adds null; WithDefault<T> makes the column optional on insert

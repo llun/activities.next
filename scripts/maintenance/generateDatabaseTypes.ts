@@ -44,7 +44,7 @@ type Category =
 
 const CATEGORY_TYPE: Record<Category, { select: string; insert: string }> = {
   string: { select: 'string', insert: 'string' },
-  timestamp: { select: 'number', insert: 'Date' },
+  timestamp: { select: 'EpochMs', insert: 'Date' },
   // node-postgres would parse `date` into a local-midnight Date; the driver
   // keeps it as the 'YYYY-MM-DD' text, which is what the app writes.
   date: { select: 'string', insert: 'string' },
@@ -269,8 +269,8 @@ const HEADER = `// GENERATED FILE — do not edit by hand.
 // insert/update side is what both backends accept:
 // - Timestamp: read as epoch milliseconds (branded as EpochMs), written as a
 //   Date. Compare a timestamp column only through timestampValue() from
-//   lib/database/kysely/dialect.ts: a bare number does not type-check, because
-//   PostgreSQL rejects it.
+//   lib/database/kysely/dialect.ts: the brand stops bare numbers (PostgreSQL
+//   rejects them), not read-back values, which must go through it too.
 // - booleans, int8 and numeric read as boolean and number.
 // - Json: read parsed, written as a JSON string.
 // - Nullable<T> adds null; WithDefault<T> makes the column optional on insert

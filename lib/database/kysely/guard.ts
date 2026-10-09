@@ -16,9 +16,10 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 // AsyncLocalStorage frame for the async context that runs its callback, and
 // the other library's root connection acquisition checks for a live frame.
 //
-// The frame follows async context, so work started WITHOUT `await` inside a
-// transaction is refused too. Work started inside a transaction, awaited or
-// not, must use the transaction object.
+// The frame follows async context, so the other library's root instance is
+// refused while the transaction is open, whether the work was awaited or not.
+// Don't start detached (un-awaited) database work inside a transaction; run it
+// after the transaction resolves (a Knex trx can't be used after commit).
 
 export class MixedDatabaseTransactionError extends Error {
   constructor(message: string) {

@@ -56,8 +56,9 @@ describe('timestampValue', () => {
 describe('timestamp column types', () => {
   it('rejects a bare number as a comparison operand', () => {
     const db = kyselyFor(sqlite)
-    // A bare number type-checks nowhere else and fails on PostgreSQL, so the
-    // column reads as a branded EpochMs that only timestampValue() produces.
+    // A bare number fails on PostgreSQL, so the column reads as a branded
+    // EpochMs, which stops bare numbers (read-back values still type-check, so
+    // they must go through timestampValue() too).
     db.selectFrom('likes')
       .select('statusId')
       // @ts-expect-error a plain number is not an EpochMs

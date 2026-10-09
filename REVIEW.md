@@ -26,7 +26,7 @@ Review the diff against the linked canonical rule source. Check every applicable
 
 - [ ] **Unique constraints (TOCTOU)** — Enforce uniqueness and ownership at the database write, including concurrent requests. [Detailed checks](docs/maintenance.md#review-unique-constraints-toctou).
 
-- [ ] **Database & migrations** — Use portable queries, regenerate both schema dumps and `lib/database/kysely/db.ts`, never mix root Knex/Kysely inside one transaction (awaited or not), compare Kysely timestamp columns only through `timestampValue()` (a bare number does not type-check), and test backend-sensitive behavior. [Detailed checks](docs/maintenance.md#review-database-migrations).
+- [ ] **Database & migrations** — Use portable queries, regenerate both schema dumps and `lib/database/kysely/db.ts`, never mix root Knex/Kysely inside one transaction (the other root is refused while it is open, awaited or not; run detached work after it resolves), compare Kysely timestamp columns only through `timestampValue()` (the brand stops bare numbers, not read-back values, which must also go through it), and test backend-sensitive behavior. [Detailed checks](docs/maintenance.md#review-database-migrations).
 
 - [ ] **Stored media** — Preserve ownership, byte accounting, storage-root confinement, rollback, and missing-media behavior. [Detailed checks](docs/maintenance.md#review-stored-media).
 
