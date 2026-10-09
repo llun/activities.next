@@ -1,7 +1,7 @@
 'use client'
 
-import { Folder, Globe, Lock } from 'lucide-react'
-import { FC, FormEvent, useEffect, useState } from 'react'
+import { Folder, Globe, Lock, Sparkles } from 'lucide-react'
+import { FC, FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   addGalleryAlbumItems,
@@ -21,8 +21,15 @@ import {
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@/lib/components/ui/tabs'
 import { Textarea } from '@/lib/components/ui/textarea'
 import type { GalleryAlbumCardEntity } from '@/lib/services/gallery/galleryAlbumEntities'
+import type { GalleryAlbumSuggestionEntity } from '@/lib/services/gallery/galleryAlbumSuggestionEntities'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 import {
   DEFAULT_GALLERY_ALBUM_VISIBILITY,
@@ -35,13 +42,19 @@ import {
 import { cn } from '@/lib/utils'
 
 import { GalleryAlbumPicker } from './GalleryAlbumPicker'
+import { GalleryAlbumSuggestionList } from './GalleryAlbumSuggestionList'
+import { GalleryAlbumSuggestionReview } from './GalleryAlbumSuggestionReview'
 import { GalleryAlbumThumb } from './GalleryAlbumThumb'
+import type { GalleryAlbumSuggestionsState } from './useGalleryAlbumSuggestions'
 
 /**
  * `create` is the whole form with the picker; `edit` is the details alone and
  * `add` is the picker alone, for an album that already exists.
  */
 export type GalleryAlbumFormIntent = 'create' | 'edit' | 'add'
+
+/** The two ways to choose photos in the create dialog. */
+export type GalleryAlbumPickerTab = 'gallery' | 'suggestions'
 
 interface Props {
   open: boolean
@@ -64,6 +77,15 @@ interface Props {
   initialMediaIds?: string[]
   /** The loaded entities behind `initialMediaIds`, when the caller has them (for the cover). */
   initialItems?: GalleryItemEntity[]
+  /**
+   * The owner's suggestions, as `useGalleryAlbumSuggestions` reads them. With
+   * them, creating an album offers a Suggestions tab next to From gallery; a
+   * suggestion's "Use" selects its photos and fills the title, and the owner
+   * can still add and remove photos. Without them there is no tab.
+   */
+  suggestions?: { state: GalleryAlbumSuggestionsState; reload: () => void }
+  /** The tab that is open first when the dialog has both. */
+  initialTab?: GalleryAlbumPickerTab
   onOpenChange: (open: boolean) => void
   /** Called with the album id once everything asked for is saved. */
   onSaved: (albumId: string) => void
@@ -98,6 +120,15 @@ const SUBMIT_LABELS: Record<GalleryAlbumFormIntent, string> = {
   add: 'Add to album'
 }
 
+const TABS: {
+  value: GalleryAlbumPickerTab
+  label: string
+  icon?: typeof Sparkles
+}[] = [
+  { value: 'gallery', label: 'From gallery' },
+  { value: 'suggestions', label: 'Suggestions', icon: Sparkles }
+]
+
 const formatCount = (count: number) => count.toLocaleString('en-US')
 
 export const GalleryAlbumFormDialog: FC<Props> = ({
@@ -109,6 +140,8 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   storedItemCount,
   initialMediaIds,
   initialItems,
+  suggestions,
+  initialTab = 'gallery',
   onOpenChange,
   onSaved,
   onCloseAutoFocus
@@ -124,8 +157,19 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   // Set once the album exists but a later step failed, so a retry opens it
   // instead of creating a second one.
   const [createdId, setCreatedId] = useState<string | null>(null)
-  const [coverItem, setCoverItem] =
+  // The cover the picker knows (it has shown that photo); a photo chosen from a
+  // suggestion is known from the review grid instead.
+  const [pickerCover, setPickerCover] =
     useState<GalleryAlbumCardEntity['cover']>(null)
+  const [tab, setTab] = useState<GalleryAlbumPickerTab>(initialTab)
+  const [activeSuggestion, setActiveSuggestion] =
+    useState<GalleryAlbumSuggestionEntity | null>(null)
+  const [reviewItems, setReviewItems] = useState<
+    ReadonlyMap<string, GalleryItemEntity>
+  >(new Map())
+  // Whether the owner typed the title themselves: a suggestion fills it only
+  // while they have not.
+  const titleEdited = useRef(false)
 
   // Seed the fields whenever the dialog opens so a cancelled edit never leaks
   // into the next one.
@@ -137,17 +181,22 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
     setSelected(intent === 'create' ? (initialMediaIds ?? []) : [])
     setError(null)
     setCreatedId(null)
-    setCoverItem(null)
+    setPickerCover(null)
+    setTab(initialTab)
+    setActiveSuggestion(null)
+    setReviewItems(new Map())
+    titleEdited.current = false
     // `initialMediaIds` seeds the picker once per opening (the effect runs on
     // open or a new album only): a parent that builds a new array on every
     // render must not reset what was ticked since.
-  }, [open, album])
+  }, [open, album, initialTab])
 
   // Once the album exists the form is only a way to open it: edits made after
   // that point would be dropped, so the fields stop taking them.
   const isLocked = isSaving || createdId !== null
   const showFields = intent !== 'add'
   const showPicker = intent !== 'edit'
+  const showSuggestions = intent === 'create' && suggestions !== undefined
   const capacity =
     intent === 'add'
       ? Math.max(
@@ -155,6 +204,28 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
           0
         )
       : MAX_GALLERY_ALBUM_ITEMS
+
+  const coverItem = selected[0]
+    ? (reviewItems.get(selected[0]) ?? pickerCover)
+    : null
+
+  const handleItemsLoaded = useCallback((items: GalleryItemEntity[]) => {
+    setReviewItems((current) => {
+      const next = new Map(current)
+      for (const item of items) next.set(item.mediaId, item)
+      return next
+    })
+  }, [])
+
+  const handleUseSuggestion = (suggestion: GalleryAlbumSuggestionEntity) => {
+    setSelected(suggestion.mediaIds.slice(0, capacity))
+    setActiveSuggestion(suggestion)
+    if (!titleEdited.current || !title.trim()) {
+      setTitle(suggestion.title)
+      titleEdited.current = false
+    }
+    setError(null)
+  }
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -226,6 +297,28 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
     onOpenChange(next)
   }
 
+  const picker = (
+    <>
+      {intent === 'create' && initialMediaIds?.length ? (
+        <p className="text-muted-foreground text-xs">
+          {initialMediaIds.length === 1
+            ? 'The photo you chose is already selected. Choose more below, or create the album with just this one.'
+            : `The ${formatCount(initialMediaIds.length)} photos you chose are already selected. Choose more below, or create the album with these.`}
+        </p>
+      ) : null}
+      <GalleryAlbumPicker
+        ownerId={ownerId}
+        selected={selected}
+        onChange={setSelected}
+        onFirstItemChange={setPickerCover}
+        seedItems={initialItems}
+        capacity={capacity}
+        existingIds={existingMediaIds}
+        disabled={isLocked}
+      />
+    </>
+  )
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
@@ -267,7 +360,10 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                     id="gallery-album-title"
                     value={title}
                     maxLength={MAX_GALLERY_ALBUM_TITLE_LENGTH}
-                    onChange={(event) => setTitle(event.target.value)}
+                    onChange={(event) => {
+                      titleEdited.current = true
+                      setTitle(event.target.value)
+                    }}
                     disabled={isLocked}
                     autoComplete="off"
                   />
@@ -366,26 +462,81 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
 
             {showPicker ? (
               <div className="min-w-0 space-y-2">
-                {showFields ? (
-                  <p className="text-sm leading-5 font-medium">From gallery</p>
-                ) : null}
-                {intent === 'create' && initialMediaIds?.length ? (
-                  <p className="text-muted-foreground text-xs">
-                    {initialMediaIds.length === 1
-                      ? 'The photo you chose is already selected. Choose more below, or create the album with just this one.'
-                      : `The ${formatCount(initialMediaIds.length)} photos you chose are already selected. Choose more below, or create the album with these.`}
-                  </p>
-                ) : null}
-                <GalleryAlbumPicker
-                  ownerId={ownerId}
-                  selected={selected}
-                  onChange={setSelected}
-                  onFirstItemChange={setCoverItem}
-                  seedItems={initialItems}
-                  capacity={capacity}
-                  existingIds={existingMediaIds}
-                  disabled={isLocked}
-                />
+                {showSuggestions && suggestions ? (
+                  <Tabs
+                    value={tab}
+                    onValueChange={(value) =>
+                      setTab(value as GalleryAlbumPickerTab)
+                    }
+                    className="gap-3"
+                  >
+                    <TabsList
+                      aria-label="Choose photos"
+                      className="h-auto w-full justify-start gap-4 rounded-none border-b bg-transparent p-0"
+                    >
+                      {TABS.map(({ value, label, icon: Icon }) => (
+                        <TabsTrigger
+                          key={value}
+                          value={value}
+                          className="data-[state=active]:border-b-primary dark:data-[state=active]:border-b-primary text-muted-foreground data-[state=active]:text-foreground dark:text-muted-foreground dark:data-[state=active]:text-foreground pointer-coarse:min-h-10 flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pt-1 pb-2.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent"
+                        >
+                          {label}
+                          {Icon ? (
+                            <Icon className="size-3.5" aria-hidden="true" />
+                          ) : null}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                    {/* Both panels stay mounted, so switching tabs keeps the
+                        picker's filters and loaded pages. `forceMount` stops
+                        Radix hiding the inactive one, so the class does. */}
+                    <TabsContent
+                      value="gallery"
+                      forceMount
+                      className="space-y-2 data-[state=inactive]:hidden"
+                    >
+                      {picker}
+                    </TabsContent>
+                    <TabsContent
+                      value="suggestions"
+                      forceMount
+                      className="space-y-4 data-[state=inactive]:hidden"
+                    >
+                      <p className="text-muted-foreground text-xs">
+                        Using a suggestion replaces the photos you have selected
+                        with its own and fills in the title, unless you have
+                        typed one. You can still add and remove photos, and
+                        nothing is saved until you create the album.
+                      </p>
+                      <GalleryAlbumSuggestionList
+                        state={suggestions.state}
+                        onRetry={suggestions.reload}
+                        activeId={activeSuggestion?.id ?? null}
+                        onUse={handleUseSuggestion}
+                        disabled={isLocked}
+                      />
+                      {activeSuggestion ? (
+                        <GalleryAlbumSuggestionReview
+                          suggestion={activeSuggestion}
+                          selected={selected}
+                          onChange={setSelected}
+                          onItemsLoaded={handleItemsLoaded}
+                          capacity={capacity}
+                          disabled={isLocked}
+                        />
+                      ) : null}
+                    </TabsContent>
+                  </Tabs>
+                ) : (
+                  <>
+                    {showFields ? (
+                      <p className="text-sm leading-5 font-medium">
+                        From gallery
+                      </p>
+                    ) : null}
+                    {picker}
+                  </>
+                )}
               </div>
             ) : null}
           </div>

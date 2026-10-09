@@ -12,6 +12,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush })
 }))
 
+// Suggestions have their own tests: here they stay unanswered.
+vi.mock('@/lib/client', () => ({
+  getGalleryAlbumSuggestions: vi.fn(() => new Promise(() => {}))
+}))
+
 vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog', () => ({
   GalleryAlbumFormDialog: ({
     intent,
