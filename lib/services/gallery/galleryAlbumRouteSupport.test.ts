@@ -65,6 +65,102 @@ describe('tryAlbumWrite', () => {
   })
 })
 
+describe('public album reads', () => {
+  const request = (headers: Record<string, string> = {}) =>
+    new NextRequest('https://llun.test/api/v1/accounts/1/gallery/albums', {
+      headers
+    })
+
+  describe('getAlbumReadKey', () => {
+    const loadWithTrust = async (trusted: boolean) => {
+      vi.resetModules()
+      vi.doMock('@/lib/config/trustProxyIpHeaders', () => ({
+        getTrustProxyIpHeadersConfig: () => trusted
+      }))
+      return import('@/lib/services/gallery/galleryAlbumRouteSupport')
+    }
+
+    afterEach(() => {
+      vi.doUnmock('@/lib/config/trustProxyIpHeaders')
+    })
+
+    it('keys a signed-in viewer by their actor, never by address', async () => {
+      const { getAlbumReadKey } = await loadWithTrust(true)
+
+      expect(
+        getAlbumReadKey(request({ 'x-real-ip': '203.0.113.5' }), {
+          id: 'https://llun.test/users/a'
+        })
+      ).toBe('actor:https://llun.test/users/a')
+    })
+
+    it('keys a logged-out viewer by the trusted address', async () => {
+      const { getAlbumReadKey } = await loadWithTrust(true)
+
+      expect(
+        getAlbumReadKey(request({ 'x-real-ip': '203.0.113.5' }), null)
+      ).toBe('ip:203.0.113.5')
+    })
+
+    it('has no key for a logged-out viewer when the address is not trusted', async () => {
+      const { getAlbumReadKey } = await loadWithTrust(false)
+
+      expect(
+        getAlbumReadKey(request({ 'x-real-ip': '203.0.113.5' }), undefined)
+      ).toBeNull()
+    })
+  })
+
+  describe('tryAlbumRead', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-10-08T00:00:00Z'))
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('lets a viewer read 300 times a minute and refuses the 301st', async () => {
+      const { tryAlbumRead } = await loadSupport()
+
+      for (let hit = 1; hit <= 300; hit += 1) {
+        expect(tryAlbumRead('actor:a')).toBeTrue()
+      }
+
+      expect(tryAlbumRead('actor:a')).toBeFalse()
+      // Another viewer is not slowed by it.
+      expect(tryAlbumRead('actor:b')).toBeTrue()
+    })
+
+    it('opens a new window after 60 seconds', async () => {
+      const { tryAlbumRead } = await loadSupport()
+      for (let hit = 0; hit < 300; hit += 1) tryAlbumRead('ip:1.2.3.4')
+      expect(tryAlbumRead('ip:1.2.3.4')).toBeFalse()
+
+      vi.advanceTimersByTime(60_000)
+
+      expect(tryAlbumRead('ip:1.2.3.4')).toBeTrue()
+    })
+
+    it('does not count reads against writes', async () => {
+      const { tryAlbumRead, tryAlbumWrite } = await loadSupport()
+      for (let hit = 0; hit < 300; hit += 1) tryAlbumRead('actor:a')
+
+      expect(tryAlbumRead('actor:a')).toBeFalse()
+      expect(tryAlbumWrite('actor:a')).toBeTrue()
+    })
+
+    it('never limits a read that has no key', async () => {
+      const { tryAlbumRead } = await loadSupport()
+
+      for (let hit = 0; hit < 1000; hit += 1) {
+        expect(tryAlbumRead(null)).toBeTrue()
+      }
+    })
+  })
+})
+
 describe('albumRateLimited', () => {
   it('answers 429 with the shared error and the route CORS methods', async () => {
     const { albumRateLimited } = await loadSupport()

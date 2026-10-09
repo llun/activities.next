@@ -99,6 +99,29 @@ export interface GalleryAlbumDetailResponse {
   page: GalleryAlbumMediaPage
 }
 
+/**
+ * `GET /api/v1/accounts/:id/gallery/albums/:albumId`: an album as the
+ * requesting viewer may open it, with a page of its photos. Everything in it is
+ * computed from the photos that viewer can see: the card's count, dates and
+ * cover, the facts line and the species chips. It carries no owner data (no
+ * `storedItemCount`, `mediaIds` or hidden-place counts, and no IUCN or lookup
+ * status on a photo's subject).
+ */
+export interface GalleryAlbumViewResponse extends GalleryAlbumMediaPage {
+  album: GalleryAlbumCardEntity
+  facts: GalleryAlbumFacts
+  species: GalleryAlbumSpeciesChip[]
+}
+
+/**
+ * What a logged-out visitor learns of an album, for its link preview. Built
+ * only from the public audience's photos, whoever asked.
+ */
+export interface GalleryAlbumShare {
+  album: GalleryAlbumCardEntity
+  facts: GalleryAlbumFacts
+}
+
 export interface GalleryAlbumItemsResult {
   added: string[]
   existing: string[]

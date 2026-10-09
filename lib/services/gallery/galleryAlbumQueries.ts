@@ -11,7 +11,9 @@ import {
   GalleryAlbumFacts,
   GalleryAlbumListResponse,
   GalleryAlbumMediaPage,
-  GalleryAlbumSpeciesChip
+  GalleryAlbumShare,
+  GalleryAlbumSpeciesChip,
+  GalleryAlbumViewResponse
 } from '@/lib/services/gallery/galleryAlbumEntities'
 import {
   type GalleryAudience,
@@ -475,4 +477,83 @@ export const getGalleryAlbumDetail = async ({
     storedItemCount,
     page: page ?? { items: [], nextMaxId: null }
   }
+}
+
+export type GetGalleryAlbumViewParams = Omit<
+  GetGalleryAlbumPageParams,
+  'sort'
+> & {
+  // Defaults to the album's own order.
+  sort?: GalleryAlbumSort
+}
+
+/**
+ * An album for whoever is looking: the album card, the facts line and species
+ * chips from what `audience` can see, and one page of those photos. Null when
+ * the album is missing, private, or has nothing this audience can see, which
+ * the callers answer as one and the same 404. The owner's audience gets the
+ * owner's own view of it (a private or empty album included).
+ */
+export const getGalleryAlbumView = async (
+  params: GetGalleryAlbumViewParams
+): Promise<GalleryAlbumViewResponse | null> => {
+  const { database, owner, audience, albumId } = params
+  const album = await getGalleryAlbumCard({
+    database,
+    owner,
+    audience,
+    albumId
+  })
+  if (!album) return null
+
+  const [settings, rows, page] = await Promise.all([
+    database.getGallerySettings({ actorId: owner.id }),
+    database.getGalleryAlbumIndex({
+      albumId,
+      actorId: owner.id,
+      audience
+    }),
+    getGalleryAlbumPage({ ...params, sort: params.sort ?? album.sortOrder })
+  ])
+  if (!page) return null
+
+  return {
+    album,
+    facts: computeGalleryAlbumFacts(rows, settings),
+    species: toSpeciesChips(rows),
+    items: page.items,
+    nextMaxId: page.nextMaxId
+  }
+}
+
+/**
+ * The public face of an album, for Open Graph and Twitter cards: the card and
+ * facts for the LOGGED-OUT audience, whoever is looking. Null when a logged-out
+ * visitor could not open the album (missing, private or nothing public in it).
+ * The cover is the logged-out audience's own cover, so it is always a photo
+ * that audience can see.
+ */
+export const getGalleryAlbumShare = async ({
+  database,
+  owner,
+  albumId
+}: {
+  database: AlbumQueryDatabase
+  owner: { id: string }
+  albumId: string
+}): Promise<GalleryAlbumShare | null> => {
+  const audience = PUBLIC_GALLERY_AUDIENCE
+  const album = await getGalleryAlbumCard({
+    database,
+    owner,
+    audience,
+    albumId
+  })
+  if (!album || album.itemCount === 0) return null
+
+  const [settings, rows] = await Promise.all([
+    database.getGallerySettings({ actorId: owner.id }),
+    database.getGalleryAlbumIndex({ albumId, actorId: owner.id, audience })
+  ])
+  return { album, facts: computeGalleryAlbumFacts(rows, settings) }
 }
