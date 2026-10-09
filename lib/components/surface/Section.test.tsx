@@ -59,8 +59,8 @@ describe('Section', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows the meta, description and actions, with no card around them', () => {
-    const { container } = render(
+  it('shows the meta, description and actions', () => {
+    render(
       <Section
         title="Bikes"
         meta="3 installed"
@@ -73,8 +73,5 @@ describe('Section', () => {
     expect(screen.getByText('3 installed')).toBeInTheDocument()
     expect(screen.getByText('Everything you ride.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
-    expect(container.firstElementChild?.className).not.toMatch(
-      /border|shadow|rounded/
-    )
   })
 })

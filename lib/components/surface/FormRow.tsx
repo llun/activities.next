@@ -7,6 +7,11 @@ import { cn } from '@/lib/utils'
 export interface FormRowControlProps {
   /** Put this on the control's `aria-describedby`; absent without a hint. */
   describedBy: string | undefined
+  /**
+   * Put this on `aria-labelledby` for a control a `<label for>` cannot name (a
+   * radio group, a `SegmentedControl`, a custom composite).
+   */
+  labelledBy: string
 }
 
 interface Props {
@@ -17,7 +22,8 @@ interface Props {
   hint?: ReactNode
   /**
    * The control. Pass a function to receive the hint's id for
-   * `aria-describedby`, or use `formRowHintId(htmlFor)` yourself.
+   * `aria-describedby` and the label's for `aria-labelledby`, or use
+   * `formRowHintId(htmlFor)` / `formRowLabelId(htmlFor)` yourself.
    */
   children: ReactNode | ((props: FormRowControlProps) => ReactNode)
   /** Give the control the rest of the row instead of a ~20rem column. */
@@ -29,6 +35,9 @@ interface Props {
   inline?: boolean
   className?: string
 }
+
+/** The id `FormRow` gives its label, for controls that wire it up by hand. */
+export const formRowLabelId = (htmlFor: string) => `${htmlFor}-label`
 
 /** The id `FormRow` gives its hint, for controls that wire it up by hand. */
 export const formRowHintId = (htmlFor: string) => `${htmlFor}-hint`
@@ -50,7 +59,9 @@ export const FormRow: FC<Props> = ({
   className
 }) => {
   const generatedId = useId()
-  const hintId = hint ? formRowHintId(htmlFor ?? generatedId) : undefined
+  const idBase = htmlFor ?? generatedId
+  const hintId = hint ? formRowHintId(idBase) : undefined
+  const labelId = formRowLabelId(idBase)
   return (
     <div
       data-slot="form-row"
@@ -68,7 +79,9 @@ export const FormRow: FC<Props> = ({
       )}
     >
       <div className="min-w-0 space-y-0.5">
-        <Label htmlFor={htmlFor}>{label}</Label>
+        <Label id={labelId} htmlFor={htmlFor}>
+          {label}
+        </Label>
         {hint ? (
           <p id={hintId} className="text-muted-foreground text-xs">
             {hint}
@@ -77,7 +90,7 @@ export const FormRow: FC<Props> = ({
       </div>
       <div className={cn('min-w-0', inline && 'shrink-0')}>
         {typeof children === 'function'
-          ? children({ describedBy: hintId })
+          ? children({ describedBy: hintId, labelledBy: labelId })
           : children}
       </div>
     </div>

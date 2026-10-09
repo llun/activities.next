@@ -1818,9 +1818,9 @@ legacy shape left to copy.
   map, the inline chip in a post, the overview's totals) render through
   `StatStrip` (`@/lib/components/surface/StatStrip`) and size themselves with **container** queries — no
   hand-rolled `grid-cols-*` strip and no `sm:`/viewport breakpoint, which cannot
-  see a narrow column on a wide window. `@container` belongs on a wrapper, never on the grid it sizes. One
-  older strip (gear detail) is not migrated yet — see **Fitness Stat Strips** in
-  `AGENTS.md`.
+  see a narrow column on a wide window. `@container` belongs on a wrapper, never on the grid it sizes. Every
+  other labelled totals strip (gear detail, Device, Gallery, Albums, Files)
+  uses the same component.
 - A gear's activities render through the shared `GearActivitiesFeed` → `Posts`,
   never a bespoke row list, and the endpoint's `nextOffset` counts activity rows
   rather than the statuses in the page (an activity whose post was deleted still

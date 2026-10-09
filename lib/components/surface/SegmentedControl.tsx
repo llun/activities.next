@@ -108,15 +108,40 @@ export const SegmentedControl = ({
   }
 
   const enabled = items.filter((item) => !item.disabled)
+  const checkedIndex = items.findIndex((item) => item.value === value)
+  // The one tab stop: the checked segment, or the first enabled one when the
+  // value matches nothing or matches a disabled segment, so the group is never
+  // skipped by Tab.
+  const tabStop =
+    (checkedIndex >= 0 && !items[checkedIndex].disabled
+      ? items[checkedIndex]
+      : undefined) ?? enabled[0]
+
+  // The enabled segment `direction` steps away from the checked one, wrapping.
+  // With no checked segment, forward starts at the first enabled segment and
+  // backward at the last; a disabled checked segment steps from its own place.
+  const step = (direction: 1 | -1) => {
+    if (checkedIndex < 0) {
+      return direction === 1 ? enabled[0] : enabled[enabled.length - 1]
+    }
+    for (let offset = 1; offset <= items.length; offset += 1) {
+      const candidate =
+        items[
+          (checkedIndex + direction * offset + items.length * offset) %
+            items.length
+        ]
+      if (!candidate.disabled) return candidate
+    }
+    return undefined
+  }
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (enabled.length === 0) return
-    const index = enabled.findIndex((item) => item.value === value)
     let next: SegmentedControlItem | undefined
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-      next = enabled[(index + 1 + enabled.length) % enabled.length]
+      next = step(1)
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-      next = enabled[(index - 1 + enabled.length) % enabled.length]
+      next = step(-1)
     } else if (event.key === 'Home') {
       next = enabled[0]
     } else if (event.key === 'End') {
@@ -150,13 +175,7 @@ export const SegmentedControl = ({
             aria-checked={active}
             data-value={item.value}
             disabled={item.disabled}
-            // With no valid choice yet, the first segment is the way in.
-            tabIndex={
-              active ||
-              (!items.some((i) => i.value === value) && item === enabled[0])
-                ? 0
-                : -1
-            }
+            tabIndex={item === tabStop ? 0 : -1}
             onClick={() => onValueChange?.(item.value)}
             className={cn(SEGMENT_CLASS, SIZE_CLASS[size], stateClass(active))}
           >

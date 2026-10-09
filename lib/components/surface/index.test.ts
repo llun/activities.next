@@ -11,6 +11,8 @@ describe('surface kit index', () => {
     'Alert',
     'EmptyState',
     'FormRow',
+    'formRowHintId',
+    'formRowLabelId',
     'Frame',
     'FramedList',
     'FramedListItem',

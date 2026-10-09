@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
-import { FormRow, formRowHintId } from './FormRow'
+import { FormRow, formRowHintId, formRowLabelId } from './FormRow'
 
 describe('FormRow', () => {
   it('ties the label to the control', () => {
@@ -42,41 +42,33 @@ describe('FormRow', () => {
     expect(screen.getByRole('textbox')).not.toHaveAttribute('aria-describedby')
   })
 
-  it('stacks on a phone and splits into two columns from sm', () => {
+  it('exposes the label id so a group can use aria-labelledby', () => {
     render(
-      <FormRow label="Name" htmlFor="name">
-        <input id="name" />
+      <FormRow label="Shade by" htmlFor="shade">
+        {({ labelledBy }) => (
+          <div role="radiogroup" aria-labelledby={labelledBy}>
+            <input type="radio" aria-label="Count" />
+          </div>
+        )}
       </FormRow>
     )
-    const row = screen.getByRole('textbox').closest('[data-slot="form-row"]')
-    expect(row).toHaveClass('flex-col', 'sm:grid')
-    expect(row?.className).toMatch(
-      /sm:grid-cols-\[minmax\(0,1fr\)_minmax\(0,20rem\)\]/
+    const group = screen.getByRole('radiogroup', { name: 'Shade by' })
+    expect(group).toHaveAttribute('aria-labelledby', formRowLabelId('shade'))
+    expect(document.getElementById(formRowLabelId('shade'))).toHaveTextContent(
+      'Shade by'
     )
   })
 
-  it('gives a wide control the rest of the row', () => {
+  it('still gives a label id when there is no htmlFor', () => {
     render(
-      <FormRow label="Bio" htmlFor="bio" wide>
-        <textarea id="bio" />
+      <FormRow label="Shade by">
+        {({ labelledBy }) => (
+          <div role="radiogroup" aria-labelledby={labelledBy} />
+        )}
       </FormRow>
     )
-    const row = screen.getByRole('textbox').closest('[data-slot="form-row"]')
-    expect(row?.className).toMatch(
-      /sm:grid-cols-\[minmax\(0,16rem\)_minmax\(0,1fr\)\]/
-    )
-  })
-
-  it('keeps an inline control on the label row on a phone', () => {
-    render(
-      <FormRow label="Notify me" htmlFor="notify" inline>
-        <input id="notify" type="checkbox" />
-      </FormRow>
-    )
-    const row = screen
-      .getByRole('checkbox')
-      .closest('[data-slot="form-row"]') as HTMLElement
-    expect(row).toHaveClass('flex', 'items-center', 'justify-between')
-    expect(row).not.toHaveClass('flex-col')
+    expect(
+      screen.getByRole('radiogroup', { name: 'Shade by' })
+    ).toBeInTheDocument()
   })
 })

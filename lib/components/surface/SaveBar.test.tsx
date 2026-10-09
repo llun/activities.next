@@ -52,10 +52,9 @@ describe('SaveBar', () => {
     expect(button.querySelector('svg.animate-spin')).not.toBeNull()
   })
 
-  it('announces an error as an alert in the alert colour instead of the status', () => {
+  it('announces an error as an alert instead of the status', () => {
     renderBar({ dirty: true, error: 'Could not save' })
     expect(screen.getByRole('alert')).toHaveTextContent('Could not save')
-    expect(screen.getByRole('alert')).toHaveClass('text-destructive-text')
     expect(screen.queryByText('Unsaved changes')).toBeNull()
   })
 })

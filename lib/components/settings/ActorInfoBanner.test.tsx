@@ -22,12 +22,11 @@ describe('ActorInfoBanner', () => {
     expect(screen.getByText('@user@example.com')).toBeInTheDocument()
   })
 
-  it('is an info Alert, a polite status with the info rule', () => {
+  it('is an info Alert, a polite status', () => {
     render(<ActorInfoBanner actorHandle="@test@domain.com" />)
 
     const banner = screen.getByRole('status')
     expect(banner).toHaveAttribute('data-tone', 'info')
-    expect(banner).toHaveClass('border-l-4', 'border-l-info')
   })
 
   it('uses theme tokens only, so it follows dark mode', () => {

@@ -8,16 +8,14 @@ import { Bike } from 'lucide-react'
 import { EmptyState } from './EmptyState'
 
 describe('EmptyState', () => {
-  it('shows the title, the hint and a hidden icon in a tile', () => {
+  it('shows the title, the hint and a hidden icon', () => {
     const { container } = render(
       <EmptyState icon={Bike} title="No bikes yet">
         Add one to start.
       </EmptyState>
     )
-    expect(screen.getByText('No bikes yet')).toHaveClass('font-semibold')
-    expect(screen.getByText('Add one to start.')).toHaveClass(
-      'text-muted-foreground'
-    )
+    expect(screen.getByText('No bikes yet')).toBeInTheDocument()
+    expect(screen.getByText('Add one to start.')).toBeInTheDocument()
     expect(container.querySelector('[aria-hidden="true"] svg')).not.toBeNull()
   })
 

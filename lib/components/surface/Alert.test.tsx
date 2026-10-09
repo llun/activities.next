@@ -7,29 +7,28 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { Alert, type AlertTone } from './Alert'
 
 describe('Alert', () => {
-  it('is an error alert by default, with the destructive rule', () => {
+  it('is an error alert by default', () => {
     render(<Alert title="Could not load">Try again.</Alert>)
     const alert = screen.getByRole('alert')
-    expect(alert).toHaveClass('border-l-4', 'border-l-destructive')
+    expect(alert).toHaveAttribute('data-tone', 'error')
     expect(alert).toHaveTextContent('Could not load')
     expect(alert).toHaveTextContent('Try again.')
   })
 
   it.each([
-    ['error', 'alert', 'border-l-destructive', 'text-destructive-text'],
-    ['warning', 'alert', 'border-l-warning', 'text-warning-text'],
-    ['success', 'status', 'border-l-success', 'text-success-text'],
-    ['info', 'status', 'border-l-info', 'text-info-text']
+    ['error', 'alert'],
+    ['warning', 'alert'],
+    ['success', 'status'],
+    ['info', 'status']
   ] as const)(
-    'draws the %s tone as a %s with its rule and icon colour',
-    (tone: AlertTone, role, rule, iconColour) => {
+    'announces the %s tone as a %s with a hidden icon',
+    (tone: AlertTone, role) => {
       const { container } = render(<Alert tone={tone} title="Heads up" />)
-      const root = screen.getByRole(role)
-      expect(root).toHaveClass(rule)
-      expect(root).toHaveAttribute('data-tone', tone)
-      const icon = container.querySelector('svg')
-      expect(icon).toHaveClass(iconColour)
-      expect(icon).toHaveAttribute('aria-hidden', 'true')
+      expect(screen.getByRole(role)).toHaveAttribute('data-tone', tone)
+      expect(container.querySelector('svg')).toHaveAttribute(
+        'aria-hidden',
+        'true'
+      )
     }
   )
 

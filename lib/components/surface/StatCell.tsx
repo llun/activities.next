@@ -22,7 +22,15 @@ interface Props {
   selected?: boolean
 }
 
-const CELL_CLASS = 'bg-background flex min-w-0 items-center gap-3 px-4 py-3'
+// The cell paints an OPAQUE background (the strip's 1px gaps cut into hairline
+// dividers over its `bg-border` track), so a tint has to be mixed into that
+// background, never laid over it as `bg-primary/10`: `cn` would then drop
+// `bg-background` and the 10% tint would sit on the grey track, which takes the
+// `text-primary-text` value below AA in light mode.
+const CELL_CLASS = 'flex min-w-0 items-center gap-3 px-4 py-3'
+const IDLE_BACKGROUND = 'bg-background'
+const SELECTED_BACKGROUND =
+  'bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))]'
 
 const SELECTABLE_CLASS =
   'relative w-full cursor-pointer text-left outline-none transition-colors hover:bg-muted focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:ring-inset after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:content-[""]'
@@ -45,56 +53,69 @@ export const StatCell: FC<Props> = ({
   onSelect,
   selected = false
 }) => {
-  const content = (
+  const valueClass = cn(
+    'text-xl font-semibold tabular-nums break-words',
+    loading && 'text-transparent',
+    selected && 'text-primary-text'
+  )
+  const valueContent = loading ? (
     <>
-      <Icon
-        className="text-muted-foreground hidden size-5 shrink-0 @min-[43.75rem]:block"
+      <span className="sr-only">Loading</span>
+      <span
         aria-hidden="true"
+        className="my-1 block h-5 w-20 rounded skeleton"
       />
-      <dl className="flex min-w-0 flex-col-reverse">
-        <dt className="text-muted-foreground text-sm">{label}</dt>
-        <dd
-          className={cn(
-            'text-xl font-semibold tabular-nums break-words',
-            loading && 'text-transparent',
-            selected && 'text-primary-text'
-          )}
-        >
-          {loading ? (
-            <>
-              <span className="sr-only">Loading</span>
-              <span
-                aria-hidden="true"
-                className="my-1 block h-5 w-20 rounded skeleton"
-              />
-            </>
-          ) : value === null ? (
-            <>
-              <span aria-hidden="true">–</span>
-              <span className="sr-only">Unavailable</span>
-            </>
-          ) : (
-            value
-          )}
-        </dd>
-      </dl>
     </>
+  ) : value === null ? (
+    <>
+      <span aria-hidden="true">–</span>
+      <span className="sr-only">Unavailable</span>
+    </>
+  ) : (
+    value
+  )
+  const icon = (
+    <Icon
+      className="text-muted-foreground hidden size-5 shrink-0 @min-[43.75rem]:block"
+      aria-hidden="true"
+    />
   )
 
-  if (!onSelect) return <div className={CELL_CLASS}>{content}</div>
+  if (!onSelect) {
+    return (
+      <div className={cn(CELL_CLASS, IDLE_BACKGROUND)}>
+        {icon}
+        <dl className="flex min-w-0 flex-col-reverse">
+          <dt className="text-muted-foreground text-sm">{label}</dt>
+          <dd className={valueClass}>{valueContent}</dd>
+        </dl>
+      </div>
+    )
+  }
 
+  // A button's content must be phrasing content, so a selectable cell cannot
+  // hold a `dl`. Its label and value are spans in reading order (label, then
+  // value), which is also what the button's accessible name reads: "Distance
+  // 12.3 km".
   return (
     <button
       type="button"
       aria-pressed={selected}
+      data-selected={selected ? 'true' : 'false'}
       onClick={onSelect}
       className={cn(
         CELL_CLASS,
         SELECTABLE_CLASS,
-        selected ? 'bg-primary/10 after:bg-primary' : 'after:bg-transparent'
+        selected
+          ? cn(SELECTED_BACKGROUND, 'after:bg-primary')
+          : cn(IDLE_BACKGROUND, 'after:bg-transparent')
       )}
     >
-      {content}
+      {icon}
+      <span className="flex min-w-0 flex-col-reverse">
+        <span className="text-muted-foreground text-sm">{label}</span>{' '}
+        <span className={cn('block', valueClass)}>{valueContent}</span>
+      </span>
     </button>
   )
 }

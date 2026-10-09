@@ -1,6 +1,11 @@
 export { Alert, type AlertTone } from './Alert'
 export { EmptyState } from './EmptyState'
-export { FormRow, type FormRowControlProps, formRowHintId } from './FormRow'
+export {
+  FormRow,
+  type FormRowControlProps,
+  formRowHintId,
+  formRowLabelId
+} from './FormRow'
 export { Frame } from './Frame'
 export {
   FRAMED_LIST_ITEM_CLASS,

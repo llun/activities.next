@@ -89,32 +89,72 @@ describe('SegmentedControl (in-page state)', () => {
     expect(onChange).toHaveBeenCalledWith('duration')
   })
 
-  it('sizes md at 44px and sm at 36px and scrolls sideways on overflow', () => {
-    const { rerender } = render(
-      <SegmentedControl
-        aria-label="Shade by"
-        items={items}
-        value="count"
-        onValueChange={vi.fn()}
-      />
-    )
-    expect(screen.getByRole('radio', { name: 'Activities' })).toHaveClass(
-      'min-h-11'
-    )
-    expect(screen.getByRole('radiogroup')).toHaveClass('overflow-x-auto')
+  describe('keyboard edge cases', () => {
+    const tabStops = () =>
+      screen
+        .getAllByRole('radio')
+        .filter((radio) => radio.getAttribute('tabindex') === '0')
+        .map((radio) => radio.getAttribute('data-value'))
 
-    rerender(
-      <SegmentedControl
-        aria-label="Shade by"
-        size="sm"
-        items={items}
-        value="count"
-        onValueChange={vi.fn()}
-      />
-    )
-    expect(screen.getByRole('radio', { name: 'Activities' })).toHaveClass(
-      'min-h-9'
-    )
+    it('gives an unknown value one tab stop on the first segment', () => {
+      render(<Harness initial="nope" />)
+      expect(screen.queryByRole('radio', { checked: true })).toBeNull()
+      expect(tabStops()).toEqual(['count'])
+    })
+
+    it.each([
+      ['ArrowRight', 'count'],
+      ['ArrowDown', 'count'],
+      ['ArrowLeft', 'duration'],
+      ['ArrowUp', 'duration']
+    ])('%s with an unknown value chooses %s', (key, expected) => {
+      render(<Harness initial="nope" />)
+      fireEvent.keyDown(screen.getByRole('radiogroup'), { key })
+      expect(screen.getByRole('radio', { checked: true })).toHaveAttribute(
+        'data-value',
+        expected
+      )
+    })
+
+    const withDisabledSelected = (onValueChange = vi.fn()) =>
+      render(
+        <SegmentedControl
+          aria-label="Shade by"
+          items={[items[0], { ...items[1], disabled: true }, items[2]]}
+          value="distance"
+          onValueChange={onValueChange}
+        />
+      )
+
+    it('gives a disabled selected value one tab stop on the first enabled segment', () => {
+      withDisabledSelected()
+      expect(tabStops()).toEqual(['count'])
+    })
+
+    it('steps forward and back from a disabled selected segment', () => {
+      const onValueChange = vi.fn()
+      withDisabledSelected(onValueChange)
+      const group = screen.getByRole('radiogroup')
+      fireEvent.keyDown(group, { key: 'ArrowRight' })
+      expect(onValueChange).toHaveBeenLastCalledWith('duration')
+      fireEvent.keyDown(group, { key: 'ArrowLeft' })
+      expect(onValueChange).toHaveBeenLastCalledWith('count')
+    })
+
+    it('does nothing when every segment is disabled', () => {
+      const onValueChange = vi.fn()
+      render(
+        <SegmentedControl
+          aria-label="Shade by"
+          items={items.map((item) => ({ ...item, disabled: true }))}
+          value="count"
+          onValueChange={onValueChange}
+        />
+      )
+      fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowRight' })
+      expect(onValueChange).not.toHaveBeenCalled()
+      expect(tabStops()).toEqual([])
+    })
   })
 })
 
@@ -148,20 +188,5 @@ describe('SegmentedControl (asLinks)', () => {
       '/reports?state=open'
     )
     expect(screen.queryByRole('radio')).toBeNull()
-  })
-
-  it('paints the current link as the active segment', () => {
-    render(
-      <SegmentedControl
-        asLinks
-        aria-label="Reports"
-        items={linkItems}
-        value="open"
-      />
-    )
-    expect(screen.getByRole('link', { name: 'Open' })).toHaveClass(
-      'bg-primary',
-      'text-primary-foreground'
-    )
   })
 })

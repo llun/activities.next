@@ -367,6 +367,41 @@ describe('status tone tokens: success, warning, info (WCAG 2.1 AA SC 1.4.3)', ()
   )
 })
 
+describe('selected stat cell (WCAG 2.1 AA SC 1.4.3)', () => {
+  // A pressed `StatCell` fills with --primary at 10% MIXED INTO --background
+  // (`bg-[color-mix(in_oklab,var(--primary)_10%,var(--background))]`), opaque,
+  // and its value is --primary-text. Laying `bg-primary/10` over the strip's
+  // grey `bg-border` track instead dropped light mode to 3.67:1. Composited here
+  // in sRGB, which is within a rounding step of the oklab mix.
+  const mixed = (theme: 'light' | 'dark'): Rgb => {
+    const primary = rgbOf(themes[theme], '--primary')
+    const background = rgbOf(themes[theme], '--background')
+    return primary.map((channel, i) =>
+      Math.round(channel * 0.1 + background[i] * 0.9)
+    ) as Rgb
+  }
+
+  it.each(['light', 'dark'] as const)(
+    '%s --primary-text on the selected cell fill meets 4.5:1',
+    (theme) => {
+      const fg = rgbOf(themes[theme], '--primary-text')
+      const bg = mixed(theme)
+      const ratio = contrastRatio(fg, bg)
+      expect(
+        ratio,
+        `${theme} primary-text ${JSON.stringify(fg)} on selected cell ${JSON.stringify(bg)} = ${ratio.toFixed(3)}:1`
+      ).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  )
+
+  it.each(['light', 'dark'] as const)(
+    '%s selected cell fill is opaque and not the strip track (--border)',
+    (theme) => {
+      expect(mixed(theme)).not.toEqual(rgbOf(themes[theme], '--border'))
+    }
+  )
+})
+
 describe('surface-chrome token', () => {
   it('is white at 72 % in light and #141414 at 80 % in dark', () => {
     expect(themes.light['--surface-chrome']).toBe('hsl(0 0% 100% / 0.72)')

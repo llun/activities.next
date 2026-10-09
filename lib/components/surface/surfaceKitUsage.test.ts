@@ -8,18 +8,20 @@ import path from 'path'
 // is a place the app looks different from the next page over.
 //
 // This guard is a ratchet. It counts three hand-rolled patterns across the
-// `.tsx` files of `app/` and `lib/` (tests and the kit itself excluded) and
-// fails when a count goes ABOVE its baseline, so no new copy can be added. The
+// `.tsx` and `.ts` files of `app/` and `lib/` (tests and the kit itself
+// excluded; comments are stripped first, so prose that quotes a class name or
+// "Loading…" is not counted) and fails when a count goes ABOVE its baseline, so
+// no new copy can be added. The
 // baselines are the counts after the kit landed; each later migration PR lowers
 // them to what it left, and the last one sets them to zero. When you remove a
 // copy, lower the number here in the same change.
 const BASELINE = {
   /** A string literal carrying both `rounded-2xl` and `shadow-sm`. */
-  sectionPanels: 49,
+  sectionPanels: 50,
   /** Raw Tailwind palette colour utilities. */
-  rawColours: 207,
+  rawColours: 210,
   /** "Loading…" / "Loading..." as JSX text or a bare string. */
-  loadingText: 10
+  loadingText: 5
 }
 
 const ROOT = process.cwd()
@@ -36,7 +38,8 @@ const collectSources = (dir: string): string[] =>
           ? []
           : collectSources(relative)
       }
-      return entry.name.endsWith('.tsx') && !/\.test\.tsx$/.test(entry.name)
+      return /\.tsx?$/.test(entry.name) &&
+        !/\.(?:test|d)\.tsx?$/.test(entry.name)
         ? [relative]
         : []
     })
@@ -57,13 +60,21 @@ const LOADING_JSX_TEXT = new RegExp(
 )
 const LOADING_STRING = new RegExp(`(['"\`])${LOADING}\\1`, 'g')
 
+// Comments are prose, not UI: `{/* ... */}`, `/* ... */` and `// ...` (a `//`
+// only counts as a comment at the start of a line or after whitespace, so the
+// `//` in a URL string survives).
+const stripComments = (source: string) =>
+  source
+    .replace(/(^|[\s{])\/\*[\s\S]*?\*\//g, '$1')
+    .replace(/(^|\s)\/\/.*$/gm, '$1')
+
 const count = (source: string, pattern: RegExp) =>
   [...source.matchAll(pattern)].length
 
 const measure = () => {
   const found = { sectionPanels: 0, rawColours: 0, loadingText: 0 }
   for (const file of SCANNED_DIRS.flatMap(collectSources)) {
-    const source = fs.readFileSync(path.join(ROOT, file), 'utf8')
+    const source = stripComments(fs.readFileSync(path.join(ROOT, file), 'utf8'))
     for (const literal of source.match(STRING_LITERAL) ?? []) {
       if (/\brounded-2xl\b/.test(literal) && /\bshadow-sm\b/.test(literal)) {
         found.sectionPanels += 1
@@ -98,6 +109,20 @@ describe('surface kit usage', () => {
       found.loadingText,
       'Do not write "Loading…" on screen. Draw the final layout with `SkeletonBar` / `SkeletonRows` from `@/lib/components/surface` (a `loading.tsx` for a route), and keep a spinner for inside a button only. Screen readers still get an `sr-only` "Loading".'
     ).toBeLessThanOrEqual(BASELINE.loadingText)
+  })
+
+  it('does not count prose in comments', () => {
+    const commented = [
+      '// <p className="text-green-600">Loading…</p>',
+      '/* "rounded-2xl shadow-sm" and text-red-500 */',
+      '{/* Loading... */}',
+      '/**\n * text-amber-600 Loading…\n */',
+      'const url = "https://example.com/x" // text-blue-500'
+    ].join('\n')
+    const stripped = stripComments(commented)
+    expect(count(stripped, RAW_COLOUR)).toBe(0)
+    expect(count(stripped, LOADING_JSX_TEXT)).toBe(0)
+    expect(stripped).toContain('https://example.com/x')
   })
 
   it('recognises the patterns it counts', () => {
