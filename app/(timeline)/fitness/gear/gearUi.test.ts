@@ -172,62 +172,43 @@ describe('getWearState', () => {
       distanceMeters: 4249000,
       serviceDistanceMeters: 5000000,
       level: 'ok',
-      barClassName: 'bg-primary',
-      caption: 'of 5,000 km',
-      captionClassName: 'text-muted-foreground'
+      caption: 'of 5,000 km'
     },
     {
       description: 'is due soon exactly at 85%',
       distanceMeters: 4250000,
       serviceDistanceMeters: 5000000,
       level: 'due-soon',
-      barClassName: 'bg-amber-500',
-      caption: 'due soon',
-      captionClassName: 'text-amber-600 dark:text-amber-500'
+      caption: 'due soon'
     },
     {
       description: 'is still due soon just below 100%',
       distanceMeters: 4999000,
       serviceDistanceMeters: 5000000,
       level: 'due-soon',
-      barClassName: 'bg-amber-500',
-      caption: 'due soon',
-      captionClassName: 'text-amber-600 dark:text-amber-500'
+      caption: 'due soon'
     },
     {
       description: 'is overdue exactly at 100%',
       distanceMeters: 5000000,
       serviceDistanceMeters: 5000000,
       level: 'overdue',
-      barClassName: 'bg-destructive',
-      caption: 'replace due',
-      captionClassName: 'text-destructive'
+      caption: 'replace due'
     },
     {
       description: 'is overdue beyond the interval',
       distanceMeters: 9000000,
       serviceDistanceMeters: 5000000,
       level: 'overdue',
-      barClassName: 'bg-destructive',
-      caption: 'replace due',
-      captionClassName: 'text-destructive'
+      caption: 'replace due'
     }
   ])(
     '$description',
-    ({
-      distanceMeters,
-      serviceDistanceMeters,
-      level,
-      barClassName,
-      caption,
-      captionClassName
-    }) => {
+    ({ distanceMeters, serviceDistanceMeters, level, caption }) => {
       const state = getWearState(distanceMeters, serviceDistanceMeters)
       expect(state).not.toBeNull()
       expect(state?.level).toEqual(level)
-      expect(state?.barClassName).toEqual(barClassName)
       expect(state?.caption).toEqual(caption)
-      expect(state?.captionClassName).toEqual(captionClassName)
     }
   )
 

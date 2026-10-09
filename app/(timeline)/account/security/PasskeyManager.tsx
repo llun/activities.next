@@ -381,7 +381,7 @@ export const PasskeyManager: FC<PasskeyManagerProps> = ({
 
           {/* Surface failures inside the dialog — the page-level message below
               sits behind the modal overlay while the dialog is open. */}
-          {error && <p className="text-destructive-text text-sm">{error}</p>}
+          {error && <Alert title={error} />}
 
           <DialogFooter>
             <Button

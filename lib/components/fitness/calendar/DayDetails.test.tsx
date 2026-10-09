@@ -259,7 +259,9 @@ describe('DayDetails', () => {
 
     it('disables the button while a page is loading', () => {
       render(<DayDetails {...props({ hasMore: true, loadingMore: true })} />)
-      expect(screen.getByRole('button', { name: 'Loading…' })).toBeDisabled()
+      expect(
+        screen.getByRole('button', { name: 'Loading more…' })
+      ).toBeDisabled()
     })
   })
 

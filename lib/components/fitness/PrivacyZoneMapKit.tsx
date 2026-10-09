@@ -1,6 +1,5 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
@@ -15,6 +14,7 @@ import {
   mutedStandardMapType,
   pageToCoordinate
 } from '@/lib/components/fitness/mapkitSurface'
+import { MapLoadingOverlay } from '@/lib/components/map/MapLoadingOverlay'
 
 const DEFAULT_MAP_CENTER: { latitude: number; longitude: number } = {
   latitude: 52.1326,
@@ -250,12 +250,7 @@ export const PrivacyZoneMapKit: FC<PrivacyZoneMapKitProps> = ({
         className="h-full w-full"
       />
       {!isMapReady ? (
-        <div
-          role="status"
-          className="absolute inset-0 flex items-center justify-center gap-2 bg-background/60 text-sm text-muted-foreground"
-        >
-          <Loader2 className="size-4 animate-spin" /> Loading map…
-        </div>
+        <MapLoadingOverlay />
       ) : (
         <span className="pointer-events-none absolute left-2 top-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shadow-sm">
           {APPLE_MAPS_LABEL}

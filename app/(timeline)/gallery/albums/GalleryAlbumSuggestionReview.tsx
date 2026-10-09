@@ -5,6 +5,7 @@ import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getGalleryAlbumSuggestionMedia } from '@/lib/client'
 import { GALLERY_ALBUM_ITEMS_BATCH } from '@/lib/client/galleryAlbums'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -308,15 +309,12 @@ export const GalleryAlbumSuggestionReview: FC<Props> = ({
       )}
 
       {error ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
+        <Alert
+          title={error}
+          onRetry={items.length === 0 ? () => void loadPage(0) : undefined}
+        />
       ) : null}
-      {error && items.length === 0 ? (
-        <LoadMoreButton onClick={() => void loadPage(0)}>
-          Try again
-        </LoadMoreButton>
-      ) : hasMore ? (
+      {error && items.length === 0 ? null : hasMore ? (
         <LoadMoreButton
           isLoading={isLoading}
           loadingText="Loading more"

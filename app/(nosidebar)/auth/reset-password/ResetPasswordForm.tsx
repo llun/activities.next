@@ -117,7 +117,7 @@ export const ResetPasswordForm: FC<Props> = ({ initialCode }) => {
         </Button>
       ) : (
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? 'Resetting...' : 'Reset password'}
+          {isLoading ? 'Resetting…' : 'Reset password'}
         </Button>
       )}
     </form>

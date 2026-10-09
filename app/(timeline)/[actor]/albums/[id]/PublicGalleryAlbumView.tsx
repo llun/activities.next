@@ -16,6 +16,7 @@ import { BackLink } from '@/lib/components/back-link'
 import { GalleryGrid } from '@/lib/components/gallery/GalleryGrid'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { profileBack } from '@/lib/components/navigation-history/backDestination'
+import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import { Select } from '@/lib/components/ui/select'
@@ -267,11 +268,7 @@ export const PublicGalleryAlbumView: FC<Props> = ({
             )}
           </div>
 
-          {loadError ? (
-            <p role="alert" className="text-destructive text-sm">
-              {loadError}
-            </p>
-          ) : null}
+          {loadError ? <Alert title={loadError} /> : null}
           {nextMaxId ? (
             <LoadMoreButton
               isLoading={isLoading}

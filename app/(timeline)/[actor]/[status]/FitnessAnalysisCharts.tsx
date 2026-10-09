@@ -1,5 +1,10 @@
 import { type FC, type ReactNode, useMemo } from 'react'
 
+import {
+  ANALYSIS_SERIES_COLOURS,
+  DEFAULT_ANALYSIS_SERIES_COLOUR
+} from '@/lib/components/fitness/palette'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { cn } from '@/lib/utils'
 
 import {
@@ -47,35 +52,10 @@ export const ANALYSIS_GRAPH_OPTIONS: Array<{
   { id: 'heart-rate', label: 'Heart rate' }
 ]
 
-// One colour per series, used for the line, the hover crosshair and the hover
-// dot alike — so a stacked graph is identifiable by its own colour rather than
-// every crosshair sharing the speed chart's blue. `chipBorder` tints a selected
-// picker chip and the combined-chart legend with that same series colour.
-export const ANALYSIS_GRAPH_STYLES: Record<
-  AnalysisGraphKey,
-  { stroke: string; dot: string; chipBorder: string }
-> = {
-  elevation: {
-    stroke: 'stroke-slate-400',
-    dot: 'bg-slate-400',
-    chipBorder: 'border-slate-400'
-  },
-  speed: {
-    stroke: 'stroke-sky-500',
-    dot: 'bg-sky-500',
-    chipBorder: 'border-sky-500'
-  },
-  power: {
-    stroke: 'stroke-violet-500',
-    dot: 'bg-violet-500',
-    chipBorder: 'border-violet-500'
-  },
-  'heart-rate': {
-    stroke: 'stroke-rose-500',
-    dot: 'bg-rose-500',
-    chipBorder: 'border-rose-500'
-  }
-}
+// One colour per series lives in `lib/components/fitness/palette.ts` (a data
+// palette the surface guard skips); `chipBorder` tints a selected picker chip
+// and the combined-chart legend with that same series colour.
+export const ANALYSIS_GRAPH_STYLES = ANALYSIS_SERIES_COLOURS
 
 export const GRAPH_HEIGHT_CLASSNAME = 'h-[190px] lg:h-[250px]'
 
@@ -207,7 +187,7 @@ export const ChartHoverMarker: FC<ChartHoverMarkerProps> = ({
         data-testid="chart-hover-dot"
         className={cn(
           'pointer-events-none absolute z-10 size-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background',
-          dotClassName ?? 'bg-sky-500'
+          dotClassName ?? DEFAULT_ANALYSIS_SERIES_COLOUR.dot
         )}
         style={{
           left: `${(x / width) * 100}%`,
@@ -566,7 +546,10 @@ export const ChartPanel: FC<ChartPanelProps> = ({
             d={path}
             fill="none"
             vectorEffect="non-scaling-stroke"
-            className={cn('stroke-[2]', strokeClassName ?? 'stroke-sky-500')}
+            className={cn(
+              'stroke-[2]',
+              strokeClassName ?? DEFAULT_ANALYSIS_SERIES_COLOUR.stroke
+            )}
           />
           {scrub.highlight ? (
             <line
@@ -577,7 +560,7 @@ export const ChartPanel: FC<ChartPanelProps> = ({
               vectorEffect="non-scaling-stroke"
               className={cn(
                 'stroke-[1.5] opacity-60',
-                strokeClassName ?? 'stroke-sky-500'
+                strokeClassName ?? DEFAULT_ANALYSIS_SERIES_COLOUR.stroke
               )}
             />
           ) : null}
@@ -967,12 +950,18 @@ export const FitnessAnalysisCharts: FC<FitnessAnalysisChartsProps> = ({
   if (!hasAnalysisSeries) {
     return (
       <Card>
-        <p className="text-sm text-muted-foreground">
-          {isRouteDataLoading
-            ? 'Loading analysis data…'
-            : (routeDataError ??
-              'No analysis data is available for this activity.')}
-        </p>
+        {isRouteDataLoading ? (
+          <div role="status" className="space-y-2">
+            <span className="sr-only">Loading analysis data</span>
+            <SkeletonBar className="h-4 w-1/3" />
+            <SkeletonBar className="h-24 w-full" />
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {routeDataError ??
+              'No analysis data is available for this activity.'}
+          </p>
+        )}
       </Card>
     )
   }

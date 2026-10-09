@@ -68,6 +68,14 @@ const SELECTED_ACTIVITY_TYPE: string | undefined = undefined
 const PERIOD_TYPE: PeriodType = 'all_time'
 const EFFECTIVE_PERIOD_KEY = 'all'
 
+// What to tell the reader about a failed request: the server's own reason when
+// it gave one, otherwise our wording. A network failure is a `TypeError` whose
+// message ("Failed to fetch") means nothing on screen, so it falls back too.
+const errorReason = (err: unknown, fallback: string): string =>
+  err instanceof Error && !(err instanceof TypeError) && err.message
+    ? err.message
+    : fallback
+
 const formatActivityLabel = (type?: string): string =>
   type ? formatActivityTypeLabel(type) : 'All activities'
 
@@ -179,6 +187,10 @@ export const FitnessHeatmapView: FC<Props> = ({
     useState<FitnessRouteHeatmapData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The initial list failed to load (the page would otherwise read as "no
+  // heatmaps yet"); `loadAttempt` re-runs that load from Retry.
+  const [listError, setListError] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [generationPending, setGenerationPending] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -206,6 +218,7 @@ export const FitnessHeatmapView: FC<Props> = ({
   useEffect(() => {
     setRegions([WORLD_REGION])
     setOpenRegionId(null)
+    setListError(false)
 
     let cancelled = false
     Promise.all([
@@ -221,11 +234,13 @@ export const FitnessHeatmapView: FC<Props> = ({
           applyRegionNames(mergeDiscoveredRegions(current, all), names)
         )
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setListError(true)
+      })
     return () => {
       cancelled = true
     }
-  }, [actorId])
+  }, [actorId, loadAttempt])
 
   const openRegion = useMemo(
     () => regions.find((region) => region.id === openRegionId) ?? null,
@@ -325,11 +340,7 @@ export const FitnessHeatmapView: FC<Props> = ({
       setHeatmaps(allHeatmaps)
     } catch (err) {
       if (!isCurrent()) return
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to load route heatmap data.'
-      )
+      setError(errorReason(err, 'Failed to load route heatmap data.'))
     } finally {
       if (isCurrent()) setIsLoading(false)
     }
@@ -500,11 +511,7 @@ export const FitnessHeatmapView: FC<Props> = ({
       await enqueueGeneration(retry)
     } catch (err) {
       if (focusKeyRef.current === key) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Failed to enqueue route heatmap refresh.'
-        )
+        setError(errorReason(err, 'Failed to enqueue route heatmap refresh.'))
       }
     } finally {
       if (focusKeyRef.current === key) setIsRetrying(false)
@@ -537,9 +544,7 @@ export const FitnessHeatmapView: FC<Props> = ({
       }
     } catch (err) {
       if (focusKeyRef.current === key) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to cancel generation.'
-        )
+        setError(errorReason(err, 'Failed to cancel generation.'))
       }
     } finally {
       // Only clear it for the still-focused region. Switching regions mid-cancel
@@ -571,9 +576,7 @@ export const FitnessHeatmapView: FC<Props> = ({
       )
     } catch (err) {
       if (focusKeyRef.current !== key) return
-      setError(
-        err instanceof Error ? err.message : 'Failed to create the embed link.'
-      )
+      setError(errorReason(err, 'Failed to create the embed link.'))
     } finally {
       setIsSharing(false)
     }
@@ -598,7 +601,7 @@ export const FitnessHeatmapView: FC<Props> = ({
       )
     } catch (err) {
       if (focusKeyRef.current !== key) return
-      setError(err instanceof Error ? err.message : 'Failed to stop sharing.')
+      setError(errorReason(err, 'Failed to stop sharing.'))
     } finally {
       setIsSharing(false)
     }
@@ -629,9 +632,10 @@ export const FitnessHeatmapView: FC<Props> = ({
         // The region has already left the list (the user's curation), but the
         // server-side cache deletion failed — surface it so the user knows the
         // region may reappear after a refresh, rather than failing silently.
+        const reason = errorReason(err, '')
         setError(
-          err instanceof Error
-            ? `Couldn't remove the cached heatmap: ${err.message}`
+          reason
+            ? `Couldn't remove the cached heatmap: ${reason}`
             : "Couldn't remove the cached heatmap. It may reappear after a refresh."
         )
       }
@@ -735,6 +739,14 @@ export const FitnessHeatmapView: FC<Props> = ({
   return (
     <div className="space-y-6">
       {error && <Alert title={error} />}
+      {listError && (
+        <Alert
+          title="We couldn’t load your heatmaps"
+          onRetry={() => setLoadAttempt((count) => count + 1)}
+        >
+          Check your connection and try again.
+        </Alert>
+      )}
 
       {/* Region list — each opens its own heatmap page. */}
       <Section

@@ -3,6 +3,7 @@
 import { FC, FormEvent, useEffect, useState } from 'react'
 
 import { createFitnessGear, updateFitnessGear } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import {
@@ -372,7 +373,7 @@ export const GearFormDialog: FC<Props> = ({
             </div>
           )}
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <Alert title={error} />}
 
           <DialogFooter>
             <Button

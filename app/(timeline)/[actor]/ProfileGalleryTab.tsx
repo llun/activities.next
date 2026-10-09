@@ -30,6 +30,7 @@ import {
   SectionNavSelect,
   type SectionNavSelectTab
 } from '@/lib/components/section-nav-select'
+import { Alert } from '@/lib/components/surface/Alert'
 import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import type { GalleryAlbumListResponse } from '@/lib/services/gallery/galleryAlbumEntities'
@@ -69,13 +70,14 @@ const SUBVIEW_TABS: Record<
 
 type Loaded<T> =
   | { state: 'loading' }
-  | { state: 'error'; message: string }
+  | { state: 'error'; message: string; detail?: string }
   | { state: 'ready'; data: T }
 
 // Loads once per mount. The panels are keyed by subview, so switching view
 // remounts and refetches.
 const useGalleryLoad = <T,>(load: () => Promise<T>, fallback: string) => {
   const [result, setResult] = useState<Loaded<T>>({ state: 'loading' })
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => {
     let cancelled = false
     load().then(
@@ -84,18 +86,33 @@ const useGalleryLoad = <T,>(load: () => Promise<T>, fallback: string) => {
       },
       (error: unknown) => {
         if (cancelled) return
+        // The title says what failed in our words. The server's own reason
+        // goes underneath; a network failure is a `TypeError` whose message
+        // ("Failed to fetch") means nothing to a reader, so it is dropped.
         setResult({
           state: 'error',
-          message: error instanceof Error ? error.message : fallback
+          message: fallback,
+          detail:
+            error instanceof Error &&
+            !(error instanceof TypeError) &&
+            error.message &&
+            error.message !== fallback
+              ? error.message
+              : undefined
         })
       }
     )
     return () => {
       cancelled = true
     }
-    // The panel is remounted for a different actor or view.
-  }, [])
-  return result
+    // The panel is remounted for a different actor or view; Retry bumps
+    // `attempt` to load it again.
+  }, [attempt])
+  const retry = () => {
+    setResult({ state: 'loading' })
+    setAttempt((count) => count + 1)
+  }
+  return { ...result, retry }
 }
 
 const PanelSkeleton: FC = () => (
@@ -113,10 +130,14 @@ const PanelSkeleton: FC = () => (
   </div>
 )
 
-const PanelError: FC<{ message: string }> = ({ message }) => (
-  <p role="alert" className="text-destructive py-6 text-center text-sm">
-    {message}
-  </p>
+const PanelError: FC<{
+  message: string
+  detail?: string
+  onRetry: () => void
+}> = ({ message, detail, onRetry }) => (
+  <Alert title={message} onRetry={onRetry}>
+    {detail}
+  </Alert>
 )
 
 const FilterChip: FC<{
@@ -150,7 +171,14 @@ const SubjectsPanel: FC<{
     'Failed to load subjects.'
   )
   if (result.state === 'loading') return <PanelSkeleton />
-  if (result.state === 'error') return <PanelError message={result.message} />
+  if (result.state === 'error')
+    return (
+      <PanelError
+        message={result.message}
+        detail={result.detail}
+        onRetry={result.retry}
+      />
+    )
   return (
     <GallerySubjectsOverview
       data={result.data}
@@ -170,7 +198,14 @@ const LifeListPanel: FC<{
     'Failed to load the life list.'
   )
   if (result.state === 'loading') return <PanelSkeleton />
-  if (result.state === 'error') return <PanelError message={result.message} />
+  if (result.state === 'error')
+    return (
+      <PanelError
+        message={result.message}
+        detail={result.detail}
+        onRetry={result.retry}
+      />
+    )
   if (!result.data || result.data.entries.length === 0) {
     return <EmptyState icon={ListChecks} title="No life list to show" />
   }
@@ -196,7 +231,14 @@ const AlbumsPanel: FC<{
     'Failed to load albums.'
   )
   if (result.state === 'loading') return <PanelSkeleton />
-  if (result.state === 'error') return <PanelError message={result.message} />
+  if (result.state === 'error')
+    return (
+      <PanelError
+        message={result.message}
+        detail={result.detail}
+        onRetry={result.retry}
+      />
+    )
   if (result.data.albums.length === 0) {
     return <EmptyState icon={FolderOpen} title="No albums to show" />
   }
@@ -229,7 +271,14 @@ const MapPanel: FC<{
     'Failed to load the map.'
   )
   if (result.state === 'loading') return <PanelSkeleton />
-  if (result.state === 'error') return <PanelError message={result.message} />
+  if (result.state === 'error')
+    return (
+      <PanelError
+        message={result.message}
+        detail={result.detail}
+        onRetry={result.retry}
+      />
+    )
   // A private map (null) renders GalleryMap's own empty state.
   const points = result.data?.points ?? []
   // Without a handle there is no post URL to build, so the card offers no

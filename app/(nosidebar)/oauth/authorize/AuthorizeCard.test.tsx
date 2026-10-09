@@ -300,7 +300,7 @@ describe('AuthorizeCard', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: 'Denying...' })
+        screen.getByRole('button', { name: 'Denying…' })
       ).toBeInTheDocument()
     })
     // The approve button keeps its label, never shows the denial state, and is
@@ -338,7 +338,7 @@ describe('AuthorizeCard', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: 'Approving...' })
+        screen.getByRole('button', { name: 'Approving…' })
       ).toBeInTheDocument()
     })
     // The deny button keeps its label and is disabled while approval is in

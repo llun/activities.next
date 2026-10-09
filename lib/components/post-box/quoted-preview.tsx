@@ -43,7 +43,7 @@ export const QuotedPreview: FC<Props> = ({
               <ActorInfo actor={status.actor} actorId={status.actorId || ''} />
             </div>
           </div>
-          <div className="mt-1 text-sm text-muted-foreground leading-relaxed line-clamp-2 break-words [&_a]:text-sky-600 dark:[&_a]:text-sky-400 [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-sky-700 dark:[&_a:hover]:text-sky-300 [&_p]:inline [&_p]:after:content-['_'] [&_br]:hidden">
+          <div className="mt-1 text-sm text-muted-foreground leading-relaxed line-clamp-2 break-words [&_a]:text-(color:--link-color) [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-(color:--link-color-hover) [&_p]:inline [&_p]:after:content-['_'] [&_br]:hidden">
             {parsedPreview ?? (
               <span className="italic">No content preview</span>
             )}

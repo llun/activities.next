@@ -139,10 +139,21 @@ describe('GalleryAlbumFormDialog', () => {
   it('needs a title and does not call the server without one', () => {
     renderDialog()
     fireEvent.click(screen.getByRole('button', { name: 'Create album' }))
-    expect(screen.getByRole('alert')).toHaveTextContent(
+    expect(screen.getByLabelText('Title')).toHaveAccessibleDescription(
       'Give the album a title.'
     )
+    expect(screen.getByLabelText('Title')).toBeInvalid()
+    expect(screen.getByLabelText('Title')).toHaveFocus()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(create).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Trip' }
+    })
+    expect(screen.getByLabelText('Title')).not.toBeInvalid()
+    expect(
+      screen.queryByText('Give the album a title.')
+    ).not.toBeInTheDocument()
   })
 
   it('creates an empty album as public by default', async () => {

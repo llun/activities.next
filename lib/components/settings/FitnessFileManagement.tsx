@@ -473,9 +473,7 @@ export function FitnessFileManagement({
               </div>
             </div>
           )}
-          {deleteError ? (
-            <p className="text-sm text-destructive">{deleteError}</p>
-          ) : null}
+          {deleteError ? <Alert title={deleteError} /> : null}
           <DialogFooter>
             <Button
               variant="outline"
@@ -492,7 +490,7 @@ export function FitnessFileManagement({
               onClick={handleDeleteConfirm}
               disabled={deleting}
             >
-              {deleting ? 'Deleting...' : 'Delete'}
+              {deleting ? 'Deleting…' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>

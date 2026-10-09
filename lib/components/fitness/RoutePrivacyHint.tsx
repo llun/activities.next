@@ -146,7 +146,7 @@ export const RoutePrivacyHint: FC<Props> = ({ point, containerSize }) => {
       data-testid="route-privacy-hint"
       className={cn(
         'pointer-events-none absolute z-20 whitespace-nowrap rounded-md border px-2 py-1 text-xs font-medium shadow-sm',
-        'border-green-300 bg-background/95 text-green-700 dark:border-green-900 dark:text-green-400'
+        'border-success/40 bg-background/95 text-success-text'
       )}
       style={
         placement

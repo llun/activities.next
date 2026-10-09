@@ -57,10 +57,10 @@ export const AlbumUndoToast: FC<Props> = ({
     <div
       data-testid="album-toast"
       className={cn(
-        'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm shadow-md',
-        tone === 'dark'
-          ? 'border-white/15 bg-neutral-800 text-neutral-50'
-          : 'bg-popover text-popover-foreground',
+        'flex items-center gap-2 rounded-lg border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-md',
+        // Over the photo viewer the toast stays dark in either theme: `dark`
+        // re-resolves the tokens above to their dark values for this subtree.
+        tone === 'dark' && 'dark',
         className
       )}
       onMouseEnter={() => setPaused(true)}
@@ -68,13 +68,7 @@ export const AlbumUndoToast: FC<Props> = ({
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      <Check
-        className={cn(
-          'size-4 shrink-0',
-          tone === 'dark' ? 'text-orange-400' : 'text-primary'
-        )}
-        aria-hidden="true"
-      />
+      <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
       <span className="min-w-0 flex-1 break-words">{toast.message}</span>
       {toast.undo ? (
         <button
@@ -85,10 +79,7 @@ export const AlbumUndoToast: FC<Props> = ({
             setUndone(true)
             toast.undo?.()
           }}
-          className={cn(
-            'focus-visible:ring-ring/50 relative min-h-6 rounded px-1 font-semibold outline-none hover:underline focus-visible:ring-[3px] aria-disabled:opacity-50 pointer-coarse:min-h-10 pointer-coarse:min-w-10',
-            tone === 'dark' ? 'text-orange-300' : 'text-primary-text'
-          )}
+          className="focus-visible:ring-ring/50 relative min-h-6 rounded px-1 font-semibold text-primary-text outline-none hover:underline focus-visible:ring-[3px] aria-disabled:opacity-50 pointer-coarse:min-h-10 pointer-coarse:min-w-10"
         >
           Undo
         </button>
@@ -97,12 +88,7 @@ export const AlbumUndoToast: FC<Props> = ({
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss"
-        className={cn(
-          'focus-visible:ring-ring/50 -mr-1 flex size-6 shrink-0 items-center justify-center rounded outline-none focus-visible:ring-[3px] pointer-coarse:size-10',
-          tone === 'dark'
-            ? 'text-neutral-400 hover:text-white'
-            : 'text-muted-foreground hover:text-foreground'
-        )}
+        className="focus-visible:ring-ring/50 -mr-1 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] pointer-coarse:size-10"
       >
         <X className="size-4" aria-hidden="true" />
       </button>

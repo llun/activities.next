@@ -336,13 +336,12 @@ describe('StravaGearDefaultsSection', () => {
     // failed rather than did nothing.
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Failed to save gear.')
-    expect(screen.getByRole('button', { name: 'Remove Ride' })).toHaveAttribute(
-      'aria-describedby',
-      alert.id
-    )
+    expect(
+      screen.getByRole('button', { name: 'Remove Ride' })
+    ).toHaveAccessibleDescription('Failed to save gear.')
     expect(
       screen.getByRole('button', { name: gearTriggerFor('Ride') })
-    ).toHaveAttribute('aria-describedby', alert.id)
+    ).toHaveAccessibleDescription('Failed to save gear.')
   })
 
   it('returns focus to the row after a failed remove', async () => {
@@ -426,7 +425,7 @@ describe('StravaGearDefaultsSection', () => {
     expect(
       screen.queryByRole('link', { name: 'Add a bike or a pair of shoes' })
     ).not.toBeInTheDocument()
-    expect(screen.queryByText('Loading gear…')).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('can retry a failed load rather than dead-ending until a page reload', async () => {

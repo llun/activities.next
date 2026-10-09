@@ -1631,15 +1631,17 @@ export const PostBox: FC<Props> = ({
               type="submit"
               size="sm"
             >
-              {editStatus ? 'Update' : isPosting ? 'Posting...' : 'Post'}
+              {editStatus ? 'Update' : isPosting ? 'Posting…' : 'Post'}
             </Button>
           </div>
         </div>
         {warningMsg ? (
-          <div className="text-xs text-destructive mb-3">{warningMsg}</div>
+          <div role="alert" className="text-xs text-destructive-text mb-3">
+            {warningMsg}
+          </div>
         ) : null}
         {missingDescription ? (
-          <div className="text-xs text-destructive mb-3" role="status">
+          <div className="text-xs text-destructive-text mb-3" role="status">
             Add a description to every item, or mark it decorative
           </div>
         ) : null}
@@ -1656,7 +1658,7 @@ export const PostBox: FC<Props> = ({
               </span>
               {postExtension.fitnessFile.uploading ? (
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  Uploading...
+                  Uploading…
                 </span>
               ) : null}
             </div>

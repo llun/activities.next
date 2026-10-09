@@ -9,6 +9,8 @@ import {
   getGearDisplayName
 } from '@/app/(timeline)/fitness/gear/gearUi'
 import { getFitnessGearList, updateFitnessGear } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 import {
   DropdownMenu,
@@ -284,7 +286,11 @@ export const StravaGearDefaultsSection: FC = () => {
       </div>
 
       {gears === null && !error && (
-        <p className="text-sm text-muted-foreground">Loading gear…</p>
+        <div role="status" className="space-y-2">
+          <span className="sr-only">Loading gear</span>
+          <SkeletonBar className="h-10 w-full" />
+          <SkeletonBar className="h-10 w-full" />
+        </div>
       )}
 
       {/* A failed initial load renders no rows and no add control, so the only
@@ -517,9 +523,9 @@ export const StravaGearDefaultsSection: FC = () => {
           with `aria-describedby`, so the failure is reachable from whichever
           one the reader used, the way the activity page's picker does. */}
       {error && (
-        <p id={ERROR_ID} role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
+        <div id={ERROR_ID}>
+          <Alert title={error} />
+        </div>
       )}
 
       <p className="text-xs text-muted-foreground">

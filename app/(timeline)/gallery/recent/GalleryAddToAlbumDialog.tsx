@@ -9,6 +9,7 @@ import {
   getGalleryAlbums
 } from '@/lib/client'
 import { getAlbumOptionNames } from '@/lib/components/gallery/mediaAlbumsUi'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -178,20 +179,10 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
               ))}
             </div>
           ) : load.status === 'error' ? (
-            <div className="space-y-2">
-              <p role="alert" className="text-destructive text-sm">
-                {load.message}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="pointer-coarse:h-10"
-                onClick={() => setAttempt((current) => current + 1)}
-              >
-                Try again
-              </Button>
-            </div>
+            <Alert
+              title={load.message}
+              onRetry={() => setAttempt((current) => current + 1)}
+            />
           ) : albums.length === 0 ? (
             <p className="text-muted-foreground text-sm">
               You have no albums yet. Start one with these photos.
@@ -252,11 +243,7 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
           )}
         </div>
 
-        {error ? (
-          <p role="alert" className="text-destructive text-sm">
-            {error}
-          </p>
-        ) : null}
+        {error ? <Alert title={error} /> : null}
 
         <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
           <Button

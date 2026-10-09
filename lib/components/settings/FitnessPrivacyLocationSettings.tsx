@@ -15,6 +15,7 @@ import {
   PrivacyLocationsFooterContext,
   PrivacyLocationsSaveError
 } from '@/lib/components/privacy-locations/PrivacyLocationsEditor'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
 import { Label } from '@/lib/components/ui/label'
@@ -206,7 +207,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
               disabled={context.disabled || context.busy}
             >
               {context.busy
-                ? 'Queueing regeneration...'
+                ? 'Queueing regeneration…'
                 : 'Regenerate maps for old statuses'}
             </Button>
           )}
@@ -245,10 +246,12 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
           </div>
 
           {routeDescriptionError ? (
-            <p className="text-sm text-destructive">{routeDescriptionError}</p>
+            <Alert title={routeDescriptionError} />
           ) : null}
           {routeDescriptionMessage ? (
-            <p className="text-sm text-green-600">{routeDescriptionMessage}</p>
+            <p className="text-sm text-success-text">
+              {routeDescriptionMessage}
+            </p>
           ) : null}
         </div>
       </Section>

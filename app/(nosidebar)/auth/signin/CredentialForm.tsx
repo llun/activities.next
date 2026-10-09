@@ -109,7 +109,7 @@ export const CredentialForm: FC<Props> = ({ providerName }) => {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? 'Signing in...' : `Sign in with ${providerName}`}
+        {loading ? 'Signing in…' : `Sign in with ${providerName}`}
       </Button>
     </form>
   )

@@ -137,7 +137,7 @@ describe('PostBox media details', () => {
     fireEvent.click(post)
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Posting...' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Posting…' })).toBeDisabled()
     )
     expect(createNoteMock).not.toHaveBeenCalled()
     expect(uploadAttachmentMock).toHaveBeenCalledTimes(1)
@@ -802,7 +802,7 @@ describe('PostBox media details', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Posting...' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Posting…' })).toBeDisabled()
     )
 
     resize.resolve(new File(['b.png'], 'b.png', { type: 'image/png' }))
@@ -829,7 +829,7 @@ describe('PostBox media details', () => {
     await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalledTimes(1))
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Posting...' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Posting…' })).toBeDisabled()
     )
 
     expect(screen.getByRole('button', { name: /^Add media/ })).toBeDisabled()
@@ -886,6 +886,18 @@ describe('PostBox media details', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
     )
+  })
+
+  it('announces a failed upload and its reason once, in the polite live region', async () => {
+    uploadAttachmentMock.mockRejectedValueOnce(new Error('disk full'))
+    renderPostBox()
+    attach('heron.png')
+
+    expect(await screen.findByText('Upload failed')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Upload of heron.png failed: disk full'
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('announces upload status in a live region', async () => {

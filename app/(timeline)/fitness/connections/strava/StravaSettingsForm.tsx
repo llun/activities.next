@@ -158,7 +158,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
       if (data.authorizeUrl) {
         setMessage({
           tone: 'info',
-          text: 'Redirecting to Strava for authorization...'
+          text: 'Redirecting to Strava for authorization…'
         })
         window.location.href = data.authorizeUrl
         return
@@ -307,7 +307,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
             )}
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <Alert title={error} />}
           {message && <Alert tone={message.tone} title={message.text} />}
 
           {isConnected && <Alert tone="success" title="Connected to Strava" />}
@@ -346,7 +346,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
               }
             >
               {isLoading
-                ? 'Saving...'
+                ? 'Saving…'
                 : isConfigured
                   ? 'Save visibility'
                   : 'Save and connect'}
@@ -391,7 +391,7 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
               onClick={handleUnlink}
               disabled={isLoading}
             >
-              {isLoading ? 'Unlinking...' : 'Unlink'}
+              {isLoading ? 'Unlinking…' : 'Unlink'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -155,6 +155,45 @@ describe('PrivacyLocationsEditor', () => {
     expect(screen.queryByText('socket hang up')).not.toBeInTheDocument()
   })
 
+  it('ties a coordinate mistake to its field instead of raising an alert', async () => {
+    const save = vi.fn(async (locations: PrivacyLocationInput[]) => locations)
+    renderEditor({ save, load: vi.fn().mockResolvedValue([]) })
+    await screen.findByText('No privacy locations added yet.')
+
+    fireEvent.change(screen.getByLabelText('Latitude'), {
+      target: { value: '95' }
+    })
+    fireEvent.change(screen.getByLabelText('Longitude'), {
+      target: { value: '100' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save custom places' }))
+
+    expect(screen.getByLabelText('Latitude')).toHaveAccessibleDescription(
+      'Latitude must be between -90 and 90.'
+    )
+    expect(screen.getByLabelText('Latitude')).toBeInvalid()
+    expect(screen.getByLabelText('Longitude')).toHaveAccessibleDescription(
+      'Latitude must be between -90 and 90.'
+    )
+    expect(screen.getByLabelText('Latitude')).toHaveFocus()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(save).not.toHaveBeenCalled()
+
+    // Editing a coordinate clears the error and the invalid state.
+    fireEvent.change(screen.getByLabelText('Latitude'), {
+      target: { value: '45' }
+    })
+    expect(screen.getByLabelText('Latitude')).not.toBeInvalid()
+    expect(screen.getByLabelText('Longitude')).not.toBeInvalid()
+    expect(
+      screen.queryByText('Latitude must be between -90 and 90.')
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save custom places' }))
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    expect(screen.getByLabelText('Latitude')).not.toBeInvalid()
+  })
+
   it('keeps editing disabled, and retries the load, after a failed read', async () => {
     const load = vi
       .fn()
@@ -203,7 +242,7 @@ describe('PrivacyLocationsEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save custom places' }))
 
     expect(
-      await screen.findByRole('button', { name: 'Saving...' })
+      await screen.findByRole('button', { name: 'Saving…' })
     ).toBeDisabled()
     expect(screen.getByLabelText('Latitude')).toBeDisabled()
 

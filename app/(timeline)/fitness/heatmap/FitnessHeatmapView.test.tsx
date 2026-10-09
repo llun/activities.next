@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import {
   cancelFitnessRouteHeatmap,
@@ -531,6 +538,38 @@ describe('FitnessHeatmapView', () => {
     // The discovered region still appears (labels just fall back to "Map area").
     expect(await screen.findByText('Map area')).toBeInTheDocument()
     expect(screen.getByText(/2 regions · 1 generated/i)).toBeInTheDocument()
+  })
+
+  it('says the heatmaps could not be loaded and loads them again on Retry', async () => {
+    mockGetFitnessRouteHeatmaps
+      .mockRejectedValueOnce(new Error('heatmaps fetch failed'))
+      .mockResolvedValueOnce([
+        worldSummary({
+          id: 'hm-rect',
+          region: 'rect:52.60,5.60,52.00,6.20',
+          status: 'completed',
+          updatedAt: TEST_NOW
+        })
+      ])
+
+    render(
+      <FitnessHeatmapView
+        actorId={ACTOR}
+        mapProvider={{ type: 'osm' }}
+        embedOrigin="https://test.example"
+      />
+    )
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('We couldn’t load your heatmaps')
+    // The reason stays out of the copy.
+    expect(alert).not.toHaveTextContent('heatmaps fetch failed')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText(/2 regions · 1 generated/i)).toBeVisible()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mockGetFitnessRouteHeatmaps).toHaveBeenCalledTimes(2)
   })
 
   it('opens a region detail page and returns to the list', async () => {
@@ -1175,7 +1214,9 @@ describe('FitnessHeatmapView', () => {
       await vi.advanceTimersByTimeAsync(5000 * 32)
     })
 
-    expect(screen.getByText(/taking longer than expected/i)).toBeInTheDocument()
+    const stalled = screen.getByRole('alert')
+    expect(stalled).toHaveTextContent(/taking longer than expected/i)
+    expect(within(stalled).getByRole('button', { name: 'Retry' })).toBeEnabled()
   })
 
   it('keeps polling fresh in-flight regions without stalling', async () => {
@@ -1295,7 +1336,7 @@ describe('RouteHeatmapMap', () => {
     )
 
     // The module hasn't resolved yet, so the map is still initializing.
-    expect(await screen.findByText('Loading map…')).toBeInTheDocument()
+    expect(await screen.findByText('Loading map')).toBeInTheDocument()
     expect(screen.queryByText('OpenFreeMap')).not.toBeInTheDocument()
 
     await act(async () => {
@@ -1514,7 +1555,7 @@ describe('RouteHeatmapMap', () => {
         await Promise.resolve()
       })
       expect(mapConstructor).toHaveBeenCalled()
-      expect(screen.getByText('Loading map…')).toBeInTheDocument()
+      expect(screen.getByText('Loading map')).toBeInTheDocument()
 
       await act(async () => {
         vi.advanceTimersByTime(20_000)

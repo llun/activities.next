@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { FC } from 'react'
 
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
+import { Alert } from '@/lib/components/surface/Alert'
 import { StatStrip } from '@/lib/components/surface/StatStrip'
 import type { Actor } from '@/lib/types/database'
 import { PostLineLimit } from '@/lib/types/database/rows'
@@ -368,13 +369,16 @@ export const Post: FC<PostProps> = (props) => {
                 variant={fitnessRetryVariant}
               />
             ) : (
-              <div className="mt-2 flex items-center gap-2 text-destructive">
-                <span>
-                  {fitnessRetryVariant === 'stuck'
+              <Alert
+                className="mt-2"
+                tone={fitnessRetryVariant === 'stuck' ? 'warning' : 'error'}
+                live={false}
+                title={
+                  fitnessRetryVariant === 'stuck'
                     ? 'Processing is taking longer than expected. The original activity file is still available.'
-                    : 'Processing failed. The original activity file is still available.'}
-                </span>
-              </div>
+                    : 'Processing failed. The original activity file is still available.'
+                }
+              />
             )
           ) : null}
 

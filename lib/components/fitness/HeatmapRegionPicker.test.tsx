@@ -463,6 +463,50 @@ describe('HeatmapRegionPicker', () => {
     expect(
       screen.queryByText(/north-west of bottom-right/i)
     ).not.toBeInTheDocument()
+
+    // Standing state, not an interruption: no alert, the line is linked to the
+    // coordinate fields, and nothing is announced until a value is committed.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    const line = screen.getByText(/each side must span at least 0.01/i)
+    expect(
+      screen.getByLabelText('Top-left latitude')
+    ).toHaveAccessibleDescription(line.textContent ?? '')
+    expect(
+      screen.getByLabelText('Bottom-right longitude')
+    ).toHaveAccessibleDescription(line.textContent ?? '')
+  })
+
+  it('announces the area rule politely only after a typed value is committed', () => {
+    render(
+      <HeatmapRegionPicker
+        value={[
+          {
+            id: 'rect-1',
+            type: 'rect',
+            name: 'Neighbourhood',
+            nw: { lat: 52.5, lng: 4.8 },
+            se: { lat: 52.3, lng: 5 }
+          }
+        ]}
+        onChange={vi.fn()}
+        mapProvider={{ type: 'osm' }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Edit area/i }))
+    expect(screen.queryByText(/north-west of bottom-right/i)).toBeNull()
+
+    const field = screen.getByLabelText('Top-left latitude')
+    fireEvent.change(field, { target: { value: '10' } })
+    // Typing alone commits nothing.
+    expect(screen.queryByText(/north-west of bottom-right/i)).toBeNull()
+    fireEvent.blur(field)
+
+    const matches = screen.getAllByText(/north-west of bottom-right/i)
+    expect(matches).toHaveLength(2)
+    expect(
+      matches.some((node) => node.getAttribute('aria-live') === 'polite')
+    ).toBe(true)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('refuses to save an area too small to have a canonical key of its own', () => {

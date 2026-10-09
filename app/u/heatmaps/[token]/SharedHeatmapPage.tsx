@@ -5,6 +5,7 @@ import { FC } from 'react'
 import { PublicRouteHeatmapMap } from '@/lib/components/fitness/PublicRouteHeatmapMap'
 import { Logo } from '@/lib/components/layout/logo'
 import { ResizableMapContainer } from '@/lib/components/map/ResizableMapContainer'
+import { Frame } from '@/lib/components/surface/Frame'
 import { Button } from '@/lib/components/ui/button'
 import type { PublicMapProvider } from '@/lib/utils/mapProvider'
 
@@ -80,7 +81,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
 
       <main className="mx-auto max-w-[840px] px-4 py-6 sm:px-6 sm:py-8">
         {/* public, read-only context pill */}
-        <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+        <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-2.5 py-1 text-xs font-medium text-muted-foreground">
           <Eye className="size-3" /> Public heatmap · anyone with the link can
           view
         </div>
@@ -88,7 +89,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
         {/* header */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
               {isWorld ? (
                 <Globe className="size-6" />
               ) : (
@@ -96,7 +97,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
               )}
             </span>
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+              <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
                   <span
@@ -113,7 +114,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
                 <span>Generated {generatedLabel}</span>
               </div>
               {bboxLabel && (
-                <div className="mt-1 font-mono text-[11px] text-muted-foreground/80">
+                <div className="mt-1 font-mono text-xs text-muted-foreground/80">
                   {bboxLabel}
                 </div>
               )}
@@ -130,7 +131,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
             minHeight={240}
             maxHeight={900}
             showQuickToggle
-            className="overflow-hidden rounded-xl border"
+            className="overflow-hidden rounded-lg border"
           >
             <PublicRouteHeatmapMap
               heatmap={view.heatmap}
@@ -146,7 +147,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
         </div>
 
         {/* join CTA */}
-        <div className="mt-6 overflow-hidden rounded-2xl border shadow-sm">
+        <Frame className="mt-6 overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-4 bg-primary/5 p-5">
             <div className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -156,7 +157,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
                 <h2 className="text-sm font-semibold">
                   Make a heatmap from your own routes
                 </h2>
-                <p className="mt-0.5 max-w-md text-[13px] leading-relaxed text-muted-foreground">
+                <p className="mt-0.5 max-w-md text-sm leading-relaxed text-muted-foreground">
                   Upload your activities to Activities and aggregate years of
                   rides and runs into a density map like this one.
                 </p>
@@ -175,7 +176,7 @@ export const SharedHeatmapPage: FC<SharedHeatmapPageProps> = ({
               </Button>
             </div>
           </div>
-        </div>
+        </Frame>
       </main>
 
       {/* footer */}

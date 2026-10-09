@@ -25,7 +25,7 @@ const Loading: FC = () => (
       />
       <div
         aria-hidden="true"
-        className="skeleton aspect-[4/3] w-full rounded-xl sm:aspect-[16/7]"
+        className="skeleton aspect-[4/3] w-full rounded-lg sm:aspect-[16/7]"
       />
       <div aria-hidden="true" className="skeleton h-5 w-2/3 rounded" />
       <div

@@ -269,11 +269,7 @@ export const GalleryGearDetailView: FC<Props> = ({
               this {noun}. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          {deleteError && (
-            <p className="text-sm text-destructive" role="alert">
-              {deleteError}
-            </p>
-          )}
+          {deleteError && <Alert title={deleteError} />}
           <DialogFooter>
             <Button
               variant="outline"

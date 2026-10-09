@@ -11,6 +11,7 @@ import {
   deleteStatus,
   mute
 } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import {
@@ -35,11 +36,7 @@ const REPORT_CATEGORIES: { value: ReportCategory; label: string }[] = [
 ]
 
 const errorAlert = (error: string | null) =>
-  error ? (
-    <p role="alert" className="text-sm text-destructive">
-      {error}
-    </p>
-  ) : null
+  error ? <Alert title={error} /> : null
 
 interface MuteDialogProps {
   open: boolean

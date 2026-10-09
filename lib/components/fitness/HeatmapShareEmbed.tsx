@@ -254,7 +254,7 @@ export const HeatmapShareEmbed: FC<HeatmapShareEmbedProps> = ({
   }
 
   return (
-    <section className="mt-4 rounded-xl border bg-card p-4 shadow-sm">
+    <section className="mt-4 rounded-lg border bg-background p-4">
       {/* header */}
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-start gap-2">

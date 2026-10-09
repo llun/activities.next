@@ -274,7 +274,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
       setIsArchivePolling(true)
       setArchiveMessage({
         tone: 'info',
-        text: 'Retrying Strava archive import...'
+        text: 'Retrying Strava archive import…'
       })
     } catch (retryError) {
       const retryMessage =
@@ -436,9 +436,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
         </div>
       )}
 
-      {archiveError && (
-        <p className="text-sm text-destructive">{archiveError}</p>
-      )}
+      {archiveError && <Alert title={archiveError} />}
       {archiveMessage && (
         <Alert tone={archiveMessage.tone} title={archiveMessage.text} />
       )}

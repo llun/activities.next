@@ -90,12 +90,17 @@ export const Alert: FC<Props> = ({
         className
       )}
     >
-      <Icon className={cn('size-5 shrink-0', icon)} aria-hidden="true" />
-      <div className="min-w-0 flex-[1_1_16rem] text-sm">
-        <p className="font-semibold break-words">{title}</p>
-        {children ? (
-          <div className="text-muted-foreground break-words">{children}</div>
-        ) : null}
+      {/* The icon and the words wrap as one unit, so in a narrow container
+          (the sidebar) the action drops below the row instead of the icon
+          dropping above the title. */}
+      <div className="flex min-w-0 flex-[1_1_18rem] items-center gap-3">
+        <Icon className={cn('size-5 shrink-0', icon)} aria-hidden="true" />
+        <div className="min-w-0 flex-1 text-sm">
+          <p className="font-semibold break-words">{title}</p>
+          {children ? (
+            <div className="text-muted-foreground break-words">{children}</div>
+          ) : null}
+        </div>
       </div>
       {action ??
         (onRetry ? (

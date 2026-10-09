@@ -13,6 +13,7 @@ import { FC, useCallback, useMemo, useState, useTransition } from 'react'
 
 import { getAllStatsBuckets } from '@/app/(timeline)/admin/actions'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
 import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
@@ -110,12 +111,15 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
   const rangeMs = RANGES.find((r) => r.value === range)!.ms
 
   const [pendingRange, setPendingRange] = useState<Range | null>(null)
+  // The range whose read failed; the previous range stays on screen.
+  const [failedRange, setFailedRange] = useState<Range | null>(null)
 
   const handleRangeChange = (newRange: Range) => {
     // Selecting while a range loads is ignored rather than the options being
     // disabled, so a keyboard user keeps focus on the control.
     if (isPending || newRange === range) return
     setPendingRange(newRange)
+    setFailedRange(null)
     const ms = RANGES.find((r) => r.value === newRange)!.ms
     const endTime = Date.now()
     const startTime = endTime - ms
@@ -125,7 +129,8 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
         setBuckets(newBuckets)
         setRange(newRange)
       } catch {
-        // keep previous range on failure
+        // Keep the previous range on screen and say so, with a way to retry.
+        setFailedRange(newRange)
       } finally {
         setPendingRange(null)
       }
@@ -243,6 +248,16 @@ export const StatsOverview: FC<Props> = ({ stats, initialBuckets }) => {
           />
         }
       />
+
+      {failedRange ? (
+        <Alert
+          title={`We couldn’t load the last ${RANGES.find((r) => r.value === failedRange)!.label}`}
+          onRetry={() => handleRangeChange(failedRange)}
+        >
+          Still showing the last {rangeLabel}. Check your connection and try
+          again.
+        </Alert>
+      ) : null}
 
       <div
         aria-busy={isPending}

@@ -195,7 +195,7 @@ describe('CredentialForm', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
 
-    expect(screen.getByRole('button', { name: 'Signing in...' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Signing in…' })).toBeDisabled()
     expect(
       screen.queryByText('Invalid email or password')
     ).not.toBeInTheDocument()

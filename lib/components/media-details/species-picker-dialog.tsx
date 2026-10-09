@@ -18,6 +18,7 @@ import {
   TaxaSearchUnavailableError,
   searchGalleryTaxa
 } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -107,9 +108,7 @@ const MatchMeter: FC<{ percent: number }> = ({ percent }) => (
     <span
       className={cn(
         'text-xs font-semibold',
-        percent >= 70
-          ? 'text-green-700 dark:text-green-400'
-          : 'text-muted-foreground'
+        percent >= 70 ? 'text-success-text' : 'text-muted-foreground'
       )}
     >
       {percent}% match
@@ -118,7 +117,7 @@ const MatchMeter: FC<{ percent: number }> = ({ percent }) => (
       <span
         className={cn(
           'block h-1 rounded-sm',
-          percent >= 70 ? 'bg-green-600' : 'bg-muted-foreground/60'
+          percent >= 70 ? 'bg-success' : 'bg-muted-foreground/60'
         )}
         style={{ width: `${percent}%` }}
       />
@@ -379,9 +378,7 @@ export const SpeciesPickerDialog: FC<Props> = ({
                 </p>
               ) : null}
               {search.status === 'error' ? (
-                <p role="alert" className="text-sm text-destructive">
-                  Species could not be searched. Try again.
-                </p>
+                <Alert title="Species could not be searched. Try again." />
               ) : null}
               {search.status === 'ready' && search.taxa.length === 0 ? (
                 <p role="status" className="text-sm text-muted-foreground">

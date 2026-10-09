@@ -308,7 +308,7 @@ export function DayDetailsBody({
             disabled={loadingMore}
             onClick={onLoadMore}
           >
-            {loadingMore ? 'Loading…' : 'Load more'}
+            {loadingMore ? 'Loading more…' : 'Load more'}
           </Button>
         </div>
       )}

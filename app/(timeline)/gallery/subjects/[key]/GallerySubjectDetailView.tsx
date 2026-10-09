@@ -145,7 +145,7 @@ export const GallerySubjectDetailView: FC<Props> = ({
       {browseTag ? (
         <section
           aria-labelledby="subject-fediverse-heading"
-          className="space-y-2 rounded-xl border p-4"
+          className="space-y-2 rounded-lg border bg-background p-4"
         >
           <h2 id="subject-fediverse-heading" className="font-semibold">
             {/* No plural is built from a name: "Finchs", "Foxs" and

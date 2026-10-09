@@ -19,7 +19,7 @@ export const CopyLinkButton: FC<CopyLinkButtonProps> = ({ url }) => {
   return (
     <Button type="button" variant="outline" size="sm" onClick={() => copy(url)}>
       {copied ? (
-        <Check className="size-4 text-green-600 dark:text-green-500" />
+        <Check className="size-4 text-success-text" />
       ) : (
         <LinkIcon className="size-4" />
       )}

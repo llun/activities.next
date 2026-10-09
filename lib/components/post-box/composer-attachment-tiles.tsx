@@ -1,7 +1,8 @@
-import { Camera, Loader2, MapPin, RotateCw, X } from 'lucide-react'
+import { Camera, MapPin, RotateCw, X } from 'lucide-react'
 import { FC, useEffect, useId, useRef } from 'react'
 
 import { getSubjectChoices } from '@/lib/components/media-details/subjectChoices'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { cn } from '@/lib/utils'
@@ -111,8 +112,8 @@ const TileStatus: FC<{
   if (error) return null
   if (attachment.isLoading || reading) {
     return (
+      // Not a status of its own: the composer's one live region below says it.
       <span className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Loader2 className="size-3 animate-spin" />
         {attachment.isLoading ? 'Uploading…' : 'Reading details…'}
       </span>
     )
@@ -208,7 +209,9 @@ export const ComposerAttachmentTiles: FC<Props> = ({
 
   const announcements = attachments.flatMap((item, index) => {
     const label = getAttachmentLabel(item, fileNames, index)
-    if (uploadErrors[item.id]) return [`Upload of ${label} failed`]
+    if (uploadErrors[item.id]) {
+      return [`Upload of ${label} failed: ${uploadErrors[item.id]}`]
+    }
     if (item.isLoading) return [`Uploading ${label}`]
     if (detailsPending[item.id] || suggestionsPending[item.id]) {
       return [`Reading details of ${label}`]
@@ -264,8 +267,11 @@ export const ComposerAttachmentTiles: FC<Props> = ({
                   }}
                 >
                   {busy ? (
-                    <span className="absolute inset-0 flex items-center justify-center bg-background/50">
-                      <Loader2 className="animate-spin text-primary" />
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-0 opacity-70"
+                    >
+                      <SkeletonBar className="h-full rounded-none" />
                     </span>
                   ) : null}
                 </span>
@@ -289,7 +295,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
                 <div className="flex items-center justify-between gap-2 px-1.5 pt-1.5">
                   <span
                     id={`${errorId}-${item.id}`}
-                    className="text-xs text-destructive"
+                    className="text-xs text-destructive-text"
                     title={error}
                   >
                     Upload failed

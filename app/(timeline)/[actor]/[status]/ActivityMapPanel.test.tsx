@@ -318,9 +318,24 @@ describe('ActivityMapPanel', () => {
         />
       )
 
+      expect(screen.getByRole('status')).toBeInTheDocument()
+    })
+
+    it('keeps the loading pill silent when the screen announces the load elsewhere', () => {
+      render(
+        <ActivityMapPanel
+          routeSamples={[]}
+          routeSegments={[]}
+          isRouteDataLoading={true}
+          announceLoading={false}
+          mapProvider={{ type: 'osm' }}
+        />
+      )
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
       expect(
-        screen.getByText('Loading interactive route...')
-      ).toBeInTheDocument()
+        screen.queryByText('Loading interactive route')
+      ).not.toBeInTheDocument()
     })
 
     it('renders route data error banner when routeDataError is passed', () => {
@@ -833,9 +848,7 @@ describe('ActivityMapPanel', () => {
       expect(
         screen.queryByRole('img', { name: 'Activity route map' })
       ).not.toBeInTheDocument()
-      expect(
-        screen.queryByText('Loading interactive route...')
-      ).not.toBeInTheDocument()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
     })
 
     it('renders Play button to request interactive map and triggers onRequestInteractive on click', () => {

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { FC, useEffect, useMemo, useState } from 'react'
 
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -101,9 +102,12 @@ export const StatusLikes: FC<Props> = ({ statusId, totalLikes }) => {
         </div>
 
         {isRecentLoading ? (
-          <p className="mt-2 text-sm text-muted-foreground">
-            Loading recent likes...
-          </p>
+          <div role="status" className="mt-2 flex gap-2">
+            <span className="sr-only">Loading recent likes</span>
+            <SkeletonBar className="size-8 rounded-full" />
+            <SkeletonBar className="size-8 rounded-full" />
+            <SkeletonBar className="size-8 rounded-full" />
+          </div>
         ) : (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {recentLikes.map((account) => (
@@ -164,9 +168,12 @@ export const StatusLikes: FC<Props> = ({ statusId, totalLikes }) => {
 
           <div className="max-h-[55vh] overflow-y-auto rounded-md border">
             {isDialogLoading ? (
-              <p className="p-4 text-sm text-muted-foreground">
-                Loading likes...
-              </p>
+              <div role="status" className="space-y-3 p-4">
+                <span className="sr-only">Loading likes</span>
+                <SkeletonBar className="h-8 w-full" />
+                <SkeletonBar className="h-8 w-full" />
+                <SkeletonBar className="h-8 w-full" />
+              </div>
             ) : dialogLikes.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">
                 No likes found on this page.

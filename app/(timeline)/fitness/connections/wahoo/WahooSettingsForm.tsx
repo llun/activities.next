@@ -324,15 +324,10 @@ export const WahooSettingsForm = () => {
           </div>
         )}
         {settings?.lastError && (
-          <p role="alert" className="text-sm text-destructive">
-            Wahoo error: {settings.lastError}
-          </p>
+          // Standing state read from the saved settings at load, not news.
+          <Alert live={false} title={`Wahoo error: ${settings.lastError}`} />
         )}
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
+        {error && <Alert title={error} />}
         {message && <Alert tone="success" title={message} />}
 
         <div className="flex flex-wrap gap-2">

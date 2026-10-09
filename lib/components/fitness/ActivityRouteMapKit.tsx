@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, Minus, Plus } from 'lucide-react'
+import { Minus, Plus } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { FitnessRouteSample, FitnessRouteSegment } from '@/lib/client'
@@ -41,6 +41,7 @@ import {
   ROUTE_LINE_COLOR,
   ROUTE_LINE_WIDTH_PX
 } from '@/lib/components/fitness/routeLineStyle'
+import { MapLoadingOverlay } from '@/lib/components/map/MapLoadingOverlay'
 
 // Mirrors the GL activity route paint (both read `routeLineStyle`): orange for
 // the shared trace over a white casing, green for the segments hidden from other
@@ -448,12 +449,7 @@ export const ActivityRouteMapKit: FC<ActivityRouteMapKitProps> = ({
         className="h-full w-full"
       />
       {!isMapLoaded ? (
-        <div
-          role="status"
-          className="absolute inset-0 flex items-center justify-center gap-2 bg-muted/60 text-sm text-muted-foreground"
-        >
-          <Loader2 className="size-4 animate-spin" /> Loading map…
-        </div>
+        <MapLoadingOverlay />
       ) : (
         <>
           <div className="absolute left-3 top-3 flex flex-col overflow-hidden rounded-md border bg-background/95 shadow-sm">

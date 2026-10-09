@@ -108,7 +108,21 @@ describe('RemoteFollowDialog', () => {
         'Enter your address, for example username@mastodon.social'
       )
     ).toBeInTheDocument()
+    expect(screen.getByLabelText('Your address')).toHaveAccessibleDescription(
+      'Enter your address, for example username@mastodon.social'
+    )
+    expect(screen.getByLabelText('Your address')).toBeInvalid()
+    expect(screen.getByLabelText('Your address')).toHaveFocus()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(getRemoteFollowUrlMock).not.toHaveBeenCalled()
+
+    await typeAddress('visitor@remote.test')
+    expect(screen.getByLabelText('Your address')).not.toBeInvalid()
+    expect(
+      screen.queryByText(
+        'Enter your address, for example username@mastodon.social'
+      )
+    ).not.toBeInTheDocument()
   })
 
   it('remembers the address for the next visit', async () => {
@@ -133,7 +147,7 @@ describe('RemoteFollowDialog', () => {
 
     await typeAddress('visitor@remote.test')
     submit()
-    await screen.findByRole('button', { name: 'Redirecting...' })
+    await screen.findByRole('button', { name: 'Redirecting…' })
 
     // Escape is reachable even while Cancel is disabled, and the lookup
     // resolves to a URL even when the remote server never answers.
@@ -157,7 +171,7 @@ describe('RemoteFollowDialog', () => {
 
     await typeAddress('visitor@remote.test')
     submit()
-    await screen.findByRole('button', { name: 'Redirecting...' })
+    await screen.findByRole('button', { name: 'Redirecting…' })
     fireEvent.keyDown(document.body, { key: 'Escape' })
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -182,7 +196,7 @@ describe('RemoteFollowDialog', () => {
 
     await typeAddress('visitor@remote.test')
     submit()
-    await screen.findByRole('button', { name: 'Redirecting...' })
+    await screen.findByRole('button', { name: 'Redirecting…' })
 
     fireEvent.keyDown(document.body, { key: 'Escape' })
     await waitFor(() => {
@@ -214,7 +228,7 @@ describe('RemoteFollowDialog', () => {
 
     await typeAddress('typo@wrong.test')
     submit()
-    await screen.findByRole('button', { name: 'Redirecting...' })
+    await screen.findByRole('button', { name: 'Redirecting…' })
     fireEvent.keyDown(document.body, { key: 'Escape' })
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -223,7 +237,7 @@ describe('RemoteFollowDialog', () => {
     openDialog()
     await typeAddress('visitor@correct.test')
     submit()
-    await screen.findByRole('button', { name: 'Redirecting...' })
+    await screen.findByRole('button', { name: 'Redirecting…' })
 
     // The abandoned lookup finishes first and must lose.
     await act(async () => {
@@ -259,7 +273,7 @@ describe('RemoteFollowDialog', () => {
 
     await typeAddress('typo@wrong.test')
     submit()
-    await screen.findByRole('button', { name: 'Redirecting...' })
+    await screen.findByRole('button', { name: 'Redirecting…' })
     fireEvent.keyDown(document.body, { key: 'Escape' })
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -268,16 +282,14 @@ describe('RemoteFollowDialog', () => {
     openDialog()
     await typeAddress('visitor@correct.test')
     submit()
-    await screen.findByRole('button', { name: 'Redirecting...' })
+    await screen.findByRole('button', { name: 'Redirecting…' })
 
     await act(async () => {
       settle['typo@wrong.test'](new Error('Unable to reach that server'))
     })
 
     expect(screen.queryByText('Unable to reach that server')).toBeNull()
-    expect(
-      screen.getByRole('button', { name: 'Redirecting...' })
-    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Redirecting…' })).toBeDisabled()
   })
 
   it('does not navigate when the page is left while the lookup is in flight', async () => {
@@ -290,7 +302,7 @@ describe('RemoteFollowDialog', () => {
 
     await typeAddress('visitor@remote.test')
     submit()
-    await screen.findByRole('button', { name: 'Redirecting...' })
+    await screen.findByRole('button', { name: 'Redirecting…' })
 
     view.unmount()
     await act(async () => {

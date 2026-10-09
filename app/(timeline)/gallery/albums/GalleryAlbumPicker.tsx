@@ -6,6 +6,7 @@ import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getGalleryMedia, getGallerySubjects } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -384,11 +385,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
         </p>
       )}
 
-      {error ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      ) : null}
+      {error ? <Alert title={error} /> : null}
       {nextMaxId ? (
         <LoadMoreButton
           isLoading={isLoading}

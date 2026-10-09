@@ -254,9 +254,50 @@ describe('GearComponentFormDialog', () => {
     fireEvent.submit(screen.getByRole('form', { name: 'Add component' }))
 
     expect(
-      await screen.findByText('Please select an added date.')
-    ).toBeInTheDocument()
+      await screen.findByLabelText('Added date')
+    ).toHaveAccessibleDescription('Please select an added date.')
+    expect(screen.getByLabelText('Added date')).toHaveFocus()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(mockCreateFitnessGearComponent).not.toHaveBeenCalled()
+
+    // Editing the date clears the error.
+    fireEvent.change(screen.getByLabelText('Added date'), {
+      target: { value: '2024-05-01' }
+    })
+    expect(screen.getByLabelText('Added date')).not.toBeInvalid()
+    expect(
+      screen.queryByText('Please select an added date.')
+    ).not.toBeInTheDocument()
+  })
+
+  it('drops the added-date error when switching back to Since beginning', () => {
+    render(
+      <GearComponentFormDialog
+        open={true}
+        gearId="gear-1"
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Added on'), {
+      target: { value: 'date' }
+    })
+    fireEvent.submit(screen.getByRole('form', { name: 'Add component' }))
+    expect(screen.getByText('Please select an added date.')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Added on'), {
+      target: { value: 'beginning' }
+    })
+    expect(
+      screen.queryByText('Please select an added date.')
+    ).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Added on'), {
+      target: { value: 'date' }
+    })
+    expect(screen.getByLabelText('Added date')).not.toHaveAttribute(
+      'aria-invalid'
+    )
   })
 
   it('surfaces an error message when saving fails and does not close', async () => {

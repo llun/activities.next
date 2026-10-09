@@ -168,9 +168,11 @@ describe('WahooSettingsForm', () => {
 
     render(<WahooSettingsForm />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Wahoo error: OAuth authorization was denied'
-    )
+    // Standing state read at load, so it is on the page without being announced.
+    expect(
+      await screen.findByText('Wahoo error: OAuth authorization was denied')
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it.each([

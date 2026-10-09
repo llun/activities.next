@@ -7,13 +7,13 @@ import {
   ChevronRight,
   Clock,
   Globe,
-  Loader2,
+  Hourglass,
   MapPin,
   Maximize,
   Pencil,
   Trash2
 } from 'lucide-react'
-import { FC, useMemo, useState } from 'react'
+import { FC, useId, useMemo, useState } from 'react'
 
 import { GlModule, RegionMap } from '@/lib/components/fitness/RegionMap'
 import { RegionMapKit } from '@/lib/components/fitness/RegionMapKit'
@@ -101,6 +101,8 @@ interface CoordFieldProps {
   min: number
   max: number
   suffix: string
+  /** Id of a line that explains why the current value set is invalid. */
+  describedBy?: string
   onChange: (value: number) => void
 }
 
@@ -118,6 +120,7 @@ const CoordField: FC<CoordFieldProps> = ({
   min,
   max,
   suffix,
+  describedBy,
   onChange
 }) => {
   // Edit as a free-form string so partial input ("-", "5.") is typeable, and
@@ -142,7 +145,9 @@ const CoordField: FC<CoordFieldProps> = ({
     // value (and the precision used by serialization/validation) exactly.
     const rounded = Number(clamp(parsed, min, max).toFixed(2))
     setDraft(rounded.toFixed(2))
-    onChange(rounded)
+    // An unchanged value (a blur caused by pressing on the map) is not a
+    // commit, so it must not turn the area announcement back on mid-drag.
+    if (rounded !== value) onChange(rounded)
   }
 
   return (
@@ -155,6 +160,7 @@ const CoordField: FC<CoordFieldProps> = ({
           type="text"
           inputMode="decimal"
           aria-label={srLabel ?? label}
+          aria-describedby={describedBy}
           value={draft}
           onChange={(event) => {
             const next = event.target.value
@@ -196,11 +202,26 @@ const RectComposer: FC<RectComposerProps> = ({
   )
   const [name, setName] = useState(initial?.name ?? '')
   const [mapUnavailable, setMapUnavailable] = useState(false)
-  const setCorner = (corner: 'nw' | 'se', key: 'lat' | 'lng', value: number) =>
+  const areaErrorId = useId()
+  // The area rule is read out only after a typed value is committed (blur or
+  // Enter). A map drag redraws the box on every pointer move, and an
+  // announcement there would interrupt the user with each new box.
+  const [announceArea, setAnnounceArea] = useState(false)
+  const setCorner = (
+    corner: 'nw' | 'se',
+    key: 'lat' | 'lng',
+    value: number
+  ) => {
+    setAnnounceArea(true)
     setBox((current) => ({
       ...current,
       [corner]: { ...current[corner], [key]: value }
     }))
+  }
+  const setBoxFromMap = (next: { nw: LatLng; se: LatLng }) => {
+    setAnnounceArea(false)
+    setBox(next)
+  }
   const drawn: RectRegion = { type: 'rect', nw: box.nw, se: box.se }
   // Corners the right way round, even if they meet — which is what separates
   // "you dragged it backwards" from "you dragged it too small". Every box this
@@ -217,6 +238,11 @@ const RectComposer: FC<RectComposerProps> = ({
   // the row would be labelled as a small area while generating, displaying and
   // — through Share — publishing the actor's entire history.
   const valid = isSerializableRect(drawn)
+  const areaMessage = !inRange
+    ? 'Area must lie within ±90° latitude and ±180° longitude.'
+    : oriented
+      ? 'Area is too small — each side must span at least 0.01°.'
+      : 'Top-left must be north-west of bottom-right.'
 
   // Apple renders through MapKit JS (a separate draw surface); Mapbox when a
   // token is configured; otherwise the keyless MapLibre + OpenFreeMap provider.
@@ -265,7 +291,7 @@ const RectComposer: FC<RectComposerProps> = ({
       ) : glProvider ? (
         <RegionMap
           box={box}
-          onChange={setBox}
+          onChange={setBoxFromMap}
           loadModule={glProvider.loadModule}
           mapOptions={glProvider.mapOptions}
           providerLabel={glProvider.providerLabel}
@@ -276,7 +302,7 @@ const RectComposer: FC<RectComposerProps> = ({
       ) : (
         <RegionMapKit
           box={box}
-          onChange={setBox}
+          onChange={setBoxFromMap}
           centerOnUser={!initial}
           onUnavailable={() => setMapUnavailable(true)}
         />
@@ -293,6 +319,7 @@ const RectComposer: FC<RectComposerProps> = ({
           min={-90}
           max={90}
           suffix="°N"
+          describedBy={!valid ? areaErrorId : undefined}
           onChange={(value) => setCorner('nw', 'lat', value)}
         />
         <CoordField
@@ -302,6 +329,7 @@ const RectComposer: FC<RectComposerProps> = ({
           min={-180}
           max={180}
           suffix="°E"
+          describedBy={!valid ? areaErrorId : undefined}
           onChange={(value) => setCorner('nw', 'lng', value)}
         />
         <div className="col-span-2 mt-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -314,6 +342,7 @@ const RectComposer: FC<RectComposerProps> = ({
           min={-90}
           max={90}
           suffix="°N"
+          describedBy={!valid ? areaErrorId : undefined}
           onChange={(value) => setCorner('se', 'lat', value)}
         />
         <CoordField
@@ -323,19 +352,19 @@ const RectComposer: FC<RectComposerProps> = ({
           min={-180}
           max={180}
           suffix="°E"
+          describedBy={!valid ? areaErrorId : undefined}
           onChange={(value) => setCorner('se', 'lng', value)}
         />
       </div>
 
       {!valid && (
-        <p className="mt-2 text-[11px] text-destructive">
-          {!inRange
-            ? 'Area must lie within ±90° latitude and ±180° longitude.'
-            : oriented
-              ? 'Area is too small — each side must span at least 0.01°.'
-              : 'Top-left must be north-west of bottom-right.'}
+        <p id={areaErrorId} className="mt-2 text-xs text-destructive-text">
+          {areaMessage}
         </p>
       )}
+      <div aria-live="polite" className="sr-only">
+        {!valid && announceArea ? areaMessage : ''}
+      </div>
 
       <div className="mt-3 flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
@@ -366,8 +395,8 @@ const RegionStatus: FC<{ status: RegionDisplayStatus }> = ({ status }) => {
   switch (status.state) {
     case 'generating':
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400">
-          <Loader2 className="size-3 animate-spin" />
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-info-text">
+          <Hourglass className="size-3" />
           {status.progressPercent == null
             ? 'Generating…'
             : `Generating… ${status.progressPercent}%`}
@@ -375,21 +404,21 @@ const RegionStatus: FC<{ status: RegionDisplayStatus }> = ({ status }) => {
       )
     case 'pending':
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
           <Clock className="size-3" />
           Queued
         </span>
       )
     case 'failed':
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-destructive">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive-text">
           <AlertTriangle className="size-3" />
           Failed
         </span>
       )
     case 'partial':
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-500">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-warning-text">
           <AlertTriangle className="size-3" />
           {status.generatedLabel
             ? `Partial · ${status.generatedLabel}`
@@ -398,7 +427,7 @@ const RegionStatus: FC<{ status: RegionDisplayStatus }> = ({ status }) => {
       )
     case 'completed':
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-green-600 dark:text-green-500">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-success-text">
           <Check className="size-3" />
           {status.generatedLabel
             ? `Generated ${status.generatedLabel}`
@@ -407,14 +436,14 @@ const RegionStatus: FC<{ status: RegionDisplayStatus }> = ({ status }) => {
       )
     case 'cancelled':
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
           <Ban className="size-3" />
           Canceled
         </span>
       )
     default:
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
           <Clock className="size-3" />
           Not generated
         </span>

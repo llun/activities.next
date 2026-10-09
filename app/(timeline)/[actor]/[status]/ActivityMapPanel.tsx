@@ -33,6 +33,7 @@ import {
 import { ResizableMapContainer } from '@/lib/components/map/ResizableMapContainer'
 import { Media } from '@/lib/components/posts/media'
 import { Alert } from '@/lib/components/surface/Alert'
+import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import type { Attachment } from '@/lib/types/domain/attachment'
 import {
   type PublicMapProvider,
@@ -226,6 +227,12 @@ export interface ActivityMapPanelProps {
   routeDataError?: string | null
   isRouteDataLoading?: boolean
   interactive?: boolean
+  /**
+   * Whether the loading pill speaks as a polite status (default). A screen
+   * that already announces the same fetch elsewhere turns it off, so one load
+   * is one announcement.
+   */
+  announceLoading?: boolean
   onRequestInteractive?: () => void
   onOpenMap?: () => void
 }
@@ -242,6 +249,7 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
   routeDataError = null,
   isRouteDataLoading = false,
   interactive = true,
+  announceLoading = true,
   onRequestInteractive,
   onOpenMap
 }) => {
@@ -783,8 +791,14 @@ export const ActivityMapPanel: FC<ActivityMapPanelProps> = ({
       ) : null}
 
       {interactive && !shouldRenderInteractiveMap && isRouteDataLoading ? (
-        <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md border bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
-          Loading interactive route...
+        <div
+          role={announceLoading ? 'status' : undefined}
+          className="absolute left-1/2 top-3 -translate-x-1/2 rounded-md border bg-background/95 px-3 py-2 shadow-sm"
+        >
+          {announceLoading ? (
+            <span className="sr-only">Loading interactive route</span>
+          ) : null}
+          <SkeletonBar className="h-3 w-28" />
         </div>
       ) : null}
 

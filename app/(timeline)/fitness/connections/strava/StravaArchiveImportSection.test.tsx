@@ -511,7 +511,7 @@ describe('StravaArchiveImportSection', () => {
 
       expect(mockRetry).toHaveBeenCalledTimes(1)
       expect(
-        screen.getByText('Retrying Strava archive import...')
+        screen.getByText('Retrying Strava archive import…')
       ).toBeInTheDocument()
       expect(mockGetBatch).toHaveBeenCalledWith('batch-2')
       expect(screen.getByText('Batch: batch-2')).toBeInTheDocument()

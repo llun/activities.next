@@ -3,6 +3,7 @@
 import { Folder, Sparkles } from 'lucide-react'
 import { FC } from 'react'
 
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import type { GalleryAlbumSuggestionEntity } from '@/lib/services/gallery/galleryAlbumSuggestionEntities'
 import { cn } from '@/lib/utils'
@@ -48,22 +49,7 @@ export const GalleryAlbumSuggestionList: FC<Props> = ({
   }
 
   if (state.status === 'error') {
-    return (
-      <div className="space-y-2">
-        <p role="alert" className="text-destructive text-sm">
-          {state.message}
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="pointer-coarse:h-10"
-          onClick={onRetry}
-        >
-          Try again
-        </Button>
-      </div>
-    )
+    return <Alert title={state.message} onRetry={onRetry} />
   }
 
   if (state.suggestions.length === 0) {

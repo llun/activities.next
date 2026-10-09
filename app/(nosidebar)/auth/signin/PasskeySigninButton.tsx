@@ -121,7 +121,7 @@ export const PasskeySigninButton: FC<PasskeySigninButtonProps> = ({
         onClick={handlePasskeySignin}
         disabled={loading}
       >
-        {loading ? 'Signing in...' : 'Sign in with Passkey'}
+        {loading ? 'Signing in…' : 'Sign in with Passkey'}
       </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>

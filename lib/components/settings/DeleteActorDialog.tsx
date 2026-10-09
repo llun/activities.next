@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { deleteActor } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -88,17 +89,17 @@ export function DeleteActorDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
-            <p className="text-sm font-medium text-destructive-text">
-              Warning: All data will be permanently deleted
-            </p>
-            <ul className="mt-2 list-inside list-disc text-sm text-muted-foreground">
+          <Alert
+            live={false}
+            title="Warning: All data will be permanently deleted"
+          >
+            <ul className="mt-1 list-inside list-disc">
               <li>All posts and media</li>
               <li>All followers and following relationships</li>
               <li>All likes and notifications</li>
               <li>Profile information</li>
             </ul>
-          </div>
+          </Alert>
 
           <div className="space-y-3">
             <Label>When should this actor be deleted?</Label>
@@ -140,7 +141,7 @@ export function DeleteActorDialog({
             </RadioGroup>
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <Alert title={error} />}
         </div>
 
         <DialogFooter className="gap-2">
@@ -159,7 +160,7 @@ export function DeleteActorDialog({
             disabled={isLoading}
           >
             {isLoading
-              ? 'Deleting...'
+              ? 'Deleting…'
               : delayOption === 'delayed'
                 ? 'Schedule Deletion'
                 : 'Delete Now'}

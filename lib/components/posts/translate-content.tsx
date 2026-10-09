@@ -1,8 +1,9 @@
 'use client'
 
-import { AlertTriangle, ChevronDown, Languages, Loader } from 'lucide-react'
+import { ChevronDown, Languages, Loader } from 'lucide-react'
 import { FC, ReactNode } from 'react'
 
+import { Alert } from '@/lib/components/surface/Alert'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -110,7 +111,10 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
       )}
 
       {state === 'loading' && (
-        <span
+        <button
+          type="button"
+          disabled
+          aria-busy="true"
           className="inline-flex min-h-8 -my-1 items-center gap-1.5 py-1 font-medium text-muted-foreground"
           aria-live="polite"
         >
@@ -118,7 +122,7 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
               open-arc `LoaderCircle`. */}
           <Loader className="size-3.5 animate-spin" aria-hidden="true" />
           Translating to {displayLanguageName(target ?? '')}…
-        </span>
+        </button>
       )}
 
       {state === 'translated' && (
@@ -162,22 +166,11 @@ export const TranslateControl: FC<{ translation: StatusTranslation }> = ({
       )}
 
       {state === 'error' && (
-        <div
-          className="flex flex-wrap items-center gap-x-2.5 gap-y-1"
-          aria-live="polite"
-        >
-          <span className="inline-flex items-center gap-1.5 text-destructive">
-            <AlertTriangle className="size-3.5 shrink-0" />
-            Couldn&apos;t translate this post
-          </span>
-          <button
-            type="button"
-            onClick={() => request()}
-            className="min-h-8 -my-1 py-1 font-medium text-primary-text transition-colors hover:underline"
-          >
-            Try again
-          </button>
-        </div>
+        <Alert
+          className="mt-1"
+          title="Couldn’t translate this post"
+          onRetry={() => request()}
+        />
       )}
     </div>
   )

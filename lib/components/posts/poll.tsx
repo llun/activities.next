@@ -6,6 +6,7 @@ import { FC, useEffect, useState } from 'react'
 
 import { votePoll } from '@/lib/client'
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Status, StatusType } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 
@@ -246,7 +247,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
             disabled={isVoting || selectedChoices.length === 0}
             className="h-8 shrink-0 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isVoting ? 'Voting...' : 'Vote'}
+            {isVoting ? 'Voting…' : 'Vote'}
           </button>
           {meta}
         </div>
@@ -254,11 +255,7 @@ export const Poll: FC<Props> = ({ status, currentTime, currentActorId }) => {
         <div className="mt-2">{meta}</div>
       )}
 
-      {voteError ? (
-        <p className="mt-2 text-sm text-destructive" role="alert">
-          {voteError}
-        </p>
-      ) : null}
+      {voteError ? <Alert title={voteError} className="mt-2" /> : null}
     </div>
   )
 }

@@ -1,6 +1,5 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 
 import {
@@ -16,6 +15,7 @@ import {
 } from '@/lib/components/fitness/mapkitSurface'
 import { createGalleryMarkerElement } from '@/lib/components/gallery/galleryMapMarker'
 import { getPointBounds } from '@/lib/components/gallery/galleryPlaces'
+import { MapLoadingOverlay } from '@/lib/components/map/MapLoadingOverlay'
 import type { GalleryMapPoint } from '@/lib/services/gallery/galleryEntities'
 
 /** MapKit clusters annotations that share this identifier. */
@@ -241,12 +241,7 @@ export const GalleryMapKit: FC<GalleryMapKitProps> = ({
     <>
       <div ref={containerRef} className="h-full w-full" />
       {!isReady ? (
-        <div
-          role="status"
-          className="bg-background/60 text-muted-foreground absolute inset-0 flex items-center justify-center gap-2 text-sm"
-        >
-          <Loader2 className="size-4 animate-spin" /> Loading map…
-        </div>
+        <MapLoadingOverlay />
       ) : (
         <span className="bg-background/90 text-muted-foreground pointer-events-none absolute top-2 left-2 rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm">
           {APPLE_MAPS_LABEL}

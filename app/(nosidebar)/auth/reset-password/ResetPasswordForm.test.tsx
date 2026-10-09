@@ -232,7 +232,7 @@ describe('ResetPasswordForm', () => {
     fireEvent.click(submitButton)
 
     expect(submitButton).toBeDisabled()
-    expect(screen.getByText('Resetting...')).toBeInTheDocument()
+    expect(screen.getByText('Resetting…')).toBeInTheDocument()
     expect(mockResetPassword).toHaveBeenCalledTimes(1)
 
     // Attempt second submit while in flight

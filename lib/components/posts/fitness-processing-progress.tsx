@@ -1,6 +1,5 @@
 'use client'
 
-import { LoaderCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
 
@@ -19,7 +18,7 @@ interface Props {
 // A single fitness file is processed by one async job (parse + map render), so
 // there is no real percentage to report. Instead we surface the coarse stage
 // derived from the file's processing status, which reads as forward progress
-// while the spinner conveys liveness.
+// while the polite status line conveys liveness.
 const STAGES: Record<
   Extract<ProcessingStatus, 'pending' | 'processing'>,
   { label: string; percent: number }
@@ -96,10 +95,7 @@ export const FitnessProcessingProgress: FC<Props> = ({
       role="status"
       aria-live="polite"
     >
-      <div className="inline-flex items-center gap-2 text-muted-foreground">
-        <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-        <span>{stage.label}…</span>
-      </div>
+      <div className="text-muted-foreground">{stage.label}…</div>
       <Progress value={stage.percent} className="h-1" />
     </div>
   )

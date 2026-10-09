@@ -222,7 +222,7 @@ describe('GalleryAddToAlbumDialog', () => {
     renderDialog()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Server is down')
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(await screen.findAllByRole('radio')).toHaveLength(3)
   })

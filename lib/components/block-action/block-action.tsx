@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
 import { block as blockAccount, unblock as unblockAccount } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -88,11 +89,7 @@ export const BlockAction: FC<BlockActionProps> = ({
           {isSubmitting ? <Loader2 className="animate-spin" /> : <Ban />}
           Unblock
         </Button>
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
+        {error ? <Alert title={error} /> : null}
       </div>
     )
   }
@@ -125,11 +122,7 @@ export const BlockAction: FC<BlockActionProps> = ({
             actor from your timelines.
           </DialogDescription>
         </DialogHeader>
-        {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
+        {error ? <Alert title={error} /> : null}
         <DialogFooter>
           <Button
             type="button"

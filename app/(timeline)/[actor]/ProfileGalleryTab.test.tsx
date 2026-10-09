@@ -175,6 +175,40 @@ describe('ProfileGalleryTab', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Nope')
   })
 
+  it('keeps a network failure out of the message and shows a server reason under it', async () => {
+    getGallerySubjectsMock.mockRejectedValueOnce(
+      new TypeError('Failed to fetch')
+    )
+    const { unmount } = renderTab()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Failed to load subjects.')
+    expect(alert).not.toHaveTextContent('Failed to fetch')
+    unmount()
+
+    getGallerySubjectsMock.mockRejectedValueOnce(new Error('Rate limited'))
+    renderTab()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to load subjects.'
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('Rate limited')
+  })
+
+  it('loads the panel again when Retry is pressed after a failure', async () => {
+    getGallerySubjectsMock
+      .mockRejectedValueOnce(new Error('Nope'))
+      .mockResolvedValueOnce(subjects)
+    renderTab()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Nope')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(
+      await screen.findByRole('region', { name: 'Birds' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(getGallerySubjectsMock).toHaveBeenCalledTimes(2)
+  })
+
   it('filters in place to one subject, with a chip that goes back', async () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /Kingfisher/ }))

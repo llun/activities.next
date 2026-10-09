@@ -397,9 +397,7 @@ describe('StravaSettingsForm', () => {
 
       fireEvent.click(screen.getByRole('button', { name: /save and connect/i }))
 
-      expect(
-        screen.getByRole('button', { name: /saving\.\.\./i })
-      ).toBeDisabled()
+      expect(screen.getByRole('button', { name: /saving…/i })).toBeDisabled()
 
       resolveSave!({ success: true, message: 'Saved!' })
 
@@ -432,7 +430,7 @@ describe('StravaSettingsForm', () => {
       fireEvent.click(screen.getByRole('button', { name: /save and connect/i }))
 
       expect(
-        await screen.findByText('Redirecting to Strava for authorization...')
+        await screen.findByText('Redirecting to Strava for authorization…')
       ).toBeInTheDocument()
       expect(locationHref).toBe('/api/v1/fitness/strava/authorize')
     })

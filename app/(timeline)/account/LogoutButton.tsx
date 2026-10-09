@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
 
@@ -31,7 +32,7 @@ export const LogoutButton = ({ describedBy }: { describedBy?: string }) => {
       >
         Logout
       </Button>
-      {error && <p className="text-destructive-text text-sm">{error}</p>}
+      {error && <Alert title={error} />}
     </div>
   )
 }
