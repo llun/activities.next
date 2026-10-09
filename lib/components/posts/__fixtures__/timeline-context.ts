@@ -210,6 +210,25 @@ export const createMockNote = (
   }
 }
 
+/** A photo attached to a status, opening as "Open media: <name>". */
+export const createMockPhoto = (
+  status: { id: string; actorId: string },
+  name: string
+): StatusNote['attachments'][number] => ({
+  id: `attachment-${name}`,
+  actorId: status.actorId,
+  statusId: status.id,
+  type: 'Document',
+  mediaType: 'image/jpeg',
+  url: `https://activities.local/media/${encodeURIComponent(name)}.jpg`,
+  mediaId: `media-${name}`,
+  name,
+  width: 800,
+  height: 600,
+  createdAt: BASE_TIME,
+  updatedAt: BASE_TIME
+})
+
 export const createMockPoll = (
   params: Partial<StatusPoll> & { id: string }
 ): StatusPoll => {

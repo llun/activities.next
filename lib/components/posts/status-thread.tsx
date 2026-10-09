@@ -4,6 +4,7 @@ import { AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
+import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
@@ -68,6 +69,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
     medias: Attachment[]
     tags?: Tag[]
     initialSelection: number
+    /** The viewer's actor id when the post is their own (the albums pill). */
+    albumsOwnerId: string | null
   } | null>(null)
 
   const [locallyCreatedReplies, setLocallyCreatedReplies] = useState<Status[]>(
@@ -302,7 +305,8 @@ export const StatusThread: FC<StatusThreadProps> = ({
                 setModalMedias({
                   medias: allMedias,
                   tags: actualStatus.tags,
-                  initialSelection: index
+                  initialSelection: index,
+                  albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
                 })
               }}
             />
@@ -444,7 +448,11 @@ export const StatusThread: FC<StatusThreadProps> = ({
                       setModalMedias({
                         medias: allMedias,
                         tags: actualAncestor.tags,
-                        initialSelection: idx
+                        initialSelection: idx,
+                        albumsOwnerId: getAlbumsOwnerId(
+                          currentActor,
+                          actualAncestor
+                        )
                       })
                     }}
                   />
@@ -527,7 +535,11 @@ export const StatusThread: FC<StatusThreadProps> = ({
               setModalMedias({
                 medias: allMedias,
                 tags: actualFocusedStatus.tags,
-                initialSelection: index
+                initialSelection: index,
+                albumsOwnerId: getAlbumsOwnerId(
+                  currentActor,
+                  actualFocusedStatus
+                )
               })
             }}
           />
@@ -595,6 +607,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         medias={modalMedias?.medias ?? null}
         tags={modalMedias?.tags ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}
+        albumsOwnerId={modalMedias?.albumsOwnerId}
         onClosed={() => setModalMedias(null)}
       />
 
