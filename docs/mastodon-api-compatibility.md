@@ -64,17 +64,32 @@ product or security decision, not a gap to be closed.
 
   Ids minted before this were rewritten by the
   `20261009163215_time_ordered_notification_ids` migration, which also
-  repointed the stored `notifications` marker. The previous build keeps minting
-  v4 ids while that migration runs ahead of the rollout, and those leftovers do
-  **not** age out: a v4 id almost always sorts above every v7 id, so an
-  id-ordering client pins it to the top of the list for good and may set its
-  read marker to it, making every newer notification look read. Run the
+  repointed the stored `notifications` marker. A `notifications` marker left on
+  a v4 id that names no notification at all (it was dismissed or cleared
+  first) is reset to the highest UUIDv7 for the millisecond the marker was last
+  written (`xxxxxxxx-xxxx-7fff-bfff-ffffffffffff`, the timestamp then every
+  other bit set), so it still reads as "read up to then" instead of sorting
+  above every new notification. The previous build keeps minting v4 ids while
+  that migration runs ahead of the rollout, and those leftovers do **not** age
+  out: a v4 id almost always sorts above every v7 id, so an id-ordering client
+  pins it to the top of the list for good and may set its read marker to it,
+  making every newer notification look read. Run the
   [Notification ID Rewrite](./maintenance.md#notification-id-rewrite) once the
-  rollout completes to rewrite them. As a backstop, `POST /api/v1/markers` only
-  moves the `notifications` marker to a UUIDv7 or to one of the caller's own
-  notifications; any other `last_read_id` leaves the stored marker unchanged
-  and the response reports the stored one (no error), so a client with a stale
-  cache cannot poison it.
+  rollout completes to rewrite them (it repairs orphan markers the same way).
+
+  As a backstop, `POST /api/v1/markers` only moves the `notifications` marker
+  to:
+  - a UUIDv7, stored lowercased;
+  - one of the caller's own notifications, stored as given;
+  - an all-digit epoch-ms value between 2000-01-01 and one day from now, which
+    is stored as the highest UUIDv7 for that millisecond. This is what
+    grouped-notification clients send back: Phanpy posts
+    `'' + most_recent_notification_id`, which this server emits as epoch ms
+    (see below).
+
+  Any other `last_read_id` leaves the stored marker unchanged with no error: the
+  response reports the stored marker, or omits the `notifications` key when
+  none is stored. A client with a stale cache therefore cannot poison it.
 
   Ids a client cached before the rewrite no longer resolve — there is no alias
   from an old id to its new one, and notification ids have no legacy-form
@@ -316,8 +331,11 @@ product or security decision, not a gap to be closed.
   UUIDv7 strings (see **Notification ids are time-ordered UUIDv7s** above),
   which can't be numbers, so it emits a deterministic integer derived from the
   group's most-recent notification `createdAt` (epoch ms) — the same
-  millisecond that notification's UUIDv7 encodes. This value is display-only —
-  clients never send it back as a cursor. Pagination uses the `Link` header and
+  millisecond that notification's UUIDv7 encodes. It is never a cursor, but
+  some clients do send it back as a read marker: Phanpy posts it as the
+  `notifications` marker's `last_read_id`, and `POST /api/v1/markers` stores an
+  epoch-ms value as the highest UUIDv7 for that millisecond, so it compares
+  correctly against real notification ids. Pagination uses the `Link` header and
   the string `page_min_id` / `page_max_id`, which stay real UUID cursors the
   server can resolve. Do **not** "fix" `most_recent_notification_id` back to the
   UUID string: that re-crashes the Mastodon iOS decoder. Unlike Mastodon's

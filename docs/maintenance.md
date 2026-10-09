@@ -405,7 +405,11 @@ code at `1`.
 The `rewriteNotificationIds.ts` script rewrites every notification id that is
 not time-ordered (a random UUIDv4, from before notifications got UUIDv7 ids)
 into a UUIDv7 minted from the row's `createdAt`, and repoints the
-`notifications` read marker that named it. It runs the same code as the
+`notifications` read marker that named it. A `notifications` marker left on a
+non-v7 id that names no notification (dismissed or cleared before the rewrite)
+is reset to the highest UUIDv7 for the millisecond the marker was last
+written, so it does not sort above every new notification. It runs the same
+code as the
 `20261009163215_time_ordered_notification_ids` migration
 (`lib/database/sql/notificationIdRewrite.js`).
 
@@ -446,16 +450,18 @@ NODE_ENV=production ./scripts/maintenance/rewriteNotificationIds.ts --batch-size
 
 ### Options
 
-- `--dry-run [true|false]` - Count the ids that would be rewritten without writing anything
+- `--dry-run [true|false]` - Count the ids and orphan markers that would be rewritten without writing anything
 - `--batch-size <n>` - Rows read per pass (default 500)
 - `--help` - Display help message
 
 ### Output and exit code
 
 The script reports how many notifications it scanned, how many ids it
-rewrote, how many markers it repointed, and how many ids are still not
-time-ordered. **Exit code `0` means every notification id is time-ordered.**
-`1` means some are not, including in `--dry-run`, where nothing was written. If
+rewrote, how many markers it repointed or reset, and how many ids and orphan
+markers are left. **Exit code `0` means every notification id is time-ordered
+and no `notifications` marker is left on a non-v7 id that names no
+notification.** `1` means something is left, including in `--dry-run`, where
+nothing was written. If
 a live run still exits `1`, a pod of the previous build is probably still
 serving: finish the rollout and run it again.
 

@@ -24,6 +24,7 @@ describe('rewriteNotificationIds runRewrite', () => {
       table.string('actorId').notNullable()
       table.string('timeline').notNullable()
       table.text('lastReadId').notNullable()
+      table.datetime('updatedAt').notNullable().defaultTo(database.fn.now())
     })
     // A row the previous build wrote during the rollout, and the marker an
     // id-ordering client moved onto it.
@@ -52,6 +53,22 @@ describe('rewriteNotificationIds runRewrite', () => {
 
     const [row] = await database('notifications').select('id')
     expect(row.id).toBe('f0000000-0000-4000-8000-000000000000')
+  })
+
+  it('counts an orphan notifications marker toward a dry-run exit 1', async () => {
+    await database('notifications').delete()
+    await database('markers').update({
+      lastReadId: 'e0000000-0000-4000-8000-000000000000'
+    })
+
+    await expect(
+      runRewrite(database, { dryRun: true, batchSize: 500 })
+    ).resolves.toBe(1)
+    await expect(
+      runRewrite(database, { dryRun: false, batchSize: 500 })
+    ).resolves.toBe(0)
+    const [marker] = await database('markers').select('lastReadId')
+    expect(isPublicId(marker.lastReadId)).toBe(true)
   })
 
   it('rewrites the leftovers, repoints the marker and exits 0', async () => {

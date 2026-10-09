@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server'
 
+import { getMaxTimeOrderedIdForMs } from '@/lib/database/sql/notificationIdRewrite.js'
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
 import { NotificationType } from '@/lib/types/database/operations'
+import { isPublicId } from '@/lib/utils/publicId'
 
 import { GET, POST } from './route'
 
@@ -170,6 +172,51 @@ describe('/api/v1/markers', () => {
       const response = await postNotificationsMarker(id)
       expect(response.status).toBe(200)
       expect((await response.json()).notifications.last_read_id).toBe(id)
+    })
+
+    it('accepts a form-encoded notifications[last_read_id]', async () => {
+      const id = '019a0000-0000-7000-8000-000000000003'
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/markers', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            origin: 'https://llun.test'
+          },
+          body: new URLSearchParams({ 'notifications[last_read_id]': id })
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+      expect((await response.json()).notifications).toEqual(
+        expect.objectContaining({ last_read_id: id })
+      )
+    })
+
+    it('stores an uppercased UUIDv7 in lowercase', async () => {
+      const id = '019A0000-0000-7000-8000-00000000000A'
+      const response = await postNotificationsMarker(id)
+      expect((await response.json()).notifications.last_read_id).toBe(
+        id.toLowerCase()
+      )
+    })
+
+    it('stores an epoch-ms most_recent_notification_id as the newest v7 id of that millisecond', async () => {
+      // Phanpy posts `'' + most_recent_notification_id`, which this server
+      // emits as the group's newest createdAt in epoch ms.
+      const createdAt = Date.UTC(2026, 9, 9, 12, 0, 0, 123)
+      const response = await postNotificationsMarker(String(createdAt))
+
+      const expected = getMaxTimeOrderedIdForMs(createdAt)
+      expect(expected).toBe('01a12088-d27b-7fff-bfff-ffffffffffff')
+      expect(isPublicId(expected)).toBe(true)
+      expect((await response.json()).notifications.last_read_id).toBe(expected)
+    })
+
+    it('rejects an all-digit value that is not a plausible epoch ms', async () => {
+      const response = await postNotificationsMarker('9999')
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({})
     })
 
     it("accepts a non-v7 id naming one of the caller's own notifications", async () => {

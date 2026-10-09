@@ -19,7 +19,12 @@
  * already v7 are never touched, so a second run over a clean database is a
  * no-op, and each chunk commits in its own short transaction.
  *
- * EXIT CODE. 0 only when no notification is left with a non-time-ordered id. 1
+ * It also resets notifications markers left on a non-v7 id that names no
+ * notification (dismissed or cleared earlier) to the highest v7 id for the
+ * millisecond the marker was last written.
+ *
+ * EXIT CODE. 0 only when no notification is left with a non-time-ordered id and
+ * no notifications marker is left on a non-v7 id that names no notification. 1
  * otherwise, including in `--dry-run`, where nothing was written.
  *
  * Usage:
@@ -57,29 +62,36 @@ export const runRewrite = async (
     dryRun,
     log
   })
-  const remaining = dryRun
-    ? result.pending
-    : (await rewriteNotificationIds(database, { batchSize, dryRun: true }))
-        .pending
+  const after = dryRun
+    ? result
+    : await rewriteNotificationIds(database, { batchSize, dryRun: true })
+  const remaining = after.pending
+  const orphanMarkers = after.orphanMarkers
 
   console.log('\nSummary')
   console.log(
     `  notifications: ${result.scanned} scanned, ${result.rewritten} rewritten, ` +
       `${result.markers} marker(s) repointed, ${remaining} still not time-ordered`
   )
+  console.log(
+    `  markers: ${dryRun ? 0 : result.orphanMarkers} orphan notifications marker(s) reset, ` +
+      `${orphanMarkers} still on an id that names no notification`
+  )
 
-  if (remaining === 0) {
-    console.log('\nEvery notification id is time-ordered.')
+  if (remaining === 0 && orphanMarkers === 0) {
+    console.log(
+      '\nEvery notification id and notifications marker is time-ordered.'
+    )
     return 0
   }
   if (dryRun) {
     console.log(
-      `\nDry run: ${remaining} id(s) would be rewritten. Re-run without --dry-run.`
+      `\nDry run: ${remaining} id(s) would be rewritten and ${orphanMarkers} orphan marker(s) reset. Re-run without --dry-run.`
     )
     return 1
   }
   console.log(
-    `\n${remaining} id(s) are still not time-ordered.\n` +
+    `\n${remaining} id(s) are still not time-ordered and ${orphanMarkers} orphan marker(s) remain.\n` +
       'If a pod of the previous build is still serving, finish the rollout and run this again.'
   )
   return 1

@@ -16,7 +16,9 @@ import { rewriteNotificationIds } from '../lib/database/sql/notificationIdRewrit
  * this migration brings the existing rows into line.
  *
  * WHAT ELSE STORES A NOTIFICATION ID. Only `markers.lastReadId` for the
- * `notifications` timeline. A notification's group key falls back to its id
+ * `notifications` timeline. A marker on a rewritten row follows it; a marker on
+ * a non-v7 id that names no notification (dismissed or cleared earlier) is
+ * reset to the highest v7 id for the millisecond it was last written. A notification's group key falls back to its id
  * (`groupKey || id`, `ungrouped-<id>`) only when it is serialized; nothing
  * persists that fallback, so there is nothing else to repoint.
  *
@@ -53,12 +55,15 @@ export const up = async function (knex) {
     `Rewriting notification ids for ${Number(totalResult.cnt)} notifications...`
   )
 
-  const { rewritten, markers } = await rewriteNotificationIds(knex, {
-    log: (message) => console.log(message)
-  })
+  const { rewritten, markers, orphanMarkers } = await rewriteNotificationIds(
+    knex,
+    {
+      log: (message) => console.log(message)
+    }
+  )
 
   console.log(
-    `Done. notifications: ${rewritten} id(s) rewritten to UUIDv7, ${markers} notifications marker(s) repointed.`
+    `Done. notifications: ${rewritten} id(s) rewritten to UUIDv7, ${markers} notifications marker(s) repointed, ${orphanMarkers} orphan notifications marker(s) reset.`
   )
   console.log(
     '  The previous build keeps writing random (v4) notification ids until the rollout completes, and those sort above every time-ordered id in clients that order by id.'

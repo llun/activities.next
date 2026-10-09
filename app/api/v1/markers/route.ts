@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { getMaxTimeOrderedIdForMs } from '@/lib/database/sql/notificationIdRewrite.js'
 import { Database } from '@/lib/database/types'
 import {
   OAuthGuardAnyScope,
@@ -13,7 +14,7 @@ import {
   readRequestBodyWithLimit
 } from '@/lib/utils/boundedRequestBody'
 import { HttpMethod } from '@/lib/utils/http-headers'
-import { isPublicId } from '@/lib/utils/publicId'
+import { isPublicId, toPublicIdLookupKey } from '@/lib/utils/publicId'
 import { ERROR_413, apiResponse, defaultOptions } from '@/lib/utils/response'
 import { traceApiRoute } from '@/lib/utils/traceApiRoute'
 
@@ -72,25 +73,43 @@ export const GET = traceApiRoute(
 
 // Notification ids are time-ordered UUIDv7s, and clients compare the
 // notifications marker against them by id. A client still holding ids cached
-// before the time-ordered-ids migration (or one of the few random v4 ids the
-// previous build wrote during the rollout, since rewritten) would otherwise
-// move the marker to a v4 id that sorts above every real notification, making
-// everything newer look read. So the notifications marker only moves to a
-// UUIDv7 or to one of the caller's own notifications; anything else leaves the
-// stored marker as it is, and the response reports that stored marker.
-const isAcceptedNotificationsMarker = async (
+// before the time-ordered-ids migration would otherwise move the marker to a
+// v4 id that sorts above every real notification, making everything newer look
+// read. So the notifications marker only moves to:
+// - a UUIDv7, stored lowercased (the case generatePublicId mints);
+// - one of the caller's own notifications, stored as given;
+// - an all-digit epoch-ms value, which is what grouped-notification clients
+//   such as Phanpy send back: they post `'' + most_recent_notification_id`,
+//   and this server emits that field as the group's newest createdAt in epoch
+//   ms (see getNotificationGroup.ts). It is stored as the highest UUIDv7 for
+//   that millisecond, i.e. "read up to and including then".
+// Anything else returns null: the stored marker is left as it is, and the
+// response reports that stored marker (or omits the key when there is none).
+const MIN_MARKER_EPOCH_MS = Date.UTC(2000, 0, 1)
+const MARKER_EPOCH_MS_FUTURE_SLACK = 24 * 60 * 60 * 1000
+
+const resolveNotificationsMarkerId = async (
   database: Pick<Database, 'getNotifications'>,
   actorId: string,
   lastReadId: string
-): Promise<boolean> => {
-  if (isPublicId(lastReadId)) return true
+): Promise<string | null> => {
+  if (/^\d{1,15}$/.test(lastReadId)) {
+    const msecs = Number(lastReadId)
+    if (
+      msecs >= MIN_MARKER_EPOCH_MS &&
+      msecs <= Date.now() + MARKER_EPOCH_MS_FUTURE_SLACK
+    ) {
+      return getMaxTimeOrderedIdForMs(msecs)
+    }
+  }
+  if (isPublicId(lastReadId)) return toPublicIdLookupKey(lastReadId)
   const [notification] = await database.getNotifications({
     actorId,
     ids: [lastReadId],
     limit: 1,
     includeFiltered: true
   })
-  return Boolean(notification)
+  return notification ? lastReadId : null
 }
 
 const parseBody = async (req: Request): Promise<unknown> => {
@@ -165,14 +184,15 @@ export const POST = traceApiRoute(
       for (const timeline of TIMELINES) {
         const input = parsed.data[timeline]
         if (!input) continue
-        if (
-          timeline === 'notifications' &&
-          !(await isAcceptedNotificationsMarker(
-            database,
-            currentActor.id,
-            input.last_read_id
-          ))
-        ) {
+        const lastReadId =
+          timeline === 'notifications'
+            ? await resolveNotificationsMarkerId(
+                database,
+                currentActor.id,
+                input.last_read_id
+              )
+            : input.last_read_id
+        if (lastReadId === null) {
           written.push(
             ...(await database.getMarkers({
               actorId: currentActor.id,
@@ -185,7 +205,7 @@ export const POST = traceApiRoute(
           await database.upsertMarker({
             actorId: currentActor.id,
             timeline,
-            lastReadId: input.last_read_id
+            lastReadId
           })
         )
       }

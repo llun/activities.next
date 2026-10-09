@@ -1,7 +1,14 @@
 import knex from 'knex'
 
-import { rewriteNotificationIds } from '@/lib/database/sql/notificationIdRewrite.js'
-import { getPublicIdTimestamp, isPublicId } from '@/lib/utils/publicId'
+import {
+  getMaxTimeOrderedIdForMs,
+  rewriteNotificationIds
+} from '@/lib/database/sql/notificationIdRewrite.js'
+import {
+  generatePublicId,
+  getPublicIdTimestamp,
+  isPublicId
+} from '@/lib/utils/publicId'
 import * as migration from '@/migrations/20261009163215_time_ordered_notification_ids'
 
 describe('time-ordered notification ids migration', () => {
@@ -24,6 +31,7 @@ describe('time-ordered notification ids migration', () => {
       table.string('actorId').notNullable()
       table.string('timeline').notNullable()
       table.text('lastReadId').notNullable()
+      table.datetime('updatedAt').notNullable().defaultTo(database.fn.now())
     })
   })
 
@@ -196,6 +204,84 @@ describe('time-ordered notification ids migration', () => {
       { id: 'marker-a', lastReadId: await idCreatedAt(firstChunkCreatedAt) },
       { id: 'marker-b', lastReadId: await idCreatedAt(thirdChunkCreatedAt) }
     ])
+  })
+
+  it('resets a notifications marker whose non-v7 id names no notification', async () => {
+    const rowId = 'f0000000-0000-4000-8000-000000000001'
+    const rowCreatedAt = Date.UTC(2026, 8, 1)
+    await database('notifications').insert({
+      id: rowId,
+      actorId,
+      createdAt: rowCreatedAt
+    })
+    // Its notification was dismissed before the rewrite; the marker was last
+    // written by SQLite's CURRENT_TIMESTAMP default (a naive UTC string).
+    const orphanId = 'e0000000-0000-4000-8000-000000000002'
+    const untouchedV7 = '019a0000-0000-7000-8000-000000000003'
+    await database('markers').insert([
+      {
+        id: 'marker-row',
+        actorId,
+        timeline: 'notifications',
+        lastReadId: rowId,
+        updatedAt: Date.UTC(2026, 9, 2)
+      },
+      {
+        id: 'marker-orphan',
+        actorId: 'https://llun.test/users/b',
+        timeline: 'notifications',
+        lastReadId: orphanId,
+        updatedAt: '2026-10-01 08:09:10'
+      },
+      {
+        id: 'marker-v7',
+        actorId: 'https://llun.test/users/c',
+        timeline: 'notifications',
+        lastReadId: untouchedV7,
+        updatedAt: Date.UTC(2026, 9, 2)
+      },
+      {
+        id: 'marker-home',
+        actorId,
+        timeline: 'home',
+        lastReadId: orphanId,
+        updatedAt: Date.UTC(2026, 9, 2)
+      }
+    ])
+
+    // A dry run counts the orphan (the marker on the existing row is not one)
+    // and changes nothing.
+    await expect(
+      rewriteNotificationIds(database, { dryRun: true })
+    ).resolves.toMatchObject({ pending: 1, orphanMarkers: 1 })
+    await expect(
+      database('markers').where('id', 'marker-orphan').first()
+    ).resolves.toMatchObject({ lastReadId: orphanId })
+
+    await migration.up(database)
+
+    const markers = await database('markers')
+      .select('id', 'lastReadId')
+      .orderBy('id')
+    const repaired = getMaxTimeOrderedIdForMs(Date.UTC(2026, 9, 1, 8, 9, 10))
+    expect(isPublicId(repaired)).toBe(true)
+    expect(markers).toEqual([
+      { id: 'marker-home', lastReadId: orphanId },
+      { id: 'marker-orphan', lastReadId: repaired },
+      { id: 'marker-row', lastReadId: await idCreatedAt(rowCreatedAt) },
+      { id: 'marker-v7', lastReadId: untouchedV7 }
+    ])
+    await expect(
+      rewriteNotificationIds(database, { dryRun: true })
+    ).resolves.toMatchObject({ pending: 0, orphanMarkers: 0 })
+  })
+
+  it('makes the reset marker sort above every notification of its millisecond and below later ones', () => {
+    const msecs = Date.UTC(2026, 9, 1, 8, 9, 10, 5)
+    const marker = getMaxTimeOrderedIdForMs(msecs)
+    const sameMs = Array.from({ length: 50 }, () => generatePublicId(msecs))
+    expect(sameMs.every((id) => id <= marker)).toBe(true)
+    expect(generatePublicId(msecs + 1) > marker).toBe(true)
   })
 
   it('leaves v7 ids alone, so a re-run is a no-op', async () => {
