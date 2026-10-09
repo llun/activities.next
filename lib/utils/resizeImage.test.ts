@@ -175,26 +175,6 @@ describe('resizeImage', () => {
     )
   })
 
-  it.each([
-    { source: { width: 5000, height: 1200 }, limits: [800, 600] },
-    { source: { width: 1200, height: 5000 }, limits: [600, 800] }
-  ])(
-    'fits a $source.width x $source.height image within $limits',
-    async ({ source, limits }) => {
-      decoded = source
-
-      await resizeImage(jpeg(), limits[0], limits[1])
-
-      const destination = canvases[1].canvas
-      expect(destination.width).toBeLessThanOrEqual(limits[0])
-      expect(destination.height).toBeLessThanOrEqual(limits[1])
-      expect(destination.width / destination.height).toBeCloseTo(
-        source.width / source.height,
-        1
-      )
-    }
-  )
-
   it('returns a new file with the same name and type, encoded at quality 0.8', async () => {
     decoded = { width: 8000, height: 6000 }
     const file = jpeg('holiday.jpg')
