@@ -38,8 +38,9 @@ export const MarkerSQLDatabaseMixin = (database: Knex): MarkerDatabase => ({
   },
 
   async upsertMarker({ actorId, timeline, lastReadId }: UpsertMarkerParams) {
-    // Marker ids in this system are opaque strings / UUIDs (crypto.randomUUID(),
-    // a UUIDv7 publicId, or the legacy urlToId base64url/colon encoding) — a MIX
+    // Marker ids in this system are opaque strings / UUIDs (a UUIDv7 status
+    // publicId or notification id, a v4 notification id written before ids
+    // were time-ordered, or the legacy urlToId base64url/colon encoding) — a MIX
     // of forms, never numeric snowflakes, so a stored value cannot be compared
     // for ordering against the next one even when one of those forms happens to
     // sort by time. Id-comparison monotonicity is therefore unsound and can

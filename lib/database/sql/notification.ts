@@ -16,6 +16,7 @@ import {
   ResolveNotificationRequestsParams,
   UpdateNotificationParams
 } from '@/lib/types/database/operations'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 const fixNotificationDataDate = (data: Notification): Notification => ({
   ...data,
@@ -56,7 +57,12 @@ export const NotificationSQLDatabaseMixin = (
   }: CreateNotificationParams) {
     const currentTime = new Date()
     const notification: Notification = {
-      id: crypto.randomUUID(),
+      // Mastodon notification ids are time-ordered snowflakes, and clients
+      // (Ivory, for one) sort the notification list and compare the
+      // notifications read marker by id. A UUIDv7 minted from createdAt sorts
+      // the same way as a string, so the id order always matches the
+      // (createdAt, id) order getNotifications pages by.
+      id: generatePublicId(currentTime.getTime()),
       actorId,
       type,
       sourceActorId,

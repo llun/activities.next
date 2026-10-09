@@ -1,9 +1,12 @@
 import { NextRequest } from 'next/server'
 
+import { getMaxTimeOrderedIdForMs } from '@/lib/database/sql/notificationIdRewrite.js'
 import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
 import { seedDatabase } from '@/lib/stub/database'
-import { seedActor1 } from '@/lib/stub/seed/actor1'
-import { seedActor2 } from '@/lib/stub/seed/actor2'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import { ACTOR2_ID, seedActor2 } from '@/lib/stub/seed/actor2'
+import { NotificationType } from '@/lib/types/database/operations'
+import { isPublicId } from '@/lib/utils/publicId'
 
 import { GET, POST } from './route'
 
@@ -78,13 +81,13 @@ describe('/api/v1/markers', () => {
           'content-type': 'application/x-www-form-urlencoded',
           origin: 'https://llun.test'
         },
-        body: new URLSearchParams({ 'notifications[last_read_id]': '9999' })
+        body: new URLSearchParams({ 'home[last_read_id]': '9999' })
       }),
       { params: Promise.resolve({}) }
     )
     expect(formResponse.status).toBe(200)
     const formPosted = await formResponse.json()
-    expect(formPosted.notifications).toEqual(
+    expect(formPosted.home).toEqual(
       expect.objectContaining({ last_read_id: '9999' })
     )
   })
@@ -119,6 +122,11 @@ describe('/api/v1/markers', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor2.email }
     })
+    const notification = await database.createNotification({
+      actorId: ACTOR2_ID,
+      type: NotificationType.enum.follow,
+      sourceActorId: ACTOR1_ID
+    })
     const response = await POST(
       new NextRequest('https://llun.test/api/v1/markers', {
         method: 'POST',
@@ -128,7 +136,7 @@ describe('/api/v1/markers', () => {
         },
         body: JSON.stringify({
           home: { last_read_id: 'H1' },
-          notifications: { last_read_id: 'N1' }
+          notifications: { last_read_id: notification.id }
         })
       }),
       { params: Promise.resolve({}) }
@@ -136,7 +144,149 @@ describe('/api/v1/markers', () => {
     expect(response.status).toBe(200)
     const data = await response.json()
     expect(data.home.last_read_id).toBe('H1')
-    expect(data.notifications.last_read_id).toBe('N1')
+    expect(data.notifications.last_read_id).toBe(notification.id)
+  })
+
+  describe('notifications marker guard', () => {
+    const postNotificationsMarker = (lastReadId: string) =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/markers', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            origin: 'https://llun.test'
+          },
+          body: JSON.stringify({
+            notifications: { last_read_id: lastReadId }
+          })
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    // A v4 id that names no notification: what a client still holding ids
+    // cached before notification ids became time-ordered would send.
+    const staleId = '5f0c2a54-3d55-4e57-9d3c-0b8e7f6a1c2d'
+
+    it('accepts a time-ordered (UUIDv7) id', async () => {
+      const id = '019a0000-0000-7000-8000-000000000001'
+      const response = await postNotificationsMarker(id)
+      expect(response.status).toBe(200)
+      expect((await response.json()).notifications.last_read_id).toBe(id)
+    })
+
+    it('accepts a form-encoded notifications[last_read_id]', async () => {
+      const id = '019a0000-0000-7000-8000-000000000003'
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/markers', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            origin: 'https://llun.test'
+          },
+          body: new URLSearchParams({ 'notifications[last_read_id]': id })
+        }),
+        { params: Promise.resolve({}) }
+      )
+      expect(response.status).toBe(200)
+      expect((await response.json()).notifications).toEqual(
+        expect.objectContaining({ last_read_id: id })
+      )
+    })
+
+    it('stores an uppercased UUIDv7 in lowercase', async () => {
+      const id = '019A0000-0000-7000-8000-00000000000A'
+      const response = await postNotificationsMarker(id)
+      expect((await response.json()).notifications.last_read_id).toBe(
+        id.toLowerCase()
+      )
+    })
+
+    it('stores an epoch-ms most_recent_notification_id as the newest v7 id of that millisecond', async () => {
+      // Phanpy posts `'' + most_recent_notification_id`, which this server
+      // emits as the group's newest createdAt in epoch ms.
+      const createdAt = Date.UTC(2026, 9, 9, 12, 0, 0, 123)
+      const response = await postNotificationsMarker(String(createdAt))
+
+      const expected = getMaxTimeOrderedIdForMs(createdAt)
+      expect(expected).toBe('01a12088-d27b-7fff-bfff-ffffffffffff')
+      expect(isPublicId(expected)).toBe(true)
+      expect((await response.json()).notifications.last_read_id).toBe(expected)
+    })
+
+    it('rejects an all-digit value that is not a plausible epoch ms', async () => {
+      const response = await postNotificationsMarker('9999')
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({})
+    })
+
+    it('keeps the stored marker for an epoch-ms value beyond the future bound', async () => {
+      const kept = '019a0000-0000-7000-8000-000000000004'
+      await postNotificationsMarker(kept)
+
+      const response = await postNotificationsMarker(
+        String(Date.now() + 2 * 86400000)
+      )
+
+      expect(response.status).toBe(200)
+      const [stored] = await database.getMarkers({
+        actorId: ACTOR1_ID,
+        timelines: ['notifications']
+      })
+      expect(stored).toMatchObject({ lastReadId: kept, version: 1 })
+    })
+
+    it("accepts a non-v7 id naming one of the caller's own notifications", async () => {
+      // A v4 row the previous build wrote and nothing has rewritten yet.
+      const id = 'c0ffee00-0000-4000-8000-000000000000'
+      await instance('notifications').insert({
+        id,
+        actorId: ACTOR1_ID,
+        type: NotificationType.enum.follow,
+        sourceActorId: ACTOR2_ID
+      })
+
+      const response = await postNotificationsMarker(id)
+      expect((await response.json()).notifications.last_read_id).toBe(id)
+    })
+
+    it('keeps the stored marker when given a stale id, without an error', async () => {
+      const kept = '019a0000-0000-7000-8000-000000000002'
+      await postNotificationsMarker(kept)
+
+      const response = await postNotificationsMarker(staleId)
+
+      expect(response.status).toBe(200)
+      const posted = await response.json()
+      expect(posted.notifications).toEqual(
+        expect.objectContaining({ last_read_id: kept, version: 1 })
+      )
+      const [stored] = await database.getMarkers({
+        actorId: ACTOR1_ID,
+        timelines: ['notifications']
+      })
+      expect(stored).toMatchObject({ lastReadId: kept, version: 1 })
+    })
+
+    it("does not accept another actor's notification id", async () => {
+      const othersId = 'beef0000-0000-4000-8000-000000000000'
+      await instance('notifications').insert({
+        id: othersId,
+        actorId: ACTOR2_ID,
+        type: NotificationType.enum.follow,
+        sourceActorId: ACTOR1_ID
+      })
+
+      const response = await postNotificationsMarker(othersId)
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({})
+      await expect(
+        database.getMarkers({
+          actorId: ACTOR1_ID,
+          timelines: ['notifications']
+        })
+      ).resolves.toEqual([])
+    })
   })
 
   it('GET ignores invalid timeline values', async () => {

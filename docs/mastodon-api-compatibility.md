@@ -44,12 +44,63 @@ product or security decision, not a gap to be closed.
   or a remote actor this instance does not store, such as a mention of an
   unknown account — keeps emitting the legacy colon form, so a client can still
   encounter both shapes. Notification, report, and filter ids are their
-  own UUIDs and are unaffected — but a status or account these entities
+  own row ids and are unaffected (notification ids are time-ordered UUIDv7s
+  of their own, see the next item) — but a status or account these entities
   _reference_ is still a status or account id, and carries the `publicId` like
   any other: a filter's `status_id`, a `FilterResult`'s `status_matches`, a
   report's `status_ids`, a notification group's `status_id`. Nothing about
   federation changed: what is sent to and received from remote servers is still
   the ActivityPub URI.
+
+- **Notification ids are time-ordered UUIDv7s, minted from the notification's
+  `createdAt`.** Mastodon's notification ids are snowflakes that grow with time,
+  and clients rely on it: Ivory sorts the notification list, and compares the
+  `notifications` read marker, by id. `createNotification` therefore mints the
+  id with `generatePublicId(createdAt)` — the same scheme as a status or
+  account `publicId` — so v7 ids compare chronologically as plain strings, and
+  for v7 ids the id order matches the server's `(createdAt, id)` page order.
+  Do not go back to `crypto.randomUUID()`: a random v4 id put Ivory's
+  notification list in a random order.
+
+  Ids minted before this were rewritten by the
+  `20261009163215_time_ordered_notification_ids` migration, which also
+  repointed the stored `notifications` marker. A `notifications` marker left on
+  a v4 id that names no notification at all (it was dismissed or cleared
+  first) is reset to the highest UUIDv7 for the millisecond the marker was last
+  written (`xxxxxxxx-xxxx-7fff-bfff-ffffffffffff`, the timestamp then every
+  other bit set), so it still reads as "read up to then" instead of sorting
+  above every new notification. The previous build keeps minting v4 ids while
+  that migration runs ahead of the rollout, and those leftovers do **not** age
+  out: a v4 id almost always sorts above every v7 id, so an id-ordering client
+  pins it to the top of the list for good and may set its read marker to it,
+  making every newer notification look read. Run the
+  [Notification ID Rewrite](./maintenance.md#notification-id-rewrite) once the
+  rollout completes to rewrite them (it repairs orphan markers the same way).
+
+  As a backstop, `POST /api/v1/markers` only moves the `notifications` marker
+  to:
+  - a UUIDv7, stored lowercased;
+  - one of the caller's own notifications, stored as given;
+  - an all-digit epoch-ms value between 2000-01-01 and one day from now, which
+    is stored as the highest UUIDv7 for that millisecond. This is what
+    grouped-notification clients send back: Phanpy posts
+    `'' + most_recent_notification_id`, which this server emits as epoch ms
+    (see below).
+
+  Any other `last_read_id` leaves the stored marker unchanged with no error: the
+  response reports the stored marker, or omits the `notifications` key when
+  none is stored. A client with a stale cache therefore cannot poison it.
+
+  Ids a client cached before the rewrite no longer resolve — there is no alias
+  from an old id to its new one, and notification ids have no legacy-form
+  resolver. What such a client sees: a cached `min_id` or `since_id` returns
+  empty pages with no `Link` header (an unresolvable lower-bound cursor ends
+  pagination), so the client sees nothing new until it reloads from the top; a
+  cached `max_id` is ignored and returns the newest page again, which a client
+  may append to its list as duplicates; `GET` or dismiss of an old id is a
+  404, as is `GET` of an `ungrouped-<old id>` group (dismissing one is a
+  no-op). The remedy is a full refresh of the
+  client's notification list (reloading it from the top, without a cursor).
 
 - **`PUT /api/v1/statuses/:id` accepts `visibility`, and widening it drops the
   edit history.** Mastodon cannot change a posted status's visibility; this
@@ -276,10 +327,19 @@ product or security decision, not a gap to be closed.
   (and the single-group `/:group_key` variant), Mastodon serializes
   `most_recent_notification_id` as the numeric notification id, and clients
   decode it as an integer (the official Mastodon iOS app types it `Int` and
-  crashes on a string). Activity.next uses UUID notification ids, which can't be
-  numbers, so it emits a deterministic integer derived from the group's
-  most-recent notification `createdAt` (epoch ms). This value is display-only —
-  clients never send it back as a cursor. Pagination uses the `Link` header and
+  crashes on a string). Activity.next's notification ids are time-ordered
+  UUIDv7 strings (see **Notification ids are time-ordered UUIDv7s** above),
+  which can't be numbers, so it emits a deterministic integer derived from the
+  group's most-recent notification `createdAt` (epoch ms) — the same
+  millisecond that notification's UUIDv7 encodes. This server cannot resolve it
+  as a cursor: Phanpy's background poller calls
+  `GET /api/v1/notifications?limit=1&since_id=<most_recent_notification_id as
+a string>`, which returns an empty page, so that poller never detects new
+  notifications (pre-existing behaviour). Some clients also send it back as a
+  read marker: Phanpy posts it as the
+  `notifications` marker's `last_read_id`, and `POST /api/v1/markers` stores an
+  epoch-ms value as the highest UUIDv7 for that millisecond, so it compares
+  correctly against real notification ids. Pagination uses the `Link` header and
   the string `page_min_id` / `page_max_id`, which stay real UUID cursors the
   server can resolve. Do **not** "fix" `most_recent_notification_id` back to the
   UUID string: that re-crashes the Mastodon iOS decoder. Unlike Mastodon's
