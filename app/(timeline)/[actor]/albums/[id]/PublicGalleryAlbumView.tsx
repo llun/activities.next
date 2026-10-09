@@ -41,6 +41,11 @@ interface Props {
   /** The first page, as the server rendered it for this viewer. */
   initial: GalleryAlbumViewResponse
   pageSize: number
+  /**
+   * Set only when the owner opens an album that visitors cannot: why they
+   * cannot, and the owner's own page for it.
+   */
+  ownerNotice?: { reason: 'private' | 'nothing-public'; manageHref: string }
 }
 
 const getErrorMessage = (error: unknown, fallback: string) =>
@@ -59,7 +64,8 @@ export const PublicGalleryAlbumView: FC<Props> = ({
   profileHref,
   pageUrl,
   initial,
-  pageSize
+  pageSize,
+  ownerNotice
 }) => {
   const { album, facts, species } = initial
   const { copied, copy } = useCopyToClipboard()
@@ -173,6 +179,24 @@ export const PublicGalleryAlbumView: FC<Props> = ({
         </span>
       </div>
 
+      {ownerNotice ? (
+        <p
+          role="note"
+          className="bg-muted text-muted-foreground rounded-md border px-3 py-2 text-xs"
+        >
+          {ownerNotice.reason === 'private'
+            ? 'This album is private. Visitors cannot open this page, and only you see it here.'
+            : 'No photo here is public yet. Visitors who are signed out or do not follow you cannot open this page, and only you see it here.'}{' '}
+          <Link
+            href={ownerNotice.manageHref}
+            prefetch={false}
+            className="text-foreground underline underline-offset-2 pointer-coarse:-my-3 pointer-coarse:inline-block pointer-coarse:py-3"
+          >
+            Open the album in your gallery
+          </Link>
+        </p>
+      ) : null}
+
       <GalleryAlbumHero
         title={album.title}
         cover={album.cover}
@@ -195,7 +219,7 @@ export const PublicGalleryAlbumView: FC<Props> = ({
           <Link
             href={profileHref}
             prefetch={false}
-            className="hover:text-foreground inline-block underline underline-offset-2 pointer-coarse:-my-3 pointer-coarse:py-3"
+            className="hover:text-foreground inline-block break-words underline underline-offset-2 pointer-coarse:-my-3 pointer-coarse:py-3"
           >
             {ownerName}
           </Link>
@@ -219,7 +243,7 @@ export const PublicGalleryAlbumView: FC<Props> = ({
             )}
             <Select
               aria-label="Sort photos"
-              className="w-auto max-w-full"
+              className="w-auto max-w-full pointer-coarse:h-10"
               value={sort}
               onChange={(event) =>
                 handleSortChange(event.target.value as GalleryAlbumSort)

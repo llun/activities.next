@@ -315,12 +315,14 @@ export const GalleryAlbumDetailView: FC<Props> = ({
   const isEmpty = album.itemCount === 0
   const factsParts = getAlbumFactsParts(facts)
   // Why the link may not do what a visitor expects. A private album has no
-  // page at all (the button is inert); a public one with no photo visible to
-  // visitors is a not-found page until one is.
+  // page at all (the button is inert); a public one with no public photo is a
+  // not-found page for everyone signed out or not following the owner (the
+  // facts are computed for the logged-out audience, so a follower may still
+  // see followers-only photos) until one is.
   const shareHint = !isPublic
     ? 'Make this album public to share its link.'
     : facts.photoCount === 0
-      ? 'No photo here is visible to visitors yet, so the link shows a not-found page.'
+      ? 'No photo here is public yet, so anyone signed out (and anyone who does not follow you) sees a not-found page.'
       : null
   // The hero shows the explicit cover, else the newest photo: mark whichever
   // it is.
@@ -477,7 +479,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
             )}
             <Select
               aria-label="Sort photos"
-              className="w-auto max-w-full"
+              className="w-auto max-w-full pointer-coarse:h-10"
               value={sort}
               onChange={(event) =>
                 handleSortChange(event.target.value as GalleryAlbumSort)

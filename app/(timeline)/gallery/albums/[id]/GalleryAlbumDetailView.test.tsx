@@ -194,7 +194,7 @@ describe('GalleryAlbumDetailView', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('warns that a public album with no visitor-visible photo is not found yet', async () => {
+    it('warns that a public album with no public photo is not found for signed-out viewers and non-followers', async () => {
       renderView(
         buildAlbumDetail({
           facts: { ...buildAlbumDetail().facts, photoCount: 0 }
@@ -204,11 +204,18 @@ describe('GalleryAlbumDetailView', () => {
       const share = screen.getByRole('button', { name: 'Share link' })
       expect(share).not.toHaveAttribute('aria-disabled', 'true')
       expect(share).toHaveAccessibleDescription(
-        'No photo here is visible to visitors yet, so the link shows a not-found page.'
+        'No photo here is public yet, so anyone signed out (and anyone who does not follow you) sees a not-found page.'
       )
       fireEvent.click(share)
       await waitFor(() => expect(writeText).toHaveBeenCalledWith(SHARE_URL))
     })
+  })
+
+  it('keeps the sort a 40px touch target', () => {
+    renderView()
+    expect(screen.getByLabelText('Sort photos')).toHaveClass(
+      'pointer-coarse:h-10'
+    )
   })
 
   it('keeps the counts note for the owner, who sees every photo', () => {

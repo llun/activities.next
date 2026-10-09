@@ -27,6 +27,14 @@ describe('album loading', () => {
     }
   })
 
+  it('draws the Back placeholder as tall as the loaded Back link, so the row does not grow', () => {
+    const { container } = render(<Loading />)
+
+    // BackLink is `max-md:min-h-11` below `md` and 32px from there up.
+    const back = container.querySelector('[aria-busy] > .skeleton.w-28')
+    expect(back).toHaveClass('h-8', 'max-md:h-11')
+  })
+
   it('keeps the signed-in mobile bar and desktop padding of the loaded page', () => {
     const { container } = render(
       <MobileNavigationProvider>

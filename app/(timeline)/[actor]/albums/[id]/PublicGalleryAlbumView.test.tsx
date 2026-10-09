@@ -9,6 +9,7 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
+import { ComponentProps } from 'react'
 
 import { getAccountGalleryAlbum } from '@/lib/client'
 import {
@@ -37,7 +38,11 @@ const load = vi.mocked(getAccountGalleryAlbum)
 
 const PAGE_URL = 'https://activities.test/@ann@activities.test/albums/a1'
 
-const renderView = (initial = buildAlbumView(), pageSize = 30) =>
+const renderView = (
+  initial = buildAlbumView(),
+  pageSize = 30,
+  ownerNotice?: ComponentProps<typeof PublicGalleryAlbumView>['ownerNotice']
+) =>
   render(
     <PublicGalleryAlbumView
       ownerId="https://activities.test/users/ann"
@@ -46,6 +51,7 @@ const renderView = (initial = buildAlbumView(), pageSize = 30) =>
       pageUrl={PAGE_URL}
       initial={initial}
       pageSize={pageSize}
+      ownerNotice={ownerNotice}
     />
   )
 
@@ -86,6 +92,49 @@ describe('PublicGalleryAlbumView', () => {
     )
     expect(screen.getByText(/^By/)).toBeInTheDocument()
     expect(screen.getByTestId('grid')).toHaveTextContent('a1-1')
+  })
+
+  it('lets a long unbroken name wrap instead of being clipped, and keeps the sort a 40px touch target', () => {
+    renderView()
+    expect(screen.getByRole('link', { name: 'Ann' })).toHaveClass('break-words')
+    expect(screen.getByLabelText('Sort photos')).toHaveClass(
+      'pointer-coarse:h-10'
+    )
+  })
+
+  describe('the owner notice', () => {
+    it('is absent for a visitor', () => {
+      renderView()
+      expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    })
+
+    it('tells the owner a private album cannot be opened by visitors, and links to the owner page', () => {
+      renderView(buildAlbumView(), 30, {
+        reason: 'private',
+        manageHref: '/gallery/albums/a1'
+      })
+
+      const note = screen.getByRole('note')
+      expect(note).toHaveTextContent(
+        'This album is private. Visitors cannot open this page, and only you see it here.'
+      )
+      expect(
+        within(note).getByRole('link', {
+          name: 'Open the album in your gallery'
+        })
+      ).toHaveAttribute('href', '/gallery/albums/a1')
+    })
+
+    it('tells the owner when no photo is visible to visitors', () => {
+      renderView(buildAlbumView(), 30, {
+        reason: 'nothing-public',
+        manageHref: '/gallery/albums/a1'
+      })
+
+      expect(screen.getByRole('note')).toHaveTextContent(
+        'No photo here is public yet. Visitors who are signed out or do not follow you cannot open this page'
+      )
+    })
   })
 
   it('has a Back link to the owner profile', () => {

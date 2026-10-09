@@ -798,6 +798,46 @@ describe('GalleryAlbumDatabase', () => {
         expect(await titlesFor(PUBLIC_GALLERY_AUDIENCE)).toEqual(['List open'])
       })
 
+      it("breaks a tie between visitor albums on the id, whatever the owner's stored order is", async () => {
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          vi.setSystemTime(Date.UTC(2028, 0, 1))
+          const first = await createAlbum(uniqueTitle())
+          const second = await createAlbum(uniqueTitle())
+          const [low, high] =
+            first.id < second.id ? [first, second] : [second, first]
+
+          // The same visible photo joins both in the same millisecond, so a
+          // visitor sees the same time on both.
+          await addItems(low.id, ['public'])
+          await addItems(high.id, ['public'])
+          // A photo only the owner can see then moves the higher id's stored
+          // time on, so the owner's order puts it first. The visitor's
+          // must not follow.
+          vi.setSystemTime(Date.UTC(2028, 0, 2))
+          await addItems(high.id, ['direct'])
+
+          const order = async (audience: GalleryAudience) =>
+            (
+              await database.getGalleryAlbumSummaries({
+                actorId: ownerId,
+                audience
+              })
+            )
+              .map((summary) => summary.album.id)
+              .filter((id) => id === low.id || id === high.id)
+
+          expect(await order(OWNER_GALLERY_AUDIENCE)).toEqual([high.id, low.id])
+          expect(await order(PUBLIC_GALLERY_AUDIENCE)).toEqual([
+            low.id,
+            high.id
+          ])
+          expect(await order(audiences.stranger)).toEqual([low.id, high.id])
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
       it('moves an album to the top when photos are added to or removed from it', async () => {
         vi.useFakeTimers({ toFake: ['Date'] })
         try {

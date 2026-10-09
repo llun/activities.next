@@ -1,6 +1,6 @@
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { FC } from 'react'
+import { ComponentProps, FC } from 'react'
 
 import { MobileCompactHeader } from '@/lib/components/layout/mobile-compact-header'
 import { profileName } from '@/lib/components/navigation-history/backDestination'
@@ -109,6 +109,24 @@ const Page: FC<Props> = async ({ params }) => {
   })
   if (!view) return notFound()
 
+  // The owner sees their own album here even when nobody else can open it.
+  // Say so, or a link they shared before making it private looks fine to them
+  // and a not-found page to everyone else. Visitors get no such check.
+  const isOwner = currentActor?.id === owner.id
+  const visibleToVisitors =
+    !isOwner ||
+    (view.album.visibility === 'public' &&
+      (await getGalleryAlbumShare({ database, owner, albumId: id })) !== null)
+  const ownerNotice: ComponentProps<
+    typeof PublicGalleryAlbumView
+  >['ownerNotice'] = visibleToVisitors
+    ? undefined
+    : {
+        reason:
+          view.album.visibility === 'public' ? 'nothing-public' : 'private',
+        manageHref: `/gallery/albums/${encodeURIComponent(view.album.id)}`
+      }
+
   return (
     <>
       {/* Signed in, below `md` the menu button lives in this bar (a page with
@@ -125,6 +143,7 @@ const Page: FC<Props> = async ({ params }) => {
           albumId: view.album.id
         })}
         initial={view}
+        ownerNotice={ownerNotice}
         pageSize={PAGE_SIZE}
       />
     </>

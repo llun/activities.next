@@ -19,7 +19,10 @@ const Loading: FC = () => (
       className="space-y-5 md:pt-8 group-data-[shell=public]/shell:md:pt-0"
     >
       <span className="sr-only">Loading album</span>
-      <div aria-hidden="true" className="skeleton h-8 w-28 rounded-md" />
+      <div
+        aria-hidden="true"
+        className="skeleton h-8 w-28 rounded-md max-md:h-11"
+      />
       <div
         aria-hidden="true"
         className="skeleton aspect-[4/3] w-full rounded-xl sm:aspect-[16/7]"

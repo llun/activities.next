@@ -152,6 +152,54 @@ describe('public album page', () => {
       )
     })
 
+    describe('the owner opening their own album', () => {
+      const ownerNotice = async (id: string, who: Actor | null) => {
+        mockCurrentActor = who
+        return findView(await Page(params(id)))!.props.ownerNotice
+      }
+      const owner = () => database.getActorFromId({ id: matrix.ownerId })
+
+      it('is told nothing for an album visitors can open', async () => {
+        expect(
+          await ownerNotice(matrix.albums.mixed, (await owner())!)
+        ).toBeUndefined()
+      })
+
+      it('is told a private album is closed to visitors, with the link to the owner page', async () => {
+        expect(
+          await ownerNotice(matrix.albums.secret, (await owner())!)
+        ).toEqual({
+          reason: 'private',
+          manageHref: `/gallery/albums/${matrix.albums.secret}`
+        })
+      })
+
+      it('is told an empty album is closed to visitors', async () => {
+        expect(
+          await ownerNotice(matrix.albums.empty, (await owner())!)
+        ).toEqual({
+          reason: 'nothing-public',
+          manageHref: `/gallery/albums/${matrix.albums.empty}`
+        })
+      })
+
+      it('is told when every photo is hidden from visitors', async () => {
+        expect(
+          await ownerNotice(matrix.albums.followersOnly, (await owner())!)
+        ).toMatchObject({ reason: 'nothing-public' })
+      })
+
+      it('is the only one told: a follower of an album they can open gets none', async () => {
+        expect(
+          await ownerNotice(
+            matrix.albums.followersOnly,
+            matrix.viewers.follower
+          )
+        ).toBeUndefined()
+        expect(await ownerNotice(matrix.albums.mixed, null)).toBeUndefined()
+      })
+    })
+
     it.each([
       ['a private album', () => matrix.albums.secret],
       ['an empty album', () => matrix.albums.empty],
