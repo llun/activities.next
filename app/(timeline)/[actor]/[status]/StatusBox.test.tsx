@@ -10,6 +10,7 @@ import {
   pollStatusCurrentTime,
   pollStatusFixture
 } from '@/lib/components/posts/__fixtures__/poll-status'
+import { StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
 import { StatusBox } from './StatusBox'
@@ -23,7 +24,28 @@ vi.mock('@/lib/components/posts/collapsible-content', () => ({
 }))
 
 vi.mock('./FitnessStatusDetail', () => ({
-  FitnessStatusDetail: () => null
+  FitnessStatusDetail: ({
+    onShowAttachment
+  }: {
+    onShowAttachment: (medias: unknown[], index: number) => void
+  }) => (
+    <button type="button" onClick={() => onShowAttachment([{}], 0)}>
+      Open fitness photo
+    </button>
+  )
+}))
+
+vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
+  MediasModal: ({
+    medias,
+    albumsOwnerId
+  }: {
+    medias: unknown[] | null
+    albumsOwnerId?: string | null
+  }) =>
+    medias ? (
+      <div data-testid="viewer" data-albums-owner={albumsOwnerId ?? 'none'} />
+    ) : null
 }))
 
 vi.mock('./StatusLikes', () => ({
@@ -191,5 +213,149 @@ describe('StatusBox', () => {
     expect(
       screen.queryByRole('button', { name: /More actions/ })
     ).not.toBeInTheDocument()
+  })
+
+  describe('viewer albums owner', () => {
+    const author = pollStatusFixture.actor!
+    const someoneElse = {
+      ...author,
+      id: 'https://activities.local/users/someone-else'
+    }
+
+    const withPhoto = (overrides: Partial<StatusNote> = {}): StatusNote =>
+      ({
+        ...pollStatusFixture,
+        type: StatusType.enum.Note,
+        choices: undefined,
+        attachments: [
+          {
+            id: 'attachment-1',
+            actorId: pollStatusFixture.actorId,
+            statusId: pollStatusFixture.id,
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://activities.local/media/1.jpg',
+            mediaId: 'm1',
+            name: 'A heron',
+            width: 800,
+            height: 600,
+            createdAt: pollStatusCurrentTime,
+            updatedAt: pollStatusCurrentTime
+          }
+        ],
+        ...overrides
+      }) as unknown as StatusNote
+
+    const open = (
+      currentActor: typeof author | null,
+      status: StatusNote = withPhoto()
+    ) => {
+      render(
+        <StatusBox
+          host="activities.local"
+          mapProvider={{ type: 'osm' }}
+          currentActor={currentActor}
+          currentTime={pollStatusCurrentTime}
+          status={status}
+          variant="detail"
+        />
+      )
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Open media: A heron' })
+      )
+    }
+
+    it('offers the author the albums pill on their own post', () => {
+      open(author)
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        author.id
+      )
+    })
+
+    it('offers nobody else’s post an albums pill', () => {
+      open(someoneElse)
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
+
+    it('offers a signed-out visitor none', () => {
+      open(null)
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
+
+    it('goes by who wrote a boosted post, not who boosted it', () => {
+      const boost = {
+        ...pollStatusFixture,
+        id: 'https://activities.local/users/llun/statuses/boost-1',
+        type: StatusType.enum.Announce,
+        originalStatus: withPhoto({
+          actorId: 'https://remote.example/users/someone'
+        })
+      } as unknown as StatusNote
+
+      open(author, boost)
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
+
+    it('offers the author the pill from a fitness post’s photos too', () => {
+      render(
+        <StatusBox
+          host="activities.local"
+          mapProvider={{ type: 'osm' }}
+          currentActor={author}
+          currentTime={pollStatusCurrentTime}
+          status={withPhoto({
+            fitness: { processingStatus: 'completed' }
+          } as unknown as Partial<StatusNote>)}
+          variant="detail"
+        />
+      )
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Open fitness photo' })
+      )
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        author.id
+      )
+    })
+
+    it('offers others none on a fitness post’s photos', () => {
+      render(
+        <StatusBox
+          host="activities.local"
+          mapProvider={{ type: 'osm' }}
+          currentActor={someoneElse}
+          currentTime={pollStatusCurrentTime}
+          status={withPhoto({
+            fitness: { processingStatus: 'completed' }
+          } as unknown as Partial<StatusNote>)}
+          variant="detail"
+        />
+      )
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Open fitness photo' })
+      )
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
   })
 })

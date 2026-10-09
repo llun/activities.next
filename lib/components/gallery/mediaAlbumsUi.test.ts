@@ -2,6 +2,7 @@ import {
   albumAddedMessage,
   albumRemovedMessage,
   getAlbumOptionNames,
+  getAlbumsOwnerId,
   getAlbumsPillLabel
 } from './mediaAlbumsUi'
 
@@ -67,5 +68,23 @@ describe('album wording', () => {
   it('words the toast messages with the album title', () => {
     expect(albumAddedMessage('Kruger')).toBe('Added to “Kruger”')
     expect(albumRemovedMessage('Kruger')).toBe('Removed from “Kruger”')
+  })
+})
+
+describe('getAlbumsOwnerId', () => {
+  const status = { actorId: 'https://activities.local/users/llun' }
+
+  it('is the viewer’s own id when they wrote the post', () => {
+    expect(getAlbumsOwnerId({ id: status.actorId }, status)).toBe(
+      status.actorId
+    )
+  })
+
+  it('is null for somebody else’s post, and for a signed-out viewer', () => {
+    expect(
+      getAlbumsOwnerId({ id: 'https://activities.local/users/other' }, status)
+    ).toBeNull()
+    expect(getAlbumsOwnerId(null, status)).toBeNull()
+    expect(getAlbumsOwnerId(undefined, status)).toBeNull()
   })
 })

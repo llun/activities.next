@@ -43,3 +43,15 @@ export const NOT_ADDABLE_HINT =
 
 export const albumAddedMessage = (title: string) => `Added to “${title}”`
 export const albumRemovedMessage = (title: string) => `Removed from “${title}”`
+
+/**
+ * The id to give the lightbox for the albums pill: the signed-in viewer's own
+ * actor id when they wrote the post being viewed, else null (no pill). For a
+ * boost, pass the original status, since it is the author's photos that are
+ * shown.
+ */
+export const getAlbumsOwnerId = (
+  currentActor: { id: string } | null | undefined,
+  status: { actorId: string }
+): string | null =>
+  currentActor && currentActor.id === status.actorId ? currentActor.id : null

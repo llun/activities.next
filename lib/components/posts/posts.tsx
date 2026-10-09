@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
+import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -174,10 +175,7 @@ export const Posts: FC<Props> = ({
                     medias: allMedias,
                     tags: actualStatus.tags,
                     initialSelection: index,
-                    albumsOwnerId:
-                      currentActor && currentActor.id === actualStatus.actorId
-                        ? currentActor.id
-                        : null
+                    albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
                   })
                 }}
               />

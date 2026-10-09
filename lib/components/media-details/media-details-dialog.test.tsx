@@ -29,6 +29,7 @@ import {
   STALE_SUBJECT_LOOKUP_MS
 } from '@/lib/services/medias/lookupStaleness'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
+import { createDeferred } from '@/lib/testing/deferred'
 import { DEFAULT_GALLERY_SETTINGS } from '@/lib/types/database/gallery'
 
 import {
@@ -897,18 +898,14 @@ describe('MediaDetailsDialog smart subjects', () => {
   })
 
   it('keeps a late suggestion error on the photo that asked', async () => {
-    let fail: (error: Error) => void = () => {}
-    suggestMediaSubjectsMock.mockReturnValue(
-      new Promise((_resolve, reject) => {
-        fail = reject
-      })
-    )
+    const suggestion = createDeferred<typeof SUGGESTIONS>()
+    suggestMediaSubjectsMock.mockReturnValue(suggestion.promise)
     renderDialog([withSuggestions(null), makeItem('m2')])
 
     fireEvent.click(screen.getByRole('button', { name: 'Suggest subjects' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next item' }))
     await act(async () => {
-      fail(new Error('Subject suggestions are not configured'))
+      suggestion.reject(new Error('Subject suggestions are not configured'))
     })
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -1053,12 +1050,8 @@ describe('MediaDetailsDialog smart subjects', () => {
   // The race: a slow suggestion used to publish the details captured when
   // Suggest was clicked, putting back the status a Retry had just replaced.
   it('merges a slow suggestion into the details a retry refreshed meanwhile', async () => {
-    let finishSuggestion: (value: typeof SUGGESTIONS) => void = () => {}
-    suggestMediaSubjectsMock.mockReturnValue(
-      new Promise((resolve) => {
-        finishSuggestion = resolve
-      })
-    )
+    const slowSuggestion = createDeferred<typeof SUGGESTIONS>()
+    suggestMediaSubjectsMock.mockReturnValue(slowSuggestion.promise)
     const failedSubject = {
       name: 'Bengal Tiger',
       scientificName: 'Panthera tigris',
@@ -1088,7 +1081,7 @@ describe('MediaDetailsDialog smart subjects', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText(/Endangered \(EN\)/)).toBeInTheDocument()
 
-    finishSuggestion(SUGGESTIONS)
+    slowSuggestion.resolve(SUGGESTIONS)
 
     expect(
       await screen.findByRole('button', { name: 'Warbling White-eye 81%' })
@@ -1511,12 +1504,8 @@ describe('MediaDetailsDialog smart subjects', () => {
     })
 
     it('keeps a late retry error on the photo that asked', async () => {
-      let fail: (error: Error) => void = () => {}
-      retryMediaLookupsMock.mockReturnValue(
-        new Promise((_resolve, reject) => {
-          fail = reject
-        })
-      )
+      const retry = createDeferred<MediaDetailsEntity>()
+      retryMediaLookupsMock.mockReturnValue(retry.promise)
       renderDialog([
         makeItem('m1', { details: subject({ lookupStatus: 'failed' }) }),
         makeItem('m2')
@@ -1525,7 +1514,7 @@ describe('MediaDetailsDialog smart subjects', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
       fireEvent.click(screen.getByRole('button', { name: 'Next item' }))
       await act(async () => {
-        fail(new Error('Too many requests'))
+        retry.reject(new Error('Too many requests'))
       })
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
