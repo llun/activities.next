@@ -2,14 +2,8 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
+import { AuthCard, AuthCardFooter } from '@/app/(nosidebar)/AuthCard'
+import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 
 import { ResetPasswordForm } from './ResetPasswordForm'
 
@@ -27,16 +21,12 @@ const Page: FC<Props> = async ({ searchParams }) => {
   const passwordResetCode = Array.isArray(code) ? code[0] : code
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Reset your password</CardTitle>
-        <CardDescription>Set a new password for your account.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ResetPasswordForm initialCode={passwordResetCode} />
-      </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-sm text-muted-foreground">
+    <AuthCard
+      logoSrc={getAuthLogoSrc()}
+      title="Reset your password"
+      description="Set a new password for your account."
+      footer={
+        <AuthCardFooter>
           Need a new reset link?{' '}
           <Link
             href="/auth/forgot-password"
@@ -44,9 +34,11 @@ const Page: FC<Props> = async ({ searchParams }) => {
           >
             Request one
           </Link>
-        </p>
-      </CardFooter>
-    </Card>
+        </AuthCardFooter>
+      }
+    >
+      <ResetPasswordForm initialCode={passwordResetCode} />
+    </AuthCard>
   )
 }
 

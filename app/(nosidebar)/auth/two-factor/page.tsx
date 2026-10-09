@@ -2,13 +2,8 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
+import { AuthCard } from '@/app/(nosidebar)/AuthCard'
+import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isSafeInternalPath } from '@/lib/utils/isSafeInternalPath'
 
@@ -35,15 +30,13 @@ const Page: FC<{
   }
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Two-factor authentication</CardTitle>
-        <CardDescription>Enter your verification code</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <TwoFactorForm redirectBack={redirectBack} />
-      </CardContent>
-    </Card>
+    <AuthCard
+      logoSrc={getAuthLogoSrc()}
+      title="Two-factor authentication"
+      description="Enter your verification code"
+    >
+      <TwoFactorForm redirectBack={redirectBack} />
+    </AuthCard>
   )
 }
 

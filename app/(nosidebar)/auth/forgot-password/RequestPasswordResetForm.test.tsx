@@ -183,4 +183,34 @@ describe('RequestPasswordResetForm', () => {
       })
     })
   })
+
+  it('announces a failed request as an alert', async () => {
+    mockRequestPasswordReset.mockRejectedValueOnce(new Error('Too many tries'))
+    render(<RequestPasswordResetForm />)
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'user@example.com' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /send reset link/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Too many tries')
+  })
+
+  it('confirms a sent link as a polite status, not an alert', async () => {
+    mockRequestPasswordReset.mockResolvedValueOnce({
+      success: true,
+      message: 'A reset link has been sent.'
+    })
+    render(<RequestPasswordResetForm />)
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'user@example.com' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /send reset link/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'A reset link has been sent.'
+    )
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })

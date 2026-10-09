@@ -3,9 +3,11 @@
 import { FC, useState } from 'react'
 
 import { requestPasswordReset } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 
 export const RequestPasswordResetForm: FC = () => {
   const [email, setEmail] = useState('')
@@ -46,19 +48,24 @@ export const RequestPasswordResetForm: FC = () => {
     // a method-less <form> defaults to GET — POST guards against the email
     // reaching the URL if a `name` attribute is added later.
     <form onSubmit={handleSubmit} method="post" className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-      </div>
+      <Frame divided>
+        <FormRow stacked label="Email" htmlFor="email">
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </FormRow>
+      </Frame>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      {message && <p className="text-sm text-muted-foreground">{message}</p>}
+      {error && <Alert title={error} />}
+      {message && (
+        <Alert tone="success" title="Check your email">
+          {message}
+        </Alert>
+      )}
 
       <Button type="submit" className="w-full" disabled={isLoading}>
         {isLoading ? 'Sending…' : 'Send reset link'}

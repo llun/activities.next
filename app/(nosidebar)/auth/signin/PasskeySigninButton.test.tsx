@@ -2,7 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+
+import { authClient } from '@/lib/services/auth/auth-client'
 
 import { PasskeySigninButton } from './PasskeySigninButton'
 
@@ -144,6 +146,24 @@ describe('PasskeySigninButton', () => {
     // region to be announced (WCAG 2.1 SC 4.1.3 Status Messages).
     expect(screen.getByRole('status')).toHaveTextContent(
       /passkeys aren't available in this browser/i
+    )
+  })
+
+  it('announces a failed passkey sign-in as an alert', async () => {
+    setPlatformAuthenticator(() => Promise.resolve(true))
+    vi.mocked(authClient.signIn.passkey).mockRejectedValue(
+      new Error('network down')
+    )
+    await renderButton()
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(passkeyButton() as HTMLElement)
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Passkey sign in failed. Please try again.'
     )
   })
 })

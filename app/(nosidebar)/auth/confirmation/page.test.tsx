@@ -1,3 +1,9 @@
+/**
+ * @vitest-environment jsdom
+ */
+import '@testing-library/jest-dom'
+import { render, screen } from '@testing-library/react'
+
 import { getDatabase } from '@/lib/database'
 import { Database } from '@/lib/database/types'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -44,7 +50,14 @@ describe('/auth/confirmation page', () => {
       verificationCode: 'valid-code'
     })
     expect(redirectMock).not.toHaveBeenCalled()
-    expect(element).toEqual(<h1>Your account is verified</h1>)
+    render(element)
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Confirm your account' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Your account is verified')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Continue to sign in' })
+    ).toHaveAttribute('href', '/auth/signin')
   })
 
   it('shows invalid verification code when code fails verification even with an active session', async () => {
@@ -59,7 +72,11 @@ describe('/auth/confirmation page', () => {
       verificationCode: 'bad-code'
     })
     expect(redirectMock).not.toHaveBeenCalled()
-    expect(element).toEqual(<h1>Invalid verification code</h1>)
+    render(element)
+    expect(screen.getByText('Invalid verification code')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Back to sign in' })
+    ).toHaveAttribute('href', '/auth/signin')
   })
 
   it('redirects to home when an active session exists and no verification code is present', async () => {
@@ -98,7 +115,14 @@ describe('/auth/confirmation page', () => {
       verificationCode: 'valid-code'
     })
     expect(redirectMock).not.toHaveBeenCalled()
-    expect(element).toEqual(<h1>Your account is verified</h1>)
+    render(element)
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Confirm your account' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Your account is verified')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Continue to sign in' })
+    ).toHaveAttribute('href', '/auth/signin')
   })
 
   it('picks the first code when verificationCode is an array', async () => {
@@ -115,7 +139,14 @@ describe('/auth/confirmation page', () => {
       verificationCode: 'first-code'
     })
     expect(redirectMock).not.toHaveBeenCalled()
-    expect(element).toEqual(<h1>Your account is verified</h1>)
+    render(element)
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Confirm your account' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Your account is verified')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Continue to sign in' })
+    ).toHaveAttribute('href', '/auth/signin')
   })
 
   it('shows invalid verification code when logged out with no verification code', async () => {
@@ -127,7 +158,11 @@ describe('/auth/confirmation page', () => {
 
     expect(redirectMock).not.toHaveBeenCalled()
     expect(verifyAccountMock).not.toHaveBeenCalled()
-    expect(element).toEqual(<h1>Invalid verification code</h1>)
+    render(element)
+    expect(screen.getByText('Invalid verification code')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Back to sign in' })
+    ).toHaveAttribute('href', '/auth/signin')
   })
 
   it('throws an error when database is not available', async () => {

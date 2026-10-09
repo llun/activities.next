@@ -3,14 +3,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
+import { AuthCard, AuthCardFooter } from '@/app/(nosidebar)/AuthCard'
+import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 
@@ -31,18 +25,12 @@ const Page: FC = async () => {
   }
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Forgot your password?</CardTitle>
-        <CardDescription>
-          Enter your email and we&apos;ll send you a link to reset it.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <RequestPasswordResetForm />
-      </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-sm text-muted-foreground">
+    <AuthCard
+      logoSrc={getAuthLogoSrc()}
+      title="Forgot your password?"
+      description="Enter your email and we'll send you a link to reset it."
+      footer={
+        <AuthCardFooter>
           Remembered your password?{' '}
           <Link
             href="/auth/signin"
@@ -50,9 +38,11 @@ const Page: FC = async () => {
           >
             Sign in
           </Link>
-        </p>
-      </CardFooter>
-    </Card>
+        </AuthCardFooter>
+      }
+    >
+      <RequestPasswordResetForm />
+    </AuthCard>
   )
 }
 

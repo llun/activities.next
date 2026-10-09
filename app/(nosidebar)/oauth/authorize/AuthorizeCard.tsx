@@ -5,21 +5,16 @@ import { Check, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
+import { AuthCard } from '@/app/(nosidebar)/AuthCard'
 import {
   type OAuthConsentResponse,
   submitOAuthConsent,
   switchActor
 } from '@/lib/client'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
+import { Frame } from '@/lib/components/surface/Frame'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import {
   DropdownMenu,
@@ -72,6 +67,8 @@ interface Props {
   actors: AuthorizeActorOption[]
   account: AccountSummary
   currentActorId: string
+  /** The brand mark above the title (an absolute URL on the configured host). */
+  logoSrc?: string
   navigate?: (url: string) => void
 }
 
@@ -113,6 +110,7 @@ export const AuthorizeCard: FC<Props> = ({
   actors,
   account,
   currentActorId,
+  logoSrc,
   navigate = navigateTo
 }) => {
   const requestedScopes = searchParams.scope.split(' ')
@@ -246,44 +244,43 @@ export const AuthorizeCard: FC<Props> = ({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        {/* OIDC requests are authentication ("Sign in with …") flows, so they
-            get sign-in framing instead of the OAuth resource-grant copy. */}
-        <CardTitle>
-          {isOidc
-            ? `Sign in to ${client.name || 'this application'}`
-            : 'Authorization required'}
-        </CardTitle>
-        <CardDescription>
-          {isOidc ? (
-            <>
-              <strong>{client.name || 'This application'}</strong> wants to
-              verify your identity using your account. It is a third-party
-              application. <strong>Only continue if you trust it.</strong>
-            </>
-          ) : (
-            <>
-              <strong>{client.name || 'This application'}</strong> would like
-              permission to access your account. It is a third-party
-              application.{' '}
-              <strong>
-                If you do not trust it, then you should not authorize it.
-              </strong>
-            </>
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleApprove} className="space-y-6">
+    <AuthCard
+      logoSrc={logoSrc}
+      // OIDC requests are authentication ("Sign in with …") flows, so they get
+      // sign-in framing instead of the OAuth resource-grant copy.
+      title={
+        isOidc
+          ? `Sign in to ${client.name || 'this application'}`
+          : 'Authorization required'
+      }
+      description={
+        isOidc ? (
+          <>
+            <strong>{client.name || 'This application'}</strong> wants to verify
+            your identity using your account. It is a third-party application.{' '}
+            <strong>Only continue if you trust it.</strong>
+          </>
+        ) : (
+          <>
+            <strong>{client.name || 'This application'}</strong> would like
+            permission to access your account. It is a third-party application.{' '}
+            <strong>
+              If you do not trust it, then you should not authorize it.
+            </strong>
+          </>
+        )
+      }
+    >
+      <form onSubmit={handleApprove} className="space-y-6">
+        <Frame divided>
           {isOidc && (
-            <div className="space-y-2">
+            <div className="space-y-2 px-4 py-4">
               {/* Informational caption — not a form-control label, so a <p>
                   rather than <Label> (which would label nothing). */}
               <p className="text-sm font-medium text-muted-foreground">
                 Signed in as
               </p>
-              <div className="flex w-full items-center gap-3 rounded-lg border bg-background p-3">
+              <div className="flex w-full items-center gap-3">
                 <Avatar className="h-10 w-10" aria-hidden="true">
                   {account.iconUrl && <AvatarImage src={account.iconUrl} />}
                   <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
@@ -310,7 +307,7 @@ export const AuthorizeCard: FC<Props> = ({
           )}
 
           {showActorPicker && (
-            <div className="space-y-2">
+            <div className="space-y-2 px-4 py-4">
               <Label className="text-sm font-medium text-muted-foreground">
                 Authorize as
               </Label>
@@ -318,7 +315,7 @@ export const AuthorizeCard: FC<Props> = ({
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-3 rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted"
+                    className="flex w-full items-center gap-3 rounded-md border bg-background p-3 text-left transition-colors hover:bg-muted"
                     disabled={isSwitching}
                   >
                     <Avatar className="h-10 w-10">
@@ -378,10 +375,10 @@ export const AuthorizeCard: FC<Props> = ({
             </div>
           )}
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-muted-foreground">
+          <div className="space-y-4 px-4 py-4">
+            <h2 className="text-sm font-medium text-muted-foreground">
               Review permissions
-            </h3>
+            </h2>
             <div className="space-y-3">
               {availabledScopes.map((scope) => {
                 // `openid` is what makes this an OIDC authentication request and
@@ -420,27 +417,27 @@ export const AuthorizeCard: FC<Props> = ({
               })}
             </div>
           </div>
+        </Frame>
 
-          <div className="flex gap-2">
-            <Button
-              className="flex-1"
-              variant="outline"
-              type="button"
-              onClick={handleDeny}
-              disabled={isSubmitting || isSwitching}
-            >
-              {submittingAction === 'deny' ? 'Denying…' : 'Deny'}
-            </Button>
-            <Button
-              className="flex-1"
-              type="submit"
-              disabled={isSubmitting || isSwitching}
-            >
-              {submittingAction === 'approve' ? 'Approving…' : 'Approve'}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        <div className="flex gap-2">
+          <Button
+            className="flex-1"
+            variant="outline"
+            type="button"
+            onClick={handleDeny}
+            disabled={isSubmitting || isSwitching}
+          >
+            {submittingAction === 'deny' ? 'Denying…' : 'Deny'}
+          </Button>
+          <Button
+            className="flex-1"
+            type="submit"
+            disabled={isSubmitting || isSwitching}
+          >
+            {submittingAction === 'approve' ? 'Approving…' : 'Approve'}
+          </Button>
+        </div>
+      </form>
+    </AuthCard>
   )
 }

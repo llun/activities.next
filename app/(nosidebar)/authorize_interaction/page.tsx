@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
+import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getBaseURL } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import {
@@ -61,6 +62,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
       <div>
         <BackToTimelineLink />
         <AuthorizeInteractionError
+          logoSrc={getAuthLogoSrc()}
           title="Nothing to follow"
           description="This link is missing the account to follow. Open it again from the other server, or search for the account here."
         />
@@ -97,6 +99,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
       case 'resolved':
         return (
           <AuthorizeInteractionCard
+            logoSrc={getAuthLogoSrc()}
             actor={result.actor}
             isSelf={result.actor.id === currentActor.id}
           />
@@ -104,6 +107,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
       case 'forbidden':
         return (
           <AuthorizeInteractionError
+            logoSrc={getAuthLogoSrc()}
             title="Can't reach that server"
             description="This server does not federate with the server that account is on."
             uri={uri}
@@ -112,6 +116,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
       case 'not-found':
         return (
           <AuthorizeInteractionError
+            logoSrc={getAuthLogoSrc()}
             title="Account not found"
             description="We couldn't find that account. Only accounts can be opened from this page — a link to a single post won't work."
             uri={uri}
@@ -120,6 +125,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
       default:
         return (
           <AuthorizeInteractionError
+            logoSrc={getAuthLogoSrc()}
             title="That doesn't look like an account"
             description="Expected an address like username@example.com or a link to a profile."
             uri={uri}

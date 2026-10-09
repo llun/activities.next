@@ -1,9 +1,9 @@
 'use client'
 
-import { Fingerprint } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { FC, useEffect, useState } from 'react'
 
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { authClient } from '@/lib/services/auth/auth-client'
 
@@ -87,34 +87,18 @@ export const PasskeySigninButton: FC<PasskeySigninButtonProps> = ({
   if (!supported) {
     if (credentialEnabled) return null
     return (
-      // The notice is injected after client-side detection, so mark it as a
-      // polite live region — otherwise assistive tech never announces the only
-      // content telling the visitor they can't sign in here (WCAG 2.1 SC 4.1.3).
-      <div
-        role="status"
-        aria-live="polite"
-        className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3.5"
-      >
-        <span className="mt-px flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <Fingerprint className="size-[15px]" />
-        </span>
-        <div>
-          <p className="text-sm font-medium">
-            Passkeys aren&apos;t available in this browser
-          </p>
-          {/* text-foreground/80 (not text-muted-foreground) so this — the only
-              actionable line in the dead-end state — clears WCAG AA contrast
-              (4.5:1) on the muted panel with margin. */}
-          <p className="mt-0.5 text-xs leading-relaxed text-foreground/80">
-            Signing in isn&apos;t available here.
-          </p>
-        </div>
-      </div>
+      // The notice is injected after client-side detection, so it is a polite
+      // live region (the info `Alert` is a `status`): otherwise assistive tech
+      // never announces the only content telling the visitor they can't sign in
+      // here (WCAG 2.1 SC 4.1.3).
+      <Alert tone="info" title="Passkeys aren't available in this browser">
+        Signing in isn&apos;t available here.
+      </Alert>
     )
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-3">
       <Button
         variant="outline"
         className="w-full"
@@ -123,7 +107,7 @@ export const PasskeySigninButton: FC<PasskeySigninButtonProps> = ({
       >
         {loading ? 'Signing in…' : 'Sign in with Passkey'}
       </Button>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <Alert title={error} />}
     </div>
   )
 }

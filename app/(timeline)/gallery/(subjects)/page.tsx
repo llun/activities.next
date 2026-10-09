@@ -2,13 +2,12 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
+import { GallerySubjectsView } from '@/app/(timeline)/gallery/GallerySubjectsView'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { OWNER_GALLERY_AUDIENCE } from '@/lib/services/gallery/galleryAudience'
 import { getGallerySubjects } from '@/lib/services/gallery/galleryQueries'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
-
-import { GallerySubjectsView } from './GallerySubjectsView'
 
 export const dynamic = 'force-dynamic'
 

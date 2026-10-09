@@ -3,17 +3,12 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
+import { AuthCard, AuthCardFooter } from '@/app/(nosidebar)/AuthCard'
+import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
 import { Button } from '@/lib/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -39,42 +34,12 @@ const Page: FC = async () => {
   }
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Create an account</CardTitle>
-        <CardDescription>Join Activities and start sharing</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form method="post" action="/api/v1/accounts" className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="inputUsername">Username</Label>
-            <Input name="username" type="text" id="inputUsername" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="inputName">Full name</Label>
-            <Input
-              name="name"
-              type="text"
-              id="inputName"
-              placeholder="Your display name"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="inputEmail">Email</Label>
-            <Input name="email" type="email" id="inputEmail" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="inputPassword">Password</Label>
-            <Input name="password" type="password" id="inputPassword" />
-          </div>
-
-          <Button type="submit" className="w-full">
-            Sign up
-          </Button>
-        </form>
-      </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-sm text-muted-foreground">
+    <AuthCard
+      logoSrc={getAuthLogoSrc()}
+      title="Create an account"
+      description="Join Activities and start sharing"
+      footer={
+        <AuthCardFooter>
           Already have an account?{' '}
           <Link
             href="/auth/signin"
@@ -82,9 +47,35 @@ const Page: FC = async () => {
           >
             Sign in
           </Link>
-        </p>
-      </CardFooter>
-    </Card>
+        </AuthCardFooter>
+      }
+    >
+      <form method="post" action="/api/v1/accounts" className="space-y-4">
+        <Frame divided>
+          <FormRow stacked label="Username" htmlFor="inputUsername">
+            <Input name="username" type="text" id="inputUsername" />
+          </FormRow>
+          <FormRow stacked label="Full name" htmlFor="inputName">
+            <Input
+              name="name"
+              type="text"
+              id="inputName"
+              placeholder="Your display name"
+            />
+          </FormRow>
+          <FormRow stacked label="Email" htmlFor="inputEmail">
+            <Input name="email" type="email" id="inputEmail" />
+          </FormRow>
+          <FormRow stacked label="Password" htmlFor="inputPassword">
+            <Input name="password" type="password" id="inputPassword" />
+          </FormRow>
+        </Frame>
+
+        <Button type="submit" className="w-full">
+          Sign up
+        </Button>
+      </form>
+    </AuthCard>
   )
 }
 

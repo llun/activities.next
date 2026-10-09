@@ -396,7 +396,7 @@ const DeviceSection: FC<{
  * shared shimmering `.skeleton` bars, as the overview loads, so the page does not
  * jump from a centred "Loading..." line to two tables.
  */
-const GearListSkeleton: FC = () => (
+export const GearListSkeleton: FC = () => (
   <div className="space-y-6">
     <p role="status" className="sr-only">
       Loading gear

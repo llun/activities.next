@@ -19,6 +19,11 @@ interface Props {
    * it off.
    */
   headings?: boolean
+  /**
+   * Draw the muted description line under each heading bar (the default). A
+   * heading with no description of its own turns it off.
+   */
+  descriptions?: boolean
   /** What a screen reader hears while it loads (default "Loading"). */
   label?: string
   className?: string
@@ -34,6 +39,7 @@ export const SectionSkeleton: FC<Props> = ({
   sections = [3],
   title = true,
   headings = true,
+  descriptions = true,
   label = 'Loading',
   className
 }) => (
@@ -53,9 +59,16 @@ export const SectionSkeleton: FC<Props> = ({
     {sections.map((rows, section) => (
       <div key={section} className="space-y-3">
         {headings ? (
-          <div className="space-y-2">
-            <SkeletonBar className="h-5 w-36" />
-            <SkeletonBar className="h-4 w-64 max-w-full" />
+          // `Section`'s heading row (a 24px line) over its 20px description.
+          <div className="space-y-1">
+            <div className="flex h-6 items-center">
+              <SkeletonBar className="h-5 w-36" />
+            </div>
+            {descriptions ? (
+              <div className="flex h-5 items-center">
+                <SkeletonBar className="h-4 w-64 max-w-full" />
+              </div>
+            ) : null}
           </div>
         ) : null}
         <Frame divided>

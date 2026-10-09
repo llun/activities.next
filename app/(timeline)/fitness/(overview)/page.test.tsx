@@ -1,14 +1,14 @@
 import { ReactElement, isValidElement } from 'react'
 
+import { ActorFitnessDashboard } from '@/app/(timeline)/fitness/ActorFitnessDashboard'
+import { OverviewHeaderSlot } from '@/app/(timeline)/fitness/FitnessOverviewHeader'
+import { RecentFitnessActivities } from '@/app/(timeline)/fitness/RecentFitnessActivities'
 import { PageHeader } from '@/lib/components/page-header'
 import { createDeferred } from '@/lib/testing/deferred'
 import { FitnessFile } from '@/lib/types/database/fitnessFile'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
-import { ActorFitnessDashboard } from './ActorFitnessDashboard'
-import { OverviewHeaderSlot } from './FitnessOverviewHeader'
-import { RecentFitnessActivities } from './RecentFitnessActivities'
 import Page from './page'
 
 const mockGetConfig = vi.fn()
@@ -32,11 +32,11 @@ vi.mock('@/lib/utils/getActorFromSession', () => ({
   getActorFromSession: (...args: unknown[]) => mockGetActorFromSession(...args)
 }))
 
-vi.mock('./ActorFitnessDashboard', () => ({
+vi.mock('@/app/(timeline)/fitness/ActorFitnessDashboard', () => ({
   ActorFitnessDashboard: () => null
 }))
 
-vi.mock('./RecentFitnessActivities', () => ({
+vi.mock('@/app/(timeline)/fitness/RecentFitnessActivities', () => ({
   RecentFitnessActivities: () => null
 }))
 

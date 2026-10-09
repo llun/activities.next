@@ -132,7 +132,7 @@ export const ActorFitnessDashboard: FC<Props> = (props) => {
   return <FitnessOverview {...props} timeZone={timeZone} />
 }
 
-function OverviewSkeleton() {
+export function OverviewSkeleton() {
   return (
     <div
       data-testid="fitness-overview-skeleton"

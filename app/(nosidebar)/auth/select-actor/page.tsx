@@ -2,13 +2,8 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/lib/components/ui/card'
+import { AuthCard } from '@/app/(nosidebar)/AuthCard'
+import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { isRealAvatar } from '@/lib/utils/isRealAvatar'
@@ -43,25 +38,21 @@ const Page: FC = async () => {
   }
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Select an actor</CardTitle>
-        <CardDescription>
-          Choose which identity you want to use for this session
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ActorSelectionList
-          actors={actors.map((a) => ({
-            id: a.id,
-            username: a.username,
-            domain: a.domain,
-            name: a.name,
-            iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null
-          }))}
-        />
-      </CardContent>
-    </Card>
+    <AuthCard
+      logoSrc={getAuthLogoSrc()}
+      title="Select an actor"
+      description="Choose which identity you want to use for this session"
+    >
+      <ActorSelectionList
+        actors={actors.map((a) => ({
+          id: a.id,
+          username: a.username,
+          domain: a.domain,
+          name: a.name,
+          iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null
+        }))}
+      />
+    </AuthCard>
   )
 }
 
