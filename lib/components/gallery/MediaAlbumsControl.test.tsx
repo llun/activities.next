@@ -153,6 +153,33 @@ describe('MediaAlbumsControl', () => {
       ).toHaveTextContent('They are not part of Save details.')
     })
 
+    it('opens its menu inside the dialog that holds the row, where the dialog’s scroll lock lets the list scroll', async () => {
+      render(
+        <div role="dialog" aria-label="Media details host">
+          <MediaAlbumsControl mediaId="m1" ownerId="owner" variant="row" />
+        </div>
+      )
+      const menu = await openMenu()
+
+      // Portalled to the body it would sit outside the dialog's scroll lock,
+      // which cancels wheel and touch scrolling there.
+      expect(
+        screen
+          .getByRole('dialog', { name: 'Media details host' })
+          .contains(menu)
+      ).toBe(true)
+    })
+
+    it('is never taller than the room there is', async () => {
+      renderControl()
+      const menu = await openMenu()
+
+      expect(menu).toHaveClass(
+        'max-h-(--radix-popover-content-available-height)',
+        'overflow-y-auto'
+      )
+    })
+
     it('draws nothing, not even its frame, for a photo that is not the caller’s', async () => {
       getMediaAlbumsMock.mockResolvedValue(null)
       const frame = vi.fn((content: React.ReactNode) => (
@@ -377,6 +404,52 @@ describe('MediaAlbumsControl', () => {
       fireEvent.click(within(menu).getAllByRole('checkbox')[2])
       await screen.findByRole('alert')
       expect(onChange).toHaveBeenCalledTimes(2)
+    })
+
+    it('still tells the host when the control is gone before the removal answers', async () => {
+      const pending = createDeferred<ReturnType<typeof result>>()
+      removeMock.mockReturnValue(pending.promise)
+      const onChange = vi.fn()
+      const { unmount } = renderControl('row', { onChange })
+      const menu = await openMenu()
+
+      fireEvent.click(within(menu).getAllByRole('checkbox')[0])
+      expect(removeMock).toHaveBeenCalledWith('a1', ['m1'])
+      // The viewer is closed while the write is still out.
+      unmount()
+      expect(onChange).not.toHaveBeenCalled()
+
+      await act(async () => pending.resolve(result(13)))
+
+      expect(onChange).toHaveBeenCalledTimes(1)
+      expect(onChange).toHaveBeenCalledWith('a1')
+    })
+
+    it('still tells the host when the viewer moved to another photo before the add answers', async () => {
+      const pending = createDeferred<ReturnType<typeof result>>()
+      addMock.mockReturnValue(pending.promise)
+      getMediaAlbumsMock.mockResolvedValue(response())
+      const onChange = vi.fn()
+      const { rerender } = renderControl('row', { onChange })
+      const menu = await openMenu()
+
+      fireEvent.click(
+        within(menu).getByRole('checkbox', { name: /^Garden birds/ })
+      )
+      rerender(
+        <MediaAlbumsControl
+          mediaId="m2"
+          ownerId="owner"
+          variant="row"
+          onChange={onChange}
+        />
+      )
+      await act(async () => pending.resolve(result(4)))
+
+      expect(onChange).toHaveBeenCalledTimes(1)
+      expect(onChange).toHaveBeenCalledWith('a2')
+      // The other photo shows nothing of the earlier photo's answer.
+      expect(screen.queryByTestId('album-toast')).not.toBeInTheDocument()
     })
 
     it('puts a failed add back and says why', async () => {
@@ -678,6 +751,15 @@ describe('MediaAlbumsControl', () => {
       expect(
         await screen.findByRole('button', { name: 'In 1 album' })
       ).toBeVisible()
+    })
+
+    it('is capped to the room there is as well', async () => {
+      renderControl('pill')
+      const menu = await openMenu('In 1 album')
+
+      expect(menu).toHaveClass(
+        'max-h-(--radix-popover-content-available-height)'
+      )
     })
 
     it('invites an add when the photo is in no album', async () => {

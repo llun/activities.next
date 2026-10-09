@@ -72,8 +72,8 @@ const stopPortalledTouch = (event: TouchEvent<HTMLElement>) => {
   }
 }
 
-/** The lightbox is `aria-modal`: what opens over it belongs inside it. */
-const MODAL_SELECTOR = '[role="dialog"][aria-modal="true"]'
+/** The lightbox and the details dialog are modal: what opens over them belongs inside them. */
+const MODAL_SELECTOR = '[role="dialog"]'
 
 const AlbumChip: FC<{ album: MediaAlbumOptionEntity }> = ({ album }) => (
   <li>
@@ -112,8 +112,8 @@ export const MediaAlbumsControl: FC<Props> = ({
   const [createOpen, setCreateOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  // In the lightbox the menu renders inside the modal: portalled to the body
-  // it would be outside `aria-modal`, where a screen reader may skip it.
+  // The menu renders inside the modal that holds the control: portalled to the
+  // body it would be outside `aria-modal`, where a screen reader may skip it.
   const [modal, setModal] = useState<HTMLElement | null>(null)
 
   const {
@@ -136,12 +136,8 @@ export const MediaAlbumsControl: FC<Props> = ({
     renderFrame ? renderFrame(content) : content
 
   useEffect(() => {
-    setModal(
-      variant === 'pill'
-        ? (rootRef.current?.closest<HTMLElement>(MODAL_SELECTOR) ?? null)
-        : null
-    )
-  }, [variant, status])
+    setModal(rootRef.current?.closest<HTMLElement>(MODAL_SELECTOR) ?? null)
+  }, [status])
 
   if (status === 'hidden') return null
   if (status === 'loading') {
@@ -175,8 +171,8 @@ export const MediaAlbumsControl: FC<Props> = ({
           variant="link"
           size="sm"
           className={cn(
-            'h-auto p-0 text-xs',
-            onDark && 'text-orange-300 pointer-coarse:min-h-10'
+            'h-auto p-0 text-xs pointer-coarse:min-h-10',
+            onDark && 'text-orange-300'
           )}
           onClick={() => void albums.reload()}
         >
@@ -274,15 +270,23 @@ export const MediaAlbumsControl: FC<Props> = ({
   )
 
   const menu = (
+    // The menu renders inside the modal that holds the control (the viewer, or
+    // the details dialog), never in the body: a Radix dialog's scroll lock
+    // cancels wheel and touch scrolling in anything outside it, which would
+    // leave a long list of albums out of reach.
     <Popover open={menuOpen} onOpenChange={setMenuOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align="start"
+        collisionPadding={8}
         container={modal}
         aria-labelledby={titleId}
         data-albums-menu=""
         className={cn(
-          'w-72 max-w-[calc(100vw-2rem)] p-1.5',
+          // Never taller than the room there is: a short screen scrolls the
+          // list (and, at the very least, the menu) instead of hiding the
+          // New album action below the fold.
+          'flex max-h-(--radix-popover-content-available-height) w-72 max-w-[calc(100vw-2rem)] flex-col overflow-y-auto p-1.5',
           dark && 'border-white/15 bg-neutral-800 text-neutral-50'
         )}
       >
@@ -306,7 +310,7 @@ export const MediaAlbumsControl: FC<Props> = ({
           </p>
         ) : (
           <ul
-            className="max-h-64 overflow-y-auto"
+            className="max-h-64 min-h-0 shrink overflow-y-auto"
             onKeyDown={moveFocus}
             aria-labelledby={titleId}
           >
@@ -423,7 +427,7 @@ export const MediaAlbumsControl: FC<Props> = ({
   }
 
   return frame(
-    <div className={cn('space-y-3', className)}>
+    <div ref={rootRef} className={cn('space-y-3', className)}>
       <div className="flex flex-wrap items-center gap-1.5">
         {holding.length > 0 ? (
           <ul

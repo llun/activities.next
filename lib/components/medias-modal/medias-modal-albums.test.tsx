@@ -290,6 +290,36 @@ describe('MediasModal albums pill', () => {
       expect(onClosed).toHaveBeenCalledTimes(1)
     })
 
+    it('keeps the viewer open when a press inside the menu is released on the backdrop', async () => {
+      const { onClosed } = renderModal()
+      fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+      const menu = await screen.findByRole('dialog', { name: 'Add to album' })
+      const backdrop = screen.getByRole('dialog', { name: 'Media viewer' })
+
+      // A scrollbar drag that overshoots the menu: the click lands on the
+      // common ancestor, the viewer's root.
+      fireEvent.pointerDown(within(menu).getAllByRole('checkbox')[0])
+      fireEvent.click(backdrop)
+
+      expect(onClosed).not.toHaveBeenCalled()
+      expect(
+        screen.getByRole('dialog', { name: 'Add to album' })
+      ).toBeInTheDocument()
+
+      // The next press on the backdrop is a real one: it closes the menu only
+      // (as before), and the one after that closes the viewer.
+      fireEvent.pointerDown(backdrop)
+      fireEvent.click(backdrop)
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('dialog', { name: 'Add to album' })
+        ).not.toBeInTheDocument()
+      )
+      fireEvent.pointerDown(backdrop)
+      fireEvent.click(backdrop)
+      expect(onClosed).toHaveBeenCalledTimes(1)
+    })
+
     it('does not count a press inside the menu as one that closed it', async () => {
       const { onClosed } = renderModal()
       fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))

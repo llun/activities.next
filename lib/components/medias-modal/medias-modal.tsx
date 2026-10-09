@@ -318,11 +318,14 @@ export const MediasModal: FC<Props> = ({
       aria-modal="true"
       aria-label="Media viewer"
       className="fixed inset-0 z-50 flex flex-col bg-black/90"
-      onPointerDownCapture={(e) => {
-        const target = e.target as Element
-        swallowBackdropClick.current =
-          Boolean(document.querySelector(ALBUMS_MENU_SELECTOR)) &&
-          !target.closest(ALBUMS_MENU_SELECTOR)
+      onPointerDownCapture={() => {
+        // A press that starts while the albums menu is open never closes the
+        // viewer: outside the menu it only closes the menu, and inside it
+        // may be released on the backdrop (a scrollbar drag that overshoots),
+        // which dispatches its click on this root.
+        swallowBackdropClick.current = Boolean(
+          document.querySelector(ALBUMS_MENU_SELECTOR)
+        )
       }}
       onClick={() => {
         if (swallowBackdropClick.current) {
