@@ -31,8 +31,10 @@ vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumPicker', () => ({
     onFirstItemChange,
     capacity,
     existingIds,
+    seedItems,
     disabled
   }: {
+    seedItems?: { mediaId: string }[]
     selected: string[]
     onChange: (ids: string[]) => void
     onFirstItemChange?: (item: unknown) => void
@@ -43,6 +45,9 @@ vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumPicker', () => ({
     <div>
       <span data-testid="capacity">{capacity}</span>
       <span data-testid="existing">{existingIds?.join(',')}</span>
+      <span data-testid="seed">
+        {seedItems?.map((item) => item.mediaId).join(',')}
+      </span>
       <span data-testid="picker-disabled">{String(Boolean(disabled))}</span>
       <button
         type="button"
@@ -355,5 +360,86 @@ describe('GalleryAlbumFormDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(create).not.toHaveBeenCalled()
+  })
+
+  describe('started with photos', () => {
+    it('starts with the photos already picked and says so', () => {
+      renderDialog({ initialMediaIds: ['p1', 'p2'] })
+
+      expect(screen.getByTestId('picked')).toHaveTextContent('p1,p2')
+      expect(screen.getByTestId('album-selection-count')).toHaveTextContent(
+        '2 selected'
+      )
+      expect(
+        screen.getByText(/The 2 photos you chose are already selected\./)
+      ).toBeVisible()
+    })
+
+    it('says photo in the singular for one', () => {
+      renderDialog({ initialMediaIds: ['p1'] })
+
+      expect(
+        screen.getByText(/The photo you chose is already selected\./)
+      ).toBeVisible()
+    })
+
+    it('gives the picker the loaded photos for the cover', () => {
+      renderDialog({
+        initialMediaIds: ['p1'],
+        initialItems: [buildGalleryItem('p1')]
+      })
+
+      expect(screen.getByTestId('seed')).toHaveTextContent('p1')
+    })
+
+    it('creates the album with them and the first as the cover', async () => {
+      create.mockResolvedValue(result('new'))
+      update.mockResolvedValue(buildAlbumCard('new'))
+      const { onSaved } = renderDialog({ initialMediaIds: ['p1', 'p2'] })
+
+      fireEvent.change(screen.getByLabelText('Title'), {
+        target: { value: 'Pair' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Create album' }))
+      await waitFor(() => expect(onSaved).toHaveBeenCalledWith('new'))
+
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Pair', mediaIds: ['p1', 'p2'] })
+      )
+    })
+
+    it('starts again from them each time it opens, not from earlier edits', () => {
+      const props = {
+        ownerId: 'owner',
+        intent: 'create' as const,
+        initialMediaIds: ['p1'],
+        onOpenChange: vi.fn(),
+        onSaved: vi.fn()
+      }
+      const { rerender } = render(<GalleryAlbumFormDialog open {...props} />)
+      fireEvent.click(screen.getByText('pick three'))
+      expect(screen.getByTestId('picked')).toHaveTextContent('m1,m2,m3')
+
+      // A parent that builds a new array every render must not undo the picks.
+      rerender(
+        <GalleryAlbumFormDialog open {...props} initialMediaIds={['p1']} />
+      )
+      expect(screen.getByTestId('picked')).toHaveTextContent('m1,m2,m3')
+
+      rerender(<GalleryAlbumFormDialog open={false} {...props} />)
+      rerender(<GalleryAlbumFormDialog open {...props} />)
+      expect(screen.getByTestId('picked')).toHaveTextContent('p1')
+    })
+
+    it('ignores them when adding to an album', () => {
+      renderDialog({
+        intent: 'add',
+        album: buildAlbumCard('a1'),
+        initialMediaIds: ['p1']
+      })
+
+      expect(screen.getByTestId('picked')).toHaveTextContent('')
+      expect(screen.queryByText(/you chose are already/)).toBeNull()
+    })
   })
 })

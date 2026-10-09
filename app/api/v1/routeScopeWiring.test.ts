@@ -563,6 +563,10 @@ const EXPECTED: Array<{
     module: '@/app/api/v1/gallery/albums/[id]/items/route',
     scopes: ['read', 'read:statuses', 'write', 'write:media']
   },
+  {
+    module: '@/app/api/v1/media/[id]/albums/route',
+    scopes: ['read', 'read:statuses']
+  },
   { module: '@/app/api/v2/media/route', scopes: ['write', 'write:media'] },
   // announcements and suggestions lists
   {

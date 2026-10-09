@@ -13,7 +13,8 @@ import {
   GalleryAlbumMediaPage,
   GalleryAlbumShare,
   GalleryAlbumSpeciesChip,
-  GalleryAlbumViewResponse
+  GalleryAlbumViewResponse,
+  MediaAlbumsResponse
 } from '@/lib/services/gallery/galleryAlbumEntities'
 import {
   type GalleryAudience,
@@ -56,6 +57,7 @@ type AlbumQueryDatabase = Pick<
   | 'getGalleryAlbumPlaceIndexes'
   | 'countGalleryAlbumMedia'
   | 'countGalleryAlbumStoredItems'
+  | 'getAlbumsForMedia'
 >
 
 interface AlbumQueryBase {
@@ -556,4 +558,40 @@ export const getGalleryAlbumShare = async ({
     database.getGalleryAlbumIndex({ albumId, actorId: owner.id, audience })
   ])
   return { album, facts: computeGalleryAlbumFacts(rows, settings) }
+}
+
+/**
+ * The owner's albums and which of them hold `mediaId`, for the add-to-album
+ * menu on a photo. Owner data: the caller has already checked the media is the
+ * owner's, and nothing here is computed for any other audience.
+ */
+export const getMediaAlbums = async ({
+  database,
+  owner,
+  mediaId
+}: {
+  database: AlbumQueryDatabase
+  owner: { id: string }
+  mediaId: string
+}): Promise<MediaAlbumsResponse> => {
+  const audience = OWNER_GALLERY_AUDIENCE
+  const [summaries, holding, gallery] = await Promise.all([
+    database.getGalleryAlbumSummaries({ actorId: owner.id, audience }),
+    database.getAlbumsForMedia({ mediaId, actorId: owner.id, audience }),
+    database.getGalleryMediaByIds({
+      actorId: owner.id,
+      audience,
+      mediaIds: [mediaId]
+    })
+  ])
+  return {
+    albums: summaries.map(({ album, itemCount }) => ({
+      id: album.id,
+      title: album.title,
+      visibility: album.visibility,
+      itemCount
+    })),
+    albumIds: holding.map((album) => album.id),
+    addable: gallery.length > 0
+  }
 }

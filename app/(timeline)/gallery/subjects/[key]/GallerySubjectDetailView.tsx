@@ -146,6 +146,7 @@ export const GallerySubjectDetailView: FC<Props> = ({
         actorId={actorId}
         subject={subject.key}
         initialPage={initialPage}
+        albumsOwnerId={actorId}
       />
 
       {browseTag ? (

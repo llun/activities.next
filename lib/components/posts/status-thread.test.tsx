@@ -10,6 +10,7 @@ import { createNote } from '@/lib/client'
 import {
   BASE_TIME,
   createMockNote,
+  createMockPhoto,
   mockAlice,
   mockBob,
   mockCarol
@@ -43,6 +44,20 @@ vi.mock('@/lib/client', async (importOriginal) => {
     getTranslationLanguages: vi.fn().mockResolvedValue([])
   }
 })
+
+// Only what the viewer is handed matters here, not the viewer itself.
+vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
+  MediasModal: ({
+    medias,
+    albumsOwnerId
+  }: {
+    medias: unknown[] | null
+    albumsOwnerId?: string | null
+  }) =>
+    medias ? (
+      <div data-testid="viewer" data-albums-owner={albumsOwnerId ?? 'none'} />
+    ) : null
+}))
 
 const mockCreateNote = vi.mocked(createNote)
 
@@ -821,6 +836,79 @@ describe('StatusThread', () => {
         )
       ).toEqual([])
       querySelector.mockRestore()
+    })
+  })
+  describe('viewer albums owner', () => {
+    const withPhoto = (
+      id: string,
+      author: typeof mockAlice,
+      name: string,
+      reply = ''
+    ) =>
+      createMockNote({
+        id,
+        actor: author,
+        actorId: author.id,
+        text: name,
+        reply,
+        attachments: [createMockPhoto({ id, actorId: author.id }, name)]
+      })
+
+    const ancestorId = 'https://activities.local/users/bob/statuses/ancestor'
+    const focusedId = 'https://activities.local/users/alice/statuses/focused'
+    const replyId = 'https://activities.local/users/carol/statuses/reply'
+
+    const open = (name: string, currentActor: typeof mockAlice | null) => {
+      const ancestor = withPhoto(ancestorId, mockBob, 'Ancestor photo')
+      const focused = withPhoto(
+        focusedId,
+        mockAlice,
+        'Focused photo',
+        ancestorId
+      )
+      const reply = withPhoto(replyId, mockAlice, 'Reply photo', focusedId)
+      render(
+        <StatusThread
+          host={host}
+          status={focused}
+          ancestors={[ancestor]}
+          descendants={[reply]}
+          currentActor={currentActor}
+          currentTime={BASE_TIME + 200000}
+        />
+      )
+      fireEvent.click(
+        screen.getByRole('button', { name: `Open media: ${name}` })
+      )
+      return screen.getByTestId('viewer')
+    }
+
+    it('offers the owner the albums pill on their focused post', () => {
+      expect(open('Focused photo', mockAlice)).toHaveAttribute(
+        'data-albums-owner',
+        mockAlice.id
+      )
+    })
+
+    it('offers it on their own reply in the thread', () => {
+      expect(open('Reply photo', mockAlice)).toHaveAttribute(
+        'data-albums-owner',
+        mockAlice.id
+      )
+    })
+
+    it('offers none on somebody else’s ancestor post', () => {
+      expect(open('Ancestor photo', mockAlice)).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
+
+    it('offers a signed-out viewer none', () => {
+      expect(open('Focused photo', null)).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
     })
   })
 })

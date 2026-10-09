@@ -5,6 +5,10 @@ import { createPortal } from 'react-dom'
 import { getMediaPublicDetails } from '@/lib/client'
 import { CustomEmojiText } from '@/lib/components/actors/ActorDisplayName'
 import {
+  ALBUMS_MENU_SELECTOR,
+  MediaAlbumsControl
+} from '@/lib/components/gallery/MediaAlbumsControl'
+import {
   MediaDetailsPanel,
   hasPublicDetailsContent
 } from '@/lib/components/medias-modal/media-details-panel'
@@ -32,6 +36,14 @@ interface Props {
   initialSelection: number
   /** The media's owner, shown in the details panel's "confirmed by" line. */
   ownerName?: string | null
+  /**
+   * The signed-in viewer's actor id when every photo shown is theirs. With it
+   * the photo gets an "In N albums" pill that opens the add-to-album menu;
+   * without it there is none and nothing is requested.
+   */
+  albumsOwnerId?: string | null
+  /** Called with an album's id after the albums pill changed what it holds. */
+  onAlbumsChange?: (albumId: string) => void
   onClosed: () => void
 }
 
@@ -40,6 +52,8 @@ export const MediasModal: FC<Props> = ({
   tags,
   initialSelection,
   ownerName,
+  albumsOwnerId,
+  onAlbumsChange,
   onClosed
 }) => {
   const [modalGifPlaying, setModalGifPlaying] = useState<boolean | null>(null)
@@ -54,6 +68,10 @@ export const MediasModal: FC<Props> = ({
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
   const isSwipeGesture = useRef(false)
+  // The press that closed the albums menu is the start of a click that would
+  // reach the backdrop and close the viewer too; it only meant to close the
+  // menu.
+  const swallowBackdropClick = useRef(false)
   const swipeTrackRef = useRef<HTMLDivElement>(null)
   // Public details, keyed by media id, so going back to a photo reuses the
   // answer. The cache belongs to one viewing session: it is dropped whenever
@@ -143,6 +161,18 @@ export const MediasModal: FC<Props> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!medias) return
+      // A menu or dialog opened over the viewer (the albums menu, "New
+      // album") owns Escape and the arrow keys: it has already used Escape to
+      // close itself, and an arrow in its fields must not change the photo.
+      if (e.defaultPrevented) return
+      if (
+        e.target instanceof Element &&
+        e.target.closest(
+          `${ALBUMS_MENU_SELECTOR}, [data-slot="dialog-content"], input, textarea, select`
+        )
+      ) {
+        return
+      }
       if (e.key === 'Escape') handleClose()
       if (e.key === 'ArrowLeft') handlePrevious()
       if (e.key === 'ArrowRight') handleNext()
@@ -288,7 +318,22 @@ export const MediasModal: FC<Props> = ({
       aria-modal="true"
       aria-label="Media viewer"
       className="fixed inset-0 z-50 flex flex-col bg-black/90"
-      onClick={handleClose}
+      onPointerDownCapture={() => {
+        // A press that starts while the albums menu is open never closes the
+        // viewer: outside the menu it only closes the menu, and inside it
+        // may be released on the backdrop (a scrollbar drag that overshoots),
+        // which dispatches its click on this root.
+        swallowBackdropClick.current = Boolean(
+          document.querySelector(ALBUMS_MENU_SELECTOR)
+        )
+      }}
+      onClick={() => {
+        if (swallowBackdropClick.current) {
+          swallowBackdropClick.current = false
+          return
+        }
+        handleClose()
+      }}
     >
       {/* Header */}
       <div
@@ -366,6 +411,12 @@ export const MediasModal: FC<Props> = ({
                 // the caption-plus-panel region scrolls instead of being
                 // clipped by the swipe track's overflow-hidden.
                 const showsDetails = panelIndex === 1 && Boolean(currentDetails)
+                // The owner's albums pill sits under the active photo, so the
+                // photo gives up a little height for it.
+                const albumsMediaId =
+                  panelIndex === 1 && albumsOwnerId
+                    ? medias[index].mediaId
+                    : null
 
                 return (
                   <div
@@ -399,7 +450,12 @@ export const MediasModal: FC<Props> = ({
                               ? 'max-h-[45vh]'
                               : medias[index].name?.trim()
                                 ? 'max-h-[72vh]'
-                                : 'max-h-[80vh]'
+                                : 'max-h-[80vh]',
+                            albumsMediaId &&
+                              !showsDetails &&
+                              (medias[index].name?.trim()
+                                ? 'max-h-[calc(72vh-3.5rem)]'
+                                : 'max-h-[calc(80vh-3.5rem)]')
                           )}
                           attachment={medias[index]}
                         />
@@ -430,6 +486,17 @@ export const MediasModal: FC<Props> = ({
                           </button>
                         )}
                       </div>
+                      {albumsMediaId && albumsOwnerId ? (
+                        <MediaAlbumsControl
+                          // Its own load and state for each photo.
+                          key={albumsMediaId}
+                          mediaId={albumsMediaId}
+                          ownerId={albumsOwnerId}
+                          variant="pill"
+                          onChange={onAlbumsChange}
+                          className="mt-2 w-full px-4"
+                        />
+                      ) : null}
                       <div
                         onTouchStart={
                           showsDetails ? (e) => e.stopPropagation() : undefined

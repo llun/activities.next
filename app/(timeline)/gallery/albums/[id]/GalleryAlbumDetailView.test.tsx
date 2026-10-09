@@ -38,12 +38,29 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
-  GalleryGrid: ({ items }: { items: { mediaId: string }[] }) => (
-    <ul data-testid="grid">
-      {items.map((item) => (
-        <li key={item.mediaId}>{item.mediaId}</li>
-      ))}
-    </ul>
+  GalleryGrid: ({
+    items,
+    albumsOwnerId,
+    onAlbumsChanged
+  }: {
+    items: { mediaId: string }[]
+    albumsOwnerId?: string | null
+    onAlbumsChanged?: (albumIds: string[]) => void
+  }) => (
+    <div>
+      <ul data-testid="grid" data-albums-owner={albumsOwnerId ?? 'none'}>
+        {items.map((item) => (
+          <li key={item.mediaId}>{item.mediaId}</li>
+        ))}
+      </ul>
+      {/* What the grid does when its viewer closes after a pill change. */}
+      <button onClick={() => onAlbumsChanged?.(['a1'])}>
+        viewer closed after changing this album
+      </button>
+      <button onClick={() => onAlbumsChanged?.(['elsewhere'])}>
+        viewer closed after changing another album
+      </button>
+    </div>
   )
 }))
 
@@ -251,6 +268,61 @@ describe('GalleryAlbumDetailView', () => {
       'src',
       'https://activities.local/media/gif-1-thumb.jpg'
     )
+  })
+
+  describe('the lightbox albums pill', () => {
+    it('gives the grid the owner, so the lightbox shows the pill', () => {
+      renderView()
+
+      expect(screen.getByTestId('grid')).toHaveAttribute(
+        'data-albums-owner',
+        'owner'
+      )
+    })
+
+    it('reads the album again when the viewer closes after the pill changed this album', async () => {
+      items.mockResolvedValue({
+        items: [buildGalleryItem('a1-1')],
+        nextMaxId: null
+      })
+      renderView()
+      expect(mockRefresh).not.toHaveBeenCalled()
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'viewer closed after changing this album'
+        })
+      )
+
+      // The facts and count (server render) and the grid.
+      await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
+      await waitFor(() =>
+        expect(items).toHaveBeenCalledWith('a1', {
+          limit: 30,
+          sort: 'taken_desc',
+          subject: undefined,
+          maxId: undefined
+        })
+      )
+      await waitFor(() =>
+        expect(screen.getByTestId('grid')).toHaveTextContent('a1-1')
+      )
+      expect(screen.getByTestId('grid')).not.toHaveTextContent('a1-2')
+    })
+
+    it('leaves the page alone when the pill changed some other album', async () => {
+      renderView()
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'viewer closed after changing another album'
+        })
+      )
+      await act(async () => {})
+
+      expect(mockRefresh).not.toHaveBeenCalled()
+      expect(items).not.toHaveBeenCalled()
+    })
   })
 
   it('refetches the first page for a species chip and for a sort', async () => {

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { FC, useMemo, useState } from 'react'
 
+import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -101,6 +102,8 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
     medias: Attachment[]
     tags?: Tag[]
     initialSelection: number
+    /** The viewer's actor id when the post is their own (the albums pill). */
+    albumsOwnerId: string | null
   } | null>(null)
   const composer = useInlineComposer()
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(
@@ -195,7 +198,8 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
             setModalMedias({
               medias: allMedias,
               tags: actualStatus.tags,
-              initialSelection: index
+              initialSelection: index,
+              albumsOwnerId: getAlbumsOwnerId(currentActor, actualStatus)
             })
           }}
         />
@@ -405,6 +409,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
         medias={modalMedias?.medias ?? null}
         tags={modalMedias?.tags ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}
+        albumsOwnerId={modalMedias?.albumsOwnerId}
         onClosed={() => setModalMedias(null)}
       />
     </>

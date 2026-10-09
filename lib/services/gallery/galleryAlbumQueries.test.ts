@@ -8,6 +8,7 @@ import {
   getGalleryAlbumDetail,
   getGalleryAlbumList,
   getGalleryAlbumPage,
+  getMediaAlbums,
   parseAlbumCursor,
   toAlbumCursorString,
   toSpeciesChips
@@ -736,6 +737,215 @@ describe('gallery album queries', () => {
       expect(
         visitor.albums.every((album) => album.hiddenPlaceCount === 0)
       ).toBeTrue()
+    })
+
+    describe('getMediaAlbums', () => {
+      // Albums a test made, and the photos it added: gone afterwards, so no
+      // other test (several count the owner's photos and albums) sees them.
+      const madeAlbums: string[] = []
+      const madeStatuses: string[] = []
+
+      const createAlbum = async (
+        title: string,
+        mediaIds: string[] = [],
+        visibility?: 'public' | 'private'
+      ) => {
+        const created = await database.createGalleryAlbumWithinLimit({
+          actorId: ownerId,
+          title,
+          visibility,
+          mediaIds,
+          limit: 200,
+          itemLimit: 2000
+        })
+        if (created.status !== 'created') throw new Error('not created')
+        madeAlbums.push(created.album.id)
+        return created.album.id
+      }
+
+      // A photo of `actor`, with the post it is attached to when `posted`.
+      const makePhoto = async ({
+        name,
+        actor = ownerId,
+        posted = true,
+        inGallery = true
+      }: {
+        name: string
+        actor?: string
+        posted?: boolean
+        inGallery?: boolean
+      }) => {
+        const media = await database.createMedia({
+          actorId: actor,
+          original: {
+            path: `/test/media-albums-${name}.jpg`,
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 100, height: 100 }
+          },
+          details: { inGallery }
+        })
+        const statusId = `${actor}/statuses/media-albums-${name}`
+        if (posted) {
+          await database.createNote({
+            id: statusId,
+            url: statusId,
+            actorId: actor,
+            to: [ACTIVITY_STREAM_PUBLIC],
+            cc: [],
+            text: name
+          })
+          madeStatuses.push(statusId)
+          await database.createAttachment({
+            actorId: actor,
+            statusId,
+            mediaType: 'image/jpeg',
+            url: `https://media.test/media-albums-${name}.jpg`,
+            width: 100,
+            height: 100,
+            mediaId: media!.id
+          })
+        }
+        return { mediaId: media!.id, statusId }
+      }
+
+      afterEach(async () => {
+        for (const id of madeAlbums.splice(0)) {
+          await database.deleteGalleryAlbum({ id, actorId: ownerId })
+        }
+        for (const statusId of madeStatuses.splice(0)) {
+          await database.deleteStatus({ statusId })
+        }
+      })
+
+      it('lists every album of the owner, marks those holding the photo and counts their photos', async () => {
+        const holding = await createAlbum('MA holds', [ids.kingfisher])
+        const holdingPrivately = await createAlbum(
+          'MA holds privately',
+          [ids.kingfisher, ids['snow-leopard']],
+          'private'
+        )
+        const empty = await createAlbum('MA empty')
+
+        const result = await getMediaAlbums({
+          database,
+          owner: { id: ownerId },
+          mediaId: ids.kingfisher
+        })
+
+        expect(result.addable).toBe(true)
+        // Everything (made in setup) holds every seeded photo as well; other
+        // tests may have made albums of their own, so only these are pinned.
+        expect(result.albumIds).toEqual(
+          expect.arrayContaining([albumId, holding, holdingPrivately])
+        )
+        expect(result.albumIds).not.toContain(empty)
+        const byId = Object.fromEntries(
+          result.albums.map((album) => [album.id, album])
+        )
+        expect(byId[holding]).toEqual({
+          id: holding,
+          title: 'MA holds',
+          visibility: 'public',
+          itemCount: 1
+        })
+        expect(byId[holdingPrivately]).toMatchObject({
+          visibility: 'private',
+          itemCount: 2
+        })
+        expect(byId[empty]).toMatchObject({ itemCount: 0 })
+        // Only what the menu shows.
+        expect(Object.keys(byId[empty]).sort()).toEqual([
+          'id',
+          'itemCount',
+          'title',
+          'visibility'
+        ])
+      })
+
+      it('reports no album for a posted photo that is in none', async () => {
+        const { mediaId } = await makePhoto({ name: 'in-none' })
+
+        const result = await getMediaAlbums({
+          database,
+          owner: { id: ownerId },
+          mediaId
+        })
+
+        expect(result.albumIds).toEqual([])
+        expect(result.addable).toBe(true)
+      })
+
+      it('is not addable for an upload nobody has posted', async () => {
+        const { mediaId } = await makePhoto({ name: 'unposted', posted: false })
+
+        const result = await getMediaAlbums({
+          database,
+          owner: { id: ownerId },
+          mediaId
+        })
+
+        expect(result.addable).toBe(false)
+      })
+
+      it('is not addable for a photo kept out of the gallery', async () => {
+        const { mediaId } = await makePhoto({
+          name: 'not-in-gallery',
+          inGallery: false
+        })
+
+        const result = await getMediaAlbums({
+          database,
+          owner: { id: ownerId },
+          mediaId
+        })
+
+        expect(result.addable).toBe(false)
+      })
+
+      it('is not addable once its post is gone, though an album still holds it', async () => {
+        const { mediaId, statusId } = await makePhoto({ name: 'post-deleted' })
+        const holding = await createAlbum('MA kept', [mediaId])
+        await database.deleteStatus({ statusId })
+
+        const result = await getMediaAlbums({
+          database,
+          owner: { id: ownerId },
+          mediaId
+        })
+
+        // Membership is read as stored, so the menu can still take it out; it
+        // can no longer be added anywhere.
+        expect(result.albumIds).toEqual([holding])
+        expect(result.addable).toBe(false)
+      })
+
+      it('is not addable for another actor’s photo', async () => {
+        const { mediaId } = await makePhoto({
+          name: 'someone-elses',
+          actor: actors.primary.id
+        })
+
+        const result = await getMediaAlbums({
+          database,
+          owner: { id: ownerId },
+          mediaId
+        })
+
+        expect(result.addable).toBe(false)
+        expect(result.albumIds).toEqual([])
+      })
+
+      it('lists no albums of another owner', async () => {
+        const result = await getMediaAlbums({
+          database,
+          owner: { id: actors.primary.id },
+          mediaId: ids.kingfisher
+        })
+
+        expect(result.albums.map((album) => album.id)).not.toContain(albumId)
+        expect(result.albumIds).toEqual([])
+      })
     })
   })
 })

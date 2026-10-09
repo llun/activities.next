@@ -49,20 +49,28 @@ const named = (
 
 const Harness = ({
   capacity = 2000,
-  existingIds
+  existingIds,
+  initialSelected = [],
+  seedItems,
+  onFirstItemChange
 }: {
   capacity?: number
   existingIds?: string[]
+  initialSelected?: string[]
+  seedItems?: GalleryItemEntity[]
+  onFirstItemChange?: (item: GalleryItemEntity | null) => void
 }) => {
-  const [selected, setSelected] = useState<string[]>([])
+  const [selected, setSelected] = useState<string[]>(initialSelected)
   return (
     <>
       <GalleryAlbumPicker
         ownerId="owner"
         selected={selected}
         onChange={setSelected}
+        onFirstItemChange={onFirstItemChange}
         capacity={capacity}
         existingIds={existingIds}
+        seedItems={seedItems}
       />
       <output data-testid="selected">{selected.join(',')}</output>
     </>
@@ -266,5 +274,32 @@ describe('GalleryAlbumPicker', () => {
         fireEvent.keyDown(screen.getByLabelText(label), { key: 'Enter' })
       ).toBe(false)
     }
+  })
+
+  it('knows the cover of a preselected photo that is not in the loaded pages', async () => {
+    media.mockResolvedValue({ items: [named('2', 'Robin')], nextMaxId: null })
+    const onFirstItemChange = vi.fn()
+    const seed = named('9', 'Heron')
+    render(
+      <Harness
+        initialSelected={['9']}
+        seedItems={[seed]}
+        onFirstItemChange={onFirstItemChange}
+      />
+    )
+    await screen.findByRole('button', { name: 'Select Robin, photo 1' })
+
+    expect(onFirstItemChange).toHaveBeenLastCalledWith(seed)
+  })
+
+  it('has no cover for a preselected photo it was not told about', async () => {
+    media.mockResolvedValue({ items: [named('2', 'Robin')], nextMaxId: null })
+    const onFirstItemChange = vi.fn()
+    render(
+      <Harness initialSelected={['9']} onFirstItemChange={onFirstItemChange} />
+    )
+    await screen.findByRole('button', { name: 'Select Robin, photo 1' })
+
+    expect(onFirstItemChange).toHaveBeenLastCalledWith(null)
   })
 })

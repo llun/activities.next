@@ -10,7 +10,7 @@ import {
   pollStatusCurrentTime,
   pollStatusFixture
 } from '@/lib/components/posts/__fixtures__/poll-status'
-import { Status, StatusType } from '@/lib/types/domain/status'
+import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getStatusDetailPathClient } from '@/lib/utils/getStatusDetailPathClient'
 
 import {
@@ -82,6 +82,20 @@ vi.mock('./inline-status-composer', () => ({
   )
 }))
 
+// Only what Posts hands the viewer matters here; the viewer has its own tests.
+vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
+  MediasModal: ({
+    medias,
+    albumsOwnerId
+  }: {
+    medias: unknown[] | null
+    albumsOwnerId?: string | null
+  }) =>
+    medias ? (
+      <div data-testid="viewer" data-albums-owner={albumsOwnerId ?? 'none'} />
+    ) : null
+}))
+
 const mockVotePoll = vi.mocked(votePoll)
 const mockGetStatusDetailPathClient = vi.mocked(getStatusDetailPathClient)
 
@@ -113,6 +127,95 @@ describe('Posts', () => {
     expect(option).toBeChecked()
     expect(mockGetStatusDetailPathClient).not.toHaveBeenCalled()
     expect(mockPush).not.toHaveBeenCalled()
+  })
+
+  describe('viewer albums owner', () => {
+    const withPhoto = (overrides: Partial<StatusNote> = {}): StatusNote =>
+      ({
+        ...pollStatusFixture,
+        type: StatusType.enum.Note,
+        choices: undefined,
+        attachments: [
+          {
+            id: 'attachment-1',
+            actorId: pollStatusFixture.actorId,
+            statusId: pollStatusFixture.id,
+            type: 'Document',
+            mediaType: 'image/jpeg',
+            url: 'https://activities.local/media/1.jpg',
+            mediaId: 'm1',
+            name: 'A heron',
+            width: 800,
+            height: 600,
+            createdAt: pollStatusCurrentTime,
+            updatedAt: pollStatusCurrentTime
+          }
+        ],
+        ...overrides
+      }) as unknown as StatusNote
+
+    const open = (
+      statuses: Status[],
+      currentActor:
+        typeof pollStatusFixture.actor | null = pollStatusFixture.actor
+    ) => {
+      render(
+        <Posts
+          host="activities.local"
+          currentActor={currentActor ?? undefined}
+          currentTime={pollStatusCurrentTime}
+          statuses={statuses}
+        />
+      )
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Open media: A heron' })
+      )
+    }
+
+    it('offers the owner the albums pill on their own post', () => {
+      open([withPhoto()])
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        pollStatusFixture.actorId
+      )
+    })
+
+    it('offers nobody else’s post an albums pill', () => {
+      open([withPhoto()], {
+        ...pollStatusFixture.actor!,
+        id: 'https://activities.local/users/someone-else'
+      })
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
+
+    it('offers a signed-out viewer none', () => {
+      open([withPhoto()], null)
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
+
+    it('goes by who wrote a boosted post, not who boosted it', () => {
+      const boost = {
+        ...makeBoost('boost-1'),
+        originalStatus: withPhoto({
+          actorId: 'https://remote.example/users/someone'
+        })
+      } as Status
+      open([boost])
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
   })
 
   it('opens the shared inline composer from a post action row', () => {

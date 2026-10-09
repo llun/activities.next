@@ -14,8 +14,16 @@ vi.mock('@/lib/client', () => ({
 }))
 
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
-  GalleryGrid: ({ items }: { items: { mediaId: string }[] }) => (
-    <div data-testid="grid">{items.length}</div>
+  GalleryGrid: ({
+    items,
+    albumsOwnerId
+  }: {
+    items: { mediaId: string }[]
+    albumsOwnerId?: string | null
+  }) => (
+    <div data-testid="grid" data-albums-owner={albumsOwnerId ?? 'none'}>
+      {items.length}
+    </div>
   )
 }))
 
@@ -56,6 +64,21 @@ describe('GallerySubjectDetailView', () => {
     expect(screen.getByText('14 Mar 2025')).toBeInTheDocument()
     expect(screen.getByText('16 Mar 2025')).toBeInTheDocument()
     expect(screen.getByTestId('grid')).toHaveTextContent('2')
+  })
+
+  it('gives the grid the owner, so the lightbox shows the albums pill', () => {
+    render(
+      <GallerySubjectDetailView
+        actorId="actor-1"
+        subject={subject}
+        initialPage={{ items: [buildGalleryItem('1')], nextMaxId: null }}
+      />
+    )
+
+    expect(screen.getByTestId('grid')).toHaveAttribute(
+      'data-albums-owner',
+      'actor-1'
+    )
   })
 
   it('falls back to the scientific name when there is no common name', () => {

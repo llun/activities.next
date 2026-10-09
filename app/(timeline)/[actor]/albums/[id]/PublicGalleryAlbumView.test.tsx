@@ -25,8 +25,14 @@ vi.mock('@/lib/client', () => ({
 }))
 
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
-  GalleryGrid: ({ items }: { items: { mediaId: string }[] }) => (
-    <ul data-testid="grid">
+  GalleryGrid: ({
+    items,
+    albumsOwnerId
+  }: {
+    items: { mediaId: string }[]
+    albumsOwnerId?: string | null
+  }) => (
+    <ul data-testid="grid" data-albums-owner={albumsOwnerId ?? 'none'}>
       {items.map((item) => (
         <li key={item.mediaId}>{item.mediaId}</li>
       ))}
@@ -135,6 +141,15 @@ describe('PublicGalleryAlbumView', () => {
         'No photo here is public yet. Visitors who are signed out or do not follow you cannot open this page'
       )
     })
+  })
+
+  it('gives its lightbox no albums owner: this page is a visitor’s view, whoever is looking', () => {
+    renderView(buildAlbumView())
+
+    expect(screen.getByTestId('grid')).toHaveAttribute(
+      'data-albums-owner',
+      'none'
+    )
   })
 
   it('has a Back link to the owner profile', () => {

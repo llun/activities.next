@@ -37,13 +37,19 @@ vi.mock('@/lib/client', () => ({
 vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
   MediasModal: ({
     medias,
-    initialSelection
+    initialSelection,
+    albumsOwnerId
   }: {
     medias: Attachment[] | null
     initialSelection: number
+    albumsOwnerId?: string | null
   }): ReactNode =>
     medias ? (
-      <div data-testid="lightbox" data-selected={initialSelection}>
+      <div
+        data-testid="lightbox"
+        data-selected={initialSelection}
+        data-albums-owner={albumsOwnerId ?? 'none'}
+      >
         {medias.length} in lightbox
       </div>
     ) : null
@@ -214,6 +220,19 @@ describe('GalleryGearDetailView', () => {
 
     expect(screen.getByTestId('lightbox')).toHaveAttribute('data-selected', '1')
     expect(screen.getByTestId('lightbox')).toHaveTextContent('2 in lightbox')
+  })
+
+  it('gives the lightbox the owner, so its photos get the albums pill', () => {
+    renderView()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open media: Photo m1' })
+    )
+
+    expect(screen.getByTestId('lightbox')).toHaveAttribute(
+      'data-albums-owner',
+      'https://llun.test/users/me'
+    )
   })
 
   it('loads the next page with max_id and drops the button on the last page', async () => {

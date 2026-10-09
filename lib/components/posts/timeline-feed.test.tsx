@@ -11,6 +11,7 @@ import {
   BASE_TIME,
   createMockAnnounce,
   createMockNote,
+  createMockPhoto,
   mockAlice,
   mockBob,
   multiAuthorConversationScenario,
@@ -77,6 +78,20 @@ vi.mock('./inline-status-composer', () => ({
       </button>
     </div>
   )
+}))
+
+// Only what the viewer is handed matters here, not the viewer itself.
+vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
+  MediasModal: ({
+    medias,
+    albumsOwnerId
+  }: {
+    medias: unknown[] | null
+    albumsOwnerId?: string | null
+  }) =>
+    medias ? (
+      <div data-testid="viewer" data-albums-owner={albumsOwnerId ?? 'none'} />
+    ) : null
 }))
 
 const mockGetStatusDetailPathClient = vi.mocked(getStatusDetailPathClient)
@@ -508,5 +523,72 @@ describe('TimelineFeed', () => {
 
     const allBoostIndicators = screen.getAllByText(/Boosted by/i)
     expect(allBoostIndicators).toHaveLength(3)
+  })
+  describe('viewer albums owner', () => {
+    const noteWithPhoto = (author: typeof mockAlice) => {
+      const id = `https://activities.local/users/${author.username}/statuses/photo`
+      return createMockNote({
+        id,
+        actor: author,
+        actorId: author.id,
+        text: 'A heron',
+        attachments: [createMockPhoto({ id, actorId: author.id }, 'A heron')]
+      })
+    }
+
+    const open = (statuses: Status[], currentActor?: typeof mockAlice) => {
+      render(
+        <TimelineFeed
+          host="activities.local"
+          currentActor={currentActor}
+          currentTime={BASE_TIME + 1000}
+          statuses={statuses}
+        />
+      )
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Open media: A heron' })
+      )
+    }
+
+    it('offers the owner the albums pill on their own photo', () => {
+      open([noteWithPhoto(mockAlice)], mockAlice)
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        mockAlice.id
+      )
+    })
+
+    it('offers nobody else’s photo a pill', () => {
+      open([noteWithPhoto(mockBob)], mockAlice)
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
+
+    it('offers a signed-out viewer none', () => {
+      open([noteWithPhoto(mockAlice)])
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
+
+    it('goes by who wrote a boosted post, not who boosted it', () => {
+      const boost = createMockAnnounce({
+        id: 'https://activities.local/users/alice/statuses/boost',
+        originalStatus: noteWithPhoto(mockBob),
+        actor: mockAlice
+      })
+      open([boost], mockAlice)
+
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-albums-owner',
+        'none'
+      )
+    })
   })
 })

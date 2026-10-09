@@ -234,6 +234,7 @@ export const GalleryGearDetailView: FC<Props> = ({
             gearId={gear.id}
             initialPage={initialPage}
             showCaption={false}
+            albumsOwnerId={ownerId}
           />
         )}
       </FitnessSection>

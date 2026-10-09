@@ -33,6 +33,7 @@ import {
   suggestMediaSubjects,
   updateMediaDetails
 } from '@/lib/client'
+import { MediaAlbumsControl } from '@/lib/components/gallery/MediaAlbumsControl'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
@@ -124,6 +125,12 @@ interface Props {
   ) => void
   /** Ids whose suggestions the composer is still fetching. */
   suggestionsPending?: Record<string, true>
+  /**
+   * The signed-in owner's actor id. With it the dialog offers an Albums
+   * section; without it there is none. Album changes are saved as they are
+   * made, separately from Save details.
+   */
+  ownerId?: string
 }
 
 const ADD_NEW_GEAR = '__add_new_gear__'
@@ -530,7 +537,8 @@ export const MediaDetailsDialog: FC<Props> = ({
   onClose,
   onSaved,
   onDetailsRefreshed,
-  suggestionsPending = {}
+  suggestionsPending = {},
+  ownerId
 }) => {
   const uid = useId()
   // Details the dialog fetched itself; each is only used while the details the
@@ -1271,6 +1279,21 @@ export const MediaDetailsDialog: FC<Props> = ({
                 ) : null}
               </div>
             </Section>
+
+            {ownerId ? (
+              // Out of sight until the albums route says the photo is the
+              // caller's, and no part of the draft: a toggle is saved on the
+              // spot, never by Save details. A fresh menu for each photo.
+              <MediaAlbumsControl
+                key={item.id}
+                mediaId={item.id}
+                ownerId={ownerId}
+                variant="row"
+                renderFrame={(content) => (
+                  <Section title="Albums">{content}</Section>
+                )}
+              />
+            ) : null}
 
             {video ? (
               <Section title="Cover and description frame">

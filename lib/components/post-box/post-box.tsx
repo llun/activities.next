@@ -1710,6 +1710,7 @@ export const PostBox: FC<Props> = ({
             }))
           }
           suggestionsPending={suggestionsPending}
+          ownerId={profile.id}
         />
       ) : null}
     </div>
