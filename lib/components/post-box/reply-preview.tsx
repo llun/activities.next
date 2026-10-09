@@ -2,11 +2,10 @@ import { X } from 'lucide-react'
 import { FC } from 'react'
 
 import { ActorInfo } from '@/lib/components/posts/actor'
+import { ReplyTargetContent } from '@/lib/components/posts/reply-target-content'
 import { Button } from '@/lib/components/ui/button'
 import { Status } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
-import { cleanClassName } from '@/lib/utils/text/cleanClassName'
-import { processStatusText } from '@/lib/utils/text/processStatusText'
 
 interface Props {
   host: string
@@ -23,9 +22,6 @@ export const ReplyPreview: FC<Props> = ({
 }) => {
   if (!status) return null
 
-  const previewText = processStatusText(host, status)
-  const parsedPreview = previewText ? cleanClassName(previewText) : null
-
   return (
     <section
       className={cn(
@@ -41,11 +37,16 @@ export const ReplyPreview: FC<Props> = ({
               <ActorInfo actor={status.actor} actorId={status.actorId || ''} />
             </div>
           </div>
-          <div className="mt-1 text-sm text-muted-foreground leading-relaxed line-clamp-2 break-words [&_a]:text-sky-600 dark:[&_a]:text-sky-400 [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-sky-700 dark:[&_a:hover]:text-sky-300 [&_p]:inline [&_p]:after:content-['_'] [&_br]:hidden">
-            {parsedPreview ?? (
-              <span className="italic">No content preview</span>
-            )}
-          </div>
+          <ReplyTargetContent
+            host={host}
+            status={status}
+            className="mt-1"
+            fallback={
+              <div className="mt-1 text-sm italic text-muted-foreground">
+                No content preview
+              </div>
+            }
+          />
         </div>
         <Button
           type="button"

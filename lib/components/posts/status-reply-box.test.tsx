@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import { createNote, uploadAttachment } from '@/lib/client'
 import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
@@ -185,6 +192,32 @@ describe('StatusReplyBox', () => {
     expect(textarea).toHaveValue(
       '@alice@activities.local @bob@activities.local '
     )
+  })
+
+  it('previews the target status with its author and rendered mention links', () => {
+    render(
+      <StatusReplyBox
+        profile={profile}
+        replyStatus={{
+          ...replyStatus,
+          isLocalActor: false,
+          text: '<p><span class="h-card"><a href="https://remote.social/@bob" class="u-url mention">@<span>bob</span></a></span> hello there</p>'
+        }}
+        onCancel={vi.fn()}
+        onPostCreated={vi.fn()}
+      />
+    )
+
+    const preview = screen.getByTestId('reply-target-preview')
+    expect(preview).toHaveTextContent('Replying to')
+    expect(within(preview).getByRole('link', { name: 'Llun' })).toBeVisible()
+    expect(within(preview).getByRole('link', { name: '@bob' })).toHaveAttribute(
+      'href',
+      '/@bob@remote.social'
+    )
+    expect(
+      within(preview).getByTestId('reply-target-content')
+    ).toHaveTextContent('@bob hello there')
   })
 
   it('inherits content warning and visibility from the target status', async () => {

@@ -24,12 +24,14 @@ import {
   updateAttachment
 } from '@/lib/components/post-box/reducers'
 import { UploadMediaButton } from '@/lib/components/post-box/upload-media-button'
+import { ActorInfo } from '@/lib/components/posts/actor'
+import { ReplyTargetContent } from '@/lib/components/posts/reply-target-content'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { useAutoResizeTextarea } from '@/lib/hooks/useAutoResizeTextarea'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
-import { Status } from '@/lib/types/domain/status'
+import { Status, getOriginalStatus } from '@/lib/types/domain/status'
 import { cn } from '@/lib/utils'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
@@ -330,6 +332,8 @@ export const StatusReplyBox: FC<Props> = ({
     setText(value)
   }
 
+  const actualReplyStatus = getOriginalStatus(replyStatus)
+
   const getPlaceholder = () => {
     if (targetPreview) {
       return `Reply to ${targetPreview.authorName}...`
@@ -344,11 +348,14 @@ export const StatusReplyBox: FC<Props> = ({
           data-testid="reply-target-preview"
           className="mb-3 rounded-lg border border-border/60 bg-muted/30 p-2.5 text-xs"
         >
-          <div className="flex items-center gap-2 font-medium text-foreground">
-            <span>Replying to {targetPreview.authorName}</span>
-            <span className="text-muted-foreground">
-              {targetPreview.authorHandle}
-            </span>
+          <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+            <span className="shrink-0 font-medium">Replying to</span>
+            <div className="min-w-0 flex-1 text-sm text-foreground">
+              <ActorInfo
+                actor={actualReplyStatus.actor}
+                actorId={actualReplyStatus.actorId || ''}
+              />
+            </div>
             {targetPreview.isPoll ? (
               <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary-text font-semibold">
                 Poll
@@ -360,11 +367,11 @@ export const StatusReplyBox: FC<Props> = ({
               CW: {targetPreview.spoilerText}
             </div>
           ) : null}
-          {targetPreview.textSnippet ? (
-            <div className="mt-1 line-clamp-2 text-muted-foreground">
-              {targetPreview.textSnippet}
-            </div>
-          ) : null}
+          <ReplyTargetContent
+            host={profile.domain}
+            status={replyStatus}
+            className="mt-1"
+          />
         </div>
       ) : null}
 
