@@ -56,7 +56,7 @@ vi.mock('@/lib/config', async () => ({
   })
 }))
 
-describe('GET /api/v1/statuses/[id]', () => {
+describe('GET /api/v1/statuses/[id]/history', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {

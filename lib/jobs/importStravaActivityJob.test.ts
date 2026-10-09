@@ -603,7 +603,7 @@ describe('importStravaActivityJob', () => {
     // deterministic sha256 URI tail for get-or-create idempotency, so unlike
     // the other status-minting sites it never passes an explicit `publicId` -
     // the row still gets a real v7 `publicId` column value, just minted by
-    // the DB layer (covered by lib/database/sql/status.test.ts) rather than
+    // the DB layer (covered by lib/database/sql/statusLookup.test.ts) rather than
     // pinned to the URI tail.
     expect(database.createNote).toHaveBeenCalledWith(
       expect.objectContaining({

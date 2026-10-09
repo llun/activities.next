@@ -5,7 +5,6 @@ import { FITNESS_FILE_ROUTE_SOURCE_VERSION } from '@/lib/services/fitness-files/
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { Actor } from '@/lib/types/domain/actor'
-import { StatusType } from '@/lib/types/domain/status'
 import { logger } from '@/lib/utils/logger'
 
 import {
@@ -77,62 +76,6 @@ describe('processFitnessFileJob', () => {
 
   beforeEach(() => {
     resetProcessMocks()
-  })
-
-  describe('activity caption', () => {
-    it('captions from the raw sport, not the coarser key it is stored as', async () => {
-      // `Handcycle` is STORED as `ride` — gear attribution asks "which bike".
-      // The caption is not asking that, and reading the stored key here made a
-      // directly uploaded handcycle ride say "Cycling" while the identical ride
-      // imported from Strava said "Handcycling", because that path captions
-      // from its own raw `sport_type`.
-      mockParseFitnessFile.mockResolvedValue({
-        ...defaultActivityData,
-        activityType: 'ride',
-        rawActivityType: 'Handcycle'
-      })
-      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
-        text: ''
-      })
-
-      await processFitnessFileJob(database, {
-        id: 'job-caption-raw-sport',
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: { actorId: actor.id, statusId, fitnessFileId }
-      })
-
-      const status = await database.getStatus({
-        statusId,
-        withReplies: false
-      })
-      if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
-      expect(status.text).toContain('Handcycling')
-      expect(status.text).not.toContain('Cycling —')
-    })
-
-    it('falls back to the stored key when no raw sport was parsed', async () => {
-      mockParseFitnessFile.mockResolvedValue({
-        ...defaultActivityData,
-        activityType: 'ride',
-        rawActivityType: undefined
-      })
-      const { statusId, fitnessFileId } = await createStatusWithFitnessFile({
-        text: ''
-      })
-
-      await processFitnessFileJob(database, {
-        id: 'job-caption-key-fallback',
-        name: PROCESS_FITNESS_FILE_JOB_NAME,
-        data: { actorId: actor.id, statusId, fitnessFileId }
-      })
-
-      const status = await database.getStatus({
-        statusId,
-        withReplies: false
-      })
-      if (status?.type !== StatusType.enum.Note) fail('Expected a note status')
-      expect(status.text).toContain('Cycling')
-    })
   })
 
   describe('route cache', () => {

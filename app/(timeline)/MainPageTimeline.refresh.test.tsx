@@ -344,7 +344,9 @@ describe('MainPageTimeline', () => {
         )
       ).toHaveTextContent('gifv')
     })
+  })
 
+  describe('reply creation', () => {
     it('increments target status totalReplies, places reply directly next to replied status in feed, and renders ReplyToast when onReplyCreated triggers', () => {
       const post1 = createStatus('https://activities.local/users/llun/s/1', {
         totalReplies: 2
@@ -408,7 +410,9 @@ describe('MainPageTimeline', () => {
         screen.getByRole('button', { name: 'View reply' })
       ).toBeInTheDocument()
     })
+  })
 
+  describe('load more paging', () => {
     it('shows retry button when fetch fails and re-triggers fetch on click', async () => {
       const post1 = createStatus('https://activities.local/users/llun/s/1')
       const post2 = createStatus('https://activities.local/users/llun/s/2')
@@ -515,7 +519,9 @@ describe('MainPageTimeline', () => {
         ).toBeInTheDocument()
       })
     })
+  })
 
+  describe('new post polling', () => {
     describe('polling banner', () => {
       const scrollToMock = vi.fn()
       let originalScrollTo: typeof window.scrollTo
@@ -654,7 +660,9 @@ describe('MainPageTimeline', () => {
         vi.useRealTimers()
       }
     })
+  })
 
+  describe('empty feed with a cursor', () => {
     it('renders load more in-flow when visible feed is initially empty but cursor exists', () => {
       render(
         <MainPageTimeline

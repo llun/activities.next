@@ -448,7 +448,7 @@ describe('FitnessFileDatabase', () => {
       })
 
       it('reads only the requested actor, in the summary, calendar and day window', async () => {
-        const startTime = at('2033-03-10', '10:00', AMSTERDAM)
+        const startTime = at('2033-05-10', '10:00', AMSTERDAM)
         const mine = await seedActivity({ startTime, distance: 1000 })
         await seedActivity({
           startTime,
@@ -456,14 +456,14 @@ describe('FitnessFileDatabase', () => {
           actorId: actors.primary.id
         })
 
-        const days = await calendar('2033-03-01', '2033-03-31', AMSTERDAM)
+        const days = await calendar('2033-05-01', '2033-05-31', AMSTERDAM)
         expect(
           days.map((day) => [day.date, day.count, day.totalDistanceMeters])
-        ).toEqual([['2033-03-10', 1, 1000]])
+        ).toEqual([['2033-05-10', 1, 1000]])
 
         const { startMs, endMs } = windowOf(
-          '2033-03-01',
-          '2033-03-31',
+          '2033-05-01',
+          '2033-05-31',
           AMSTERDAM
         )
         const summary = await database.getFitnessActivitySummary({
@@ -475,7 +475,7 @@ describe('FitnessFileDatabase', () => {
           expect.objectContaining({ count: 1, totalDistanceMeters: 1000 })
         ])
 
-        const rows = await readWindow('2033-03-01', '2033-03-31', AMSTERDAM)
+        const rows = await readWindow('2033-05-01', '2033-05-31', AMSTERDAM)
         expect(rows.map((row) => row.id)).toEqual([mine])
       })
 

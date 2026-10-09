@@ -2,14 +2,16 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 
 import { Attachments } from './attachments'
 import {
+  buildAnnounceStatus,
   buildAttachment,
   buildNoteStatus,
   resetAttachmentTestState
 } from './attachments.testUtils'
+import { ContentWarning } from './content-warning'
 
 beforeEach(() => {
   resetAttachmentTestState()
@@ -173,5 +175,78 @@ describe('Attachments', () => {
       expect(buttons[2].parentElement?.style.width).toBe('160px')
       expect(buttons[3].parentElement?.style.width).toBe('576px')
     })
+
+    describe('inside a content warning', () => {
+      it('shows the picture once the warning is expanded', () => {
+        render(
+          <ContentWarning summary="Sensitive media" defaultOpen>
+            <Attachments
+              status={buildNoteStatus([
+                buildAttachment({ width: 800, height: 600 })
+              ])}
+              onMediaSelected={vi.fn()}
+            />
+          </ContentWarning>
+        )
+
+        expect(
+          screen.getByRole('button', { name: /Open media/ })
+        ).toBeInTheDocument()
+      })
+
+      it('renders no media buttons while collapsed', () => {
+        render(
+          <ContentWarning summary="Sensitive media">
+            <Attachments
+              status={buildNoteStatus([
+                buildAttachment({ width: 800, height: 600 }),
+                buildAttachment({ width: 600, height: 900 }),
+                buildAttachment({ width: 1200, height: 500 })
+              ])}
+              onMediaSelected={vi.fn()}
+            />
+          </ContentWarning>
+        )
+
+        expect(
+          screen.getByRole('button', { name: 'Show content' })
+        ).toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', { name: /Open media/ })
+        ).not.toBeInTheDocument()
+        expect(
+          screen.queryAllByRole('button', { name: /Open media/ })
+        ).toHaveLength(0)
+      })
+    })
+  })
+
+  it('renders nothing for a non-Note status', () => {
+    const announce = buildAnnounceStatus(
+      buildNoteStatus([buildAttachment({ width: 800, height: 600 })])
+    )
+    const { container } = render(
+      <Attachments status={announce} onMediaSelected={vi.fn()} />
+    )
+
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('stops the click from reaching an ancestor click handler', () => {
+    const parentOnClick = vi.fn()
+    render(
+      <div onClick={parentOnClick}>
+        <Attachments
+          status={buildNoteStatus([
+            buildAttachment({ width: 800, height: 600 })
+          ])}
+          onMediaSelected={vi.fn()}
+        />
+      </div>
+    )
+
+    fireEvent.click(screen.getByRole('button'))
+
+    expect(parentOnClick).not.toHaveBeenCalled()
   })
 })

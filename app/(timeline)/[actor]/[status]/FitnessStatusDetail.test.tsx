@@ -608,4 +608,95 @@ describe('FitnessStatusDetail', () => {
     expect(screen.queryByText('Activity file')).not.toBeInTheDocument()
     expect(screen.queryByText(/^file \d+ of \d+$/)).not.toBeInTheDocument()
   })
+
+  describe('overview elevation profile', () => {
+    // Same contract as the analysis stack, on the summary card: drag it and it
+    // reports the elevation under the pointer and moves the highlight on the
+    // map above it. It used to be a static picture.
+    const hoverElevation = (clientX: number) => {
+      const profile = screen.getByTestId('overview-elevation-profile')
+      const [plot] = Array.from(profile.querySelectorAll('svg'))
+      plot.getBoundingClientRect = () => ({ left: 100, width: 400 }) as DOMRect
+      fireEvent.mouseMove(plot, { clientX })
+      return plot
+    }
+
+    const renderOverview = async () => {
+      renderDetail()
+      await waitFor(() =>
+        expect(
+          screen.getByTestId('overview-elevation-profile')
+        ).toBeInTheDocument()
+      )
+    }
+
+    it('reports the elevation under the pointer while it is dragged', async () => {
+      await renderOverview()
+
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+
+      // A quarter of the way across => 450s of a 1800s ride => sample index 1
+      // of the [10, 24, 40, 55, 48, 30] fixture.
+      const plot = hoverElevation(200)
+
+      const [readout] = screen.getAllByTestId('chart-hover-value')
+      expect(readout).toHaveTextContent(/^24m$/)
+      // The card header carries the instant, so the value has a time to belong
+      // to without a second readout chip. It REPLACES the gain rather than
+      // prefixing it: at 320px a prefixed "1:18:29 · 455 m gain" outgrows the
+      // heading row and wraps it to two lines, which moves the chart under the
+      // finger that is dragging it.
+      expect(screen.getByText('7:30')).toBeInTheDocument()
+      expect(screen.queryByText(/120 m gain/)).not.toBeInTheDocument()
+
+      fireEvent.mouseLeave(plot)
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+      expect(screen.getByText('120 m gain')).toBeInTheDocument()
+    })
+
+    // Four ticks, not the helper's default six. `justify-between` gives the
+    // label row no way to wrap, and six H:MM:SS labels are wider than this
+    // card's 212px content box at the 320px reflow target — so they ran
+    // together into one unbroken string of digits and, past ~5h, crossed the
+    // card's own border, which a Card has no `overflow-hidden` to clip. The
+    // 10:00/20:00 pair is what distinguishes this from the six-tick set.
+    it('labels its time axis with four ticks, which fit the card at 320px', async () => {
+      await renderOverview()
+
+      const profile = screen.getByTestId('overview-elevation-profile')
+      const labels = Array.from(profile.lastElementChild?.children ?? []).map(
+        (label) => label.textContent
+      )
+
+      expect(labels).toEqual(['0:00', '10:00', '20:00', '30:00'])
+    })
+
+    it('scrubs on touch as well as on hover', async () => {
+      await renderOverview()
+
+      const profile = screen.getByTestId('overview-elevation-profile')
+      const [plot] = Array.from(profile.querySelectorAll('svg'))
+      plot.getBoundingClientRect = () => ({ left: 100, width: 400 }) as DOMRect
+
+      fireEvent.touchStart(plot, { touches: [{ clientX: 200 }] })
+      expect(screen.getAllByTestId('chart-hover-value')[0]).toHaveTextContent(
+        /^24m$/
+      )
+
+      fireEvent.touchEnd(plot)
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+    })
+
+    it('drops the highlight when the section changes', async () => {
+      await renderOverview()
+
+      hoverElevation(200)
+      expect(screen.getAllByTestId('chart-hover-value')).not.toHaveLength(0)
+
+      const menu = await openSectionMenu()
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Analysis' }))
+
+      expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
+    })
+  })
 })

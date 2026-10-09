@@ -260,9 +260,9 @@ describe('publicly readable status filtering at each call site', () => {
       // absence-only assertion cannot tell a working filter from one that
       // stopped correlating: dropping `status_pins.statusId = statuses.id`
       // ONLY when `publicOnly` is also true leaves every absence satisfied and
-      // the list non-empty, and `status.test.ts`'s own pinned test never sets
-      // `publicOnly`, so such a combination-specific regression passed both
-      // files at once until this became an equality.
+      // the list non-empty, and `statusActorQueries.test.ts`'s own pinned test
+      // never sets `publicOnly`, so such a combination-specific regression
+      // passed both files at once until this became an equality.
       expect([...statuses.map(({ id }) => id)].sort()).toEqual(
         [...expected].sort()
       )
@@ -277,12 +277,12 @@ describe('publicly readable status filtering at each call site', () => {
     // with a plainly private note, passes under that fallback too.
     //
     // Both `getActorStatuses` cases in this file are already covered in
-    // `status.test.ts` — this one by 'excludes nested announces when the
-    // boosted original is not publicly readable', the sibling above by 'counts
-    // only publicly readable actor statuses when requested'. Unlike the three
-    // reply/reblog cases, they are not filling a gap. They stay so that all
-    // four `publicOnly` call sites state the same invariant in one place,
-    // rather than sending a reader to another file to confirm this one.
+    // `statusActorQueries.test.ts` — this one by 'excludes nested announces
+    // when the boosted original is not publicly readable', the sibling above by
+    // 'counts only publicly readable actor statuses when requested'. Unlike
+    // the three reply/reblog cases, they are not filling a gap. They stay so
+    // that all four `publicOnly` call sites state the same invariant in one
+    // place, rather than sending a reader to another file to confirm this one.
     const statuses = await database.getActorStatuses({
       actorId,
       publicOnly: true

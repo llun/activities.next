@@ -844,7 +844,7 @@ describe('OAuth scope guard wiring', () => {
   // unguarded POST would otherwise pass), with the expected guard, and none may
   // opt into `unconfirmedAccount`. Together with the scope literals, that lets
   // a route's own tests skip re-proving "401 without a session" and scope
-  // acceptance, which OAuthGuard.test.ts covers once per guard kind (see
+  // acceptance, which OAuthGuard.token.test.ts covers once per guard kind (see
   // CONTRIBUTING.md -> Testing Guidelines).
   it.each(EXPECTED)(
     '$module guards every method with the expected guard and scopes',

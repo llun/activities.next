@@ -141,7 +141,8 @@ describe('GET /oauth/userinfo', () => {
 // POST is not the guard's handler itself: it moves an access token sent in the
 // form body into the Authorization header, then delegates to the guarded GET
 // handler. These pin that hand-off; the guard's own behaviour (401 without a
-// token, scope checks) is covered in OAuthGuard.test.ts.
+// token, scope checks) is covered in
+// lib/services/guards/OAuthGuard.token.test.ts.
 describe('POST /oauth/userinfo', () => {
   beforeEach(() => {
     guardState.currentActor = makeActor(makeAccount({ id: 'account-post' }))

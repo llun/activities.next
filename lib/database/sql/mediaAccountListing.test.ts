@@ -991,7 +991,7 @@ describe('MediaDatabase', () => {
         })
 
         afterAll(async () => {
-          await isolatedDb.destroy()
+          await isolatedDb?.destroy()
         })
 
         it('splits the lookup into chunks that stay within the SQLite bind ceiling', async () => {

@@ -97,7 +97,7 @@ const inaccessibleStatusRouteCases: Array<
   ['reblogged_by', 'GET', getStatusRebloggedBy]
 ]
 
-describe('GET /api/v1/statuses/[id]', () => {
+describe('/api/v1/statuses/[id] action routes', () => {
   const database = getTestSQLDatabase()
 
   beforeAll(async () => {

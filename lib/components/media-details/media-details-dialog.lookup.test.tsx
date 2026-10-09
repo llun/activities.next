@@ -39,7 +39,7 @@ vi.mock('@/lib/client', () => ({
   TaxaSearchUnavailableError: class extends Error {}
 }))
 
-describe('MediaDetailsDialog smart subjects', () => {
+describe('MediaDetailsDialog lookups', () => {
   const originalResizeObserver = global.ResizeObserver
 
   beforeEach(() => {

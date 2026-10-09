@@ -7,6 +7,7 @@ import {
   mockBuildGpxFromStravaStreams,
   mockGetStravaActivity,
   mockGetStravaActivityStreams,
+  mockImportFitnessFiles,
   resetStravaImportMocks
 } from './importStravaActivityJob.testUtils'
 
@@ -238,5 +239,78 @@ describe('importStravaActivityJob', () => {
     })
 
     expect(database.createNotification).not.toHaveBeenCalled()
+  })
+
+  it('does not opt into the import email unless its caller asked for it', async () => {
+    // Retry-all and the scripts/fitness recovery tools drive this same job in
+    // bulk over every failed batch for an actor, and a re-import there DOES
+    // create a brand-new status. Hardcoding the opt-in inside this job would
+    // mail once per recovered activity.
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-no-notify-default',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: { actorId: 'actor-1', stravaActivityId: '123' }
+    })
+
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ notifyOnComplete: false }),
+      expect.anything()
+    )
+  })
+
+  it('forwards the import email opt-in from the webhook', async () => {
+    // Without this the whole feature can be switched off by deleting one
+    // literal, with every test still green.
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-notify-optin',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        notifyOnComplete: true
+      }
+    })
+
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ notifyOnComplete: true }),
+      expect.anything()
+    )
+  })
+
+  it.each([
+    {
+      description:
+        'backdates the imported post unless its caller asked otherwise',
+      requested: {},
+      expected: false
+    },
+    {
+      description: 'forwards the post-at-import-time opt-in from the webhook',
+      requested: { postAtImportTime: true },
+      expected: true
+    }
+  ])('$description', async ({ requested, expected }) => {
+    // Same split as notifyOnComplete and publishSendNote: the webhook carries a
+    // ride that just finished, while retry-all and the scripts/fitness recovery
+    // tools replay
+    // activities that are already old — stamping those `now` would reorder an
+    // actor's whole history around whenever the sweep happened to run.
+    await importStravaActivityJob(database as unknown as Database, {
+      id: 'job-post-time-forward',
+      name: IMPORT_STRAVA_ACTIVITY_JOB_NAME,
+      data: {
+        actorId: 'actor-1',
+        stravaActivityId: '123',
+        ...requested
+      }
+    })
+
+    expect(mockImportFitnessFiles).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ postAtImportTime: expected }),
+      expect.anything()
+    )
   })
 })
