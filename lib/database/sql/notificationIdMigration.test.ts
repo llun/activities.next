@@ -62,6 +62,8 @@ describe('time-ordered notification ids migration', () => {
     const rows = await database('notifications')
       .select('id', 'createdAt')
       .orderBy('createdAt', 'asc')
+      // Ties within one millisecond are broken by id, like the server's page order.
+      .orderBy('id', 'asc')
     expect(rows).toHaveLength(count)
     for (const row of rows) {
       expect(isPublicId(row.id)).toBe(true)
