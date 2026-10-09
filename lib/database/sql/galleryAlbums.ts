@@ -275,7 +275,9 @@ export interface GalleryAlbumDatabase {
   getGalleryAlbum(params: GetGalleryAlbumParams): Promise<GalleryAlbum | null>
   // The actor's albums, last updated first, with counts, dates, cover and
   // collage from visible items. Anyone but the owner gets only public albums
-  // with something visible.
+  // with something visible, and their `createdAt` and `updatedAt` (and so the
+  // order) are computed from the visible items only: when the first and the
+  // latest of them joined the album.
   getGalleryAlbumSummaries(
     params: GetGalleryAlbumSummariesParams
   ): Promise<GalleryAlbumSummary[]>
@@ -517,9 +519,28 @@ export const GalleryAlbumSQLDatabaseMixin = (
   }
 
   const summarize = (
-    album: GalleryAlbum,
-    items: VisibleItem[]
+    storedAlbum: GalleryAlbum,
+    items: VisibleItem[],
+    isOwner: boolean
   ): GalleryAlbumSummary => {
+    // The album's own `createdAt` and `updatedAt` move whenever its photos
+    // change, whatever the photo's visibility, so a visitor would see the owner
+    // add or remove a photo they cannot see. A visitor's album carries times
+    // computed from the photos they can see instead: when the first and the
+    // latest of those joined the album.
+    const album: GalleryAlbum = isOwner
+      ? storedAlbum
+      : {
+          ...storedAlbum,
+          createdAt: items.reduce(
+            (min, item) => Math.min(min, item.addedAt),
+            items[0]?.addedAt ?? 0
+          ),
+          updatedAt: items.reduce(
+            (max, item) => Math.max(max, item.addedAt),
+            items[0]?.addedAt ?? 0
+          )
+        }
     // Newest first, whatever the album's own sort: the cover fallback and the
     // collage are the newest photos.
     const newestFirst = [...items].sort((a, b) =>
@@ -746,9 +767,19 @@ export const GalleryAlbumSQLDatabaseMixin = (
       }
 
       const isOwner = isOwnerGalleryAudience(audience)
-      return albums
-        .map((album) => summarize(album, byAlbum.get(album.id) ?? []))
+      const summaries = albums
+        .map((album) => summarize(album, byAlbum.get(album.id) ?? [], isOwner))
         .filter((summary) => isOwner || summary.itemCount > 0)
+      // The owner's order is by the stored `updatedAt` (already applied);
+      // a visitor's by the visible-only one, so the order moves only with
+      // what they can see.
+      return isOwner
+        ? summaries
+        : summaries.sort(
+            (a, b) =>
+              b.album.updatedAt - a.album.updatedAt ||
+              (a.album.id < b.album.id ? -1 : a.album.id > b.album.id ? 1 : 0)
+          )
     },
 
     async updateGalleryAlbum({ id, actorId, ...patch }) {

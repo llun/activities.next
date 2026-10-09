@@ -290,6 +290,127 @@ describe('album visitor matrix', () => {
       })
     })
 
+    describe('the times a visitor is shown', () => {
+      const pause = () => new Promise((resolve) => setTimeout(resolve, 15))
+
+      // Two public albums of one visible photo each, `older` made first.
+      const makeAlbum = async (title: string, name: string) => {
+        const created = await database.createGalleryAlbumWithinLimit({
+          actorId: matrix.ownerId,
+          title,
+          visibility: 'public',
+          limit: 50,
+          mediaIds: [matrix.media[name]],
+          itemLimit: 2000
+        })
+        if (created.status !== 'created') throw new Error('not created')
+        return created.album.id
+      }
+
+      const snapshot = async (who: Actor | null, ids: string[]) => {
+        const list = await getGalleryAlbumList({
+          database,
+          owner,
+          audience: await audienceOf(who)
+        })
+        const mine = list.albums.filter((album) => ids.includes(album.id))
+        return {
+          order: mine.map((album) => album.id),
+          times: mine.map((album) => [album.createdAt, album.updatedAt])
+        }
+      }
+
+      it('never moves for a photo the visitor cannot see, in the card or the list order', async () => {
+        const older = await makeAlbum('Older', 'public')
+        await pause()
+        const newer = await makeAlbum('Newer', 'unlisted')
+        const ids = [older, newer]
+        const blind: Array<[string, Actor | null]> = [
+          ['logged out', null],
+          ['a stranger', matrix.viewers.stranger],
+          ['a blocked account', matrix.viewers.blocked]
+        ]
+        const follower: [string, Actor | null] = [
+          'a follower',
+          matrix.viewers.follower
+        ]
+        const read = async ([, who]: [string, Actor | null]) => ({
+          ...(await snapshot(who, ids)),
+          card: (({ createdAt, updatedAt }) => [createdAt, updatedAt])(
+            (await view(await audienceOf(who), older))!.album
+          )
+        })
+        const add = async (name: string) => {
+          await pause()
+          await database.addGalleryAlbumItems({
+            albumId: older,
+            actorId: matrix.ownerId,
+            mediaIds: [matrix.media[name]],
+            limit: 2000
+          })
+        }
+        try {
+          const before = await Promise.all([...blind, follower].map(read))
+          // Newest first for a visitor: the album made last.
+          expect(before[0].order).toEqual([newer, older])
+          const ownerBefore = (await snapshot(owner, ids)).times
+
+          // A direct-message photo: nobody but the owner can open it.
+          await add('direct')
+          expect(await Promise.all([...blind, follower].map(read))).toEqual(
+            before
+          )
+          // The owner's own stored time does move.
+          expect((await snapshot(owner, ids)).times).not.toEqual(ownerBefore)
+
+          // A followers-only photo: everyone but a follower is blind to it.
+          await add('followers')
+          expect(await Promise.all(blind.map(read))).toEqual(before.slice(0, 3))
+
+          // Taking both out changes nothing either.
+          await pause()
+          await database.removeGalleryAlbumItems({
+            albumId: older,
+            actorId: matrix.ownerId,
+            mediaIds: [matrix.media.direct, matrix.media.followers]
+          })
+          expect(await Promise.all([...blind, follower].map(read))).toEqual(
+            before
+          )
+        } finally {
+          for (const id of ids) {
+            await database.deleteGalleryAlbum({ id, actorId: matrix.ownerId })
+          }
+        }
+      })
+
+      it('is built from when the visible photos joined the album', async () => {
+        const id = await makeAlbum('Timed', 'public')
+        try {
+          await pause()
+          await database.addGalleryAlbumItems({
+            albumId: id,
+            actorId: matrix.ownerId,
+            mediaIds: [matrix.media.unlisted],
+            limit: 2000
+          })
+          const items = await database.getGalleryAlbumIndex({
+            albumId: id,
+            actorId: matrix.ownerId,
+            audience: PUBLIC_GALLERY_AUDIENCE
+          })
+          const added = items.map((row) => row.addedAt)
+          const card = (await view(PUBLIC_GALLERY_AUDIENCE, id))!.album
+
+          expect(card.createdAt).toBe(Math.min(...added))
+          expect(card.updatedAt).toBe(Math.max(...added))
+          expect(card.updatedAt).toBeGreaterThan(card.createdAt)
+        } finally {
+          await database.deleteGalleryAlbum({ id, actorId: matrix.ownerId })
+        }
+      })
+    })
+
     describe('the Open Graph share', () => {
       it('is the logged-out album, whoever is looking, and matches what a logged-out page shows', async () => {
         const share = await getGalleryAlbumShare({

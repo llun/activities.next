@@ -15,7 +15,10 @@ export interface GalleryAlbumEntity {
   description: string | null
   visibility: GalleryAlbumVisibility
   sortOrder: GalleryAlbumSort
-  // Epoch milliseconds.
+  // Epoch milliseconds. For the owner, the stored times. For anyone else they
+  // are computed from the photos that viewer can see (when the first and the
+  // latest of them joined the album), so they never move for a photo the
+  // viewer cannot see.
   createdAt: number
   updatedAt: number
 }

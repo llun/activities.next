@@ -54,7 +54,9 @@ export interface GalleryAlbum {
   coverMediaId: string | null
   visibility: GalleryAlbumVisibility
   sortOrder: GalleryAlbumSort
-  // Epoch milliseconds.
+  // Epoch milliseconds. In a summary read for a visitor these are computed
+  // from the photos that visitor can see (when the first and the latest of them
+  // joined the album), never the stored times, which move with hidden photos.
   createdAt: number
   updatedAt: number
 }

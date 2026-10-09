@@ -439,7 +439,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   with `itemCount`, `firstAt`, `lastAt`, `cover` and `previews`) and `photoCount`
   for the albums that viewer can open: for anyone but the owner, only `public`
   albums with at least one photo they can see, every number computed from the
-  photos they can see. The album returns `album`, `facts`, `species` and a page
+  photos they can see, in last-updated order. For anyone but the owner an album's
+  `createdAt` and `updatedAt` are not the stored times (which move whenever the
+  owner adds or removes any photo, visible or not) but when the first and the
+  latest photo that viewer can see joined the album, and the list order uses the
+  latter. The album returns `album`, `facts`, `species` and a page
   of `items` with `nextMaxId` (`?max_id&limit&sort&subject`; `limit` 1 to 60,
   default 30, clamped; a bad `max_id`, `sort` or `subject` is a 422). A private
   album, a missing one, another account's, and one with no photo the viewer can
