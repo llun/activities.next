@@ -121,7 +121,7 @@ export const NotificationItem = ({
         )
       } else {
         body = (
-          <p className="mt-1.5 text-[13px] text-muted-foreground">
+          <p className="mt-1.5 text-sm text-muted-foreground">
             This post is no longer available.
           </p>
         )
@@ -193,7 +193,7 @@ export const NotificationItem = ({
         )
       } else {
         body = (
-          <p className="mt-1.5 text-[13px] text-muted-foreground">
+          <p className="mt-1.5 text-sm text-muted-foreground">
             This imported activity is no longer available.
           </p>
         )

@@ -71,7 +71,7 @@ describe('ListEditor', () => {
     fireEvent.change(screen.getByLabelText('List name'), {
       target: { value: 'New crew' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Create list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(createList).toHaveBeenCalledWith({
@@ -90,15 +90,13 @@ describe('ListEditor', () => {
     fireEvent.change(screen.getByLabelText('List name'), {
       target: { value: 'New crew' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Create list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Could not create the list. Please try again.'
     )
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'Create list' })
-      ).not.toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled()
     )
     expect(mockPush).not.toHaveBeenCalled()
   })
@@ -106,7 +104,7 @@ describe('ListEditor', () => {
   it('blocks creation when the name is empty', async () => {
     render(<ListEditor mode="create" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Please enter a list name.'
@@ -142,7 +140,7 @@ describe('ListEditor', () => {
     )
     // The added account moves into the member list, search is cleared, and dropdown is closed.
     await waitFor(() =>
-      expect(screen.getByText('In this list · 1')).toBeInTheDocument()
+      expect(screen.getByText('1 in this list')).toBeInTheDocument()
     )
     expect(searchInput).toHaveValue('')
     expect(
@@ -259,7 +257,7 @@ describe('ListEditor', () => {
       })
     )
     await waitFor(() =>
-      expect(screen.queryByText('In this list · 1')).not.toBeInTheDocument()
+      expect(screen.queryByText('1 in this list')).not.toBeInTheDocument()
     )
   })
 
@@ -283,7 +281,7 @@ describe('ListEditor', () => {
       })
     )
     await waitFor(() =>
-      expect(screen.getByText('In this list · 1')).toBeInTheDocument()
+      expect(screen.getByText('1 in this list')).toBeInTheDocument()
     )
     expect(screen.getByText('You')).toBeInTheDocument()
     // Enabled, not merely present: the owner's controls share one pending id,
@@ -341,7 +339,7 @@ describe('ListEditor', () => {
     await act(async () => {
       request.resolve(true)
     })
-    expect(screen.getByText('In this list · 1')).toBeInTheDocument()
+    expect(screen.getByText('1 in this list')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Add yourself' })
     ).not.toBeInTheDocument()
@@ -371,11 +369,15 @@ describe('ListEditor', () => {
     expect(screen.queryByText('You')).not.toBeInTheDocument()
   })
 
-  it('saves settings changes and routes back to the list', async () => {
+  it('keeps Save off until a setting changes, then saves and routes back to the list', async () => {
     render(<ListEditor mode="edit" list={list} initialMembers={[member]} />)
 
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(screen.getByText('No unsaved changes')).toBeInTheDocument()
+
     fireEvent.click(screen.getByLabelText('Hide members from Home'))
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(updateList).toHaveBeenCalledWith({
@@ -386,5 +388,155 @@ describe('ListEditor', () => {
       })
     )
     expect(mockPush).toHaveBeenCalledWith('/lists/list-1')
+  })
+
+  it('saves the new name, reply policy and visibility setting of an existing list', async () => {
+    render(<ListEditor mode="edit" list={list} initialMembers={[]} />)
+
+    fireEvent.change(screen.getByLabelText('List name'), {
+      target: { value: '  Trail crew  ' }
+    })
+    fireEvent.change(
+      screen.getByLabelText('Include replies from list members to'),
+      {
+        target: { value: 'none' }
+      }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(updateList).toHaveBeenCalledWith({
+        listId: 'list-1',
+        title: 'Trail crew',
+        repliesPolicy: 'none',
+        exclusive: false
+      })
+    )
+    expect(mockPush).toHaveBeenCalledWith('/lists/list-1')
+  })
+
+  it('shows the save error in the footer and lets the owner try again', async () => {
+    ;(updateList as jest.Mock).mockResolvedValueOnce(null)
+    render(<ListEditor mode="edit" list={list} initialMembers={[]} />)
+
+    fireEvent.click(screen.getByLabelText('Hide members from Home'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not save your changes. Please try again.'
+    )
+    expect(mockPush).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/lists/list-1'))
+  })
+
+  it('leads Cancel back to the list being edited, or to the lists when creating', () => {
+    const { unmount } = render(
+      <ListEditor mode="edit" list={list} initialMembers={[]} />
+    )
+    expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute(
+      'href',
+      '/lists/list-1'
+    )
+    unmount()
+
+    render(<ListEditor mode="create" />)
+    expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute(
+      'href',
+      '/lists'
+    )
+  })
+
+  it('turns Cancel off while the list saves, so leaving cannot race the request', async () => {
+    const request = createDeferred<ListEntity | null>()
+    ;(updateList as jest.Mock).mockReturnValue(request.promise)
+    render(<ListEditor mode="edit" list={list} initialMembers={[]} />)
+
+    fireEvent.click(screen.getByLabelText('Hide members from Home'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(screen.queryByRole('link', { name: 'Cancel' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+
+    await act(async () => request.resolve(null))
+    expect(await screen.findByRole('link', { name: 'Cancel' })).toBeVisible()
+  })
+
+  it('says the list has no members yet, with a hint that fits what can be added', () => {
+    const { unmount } = render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[]}
+        followingSuggestions={[]}
+      />
+    )
+    expect(screen.getByText('No members yet')).toBeInTheDocument()
+    expect(
+      screen.getByText('Follow some accounts to add them to this list.')
+    ).toBeInTheDocument()
+    unmount()
+
+    render(
+      <ListEditor
+        mode="edit"
+        list={list}
+        initialMembers={[]}
+        followingSuggestions={[suggestion]}
+      />
+    )
+    expect(
+      screen.getByText(
+        'This list has no members yet. Use the search above to add accounts you follow.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  describe('deleting the list', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it('asks first, then deletes and returns to the lists', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+      render(<ListEditor mode="edit" list={list} initialMembers={[]} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete list' }))
+
+      expect(confirm).toHaveBeenCalledWith(
+        expect.stringContaining('Delete “Running club”?')
+      )
+      await waitFor(() => expect(deleteList).toHaveBeenCalledWith('list-1'))
+      expect(mockPush).toHaveBeenCalledWith('/lists')
+    })
+
+    it('does nothing when the owner declines', () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(false)
+      render(<ListEditor mode="edit" list={list} initialMembers={[]} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete list' }))
+
+      expect(deleteList).not.toHaveBeenCalled()
+    })
+
+    it('reports a failed delete next to the button and keeps it usable', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+      ;(deleteList as jest.Mock).mockResolvedValue(false)
+      render(<ListEditor mode="edit" list={list} initialMembers={[]} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete list' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Could not delete the list. Please try again.'
+      )
+      expect(screen.getByRole('button', { name: 'Delete list' })).toBeEnabled()
+      expect(mockPush).not.toHaveBeenCalled()
+    })
+
+    it('has no danger zone while creating', () => {
+      render(<ListEditor mode="create" />)
+      expect(
+        screen.queryByRole('button', { name: 'Delete list' })
+      ).not.toBeInTheDocument()
+    })
   })
 })

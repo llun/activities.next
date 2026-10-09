@@ -50,14 +50,14 @@ export const StatusNotification: FC<Props> = ({
         <Link
           href={`/@${account.acct}`}
           prefetch={false}
-          className="truncate text-[13px] font-semibold hover:underline"
+          className="truncate text-sm font-semibold hover:underline"
         >
           <CustomEmojiText text={groupedName} emojis={account.emojis} />
         </Link>
       </div>
       <div
         className={cn(
-          'mt-1 line-clamp-2 text-[13px] leading-relaxed [&_br]:hidden [&_p]:inline',
+          'mt-1 line-clamp-2 text-sm leading-relaxed [&_br]:hidden [&_p]:inline',
           emphasizePreview ? 'text-foreground' : 'text-muted-foreground'
         )}
       >

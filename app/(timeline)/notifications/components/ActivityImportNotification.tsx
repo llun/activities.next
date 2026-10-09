@@ -24,14 +24,14 @@ export const ActivityImportNotification: FC<Props> = ({
   const statusUrl = getNotificationStatusPath(status)
 
   return (
-    <div className="mt-2 flex items-center gap-3 rounded-xl border bg-background p-2.5 dark:bg-card">
+    <div className="mt-2 flex items-center gap-3 rounded-lg border bg-muted/40 p-2.5">
       <span
         aria-hidden="true"
-        className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
+        className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
       >
         <Activity className="size-[18px]" />
       </span>
-      <div className="min-w-0 flex-1 line-clamp-2 text-[13px] leading-snug text-foreground [&_br]:hidden [&_p]:inline">
+      <div className="min-w-0 flex-1 line-clamp-2 text-sm leading-snug text-foreground [&_br]:hidden [&_p]:inline">
         {cleanClassName(processStatusText(host, status), {
           host,
           tags: 'tags' in status ? status.tags : undefined
@@ -40,7 +40,7 @@ export const ActivityImportNotification: FC<Props> = ({
       <Link
         href={statusUrl}
         prefetch={false}
-        className="shrink-0 text-[13px] font-medium text-primary-text hover:underline"
+        className="shrink-0 text-sm font-medium text-primary-text hover:underline"
       >
         {hasMultiple ? 'View latest activity' : 'View activity'}
       </Link>

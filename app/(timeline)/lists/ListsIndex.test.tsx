@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { ReactNode } from 'react'
 
 import { CollectionSummary, ListSummary, ListsIndex } from './ListsIndex'
@@ -54,13 +54,57 @@ describe('ListsIndex', () => {
   it('renders the empty state with both create calls to action', () => {
     render(<ListsIndex lists={[]} collections={[]} />)
 
-    expect(screen.getByText('Nothing here yet')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Nothing here yet' })
+    ).toBeInTheDocument()
     expect(
       screen.getAllByRole('link', { name: /new list/i })[0]
     ).toHaveAttribute('href', '/lists/new')
     expect(
       screen.getAllByRole('link', { name: /new collection/i })[0]
     ).toHaveAttribute('href', '/collections/new')
+  })
+
+  it('puts the create actions in the empty state itself, not only in the header', () => {
+    render(<ListsIndex lists={[]} collections={[]} />)
+
+    const empty = screen
+      .getByRole('heading', { name: 'Nothing here yet' })
+      .closest('[data-slot="empty-state"]') as HTMLElement
+    expect(
+      within(empty).getByRole('link', { name: /new collection/i })
+    ).toHaveAttribute('href', '/collections/new')
+    expect(
+      within(empty).getByRole('link', { name: /new list/i })
+    ).toHaveAttribute('href', '/lists/new')
+  })
+
+  it('shows only the groups that have something, each as one list of rows', () => {
+    const { rerender } = render(
+      <ListsIndex lists={[baseList({})]} collections={[]} />
+    )
+
+    expect(
+      screen.queryByRole('heading', { name: 'Nothing here yet' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Lists' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Collections' })
+    ).not.toBeInTheDocument()
+    expect(
+      within(screen.getByRole('list', { name: 'Lists' })).getAllByRole(
+        'listitem'
+      )
+    ).toHaveLength(1)
+
+    rerender(<ListsIndex lists={[]} collections={[baseCollection({})]} />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Collections' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Lists' })
+    ).not.toBeInTheDocument()
   })
 
   it('links each list row to its timeline and summarizes membership', () => {

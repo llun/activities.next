@@ -262,8 +262,10 @@ describe('MessagesPage', () => {
 
     await waitFor(() => {
       expect(
-        within(screen.getByRole('button', { name: /Ada/i })).getByText('Ada')
-      ).not.toHaveClass('font-semibold')
+        within(screen.getByRole('button', { name: /Ada/i })).queryByText(
+          'Unread'
+        )
+      ).not.toBeInTheDocument()
     })
 
     await act(async () => {
@@ -274,8 +276,8 @@ describe('MessagesPage', () => {
       'Could not mark conversation as read'
     )
     expect(
-      within(screen.getByRole('button', { name: /Ada/i })).getByText('Ada')
-    ).toHaveClass('font-semibold')
+      within(screen.getByRole('button', { name: /Ada/i })).getByText('Unread')
+    ).toBeInTheDocument()
     expect(markConversationRead).toHaveBeenCalledTimes(1)
   })
 

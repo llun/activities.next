@@ -7,8 +7,10 @@ import {
   Search,
   Trash2,
   UserMinus,
-  UserPlus
+  UserPlus,
+  Users
 } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -20,6 +22,13 @@ import {
   updateCollection
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
+import { Section } from '@/lib/components/surface/Section'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
@@ -118,7 +127,11 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
   const [pendingMemberIds, setPendingMemberIds] = useState<Set<string>>(
     new Set()
   )
-  const [error, setError] = useState<string | null>(null)
+  // Each failure shows where it happened: the Save footer, the people, the
+  // danger zone.
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [memberError, setMemberError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -159,7 +172,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
 
   const addMember = async (account: CollectionMember): Promise<boolean> => {
     if (!collection) return false
-    setError(null)
+    setMemberError(null)
     setMemberPending(account.id, true)
     try {
       const ok = await addCollectionAccounts({
@@ -167,13 +180,13 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
         accountIds: [account.id]
       })
       if (!ok) {
-        setError('Could not add that account. Please try again.')
+        setMemberError('Could not add that account. Please try again.')
         return false
       }
       setMembers((previous) => [...previous, account])
       return true
     } catch {
-      setError('Could not add that account. Please try again.')
+      setMemberError('Could not add that account. Please try again.')
       return false
     } finally {
       setMemberPending(account.id, false)
@@ -182,7 +195,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
 
   const removeMember = async (account: CollectionMember) => {
     if (!collection) return
-    setError(null)
+    setMemberError(null)
     setMemberPending(account.id, true)
     try {
       const ok = await removeCollectionAccounts({
@@ -190,26 +203,27 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
         accountIds: [account.id]
       })
       if (!ok) {
-        setError('Could not remove that account. Please try again.')
+        setMemberError('Could not remove that account. Please try again.')
         return
       }
       setMembers((previous) =>
         previous.filter((member) => member.id !== account.id)
       )
     } catch {
-      setError('Could not remove that account. Please try again.')
+      setMemberError('Could not remove that account. Please try again.')
     } finally {
       setMemberPending(account.id, false)
     }
   }
 
   const handleSave = async () => {
+    if (isDeleting) return
     const trimmed = title.trim()
     if (trimmed.length === 0) {
-      setError('Please enter a collection name.')
+      setSaveError('Please enter a collection name.')
       return
     }
-    setError(null)
+    setSaveError(null)
     setSaving(true)
     const payload = {
       title: trimmed,
@@ -223,7 +237,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
       if (mode === 'create') {
         const created = await createCollection(payload)
         if (!created) {
-          setError('Could not create the collection. Please try again.')
+          setSaveError('Could not create the collection. Please try again.')
           return
         }
         // Send the owner straight to the member editor on the new collection.
@@ -238,13 +252,13 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
         ...payload
       })
       if (!updated) {
-        setError('Could not save your changes. Please try again.')
+        setSaveError('Could not save your changes. Please try again.')
         return
       }
       router.push(`/collections/${collection.id}`)
       router.refresh()
     } catch {
-      setError(
+      setSaveError(
         mode === 'create'
           ? 'Could not create the collection. Please try again.'
           : 'Could not save your changes. Please try again.'
@@ -263,22 +277,33 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
     ) {
       return
     }
-    setError(null)
+    setDeleteError(null)
     setDeleting(true)
     try {
       const ok = await deleteCollection(collection.id)
       if (!ok) {
-        setError('Could not delete the collection. Please try again.')
+        setDeleteError('Could not delete the collection. Please try again.')
         return
       }
       router.push('/lists')
       router.refresh()
     } catch {
-      setError('Could not delete the collection. Please try again.')
+      setDeleteError('Could not delete the collection. Please try again.')
     } finally {
       setDeleting(false)
     }
   }
+
+  // A new collection has nothing saved yet; an existing one is dirty once a
+  // setting differs from what loaded. People save as they change, so they never
+  // count.
+  const isDirty =
+    mode === 'create' ||
+    title !== (collection?.title ?? '') ||
+    description !== (collection?.description ?? '') ||
+    topic !== (collection?.topic ?? '') ||
+    visibility !== (collection?.visibility ?? 'public') ||
+    feedEnabled !== (collection?.feed_enabled ?? true)
 
   const cancelHref =
     mode === 'edit' && collection ? `/collections/${collection.id}` : '/lists'
@@ -294,117 +319,153 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
         }
       />
 
-      <section className="space-y-5 rounded-xl border bg-card p-5 shadow-sm">
-        <div className="space-y-2">
-          <Label htmlFor="collection-name">Collection name</Label>
-          <Input
-            id="collection-name"
-            value={title}
-            maxLength={255}
-            placeholder="e.g. Fediverse builders"
-            onChange={(event) => setTitle(event.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="collection-description">Description</Label>
-          <Textarea
-            id="collection-description"
-            value={description}
-            maxLength={DESCRIPTION_MAX}
-            rows={3}
-            placeholder="Who are you highlighting, and why?"
-            onChange={(event) => setDescription(event.target.value)}
-          />
-          <p className="text-right text-xs text-muted-foreground">
-            {description.length} / {DESCRIPTION_MAX}
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="collection-topic">Topic</Label>
-          <div className="flex items-center rounded-md border bg-background focus-within:ring-1 focus-within:ring-ring">
-            <span className="pl-3 pr-1 text-sm text-muted-foreground">#</span>
-            <input
-              id="collection-topic"
-              value={topic}
-              maxLength={255}
-              placeholder="fediverse"
-              className="h-9 w-full rounded-md bg-transparent pr-3 text-sm outline-none"
-              onChange={(event) => setTopic(sanitizeTopic(event.target.value))}
+      <Section title="Details">
+        <Frame
+          divided
+          footer={
+            <SaveBar
+              dirty={isDirty}
+              saving={isSaving}
+              saved={false}
+              error={saveError}
+              onSave={handleSave}
+              actions={
+                // A link, so a request still running when it is followed
+                // would finish after the page has gone: off until it is done.
+                isSaving || isDeleting ? (
+                  <Button variant="outline" disabled>
+                    Cancel
+                  </Button>
+                ) : (
+                  <Button variant="outline" asChild>
+                    <Link href={cancelHref}>Cancel</Link>
+                  </Button>
+                )
+              }
             />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            One discovery hashtag (optional).
-          </p>
-        </div>
+          }
+        >
+          <FormRow label="Collection name" htmlFor="collection-name">
+            <Input
+              id="collection-name"
+              value={title}
+              maxLength={255}
+              placeholder="e.g. Fediverse builders"
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </FormRow>
 
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium leading-none">
-            Visibility
-          </legend>
-          <RadioGroup
-            value={visibility}
-            onValueChange={(value) => setVisibility(value as Visibility)}
+          <FormRow label="Description" htmlFor="collection-description" wide>
+            <div className="space-y-1">
+              <Textarea
+                id="collection-description"
+                value={description}
+                maxLength={DESCRIPTION_MAX}
+                rows={3}
+                placeholder="Who are you highlighting, and why?"
+                onChange={(event) => setDescription(event.target.value)}
+              />
+              <p className="text-right text-xs text-muted-foreground">
+                {description.length} / {DESCRIPTION_MAX}
+              </p>
+            </div>
+          </FormRow>
+
+          <FormRow
+            label="Topic"
+            htmlFor="collection-topic"
+            hint="One discovery hashtag (optional)."
           >
-            {VISIBILITY_OPTIONS.map((option) => {
-              const Icon = option.icon
-              const id = `visibility-${option.value}`
-              return (
-                <Label
-                  key={option.value}
-                  htmlFor={id}
-                  // The radio is a Radix `<button role="radio">`, never a native
-                  // input outside a <form>, so `:checked` can not see it —
-                  // `data-state` is what marks the selected option.
-                  className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/[0.06]"
-                >
-                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">
-                      {option.label}
-                    </span>
-                    <span className="block text-xs font-normal text-muted-foreground">
-                      {option.help}
-                    </span>
-                  </span>
-                  <RadioGroupItem id={id} value={option.value} />
-                </Label>
-              )
-            })}
-          </RadioGroup>
-        </fieldset>
+            {({ describedBy }) => (
+              <div className="flex items-center rounded-md border bg-background focus-within:ring-1 focus-within:ring-ring">
+                <span className="pl-3 pr-1 text-sm text-muted-foreground">
+                  #
+                </span>
+                <input
+                  id="collection-topic"
+                  aria-describedby={describedBy}
+                  value={topic}
+                  maxLength={255}
+                  placeholder="fediverse"
+                  className="h-9 w-full rounded-md bg-transparent pr-3 text-sm outline-none"
+                  onChange={(event) =>
+                    setTopic(sanitizeTopic(event.target.value))
+                  }
+                />
+              </div>
+            )}
+          </FormRow>
 
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="collection-feed">Shareable feed</Label>
-            <p className="text-sm text-muted-foreground">
-              Expose this collection as a public feed. The public link shows
-              only members who approved being featured.
-            </p>
-          </div>
-          <Switch
-            id="collection-feed"
-            checked={feedEnabled}
-            onCheckedChange={setFeedEnabled}
-          />
-        </div>
-      </section>
+          <FormRow label="Visibility" wide>
+            {({ labelledBy }) => (
+              <RadioGroup
+                aria-labelledby={labelledBy}
+                value={visibility}
+                onValueChange={(value) => setVisibility(value as Visibility)}
+              >
+                {VISIBILITY_OPTIONS.map((option) => {
+                  const Icon = option.icon
+                  const id = `visibility-${option.value}`
+                  return (
+                    <Label
+                      key={option.value}
+                      htmlFor={id}
+                      // The radio is a Radix `<button role="radio">`, never a
+                      // native input outside a <form>, so `:checked` can not
+                      // see it: `data-state` is what marks the selected option.
+                      className="flex cursor-pointer items-start gap-3 rounded-md border p-3 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/[0.06]"
+                    >
+                      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <Icon className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium">
+                          {option.label}
+                        </span>
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {option.help}
+                        </span>
+                      </span>
+                      <RadioGroupItem id={id} value={option.value} />
+                    </Label>
+                  )
+                })}
+              </RadioGroup>
+            )}
+          </FormRow>
+
+          <FormRow
+            inline
+            label="Shareable feed"
+            htmlFor="collection-feed"
+            hint="Expose this collection as a public feed. The public link shows only members who approved being featured."
+          >
+            {({ describedBy }) => (
+              <Switch
+                id="collection-feed"
+                aria-describedby={describedBy}
+                checked={feedEnabled}
+                onCheckedChange={setFeedEnabled}
+              />
+            )}
+          </FormRow>
+        </Frame>
+      </Section>
 
       {mode === 'edit' && collection && (
-        <section className="space-y-4 rounded-xl border bg-card p-5 shadow-sm">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold">People</h2>
-            <p className="text-sm text-muted-foreground">
-              Highlight accounts you follow. They start as pending and choose
-              whether to appear on the public link from their notifications.
-            </p>
-          </div>
+        <Section
+          title="People"
+          meta={
+            members.length > 0
+              ? `${members.length} in this collection`
+              : undefined
+          }
+          description="Highlight accounts you follow. They start as pending and choose whether to appear on the public link from their notifications."
+        >
+          {memberError && <Alert title={memberError} />}
 
           <div ref={wrapRef} className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
               value={search}
@@ -421,15 +482,15 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
             />
 
             {isDropdownOpen && search.trim().length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-40 mt-1.5 rounded-xl border bg-popover p-1 shadow-lg">
+              <div className="absolute left-0 right-0 top-full z-40 mt-1.5 rounded-lg border bg-popover p-1 shadow-lg">
                 {suggestions.length > 0 ? (
                   <ul className="divide-y divide-border/50">
                     {suggestions.map((account) => (
                       <li
                         key={account.id}
-                        className="flex items-center gap-3 rounded-lg p-2 hover:bg-accent/50"
+                        className="flex items-center gap-3 rounded-md p-2 hover:bg-accent/50"
                       >
-                        <Avatar className="h-8 w-8">
+                        <Avatar className="size-8">
                           {account.avatar && (
                             <AvatarImage src={account.avatar} />
                           )}
@@ -456,7 +517,7 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
                             }
                           }}
                         >
-                          <UserPlus className="h-4 w-4" />
+                          <UserPlus className="size-4" />
                           Add
                         </Button>
                       </li>
@@ -471,90 +532,73 @@ export const CollectionEditor: FC<CollectionEditorProps> = ({
             )}
           </div>
 
-          {members.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                In this collection · {members.length}
-              </p>
-              <ul className="divide-y">
-                {members.map((member) => (
-                  <li key={member.id} className="flex items-center gap-3 py-3">
-                    <Avatar className="h-10 w-10">
-                      {member.avatar && <AvatarImage src={member.avatar} />}
-                      <AvatarFallback>
-                        {getInitials(member.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{member.name}</p>
-                      <p className="truncate text-sm text-muted-foreground">
-                        @{member.handle}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label={`Remove ${member.name}`}
-                      disabled={pendingMemberIds.has(member.id)}
-                      onClick={() => removeMember(member)}
-                    >
-                      <UserMinus className="h-4 w-4 text-destructive-text" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {members.length === 0 && (
-            <p className="py-6 text-center text-sm text-muted-foreground">
+          {members.length > 0 ? (
+            <FramedList aria-label="People in this collection">
+              {members.map((member) => (
+                <FramedListItem
+                  key={member.id}
+                  className="flex items-center gap-3"
+                >
+                  <Avatar className="size-10">
+                    {member.avatar && <AvatarImage src={member.avatar} />}
+                    <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {member.name}
+                    </p>
+                    <p className="truncate text-sm text-muted-foreground">
+                      @{member.handle}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={`Remove ${member.name}`}
+                    disabled={pendingMemberIds.has(member.id)}
+                    onClick={() => removeMember(member)}
+                  >
+                    <UserMinus className="size-4 text-destructive-text" />
+                  </Button>
+                </FramedListItem>
+              ))}
+            </FramedList>
+          ) : (
+            <EmptyState icon={Users} title="No one in this collection yet">
               {followingSuggestions.length === 0
                 ? 'Follow some accounts to highlight them in this collection.'
                 : 'This collection has no members yet. Use the search above to add accounts you follow.'}
-            </p>
+            </EmptyState>
           )}
-        </section>
+        </Section>
       )}
 
-      {error && (
-        <p className="text-sm text-destructive-text" role="alert">
-          {error}
-        </p>
+      {mode === 'edit' && collection && (
+        <Section title="Danger zone">
+          <Frame className="overflow-hidden">
+            <Alert
+              flush
+              live={false}
+              title="Delete this collection"
+              action={
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={isDeleting || isSaving}
+                  onClick={handleDelete}
+                >
+                  <Trash2 className="size-4" />
+                  Delete collection
+                </Button>
+              }
+            >
+              This removes the collection and its feed, but not the accounts in
+              it.
+            </Alert>
+          </Frame>
+          {deleteError && <Alert title={deleteError} />}
+        </Section>
       )}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {mode === 'edit' && collection ? (
-          <Button
-            variant="outline"
-            className="border-destructive/40 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
-            disabled={isDeleting || isSaving}
-            onClick={handleDelete}
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete collection
-          </Button>
-        ) : (
-          <span />
-        )}
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            disabled={isSaving || isDeleting}
-            onClick={() => router.push(cancelHref)}
-          >
-            Cancel
-          </Button>
-          <Button disabled={isSaving || isDeleting} onClick={handleSave}>
-            {mode === 'create'
-              ? isSaving
-                ? 'Creating...'
-                : 'Create collection'
-              : isSaving
-                ? 'Saving...'
-                : 'Save changes'}
-          </Button>
-        </div>
-      </div>
     </div>
   )
 }

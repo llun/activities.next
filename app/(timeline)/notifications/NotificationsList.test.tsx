@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import type { Mastodon } from '@/lib/types/activitypub'
@@ -228,6 +228,81 @@ describe('NotificationsList', () => {
     })
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(mockRefresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends the failed ids again when Retry is pressed and clears the alert on success', async () => {
+    mockMarkNotificationsRead.mockResolvedValueOnce(false)
+    renderList([makeNotification('n1'), makeNotification('n2')])
+
+    scrollIntoView('n1', 'n2')
+    await act(() => vi.advanceTimersByTimeAsync(1000))
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Notifications could not be marked as read.'
+    )
+    expect(mockRefresh).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(mockMarkNotificationsRead).toHaveBeenCalledTimes(2)
+    expect(mockMarkNotificationsRead).toHaveBeenLastCalledWith({
+      notificationIds: ['n1', 'n2']
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mockRefresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the alert when Retry fails too, and does not send ids that were already marked', async () => {
+    mockMarkNotificationsRead.mockResolvedValueOnce(true)
+    renderList([makeNotification('n1'), makeNotification('n2')])
+
+    scrollIntoView('n1')
+    await act(() => vi.advanceTimersByTimeAsync(1000))
+    mockMarkNotificationsRead.mockResolvedValue(false)
+    scrollIntoView('n2')
+    await act(() => vi.advanceTimersByTimeAsync(1000))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(mockMarkNotificationsRead).toHaveBeenLastCalledWith({
+      notificationIds: ['n2']
+    })
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+  })
+
+  it('sends nothing twice while a Retry is in flight and hides the alert on press', async () => {
+    mockMarkNotificationsRead.mockResolvedValueOnce(false)
+    renderList([makeNotification('n1'), makeNotification('n2')])
+
+    scrollIntoView('n1')
+    await act(() => vi.advanceTimersByTimeAsync(1000))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    let finishRetry: (didMark: boolean) => void = () => {}
+    mockMarkNotificationsRead.mockImplementationOnce(
+      () => new Promise<boolean>((resolve) => (finishRetry = resolve))
+    )
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    fireEvent.click(retry)
+    fireEvent.click(retry)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    // A row scrolling into view mid-retry flushes only its own id.
+    scrollIntoView('n2')
+    await act(() => vi.advanceTimersByTimeAsync(1000))
+
+    expect(mockMarkNotificationsRead).toHaveBeenCalledTimes(3)
+    expect(mockMarkNotificationsRead).toHaveBeenNthCalledWith(2, {
+      notificationIds: ['n1']
+    })
+    expect(mockMarkNotificationsRead).toHaveBeenNthCalledWith(3, {
+      notificationIds: ['n2']
+    })
+
+    await act(async () => finishRetry(true))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('cancels a pending mark-read request when unmounted', async () => {

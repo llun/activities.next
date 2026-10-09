@@ -19,7 +19,7 @@ const BASELINE = {
   /** A string literal carrying both `rounded-2xl` and `shadow-sm`. */
   sectionPanels: 12,
   /** Raw Tailwind palette colour utilities. */
-  rawColours: 114,
+  rawColours: 110,
   /** "Loading…" / "Loading..." as JSX text or a bare string. */
   loadingText: 4
 }

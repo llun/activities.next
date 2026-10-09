@@ -75,7 +75,7 @@ export const FollowRequestNotification: FC<Props> = ({
   return (
     <div className="mt-1.5">
       <div className="flex items-center justify-between gap-3">
-        <span className="truncate text-[13px] text-muted-foreground">
+        <span className="truncate text-sm text-muted-foreground">
           @{account.acct}
         </span>
         {status === 'pending' ? (
@@ -99,9 +99,9 @@ export const FollowRequestNotification: FC<Props> = ({
         ) : (
           <span
             className={cn(
-              'shrink-0 text-[13px] font-medium',
+              'shrink-0 text-sm font-medium',
               status === 'accepted'
-                ? 'text-green-600 dark:text-green-500'
+                ? 'text-success-text'
                 : 'text-muted-foreground'
             )}
           >
@@ -110,7 +110,7 @@ export const FollowRequestNotification: FC<Props> = ({
         )}
       </div>
       {error && (
-        <p className="mt-1 text-xs text-destructive" role="alert">
+        <p className="mt-1 text-xs text-destructive-text" role="alert">
           {error}
         </p>
       )}

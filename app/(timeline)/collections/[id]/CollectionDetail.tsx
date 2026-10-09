@@ -9,7 +9,8 @@ import {
   Layers,
   Link2,
   Lock,
-  Pencil
+  Pencil,
+  UserPlus
 } from 'lucide-react'
 import Link from 'next/link'
 import { FC, useCallback, useRef, useState } from 'react'
@@ -18,13 +19,15 @@ import { CollectionMember } from '@/app/(timeline)/collections/CollectionEditor'
 import { getCollectionFeed, getCollectionTimeline } from '@/lib/client'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
-import {
-  MOBILE_FEED_SURFACE_CLASS,
-  MOBILE_INSET_FEED_CLASS
-} from '@/lib/components/posts/feedLayout'
+import { MOBILE_INSET_FEED_CLASS } from '@/lib/components/posts/feedLayout'
 import { Posts } from '@/lib/components/posts/posts'
 import { useLoadMoreOnVisible } from '@/lib/components/posts/useLoadMoreOnVisible'
 import { ScrollToTopButton } from '@/lib/components/scroll-to-top-button'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
+import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
@@ -44,6 +47,11 @@ const VISIBILITY_META: Record<
   unlisted: { label: 'Unlisted', icon: Link2 },
   private: { label: 'Private', icon: Lock }
 }
+
+const PROJECTION_ITEMS = [
+  { value: 'owner', label: 'Owner view', icon: Eye },
+  { value: 'public', label: 'Public preview', icon: Globe }
+]
 
 const getInitials = (name: string) =>
   name
@@ -73,8 +81,8 @@ const ShareRow: FC<ShareRowProps> = ({ url }) => {
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2">
-      <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+    <div className="flex items-center gap-2">
+      <Link2 className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
         {url}
       </span>
@@ -86,9 +94,9 @@ const ShareRow: FC<ShareRowProps> = ({ url }) => {
         onClick={copy}
       >
         {copied ? (
-          <Check className="h-3.5 w-3.5" />
+          <Check className="size-3.5" />
         ) : (
-          <Copy className="h-3.5 w-3.5" />
+          <Copy className="size-3.5" />
         )}
         {copied ? 'Copied' : 'Copy link'}
       </Button>
@@ -309,31 +317,14 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
 
       {/* Projection toggle — owner only, to preview the consent-gated link. */}
       {isOwner && shareUrl && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border bg-muted p-0.5">
-            {(
-              [
-                ['owner', 'Owner view', Eye],
-                ['public', 'Public preview', Globe]
-              ] as const
-            ).map(([value, label, Icon]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => switchProjection(value)}
-                aria-pressed={projection === value}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                  projection === value
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <SegmentedControl
+            size="sm"
+            aria-label="Collection view"
+            items={PROJECTION_ITEMS}
+            value={projection}
+            onValueChange={(value) => switchProjection(value as Projection)}
+          />
           <span className="text-xs text-muted-foreground">
             {projection === 'owner'
               ? `Showing all ${totalCount}`
@@ -343,27 +334,33 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
       )}
 
       {/* Meta panel — visibility, topic, description, share link. */}
-      <section className="space-y-3 rounded-xl border bg-card p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge tone="gray">
-            <VisibilityIcon className="h-3 w-3" />
-            {visibility.label}
-          </Badge>
-          {collection.topic && (
-            <Badge tone="primary" className="gap-0.5">
-              <Hash className="h-3 w-3 text-primary" />
-              {collection.topic}
+      <Frame divided>
+        <div className="space-y-3 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge tone="gray">
+              <VisibilityIcon className="size-3" />
+              {visibility.label}
             </Badge>
+            {collection.topic && (
+              <Badge tone="primary" className="gap-0.5">
+                <Hash className="size-3" />
+                {collection.topic}
+              </Badge>
+            )}
+          </div>
+          {collection.description && (
+            <p className="text-sm leading-relaxed text-foreground">
+              {collection.description}
+            </p>
           )}
         </div>
-        {collection.description && (
-          <p className="text-sm leading-relaxed text-foreground">
-            {collection.description}
-          </p>
+        {shareUrl && (
+          <div className="px-4 py-3">
+            <ShareRow url={shareUrl} />
+          </div>
         )}
-        {shareUrl && <ShareRow url={shareUrl} />}
         {isOwner && (
-          <p className="text-xs leading-relaxed text-muted-foreground">
+          <p className="px-4 py-3 text-xs leading-relaxed text-muted-foreground">
             {shareUrl
               ? projection === 'owner'
                 ? 'Owner view — you see everyone. The public link shows only members who approved being featured.'
@@ -371,7 +368,7 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
               : 'Private — there is no public link. Members and posts are visible to you only.'}
           </p>
         )}
-      </section>
+      </Frame>
 
       {currentStatuses.length > 0 ? (
         <Posts
@@ -390,35 +387,35 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
           onPostUpdated={updateStatus}
         />
       ) : (
-        <div
-          className={cn(
-            'rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm',
-            // Signed in, the empty state is the full-bleed feed surface below
-            // `md`; logged out it stays an inset card in the 16px column, like
-            // the meta panel above it.
-            !isLoggedOutVisitor && MOBILE_FEED_SURFACE_CLASS
-          )}
-        >
-          <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Layers className="h-6 w-6" />
-          </span>
-          <h2 className="mb-2 text-xl font-semibold text-foreground">
-            {totalCount === 0
+        <EmptyState
+          icon={Layers}
+          titleAs="h2"
+          title={
+            totalCount === 0
               ? 'No one in this collection yet'
               : projection === 'public'
                 ? 'Nothing public yet'
-                : 'No posts yet'}
-          </h2>
-          <p>
-            {totalCount === 0
-              ? isOwner
-                ? 'Add people you want to highlight — their recent posts will fan into this feed.'
-                : 'This collection does not feature anyone yet.'
-              : projection === 'public'
-                ? 'No featured member has posted yet, or no one has approved being featured.'
-                : 'Members’ posts will appear here as they’re published.'}
-          </p>
-        </div>
+                : 'No posts yet'
+          }
+          action={
+            isOwner && totalCount === 0 ? (
+              <Button asChild size="sm">
+                <Link href={`/collections/${collection.id}/edit`}>
+                  <UserPlus className="size-4" />
+                  Add people
+                </Link>
+              </Button>
+            ) : undefined
+          }
+        >
+          {totalCount === 0
+            ? isOwner
+              ? 'Add people you want to highlight — their recent posts will fan into this feed.'
+              : 'This collection does not feature anyone yet.'
+            : projection === 'public'
+              ? 'No featured member has posted yet, or no one has approved being featured.'
+              : 'Members’ posts will appear here as they’re published.'}
+        </EmptyState>
       )}
 
       {hasMoreStatuses && lastStatusIdRef.current && (
@@ -431,26 +428,24 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
 
       {/* Roster — highlighted accounts. */}
       {roster.length > 0 && (
-        <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
-          <div className="flex items-center justify-between border-b px-4 py-2.5">
-            <span className="text-xs font-semibold">
-              Highlighted accounts · {roster.length}
-            </span>
-            {isOwner &&
-              projection === 'public' &&
-              approvedCount < totalCount && (
-                <span className="text-xs text-muted-foreground">
-                  {totalCount - approvedCount} hidden by consent
-                </span>
-              )}
-          </div>
-          <ul className="divide-y">
+        <Section
+          title="Highlighted accounts"
+          meta={roster.length}
+          actions={
+            isOwner && projection === 'public' && approvedCount < totalCount ? (
+              <span className="text-xs text-muted-foreground">
+                {totalCount - approvedCount} hidden by consent
+              </span>
+            ) : undefined
+          }
+        >
+          <FramedList>
             {roster.map((member) => (
-              <li
+              <FramedListItem
                 key={member.id}
-                className="flex items-center gap-3 px-4 py-2.5"
+                className="flex items-center gap-3 py-2.5"
               >
-                <Avatar className="h-9 w-9">
+                <Avatar className="size-9">
                   {member.avatar && <AvatarImage src={member.avatar} />}
                   <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                 </Avatar>
@@ -466,10 +461,10 @@ export const CollectionDetail: FC<CollectionDetailProps> = ({
                     @{member.handle}
                   </p>
                 </Link>
-              </li>
+              </FramedListItem>
             ))}
-          </ul>
-        </section>
+          </FramedList>
+        </Section>
       )}
 
       {!isOwner && (

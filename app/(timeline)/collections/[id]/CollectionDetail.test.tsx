@@ -164,10 +164,10 @@ describe('CollectionDetail', () => {
     )
 
     expect(
-      screen.getByRole('button', { name: /owner view/i })
+      screen.getByRole('radio', { name: /owner view/i })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /public preview/i })
+      screen.getByRole('radio', { name: /public preview/i })
     ).toBeInTheDocument()
     expect(
       screen.getByText('https://llun.social/collections/col-1')
@@ -179,7 +179,9 @@ describe('CollectionDetail', () => {
     // Owner projection shows every member and the owner's feed.
     expect(screen.getByText('Ada')).toBeInTheDocument()
     expect(screen.getByText('Ben')).toBeInTheDocument()
-    expect(screen.getByText('Highlighted accounts · 2')).toBeInTheDocument()
+    const roster = screen.getByRole('region', { name: /Highlighted accounts/ })
+    expect(within(roster).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(roster).getByText('2')).toBeInTheDocument()
     expect(posts()).toContain('owner-1')
     // The owner came from /lists; the mobile bar names the section.
     const header = screen.getByTestId('page-header')
@@ -200,9 +202,51 @@ describe('CollectionDetail', () => {
       />
     )
 
-    // `text-primary` fails AA as a foreground; `text-primary-text` clears it.
-    expect(screen.getByText('fediverse')).toHaveClass('text-primary-text')
+    expect(screen.getByText('fediverse')).toBeInTheDocument()
     expect(screen.getByText('Public', { selector: 'span' })).toBeInTheDocument()
+  })
+
+  it('marks the projection being shown and switches it with the arrow keys', async () => {
+    render(
+      <CollectionDetail
+        {...baseProps}
+        isOwner
+        currentActor={{} as ActorProfile}
+      />
+    )
+
+    const owner = screen.getByRole('radio', { name: /owner view/i })
+    const preview = screen.getByRole('radio', { name: /public preview/i })
+    expect(owner).toHaveAttribute('aria-checked', 'true')
+    expect(preview).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByText('Showing all 2')).toBeInTheDocument()
+
+    fireEvent.keyDown(owner, { key: 'ArrowRight' })
+
+    await waitFor(() => expect(getCollectionFeed).toHaveBeenCalled())
+    await waitFor(() => expect(posts()).toContain('pub-1'))
+    expect(preview).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByText('Showing 1 of 2')).toBeInTheDocument()
+  })
+
+  it('goes back to the earlier projection when the switch fails', async () => {
+    ;(getCollectionFeed as jest.Mock).mockRejectedValue(new Error('offline'))
+    render(
+      <CollectionDetail
+        {...baseProps}
+        isOwner
+        currentActor={{} as ActorProfile}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: /public preview/i }))
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('radio', { name: /owner view/i })
+      ).toHaveAttribute('aria-checked', 'true')
+    )
+    expect(posts()).toContain('owner-1')
   })
 
   it('switches to the public preview, replacing the feed and roster with the approved set', async () => {
@@ -214,7 +258,7 @@ describe('CollectionDetail', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /public preview/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /public preview/i }))
 
     await waitFor(() =>
       expect(getCollectionFeed).toHaveBeenCalledWith({
@@ -277,7 +321,7 @@ describe('CollectionDetail', () => {
     await waitFor(() => expect(getCollectionTimeline).toHaveBeenCalled())
 
     // Switch to the public preview; its feed resolves first and wins.
-    fireEvent.click(screen.getByRole('button', { name: /public preview/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /public preview/i }))
     await waitFor(() => expect(posts()).toContain('pub-1'))
 
     // Now let the stale owner request resolve — it must NOT be applied.
@@ -304,7 +348,7 @@ describe('CollectionDetail', () => {
     )
 
     expect(
-      screen.queryByRole('button', { name: /public preview/i })
+      screen.queryByRole('radio', { name: /public preview/i })
     ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('link', { name: /edit/i })
@@ -405,19 +449,22 @@ describe('CollectionDetail', () => {
       // stack as the cards.
       const block = title.parentElement as HTMLElement
       expect(block.parentElement).toBe(
-        screen.getByText('people I read').closest('section')?.parentElement
+        screen.getByText('people I read').closest('[data-slot="frame"]')
+          ?.parentElement
       )
       expect(within(block).getByText('by anna@llun.social')).toBeInTheDocument()
     })
 
-    it('shows the empty state as an inset card below md, not the full-bleed surface', () => {
+    it('says nobody is featured yet, with nothing to do about it', () => {
       renderLoggedOut({ statuses: [], totalCount: 0, publicRoster: [] })
 
-      const card = screen
-        .getByRole('heading', { name: 'No one in this collection yet' })
-        .closest('div.rounded-xl') as HTMLElement
-      expect(card).toHaveClass('rounded-xl', 'border', 'shadow-sm')
-      expect(card.className).not.toContain('max-md:')
+      expect(
+        screen.getByRole('heading', { name: 'No one in this collection yet' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('This collection does not feature anyone yet.')
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /add people/i })).toBeNull()
     })
 
     // `Posts` frames itself with the full-bleed feed surface; the class the
@@ -462,35 +509,57 @@ describe('CollectionDetail', () => {
     }
   )
 
-  describe('signed-in visitor keeps the full-bleed empty state and inset byline', () => {
-    it.each([
-      { description: 'non-owner', isOwner: false },
-      { description: 'owner', isOwner: true }
-    ])('$description', ({ isOwner }) => {
-      render(
-        <CollectionDetail
-          {...baseProps}
-          isOwner={isOwner}
-          currentActor={{} as ActorProfile}
-          statuses={[]}
-          totalCount={0}
-          publicRoster={[]}
-          ownerRoster={[]}
-        />
-      )
+  describe('empty feed', () => {
+    const emptyProps = {
+      ...baseProps,
+      currentActor: {} as ActorProfile,
+      statuses: [] as Status[],
+      totalCount: 0,
+      approvedCount: 0,
+      publicRoster: [],
+      ownerRoster: []
+    }
 
-      const card = screen
-        .getByRole('heading', { name: 'No one in this collection yet' })
-        .closest('div.rounded-xl') as HTMLElement
-      expect(card).toHaveClass(
-        'max-md:mx-[calc(50%_-_50vw)]',
-        'max-md:rounded-none',
-        'max-md:border-0'
+    it('invites the owner to add people, linking to the editor', () => {
+      render(<CollectionDetail {...emptyProps} isOwner />)
+
+      expect(
+        screen.getByRole('heading', { name: 'No one in this collection yet' })
+      ).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /add people/i })).toHaveAttribute(
+        'href',
+        '/collections/col-1/edit'
       )
-      expect(screen.getByTestId('page-header')).toBeInTheDocument()
-      if (!isOwner) {
-        expect(screen.getByText(/Curated by/)).not.toHaveClass('max-md:px-0')
+    })
+
+    it('offers a signed-in visitor no action', () => {
+      render(<CollectionDetail {...emptyProps} isOwner={false} />)
+
+      expect(
+        screen.getByText('This collection does not feature anyone yet.')
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /add people/i })).toBeNull()
+      expect(screen.getByText(/Curated by/)).toBeInTheDocument()
+    })
+
+    it.each([
+      {
+        description: 'the owner view of a collection with members',
+        props: { isOwner: true, totalCount: 2, approvedCount: 1 },
+        title: 'No posts yet'
+      },
+      {
+        description: 'a public view with no approved posts',
+        props: { isOwner: false, totalCount: 1, approvedCount: 1 },
+        title: 'Nothing public yet'
       }
+    ])('names what is missing for $description', ({ props, title }) => {
+      render(<CollectionDetail {...emptyProps} {...props} />)
+
+      // There is nothing to add: the collection has people, they just have no
+      // posts to show in this view.
+      expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /add people/i })).toBeNull()
     })
   })
 })
