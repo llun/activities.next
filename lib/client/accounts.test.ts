@@ -1,5 +1,8 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { generatePublicId } from '@/lib/utils/publicId'
+import { urlToId } from '@/lib/utils/urlToId'
+
 import {
   acceptFollowRequest,
   block,
@@ -143,89 +146,56 @@ describe('client accounts module', () => {
     })
   })
 
-  describe('follow', () => {
-    it('calls follow endpoint and returns true on 200', async () => {
+  describe.each([
+    {
+      name: 'follow',
+      call: () => follow({ targetActorId: 'actor-123' }),
+      path: '/api/v1/accounts/actor-123/follow',
+      init: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      },
+      failStatus: 400
+    },
+    {
+      name: 'unfollow',
+      call: () => unfollow({ targetActorId: 'actor-123' }),
+      path: '/api/v1/accounts/actor-123/unfollow',
+      init: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      },
+      failStatus: 400
+    },
+    {
+      name: 'acceptFollowRequest',
+      call: () => acceptFollowRequest({ id: 'req-123' }),
+      path: '/api/v1/follow_requests/req-123/authorize',
+      init: { method: 'POST' },
+      failStatus: 404
+    },
+    {
+      name: 'rejectFollowRequest',
+      call: () => rejectFollowRequest({ id: 'req-123' }),
+      path: '/api/v1/follow_requests/req-123/reject',
+      init: { method: 'POST' },
+      failStatus: 404
+    }
+  ])('$name', ({ call, path, init, failStatus }) => {
+    it('calls the endpoint and returns true on 200', async () => {
       fetchMock.mockResponse('', { status: 200 })
 
-      const res = await follow({ targetActorId: 'actor-123' })
-      expect(res).toBe(true)
+      await expect(call()).resolves.toBe(true)
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/accounts/actor-123/follow',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
+        path,
+        expect.objectContaining(init)
       )
     })
 
     it('returns false on error status', async () => {
-      fetchMock.mockResponse('', { status: 400 })
+      fetchMock.mockResponse('', { status: failStatus })
 
-      const res = await follow({ targetActorId: 'actor-123' })
-      expect(res).toBe(false)
-    })
-  })
-
-  describe('unfollow', () => {
-    it('calls unfollow endpoint and returns true on 200', async () => {
-      fetchMock.mockResponse('', { status: 200 })
-
-      const res = await unfollow({ targetActorId: 'actor-123' })
-      expect(res).toBe(true)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/accounts/actor-123/unfollow',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-      )
-    })
-
-    it('returns false on error status', async () => {
-      fetchMock.mockResponse('', { status: 400 })
-
-      const res = await unfollow({ targetActorId: 'actor-123' })
-      expect(res).toBe(false)
-    })
-  })
-
-  describe('acceptFollowRequest', () => {
-    it('calls authorize endpoint and returns true on success', async () => {
-      fetchMock.mockResponse('', { status: 200 })
-
-      const res = await acceptFollowRequest({ id: 'req-123' })
-      expect(res).toBe(true)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/follow_requests/req-123/authorize',
-        expect.objectContaining({ method: 'POST' })
-      )
-    })
-
-    it('returns false when response is not ok', async () => {
-      fetchMock.mockResponse('', { status: 404 })
-
-      const res = await acceptFollowRequest({ id: 'req-123' })
-      expect(res).toBe(false)
-    })
-  })
-
-  describe('rejectFollowRequest', () => {
-    it('calls reject endpoint and returns true on success', async () => {
-      fetchMock.mockResponse('', { status: 200 })
-
-      const res = await rejectFollowRequest({ id: 'req-123' })
-      expect(res).toBe(true)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/follow_requests/req-123/reject',
-        expect.objectContaining({ method: 'POST' })
-      )
-    })
-
-    it('returns false when response is not ok', async () => {
-      fetchMock.mockResponse('', { status: 404 })
-
-      const res = await rejectFollowRequest({ id: 'req-123' })
-      expect(res).toBe(false)
+      await expect(call()).resolves.toBe(false)
     })
   })
 
@@ -274,6 +244,20 @@ describe('client accounts module', () => {
           method: 'GET',
           headers: { Accept: 'application/json' }
         })
+      )
+    })
+
+    it('forwards the abort signal', async () => {
+      const controller = new AbortController()
+      fetchMock.mockResponse(JSON.stringify({ domains: [], host: '' }), {
+        status: 200
+      })
+
+      await getActorDomains({ signal: controller.signal })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors/domains',
+        expect.objectContaining({ signal: controller.signal })
       )
     })
 
@@ -327,6 +311,36 @@ describe('client accounts module', () => {
             username: 'alice',
             domain: 'example.com'
           })
+        })
+      )
+    })
+
+    it('omits domain from request body when domain is undefined', async () => {
+      fetchMock.mockResponse(JSON.stringify({ id: 'actor-new' }), {
+        status: 200
+      })
+
+      await createActor({ username: 'newuser' })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors',
+        expect.objectContaining({
+          body: JSON.stringify({ username: 'newuser' })
+        })
+      )
+    })
+
+    it('preserves explicit empty string domain in request body for server validation', async () => {
+      fetchMock.mockResponse(JSON.stringify({ id: 'actor-new' }), {
+        status: 200
+      })
+
+      await createActor({ username: 'newuser', domain: '' })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/actors',
+        expect.objectContaining({
+          body: JSON.stringify({ username: 'newuser', domain: '' })
         })
       )
     })
@@ -494,6 +508,17 @@ describe('client accounts module', () => {
       )
     })
 
+    it('encodes mediaId in path', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+
+      await deleteAccountMedia({ mediaId: 'path/with/slash' })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/accounts/media/path%2Fwith%2Fslash',
+        expect.objectContaining({ method: 'DELETE' })
+      )
+    })
+
     it('throws error when delete media fails', async () => {
       fetchMock.mockResponse(JSON.stringify({ error: 'Media not found' }), {
         status: 404
@@ -507,6 +532,128 @@ describe('client accounts module', () => {
       await expect(
         deleteAccountMedia({ mediaId: 'media-123' })
       ).rejects.toThrow('Failed to delete media')
+    })
+  })
+
+  describe.each([
+    { name: 'getActorDomains', call: () => getActorDomains() },
+    {
+      name: 'createActor',
+      call: () => createActor({ username: 'bob', domain: 'example.com' })
+    },
+    {
+      name: 'cancelActorDeletion',
+      call: () => cancelActorDeletion({ actorId: 'actor-1' })
+    },
+    { name: 'switchActor', call: () => switchActor({ actorId: 'actor-1' }) },
+    {
+      name: 'setDefaultActor',
+      call: () => setDefaultActor({ actorId: 'actor-1' })
+    },
+    { name: 'deleteActor', call: () => deleteActor({ actorId: 'actor-1' }) },
+    {
+      name: 'deleteAccountMedia',
+      call: () => deleteAccountMedia({ mediaId: 'media-1' })
+    }
+  ])('$name', ({ call }) => {
+    it('propagates network failure', async () => {
+      fetchMock.mockRejectOnce(new Error('Network error'))
+
+      await expect(call()).rejects.toThrow('Network error')
+    })
+  })
+
+  // Every id-accepting route resolves all three client-facing forms: a UUIDv7
+  // publicId, the legacy colon/`apurl_` encoding, and a raw AP URI. The client
+  // must hand back whatever id it was given. Re-encoding is not merely
+  // redundant: `urlToId` parses a bare uuid as a URL host and returns it with a
+  // trailing colon, an id no resolver can decode. That silently broke the
+  // "Follow back" button once Account ids flipped to publicIds.
+  describe('actor id forms', () => {
+    const PUBLIC_ID = generatePublicId()
+    const RAW_ACTOR_URI = 'https://remote.example/users/actor'
+    const RAW_STATUS_URI = 'https://remote.example/users/actor/statuses/post-1'
+
+    const ACTOR_ID_FORMS = [
+      { description: 'public id', actorId: PUBLIC_ID, expected: PUBLIC_ID },
+      {
+        description: 'colon form',
+        actorId: 'remote.example:users:actor',
+        expected: 'remote.example:users:actor'
+      },
+      {
+        description: 'raw AP URI',
+        actorId: RAW_ACTOR_URI,
+        expected: urlToId(RAW_ACTOR_URI)
+      }
+    ]
+
+    it.each(ACTOR_ID_FORMS)(
+      'follows and unfollows an account given a $description',
+      async ({ actorId, expected }) => {
+        fetchMock.mockResponse('[]', { status: 200 })
+
+        await follow({ targetActorId: actorId })
+        await unfollow({ targetActorId: actorId })
+
+        expect(fetchMock).toHaveBeenNthCalledWith(
+          1,
+          `/api/v1/accounts/${expected}/follow`,
+          expect.objectContaining({ method: 'POST' })
+        )
+        expect(fetchMock).toHaveBeenNthCalledWith(
+          2,
+          `/api/v1/accounts/${expected}/unfollow`,
+          expect.objectContaining({ method: 'POST' })
+        )
+      }
+    )
+
+    it.each(ACTOR_ID_FORMS)(
+      'reads the relationship of an account given a $description',
+      async ({ actorId }) => {
+        fetchMock.mockResponse('[]', { status: 200 })
+
+        await getFollowStatus({ targetActorId: actorId })
+
+        // The relationships route reads `id[]` and resolves each entry itself,
+        // so the id is only percent-escaped for the query string, never
+        // re-encoded.
+        const requestUrl = new URL(
+          fetchMock.mock.calls[0][0] as string,
+          'https://local.example'
+        )
+        expect(requestUrl.pathname).toBe('/api/v1/accounts/relationships')
+        expect(requestUrl.searchParams.get('id[]')).toBe(actorId)
+      }
+    )
+
+    it('resolves a public id follow to true without mangling the id', async () => {
+      fetchMock.mockResponseOnce('{}', { status: 200 })
+
+      await expect(follow({ targetActorId: PUBLIC_ID })).resolves.toBe(true)
+      expect(fetchMock.mock.calls[0][0]).not.toContain(`${PUBLIC_ID}:`)
+    })
+
+    it('sends report ids in the body without re-encoding them', async () => {
+      fetchMock.mockResponse('{}', { status: 200 })
+
+      await createReport({
+        targetActorId: PUBLIC_ID,
+        statusId: RAW_STATUS_URI,
+        category: 'spam'
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/reports',
+        expect.objectContaining({
+          body: JSON.stringify({
+            account_id: PUBLIC_ID,
+            status_ids: [RAW_STATUS_URI],
+            category: 'spam'
+          })
+        })
+      )
     })
   })
 
@@ -549,15 +696,42 @@ describe('client accounts module', () => {
     })
   })
 
-  describe('block', () => {
-    it('blocks an account and returns the relationship on 200', async () => {
-      const mockRel = { id: 'actor-1', blocking: true }
-      fetchMock.mockResponse(JSON.stringify(mockRel), { status: 200 })
+  describe.each([
+    {
+      name: 'block',
+      call: () => block({ targetActorId: 'actor-1' }),
+      path: '/api/v1/accounts/actor-1/block',
+      relationship: { id: 'actor-1', blocking: true },
+      failStatus: 400
+    },
+    {
+      name: 'unblock',
+      call: () => unblock({ targetActorId: 'actor-1' }),
+      path: '/api/v1/accounts/actor-1/unblock',
+      relationship: { id: 'actor-1', blocking: false },
+      failStatus: 500
+    },
+    {
+      name: 'mute',
+      call: () => mute({ targetActorId: 'actor-1' }),
+      path: '/api/v1/accounts/actor-1/mute',
+      relationship: { id: 'actor-1', muting: true },
+      failStatus: 400
+    },
+    {
+      name: 'unmute',
+      call: () => unmute({ targetActorId: 'actor-1' }),
+      path: '/api/v1/accounts/actor-1/unmute',
+      relationship: { id: 'actor-1', muting: false },
+      failStatus: 404
+    }
+  ])('$name', ({ call, path, relationship, failStatus }) => {
+    it('posts to the endpoint and returns the relationship on 200', async () => {
+      fetchMock.mockResponse(JSON.stringify(relationship), { status: 200 })
 
-      const res = await block({ targetActorId: 'actor-1' })
-      expect(res).toEqual(mockRel)
+      await expect(call()).resolves.toEqual(relationship)
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/accounts/actor-1/block',
+        path,
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
@@ -566,32 +740,9 @@ describe('client accounts module', () => {
     })
 
     it('returns null on non-200', async () => {
-      fetchMock.mockResponse('', { status: 400 })
-      const res = await block({ targetActorId: 'actor-1' })
-      expect(res).toBeNull()
-    })
-  })
+      fetchMock.mockResponse('', { status: failStatus })
 
-  describe('unblock', () => {
-    it('unblocks an account and returns the relationship on 200', async () => {
-      const mockRel = { id: 'actor-1', blocking: false }
-      fetchMock.mockResponse(JSON.stringify(mockRel), { status: 200 })
-
-      const res = await unblock({ targetActorId: 'actor-1' })
-      expect(res).toEqual(mockRel)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/accounts/actor-1/unblock',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-      )
-    })
-
-    it('returns null on non-200', async () => {
-      fetchMock.mockResponse('', { status: 500 })
-      const res = await unblock({ targetActorId: 'actor-1' })
-      expect(res).toBeNull()
+      await expect(call()).resolves.toBeNull()
     })
   })
 
@@ -642,66 +793,31 @@ describe('client accounts module', () => {
     })
   })
 
-  describe('mute', () => {
-    it('mutes account with notifications flag and returns relationship', async () => {
-      const mockRel = { id: 'actor-1', muting: true }
-      fetchMock.mockResponse(JSON.stringify(mockRel), { status: 200 })
+  describe('mute request body', () => {
+    it('mutes account with notifications flag', async () => {
+      fetchMock.mockResponse(JSON.stringify({ id: 'actor-1', muting: true }), {
+        status: 200
+      })
 
-      const res = await mute({ targetActorId: 'actor-1', notifications: true })
-      expect(res).toEqual(mockRel)
+      await mute({ targetActorId: 'actor-1', notifications: true })
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/v1/accounts/actor-1/mute',
         expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notifications: true })
         })
       )
     })
 
     it('mutes account without notifications flag when omitted', async () => {
-      const mockRel = { id: 'actor-1', muting: true }
-      fetchMock.mockResponse(JSON.stringify(mockRel), { status: 200 })
+      fetchMock.mockResponse(JSON.stringify({ id: 'actor-1', muting: true }), {
+        status: 200
+      })
 
-      const res = await mute({ targetActorId: 'actor-1' })
-      expect(res).toEqual(mockRel)
+      await mute({ targetActorId: 'actor-1' })
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/v1/accounts/actor-1/mute',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
-        })
+        expect.objectContaining({ body: JSON.stringify({}) })
       )
-    })
-
-    it('returns null on non-200', async () => {
-      fetchMock.mockResponse('', { status: 400 })
-      const res = await mute({ targetActorId: 'actor-1' })
-      expect(res).toBeNull()
-    })
-  })
-
-  describe('unmute', () => {
-    it('unmutes account and returns relationship on 200', async () => {
-      const mockRel = { id: 'actor-1', muting: false }
-      fetchMock.mockResponse(JSON.stringify(mockRel), { status: 200 })
-
-      const res = await unmute({ targetActorId: 'actor-1' })
-      expect(res).toEqual(mockRel)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/accounts/actor-1/unmute',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-      )
-    })
-
-    it('returns null on non-200', async () => {
-      fetchMock.mockResponse('', { status: 404 })
-      const res = await unmute({ targetActorId: 'actor-1' })
-      expect(res).toBeNull()
     })
   })
 

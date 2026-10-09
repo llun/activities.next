@@ -44,31 +44,6 @@ describe('accountSettings client module', () => {
       )
     })
 
-    it('decodes API error message on non-ok response', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({ error: 'Server not reachable' }),
-        { status: 400 }
-      )
-
-      await expect(
-        getRemoteFollowUrl({
-          account: 'user@bad.example',
-          target: 'https://local.example/users/alice'
-        })
-      ).rejects.toThrow('Server not reachable')
-    })
-
-    it('falls back to default error message on non-JSON failure', async () => {
-      fetchMock.mockResponseOnce('Server error', { status: 500 })
-
-      await expect(
-        getRemoteFollowUrl({
-          account: 'user@bad.example',
-          target: 'https://local.example/users/alice'
-        })
-      ).rejects.toThrow('Unable to reach that server')
-    })
-
     it('throws error when data.url is missing or not a string', async () => {
       fetchMock.mockResponseOnce(JSON.stringify({}), { status: 200 })
 
@@ -78,17 +53,6 @@ describe('accountSettings client module', () => {
           target: 'https://local.example/users/alice'
         })
       ).rejects.toThrow('Unable to reach that server')
-    })
-
-    it('propagates network failure', async () => {
-      fetchMock.mockRejectOnce(new Error('Network offline'))
-
-      await expect(
-        getRemoteFollowUrl({
-          account: 'user@example.com',
-          target: 'https://local.example/users/alice'
-        })
-      ).rejects.toThrow('Network offline')
     })
   })
 
@@ -111,33 +75,6 @@ describe('accountSettings client module', () => {
         })
       )
     })
-
-    it('decodes API error message on failure', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({ error: 'Email already in use' }),
-        { status: 400 }
-      )
-
-      await expect(
-        requestEmailChange({ newEmail: 'used@example.com' })
-      ).rejects.toThrow('Email already in use')
-    })
-
-    it('falls back to default error message on non-JSON failure', async () => {
-      fetchMock.mockResponseOnce('Internal Server Error', { status: 500 })
-
-      await expect(
-        requestEmailChange({ newEmail: 'fail@example.com' })
-      ).rejects.toThrow('Failed to request email change')
-    })
-
-    it('propagates network failure', async () => {
-      fetchMock.mockRejectOnce(new Error('Network failed'))
-
-      await expect(
-        requestEmailChange({ newEmail: 'net@example.com' })
-      ).rejects.toThrow('Network failed')
-    })
   })
 
   describe('updateAccountName', () => {
@@ -156,32 +93,6 @@ describe('accountSettings client module', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: 'Alice Wonderland' })
         })
-      )
-    })
-
-    it('decodes API error message on validation failure', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Invalid name' }), {
-        status: 422
-      })
-
-      await expect(
-        updateAccountName({ name: 'x'.repeat(300) })
-      ).rejects.toThrow('Invalid name')
-    })
-
-    it('falls back to default error message on failure', async () => {
-      fetchMock.mockResponseOnce('', { status: 500 })
-
-      await expect(updateAccountName({ name: 'Bob' })).rejects.toThrow(
-        'Failed to update name'
-      )
-    })
-
-    it('propagates network failure', async () => {
-      fetchMock.mockRejectOnce(new Error('Connection reset'))
-
-      await expect(updateAccountName({ name: 'Bob' })).rejects.toThrow(
-        'Connection reset'
       )
     })
   })
@@ -217,42 +128,6 @@ describe('accountSettings client module', () => {
         })
       )
     })
-
-    it('decodes API error when current password is incorrect', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({ error: 'Current password is incorrect' }),
-        { status: 400 }
-      )
-
-      await expect(
-        changeAccountPassword({
-          currentPassword: 'wrong-password',
-          newPassword: 'new-password'
-        })
-      ).rejects.toThrow('Current password is incorrect')
-    })
-
-    it('falls back to default error on non-JSON failure', async () => {
-      fetchMock.mockResponseOnce('Bad Gateway', { status: 502 })
-
-      await expect(
-        changeAccountPassword({
-          currentPassword: 'old-password',
-          newPassword: 'new-password'
-        })
-      ).rejects.toThrow('Failed to change password')
-    })
-
-    it('propagates network failure', async () => {
-      fetchMock.mockRejectOnce(new Error('Network timeout'))
-
-      await expect(
-        changeAccountPassword({
-          currentPassword: 'old-password',
-          newPassword: 'new-password'
-        })
-      ).rejects.toThrow('Network timeout')
-    })
   })
 
   describe('requestPasswordReset', () => {
@@ -283,32 +158,6 @@ describe('accountSettings client module', () => {
           body: JSON.stringify({ email: 'test@example.com' })
         })
       )
-    })
-
-    it('decodes API error message on failure', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Bad Request' }), {
-        status: 400
-      })
-
-      await expect(
-        requestPasswordReset({ email: 'invalid-email' })
-      ).rejects.toThrow('Bad Request')
-    })
-
-    it('falls back to default error message on non-JSON failure', async () => {
-      fetchMock.mockResponseOnce('Server Error', { status: 500 })
-
-      await expect(
-        requestPasswordReset({ email: 'test@example.com' })
-      ).rejects.toThrow('Failed to request password reset')
-    })
-
-    it('propagates network failure', async () => {
-      fetchMock.mockRejectOnce(new Error('Network connection failed'))
-
-      await expect(
-        requestPasswordReset({ email: 'test@example.com' })
-      ).rejects.toThrow('Network connection failed')
     })
   })
 
@@ -342,42 +191,6 @@ describe('accountSettings client module', () => {
           })
         })
       )
-    })
-
-    it('decodes API error when reset code is invalid or expired', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({ error: 'Invalid or expired reset code' }),
-        { status: 400 }
-      )
-
-      await expect(
-        resetPassword({
-          code: 'expired-code',
-          newPassword: 'new-password-123'
-        })
-      ).rejects.toThrow('Invalid or expired reset code')
-    })
-
-    it('falls back to default error on non-JSON failure', async () => {
-      fetchMock.mockResponseOnce('Internal Server Error', { status: 500 })
-
-      await expect(
-        resetPassword({
-          code: 'any-code',
-          newPassword: 'new-password-123'
-        })
-      ).rejects.toThrow('Failed to reset password')
-    })
-
-    it('propagates network failure', async () => {
-      fetchMock.mockRejectOnce(new Error('Network offline'))
-
-      await expect(
-        resetPassword({
-          code: 'any-code',
-          newPassword: 'new-password-123'
-        })
-      ).rejects.toThrow('Network offline')
     })
   })
 
@@ -446,43 +259,108 @@ describe('accountSettings client module', () => {
         })
       )
     })
-
-    it('decodes API error message on non-ok response', async () => {
-      fetchMock.mockResponseOnce(
-        JSON.stringify({ error: 'invalid_request: missing oauth query' }),
-        { status: 400 }
-      )
-
-      await expect(
-        submitOAuthConsent({
-          accept: true,
-          scope: 'read',
-          oauth_query: ''
-        })
-      ).rejects.toThrow('invalid_request: missing oauth query')
-    })
-
-    it('falls back to default error on non-JSON failure', async () => {
-      fetchMock.mockResponseOnce('Internal Server Error', { status: 500 })
-
-      await expect(
-        submitOAuthConsent({
-          accept: true,
-          scope: 'read',
-          oauth_query: 'client_id=flow-test-client'
-        })
-      ).rejects.toThrow('Failed to submit consent')
-    })
-
-    it('propagates network failure', async () => {
-      fetchMock.mockRejectOnce(new Error('Network error'))
-
-      await expect(
-        submitOAuthConsent({
-          accept: false,
-          oauth_query: 'client_id=flow-test-client'
-        })
-      ).rejects.toThrow('Network error')
-    })
   })
+
+  describe.each([
+    {
+      name: 'getRemoteFollowUrl',
+      call: () =>
+        getRemoteFollowUrl({
+          account: 'user@bad.example',
+          target: 'https://local.example/users/alice'
+        }),
+      apiError: 'Server not reachable',
+      apiErrorStatus: 400,
+      rawBody: 'Server error',
+      rawStatus: 500,
+      fallback: 'Unable to reach that server'
+    },
+    {
+      name: 'requestEmailChange',
+      call: () => requestEmailChange({ newEmail: 'new@example.com' }),
+      apiError: 'Email already in use',
+      apiErrorStatus: 400,
+      rawBody: 'Internal Server Error',
+      rawStatus: 500,
+      fallback: 'Failed to request email change'
+    },
+    {
+      name: 'updateAccountName',
+      call: () => updateAccountName({ name: 'Bob' }),
+      apiError: 'Invalid name',
+      apiErrorStatus: 422,
+      rawBody: '',
+      rawStatus: 500,
+      fallback: 'Failed to update name'
+    },
+    {
+      name: 'changeAccountPassword',
+      call: () =>
+        changeAccountPassword({
+          currentPassword: 'old-password',
+          newPassword: 'new-password'
+        }),
+      apiError: 'Current password is incorrect',
+      apiErrorStatus: 400,
+      rawBody: 'Bad Gateway',
+      rawStatus: 502,
+      fallback: 'Failed to change password'
+    },
+    {
+      name: 'requestPasswordReset',
+      call: () => requestPasswordReset({ email: 'test@example.com' }),
+      apiError: 'Bad Request',
+      apiErrorStatus: 400,
+      rawBody: 'Server Error',
+      rawStatus: 500,
+      fallback: 'Failed to request password reset'
+    },
+    {
+      name: 'resetPassword',
+      call: () =>
+        resetPassword({ code: 'any-code', newPassword: 'new-password-123' }),
+      apiError: 'Invalid or expired reset code',
+      apiErrorStatus: 400,
+      rawBody: 'Internal Server Error',
+      rawStatus: 500,
+      fallback: 'Failed to reset password'
+    },
+    {
+      name: 'submitOAuthConsent',
+      call: () =>
+        submitOAuthConsent({
+          accept: true,
+          scope: 'read',
+          oauth_query: 'client_id=flow-test-client'
+        }),
+      apiError: 'invalid_request: missing oauth query',
+      apiErrorStatus: 400,
+      rawBody: 'Internal Server Error',
+      rawStatus: 500,
+      fallback: 'Failed to submit consent'
+    }
+  ])(
+    '$name failures',
+    ({ call, apiError, apiErrorStatus, rawBody, rawStatus, fallback }) => {
+      it('decodes the API error message', async () => {
+        fetchMock.mockResponseOnce(JSON.stringify({ error: apiError }), {
+          status: apiErrorStatus
+        })
+
+        await expect(call()).rejects.toThrow(apiError)
+      })
+
+      it('falls back to the default error message on a non-JSON failure', async () => {
+        fetchMock.mockResponseOnce(rawBody, { status: rawStatus })
+
+        await expect(call()).rejects.toThrow(fallback)
+      })
+
+      it('propagates network failure', async () => {
+        fetchMock.mockRejectOnce(new Error('Network offline'))
+
+        await expect(call()).rejects.toThrow('Network offline')
+      })
+    }
+  )
 })

@@ -733,37 +733,49 @@ How are you?
           database
         })) as StatusNote
 
-      it('appends the subject as a hashtag when the setting is on', async () => {
-        await database.updateGallerySettings({
-          actorId: actor1.id,
-          subjectHashtags: true
-        })
-        const status = await postWith(await createSubjectMedia())
-        expect(status.text).toContain('#CommonKingfisher')
-      })
-
-      it('does not append a subject hashtag past posts.maxCharacters', async () => {
-        await database.updateGallerySettings({
-          actorId: actor1.id,
-          subjectHashtags: true
-        })
-        await updateServerSettings(database, { 'posts.maxCharacters': 12 })
-        try {
-          const status = await postWith(await createSubjectMedia())
-          expect(status.text).toBe('Morning walk')
-        } finally {
-          await updateServerSettings(database, { 'posts.maxCharacters': 500 })
+      it.each([
+        {
+          description:
+            'appends the subject as a hashtag when the setting is on',
+          subjectHashtags: true,
+          maxCharacters: 500,
+          appended: true
+        },
+        {
+          description:
+            'does not append a subject hashtag past posts.maxCharacters',
+          subjectHashtags: true,
+          maxCharacters: 12,
+          appended: false
+        },
+        {
+          description: 'leaves the text alone when the setting is off',
+          subjectHashtags: false,
+          maxCharacters: 500,
+          appended: false
         }
-      })
-
-      it('leaves the text alone when the setting is off', async () => {
-        await database.updateGallerySettings({
-          actorId: actor1.id,
-          subjectHashtags: false
-        })
-        const status = await postWith(await createSubjectMedia())
-        expect(status.text).not.toContain('#CommonKingfisher')
-      })
+      ])(
+        '$description',
+        async ({ subjectHashtags, maxCharacters, appended }) => {
+          await database.updateGallerySettings({
+            actorId: actor1.id,
+            subjectHashtags
+          })
+          await updateServerSettings(database, {
+            'posts.maxCharacters': maxCharacters
+          })
+          try {
+            const status = await postWith(await createSubjectMedia())
+            if (appended) {
+              expect(status.text).toContain('#CommonKingfisher')
+            } else {
+              expect(status.text).toBe('Morning walk')
+            }
+          } finally {
+            await updateServerSettings(database, { 'posts.maxCharacters': 500 })
+          }
+        }
+      )
     })
 
     it('does not serialize fitness file attachments in note payload', async () => {
@@ -907,7 +919,7 @@ How are you?
           database
         })) as StatusNote
 
-        expect(status.to).toContain(ACTOR2_ID)
+        expect(status.to).toEqual([ACTOR2_ID])
         expect(status.cc).toEqual([])
         expect(status.to).not.toContain(ACTIVITY_STREAM_PUBLIC)
         expect(status.to).not.toContain(`${actor1.id}/followers`)
@@ -1180,6 +1192,90 @@ How are you?
             value: actor1.id
           })
         )
+      })
+
+      it('rejects a direct note without an explicit recipient', async () => {
+        const status = await createNoteFromUserInput({
+          text: 'Direct message without mention',
+          currentActor: actor1,
+          visibility: 'direct',
+          database
+        })
+
+        expect(status).toBeNull()
+      })
+
+      it('rejects a direct reply to a non-direct status without an explicit recipient', async () => {
+        const parentStatus = await database.createNote({
+          id: `${actor1.id}/statuses/public-parent-direct-no-recipient`,
+          url: `${actor1.id}/statuses/public-parent-direct-no-recipient`,
+          actorId: 'https://remote.test/actors/public-parent',
+          text: 'Public parent',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [`${actor1.id}/followers`]
+        })
+
+        const status = await createNoteFromUserInput({
+          text: 'quiet direct reply',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          visibility: 'direct',
+          database
+        })
+
+        expect(status).toBeNull()
+      })
+
+      it('does not inherit non-direct parent audiences for explicit direct replies', async () => {
+        const parentStatus = await database.createNote({
+          id: `${actor1.id}/statuses/public-parent-direct-audience`,
+          url: `${actor1.id}/statuses/public-parent-direct-audience`,
+          actorId: 'https://remote.test/actors/public-parent-audience',
+          text: 'Public parent with audiences',
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [
+            `${actor1.id}/followers`,
+            'https://remote.test/actors/parent-mention'
+          ]
+        })
+
+        const status = (await createNoteFromUserInput({
+          text: '@test2@llun.test direct reply',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          visibility: 'direct',
+          database
+        })) as StatusNote
+
+        expect(status.to).toEqual([ACTOR2_ID])
+        expect(status.cc).toEqual([])
+      })
+
+      it('preserves direct reply parent to and cc recipients without repeated mentions', async () => {
+        const parentStatus = await database.createNote({
+          id: `${actor1.id}/statuses/direct-parent-note-recipients`,
+          url: `${actor1.id}/statuses/direct-parent-note-recipients`,
+          actorId: 'https://remote.test/actors/sender',
+          text: 'Direct parent',
+          to: [actor1.id, 'https://remote.test/actors/primary'],
+          cc: ['https://remote.test/actors/copied']
+        })
+
+        const status = (await createNoteFromUserInput({
+          text: 'Reply without mention prefixes',
+          currentActor: actor1,
+          replyNoteId: parentStatus.id,
+          database
+        })) as StatusNote
+
+        expect(status.to).toEqual(
+          expect.arrayContaining([
+            actor1.id,
+            'https://remote.test/actors/primary',
+            'https://remote.test/actors/sender'
+          ])
+        )
+        expect(status.cc).toEqual(['https://remote.test/actors/copied'])
       })
 
       it('refuses to reply into a direct thread the author cannot read', async () => {

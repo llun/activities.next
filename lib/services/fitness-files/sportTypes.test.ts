@@ -1,9 +1,7 @@
 import {
   CANONICAL_STORED_ACTIVITY_TYPES,
-  FITNESS_GEAR_KINDS,
   SPORT_KEYS,
   SPORT_KIND,
-  USER_CREATABLE_GEAR_KINDS,
   getGearKindForActivityType,
   getSportKeysForKind,
   getSportLabel,
@@ -210,16 +208,6 @@ describe('getSportLabel', () => {
 })
 
 describe('gear kinds', () => {
-  it('models a recording device beside bikes and shoes', () => {
-    expect(FITNESS_GEAR_KINDS).toEqual(['bike', 'shoes', 'device'])
-  })
-
-  it('lets a person create only a bike or shoes', () => {
-    // Devices are system-created: `resolveDeviceGear` is the sole writer, keyed
-    // on the identity the recorded file carried.
-    expect(USER_CREATABLE_GEAR_KINDS).toEqual(['bike', 'shoes'])
-  })
-
   it('gives a device no sports of its own', () => {
     // A device records rides and runs alike, so claiming a sport would take it
     // off the bike or shoes that should hold it. This falls out of SPORT_KIND

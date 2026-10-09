@@ -143,5 +143,53 @@ describe('inboxRejectionTrace', () => {
         'inbox.activity_object_type': 'Note'
       })
     })
+
+    it('truncates oversized string attributes to 500 characters', async () => {
+      await trace
+        .getTracer('test')
+        .startActiveSpan('api.sharedInbox', async () => {
+          annotateInboxRejection('forbidden_domain', {
+            key_id: 'https://remote.test/users/alice#' + 'a'.repeat(600)
+          })
+        })
+
+      expect(harness.recordedSpans).toHaveLength(1)
+      const keyId = harness.recordedSpans[0].attributes['inbox.key_id']
+      expect(typeof keyId).toBe('string')
+      expect((keyId as string).length).toBe(500)
+    })
+
+    it('skips undefined extra attributes without stamping them on the span', async () => {
+      await trace
+        .getTracer('test')
+        .startActiveSpan('api.sharedInbox', async () => {
+          annotateInboxRejection('invalid_signature', {
+            key_owner: undefined,
+            key_id: 'https://remote.test/users/alice#main-key'
+          })
+        })
+
+      expect(harness.recordedSpans).toHaveLength(1)
+      const attributes = harness.recordedSpans[0].attributes
+      expect('inbox.key_owner' in attributes).toBe(false)
+      expect(attributes['inbox.key_id']).toBe(
+        'https://remote.test/users/alice#main-key'
+      )
+    })
+
+    it('does not set attributes when the active span is not recording', () => {
+      const setAttribute = vi.fn()
+      const spy = vi.spyOn(trace, 'getActiveSpan').mockReturnValue({
+        isRecording: () => false,
+        setAttribute
+      } as never)
+
+      try {
+        annotateInboxRejection('invalid_signature', { key_id: 'x' })
+        expect(setAttribute).not.toHaveBeenCalled()
+      } finally {
+        spy.mockRestore()
+      }
+    })
   })
 })

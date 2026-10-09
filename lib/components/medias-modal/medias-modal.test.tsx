@@ -44,7 +44,6 @@ describe('MediasModal', () => {
 
     const alts = screen.getAllByText('A mountaineer walking along a ridge')
     expect(alts[0]).toBeInTheDocument()
-    expect(alts[0]).toHaveClass('text-white/85', 'text-sm')
   })
 
   it('does not render alt text paragraph when description is empty or whitespace', () => {

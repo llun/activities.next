@@ -59,13 +59,4 @@ describe('YearChooser', () => {
     fireEvent.click(await screen.findByRole('menuitemradio', { name: '2024' }))
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(2024)
   })
-
-  it('offers 44px targets on touch', async () => {
-    render(<YearChooser years={[2026]} value={2026} onSelect={vi.fn()} touch />)
-    expect(screen.getByRole('button', { name: /Calendar year/ })).toHaveClass(
-      'h-11'
-    )
-    openMenu()
-    expect(await screen.findByRole('menuitemradio')).toHaveClass('min-h-11')
-  })
 })

@@ -17,11 +17,11 @@ describe('groupFitnessActivitiesByOverlap', () => {
     durationSeconds
   })
 
-  it('does not merge when there is no overlap', () => {
-    const groups = groupFitnessActivitiesByOverlap([
-      build('a', 0, 100),
-      build('b', 120, 100)
-    ])
+  it.each([
+    { description: 'there is no overlap', second: build('b', 120, 100) },
+    { description: 'overlap is only 50%', second: build('b', 50, 100) }
+  ])('does not merge when $description', ({ second }) => {
+    const groups = groupFitnessActivitiesByOverlap([build('a', 0, 100), second])
 
     expect(groups.map((group) => group.map((item) => item.id))).toEqual([
       ['a'],
@@ -29,33 +29,14 @@ describe('groupFitnessActivitiesByOverlap', () => {
     ])
   })
 
-  it('does not merge at 50% overlap', () => {
-    const groups = groupFitnessActivitiesByOverlap([
-      build('a', 0, 100),
-      build('b', 50, 100)
-    ])
-
-    expect(groups.map((group) => group.map((item) => item.id))).toEqual([
-      ['a'],
-      ['b']
-    ])
-  })
-
-  it('merges at 80% overlap threshold', () => {
-    const groups = groupFitnessActivitiesByOverlap([
-      build('a', 0, 100),
-      build('b', 20, 100)
-    ])
-
-    expect(groups).toHaveLength(1)
-    expect(groups[0].map((item) => item.id)).toEqual(['a', 'b'])
-  })
-
-  it('merges fully overlapping activities', () => {
-    const groups = groupFitnessActivitiesByOverlap([
-      build('a', 0, 100),
-      build('b', 0, 100)
-    ])
+  it.each([
+    {
+      description: 'at the 80% overlap threshold',
+      second: build('b', 20, 100)
+    },
+    { description: 'fully overlapping activities', second: build('b', 0, 100) }
+  ])('merges $description', ({ second }) => {
+    const groups = groupFitnessActivitiesByOverlap([build('a', 0, 100), second])
 
     expect(groups).toHaveLength(1)
     expect(groups[0].map((item) => item.id)).toEqual(['a', 'b'])

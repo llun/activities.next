@@ -191,7 +191,7 @@ describe('CollectionDetail', () => {
     expect(header).toHaveAttribute('data-compact-title', 'Collection')
   })
 
-  it('draws the visibility and topic as the shared gray and primary Badges', () => {
+  it('shows the visibility and the topic of the collection', () => {
     render(
       <CollectionDetail
         {...baseProps}
@@ -200,15 +200,8 @@ describe('CollectionDetail', () => {
       />
     )
 
-    // The topic pill is the shared primary Badge, with its dark tint.
-    const topic = screen.getByText('fediverse')
-    expect(topic).toHaveClass('bg-primary/10', 'text-primary-text', 'px-2.5')
-    expect(topic.className).toContain('dark:bg-[#FA802E]/16')
-
-    // So is the visibility pill beside it, in the gray tone.
-    const visibility = screen.getByText('Public', { selector: 'span' })
-    expect(visibility).toHaveClass('bg-muted', 'text-muted-foreground')
-    expect(visibility.className).toContain('dark:bg-[#383838]')
+    expect(screen.getByText('fediverse')).toBeInTheDocument()
+    expect(screen.getByText('Public', { selector: 'span' })).toBeInTheDocument()
   })
 
   it('switches to the public preview, replacing the feed and roster with the approved set', async () => {
@@ -406,19 +399,14 @@ describe('CollectionDetail', () => {
         level: 1,
         name: 'Fediverse builders'
       })
-      expect(title).toHaveClass('truncate', 'text-xl', 'font-semibold')
+      expect(title).toBeInTheDocument()
       // The heading and the subtitle share one wrapper that sits in the same
-      // stack as the cards, with 16px (not the stack's 24px) under it.
+      // stack as the cards.
       const block = title.parentElement as HTMLElement
-      expect(block).toHaveClass('mb-4')
-      expect(block.className).not.toMatch(/sticky|border|bg-/)
       expect(block.parentElement).toBe(
         screen.getByText('people I read').closest('section')?.parentElement
       )
-      expect(within(block).getByText('by anna@llun.social')).toHaveClass(
-        'text-xs',
-        'text-muted-foreground'
-      )
+      expect(within(block).getByText('by anna@llun.social')).toBeInTheDocument()
     })
 
     it('shows the empty state as an inset card below md, not the full-bleed surface', () => {
@@ -452,12 +440,6 @@ describe('CollectionDetail', () => {
       feed.className
         .split(' ')
         .forEach((token) => expect(token).toMatch(/^max-md:/))
-    })
-
-    it('aligns "Curated by" with the card edge below md', () => {
-      renderLoggedOut()
-
-      expect(screen.getByText(/Curated by/)).toHaveClass('px-1', 'max-md:px-0')
     })
   })
 

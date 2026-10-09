@@ -170,84 +170,78 @@ describe('client filters module', () => {
   })
 
   describe('convenience methods', () => {
-    it('getFilters calls /api/v2/filters', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify([mockFilter]))
-      const result = await getFilters()
-      expect(result).toEqual([mockFilter])
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v2/filters',
-        expect.anything()
-      )
-    })
+    it.each([
+      {
+        name: 'getFilters',
+        call: () => getFilters(),
+        url: '/api/v2/filters',
+        method: undefined,
+        body: [mockFilter]
+      },
+      {
+        name: 'createFilter',
+        call: () => createFilter(sampleInput),
+        url: '/api/v2/filters',
+        method: 'POST',
+        body: mockFilter
+      },
+      {
+        name: 'updateFilter',
+        call: () => updateFilter('id with space', sampleInput),
+        url: '/api/v2/filters/id%20with%20space',
+        method: 'PUT',
+        body: mockFilter
+      },
+      {
+        name: 'deleteFilter',
+        call: () => deleteFilter('id with space'),
+        url: '/api/v2/filters/id%20with%20space',
+        method: 'DELETE',
+        body: true
+      },
+      {
+        name: 'getServerFilters',
+        call: () => getServerFilters(),
+        url: '/api/v2/admin/filters',
+        method: undefined,
+        body: [mockFilter]
+      },
+      {
+        name: 'createServerFilter',
+        call: () => createServerFilter(sampleInput),
+        url: '/api/v2/admin/filters',
+        method: 'POST',
+        body: mockFilter
+      },
+      {
+        name: 'updateServerFilter',
+        call: () => updateServerFilter('id with space', sampleInput),
+        url: '/api/v2/admin/filters/id%20with%20space',
+        method: 'PUT',
+        body: mockFilter
+      },
+      {
+        name: 'deleteServerFilter',
+        call: () => deleteServerFilter('id with space'),
+        url: '/api/v2/admin/filters/id%20with%20space',
+        method: 'DELETE',
+        body: true
+      }
+    ])(
+      '$name requests $url with $method',
+      async ({ call, url, method, body }) => {
+        // Deletes resolve to a boolean from the status; everything else returns
+        // the parsed JSON body.
+        fetchMock.mockResponseOnce(body === true ? '' : JSON.stringify(body), {
+          status: 200
+        })
 
-    it('createFilter calls /api/v2/filters with POST', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify(mockFilter))
-      const result = await createFilter(sampleInput)
-      expect(result).toEqual(mockFilter)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v2/filters',
-        expect.objectContaining({ method: 'POST' })
-      )
-    })
-
-    it('updateFilter calls /api/v2/filters/:id with PUT', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify(mockFilter))
-      const result = await updateFilter('id with space', sampleInput)
-      expect(result).toEqual(mockFilter)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v2/filters/id%20with%20space',
-        expect.objectContaining({ method: 'PUT' })
-      )
-    })
-
-    it('deleteFilter calls /api/v2/filters/:id with DELETE', async () => {
-      fetchMock.mockResponseOnce('', { status: 200 })
-      const result = await deleteFilter('id with space')
-      expect(result).toBe(true)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v2/filters/id%20with%20space',
-        expect.objectContaining({ method: 'DELETE' })
-      )
-    })
-
-    it('getServerFilters calls /api/v2/admin/filters', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify([mockFilter]))
-      const result = await getServerFilters()
-      expect(result).toEqual([mockFilter])
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v2/admin/filters',
-        expect.anything()
-      )
-    })
-
-    it('createServerFilter calls /api/v2/admin/filters with POST', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify(mockFilter))
-      const result = await createServerFilter(sampleInput)
-      expect(result).toEqual(mockFilter)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v2/admin/filters',
-        expect.objectContaining({ method: 'POST' })
-      )
-    })
-
-    it('updateServerFilter calls /api/v2/admin/filters/:id with PUT', async () => {
-      fetchMock.mockResponseOnce(JSON.stringify(mockFilter))
-      const result = await updateServerFilter('id with space', sampleInput)
-      expect(result).toEqual(mockFilter)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v2/admin/filters/id%20with%20space',
-        expect.objectContaining({ method: 'PUT' })
-      )
-    })
-
-    it('deleteServerFilter calls /api/v2/admin/filters/:id with DELETE', async () => {
-      fetchMock.mockResponseOnce('', { status: 200 })
-      const result = await deleteServerFilter('id with space')
-      expect(result).toBe(true)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v2/admin/filters/id%20with%20space',
-        expect.objectContaining({ method: 'DELETE' })
-      )
-    })
+        await expect(call()).resolves.toEqual(body)
+        expect(fetchMock).toHaveBeenCalledWith(
+          url,
+          method ? expect.objectContaining({ method }) : expect.anything()
+        )
+      }
+    )
   })
 })

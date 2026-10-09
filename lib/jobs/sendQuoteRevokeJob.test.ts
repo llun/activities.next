@@ -96,7 +96,7 @@ describe('sendQuoteRevokeJob', () => {
   const sentInboxes = () =>
     mockSendQuoteRevoke.mock.calls.map((c) => c[0].inbox)
 
-  it('fans the stamp Delete out to the quoting note recipients and the quoting author', async () => {
+  it('fans the stamp Delete out to the quoting note recipients and the quoting author, signed as the quoted author', async () => {
     const quotingStatusId = await seedQuoting([MENTIONED_ACTOR_ID])
 
     await runJob(quotingStatusId)
@@ -104,14 +104,6 @@ describe('sendQuoteRevokeJob', () => {
     const inboxes = sentInboxes()
     expect(inboxes).toContain(`${REMOTE_QUOTER_ID}/inbox`)
     expect(inboxes).toContain(MENTIONED_SHARED_INBOX)
-  })
-
-  it('signs every fanned-out Delete as the quoted author', async () => {
-    const quotingStatusId = await seedQuoting([MENTIONED_ACTOR_ID])
-
-    await runJob(quotingStatusId)
-
-    expect(mockSendQuoteRevoke).toHaveBeenCalled()
     for (const call of mockSendQuoteRevoke.mock.calls) {
       expect(call[0].currentActor.id).toBe(ACTOR1_ID)
       expect(call[0].stampId).toBe(STAMP_ID)

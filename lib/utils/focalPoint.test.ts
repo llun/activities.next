@@ -47,29 +47,19 @@ describe('focalPoint', () => {
       expect(focalPointToCssObjectPosition(undefined)).toBe('50% 50%')
     })
 
-    it('converts center (0, 0) to 50% 50%', () => {
-      expect(focalPointToCssObjectPosition({ x: 0, y: 0 })).toBe('50% 50%')
-    })
-
-    it('converts top-left (-1, 1) to 0% 0%', () => {
-      expect(focalPointToCssObjectPosition({ x: -1, y: 1 })).toBe('0% 0%')
-    })
-
-    it('converts bottom-right (1, -1) to 100% 100%', () => {
-      expect(focalPointToCssObjectPosition({ x: 1, y: -1 })).toBe('100% 100%')
-    })
-
-    it('converts top-right (1, 1) to 100% 0%', () => {
-      expect(focalPointToCssObjectPosition({ x: 1, y: 1 })).toBe('100% 0%')
-    })
-
-    it('converts bottom-left (-1, -1) to 0% 100%', () => {
-      expect(focalPointToCssObjectPosition({ x: -1, y: -1 })).toBe('0% 100%')
-    })
-
-    it('handles fractional coordinates correctly', () => {
-      expect(focalPointToCssObjectPosition({ x: -0.5, y: 0.5 })).toBe('25% 25%')
-      expect(focalPointToCssObjectPosition({ x: 0.5, y: -0.5 })).toBe('75% 75%')
-    })
+    it.each([
+      { focus: { x: 0, y: 0 }, expected: '50% 50%', name: 'center' },
+      { focus: { x: -1, y: 1 }, expected: '0% 0%', name: 'top-left' },
+      { focus: { x: 1, y: -1 }, expected: '100% 100%', name: 'bottom-right' },
+      { focus: { x: 1, y: 1 }, expected: '100% 0%', name: 'top-right' },
+      { focus: { x: -1, y: -1 }, expected: '0% 100%', name: 'bottom-left' },
+      { focus: { x: -0.5, y: 0.5 }, expected: '25% 25%', name: 'fractional' },
+      { focus: { x: 0.5, y: -0.5 }, expected: '75% 75%', name: 'fractional' }
+    ])(
+      'converts $name ($focus.x, $focus.y) to $expected',
+      ({ focus, expected }) => {
+        expect(focalPointToCssObjectPosition(focus)).toBe(expected)
+      }
+    )
   })
 })

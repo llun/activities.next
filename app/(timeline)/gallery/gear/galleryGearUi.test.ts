@@ -15,36 +15,40 @@ describe('galleryGearUi', () => {
   })
 
   describe('getGearUsedLabel', () => {
-    it('reads "to now" for gear in use', () => {
-      expect(
-        getGearUsedLabel({
-          firstUsedAt: Date.UTC(2024, 2, 14),
-          retiredAt: null
-        })
-      ).toBe('Mar 2024 to now')
-    })
-
-    it('ends at the retirement month for retired gear', () => {
-      expect(
-        getGearUsedLabel({
+    it.each([
+      {
+        description: 'reads "to now" for gear in use',
+        gear: { firstUsedAt: Date.UTC(2024, 2, 14), retiredAt: null },
+        expected: 'Mar 2024 to now'
+      },
+      {
+        description: 'ends at the retirement month for retired gear',
+        gear: {
           firstUsedAt: Date.UTC(2022, 2, 1),
           retiredAt: Date.UTC(2024, 1, 10)
-        })
-      ).toBe('Mar 2022 to Feb 2024')
-    })
-
-    it('collapses a range inside one month', () => {
-      expect(
-        getGearUsedLabel({
+        },
+        expected: 'Mar 2022 to Feb 2024'
+      },
+      {
+        description: 'collapses a range inside one month',
+        gear: {
           firstUsedAt: Date.UTC(2024, 1, 1),
           retiredAt: Date.UTC(2024, 1, 20)
-        })
-      ).toBe('Feb 2024')
-    })
-
-    it('is a dash for gear with nothing posted', () => {
-      expect(getGearUsedLabel({ firstUsedAt: null, retiredAt: null })).toBe('—')
-      expect(getGearUsedLabel({ firstUsedAt: null, retiredAt: 5 })).toBe('—')
+        },
+        expected: 'Feb 2024'
+      },
+      {
+        description: 'is a dash for gear with nothing posted',
+        gear: { firstUsedAt: null, retiredAt: null },
+        expected: '—'
+      },
+      {
+        description: 'is a dash when only a retirement date is known',
+        gear: { firstUsedAt: null, retiredAt: 5 },
+        expected: '—'
+      }
+    ])('$description', ({ gear, expected }) => {
+      expect(getGearUsedLabel(gear)).toBe(expected)
     })
   })
 

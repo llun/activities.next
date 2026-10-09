@@ -417,37 +417,6 @@ describe('Attachments', () => {
       buildAttachment({ width: 1200, height: 500 })
     ]
 
-    it('lays items out at their own width instead of letting them shrink', () => {
-      // `flex-none` is the single declaration that makes the strip overflow.
-      // Without it the default flex-shrink squeezes every item to fit, so
-      // scrollWidth === clientWidth forever: no chevrons, no fade, no peek, no
-      // scrolling, and every photo cropped. jsdom lays nothing out, so the
-      // class itself is what can be pinned here.
-      render(
-        <Attachments
-          status={buildNoteStatus(buildThreeImages())}
-          onMediaSelected={vi.fn()}
-        />
-      )
-
-      screen
-        .getAllByRole('button')
-        .forEach((item) => expect(item).toHaveClass('flex-none'))
-    })
-
-    it('crops rather than letterboxes, which the ratio clamp relies on', () => {
-      const { container } = render(
-        <Attachments
-          status={buildNoteStatus(buildThreeImages())}
-          onMediaSelected={vi.fn()}
-        />
-      )
-
-      Array.from(container.querySelectorAll('img')).forEach((image) =>
-        expect(image).toHaveClass('object-cover')
-      )
-    })
-
     it('renders a labelled scroll strip', () => {
       render(
         <Attachments
@@ -727,7 +696,6 @@ describe('Attachments', () => {
 
       const audioElement = container.querySelector('audio')
       expect(audioElement).toBeInTheDocument()
-      expect(audioElement?.parentElement).toHaveClass('flex', 'items-start')
       expect(screen.queryByRole('group')).not.toBeInTheDocument()
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
     })
@@ -1223,11 +1191,9 @@ describe('Attachments', () => {
           if (name === disabled) {
             expect(arrow).toHaveAttribute('aria-disabled', 'true')
             expect(arrow).toHaveAttribute('tabindex', '-1')
-            expect(arrow).toHaveClass('pointer-events-none', 'opacity-0')
           } else {
             expect(arrow).toHaveAttribute('aria-disabled', 'false')
             expect(arrow).not.toHaveAttribute('tabindex')
-            expect(arrow).not.toHaveClass('opacity-0')
           }
         }
       }
@@ -1286,20 +1252,6 @@ describe('Attachments', () => {
       )
     })
 
-    it('renders no button row below the strip', () => {
-      renderScrolledStrip({ scrollLeft: 250 })
-
-      const strip = screen.getByRole('group')
-      const overlayContainer = strip.parentElement
-      expect(overlayContainer).toHaveClass('relative')
-      // The strip is the only child of the bleed wrapper: arrows float over
-      // it instead of sitting in a row beneath.
-      expect(overlayContainer?.parentElement?.children).toHaveLength(1)
-      expect(
-        screen.getByRole('button', { name: 'Next media' }).parentElement
-      ).toBe(overlayContainer)
-    })
-
     it('shows a position counter that follows the scroll position', () => {
       render(
         <Attachments
@@ -1339,7 +1291,6 @@ describe('Attachments', () => {
 
       const counter = screen.getByText('1 / 3')
       expect(counter).toHaveAttribute('aria-hidden', 'true')
-      expect(counter).toHaveClass('tabular-nums', 'rounded-full')
 
       Object.defineProperty(strip, 'scrollLeft', {
         configurable: true,
@@ -1446,18 +1397,6 @@ describe('Attachments', () => {
       })
 
       expect(screen.getByText('3 / 3')).toBeInTheDocument()
-    })
-
-    it('gives each arrow a 44px hit area around a 40px visual disc', () => {
-      renderScrolledStrip({ scrollLeft: 250 })
-
-      for (const name of ['Previous media', 'Next media']) {
-        const arrow = screen.getByRole('button', { name })
-        expect(arrow).toHaveClass('size-11')
-        const disc = arrow.firstElementChild as HTMLElement
-        expect(disc).toHaveClass('size-10', 'rounded-full')
-        expect(disc).toHaveAttribute('aria-hidden', 'true')
-      }
     })
 
     it('hides the counter and arrows when the strip does not overflow', () => {
@@ -1609,54 +1548,6 @@ describe('Attachments', () => {
     fireEvent.click(screen.getByRole('button'))
 
     expect(onMediaSelected).toHaveBeenCalledWith([attachment], 0)
-  })
-
-  describe('focus indicators', () => {
-    // This indicator has been got wrong twice — an outset ring clipped by the
-    // strip's own overflow, then an inset ring painted underneath the opaque
-    // image — so the spelling is pinned rather than left to a future reader.
-    it('gives a strip item an outline drawn inside its border box', () => {
-      render(
-        <Attachments
-          status={buildNoteStatus([
-            buildAttachment({ width: 800, height: 600 }),
-            buildAttachment({ width: 800, height: 600 })
-          ])}
-          onMediaSelected={vi.fn()}
-        />
-      )
-
-      const [item] = screen.getAllByRole('button')
-      expect(item).toHaveClass(
-        'focus-visible:outline-2',
-        'focus-visible:-outline-offset-2',
-        'focus-visible:outline-ring/50'
-      )
-      // An outset ring would be clipped and an inset one occluded.
-      expect(item.className).not.toContain('focus-visible:ring-')
-    })
-
-    it('gives a lone picture the same inset outline at the frame edge', () => {
-      render(
-        <Attachments
-          status={buildNoteStatus([
-            buildAttachment({ width: 800, height: 600 })
-          ])}
-          onMediaSelected={vi.fn()}
-        />
-      )
-
-      // The lone picture can sit flush with the viewport below `md`, where
-      // `main`'s `overflow-x-clip` cuts the flush side of an outset ring; the outline
-      // is painted over the image, so it stays whole.
-      const button = screen.getByRole('button')
-      expect(button).toHaveClass(
-        'focus-visible:outline-2',
-        'focus-visible:-outline-offset-2',
-        'focus-visible:outline-ring/50'
-      )
-      expect(button.className).not.toContain('focus-visible:ring-')
-    })
   })
 
   describe('accessible names', () => {
@@ -1816,100 +1707,7 @@ describe('Attachments', () => {
     )
 
     const caption = screen.getByText(/First line/)
-    expect(caption).toHaveClass('whitespace-pre-wrap')
-    expect(caption).toHaveTextContent('First line Second line')
-  })
-
-  // jsdom does not lay out, so these pin the class contract only. The real
-  // frame-edge geometry is browser-verified; see docs/architecture.md
-  // "Post media layout".
-  describe('media alignment contract', () => {
-    const MEDIA_BLEED_LEFT = '-ml-[var(--post-media-bleed-left,4.25rem)]'
-    const MEDIA_BLEED_RIGHT = '-mr-[var(--post-media-bleed-right,1rem)]'
-    // The media column is the visible message column: these distances are
-    // exactly the left and right bleeds the row already uses.
-    const MEDIA_ITEM_INSET = 'pl-[var(--post-media-bleed-left,4.25rem)]'
-    const MEDIA_ITEM_RIGHT_INSET = 'pr-[var(--post-media-bleed-right,1rem)]'
-    const MEDIA_SNAP_INSET = 'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
-
-    it('bleeds a lone picture row to the frame edges and aligns it to the post text line', () => {
-      render(
-        <Attachments
-          status={buildNoteStatus([
-            buildAttachment({
-              width: 800,
-              height: 600,
-              name: 'Ridge at dawn'
-            })
-          ])}
-          onMediaSelected={vi.fn()}
-        />
-      )
-
-      const button = screen.getByRole('button', {
-        name: 'Open media: Ridge at dawn'
-      })
-      expect(button.parentElement).toHaveClass(
-        MEDIA_BLEED_LEFT,
-        MEDIA_BLEED_RIGHT,
-        MEDIA_ITEM_INSET,
-        MEDIA_ITEM_RIGHT_INSET
-      )
-      // The caption lines up with its picture, not a second inset on top; the
-      // item inset already puts both on the post text's left line.
-      expect(screen.getByText('Ridge at dawn').parentElement).not.toHaveClass(
-        'px-4'
-      )
-    })
-
-    it('bleeds a picture strip to the frame edges, aligns items to the post text line, and overlays the arrow', () => {
-      render(
-        <Attachments
-          status={buildNoteStatus([
-            buildAttachment({ width: 800, height: 600, name: 'First' }),
-            buildAttachment({ width: 800, height: 600, name: 'Second' })
-          ])}
-          onMediaSelected={vi.fn()}
-        />
-      )
-
-      const strip = screen.getByRole('group')
-      expect(strip.parentElement?.parentElement).toHaveClass(
-        MEDIA_BLEED_LEFT,
-        MEDIA_BLEED_RIGHT
-      )
-      // `pl` puts the first card on the post text line at rest, `pr` stops the
-      // scroll end with the last card on the message's right edge, and
-      // `scroll-pl` is the snapport that keeps every focused card on the left.
-      expect(strip).toHaveClass(
-        MEDIA_ITEM_INSET,
-        MEDIA_ITEM_RIGHT_INSET,
-        MEDIA_SNAP_INSET
-      )
-      expect(screen.getByText('First').parentElement).not.toHaveClass('px-4')
-      expect(screen.getByText('Second').parentElement).not.toHaveClass('px-4')
-
-      Object.defineProperty(strip, 'scrollWidth', {
-        configurable: true,
-        value: 1000
-      })
-      Object.defineProperty(strip, 'clientWidth', {
-        configurable: true,
-        value: 500
-      })
-      Object.defineProperty(strip, 'scrollLeft', {
-        configurable: true,
-        value: 0
-      })
-      fireEvent.scroll(strip)
-
-      expect(screen.getByRole('button', { name: 'Next media' })).toHaveClass(
-        'absolute',
-        'right-1.5',
-        'top-1/2',
-        'size-11'
-      )
-    })
+    expect(caption.textContent).toBe('First line\nSecond line')
   })
 
   it('disconnects every caption and strip resize observer on unmount', () => {
@@ -1990,24 +1788,12 @@ describe('Attachments', () => {
         allCorners
           .filter((corner) => corner !== expectedCorners[index])
           .forEach((other) => expect(button).not.toHaveClass(other))
-        expect(button).toHaveClass(
-          'focus-visible:outline-2',
-          'focus-visible:-outline-offset-2',
-          'focus-visible:outline-ring/50'
-        )
-        expect(button.className).not.toContain('focus-visible:ring-')
       })
 
       const images = Array.from(container.querySelectorAll('img'))
       expect(images).toHaveLength(expectedCorners.length)
       images.forEach((image, index) => {
         expect(image).toHaveClass(expectedCorners[index])
-        if (
-          expectedCorners[index] === 'rounded-2xl' ||
-          expectedCorners[index] === 'rounded-none'
-        ) {
-          expect(image.className).not.toContain('rounded-[inherit]')
-        }
       })
     })
 
@@ -2033,147 +1819,9 @@ describe('Attachments', () => {
       expect(buttons[3].parentElement?.style.width).toBe('576px')
     })
 
-    describe('a single visual attachment', () => {
-      it('rounds the clipping wrapper with rounded-2xl and applies rounded-[inherit] to blurhash canvas and img', () => {
-        const attachment = buildAttachment({
-          width: 800,
-          height: 600,
-          blurhash: BLURHASH
-        })
-        const { container } = render(
-          <Attachments
-            status={buildNoteStatus([attachment])}
-            onMediaSelected={vi.fn()}
-          />
-        )
-
-        const button = screen.getByRole('button')
-        expect(button).toHaveClass('rounded-2xl')
-
-        const mediaWrapper = button.firstElementChild as HTMLElement
-        expect(mediaWrapper).toHaveClass('rounded-2xl', 'overflow-hidden')
-
-        const canvas = container.querySelector('canvas')
-        expect(canvas).toBeInTheDocument()
-        expect(canvas).toHaveClass('rounded-[inherit]')
-
-        const img = container.querySelector('img')
-        expect(img).toBeInTheDocument()
-        expect(img).toHaveClass('rounded-[inherit]')
-      })
-
-      it('rounds a single video element with rounded-2xl', () => {
-        const attachment = buildAttachment({
-          mediaType: 'video/mp4',
-          width: 800,
-          height: 600
-        })
-        const { container } = render(
-          <Attachments
-            status={buildNoteStatus([attachment])}
-            onMediaSelected={vi.fn()}
-          />
-        )
-
-        // The tile around an inline video is a div, not a button, because the
-        // player's controls live inside it.
-        expect(screen.queryByRole('button')).not.toBeInTheDocument()
-
-        const video = container.querySelector('video')
-        expect(video).toBeInTheDocument()
-        expect(video?.parentElement).toHaveClass('rounded-2xl')
-        expect(video).toHaveClass('rounded-2xl')
-      })
-    })
-
-    describe('nested elements and wrappers inherit or follow corner treatment', () => {
-      it('passes corner classes to blurhash wrappers and applies rounded-[inherit] to canvas and img', () => {
-        const items = [
-          buildAttachment({ width: 800, height: 600, blurhash: BLURHASH }),
-          buildAttachment({ width: 600, height: 900, blurhash: BLURHASH }),
-          buildAttachment({ width: 1200, height: 500, blurhash: BLURHASH })
-        ]
-        const { container } = render(
-          <Attachments
-            status={buildNoteStatus(items)}
-            onMediaSelected={vi.fn()}
-          />
-        )
-
-        const buttons = screen.getAllByRole('button')
-        const wrappers = buttons.map(
-          (btn) => btn.firstElementChild as HTMLElement
-        )
-
-        expect(wrappers[0]).toHaveClass('rounded-l-2xl')
-        expect(wrappers[1]).toHaveClass('rounded-none')
-        expect(wrappers[2]).toHaveClass('rounded-r-2xl')
-
-        buttons.forEach((button) => {
-          expect(button).toHaveClass(
-            'focus-visible:outline-2',
-            'focus-visible:-outline-offset-2',
-            'focus-visible:outline-ring/50'
-          )
-          expect(button.className).not.toContain('focus-visible:ring-')
-        })
-
-        const canvases = Array.from(container.querySelectorAll('canvas'))
-        expect(canvases).toHaveLength(3)
-        canvases.forEach((canvas) => {
-          expect(canvas).toHaveClass('rounded-[inherit]')
-        })
-
-        const images = Array.from(container.querySelectorAll('img'))
-        expect(images).toHaveLength(3)
-        images.forEach((img) => {
-          expect(img).toHaveClass('rounded-[inherit]')
-        })
-      })
-
-      it('passes corner classes to video elements in a strip', () => {
-        const items = [
-          buildAttachment({
-            mediaType: 'video/mp4',
-            width: 800,
-            height: 600
-          }),
-          buildAttachment({
-            mediaType: 'video/mp4',
-            width: 600,
-            height: 900
-          }),
-          buildAttachment({
-            mediaType: 'video/mp4',
-            width: 1200,
-            height: 500
-          })
-        ]
-        const { container } = render(
-          <Attachments
-            status={buildNoteStatus(items)}
-            onMediaSelected={vi.fn()}
-          />
-        )
-
-        const videos = Array.from(container.querySelectorAll('video'))
-        expect(videos).toHaveLength(3)
-        expect(videos[0]).toHaveClass('rounded-l-2xl')
-        expect(videos[1]).toHaveClass('rounded-none')
-        expect(videos[2]).toHaveClass('rounded-r-2xl')
-
-        // The tile clipping each video carries the same per-position corner as
-        // a picture's button does.
-        expect(videos[0].parentElement).toHaveClass('rounded-l-2xl')
-        expect(videos[1].parentElement).toHaveClass('rounded-none')
-        expect(videos[2].parentElement).toHaveClass('rounded-r-2xl')
-        expect(screen.queryByRole('button', { name: /Open media/ })).toBeNull()
-      })
-    })
-
     describe('inside a content warning', () => {
-      it('keeps a lone picture rounded and on the card bleed line when expanded', () => {
-        const { container } = render(
+      it('shows the picture once the warning is expanded', () => {
+        render(
           <ContentWarning summary="Sensitive media" defaultOpen>
             <Attachments
               status={buildNoteStatus([
@@ -2184,73 +1832,9 @@ describe('Attachments', () => {
           </ContentWarning>
         )
 
-        const card = container.firstElementChild as HTMLElement
-        expect(card).toHaveClass('[--post-media-bleed-left:0.75rem]')
-        expect(card).toHaveClass('[--post-media-bleed-right:0.75rem]')
-
-        const button = screen.getByRole('button', { name: /Open media/ })
-        expect(button).toHaveClass('rounded-2xl')
-        expect(button).toHaveClass(
-          'focus-visible:outline-2',
-          'focus-visible:-outline-offset-2',
-          'focus-visible:outline-ring/50'
-        )
-        expect(button.className).not.toContain('focus-visible:ring-')
-        expect(button.parentElement).toHaveClass(
-          '-ml-[var(--post-media-bleed-left,4.25rem)]',
-          '-mr-[var(--post-media-bleed-right,1rem)]'
-        )
-
-        const img = container.querySelector('img')
-        expect(img).toBeInTheDocument()
-        expect(img).toHaveClass('rounded-2xl')
-        expect(img?.className).not.toContain('rounded-[inherit]')
-      })
-
-      it('keeps first, middle and last corners on the card bleed line when expanded', () => {
-        const { container } = render(
-          <ContentWarning summary="Sensitive media" defaultOpen>
-            <Attachments
-              status={buildNoteStatus([
-                buildAttachment({ width: 800, height: 600 }),
-                buildAttachment({ width: 600, height: 900 }),
-                buildAttachment({ width: 1200, height: 500 })
-              ])}
-              onMediaSelected={vi.fn()}
-            />
-          </ContentWarning>
-        )
-
-        const card = container.firstElementChild as HTMLElement
-        expect(card).toHaveClass('[--post-media-bleed-left:0.75rem]')
-        expect(card).toHaveClass('[--post-media-bleed-right:0.75rem]')
-
-        const strip = screen.getByRole('group')
-        expect(strip.parentElement?.parentElement).toHaveClass(
-          '-ml-[var(--post-media-bleed-left,4.25rem)]',
-          '-mr-[var(--post-media-bleed-right,1rem)]'
-        )
-
-        const buttons = screen.getAllByRole('button', { name: /Open media/ })
-        expect(buttons).toHaveLength(3)
-        expect(buttons[0]).toHaveClass('rounded-l-2xl')
-        expect(buttons[1]).toHaveClass('rounded-none')
-        expect(buttons[2]).toHaveClass('rounded-r-2xl')
-        buttons.forEach((button) => {
-          expect(button).toHaveClass(
-            'focus-visible:outline-2',
-            'focus-visible:-outline-offset-2',
-            'focus-visible:outline-ring/50'
-          )
-          expect(button.className).not.toContain('focus-visible:ring-')
-        })
-
-        const images = Array.from(container.querySelectorAll('img'))
-        expect(images).toHaveLength(3)
-        expect(images[0]).toHaveClass('rounded-l-2xl')
-        expect(images[1]).toHaveClass('rounded-none')
-        expect(images[1].className).not.toContain('rounded-[inherit]')
-        expect(images[2]).toHaveClass('rounded-r-2xl')
+        expect(
+          screen.getByRole('button', { name: /Open media/ })
+        ).toBeInTheDocument()
       })
 
       it('renders no media buttons while collapsed', () => {

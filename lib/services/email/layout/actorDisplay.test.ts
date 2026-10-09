@@ -131,14 +131,10 @@ describe('getInitials', () => {
 })
 
 describe('getMonogramColor', () => {
-  it('returns a colour from the palette', () => {
-    expect(MONOGRAM_PALETTE).toContain(getMonogramColor('@ben@example.com'))
-  })
-
-  it('returns the same colour for the same handle', () => {
-    expect(getMonogramColor('@ben@example.com')).toBe(
-      getMonogramColor('@ben@example.com')
-    )
+  it('returns a palette colour that is stable for the same handle', () => {
+    const color = getMonogramColor('@ben@example.com')
+    expect(MONOGRAM_PALETTE).toContain(color)
+    expect(getMonogramColor('@ben@example.com')).toBe(color)
   })
 
   it('spreads different handles across more than one colour', () => {

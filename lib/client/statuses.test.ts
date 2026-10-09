@@ -1,5 +1,8 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
+import { generatePublicId } from '@/lib/utils/publicId'
+import { urlToId } from '@/lib/utils/urlToId'
+
 import {
   bookmarkStatus,
   createNote,
@@ -129,6 +132,131 @@ describe('client statuses module', () => {
       )
     })
 
+    it('sends media ids for media-only edits', async () => {
+      await updateNote({
+        statusId: '123',
+        attachments: [
+          {
+            type: 'upload',
+            id: 'media-1',
+            mediaType: 'image/jpeg',
+            url: 'https://llun.test/api/v1/files/media-1.jpg',
+            width: 640,
+            height: 480,
+            name: 'media-1.jpg'
+          }
+        ]
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/123',
+        expect.objectContaining({
+          body: JSON.stringify({
+            media_ids: ['media-1']
+          })
+        })
+      )
+    })
+
+    it('sends an empty media id list when all media is removed', async () => {
+      await updateNote({
+        statusId: '123',
+        attachments: []
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/statuses/123',
+        expect.objectContaining({
+          body: JSON.stringify({
+            media_ids: []
+          })
+        })
+      )
+    })
+
+    it('encodes full status URLs before sending updates', async () => {
+      const statusId = 'https://localhost:3001/users/test1/statuses/post-1'
+
+      await updateNote({
+        statusId,
+        attachments: []
+      })
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/statuses/${urlToId(statusId)}`,
+        expect.objectContaining({
+          method: 'PUT'
+        })
+      )
+    })
+
+    it('returns server edit metadata for local timeline reconciliation', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({
+          id: 'localhost:users:test1:statuses:post-1',
+          uri: 'https://localhost/users/test1/statuses/post-1',
+          content: '<p>Updated status</p>',
+          text: 'Updated status',
+          spoiler_text: '',
+          created_at: '2026-04-26T10:00:00.000Z',
+          edited_at: '2026-04-26T11:00:00.000Z',
+          in_reply_to_id: null,
+          media_attachments: [
+            {
+              id: 'server-attachment',
+              type: 'image',
+              url: 'https://localhost/api/v1/files/image.jpg',
+              preview_url: null,
+              remote_url: null,
+              description: 'image.jpg',
+              blurhash: null,
+              meta: {
+                original: {
+                  width: 640,
+                  height: 480,
+                  size: '640x480',
+                  aspect: 1.3333333333333333
+                }
+              }
+            }
+          ]
+        })
+      )
+
+      await expect(
+        updateNote({
+          statusId: 'https://localhost/users/test1/statuses/post-1',
+          message: 'Updated status'
+        })
+      ).resolves.toMatchObject({
+        content: '<p>Updated status</p>',
+        spoilerText: '',
+        mediaAttachments: [
+          expect.objectContaining({
+            id: 'server-attachment'
+          })
+        ],
+        status: {
+          id: 'https://localhost/users/test1/statuses/post-1',
+          text: 'Updated status',
+          createdAt: new Date('2026-04-26T10:00:00.000Z').getTime(),
+          updatedAt: new Date('2026-04-26T11:00:00.000Z').getTime(),
+          reply: ''
+        }
+      })
+    })
+
+    it('throws an update-specific error when updating a note fails', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(
+        updateNote({
+          statusId: '123',
+          message: 'Updated status'
+        })
+      ).rejects.toThrow('Fail to update the note')
+    })
+
     it('throws when no changes are provided', async () => {
       await expect(
         updateNote({
@@ -223,6 +351,43 @@ describe('client statuses module', () => {
           durationInSeconds: 300
         })
       ).rejects.toThrow('Choice text must not be empty')
+    })
+
+    // The server's `{ error }` message carries the reason (e.g. an
+    // admin-configured limit), so it is surfaced rather than replaced with a
+    // generic failure; the fallback only applies when there is no message to
+    // show.
+    it.each([
+      {
+        description: "surfaces the server's rejection message",
+        body: JSON.stringify({ error: 'Poll cannot have more than 4 options' }),
+        status: 422,
+        expectedMessage: 'Poll cannot have more than 4 options'
+      },
+      {
+        description: 'falls back to a generic message for an empty body',
+        body: '',
+        status: 500,
+        expectedMessage: 'Fail to create a new poll'
+      },
+      {
+        description:
+          'falls back to a generic message when there is no error key',
+        body: JSON.stringify({ something: 'else' }),
+        status: 422,
+        expectedMessage: 'Fail to create a new poll'
+      }
+    ])('$description', async ({ body, status, expectedMessage }) => {
+      fetchMock.mockResponse(body, { status })
+
+      await expect(
+        createPoll({
+          message: 'Private poll without recipients',
+          choices: ['A', 'B'],
+          durationInSeconds: 300,
+          visibility: 'direct'
+        })
+      ).rejects.toThrow(expectedMessage)
     })
 
     it('creates poll successfully', async () => {
@@ -421,84 +586,105 @@ describe('client statuses module', () => {
     })
   })
 
-  describe('likeStatus', () => {
+  describe.each([
+    {
+      name: 'likeStatus',
+      call: (statusId: string) => likeStatus({ statusId }),
+      action: 'favourite',
+      failStatus: 404
+    },
+    {
+      name: 'undoLikeStatus',
+      call: (statusId: string) => undoLikeStatus({ statusId }),
+      action: 'unfavourite',
+      failStatus: 404
+    },
+    {
+      name: 'bookmarkStatus',
+      call: (statusId: string) => bookmarkStatus({ statusId }),
+      action: 'bookmark',
+      failStatus: 500
+    },
+    {
+      name: 'undoBookmarkStatus',
+      call: (statusId: string) => undoBookmarkStatus({ statusId }),
+      action: 'unbookmark',
+      failStatus: 500
+    }
+  ])('$name', ({ call, action, failStatus }) => {
     it('returns true on 200 OK', async () => {
       fetchMock.mockResponse('', { status: 200 })
 
-      const res = await likeStatus({ statusId: 'status-to-like' })
-      expect(res).toBe(true)
+      await expect(call('status-1')).resolves.toBe(true)
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/statuses/status-to-like/favourite',
+        `/api/v1/statuses/status-1/${action}`,
         expect.objectContaining({ method: 'POST' })
       )
     })
 
     it('returns false on error', async () => {
-      fetchMock.mockResponse('', { status: 404 })
+      fetchMock.mockResponse('', { status: failStatus })
 
-      const res = await likeStatus({ statusId: 'status-to-like' })
-      expect(res).toBe(false)
+      await expect(call('status-1')).resolves.toBe(false)
+    })
+
+    it('encodes full status URLs', async () => {
+      fetchMock.mockResponse('', { status: 200 })
+      const statusId = 'https://remote.example/users/actor/statuses/post-1'
+
+      await call(statusId)
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/statuses/${urlToId(statusId)}/${action}`,
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
     })
   })
 
-  describe('undoLikeStatus', () => {
-    it('returns true on 200 OK', async () => {
-      fetchMock.mockResponse('', { status: 200 })
+  // Every id-accepting route resolves all three client-facing forms: a UUIDv7
+  // publicId, the legacy colon/`apurl_` encoding, and a raw AP URI. The client
+  // must hand back whatever id it was given. Re-encoding is not merely
+  // redundant: `urlToId` parses a bare uuid as a URL host and returns it with a
+  // trailing colon, an id no resolver can decode.
+  describe('status id forms', () => {
+    const PUBLIC_ID = generatePublicId()
+    const RAW_STATUS_URI = 'https://remote.example/users/actor/statuses/post-1'
 
-      const res = await undoLikeStatus({ statusId: 'status-to-unlike' })
-      expect(res).toBe(true)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/statuses/status-to-unlike/unfavourite',
-        expect.objectContaining({ method: 'POST' })
-      )
-    })
+    it.each([
+      { description: 'public id', statusId: PUBLIC_ID, expected: PUBLIC_ID },
+      {
+        description: 'colon form',
+        statusId: 'remote.example:users:actor:statuses:post-1',
+        expected: 'remote.example:users:actor:statuses:post-1'
+      },
+      {
+        description: 'raw AP URI',
+        statusId: RAW_STATUS_URI,
+        expected: urlToId(RAW_STATUS_URI)
+      }
+    ])(
+      'likes and deletes a status given a $description',
+      async ({ statusId, expected }) => {
+        fetchMock.mockResponse('{}', { status: 200 })
 
-    it('returns false on error', async () => {
-      fetchMock.mockResponse('', { status: 404 })
+        await likeStatus({ statusId })
+        await deleteStatus({ statusId })
 
-      const res = await undoLikeStatus({ statusId: 'status-to-unlike' })
-      expect(res).toBe(false)
-    })
-  })
-
-  describe('bookmarkStatus', () => {
-    it('returns true on 200 OK', async () => {
-      fetchMock.mockResponse('', { status: 200 })
-
-      const res = await bookmarkStatus({ statusId: 'status-to-bookmark' })
-      expect(res).toBe(true)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/statuses/status-to-bookmark/bookmark',
-        expect.objectContaining({ method: 'POST' })
-      )
-    })
-
-    it('returns false on error', async () => {
-      fetchMock.mockResponse('', { status: 500 })
-
-      const res = await bookmarkStatus({ statusId: 'status-to-bookmark' })
-      expect(res).toBe(false)
-    })
-  })
-
-  describe('undoBookmarkStatus', () => {
-    it('returns true on 200 OK', async () => {
-      fetchMock.mockResponse('', { status: 200 })
-
-      const res = await undoBookmarkStatus({ statusId: 'status-to-unbookmark' })
-      expect(res).toBe(true)
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/v1/statuses/status-to-unbookmark/unbookmark',
-        expect.objectContaining({ method: 'POST' })
-      )
-    })
-
-    it('returns false on error', async () => {
-      fetchMock.mockResponse('', { status: 500 })
-
-      const res = await undoBookmarkStatus({ statusId: 'status-to-unbookmark' })
-      expect(res).toBe(false)
-    })
+        expect(fetchMock).toHaveBeenNthCalledWith(
+          1,
+          `/api/v1/statuses/${expected}/favourite`,
+          expect.objectContaining({ method: 'POST' })
+        )
+        expect(fetchMock).toHaveBeenNthCalledWith(
+          2,
+          `/api/v1/statuses/${expected}`,
+          expect.objectContaining({ method: 'DELETE' })
+        )
+      }
+    )
   })
 
   describe('reactToStatus', () => {

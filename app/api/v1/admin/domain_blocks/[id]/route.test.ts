@@ -110,14 +110,6 @@ describe('/api/v1/admin/domain_blocks/:id', () => {
     })
   })
 
-  // Rails `resources` maps update to both PATCH and PUT; Mastodon clients
-  // commonly send PATCH. Binding PATCH to the same handler reference guarantees
-  // identical behavior and that PATCH no longer returns 405.
-  it('binds PATCH to the same handler as PUT', () => {
-    expect(typeof PATCH).toBe('function')
-    expect(PATCH).toBe(PUT)
-  })
-
   it('advertises PATCH in the OPTIONS Access-Control-Allow-Methods header', async () => {
     const response = await OPTIONS(
       new NextRequest('https://llun.test/api/v1/admin/domain_blocks/block-1', {

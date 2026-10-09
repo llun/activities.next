@@ -10,25 +10,45 @@ const account = (
 })
 
 describe('localizeAccount', () => {
-  it('renders a bare acct when the actor domain matches the access domain', () => {
-    const result = localizeAccount(account(), 'llun.dev')
-    expect(result.acct).toBe('null')
-  })
-
-  it('renders a qualified acct when the actor is on another domain', () => {
-    const result = localizeAccount(account(), 'llun.social')
-    expect(result.acct).toBe('null@llun.dev')
-  })
-
   it.each([
-    ['bare matching access domain', 'LLUN.DEV', 'null'],
-    ['qualified non-matching access domain', 'LLUN.SOCIAL', 'null@llun.dev']
-  ])(
-    'compares domains case-insensitively (%s)',
-    (_label, accessDomain, expected) => {
-      expect(localizeAccount(account(), accessDomain).acct).toBe(expected)
-    }
-  )
+    [
+      'bare when the access domain matches the actor domain',
+      'llun.dev',
+      {},
+      'null'
+    ],
+    [
+      'qualified when the actor is on another domain',
+      'llun.social',
+      {},
+      'null@llun.dev'
+    ],
+    [
+      'qualified from a bare stored acct when the access domain differs',
+      'llun.social',
+      { acct: 'null' },
+      'null@llun.dev'
+    ],
+    ['bare when the domains match case-insensitively', 'LLUN.DEV', {}, 'null'],
+    [
+      'qualified when the domains differ case-insensitively',
+      'LLUN.SOCIAL',
+      {},
+      'null@llun.dev'
+    ],
+    [
+      'bare when the access domain carries a scheme',
+      'https://llun.dev',
+      {},
+      'null'
+    ]
+  ])('renders acct %s', (_label, accessDomain, overrides, expected) => {
+    const input = account(overrides)
+    const result = localizeAccount(input, accessDomain)
+    expect(result.acct).toBe(expected)
+    // Only acct changes, never the url.
+    expect(result.url).toBe(input.url)
+  })
 
   // A remote actor confirmed through its host's WebFinger redirect is stored under
   // that domain, not the host of its id, and is shown that way.
@@ -43,17 +63,6 @@ describe('localizeAccount', () => {
     expect(localizeAccount(input, 'ap.remote.test').acct).toBe(
       'alice@remote.test'
     )
-  })
-
-  it('strips a scheme from the access domain before comparing', () => {
-    expect(localizeAccount(account(), 'https://llun.dev').acct).toBe('null')
-  })
-
-  it('never changes id/url — only acct', () => {
-    const input = account({ acct: 'null' })
-    const result = localizeAccount(input, 'llun.social')
-    expect(result.url).toBe(input.url)
-    expect(result.acct).toBe('null@llun.dev')
   })
 
   it('returns the account unchanged when no access domain is given', () => {

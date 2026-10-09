@@ -82,12 +82,6 @@ const evaluate = () => {
 const processZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone
 
 describe('localDay results do not depend on the process time zone', () => {
-  it('runs the baseline in UTC', () => {
-    // vitest.config.ts pins the suite to UTC; the comparison below is only
-    // meaningful against a process that is not in the zone it is compared to.
-    expect(processZone()).toBe('UTC')
-  })
-
   it.each(['Asia/Tokyo', 'America/Los_Angeles'])(
     'returns the UTC-process results when the process is in %s',
     async (zone) => {

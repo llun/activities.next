@@ -7,14 +7,13 @@ const build = (verificationCode = 'code-123') =>
   buildVerifyEmail({ recipientEmail: 'anna@example.com', verificationCode })
 
 describe('buildVerifyEmail', () => {
-  it('keeps the subject the confirmations endpoint already used', () => {
-    expect(build().subject).toBe('Email verification')
-  })
-
-  it('leads with the verification headline', () => {
-    const { html, text } = build()
+  it('renders the subject, headline and account footer', () => {
+    const { subject, html, text } = build()
+    // The subject is the one the confirmations endpoint already used.
+    expect(subject).toBe('Email verification')
     expect(html).toContain('Verify your email')
     expect(text).toContain('Verify your email')
+    expect(html).toContain('This email was sent to anna@example.com')
   })
 
   it('links the confirmation url on the configured host', () => {
@@ -37,9 +36,5 @@ describe('buildVerifyEmail', () => {
     expect(build().text).toContain(
       `If you didn't create an account on ${HOST}, you can safely ignore this email.`
     )
-  })
-
-  it('uses the account footer', () => {
-    expect(build().html).toContain('This email was sent to anna@example.com')
   })
 })

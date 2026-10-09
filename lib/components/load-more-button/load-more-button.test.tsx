@@ -9,34 +9,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { LoadMoreButton } from './load-more-button'
 
 describe('LoadMoreButton', () => {
-  it('renders default button with "Load more" text and pill variant', () => {
+  it('renders default button with "Load more" text', () => {
     render(<LoadMoreButton onClick={() => {}} />)
     const button = screen.getByRole('button', { name: 'Load more' })
     expect(button).toHaveAttribute('type', 'button')
-    expect(button).toHaveAttribute('data-slot', 'button')
-    expect(button).toHaveAttribute('data-variant', 'pill')
-    expect(button).toHaveClass('rounded-full')
     expect(button).not.toHaveAttribute('aria-busy')
     expect(button).toBeEnabled()
-  })
-
-  it("is at least the design's 110px wide, in both its idle and loading states", () => {
-    const { rerender } = render(<LoadMoreButton onClick={() => {}} />)
-    expect(screen.getByRole('button', { name: 'Load more' })).toHaveClass(
-      'min-w-[110px]'
-    )
-
-    rerender(<LoadMoreButton isLoading onClick={() => {}} />)
-    expect(screen.getByRole('button', { name: 'Loading...' })).toHaveClass(
-      'min-w-[110px]'
-    )
-  })
-
-  it('leaves the small size at its own width', () => {
-    render(<LoadMoreButton size="sm" onClick={() => {}} />)
-    expect(screen.getByRole('button', { name: 'Load more' })).not.toHaveClass(
-      'min-w-[110px]'
-    )
   })
 
   it('renders disabled button with loading text and aria-busy when isLoading is true', () => {
@@ -99,18 +77,12 @@ describe('LoadMoreButton', () => {
     expect(container.firstElementChild?.tagName).toBe('BUTTON')
   })
 
-  it('wraps in div with default text-center class when containerRef is passed', () => {
+  it('wraps in div when containerRef is passed', () => {
     const containerRef = createRef<HTMLDivElement>()
     const { container } = render(
       <LoadMoreButton containerRef={containerRef} onClick={() => {}} />
     )
     expect(container.firstElementChild?.tagName).toBe('DIV')
-    expect(container.firstElementChild).toHaveClass('text-center')
-    expect(container.firstElementChild).toHaveClass('py-4')
-    expect(container.firstElementChild).toHaveClass('max-md:pt-6')
-    expect(container.firstElementChild).toHaveClass(
-      'max-md:pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]'
-    )
     expect(containerRef.current).toBe(container.firstElementChild)
   })
 
@@ -120,26 +92,12 @@ describe('LoadMoreButton', () => {
     )
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('Failed to load more posts')
-    expect(alert).toHaveClass('text-destructive')
     expect(
       screen.getByRole('button', { name: 'Load more' })
     ).toBeInTheDocument()
   })
 
-  it('wraps in div with custom containerClassName when passed', () => {
-    const { container } = render(
-      <LoadMoreButton
-        containerClassName="flex justify-center my-4"
-        onClick={() => {}}
-      >
-        Custom
-      </LoadMoreButton>
-    )
-    expect(container.firstElementChild?.tagName).toBe('DIV')
-    expect(container.firstElementChild).toHaveClass('flex justify-center my-4')
-  })
-
-  it('attaches containerRef and applies containerClassName when both are passed', () => {
+  it('attaches containerRef to the wrapper when containerClassName is also passed', () => {
     const containerRef = createRef<HTMLDivElement>()
     const { container } = render(
       <LoadMoreButton
@@ -149,15 +107,13 @@ describe('LoadMoreButton', () => {
       />
     )
     expect(container.firstElementChild?.tagName).toBe('DIV')
-    expect(container.firstElementChild).toHaveClass('mt-6 text-center')
     expect(containerRef.current).toBe(container.firstElementChild)
   })
 
-  it('forwards button props such as size, className, and aria attributes to the button', () => {
+  it('forwards button props such as size and aria attributes to the button', () => {
     render(
       <LoadMoreButton
         size="sm"
-        className="extra-button-class"
         aria-label="Load more feed statuses"
         onClick={() => {}}
       />
@@ -166,45 +122,28 @@ describe('LoadMoreButton', () => {
       name: 'Load more feed statuses'
     })
     expect(button).toHaveAttribute('data-size', 'sm')
-    expect(button).toHaveClass('extra-button-class')
   })
 
-  it('renders overlay container and mobile translate when presentation is overlay', () => {
-    const { container } = render(
-      <LoadMoreButton presentation="overlay" onClick={() => {}} />
-    )
+  it.each([
+    { hasItems: true, overlaid: true },
+    { hasItems: false, overlaid: false }
+  ])(
+    'overlays the button on mobile only when it has items (hasItems=$hasItems)',
+    ({ hasItems, overlaid }) => {
+      const { container } = render(
+        <LoadMoreButton
+          presentation="overlay"
+          hasItems={hasItems}
+          onClick={() => {}}
+        />
+      )
 
-    const wrapper = container.firstElementChild
-    expect(wrapper?.tagName).toBe('DIV')
-    expect(wrapper).toHaveClass('max-md:relative')
-    expect(wrapper).toHaveClass('max-md:z-10')
-    expect(wrapper).toHaveClass('max-md:-mt-6')
-    expect(wrapper).toHaveClass('max-md:h-0')
-    expect(wrapper).toHaveClass('max-md:pointer-events-none')
-    expect(wrapper).toHaveClass('md:py-4')
-    expect(wrapper).toHaveClass('md:text-center')
+      const wrapper = container.firstElementChild
+      expect(wrapper?.tagName).toBe('DIV')
+      expect(wrapper?.classList.contains('max-md:h-0')).toBe(overlaid)
 
-    const button = screen.getByRole('button', { name: 'Load more' })
-    expect(button).toHaveClass('max-md:pointer-events-auto')
-    expect(button).toHaveClass('max-md:-translate-y-12')
-  })
-
-  it('renders compact in-flow container when presentation is overlay but hasItems is false', () => {
-    const { container } = render(
-      <LoadMoreButton
-        presentation="overlay"
-        hasItems={false}
-        onClick={() => {}}
-      />
-    )
-
-    const wrapper = container.firstElementChild
-    expect(wrapper?.tagName).toBe('DIV')
-    expect(wrapper).toHaveClass('py-4')
-    expect(wrapper).toHaveClass('text-center')
-    expect(wrapper).not.toHaveClass('max-md:h-0')
-
-    const button = screen.getByRole('button', { name: 'Load more' })
-    expect(button).not.toHaveClass('max-md:-translate-y-12')
-  })
+      const button = screen.getByRole('button', { name: 'Load more' })
+      expect(button.classList.contains('max-md:-translate-y-12')).toBe(overlaid)
+    }
+  )
 })

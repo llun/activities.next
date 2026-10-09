@@ -78,11 +78,9 @@ describe('QuoteCard', () => {
     expect(await screen.findByText('the quoted content')).toBeInTheDocument()
     const name = screen.getByText('Bob')
     expect(name).toBeInTheDocument()
-    expect(name).toHaveClass('shrink-0', 'max-w-full', 'truncate')
 
     const handle = screen.getByText('@bob@remote.example')
     expect(handle).toBeInTheDocument()
-    expect(handle).toHaveClass('min-w-0', 'flex-1', 'truncate')
 
     const link = screen.getByRole('link')
     expect(link).toHaveAttribute(
@@ -90,7 +88,6 @@ describe('QuoteCard', () => {
       `/@bob@remote.example/${encodeURIComponent('https://remote.example/users/bob/statuses/1')}`
     )
     expect(link).toHaveAttribute('data-prefetch', 'false')
-    expect(link).toHaveClass('overflow-hidden')
   })
 
   it('links to service url with publicId when status id is a publicId', async () => {

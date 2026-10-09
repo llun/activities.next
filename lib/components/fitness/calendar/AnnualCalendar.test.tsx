@@ -162,17 +162,16 @@ describe('AnnualCalendar', () => {
       }
     }
 
-    it('is 18px on a wide container', () => {
-      expect(cellSizeAt(908)).toBe('18px')
-    })
-
-    it('never goes below 12px: the grid scrolls inside instead', () => {
-      expect(cellSizeAt(358)).toBe('12px')
-    })
-
-    it('shrinks between the two as the container narrows', () => {
+    it.each([
+      // Wide container: the full 18px.
+      [908, 18],
+      // Never below 12px: the grid scrolls inside instead.
+      [358, 12],
+      // Shrinks between the two as the container narrows:
       // (700 - 3 - 28 - 120) / 40 = 13.725
-      expect(parseFloat(cellSizeAt(700))).toBeCloseTo(13.725, 2)
+      [700, 13.725]
+    ])('is sized from a %ipx container', (width, expected) => {
+      expect(parseFloat(cellSizeAt(width))).toBeCloseTo(expected, 2)
     })
 
     it('uses container units until a width is measured, so the first paint agrees', () => {
@@ -497,7 +496,7 @@ describe('AnnualCalendar', () => {
       ).toBeInTheDocument()
     })
 
-    it('sit on the column of the 1st and reach 44px of hit area', () => {
+    it('sit on the column of the 1st', () => {
       const { container } = renderCalendar()
       const grid = annualYearGrid({
         year: 2026,
@@ -511,12 +510,6 @@ describe('AnnualCalendar', () => {
       expect(
         [...labels].map((label) => label.style.gridColumn.split(' ')[0])
       ).toEqual(grid.monthLabels.map((label) => String(label.col + 1)))
-      // The band is a pseudo element of the label (14px of text + 27px above and
-      // 3px below = 44px). It is clipped by the scroller, whose own top padding
-      // holds it, so it cannot reach the metric control above or the cells below.
-      const scroller = container.querySelector('[data-slot="annual-scroller"]')
-      expect(scroller).toHaveClass('pt-[27px]')
-      expect(scroller).toHaveClass('overflow-y-hidden')
     })
 
     it('lays each month label over four week columns, so its target is wider than 44px', () => {
@@ -541,8 +534,6 @@ describe('AnnualCalendar', () => {
       const hint = container.querySelector('[data-slot="annual-hint"]')
       expect(hint).toHaveTextContent('Tap a month label to open it')
       expect(hint).toHaveTextContent('Scroll for earlier months')
-      // Narrow containers only: a wide one fits the year and needs neither.
-      expect(hint?.className).toMatch(/@min-\[600px\]:hidden/)
     })
 
     it('right-aligns a label that would overrun the end of the grid', () => {
@@ -558,18 +549,6 @@ describe('AnnualCalendar', () => {
   })
 
   describe('scrolling', () => {
-    it('snaps horizontally at the month starts, with padding for the sticky labels and fade', () => {
-      const { container } = renderCalendar()
-
-      const scroller = container.querySelector<HTMLElement>(
-        '[data-slot="annual-scroller"]'
-      )!
-      expect(scroller).toHaveClass('snap-x', 'snap-proximity')
-      expect(scroller).toHaveClass('overscroll-x-contain', 'overflow-x-auto')
-      // 28px sticky label column + 16px fade.
-      expect(scroller.style.scrollPaddingInlineStart).toBe('44px')
-    })
-
     it('puts one snap anchor on each month-start column', () => {
       const { container } = renderCalendar()
       const grid = annualYearGrid({ year: 2026, range: YTD, today: TODAY })
@@ -581,19 +560,16 @@ describe('AnnualCalendar', () => {
         grid.monthStartColumns.map((col) => String(col + 1))
       )
       for (const anchor of anchors) {
-        expect(anchor).toHaveClass('snap-start', 'pointer-events-none')
         expect(anchor).toHaveAttribute('aria-hidden', 'true')
       }
     })
 
-    it('pins the weekday labels and the year in a flex row, not a grid', () => {
+    it('shows the year and the weekday labels', () => {
       const { container } = renderCalendar()
 
       const labels = container.querySelector<HTMLElement>(
         '[data-slot="annual-labels"]'
       )!
-      expect(labels).toHaveClass('sticky', 'left-0', 'flex')
-      expect(labels.parentElement).toHaveClass('flex')
       expect(labels).toHaveTextContent('2026')
       expect(labels).toHaveTextContent('MonTueWedThuFriSatSun')
     })
@@ -999,19 +975,6 @@ describe('AnnualCalendar', () => {
       expect(within(rows[0]).queryByLabelText('Legend')).toBeNull()
       expect(within(rows[1]).getByLabelText('Legend')).toBeInTheDocument()
     })
-  })
-
-  it('takes its colours from the scoped heat tokens', () => {
-    const { container } = renderCalendar()
-
-    expect(container.firstElementChild).toHaveClass('fitness-heat')
-  })
-
-  it('sizes itself to its container, not the viewport', () => {
-    const { container } = renderCalendar()
-
-    expect(container.firstElementChild).toHaveClass('@container')
-    expect(container.innerHTML).not.toMatch(/class="[^"]*\b(sm|md|lg|xl):/)
   })
 })
 

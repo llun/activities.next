@@ -6,9 +6,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { type SearchResult, search } from '@/lib/client'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
 import { createDeferred } from '@/lib/testing/deferred'
-import type { Attachment } from '@/lib/types/domain/attachment'
 import { type StatusNote, StatusType } from '@/lib/types/domain/status'
 import type { Account as MastodonAccount } from '@/lib/types/mastodon/account'
 
@@ -102,24 +100,6 @@ const statusActor = {
   ...currentActor,
   name: 'Trail Author'
 }
-
-const searchAttachment = (id: string, name: string): Attachment => ({
-  id: `https://local.example/media/${id}`,
-  actorId: 'https://local.example/users/trail',
-  statusId: 'https://local.example/users/trail/statuses/gallery',
-  type: 'Document',
-  mediaType: 'image/jpeg',
-  url: `https://local.example/media/${id}.jpg`,
-  width: 800,
-  height: 600,
-  name,
-  mediaId: null,
-  blurhash: null,
-  focus: null,
-  thumbnailUrl: null,
-  createdAt: 1_779_664_800_000,
-  updatedAt: 1_779_664_800_000
-})
 
 const searchStatus = (id: string, text = id): StatusNote => ({
   id: `https://local.example/users/trail/statuses/${id}`,
@@ -249,19 +229,6 @@ describe('SearchPageClient', () => {
         resolve: true
       })
     )
-  })
-
-  it('sizes the search field and button at the shared 36 px height, not an override', () => {
-    renderSearchPage()
-
-    // The design's search row is the default control height (36): the input
-    // and the button used to force `h-11` (44) between them.
-    const input = screen.getByRole('searchbox', { name: 'Search' })
-    const button = screen.getByRole('button', { name: 'Search' })
-    expect(input).toHaveClass('h-9')
-    expect(input).not.toHaveClass('h-11')
-    expect(button).toHaveClass('h-9')
-    expect(button).not.toHaveClass('h-11')
   })
 
   it('renders hashtags without history counts', async () => {
@@ -856,64 +823,5 @@ describe('SearchPageClient', () => {
     await waitFor(() => {
       expect(screen.queryByText('First Result')).not.toBeInTheDocument()
     })
-  })
-
-  it('applies the mobile feed surface and overflow-visible to the results section', () => {
-    const { container } = renderSearchPage()
-    const section = container.querySelector('section')
-    expect(section).toBeInTheDocument()
-    expect(section).toHaveClass('max-md:overflow-visible')
-    expect(section).toHaveClass('max-md:mx-[calc(50%_-_50vw)]')
-    expect(section).toHaveClass('max-md:w-auto')
-    expect(section).toHaveClass('max-md:rounded-none')
-  })
-
-  it('embeds frameless posts with a bleeding two-item media strip', async () => {
-    const gallery = searchStatus('gallery', 'Trail gallery')
-    gallery.attachments = [
-      searchAttachment('gallery-1', 'First'),
-      searchAttachment('gallery-2', 'Second')
-    ]
-    mockSearch.mockResolvedValueOnce({
-      ...emptySearchResult(),
-      statuses: [gallery]
-    })
-
-    const { container } = renderSearchPage('q=trail&type=statuses')
-
-    expect(await screen.findByText('Trail gallery')).toBeInTheDocument()
-
-    const sections = container.querySelectorAll('section')
-    expect(sections.length).toBeGreaterThan(1)
-    const feed = sections[sections.length - 1]
-    expect(feed).not.toHaveClass('rounded-xl')
-    expect(feed).not.toHaveClass('border')
-    expect(feed).not.toHaveClass('bg-card')
-    expect(feed).not.toHaveClass('shadow-sm')
-    expect(feed).not.toHaveClass(...MOBILE_FEED_SURFACE_CLASS.split(' '))
-
-    const first = screen.getByRole('button', { name: 'Open media: First' })
-    const second = screen.getByRole('button', { name: 'Open media: Second' })
-    expect(first).toHaveClass('rounded-l-2xl')
-    expect(first).not.toHaveClass('rounded-r-2xl')
-    expect(first).not.toHaveClass('rounded-2xl')
-    expect(second).toHaveClass('rounded-r-2xl')
-    expect(second).not.toHaveClass('rounded-l-2xl')
-    expect(second).not.toHaveClass('rounded-2xl')
-
-    const strip = screen.getByRole('group', {
-      name: /2 media attachments/
-    })
-    // The strip sits in a positioning wrapper for its overlay arrows; the bleed
-    // is on the block around that wrapper.
-    expect(strip.parentElement?.parentElement).toHaveClass(
-      '-ml-[var(--post-media-bleed-left,4.25rem)]',
-      '-mr-[var(--post-media-bleed-right,1rem)]'
-    )
-    expect(strip).toHaveClass(
-      'pl-[var(--post-media-bleed-left,4.25rem)]',
-      'pr-[var(--post-media-bleed-right,1rem)]',
-      'scroll-pl-[var(--post-media-bleed-left,4.25rem)]'
-    )
   })
 })

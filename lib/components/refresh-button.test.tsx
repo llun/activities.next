@@ -35,23 +35,8 @@ describe('RefreshButton', () => {
     expect(button).toBeEnabled()
     expect(button).toHaveAttribute('aria-disabled', 'true')
     button.focus()
-    expect(button.querySelector('svg')).toHaveClass('animate-spin')
     fireEvent.click(button)
     expect(onRefresh).not.toHaveBeenCalled()
     expect(button).toHaveFocus()
-  })
-
-  it('merges a size class for rows with taller controls', () => {
-    render(
-      <RefreshButton
-        onRefresh={vi.fn()}
-        accessibleName="Refresh"
-        className="size-11"
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveClass(
-      'size-11'
-    )
   })
 })

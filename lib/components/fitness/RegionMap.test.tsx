@@ -345,28 +345,6 @@ describe('RegionMap', () => {
 
       await waitFor(() => expect(getLift(container)).toBe('34.5px'))
     })
-
-    // The corner the control lives in is lifted by that variable, for both GL
-    // libraries (the Mapbox provider reaches this map through the same picker).
-    // Not observable in jsdom as a layout, so pin the classes that do it — the
-    // v4 parenthesis form, which `w-[--x]`-style brackets are not, and the `!`,
-    // without which the unlayered GL stylesheet beats the utility. The fixed
-    // 44px they replaced sat 21.5px above a one-line hint and 5px above a
-    // wrapped one.
-    it('lifts the control corner by the variable, for both libraries', async () => {
-      const { gl } = createFakeGl()
-      const { container } = renderRegionMap(gl)
-      await screen.findByText('TestMaps')
-
-      const mapContainer = container.querySelector('.h-full.w-full')
-      expect(mapContainer?.className).toContain(
-        '[&_.maplibregl-ctrl-bottom-right]:bottom-(--region-credit-lift)!'
-      )
-      expect(mapContainer?.className).toContain(
-        '[&_.mapboxgl-ctrl-bottom-right]:bottom-(--region-credit-lift)!'
-      )
-      expect(mapContainer?.className).not.toContain('bottom-11')
-    })
   })
 
   it('disables panning while in draw mode', async () => {

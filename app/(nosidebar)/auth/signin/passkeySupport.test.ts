@@ -16,36 +16,43 @@ describe('isPlatformPasskeyAvailable', () => {
     delete (window as unknown as WindowWithPasskey).PublicKeyCredential
   })
 
-  it('returns false when the WebAuthn API is unavailable (e.g. an in-app WKWebView)', async () => {
-    // No window.PublicKeyCredential is defined.
-    expect(await isPlatformPasskeyAvailable()).toBe(false)
-  })
-
-  it('returns false when isUserVerifyingPlatformAuthenticatorAvailable is not a function', async () => {
-    setPublicKeyCredential({})
-    expect(await isPlatformPasskeyAvailable()).toBe(false)
-  })
-
-  it('returns true when a user-verifying platform authenticator is available', async () => {
-    setPublicKeyCredential({
-      isUserVerifyingPlatformAuthenticatorAvailable: () => Promise.resolve(true)
-    })
-    expect(await isPlatformPasskeyAvailable()).toBe(true)
-  })
-
-  it('returns false when no user-verifying platform authenticator is available', async () => {
-    setPublicKeyCredential({
-      isUserVerifyingPlatformAuthenticatorAvailable: () =>
-        Promise.resolve(false)
-    })
-    expect(await isPlatformPasskeyAvailable()).toBe(false)
-  })
-
-  it('returns false when the availability check rejects', async () => {
-    setPublicKeyCredential({
-      isUserVerifyingPlatformAuthenticatorAvailable: () =>
-        Promise.reject(new Error('blocked'))
-    })
-    expect(await isPlatformPasskeyAvailable()).toBe(false)
+  it.each([
+    {
+      name: 'the WebAuthn API is unavailable (e.g. an in-app WKWebView)',
+      credential: undefined,
+      expected: false
+    },
+    {
+      name: 'isUserVerifyingPlatformAuthenticatorAvailable is not a function',
+      credential: {},
+      expected: false
+    },
+    {
+      name: 'a user-verifying platform authenticator is available',
+      credential: {
+        isUserVerifyingPlatformAuthenticatorAvailable: () =>
+          Promise.resolve(true)
+      },
+      expected: true
+    },
+    {
+      name: 'no user-verifying platform authenticator is available',
+      credential: {
+        isUserVerifyingPlatformAuthenticatorAvailable: () =>
+          Promise.resolve(false)
+      },
+      expected: false
+    },
+    {
+      name: 'the availability check rejects',
+      credential: {
+        isUserVerifyingPlatformAuthenticatorAvailable: () =>
+          Promise.reject(new Error('blocked'))
+      },
+      expected: false
+    }
+  ])('returns $expected when $name', async ({ credential, expected }) => {
+    if (credential !== undefined) setPublicKeyCredential(credential)
+    expect(await isPlatformPasskeyAvailable()).toBe(expected)
   })
 })

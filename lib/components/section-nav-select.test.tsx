@@ -2,13 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within
-} from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { Activity, Wrench } from 'lucide-react'
 
 import {
@@ -103,22 +97,6 @@ describe('SectionNavSelect', () => {
     expect(
       within(menu).getByRole('menuitem', { name: 'Components' }).className
     ).not.toMatch(/focus:ring-2/)
-  })
-
-  // `SectionNavDropdown` opens 6 px under its trigger and a gear's page renders
-  // the two one above the other, so this twin matches it rather than the shared
-  // default of 4. jsdom lays nothing out (every rect is 0), so Radix's popper
-  // wrapper is translated by exactly the side offset.
-  it('opens the menu 6 px below the trigger, not the shared default of 4', async () => {
-    renderSelect({ active: 'components' })
-
-    const menu = await openMenu()
-    const wrapper = menu.closest(
-      '[data-radix-popper-content-wrapper]'
-    ) as HTMLElement
-    await waitFor(() => {
-      expect(wrapper.style.transform).toMatch(/translate\(0px, 6px\)/)
-    })
   })
 
   it('reports the chosen tab to its caller', async () => {

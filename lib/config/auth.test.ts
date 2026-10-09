@@ -33,26 +33,13 @@ describe('Auth config', () => {
       expect(config).not.toHaveProperty('github')
     })
 
-    it('parses config without optional auth settings', () => {
-      const config = AuthConfig.parse({})
+    it.each([
+      { key: 'enableCredential', value: false },
+      { key: 'enableInstrumentation', value: true }
+    ])('parses the $key auth setting', ({ key, value }) => {
+      const config = AuthConfig.parse({ [key]: value })
 
-      expect(config).not.toHaveProperty('github')
-    })
-
-    it('parses credential auth settings', () => {
-      const config = AuthConfig.parse({
-        enableCredential: false
-      })
-
-      expect(config.enableCredential).toBe(false)
-    })
-
-    it('parses instrumentation auth settings', () => {
-      const config = AuthConfig.parse({
-        enableInstrumentation: true
-      })
-
-      expect(config.enableInstrumentation).toBe(true)
+      expect(config).toMatchObject({ [key]: value })
     })
   })
 

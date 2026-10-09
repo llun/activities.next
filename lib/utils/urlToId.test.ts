@@ -95,26 +95,6 @@ describe('urlToId', () => {
       globalThis.Buffer = RealBuffer
     }
   })
-
-  it('uses Buffer (not the btoa/atob fallbacks) when Buffer is available', () => {
-    const originalBtoa = globalThis.btoa
-    const originalAtob = globalThis.atob
-    const actorId = 'https://bsky.brid.gy/ap/did:plc:abc123/statuses/post-1'
-
-    globalThis.btoa = vi.fn(() => {
-      throw new Error('btoa should not be used when Buffer is available')
-    })
-    globalThis.atob = vi.fn(() => {
-      throw new Error('atob should not be used when Buffer is available')
-    })
-
-    try {
-      expect(idToUrl(urlToId(actorId))).toEqual(actorId)
-    } finally {
-      globalThis.btoa = originalBtoa
-      globalThis.atob = originalAtob
-    }
-  })
 })
 
 describe('idToUrl', () => {

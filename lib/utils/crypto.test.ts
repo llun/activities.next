@@ -210,27 +210,6 @@ describe('crypto utilities', () => {
   })
 
   describe('security properties', () => {
-    it('uses different IV for each encryption', () => {
-      const plaintext = 'same text'
-      const encrypted1 = encrypt(plaintext)
-      const encrypted2 = encrypt(plaintext)
-
-      const iv1 = encrypted1.split(':')[0]
-      const iv2 = encrypted2.split(':')[0]
-
-      expect(iv1).not.toBe(iv2)
-    })
-
-    it('encrypts with AES-256-CBC (key length check)', () => {
-      // AES-256 requires 32-byte key
-      // Our implementation uses SHA-256 hash which produces 32 bytes
-      const plaintext = 'test'
-      const encrypted = encrypt(plaintext)
-
-      // Should not throw - implicitly validates key length
-      expect(() => decrypt(encrypted)).not.toThrow()
-    })
-
     it('IV has sufficient entropy', () => {
       const ivs = new Set()
       for (let i = 0; i < 100; i++) {

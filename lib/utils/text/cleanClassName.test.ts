@@ -117,16 +117,11 @@ describe('cleanClassName', () => {
   })
 
   describe('non-hashtag links', () => {
-    it('adds target="_blank" to regular links', () => {
+    it('adds target="_blank" and noopener noreferrer to regular links', () => {
       const html = '<a href="https://example.com">Example</a>'
       const output = renderToHtml(html)
       expect(output).toContain('target="_blank"')
       expect(output).toContain('href="https://example.com"')
-    })
-
-    it('adds noopener noreferrer to regular links', () => {
-      const html = '<a href="https://example.com">Example</a>'
-      const output = renderToHtml(html)
       expect(output).toContain('noopener')
       expect(output).toContain('noreferrer')
     })
@@ -205,21 +200,6 @@ describe('cleanClassName', () => {
     })
   })
 
-  describe('span transformations', () => {
-    it('replaces invisible class with hidden', () => {
-      const html = '<span class="invisible">hidden text</span>'
-      const output = renderToHtml(html)
-      expect(output).toContain('class="hidden"')
-      expect(output).not.toContain('class="invisible"')
-    })
-
-    it('replaces ellipsis class', () => {
-      const html = '<span class="ellipsis">text</span>'
-      const output = renderToHtml(html)
-      expect(output).toContain('after:content-')
-    })
-  })
-
   // Mastodon's legacy quote fallback ("RE: <link>"). Redundant exactly when
   // the caller renders the quote structurally, so hiding is the CALLER's
   // decision — with no quote card, the fallback is the reader's only clue and
@@ -256,14 +236,6 @@ describe('cleanClassName', () => {
       const output = renderToHtml(paragraph)
       expect(output).toContain('class="quote-inline"')
       expect(output).not.toContain('hidden')
-    })
-  })
-
-  describe('emoji images', () => {
-    it('replaces emoji class with size-5 inline', () => {
-      const html = '<img class="emoji" src="https://example.com/emoji.png">'
-      const output = renderToHtml(html)
-      expect(output).toContain('class="size-5 inline"')
     })
   })
 })

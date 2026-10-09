@@ -116,29 +116,22 @@ describe('PostgreSQL test port resolution', () => {
     )
   })
 
-  it('resolves connection config with defaults when port is absent', () => {
-    delete process.env.TEST_DATABASE_PORT
+  it.each([
+    ['defaults when port is absent', undefined, 5432],
+    ['explicit port when specified', '55432', 55432]
+  ])('resolves connection config with %s', (_, envPort, port) => {
+    if (envPort === undefined) {
+      delete process.env.TEST_DATABASE_PORT
+    } else {
+      process.env.TEST_DATABASE_PORT = envPort
+    }
     process.env.TEST_DATABASE_HOST = '127.0.0.1'
     process.env.TEST_DATABASE_USERNAME = 'pguser'
     process.env.TEST_DATABASE_PASSWORD = 'secretpassword'
 
     expect(getTestPgConnection()).toEqual({
       host: '127.0.0.1',
-      port: 5432,
-      user: 'pguser',
-      password: 'secretpassword'
-    })
-  })
-
-  it('resolves connection config with explicit port when specified', () => {
-    process.env.TEST_DATABASE_PORT = '55432'
-    process.env.TEST_DATABASE_HOST = '127.0.0.1'
-    process.env.TEST_DATABASE_USERNAME = 'pguser'
-    process.env.TEST_DATABASE_PASSWORD = 'secretpassword'
-
-    expect(getTestPgConnection()).toEqual({
-      host: '127.0.0.1',
-      port: 55432,
+      port,
       user: 'pguser',
       password: 'secretpassword'
     })

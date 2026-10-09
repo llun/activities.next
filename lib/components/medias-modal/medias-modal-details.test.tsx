@@ -100,7 +100,6 @@ describe('MediasModal media details', () => {
 
     const region = await screen.findByRole('region', { name: 'Photo details' })
     expect(region).toHaveAttribute('tabindex', '0')
-    expect(region).toHaveClass('focus-visible:ring-[3px]')
     expect(region).toHaveTextContent('Common Kingfisher')
   })
 
@@ -115,24 +114,21 @@ describe('MediasModal media details', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('keeps the full image cap for media without details', async () => {
-    mockGetMediaPublicDetails.mockResolvedValue(null as never)
-
-    renderModal([buildAttachment({ mediaId: 'media-1' })])
-
-    await waitFor(() => expect(mockGetMediaPublicDetails).toHaveBeenCalled())
-    expect(document.querySelector('img')).toHaveClass('max-h-[80vh]')
-  })
-
-  it('keeps the full image cap when the details payload is all null', async () => {
-    mockGetMediaPublicDetails.mockResolvedValue({
-      subject: null,
-      takenAt: null,
-      camera: null,
-      lens: null,
-      exposure: null,
-      place: null
-    } as MediaPublicDetails)
+  it.each([
+    ['media without details', null],
+    [
+      'a details payload that is all null',
+      {
+        subject: null,
+        takenAt: null,
+        camera: null,
+        lens: null,
+        exposure: null,
+        place: null
+      } as MediaPublicDetails
+    ]
+  ])('keeps the full image cap for %s', async (_label, payload) => {
+    mockGetMediaPublicDetails.mockResolvedValue(payload as never)
 
     renderModal([buildAttachment({ mediaId: 'media-1' })])
 

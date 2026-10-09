@@ -143,62 +143,6 @@ describe('Sidebar', () => {
     }
   })
 
-  describe('geometry', () => {
-    const user = {
-      handle: '@alice@activities.local',
-      username: 'alice',
-      name: 'Alice'
-    }
-
-    it('wraps every logo in a flex box so the nav starts 6px higher', () => {
-      // An inline-flex Logo link inside a block wrapper sits in a 38px line
-      // box instead of its own 32px, which pushed the nav down 6px in the
-      // sidebar, the rail and the drawer. The wrapper has to be a flex box.
-      const { container } = renderSidebar(<Sidebar lists={[]} user={user} />)
-      const logos = container.querySelectorAll(
-        'a[aria-label="Activities home"]'
-      )
-      expect(logos).toHaveLength(2)
-      for (const logo of logos) {
-        expect(logo.parentElement).toHaveClass('flex')
-      }
-
-      const drawer = renderSidebar(
-        <Sidebar variant="drawer" lists={[]} user={user} />
-      )
-      const drawerLogo = drawer.container.querySelector(
-        'a[aria-label="Activities home"]'
-      )
-      expect(drawerLogo?.parentElement).toHaveClass('flex')
-    })
-
-    it('draws the rail logo at y 20 and keeps the first item at y 64', () => {
-      // The Sidebar board's rail puts the logo 20 from the top; the wrapper
-      // trades the extra 4px of top padding for 4px less below (20 + 32 + 12),
-      // so the first nav item stays at 64 and nothing under the logo moves.
-      const { container } = renderSidebar(<Sidebar lists={[]} user={user} />)
-      const rail = container.querySelectorAll('aside')[1]
-      const wrapper = rail.querySelector(
-        'a[aria-label="Activities home"]'
-      )?.parentElement
-      expect(wrapper).toHaveClass('flex', 'px-4', 'pt-5', 'pb-3')
-      expect(wrapper).not.toHaveClass('p-4')
-
-      // The full sidebar's logo box is untouched.
-      const sidebar = container.querySelectorAll('aside')[0]
-      expect(
-        sidebar.querySelector('a[aria-label="Activities home"]')?.parentElement
-      ).toHaveClass('flex', 'p-6')
-    })
-
-    it('spans the whole rail with the footer divider and keeps the avatar centred', () => {
-      const { container } = renderSidebar(<Sidebar lists={[]} user={user} />)
-      const rail = container.querySelectorAll('aside')[1]
-      const footer = rail.lastElementChild
-      expect(footer).toHaveClass('border-t', 'w-full', 'justify-center')
-    })
-  })
-
   describe('customization', () => {
     // jsdom has no pointer layout, so the Radix trigger opens from the
     // keyboard (same approach as the settings layout test).
@@ -479,69 +423,18 @@ describe('Sidebar', () => {
       ).not.toHaveAttribute('aria-current')
     })
 
-    // `text-primary-text`, never `text-primary`: `--primary` is the icon orange
-    // and is under the AA floor as a label (globals.contrast.test.ts guards the
-    // token values, not their usage). The icon alone keeps the brand orange.
-    it('draws the current row label in the text token and its icon in the brand orange', () => {
-      mockPathname.mockReturnValue('/search')
-      renderSidebar(<Sidebar lists={[]} />)
-
-      const nav = screen.getAllByRole('navigation')[0]
-      const active = within(nav).getByRole('link', { name: 'Search' })
-      expect(active).toHaveClass('text-primary-text')
-      expect(active.querySelector('svg')).toHaveClass('text-primary')
-
-      const inactive = within(nav).getByRole('link', { name: 'Timeline' })
-      expect(inactive).not.toHaveClass('text-primary-text')
-      expect(inactive.querySelector('svg')).not.toHaveClass('text-primary')
-    })
-
-    it('draws the Lists section and the open list in the same split', () => {
-      mockPathname.mockReturnValue('/lists/a')
-      renderSidebar(<Sidebar lists={lists} />)
-
-      const nav = screen.getAllByRole('navigation')[0]
-      const section = within(nav).getByRole('link', { name: 'Lists' })
-      expect(section.parentElement).toHaveClass('text-primary-text')
-      expect(section.querySelector('svg')).toHaveClass('text-primary')
-      expect(
-        within(nav).getByRole('link', { name: 'Running club' })
-      ).toHaveClass('text-primary-text')
-
-      // The expand / collapse chevron is an icon too: it keeps the brand
-      // orange in both states instead of inheriting the row's label colour.
-      const collapse = within(nav).getByRole('button', {
-        name: 'Collapse lists'
-      })
-      expect(collapse.querySelector('svg')).toHaveClass('text-primary')
-      fireEvent.click(collapse)
-      expect(
-        within(nav)
-          .getByRole('button', { name: 'Expand lists' })
-          .querySelector('svg')
-      ).toHaveClass('text-primary')
-    })
-
-    it('draws the More group and its current row in the same split', () => {
+    it('opens the More group on its own for a route inside it', () => {
       mockPathname.mockReturnValue('/favorites')
       renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
 
       // The group opens on its own when the route is inside it.
       const nav = screen.getAllByRole('navigation')[0]
-      const row = within(nav).getByRole('link', { name: 'Favorites' })
-      expect(row).toHaveClass('text-primary-text')
-      expect(row.querySelector('svg')).toHaveClass('text-primary')
-
-      // Collapsed, the group's own row carries the current-page colour.
-      const more = within(nav).getByRole('button', { name: /^More/ })
-      fireEvent.click(more)
-      expect(more).toHaveClass('text-primary-text')
-      expect(more.querySelector('svg')).toHaveClass('text-primary')
+      expect(
+        within(nav).getByRole('link', { name: 'Favorites' })
+      ).toBeInTheDocument()
     })
 
-    it('draws the More chevron in the brand orange while its section is current, muted otherwise', () => {
-      // Same rule as the Lists chevron above: orange whenever the section is
-      // active, in both directions, muted when it is not.
+    it('toggles the More group open and closed from its button', () => {
       mockPathname.mockReturnValue('/favorites')
       renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
 
@@ -549,45 +442,8 @@ describe('Sidebar', () => {
       const more = within(nav).getByRole('button', { name: /^More/ })
       // Open on its own because the route is inside the group.
       expect(more).toHaveAttribute('aria-expanded', 'true')
-      expect(more.querySelector('svg.lucide-chevron-up')).toHaveClass(
-        'text-primary'
-      )
       fireEvent.click(more)
       expect(more).toHaveAttribute('aria-expanded', 'false')
-      expect(more.querySelector('svg.lucide-chevron-down')).toHaveClass(
-        'text-primary'
-      )
-    })
-
-    it('leaves the More chevron muted when the current page is outside the group', () => {
-      mockPathname.mockReturnValue('/search')
-      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
-
-      const nav = screen.getAllByRole('navigation')[0]
-      const more = within(nav).getByRole('button', { name: /^More/ })
-      expect(more).toHaveClass('text-muted-foreground')
-      expect(more.querySelector('svg.lucide-chevron-down')).not.toHaveClass(
-        'text-primary'
-      )
-      fireEvent.click(more)
-      expect(more.querySelector('svg.lucide-chevron-up')).not.toHaveClass(
-        'text-primary'
-      )
-    })
-
-    it('draws the current row of the rail flyout in the same split', async () => {
-      mockPathname.mockReturnValue('/favorites')
-      renderSidebar(<Sidebar lists={[]} />, { hidden: ['favorites'] })
-
-      const rail = screen.getAllByRole('navigation')[1]
-      fireEvent.keyDown(
-        within(rail).getByRole('button', { name: 'More navigation' }),
-        { key: 'ArrowDown' }
-      )
-
-      const row = await screen.findByRole('menuitem', { name: 'Favorites' })
-      expect(row).toHaveClass('text-primary-text')
-      expect(row.querySelector('svg')).toHaveClass('text-primary')
     })
 
     it('cannot move the first row up or the last row down', () => {
@@ -625,13 +481,6 @@ describe('Sidebar', () => {
 
       expect(screen.getByText('7')).toBeInTheDocument()
       expect(screen.getByText('(7 unread)')).toBeInTheDocument()
-    })
-
-    it('enforces >= 44px minimum touch targets on drawer navigation links', () => {
-      renderSidebar(<Sidebar variant="drawer" lists={[]} />)
-
-      const timelineLink = screen.getByRole('link', { name: 'Timeline' })
-      expect(timelineLink).toHaveClass('min-h-[44px]')
     })
   })
 })

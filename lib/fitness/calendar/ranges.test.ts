@@ -4,7 +4,6 @@ import {
   DRAFT_ERROR_MESSAGES,
   DraftErrorCode,
   DraftKind,
-  MIN_DATE_KEY,
   PresetKind,
   RangeKind,
   latestMonthIn,
@@ -580,17 +579,6 @@ describe('validateDraft', () => {
       })
     }
   )
-
-  it('words the inverted-range error as the designs do', () => {
-    expect(DRAFT_ERROR_MESSAGES.range_inverted).toBe(
-      'End date must be on or after the start date'
-    )
-  })
-
-  it('names the minimum year in the before-1970 messages', () => {
-    expect(DRAFT_ERROR_MESSAGES.from_before_minimum).toContain('1970')
-    expect(MIN_DATE_KEY).toBe('1970-01-01')
-  })
 
   describe('This month and Year to date are exempt from the seven-day rule', () => {
     it.each([

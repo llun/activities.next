@@ -1,6 +1,7 @@
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
 import { Timeline } from '@/lib/services/timelines/types'
+import { generatePublicId } from '@/lib/utils/publicId'
 
 import {
   getCollectionFeed,
@@ -296,4 +297,61 @@ describe('client timelines module', () => {
       })
     })
   })
+
+  // Cursors travel in a query param, where the accept side (decodeCursor →
+  // safeIdToUrl, or the publicId fast path) takes every client-facing id form
+  // verbatim. Re-encoding here would turn a publicId cursor into `<uuid>:`,
+  // which resolves to nothing and silently ends pagination.
+  it.each([
+    {
+      description: 'a raw ActivityPub URI',
+      maxStatusId: 'https://remote.example/users/a/statuses/older',
+      minStatusId: 'https://remote.example/users/a/statuses/newer'
+    },
+    {
+      description: 'a UUIDv7 public id',
+      maxStatusId: generatePublicId(),
+      minStatusId: generatePublicId()
+    },
+    {
+      description: 'a legacy colon-form id',
+      maxStatusId: 'remote.example:users:a:statuses:older',
+      minStatusId: 'remote.example:users:a:statuses:newer'
+    }
+  ])(
+    'sends $description cursor unchanged for the timeline and feed helpers',
+    async ({ maxStatusId, minStatusId }) => {
+      fetchMock.mockResponse(
+        JSON.stringify({
+          statuses: [],
+          nextMaxStatusId: null,
+          prevMinStatusId: null
+        }),
+        { status: 200 }
+      )
+
+      // Parse the requested URL so the assertion is decoding-agnostic (`:` and
+      // `/` are percent-escaped in the query string) and order-agnostic.
+      const lastRequestUrl = () =>
+        new URL(
+          fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string
+        )
+
+      await getCollectionTimeline({
+        collectionId: 'c1',
+        maxStatusId,
+        minStatusId
+      })
+      const timelineUrl = lastRequestUrl()
+      expect(timelineUrl.pathname).toBe('/api/v1/timelines/collection/c1')
+      expect(timelineUrl.searchParams.get('max_id')).toBe(maxStatusId)
+      expect(timelineUrl.searchParams.get('min_id')).toBe(minStatusId)
+
+      await getCollectionFeed({ collectionId: 'c1', maxStatusId, minStatusId })
+      const feedUrl = lastRequestUrl()
+      expect(feedUrl.pathname).toBe('/api/v1/collections/c1/feed')
+      expect(feedUrl.searchParams.get('max_id')).toBe(maxStatusId)
+      expect(feedUrl.searchParams.get('min_id')).toBe(minStatusId)
+    }
+  )
 })

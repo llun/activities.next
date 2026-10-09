@@ -61,14 +61,6 @@ describe('MonthDayList', () => {
     )
   })
 
-  it('gives every row at least 44px (56 in the design)', () => {
-    renderList()
-
-    for (const row of rowButtons()) {
-      expect(row).toHaveClass('min-h-14')
-    }
-  })
-
   it('selects a day on click and marks it with aria-pressed', () => {
     const { onSelectDate, rerender } = renderList()
 

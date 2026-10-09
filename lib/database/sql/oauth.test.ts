@@ -60,48 +60,29 @@ describe('OAuthDatabase', () => {
   })
 
   describe('clients', () => {
-    it('returns existing client by name', async () => {
-      const client = await database.getClientFromName({
-        name: 'oauth-app1'
-      })
-      expect(client).toBeDefined()
-      expect(client?.name).toBe('oauth-app1')
-      expect(client?.clientId).toBe('test-client-1')
-      expect(client?.scopes).toEqual([Scope.enum.read])
-      expect(client?.redirectUris).toEqual([
-        'https://oauth-app1.llun.dev/oauth/redirect'
-      ])
-    })
-
-    it('returns existing client by clientId', async () => {
-      const client = await database.getClientFromId({
-        clientId: 'test-client-1'
-      })
-      expect(client).toBeDefined()
-      expect(client?.name).toBe('oauth-app1')
-      expect(client?.clientId).toBe('test-client-1')
-    })
-
-    it('returns null for non-existent client name', async () => {
-      const client = await database.getClientFromName({
-        name: 'nonexistent'
-      })
-      expect(client).toBeNull()
-    })
-
-    it('returns null for non-existent client id', async () => {
-      const client = await database.getClientFromId({
-        clientId: 'nonexistent'
-      })
-      expect(client).toBeNull()
-    })
-
-    it('returns client with correct timestamps', async () => {
-      const client = await database.getClientFromName({
-        name: 'oauth-app2'
+    it.each([
+      ['name', () => database.getClientFromName({ name: 'oauth-app1' })],
+      [
+        'clientId',
+        () => database.getClientFromId({ clientId: 'test-client-1' })
+      ]
+    ])('returns existing client by %s', async (_, lookup) => {
+      const client = await lookup()
+      expect(client).toMatchObject({
+        name: 'oauth-app1',
+        clientId: 'test-client-1',
+        scopes: [Scope.enum.read],
+        redirectUris: ['https://oauth-app1.llun.dev/oauth/redirect']
       })
       expect(client?.createdAt).toBeNumber()
       expect(client?.updatedAt).toBeNumber()
+    })
+
+    it.each([
+      ['name', () => database.getClientFromName({ name: 'nonexistent' })],
+      ['clientId', () => database.getClientFromId({ clientId: 'nonexistent' })]
+    ])('returns null for non-existent client %s', async (_, lookup) => {
+      expect(await lookup()).toBeNull()
     })
   })
 

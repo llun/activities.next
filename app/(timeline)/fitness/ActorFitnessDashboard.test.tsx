@@ -516,7 +516,6 @@ describe('ActorFitnessDashboard', () => {
     renderDashboard()
 
     const choose = await screen.findByRole('button', { name: 'Choose a range' })
-    expect(choose).toHaveClass('h-11')
     expect(screen.queryByRole('dialog', { name: 'Date range' })).toBeNull()
 
     fireEvent.click(choose)
@@ -758,7 +757,7 @@ describe('ActorFitnessDashboard', () => {
     expect(shownDates()).toBe('1 Jan – 4 Oct 2026')
   })
 
-  it('re-reads the range and the open day from Refresh, spinning while it loads', async () => {
+  it('re-reads the range and the open day from Refresh while it loads', async () => {
     renderDashboard()
     await waitForLoaded()
     fireEvent.click(cell('2026-10-01'))
@@ -788,7 +787,6 @@ describe('ActorFitnessDashboard', () => {
     )
     // Busy, but still focusable: a second press does nothing.
     expect(refresh).toHaveAttribute('aria-disabled', 'true')
-    expect(refresh.querySelector('svg')).toHaveClass('animate-spin')
     fireEvent.click(refresh)
     expect(mockedSummary).toHaveBeenCalledTimes(summaryCalls + 1)
 

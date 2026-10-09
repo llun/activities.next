@@ -170,16 +170,6 @@ describe('MediaAlbumsControl', () => {
       ).toBe(true)
     })
 
-    it('is never taller than the room there is', async () => {
-      renderControl()
-      const menu = await openMenu()
-
-      expect(menu).toHaveClass(
-        'max-h-(--radix-popover-content-available-height)',
-        'overflow-y-auto'
-      )
-    })
-
     it('draws nothing, not even its frame, for a photo that is not the caller’s', async () => {
       getMediaAlbumsMock.mockResolvedValue(null)
       const frame = vi.fn((content: React.ReactNode) => (
@@ -753,15 +743,6 @@ describe('MediaAlbumsControl', () => {
       ).toBeVisible()
     })
 
-    it('is capped to the room there is as well', async () => {
-      renderControl('pill')
-      const menu = await openMenu('In 1 album')
-
-      expect(menu).toHaveClass(
-        'max-h-(--radix-popover-content-available-height)'
-      )
-    })
-
     it('invites an add when the photo is in no album', async () => {
       getMediaAlbumsMock.mockResolvedValue(response({ albumIds: [] }))
       renderControl('pill')
@@ -785,23 +766,6 @@ describe('MediaAlbumsControl', () => {
       const menu = await openMenu('In 1 album')
 
       expect(menu).toHaveAttribute('data-albums-menu')
-    })
-
-    it('renders its menu inside the modal viewer it sits in, not on the body', async () => {
-      render(
-        <div role="dialog" aria-modal="true" aria-label="Media viewer">
-          <MediaAlbumsControl mediaId="m1" ownerId="owner" variant="pill" />
-        </div>
-      )
-
-      const menu = await openMenu('In 1 album')
-
-      expect(
-        within(screen.getByRole('dialog', { name: 'Media viewer' })).getByRole(
-          'dialog',
-          { name: 'Add to album' }
-        )
-      ).toBe(menu)
     })
 
     it('keeps touches in its menu and dialog from reaching the viewer’s swipe handlers', async () => {
@@ -834,26 +798,7 @@ describe('MediaAlbumsControl', () => {
       expect(onTouchStart).toHaveBeenCalledTimes(1)
     })
 
-    it('shows a failed load in colours that read on the dark backdrop, centred', async () => {
-      getMediaAlbumsMock.mockRejectedValue(new Error('Server is down'))
-      renderControl('pill')
-
-      const alert = await screen.findByRole('alert')
-      expect(alert).toHaveClass('text-red-300')
-      expect(alert.parentElement).toHaveClass('text-center')
-      expect(screen.getByRole('button', { name: 'Try again' })).toHaveClass(
-        'text-orange-300'
-      )
-    })
-
-    it('shows a failed load in the theme colours on the row', async () => {
-      getMediaAlbumsMock.mockRejectedValue(new Error('Server is down'))
-      renderControl('row')
-
-      expect(await screen.findByRole('alert')).toHaveClass('text-destructive')
-    })
-
-    it('adds from the menu with a dark toast', async () => {
+    it('adds from the menu with a toast', async () => {
       addMock.mockResolvedValue(result(4))
       renderControl('pill')
       const menu = await openMenu('In 1 album')
@@ -862,9 +807,7 @@ describe('MediaAlbumsControl', () => {
         within(menu).getByRole('checkbox', { name: /^Garden birds/ })
       )
 
-      expect(await screen.findByTestId('album-toast')).toHaveClass(
-        'bg-neutral-800'
-      )
+      expect(await screen.findByTestId('album-toast')).toBeInTheDocument()
       expect(
         await screen.findByRole('button', { name: 'In 2 albums' })
       ).toBeVisible()

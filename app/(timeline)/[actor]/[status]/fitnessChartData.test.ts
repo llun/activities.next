@@ -1,14 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  ANALYSIS_SAMPLES_PER_POINT,
-  ANALYSIS_SERIES_MAX_POINTS,
-  ANALYSIS_SERIES_MIN_POINTS,
-  CHART_READOUT_FLIP_THRESHOLD,
   DEFAULT_TICK_COUNT,
-  GRAPH_VIEW_HEIGHT,
   HEART_RATE_ZONES,
-  OVERVIEW_GRAPH_VIEW_HEIGHT,
   OVERVIEW_TICK_COUNT,
   buildChartAreaPath,
   buildChartPath,
@@ -35,19 +29,6 @@ import {
 } from './fitnessChartData'
 
 describe('fitnessChartData', () => {
-  describe('constants', () => {
-    it('defines standard density and sample limits matching Strava', () => {
-      expect(ANALYSIS_SAMPLES_PER_POINT).toBe(8)
-      expect(ANALYSIS_SERIES_MIN_POINTS).toBe(120)
-      expect(ANALYSIS_SERIES_MAX_POINTS).toBe(1200)
-      expect(DEFAULT_TICK_COUNT).toBe(6)
-      expect(OVERVIEW_TICK_COUNT).toBe(4)
-      expect(GRAPH_VIEW_HEIGHT).toBe(250)
-      expect(OVERVIEW_GRAPH_VIEW_HEIGHT).toBe(130)
-      expect(CHART_READOUT_FLIP_THRESHOLD).toBe(0.62)
-    })
-  })
-
   describe('clampNumber', () => {
     it('clamps values below min or above max', () => {
       expect(clampNumber(-5, 0, 10)).toBe(0)

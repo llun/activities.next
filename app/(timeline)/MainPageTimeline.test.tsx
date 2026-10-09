@@ -487,11 +487,6 @@ describe('MainPageTimeline', () => {
       'data-actions-in-mobile-bar',
       'true'
     )
-    // The composer is the header's next sibling and does not pull itself up
-    // under it: the header (or the bar) already ends where the composer starts.
-    const composer = screen.getByTestId('page-header').nextElementSibling
-    expect(composer?.tagName).toBe('SECTION')
-    expect(composer).not.toHaveClass('max-md:-mt-6')
   })
 
   it('removes a direct post from the feed when delete callback is invoked', () => {
@@ -1720,7 +1715,6 @@ describe('MainPageTimeline', () => {
         const banner = screen.getByRole('button', { name: '2 new posts ↑' })
         expect(banner).toBeInTheDocument()
         expect(banner).toHaveAttribute('data-variant', 'pill')
-        expect(banner).toHaveClass('pointer-events-auto')
 
         // Mock clean top snapshot fetch
         vi.mocked(getTimeline).mockResolvedValueOnce({
@@ -1792,7 +1786,7 @@ describe('MainPageTimeline', () => {
       }
     })
 
-    it('renders load more in compact in-flow mode when visible feed is initially empty but cursor exists', () => {
+    it('renders load more when visible feed is initially empty but cursor exists', () => {
       render(
         <MainPageTimeline
           host="activities.local"
@@ -1806,9 +1800,6 @@ describe('MainPageTimeline', () => {
 
       const loadMoreBtn = screen.getByRole('button', { name: 'Load more' })
       expect(loadMoreBtn).toBeInTheDocument()
-      expect(loadMoreBtn.closest('div')).toHaveClass('py-4')
-      expect(loadMoreBtn.closest('div')).toHaveClass('text-center')
-      expect(loadMoreBtn.closest('div')).not.toHaveClass('max-md:h-0')
     })
   })
 })

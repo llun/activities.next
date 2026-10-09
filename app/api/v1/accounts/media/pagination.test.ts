@@ -9,45 +9,20 @@ import {
 
 describe('parseAccountMediaPagination', () => {
   describe('defaults and missing inputs', () => {
-    it('returns default pagination for undefined or null input', () => {
-      expect(parseAccountMediaPagination()).toEqual({
+    it.each([
+      { name: 'no input', input: undefined },
+      { name: 'null', input: null },
+      { name: 'an empty string', input: '' },
+      {
+        name: 'a URL without page or limit',
+        input: 'https://example.com/api/v1/accounts/media'
+      },
+      { name: 'a query with other parameters only', input: '?other=123' },
+      { name: 'empty page and limit values', input: '?page=&limit=' }
+    ])('returns default pagination for $name', ({ input }) => {
+      expect(parseAccountMediaPagination(input)).toEqual({
         page: DEFAULT_PAGE,
         limit: DEFAULT_MEDIA_LIMIT
-      })
-      expect(parseAccountMediaPagination(null)).toEqual({
-        page: DEFAULT_PAGE,
-        limit: DEFAULT_MEDIA_LIMIT
-      })
-      expect(parseAccountMediaPagination(undefined)).toEqual({
-        page: DEFAULT_PAGE,
-        limit: DEFAULT_MEDIA_LIMIT
-      })
-    })
-
-    it('returns default pagination for empty string', () => {
-      expect(parseAccountMediaPagination('')).toEqual({
-        page: 1,
-        limit: 25
-      })
-    })
-
-    it('returns default pagination when query has no page or limit', () => {
-      expect(
-        parseAccountMediaPagination('https://example.com/api/v1/accounts/media')
-      ).toEqual({
-        page: 1,
-        limit: 25
-      })
-      expect(parseAccountMediaPagination('?other=123')).toEqual({
-        page: 1,
-        limit: 25
-      })
-    })
-
-    it('handles empty parameter values by falling back to defaults', () => {
-      expect(parseAccountMediaPagination('?page=&limit=')).toEqual({
-        page: 1,
-        limit: 25
       })
     })
   })
@@ -231,67 +206,61 @@ describe('parseAccountMediaPagination', () => {
   })
 
   describe('input format compatibility', () => {
-    it('accepts a full URL string', () => {
-      const res = parseAccountMediaPagination(
-        'https://myinstance.social/api/v1/accounts/media?page=3&limit=50'
-      )
-      expect(res).toEqual({ page: 3, limit: 50 })
-    })
-
-    it('accepts a relative URL string', () => {
-      const res = parseAccountMediaPagination(
-        '/api/v1/accounts/media?page=4&limit=100'
-      )
-      expect(res).toEqual({ page: 4, limit: 100 })
-    })
-
-    it('accepts a query string with leading ?', () => {
-      const res = parseAccountMediaPagination('?page=2&limit=50')
-      expect(res).toEqual({ page: 2, limit: 50 })
-    })
-
-    it('accepts a query string without leading ?', () => {
-      const res = parseAccountMediaPagination('page=2&limit=50')
-      expect(res).toEqual({ page: 2, limit: 50 })
-    })
-
-    it('accepts a URL instance', () => {
-      const url = new URL(
-        'https://myinstance.social/api/v1/accounts/media?page=7&limit=50'
-      )
-      expect(parseAccountMediaPagination(url)).toEqual({ page: 7, limit: 50 })
-    })
-
-    it('accepts a URLSearchParams instance', () => {
-      const params = new URLSearchParams('page=8&limit=100')
-      expect(parseAccountMediaPagination(params)).toEqual({
-        page: 8,
-        limit: 100
-      })
-    })
-
-    it('accepts a Request instance', () => {
-      const request = new Request(
-        'https://myinstance.social/api/v1/accounts/media?page=9&limit=50'
-      )
-      expect(parseAccountMediaPagination(request)).toEqual({
-        page: 9,
-        limit: 50
-      })
-    })
-
-    it('accepts a NextRequest-like object with nextUrl', () => {
-      const nextRequest = {
-        nextUrl: new URL(
-          'https://myinstance.social/api/v1/accounts/media?page=6&limit=100'
-        )
+    it.each([
+      {
+        name: 'a full URL string',
+        input: () =>
+          'https://myinstance.social/api/v1/accounts/media?page=3&limit=50',
+        expected: { page: 3, limit: 50 }
+      },
+      {
+        name: 'a relative URL string',
+        input: () => '/api/v1/accounts/media?page=4&limit=100',
+        expected: { page: 4, limit: 100 }
+      },
+      {
+        name: 'a query string with leading ?',
+        input: () => '?page=2&limit=50',
+        expected: { page: 2, limit: 50 }
+      },
+      {
+        name: 'a query string without leading ?',
+        input: () => 'page=2&limit=50',
+        expected: { page: 2, limit: 50 }
+      },
+      {
+        name: 'a URL instance',
+        input: () =>
+          new URL(
+            'https://myinstance.social/api/v1/accounts/media?page=7&limit=50'
+          ),
+        expected: { page: 7, limit: 50 }
+      },
+      {
+        name: 'a URLSearchParams instance',
+        input: () => new URLSearchParams('page=8&limit=100'),
+        expected: { page: 8, limit: 100 }
+      },
+      {
+        name: 'a Request instance',
+        input: () =>
+          new Request(
+            'https://myinstance.social/api/v1/accounts/media?page=9&limit=50'
+          ),
+        expected: { page: 9, limit: 50 }
+      },
+      {
+        name: 'a NextRequest-like object with nextUrl',
+        input: () =>
+          ({
+            nextUrl: new URL(
+              'https://myinstance.social/api/v1/accounts/media?page=6&limit=100'
+            )
+          }) as unknown as Request,
+        expected: { page: 6, limit: 100 }
       }
-      expect(
-        parseAccountMediaPagination(nextRequest as unknown as Request)
-      ).toEqual({
-        page: 6,
-        limit: 100
-      })
+    ])('accepts $name', ({ input, expected }) => {
+      expect(parseAccountMediaPagination(input())).toEqual(expected)
     })
 
     it('isolates hash fragments so fragments never leak into query parameters', () => {

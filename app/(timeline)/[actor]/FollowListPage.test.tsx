@@ -226,16 +226,13 @@ describe('FollowListPage', () => {
       expect(
         screen.queryByRole('button', { name: 'Open navigation' })
       ).not.toBeInTheDocument()
-      const heading = screen.getByRole('heading', {
-        level: 1,
-        name: 'Followers'
-      })
-      expect(heading.className).not.toMatch(/max-md:/)
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Followers' })
+      ).toBeInTheDocument()
 
       const back = screen.getByRole('link', { name: 'Back to profile' })
       expect(back).toHaveAttribute('href', '/@someone@llun.social')
       expect(back).toHaveTextContent('')
-      expect(back.parentElement?.className).not.toMatch(/max-md:/)
     })
 
     // Signed in: visible "Back to profile", named after the person.

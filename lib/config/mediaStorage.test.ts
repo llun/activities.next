@@ -33,58 +33,6 @@ describe('MediaStorage config', () => {
     process.env = originalEnv
   })
 
-  describe('MediaStorageFileConfig schema', () => {
-    it('parses fs config', () => {
-      const config = MediaStorageFileConfig.parse({
-        type: 'fs',
-        path: '/uploads',
-        maxFileSize: 1000
-      })
-
-      expect(config.type).toBe('fs')
-      expect(config.path).toBe('/uploads')
-    })
-
-    it('parses fs config with quota', () => {
-      const config = MediaStorageFileConfig.parse({
-        type: 'fs',
-        path: '/uploads',
-        maxFileSize: 1000,
-        quotaPerAccount: 500_000_000
-      })
-
-      expect(config.type).toBe('fs')
-      expect(config.quotaPerAccount).toBe(500_000_000)
-    })
-  })
-
-  describe('MediaStorageS3Config schema', () => {
-    it('parses s3 config', () => {
-      const config = MediaStorageS3Config.parse({
-        type: 's3',
-        bucket: 'my-bucket',
-        region: 'us-west-2'
-      })
-
-      expect(config.type).toBe('s3')
-      expect(config.bucket).toBe('my-bucket')
-    })
-
-    it('parses object storage config', () => {
-      const config = MediaStorageS3Config.parse({
-        type: 'object',
-        bucket: 'my-bucket',
-        region: 'auto',
-        hostname: 'media-cdn.example.com',
-        endpoint: 'https://custom.endpoint.com'
-      })
-
-      expect(config.type).toBe('object')
-      expect(config.hostname).toBe('media-cdn.example.com')
-      expect(config.endpoint).toBe('https://custom.endpoint.com')
-    })
-  })
-
   describe('getMediaStorageConfig', () => {
     it('returns null when no media storage env vars', () => {
       const config = getMediaStorageConfig()

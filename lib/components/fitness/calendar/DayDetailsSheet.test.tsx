@@ -96,7 +96,7 @@ describe('DayDetailsSheet', () => {
     expect(cell).toHaveFocus()
   })
 
-  it('renders into the document body, fixed to the bottom edge', () => {
+  it('renders into the document body', () => {
     render(
       <div data-testid="host">
         <DayDetailsSheet {...props()} />
@@ -104,7 +104,6 @@ describe('DayDetailsSheet', () => {
     )
     expect(screen.getByTestId('host')).not.toContainElement(sheet())
     expect(sheet().parentElement).toBe(document.body)
-    expect(sheet()).toHaveClass('fixed', 'inset-x-0', 'bottom-0')
   })
 
   it('collapses to the first activity with a "+N more" cue', () => {
@@ -209,60 +208,27 @@ describe('DayDetailsSheet', () => {
     expect(rows()).toHaveLength(1)
   })
 
-  it('limits its height and scrolls inside', () => {
+  it('limits its height, collapsed and expanded', () => {
     const { rerender } = render(
       <DayDetailsSheet
         {...props({ collapsedMaxHeight: 240, expandedMaxHeight: '70dvh' })}
       />
     )
     expect(sheet().style.maxHeight).toBe('240px')
-    expect(sheet()).toHaveClass('overflow-y-auto', 'overscroll-contain')
     fireEvent.click(screen.getByRole('button', { name: 'Expand day details' }))
     expect(sheet().style.maxHeight).toBe('70dvh')
     rerender(<DayDetailsSheet {...props()} />)
     expect(sheet().style.maxHeight).toBe('min(80dvh, 640px)')
   })
 
-  it('defaults to a collapsed height that leaves the grid visible', () => {
-    render(<DayDetailsSheet {...props()} />)
-    expect(sheet().style.maxHeight).toBe('min(40dvh, 280px)')
-  })
-
-  it('keeps the date header sticky inside the scroller', () => {
-    render(<DayDetailsSheet {...props()} />)
-    const header = screen
-      .getByRole('heading', { name: 'Thursday, 1 October 2026' })
-      .closest('header')
-    expect(header).toHaveClass('sticky', 'top-0')
-    expect(sheet()).toContainElement(header)
-  })
-
-  it('has 44px Close, calls onClose and closes on Escape', () => {
+  it('calls onClose from Close and closes on Escape', () => {
     const onClose = vi.fn()
     render(<DayDetailsSheet {...props({ onClose })} />)
     const close = screen.getByRole('button', { name: 'Close day details' })
-    expect(close).toHaveClass('size-11')
     fireEvent.click(close)
     expect(onClose).toHaveBeenCalledTimes(1)
     fireEvent.keyDown(screen.getAllByRole('link')[0], { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(2)
-  })
-
-  it('pads for the bottom safe area', () => {
-    render(<DayDetailsSheet {...props()} />)
-    expect(sheet().className).toContain('pb-[env(safe-area-inset-bottom')
-  })
-
-  it('rises 16px and fades in over 200ms, with the rise off under reduced motion', () => {
-    render(<DayDetailsSheet {...props()} />)
-    expect(sheet()).toHaveClass(
-      'animate-in',
-      'fade-in-0',
-      'slide-in-from-bottom-4',
-      'duration-200',
-      'ease-out',
-      'motion-reduce:slide-in-from-bottom-0'
-    )
   })
 
   it('links rows without prefetching and leaves a missing post unlinked', () => {

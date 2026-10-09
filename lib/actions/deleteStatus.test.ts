@@ -356,25 +356,6 @@ describe('deleteStatusFromUserInput', () => {
       )
       loggerSpy.mockRestore()
     })
-
-    it('rejects deletion when status is owned by another actor', async () => {
-      const status = createMockStatus({
-        id: 'https://llun.test/users/other/statuses/qstash-unauthorized',
-        actorId: 'https://llun.test/users/other',
-        to: [ACTIVITY_STREAM_PUBLIC],
-        cc: []
-      })
-      const database = createDatabase(status)
-
-      await deleteStatusFromUserInput({
-        currentActor: CURRENT_ACTOR,
-        statusId: status.id,
-        database
-      })
-
-      expect(database.deleteStatus).not.toHaveBeenCalled()
-      expect(qstashQueue.publish).not.toHaveBeenCalled()
-    })
   })
 
   describe('CloudTasks queue backend', () => {

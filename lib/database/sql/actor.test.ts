@@ -395,25 +395,6 @@ describe('ActorDatabase', () => {
         })
       })
 
-      it('getActorFromId still parses with the publicId field added to ActorProfile', async () => {
-        await withFreshDatabase(async (freshDatabase) => {
-          const actorId = `https://${TEST_DOMAIN}/users/public-id-parses`
-          await freshDatabase.createActor({
-            actorId,
-            username: 'public-id-parses',
-            domain: TEST_DOMAIN,
-            followersUrl: `${actorId}/followers`,
-            inboxUrl: `${actorId}/inbox`,
-            sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
-            publicKey: 'public-key',
-            createdAt: Date.now()
-          })
-
-          const actor = await freshDatabase.getActorFromId({ id: actorId })
-          expect(actor).not.toBeNull()
-        })
-      })
-
       it('getActorFromId returns an actor with a v7 publicId threaded from the row', async () => {
         await withFreshDatabase(async (freshDatabase) => {
           const actorId = `https://${TEST_DOMAIN}/users/public-id-threaded`
@@ -549,11 +530,26 @@ describe('ActorDatabase', () => {
     })
 
     describe('deprecated actor', () => {
-      it('returns actor from id', async () => {
+      it.each([
+        [
+          'id',
+          () =>
+            database.getActorFromId({
+              id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+            })
+        ],
+        [
+          'username',
+          () =>
+            database.getActorFromUsername({
+              username: TEST_USERNAME3,
+              domain: TEST_DOMAIN
+            })
+        ],
+        ['email', () => database.getActorFromEmail({ email: TEST_EMAIL })]
+      ])('returns actor from %s', async (_, lookup) => {
         const id = `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-        const actor = await database.getActorFromId({
-          id
-        })
+        const actor = await lookup()
 
         expect(actor).toMatchObject({
           id,
@@ -564,45 +560,6 @@ describe('ActorDatabase', () => {
             email: TEST_EMAIL
           },
           followersUrl: `${id}/followers`,
-          publicKey: expect.toBeString(),
-          privateKey: expect.toBeString()
-        })
-      })
-
-      it('returns actor from username', async () => {
-        const actor = await database.getActorFromUsername({
-          username: TEST_USERNAME3,
-          domain: TEST_DOMAIN
-        })
-
-        expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
-          username: TEST_USERNAME3,
-          domain: TEST_DOMAIN,
-          account: {
-            id: expect.toBeString(),
-            email: TEST_EMAIL
-          },
-          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}/followers`,
-          publicKey: expect.toBeString(),
-          privateKey: expect.toBeString()
-        })
-      })
-
-      it('returns actor from email', async () => {
-        const actor = await database.getActorFromEmail({
-          email: TEST_EMAIL
-        })
-
-        expect(actor).toMatchObject({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
-          username: TEST_USERNAME3,
-          domain: TEST_DOMAIN,
-          account: {
-            id: expect.toBeString(),
-            email: TEST_EMAIL
-          },
-          followersUrl: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}/followers`,
           publicKey: expect.toBeString(),
           privateKey: expect.toBeString()
         })
@@ -736,10 +693,28 @@ describe('ActorDatabase', () => {
     })
 
     describe('mastodon actor', () => {
-      it('returns mastodon actor from id', async () => {
-        const actor = await database.getMastodonActorFromId({
-          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-        })
+      it.each([
+        [
+          'id',
+          () =>
+            database.getMastodonActorFromId({
+              id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+            })
+        ],
+        [
+          'username',
+          () =>
+            database.getMastodonActorFromUsername({
+              username: TEST_USERNAME3,
+              domain: TEST_DOMAIN
+            })
+        ],
+        [
+          'email',
+          () => database.getMastodonActorFromEmail({ email: TEST_EMAIL })
+        ]
+      ])('returns mastodon actor from %s', async (_, lookup) => {
+        const actor = await lookup()
 
         expect(actor).toMatchObject({
           id: await getActorPublicId(
@@ -1097,73 +1072,6 @@ describe('ActorDatabase', () => {
         })
       })
 
-      it('returns mastodon actor from username', async () => {
-        const actor = await database.getMastodonActorFromUsername({
-          username: TEST_USERNAME3,
-          domain: TEST_DOMAIN
-        })
-
-        expect(actor).toMatchObject({
-          id: await getActorPublicId(
-            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-          ),
-          username: TEST_USERNAME3,
-          acct: TEST_USERNAME3,
-          url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
-          display_name: '',
-          note: '',
-          avatar: '',
-          avatar_static: '',
-          header: '',
-          header_static: '',
-          locked: true,
-          fields: [],
-          emojis: [],
-          bot: false,
-          group: false,
-          discoverable: true,
-          noindex: false,
-          created_at: expect.toBeString(),
-          last_status_at: null,
-          statuses_count: 0,
-          followers_count: 0,
-          following_count: 0
-        })
-      })
-
-      it('returns mastodon actor from email', async () => {
-        const actor = await database.getMastodonActorFromEmail({
-          email: TEST_EMAIL
-        })
-
-        expect(actor).toMatchObject({
-          id: await getActorPublicId(
-            `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-          ),
-          username: TEST_USERNAME3,
-          acct: TEST_USERNAME3,
-          url: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`,
-          display_name: '',
-          note: '',
-          avatar: '',
-          avatar_static: '',
-          header: '',
-          header_static: '',
-          locked: true,
-          fields: [],
-          emojis: [],
-          bot: false,
-          group: false,
-          discoverable: true,
-          noindex: false,
-          created_at: expect.toBeString(),
-          last_status_at: null,
-          statuses_count: 0,
-          followers_count: 0,
-          following_count: 0
-        })
-      })
-
       it('returns local headless signer as undiscoverable bot account', async () => {
         await withFreshDatabase(async (database) => {
           const signingActor = await database.getFederationSigningActor()
@@ -1347,13 +1255,14 @@ describe('ActorDatabase', () => {
         const actor = await database.getActorFromId({
           id: EXTERNAL_ACTORS[0].id
         })
-        expect(actor).toBeDefined()
-        expect(actor?.username).toEqual(EXTERNAL_ACTORS[0].username)
-        expect(actor?.domain).toEqual(EXTERNAL_ACTORS[0].domain)
-        expect(actor?.followersUrl).toEqual(EXTERNAL_ACTORS[0].followers_url)
-        expect(actor?.inboxUrl).toEqual(EXTERNAL_ACTORS[0].inbox_url)
-        expect(actor?.sharedInboxUrl).toEqual(EXTERNAL_ACTORS[0].inbox_url)
-        expect(actor?.publicKey).toEqual('publicKey')
+        expect(actor).toMatchObject({
+          username: EXTERNAL_ACTORS[0].username,
+          domain: EXTERNAL_ACTORS[0].domain,
+          followersUrl: EXTERNAL_ACTORS[0].followers_url,
+          inboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+          sharedInboxUrl: EXTERNAL_ACTORS[0].inbox_url,
+          publicKey: 'publicKey'
+        })
       })
 
       it('creates actor without account in the database and returns mastodon actor model', async () => {

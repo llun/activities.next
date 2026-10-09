@@ -710,47 +710,191 @@ describe('next config security hardening', () => {
     )
   })
 
-  it('allows default S3 presigned upload hosts in connect-src', () => {
-    withEnv(
-      {
+  // `connect-src` must let the browser reach the configured storage origins
+  // (presigned uploads, public hostnames, custom endpoints) and nothing else.
+  it.each([
+    {
+      description: 'default S3 presigned upload hosts for media storage',
+      env: {
         ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
         ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-bucket',
         ACTIVITIES_MEDIA_STORAGE_REGION: 'eu-west-1',
         ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined
       },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).toEqual(
-          expect.arrayContaining([
-            'https://media-bucket.s3.eu-west-1.amazonaws.com',
-            'https://s3.eu-west-1.amazonaws.com'
-          ])
-        )
-      }
-    )
-  })
-
-  it('allows default S3 presigned upload hosts alongside a custom media hostname in connect-src', () => {
-    withEnv(
-      {
+      allowed: [
+        'https://media-bucket.s3.eu-west-1.amazonaws.com',
+        'https://s3.eu-west-1.amazonaws.com'
+      ],
+      blocked: []
+    },
+    {
+      description: 'default S3 hosts alongside a custom media hostname',
+      env: {
         ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
         ACTIVITIES_MEDIA_STORAGE_BUCKET: 'static.llun.social',
         ACTIVITIES_MEDIA_STORAGE_REGION: 'eu-central-1',
         ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'static.llun.social'
       },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
+      allowed: [
+        'https://static.llun.social',
+        'https://static.llun.social.s3.eu-central-1.amazonaws.com',
+        'https://s3.eu-central-1.amazonaws.com'
+      ],
+      blocked: []
+    },
+    {
+      description: 'default S3 presigned upload hosts for object media storage',
+      env: {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-2',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined
+      },
+      allowed: [
+        'https://media-object-bucket.s3.us-east-2.amazonaws.com',
+        'https://s3.us-east-2.amazonaws.com'
+      ],
+      blocked: []
+    },
+    {
+      description:
+        'object storage endpoints separately from public media hostnames',
+      env: {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'auto',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media-cdn.example.com',
+        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: 'https://storage.example.com'
+      },
+      allowed: ['https://media-cdn.example.com', 'https://storage.example.com'],
+      blocked: [
+        'https://media-object-bucket.s3.auto.amazonaws.com',
+        'https://s3.auto.amazonaws.com'
+      ]
+    },
+    {
+      description:
+        'S3 storage endpoints separately from public media hostnames',
+      env: {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media-cdn.example.com',
+        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: 'https://storage.example.com'
+      },
+      allowed: ['https://media-cdn.example.com', 'https://storage.example.com'],
+      blocked: [
+        'https://media-bucket.s3.us-east-1.amazonaws.com',
+        'https://s3.us-east-1.amazonaws.com'
+      ]
+    },
+    {
+      description:
+        'no default AWS S3 sources for auto-region object storage without an endpoint',
+      env: {
+        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
+        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
+        ACTIVITIES_MEDIA_STORAGE_REGION: 'auto',
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined,
+        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: undefined
+      },
+      allowed: [],
+      blocked: [
+        'https://media-object-bucket.s3.auto.amazonaws.com',
+        'https://s3.auto.amazonaws.com'
+      ]
+    },
+    {
+      description: 'configured fitness object storage hostname',
+      env: {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness.example.com'
+      },
+      allowed: ['https://fitness.example.com'],
+      blocked: []
+    },
+    {
+      description: 'default S3 presigned upload hosts for fitness storage',
+      env: {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-bucket',
+        ACTIVITIES_FITNESS_STORAGE_REGION: 'ap-south-1',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: undefined
+      },
+      allowed: [
+        'https://fitness-bucket.s3.ap-south-1.amazonaws.com',
+        'https://s3.ap-south-1.amazonaws.com'
+      ],
+      blocked: []
+    },
+    {
+      description: 'default S3 hosts alongside a custom fitness hostname',
+      env: {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
+        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-cdn-bucket',
+        ACTIVITIES_FITNESS_STORAGE_REGION: 'eu-central-1',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness-cdn.example.com'
+      },
+      allowed: [
+        'https://fitness-cdn.example.com',
+        'https://fitness-cdn-bucket.s3.eu-central-1.amazonaws.com',
+        'https://s3.eu-central-1.amazonaws.com'
+      ],
+      blocked: []
+    },
+    {
+      description:
+        'fitness object storage endpoints separately from public fitness hostnames',
+      env: {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-object-bucket',
+        ACTIVITIES_FITNESS_STORAGE_REGION: 'auto',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness-cdn.example.com',
+        ACTIVITIES_FITNESS_STORAGE_ENDPOINT:
+          'https://fitness-storage.example.com'
+      },
+      allowed: [
+        'https://fitness-cdn.example.com',
+        'https://fitness-storage.example.com'
+      ],
+      blocked: [
+        'https://fitness-object-bucket.s3.auto.amazonaws.com',
+        'https://s3.auto.amazonaws.com'
+      ]
+    },
+    {
+      description:
+        'default S3 presigned upload hosts for object fitness storage',
+      env: {
+        ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
+        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-object-bucket',
+        ACTIVITIES_FITNESS_STORAGE_REGION: 'ca-central-1',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: undefined
+      },
+      allowed: [
+        'https://fitness-object-bucket.s3.ca-central-1.amazonaws.com',
+        'https://s3.ca-central-1.amazonaws.com'
+      ],
+      blocked: []
+    },
+    {
+      description: 'media and fitness custom storage hostnames together',
+      env: {
+        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media.example.com',
+        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness.example.com'
+      },
+      allowed: ['https://media.example.com', 'https://fitness.example.com'],
+      blocked: []
+    }
+  ])('connect-src: $description', ({ env, allowed, blocked }) => {
+    withEnv(env, () => {
+      const connectSources = getCspDirectiveSources('connect-src')
 
-        expect(connectSources).toEqual(
-          expect.arrayContaining([
-            'https://static.llun.social',
-            'https://static.llun.social.s3.eu-central-1.amazonaws.com',
-            'https://s3.eu-central-1.amazonaws.com'
-          ])
-        )
+      expect(connectSources).toEqual(expect.arrayContaining(allowed))
+      for (const source of blocked) {
+        expect(connectSources).not.toContain(source)
       }
-    )
+    })
   })
 
   it('caches CSP for the process lifetime', () => {
@@ -770,225 +914,6 @@ describe('next config security hardening', () => {
 
         resetContentSecurityPolicyCacheForTests()
         expect(getContentSecurityPolicy()).toContain('updated-bucket')
-      }
-    )
-  })
-
-  it('allows default S3 presigned upload hosts for object media storage in connect-src', () => {
-    withEnv(
-      {
-        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
-        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
-        ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-2',
-        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined
-      },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).toEqual(
-          expect.arrayContaining([
-            'https://media-object-bucket.s3.us-east-2.amazonaws.com',
-            'https://s3.us-east-2.amazonaws.com'
-          ])
-        )
-      }
-    )
-  })
-
-  it('allows object storage endpoints separately from public media hostnames in connect-src', () => {
-    withEnv(
-      {
-        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
-        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
-        ACTIVITIES_MEDIA_STORAGE_REGION: 'auto',
-        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media-cdn.example.com',
-        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: 'https://storage.example.com'
-      },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).toEqual(
-          expect.arrayContaining([
-            'https://media-cdn.example.com',
-            'https://storage.example.com'
-          ])
-        )
-        expect(connectSources).not.toContain(
-          'https://media-object-bucket.s3.auto.amazonaws.com'
-        )
-        expect(connectSources).not.toContain('https://s3.auto.amazonaws.com')
-      }
-    )
-  })
-
-  it('allows S3 storage endpoints separately from public media hostnames in connect-src', () => {
-    withEnv(
-      {
-        ACTIVITIES_MEDIA_STORAGE_TYPE: 's3',
-        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-bucket',
-        ACTIVITIES_MEDIA_STORAGE_REGION: 'us-east-1',
-        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media-cdn.example.com',
-        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: 'https://storage.example.com'
-      },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).toEqual(
-          expect.arrayContaining([
-            'https://media-cdn.example.com',
-            'https://storage.example.com'
-          ])
-        )
-        expect(connectSources).not.toContain(
-          'https://media-bucket.s3.us-east-1.amazonaws.com'
-        )
-        expect(connectSources).not.toContain(
-          'https://s3.us-east-1.amazonaws.com'
-        )
-      }
-    )
-  })
-
-  it('does not allow default AWS S3 sources for auto-region object storage without an endpoint', () => {
-    withEnv(
-      {
-        ACTIVITIES_MEDIA_STORAGE_TYPE: 'object',
-        ACTIVITIES_MEDIA_STORAGE_BUCKET: 'media-object-bucket',
-        ACTIVITIES_MEDIA_STORAGE_REGION: 'auto',
-        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: undefined,
-        ACTIVITIES_MEDIA_STORAGE_ENDPOINT: undefined
-      },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).not.toContain(
-          'https://media-object-bucket.s3.auto.amazonaws.com'
-        )
-        expect(connectSources).not.toContain('https://s3.auto.amazonaws.com')
-      }
-    )
-  })
-
-  it('allows configured fitness object storage connections in connect-src', () => {
-    withEnv(
-      {
-        ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
-        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness.example.com'
-      },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).toContain('https://fitness.example.com')
-      }
-    )
-  })
-
-  it('allows default S3 presigned upload hosts for fitness storage in connect-src', () => {
-    withEnv(
-      {
-        ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
-        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-bucket',
-        ACTIVITIES_FITNESS_STORAGE_REGION: 'ap-south-1',
-        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: undefined
-      },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).toEqual(
-          expect.arrayContaining([
-            'https://fitness-bucket.s3.ap-south-1.amazonaws.com',
-            'https://s3.ap-south-1.amazonaws.com'
-          ])
-        )
-      }
-    )
-  })
-
-  it('allows default S3 presigned upload hosts alongside a custom fitness hostname in connect-src', () => {
-    withEnv(
-      {
-        ACTIVITIES_FITNESS_STORAGE_TYPE: 's3',
-        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-cdn-bucket',
-        ACTIVITIES_FITNESS_STORAGE_REGION: 'eu-central-1',
-        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness-cdn.example.com'
-      },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).toEqual(
-          expect.arrayContaining([
-            'https://fitness-cdn.example.com',
-            'https://fitness-cdn-bucket.s3.eu-central-1.amazonaws.com',
-            'https://s3.eu-central-1.amazonaws.com'
-          ])
-        )
-      }
-    )
-  })
-
-  it('allows fitness object storage endpoints separately from public fitness hostnames in connect-src', () => {
-    withEnv(
-      {
-        ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
-        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-object-bucket',
-        ACTIVITIES_FITNESS_STORAGE_REGION: 'auto',
-        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness-cdn.example.com',
-        ACTIVITIES_FITNESS_STORAGE_ENDPOINT:
-          'https://fitness-storage.example.com'
-      },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).toEqual(
-          expect.arrayContaining([
-            'https://fitness-cdn.example.com',
-            'https://fitness-storage.example.com'
-          ])
-        )
-        expect(connectSources).not.toContain(
-          'https://fitness-object-bucket.s3.auto.amazonaws.com'
-        )
-        expect(connectSources).not.toContain('https://s3.auto.amazonaws.com')
-      }
-    )
-  })
-
-  it('allows default S3 presigned upload hosts for object fitness storage in connect-src', () => {
-    withEnv(
-      {
-        ACTIVITIES_FITNESS_STORAGE_TYPE: 'object',
-        ACTIVITIES_FITNESS_STORAGE_BUCKET: 'fitness-object-bucket',
-        ACTIVITIES_FITNESS_STORAGE_REGION: 'ca-central-1',
-        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: undefined
-      },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).toEqual(
-          expect.arrayContaining([
-            'https://fitness-object-bucket.s3.ca-central-1.amazonaws.com',
-            'https://s3.ca-central-1.amazonaws.com'
-          ])
-        )
-      }
-    )
-  })
-
-  it('allows media and fitness custom storage hostnames in connect-src', () => {
-    withEnv(
-      {
-        ACTIVITIES_MEDIA_STORAGE_HOSTNAME: 'media.example.com',
-        ACTIVITIES_FITNESS_STORAGE_HOSTNAME: 'fitness.example.com'
-      },
-      () => {
-        const connectSources = getCspDirectiveSources('connect-src')
-
-        expect(connectSources).toEqual(
-          expect.arrayContaining([
-            'https://media.example.com',
-            'https://fitness.example.com'
-          ])
-        )
       }
     )
   })

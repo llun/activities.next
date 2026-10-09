@@ -59,15 +59,10 @@ const MASTODON_DOCUMENTED_SCOPES = [
 ]
 
 describe('OAuth Scope vocabulary', () => {
-  it('recognizes every documented Mastodon OAuth scope', () => {
-    for (const scope of MASTODON_DOCUMENTED_SCOPES) {
+  it('recognizes every documented Mastodon OAuth scope and the OpenID Connect scopes', () => {
+    for (const scope of [...MASTODON_DOCUMENTED_SCOPES, 'openid', 'email']) {
       expect(Scope.options).toContain(scope)
     }
-  })
-
-  it('also recognizes the OpenID Connect scopes', () => {
-    expect(Scope.options).toContain('openid')
-    expect(Scope.options).toContain('email')
   })
 
   it('every scope in the enum is in the documented list or is a known server extension', () => {

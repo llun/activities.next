@@ -10,13 +10,12 @@ const build = (passwordResetCode = 'code-123') =>
   })
 
 describe('buildResetPasswordEmail', () => {
-  it('keeps the subject the route already used', () => {
-    expect(build().subject).toBe('Reset your password')
-  })
-
-  it('links the reset url on the configured host', () => {
+  it('renders the subject, account footer and reset link on the configured host', () => {
     const url = `${BASE_URL}/auth/reset-password?code=code-123`
-    const { html, text } = build()
+    const { subject, html, text } = build()
+    // The subject is the one the route already used.
+    expect(subject).toBe('Reset your password')
+    expect(html).toContain('This email was sent to anna@example.com')
     expect(html).toContain(`href="${url}"`)
     expect(html).toContain('>Reset password</a>')
     expect(text).toContain(`Reset password: ${url}`)
@@ -36,9 +35,5 @@ describe('buildResetPasswordEmail', () => {
     expect(build().text).toContain(
       'If you did not request this, you can safely ignore this email. This link expires in 24 hours.'
     )
-  })
-
-  it('uses the account footer', () => {
-    expect(build().html).toContain('This email was sent to anna@example.com')
   })
 })

@@ -1,241 +1,147 @@
+import { NextRequest } from 'next/server'
+
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { getMastodonNotification } from '@/lib/services/notifications/getMastodonNotification'
 import { seedDatabase } from '@/lib/stub/database'
-import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
+import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 
-vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn().mockReturnValue({ host: 'llun.test' })
+import { POST } from './route'
+
+const mockGetServerSession = vi.fn()
+vi.mock('@/lib/services/auth/getSession', () => ({
+  getServerAuthSession: () => mockGetServerSession()
 }))
 
-/**
- * Tests for Mastodon-compatible notification endpoints
- *
- * API Reference: https://docs.joinmastodon.org/methods/notifications/
- *
- * These tests verify:
- * - GET /api/v1/notifications - Returns array of Notification
- * - GET /api/v1/notifications/:id - Returns single Notification
- * - POST /api/v1/notifications/clear - Clears all notifications, returns {}
- * - POST /api/v1/notifications/:id/dismiss - Dismisses single notification, returns {}
- * - POST /api/v1/notifications/dismiss (deprecated) - Dismisses by id in body
- */
-describe('Notification Endpoints', () => {
+let mockDatabase: ReturnType<typeof getTestSQLDatabase> | null = null
+vi.mock('@/lib/database', () => ({
+  getDatabase: () => mockDatabase
+}))
+
+vi.mock('next/headers', () => ({
+  cookies: vi.fn().mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined)
+  })
+}))
+
+vi.mock('better-auth/oauth2', () => ({
+  verifyBearerToken: vi.fn()
+}))
+
+vi.mock('@/lib/config', () => ({
+  getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getConfig: vi.fn().mockReturnValue({
+    allowEmails: [],
+    host: 'llun.test',
+    secretPhase: 'test-secret'
+  })
+}))
+
+const clear = () =>
+  POST(
+    new NextRequest('https://llun.test/api/v1/notifications/clear', {
+      method: 'POST',
+      headers: { Origin: 'https://llun.test' }
+    }),
+    { params: Promise.resolve({}) }
+  )
+
+describe('POST /api/v1/notifications/clear', () => {
   const database = getTestSQLDatabase()
+
+  const notificationsOf = (actorId: string) =>
+    database.getNotifications({
+      actorId,
+      limit: 5000,
+      includeFiltered: true
+    })
 
   beforeAll(async () => {
     await database.migrate()
     await seedDatabase(database)
+    mockDatabase = database
   })
 
   afterAll(async () => {
     if (!database) return
+    mockDatabase = null
     await database.destroy()
   })
 
-  describe('notification retrieval', () => {
-    it('returns notifications for actor', async () => {
-      // Create a notification
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    mockDatabase = database
+    mockGetServerSession.mockResolvedValue({
+      user: { email: seedActor1.email }
+    })
+    for (const n of await notificationsOf(ACTOR1_ID)) {
+      await database.deleteNotification(n.id)
+    }
+    for (const n of await notificationsOf(ACTOR2_ID)) {
+      await database.deleteNotification(n.id)
+    }
+  })
+
+  it('clears every notification of the actor, filtered ones included, and answers {}', async () => {
+    await database.createNotification({
+      actorId: ACTOR1_ID,
+      type: 'follow',
+      sourceActorId: ACTOR2_ID
+    })
+    await database.createNotification({
+      actorId: ACTOR1_ID,
+      type: 'follow',
+      sourceActorId: ACTOR2_ID,
+      filtered: true
+    })
+    expect(await notificationsOf(ACTOR1_ID)).toHaveLength(2)
+
+    const response = await clear()
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({})
+    expect(await notificationsOf(ACTOR1_ID)).toHaveLength(0)
+  })
+
+  it('leaves other actors notifications untouched', async () => {
+    await database.createNotification({
+      actorId: ACTOR1_ID,
+      type: 'follow',
+      sourceActorId: ACTOR2_ID
+    })
+    await database.createNotification({
+      actorId: ACTOR2_ID,
+      type: 'follow',
+      sourceActorId: ACTOR1_ID
+    })
+
+    const response = await clear()
+
+    expect(response.status).toBe(200)
+    expect(await notificationsOf(ACTOR1_ID)).toHaveLength(0)
+    expect(await notificationsOf(ACTOR2_ID)).toHaveLength(1)
+  })
+
+  it('clears more notifications than fit in one 1000-row batch', async () => {
+    for (let i = 0; i < 1005; i++) {
       await database.createNotification({
         actorId: ACTOR1_ID,
         type: 'follow',
         sourceActorId: ACTOR2_ID
       })
+    }
+    expect(await notificationsOf(ACTOR1_ID)).toHaveLength(1005)
 
-      const notifications = await database.getNotifications({
-        actorId: ACTOR1_ID,
-        limit: 10
-      })
+    const response = await clear()
 
-      expect(notifications).toBeArray()
-      expect(notifications.length).toBeGreaterThanOrEqual(1)
-    })
+    expect(response.status).toBe(200)
+    expect(await notificationsOf(ACTOR1_ID)).toHaveLength(0)
+  }, 60_000)
 
-    it('returns notification with correct Mastodon format', async () => {
-      // A seeded status, so the serializer's page-wide hydration has something
-      // to attach and the status half of the entity is asserted too.
-      const statusId = `${ACTOR2_ID}/statuses/post-2`
-      const statusPublicId = (
-        await database.getStatusPublicIds({ statusIds: [statusId] })
-      ).get(statusId)
-      const notification = await database.createNotification({
-        actorId: ACTOR1_ID,
-        type: 'mention',
-        sourceActorId: ACTOR2_ID,
-        statusId
-      })
+  it('answers 500 when no database is available', async () => {
+    mockDatabase = null
 
-      const mastodonNotification = await getMastodonNotification(
-        database,
-        notification,
-        { currentActorId: ACTOR1_ID }
-      )
+    const response = await clear()
 
-      expect(mastodonNotification).toMatchObject({
-        id: expect.toBeString(),
-        type: 'mention',
-        created_at: expect.toBeString(),
-        account: expect.objectContaining({
-          id: expect.toBeString(),
-          username: expect.toBeString()
-        }),
-        // `uri` stays the ActivityPub URI the notification stores; `id` is the
-        // publicId the client is given.
-        status: expect.objectContaining({
-          uri: statusId,
-          id: statusPublicId
-        })
-      })
-    })
-  })
-
-  describe('notification dismiss', () => {
-    it('deletes notification by id', async () => {
-      // Create a notification
-      const notification = await database.createNotification({
-        actorId: ACTOR1_ID,
-        type: 'like',
-        sourceActorId: ACTOR2_ID,
-        statusId: `${ACTOR1_ID}/statuses/post-1`
-      })
-
-      // Verify it exists
-      const beforeDelete = await database.getNotifications({
-        actorId: ACTOR1_ID,
-        ids: [notification.id],
-        limit: 1
-      })
-      expect(beforeDelete.length).toBe(1)
-
-      // Delete it
-      await database.deleteNotification(notification.id)
-
-      // Verify it's gone
-      const afterDelete = await database.getNotifications({
-        actorId: ACTOR1_ID,
-        ids: [notification.id],
-        limit: 1
-      })
-      expect(afterDelete.length).toBe(0)
-    })
-  })
-
-  describe('notification clear', () => {
-    it('deletes all notifications for actor', async () => {
-      // Create multiple notifications
-      for (let i = 0; i < 3; i++) {
-        await database.createNotification({
-          actorId: ACTOR1_ID,
-          type: 'follow',
-          sourceActorId: ACTOR2_ID
-        })
-      }
-
-      // Get all notifications
-      const notifications = await database.getNotifications({
-        actorId: ACTOR1_ID,
-        limit: 100
-      })
-
-      // Delete them all
-      for (const n of notifications) {
-        await database.deleteNotification(n.id)
-      }
-
-      // Verify all are gone
-      const remaining = await database.getNotifications({
-        actorId: ACTOR1_ID,
-        limit: 100
-      })
-
-      expect(remaining.length).toBe(0)
-    })
-
-    it('clear also deletes filtered notifications', async () => {
-      await database.createNotification({
-        actorId: ACTOR1_ID,
-        type: 'follow',
-        sourceActorId: ACTOR2_ID,
-        filtered: true
-      })
-
-      const before = await database.getNotifications({
-        actorId: ACTOR1_ID,
-        limit: 100,
-        includeFiltered: true
-      })
-      expect(before.some((n) => n.filtered)).toBe(true)
-
-      // Clear using includeFiltered: true (as the route does)
-      const all = await database.getNotifications({
-        actorId: ACTOR1_ID,
-        limit: 1000,
-        includeFiltered: true
-      })
-      for (const n of all) {
-        await database.deleteNotification(n.id)
-      }
-
-      const after = await database.getNotifications({
-        actorId: ACTOR1_ID,
-        limit: 100,
-        includeFiltered: true
-      })
-      expect(after.length).toBe(0)
-    })
-  })
-
-  describe('notification types', () => {
-    it('handles follow notification type', async () => {
-      const notification = await database.createNotification({
-        actorId: ACTOR1_ID,
-        type: 'follow',
-        sourceActorId: ACTOR2_ID
-      })
-
-      const mastodonNotification = await getMastodonNotification(
-        database,
-        notification,
-        { currentActorId: ACTOR1_ID }
-      )
-
-      expect(mastodonNotification?.type).toBe('follow')
-      expect(mastodonNotification?.status).toBeUndefined()
-    })
-
-    it('handles reblog notification type', async () => {
-      const notification = await database.createNotification({
-        actorId: ACTOR1_ID,
-        type: 'reblog',
-        sourceActorId: ACTOR2_ID,
-        statusId: `${ACTOR1_ID}/statuses/post-1`
-      })
-
-      const mastodonNotification = await getMastodonNotification(
-        database,
-        notification,
-        { currentActorId: ACTOR1_ID }
-      )
-
-      expect(mastodonNotification?.type).toBe('reblog')
-    })
-
-    it('handles like notification as favourite type', async () => {
-      const notification = await database.createNotification({
-        actorId: ACTOR1_ID,
-        type: 'like',
-        sourceActorId: ACTOR2_ID,
-        statusId: `${ACTOR1_ID}/statuses/post-1`
-      })
-
-      const mastodonNotification = await getMastodonNotification(
-        database,
-        notification,
-        { currentActorId: ACTOR1_ID }
-      )
-
-      // Internal 'like' type should be mapped to Mastodon 'favourite'
-      expect(mastodonNotification?.type).toBe('favourite')
-    })
+    expect(response.status).toBe(500)
   })
 })

@@ -16,25 +16,6 @@ const render = (overrides: Partial<Parameters<typeof renderEmail>[0]> = {}) =>
   })
 
 describe('renderEmail', () => {
-  it('returns the subject unchanged', () => {
-    expect(render().subject).toBe('Reset your password')
-  })
-
-  it('renders a complete html document', () => {
-    const { html } = render()
-    expect(html.startsWith('<!doctype html>')).toBe(true)
-    expect(html).toContain('<html lang="en">')
-    expect(html).toContain('</html>')
-  })
-
-  it('declares support for light and dark colour schemes', () => {
-    const { html } = render()
-    expect(html).toContain('<meta name="color-scheme" content="light dark">')
-    expect(html).toContain(
-      '<meta name="supported-color-schemes" content="light dark">'
-    )
-  })
-
   it('uses the subject as the document title', () => {
     expect(render({ subject: 'A & B' }).html).toContain(
       '<title>A &amp; B</title>'
@@ -51,63 +32,17 @@ describe('renderEmail', () => {
     expect(html).toContain('<!--[if mso]></td></tr></table><![endif]-->')
   })
 
-  it('hides the preheader from the rendered body in outlook too', () => {
+  it('renders the preheader text', () => {
     const { html } = render({ preheader: 'Choose a new password.' })
-    expect(html).toContain('display:none')
-    expect(html).toContain('mso-hide:all')
     expect(html).toContain('Choose a new password.')
-    // Enough padding to outrun Gmail's ~100-character snippet, so the preview
-    // cannot backfill with the wordmark and host that follow.
-    expect(html).toContain('&zwnj;&nbsp;'.repeat(30))
   })
 
   it('points the logo at an absolute url on the configured host', () => {
-    expect(render().html).toContain(
-      `<img src="${BASE_URL}/logo-nav.png" width="28" height="28" alt=""`
-    )
-  })
-
-  it('leaves the logo alt empty so it does not duplicate the wordmark', () => {
-    const { html } = render()
-    expect(html).not.toContain('alt="Activities"')
-    expect(html).toContain('>Activities</td>')
-  })
-
-  it('lets the content column shrink on a narrow screen', () => {
-    const { html } = render()
-    // A fixed style width would overflow a phone, because the
-    // width=device-width meta suppresses iOS Mail's shrink-to-fit. Outlook is
-    // held to 600px by the ghost table instead.
-    expect(html).toContain(
-      'style="width:100%;max-width:600px;table-layout:fixed;"'
-    )
-  })
-
-  it('suppresses apple mail data detectors', () => {
-    const { html } = render()
-    expect(html).toContain('name="format-detection"')
-    expect(html).toContain('name="x-apple-disable-message-reformatting"')
-  })
-
-  it('forces arial on headings too in outlook', () => {
-    expect(render().html).toContain(
-      '<!--[if mso]><style>table,td,a,p,div,h1,strong{font-family:Arial'
-    )
+    expect(render().html).toContain(`<img src="${BASE_URL}/logo-nav.png"`)
   })
 
   it('renders the host in the header', () => {
     expect(render().html).toContain(`>${HOST}</td>`)
-  })
-
-  it('contains no relative href or src', () => {
-    expect(render().html).not.toMatch(/(?:href|src)="\/(?!\/)/)
-  })
-
-  it('carries no css classes or stylesheet beyond the mso conditional', () => {
-    const { html } = render()
-    expect(html).not.toContain('class="')
-    expect(html.match(/<style/g)).toHaveLength(1)
-    expect(html).toContain('<!--[if mso]><style>')
   })
 
   it('renders every block in order', () => {

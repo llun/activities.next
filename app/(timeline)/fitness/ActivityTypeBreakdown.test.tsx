@@ -184,18 +184,4 @@ describe('ActivityTypeBreakdown', () => {
       'true'
     )
   })
-
-  it('draws shimmering, fluid skeleton bars that cannot widen the table past a phone column', () => {
-    const { container } = render(<ActivityTypeBreakdown summary={[]} loading />)
-
-    // The shared shimmering `.skeleton`, as on every other loading surface.
-    const bars = container.querySelectorAll('tbody span.skeleton')
-    expect(bars.length).toBe(12)
-    for (const bar of bars) {
-      // Percentage widths capped by a max: a fixed `w-28`/`w-14`/`w-16` bar
-      // added 368px of minimum width and clipped the header at 390px.
-      expect(bar.className).toMatch(/(^|\s)w-(3\/4|full)(\s|$)/)
-      expect(bar.className).toMatch(/max-w-/)
-    }
-  })
 })

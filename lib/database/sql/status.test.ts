@@ -3139,21 +3139,18 @@ describe('StatusDatabase', () => {
     })
 
     describe('getStatusReblogsCount', () => {
-      it('returns reblog count for announced status', async () => {
-        const count = await database.getStatusReblogsCount({
-          statusId: statuses.primary.postWithAttachments
-        })
-        expect(count).toBe(1)
-      })
+      it('returns reblog counts for single and multiple statuses', async () => {
+        expect(
+          await database.getStatusReblogsCount({
+            statusId: statuses.primary.postWithAttachments
+          })
+        ).toBe(1)
+        expect(
+          await database.getStatusReblogsCount({
+            statusId: statuses.primary.post
+          })
+        ).toBe(0)
 
-      it('returns zero when no reblogs exist', async () => {
-        const count = await database.getStatusReblogsCount({
-          statusId: statuses.primary.post
-        })
-        expect(count).toBe(0)
-      })
-
-      it('returns reblog counts for multiple statuses', async () => {
         const counts = await database.getStatusReblogsCounts({
           statusIds: [
             statuses.primary.postWithAttachments,
@@ -3179,21 +3176,18 @@ describe('StatusDatabase', () => {
     })
 
     describe('getStatusRepliesCount', () => {
-      it('returns reply count for status with replies', async () => {
-        const count = await database.getStatusRepliesCount({
-          statusId: statuses.primary.post
-        })
-        expect(count).toBe(2)
-      })
+      it('returns reply counts for single and multiple statuses', async () => {
+        expect(
+          await database.getStatusRepliesCount({
+            statusId: statuses.primary.post
+          })
+        ).toBe(2)
+        expect(
+          await database.getStatusRepliesCount({
+            statusId: statuses.primary.secondPost
+          })
+        ).toBe(0)
 
-      it('returns zero when status has no replies', async () => {
-        const count = await database.getStatusRepliesCount({
-          statusId: statuses.primary.secondPost
-        })
-        expect(count).toBe(0)
-      })
-
-      it('returns reply counts for multiple statuses', async () => {
         const counts = await database.getStatusRepliesCounts({
           statusIds: [statuses.primary.post, statuses.primary.secondPost]
         })
@@ -4951,28 +4945,14 @@ describe('StatusDatabase', () => {
     })
 
     describe('hashtag counters', () => {
-      it('increments and reads hashtag counter', async () => {
+      it('increments and decrements hashtag counter', async () => {
         const tag = `counter_test_${Date.now()}`
         await database.increaseHashtagCounter({ hashtag: tag })
         await database.increaseHashtagCounter({ hashtag: tag })
-        const count = await database.getHashtagCounter({ hashtag: tag })
-        expect(count).toBe(2)
-      })
+        expect(await database.getHashtagCounter({ hashtag: tag })).toBe(2)
 
-      it('decrements hashtag counter', async () => {
-        const tag = `dec_test_${Date.now()}`
-        await database.increaseHashtagCounter({ hashtag: tag })
-        await database.increaseHashtagCounter({ hashtag: tag })
         await database.decreaseHashtagCounter({ hashtag: tag })
-        const count = await database.getHashtagCounter({ hashtag: tag })
-        expect(count).toBe(1)
-      })
-
-      it('handles hashtag with # prefix', async () => {
-        const tag = `prefix_test_${Date.now()}`
-        await database.increaseHashtagCounter({ hashtag: `#${tag}` })
-        const count = await database.getHashtagCounter({ hashtag: tag })
-        expect(count).toBe(1)
+        expect(await database.getHashtagCounter({ hashtag: tag })).toBe(1)
       })
 
       it('normalizes repeated hashtag prefixes for counters', async () => {

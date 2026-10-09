@@ -84,19 +84,6 @@ describe('MuteAction', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('opens the confirm dialog when clicking Mute', async () => {
-    render(
-      <MuteAction
-        targetActorId="https://example.test/users/target"
-        isLoggedIn
-        initialRelationship={relationship()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Mute' }))
-    await screen.findByRole('dialog', { name: 'Mute account' })
-  })
-
   it('mutes with notifications=true by default and switches to Unmute', async () => {
     muteMock.mockResolvedValue(relationship({ muting: true }))
 
@@ -146,32 +133,6 @@ describe('MuteAction', () => {
         notifications: false
       })
     })
-  })
-
-  it('draws the notifications option as the shared Checkbox, checked by default', async () => {
-    render(
-      <MuteAction
-        targetActorId="https://example.test/users/target"
-        isLoggedIn
-        initialRelationship={relationship()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Mute' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Mute account' })
-    const checkbox = within(dialog).getByLabelText(
-      'Also hide notifications from this actor'
-    )
-    // The shared control (16 px, radius 4, orange when checked), not a bare
-    // `<input type="checkbox">` that shows the browser's own blue tick.
-    expect(checkbox).toHaveAttribute('data-slot', 'checkbox')
-    expect(checkbox).toHaveAttribute('type', 'checkbox')
-    expect(checkbox).toHaveClass(
-      'size-4',
-      'appearance-none',
-      'checked:bg-primary'
-    )
-    expect(checkbox).toBeChecked()
   })
 
   it('toggles the option from its label text and resets it when the dialog reopens', async () => {

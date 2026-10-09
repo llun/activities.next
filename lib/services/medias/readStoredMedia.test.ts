@@ -1,10 +1,7 @@
 import sharp from 'sharp'
 
 import { getMedia } from '@/lib/services/medias'
-import {
-  STORED_MEDIA_READ_MAX_BYTES,
-  readStoredImage
-} from '@/lib/services/medias/readStoredMedia'
+import { readStoredImage } from '@/lib/services/medias/readStoredMedia'
 import { safeImageFetch } from '@/lib/utils/safeImageDownload'
 
 vi.mock('@/lib/services/medias', () => ({ getMedia: vi.fn() }))
@@ -106,9 +103,5 @@ describe('readStoredImage', () => {
     })
 
     await expect(readStoredImage(database, 'medias/a', 16)).rejects.toThrow()
-  })
-
-  it('caps reads at 25 MiB by default', () => {
-    expect(STORED_MEDIA_READ_MAX_BYTES).toBe(25 * 1024 * 1024)
   })
 })

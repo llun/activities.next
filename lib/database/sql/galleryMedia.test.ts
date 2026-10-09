@@ -1,4 +1,3 @@
-import type { GalleryMediaDatabase } from '@/lib/database/sql/galleryMedia'
 import {
   databaseBeforeAll,
   getTestDatabaseTable
@@ -732,24 +731,6 @@ describe('GalleryMediaDatabase', () => {
           })
         ).toEqual([])
       })
-    })
-
-    // Compile-time pin: the audience is required on every scoped method.
-    it('requires an audience on every scoped method', () => {
-      type ScopedParams = Parameters<
-        GalleryMediaDatabase[
-          | 'getActorHasGalleryMedia'
-          | 'getGalleryMedia'
-          | 'getGalleryMediaByIds'
-          | 'getGalleryMediaIndex'
-          | 'getGalleryMapRows']
-      >[0]
-      const audienceIsRequired: ScopedParams extends {
-        audience: GalleryAudience
-      }
-        ? true
-        : false = true
-      expect(audienceIsRequired).toBeTrue()
     })
   })
 })

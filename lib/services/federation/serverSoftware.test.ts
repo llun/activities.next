@@ -31,177 +31,158 @@ const requestedUrls = () =>
 
 enableFetchMocks()
 
+/**
+ * Serves a two-hop NodeInfo discovery for `domain`: the well-known document
+ * pointing at `infoPath`, then the document reporting `software`. Anything else
+ * is a 404. `onWellKnown` lets a test count how often discovery restarts.
+ */
+const mockNodeInfo = (
+  domain: string,
+  software: { name: string; version?: string },
+  { infoPath = '/nodeinfo/2.0', onWellKnown = () => {} } = {}
+) => {
+  fetchMock.mockResponse(async (req) => {
+    if (req.url === `https://${domain}/.well-known/nodeinfo`) {
+      onWellKnown()
+      return {
+        status: 200,
+        body: JSON.stringify({
+          links: [
+            {
+              rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
+              href: `https://${domain}${infoPath}`
+            }
+          ]
+        })
+      }
+    }
+    if (req.url === `https://${domain}${infoPath}`) {
+      return { status: 200, body: JSON.stringify({ software }) }
+    }
+    return { status: 404, body: 'Not Found' }
+  })
+}
+
 describe('serverSoftware', () => {
   beforeEach(() => {
     fetchMock.resetMocks()
     clearServerSoftwareCache()
   })
 
-  it('detects Pixelfed instances via NodeInfo', async () => {
-    const domain = 'pixelfed.example'
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            links: [
-              {
-                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                href: `https://${domain}/api/nodeinfo/2.0.json`
-              }
-            ]
-          })
-        }
+  it.each([
+    {
+      description: 'Pixelfed',
+      domain: 'pixelfed.example',
+      software: { name: 'Pixelfed', version: '0.12.9' },
+      infoPath: '/api/nodeinfo/2.0.json',
+      actorPath: '/users/dansup',
+      expected: {
+        name: 'pixelfed',
+        version: '0.12.9',
+        pixelfed: true,
+        peertube: false,
+        misskey: false,
+        mediaOnly: true
       }
-      if (req.url === `https://${domain}/api/nodeinfo/2.0.json`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            software: {
-              name: 'Pixelfed',
-              version: '0.12.9'
-            }
-          })
-        }
+    },
+    {
+      description: 'PeerTube',
+      domain: 'peertube.example',
+      software: { name: 'peertube', version: '8.2.4' },
+      infoPath: '/nodeinfo/2.0.json',
+      actorPath: '/accounts/framasoft',
+      expected: {
+        name: 'peertube',
+        version: '8.2.4',
+        pixelfed: false,
+        peertube: true,
+        misskey: false,
+        mediaOnly: true
       }
-      return { status: 404, body: 'Not Found' }
-    })
-
-    const software = await getServerSoftware(domain)
-    expect(software).toBe('pixelfed')
-
-    const softwareInfo = await getServerSoftwareInfo(domain)
-    expect(softwareInfo).toEqual({
-      name: 'pixelfed',
-      version: '0.12.9'
-    })
-
-    const isPixelfed = await isPixelfedDomain(domain)
-    expect(isPixelfed).toBe(true)
-
-    const person = MockActivityPubPerson({
-      id: `https://${domain}/users/dansup`
-    }) as Actor
-    expect(await isPixelfedActor(person)).toBe(true)
-  })
-
-  it('detects PeerTube instances via NodeInfo', async () => {
-    const domain = 'peertube.example'
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            links: [
-              {
-                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                href: `https://${domain}/nodeinfo/2.0.json`
-              }
-            ]
-          })
-        }
+    },
+    {
+      description: 'Mastodon',
+      domain: 'mastodon.example',
+      software: { name: 'mastodon', version: '4.3.0' },
+      infoPath: '/nodeinfo/2.0',
+      actorPath: '/users/gargron',
+      expected: {
+        name: 'mastodon',
+        version: '4.3.0',
+        pixelfed: false,
+        peertube: false,
+        misskey: false,
+        mediaOnly: false
       }
-      if (req.url === `https://${domain}/nodeinfo/2.0.json`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            software: {
-              name: 'peertube',
-              version: '8.2.4'
-            }
-          })
-        }
+    },
+    {
+      description: 'Misskey',
+      domain: 'misskey.example',
+      software: { name: 'Misskey', version: '2025.4.1' },
+      infoPath: '/nodeinfo/2.0',
+      actorPath: '/users/7rkrarq81i',
+      expected: {
+        name: 'misskey',
+        version: '2025.4.1',
+        pixelfed: false,
+        peertube: false,
+        misskey: true,
+        mediaOnly: false
       }
-      return { status: 404, body: 'Not Found' }
-    })
-
-    const software = await getServerSoftware(domain)
-    expect(software).toBe('peertube')
-
-    const isPeerTube = await isPeerTubeDomain(domain)
-    expect(isPeerTube).toBe(true)
-
-    const person = MockActivityPubPerson({
-      id: `https://${domain}/accounts/framasoft`
-    }) as Actor
-    expect(await isPeerTubeActor(person)).toBe(true)
-  })
-
-  it('returns false for Mastodon or other non-Pixelfed instances', async () => {
-    const domain = 'mastodon.example'
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            links: [
-              {
-                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                href: `https://${domain}/nodeinfo/2.0`
-              }
-            ]
-          })
-        }
+    },
+    {
+      description: 'Sharkey (Misskey family)',
+      domain: 'sharkey.example',
+      software: { name: 'sharkey', version: '2024.1.0' },
+      infoPath: '/nodeinfo/2.0',
+      actorPath: '/users/someone',
+      expected: {
+        name: 'sharkey',
+        version: '2024.1.0',
+        pixelfed: false,
+        peertube: false,
+        misskey: true,
+        mediaOnly: false
       }
-      if (req.url === `https://${domain}/nodeinfo/2.0`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            software: {
-              name: 'mastodon',
-              version: '4.3.0'
-            }
-          })
-        }
+    },
+    {
+      description: 'software without a version',
+      domain: 'noversion.example',
+      software: { name: 'pleroma' },
+      infoPath: '/nodeinfo/2.0',
+      actorPath: '/users/someone',
+      expected: {
+        name: 'pleroma',
+        version: null,
+        pixelfed: false,
+        peertube: false,
+        misskey: false,
+        mediaOnly: false
       }
-      return { status: 404, body: 'Not Found' }
-    })
+    }
+  ])(
+    'classifies $description via NodeInfo',
+    async ({ domain, software, infoPath, actorPath, expected }) => {
+      mockNodeInfo(domain, software, { infoPath })
+      const person = MockActivityPubPerson({
+        id: `https://${domain}${actorPath}`
+      }) as Actor
 
-    const softwareInfo = await getServerSoftwareInfo(domain)
-    expect(softwareInfo).toEqual({
-      name: 'mastodon',
-      version: '4.3.0'
-    })
-
-    const isPixelfed = await isPixelfedDomain(domain)
-    expect(isPixelfed).toBe(false)
-  })
-
-  it('handles server software without a version', async () => {
-    const domain = 'noversion.example'
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            links: [
-              {
-                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                href: `https://${domain}/nodeinfo/2.0`
-              }
-            ]
-          })
-        }
-      }
-      if (req.url === `https://${domain}/nodeinfo/2.0`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            software: {
-              name: 'pleroma'
-            }
-          })
-        }
-      }
-      return { status: 404, body: 'Not Found' }
-    })
-
-    const softwareInfo = await getServerSoftwareInfo(domain)
-    expect(softwareInfo).toEqual({
-      name: 'pleroma',
-      version: null
-    })
-  })
+      expect(await getServerSoftware(domain)).toBe(expected.name)
+      expect(await getServerSoftwareInfo(domain)).toEqual({
+        name: expected.name,
+        version: expected.version
+      })
+      expect(await isPixelfedDomain(domain)).toBe(expected.pixelfed)
+      expect(await isPixelfedActor(person)).toBe(expected.pixelfed)
+      expect(await isPeerTubeDomain(domain)).toBe(expected.peertube)
+      expect(await isPeerTubeActor(person)).toBe(expected.peertube)
+      expect(await isMisskeyDomain(domain)).toBe(expected.misskey)
+      expect(await isMisskeyActor(person)).toBe(expected.misskey)
+      expect(await isMediaOnlyDomain(domain)).toBe(expected.mediaOnly)
+      expect(await isMediaOnlyActor(person)).toBe(expected.mediaOnly)
+    }
+  )
 
   it('handles 404 on NodeInfo gracefully and caches negative result', async () => {
     const domain = 'unreachable.example'
@@ -251,29 +232,16 @@ describe('serverSoftware', () => {
     try {
       const domain = 'pixelfed.example'
       let wellKnownFetches = 0
-      fetchMock.mockResponse(async (req) => {
-        if (req.url === `https://${domain}/.well-known/nodeinfo`) {
-          wellKnownFetches += 1
-          return {
-            status: 200,
-            body: JSON.stringify({
-              links: [
-                {
-                  rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                  href: `https://${domain}/api/nodeinfo/2.0.json`
-                }
-              ]
-            })
+      mockNodeInfo(
+        domain,
+        { name: 'Pixelfed' },
+        {
+          infoPath: '/api/nodeinfo/2.0.json',
+          onWellKnown: () => {
+            wellKnownFetches += 1
           }
         }
-        if (req.url === `https://${domain}/api/nodeinfo/2.0.json`) {
-          return {
-            status: 200,
-            body: JSON.stringify({ software: { name: 'Pixelfed' } })
-          }
-        }
-        return { status: 404, body: 'Not Found' }
-      })
+      )
 
       expect(await getServerSoftware(domain)).toBe('pixelfed')
       expect(wellKnownFetches).toBe(1)
@@ -370,218 +338,5 @@ describe('serverSoftware', () => {
     }
 
     expect(getServerSoftwareCacheSizeForTests()).toBe(MAX_CACHED_DOMAINS)
-  })
-
-  it('detects Misskey and fork instances via NodeInfo', async () => {
-    const domain = 'misskey.example'
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === `https://${domain}/.well-known/nodeinfo`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            links: [
-              {
-                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                href: `https://${domain}/nodeinfo/2.0`
-              }
-            ]
-          })
-        }
-      }
-      if (req.url === `https://${domain}/nodeinfo/2.0`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            software: {
-              name: 'Misskey',
-              version: '2025.4.1'
-            }
-          })
-        }
-      }
-      return { status: 404, body: 'Not Found' }
-    })
-
-    expect(await isMisskeyDomain(domain)).toBe(true)
-    const person = MockActivityPubPerson({
-      id: `https://${domain}/users/7rkrarq81i`
-    }) as Actor
-    expect(await isMisskeyActor(person)).toBe(true)
-  })
-
-  it('detects Sharkey and Firefish as Misskey family', async () => {
-    const sharkeyDomain = 'sharkey.example'
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === `https://${sharkeyDomain}/.well-known/nodeinfo`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            links: [
-              {
-                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                href: `https://${sharkeyDomain}/nodeinfo/2.0`
-              }
-            ]
-          })
-        }
-      }
-      if (req.url === `https://${sharkeyDomain}/nodeinfo/2.0`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            software: {
-              name: 'sharkey',
-              version: '2024.1.0'
-            }
-          })
-        }
-      }
-      return { status: 404, body: 'Not Found' }
-    })
-
-    expect(await isMisskeyDomain(sharkeyDomain)).toBe(true)
-  })
-
-  it('returns false for non-Misskey software in isMisskeyDomain', async () => {
-    const mastodonDomain = 'mastodon.example'
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === `https://${mastodonDomain}/.well-known/nodeinfo`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            links: [
-              {
-                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                href: `https://${mastodonDomain}/nodeinfo/2.0`
-              }
-            ]
-          })
-        }
-      }
-      if (req.url === `https://${mastodonDomain}/nodeinfo/2.0`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            software: {
-              name: 'mastodon',
-              version: '4.3.0'
-            }
-          })
-        }
-      }
-      return { status: 404, body: 'Not Found' }
-    })
-
-    expect(await isMisskeyDomain(mastodonDomain)).toBe(false)
-  })
-
-  it('detects PeerTube instances correctly with isPeerTubeDomain and isPeerTubeActor', async () => {
-    const peertubeDomain = 'framatube.org'
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === `https://${peertubeDomain}/.well-known/nodeinfo`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            links: [
-              {
-                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                href: `https://${peertubeDomain}/nodeinfo/2.0`
-              }
-            ]
-          })
-        }
-      }
-      if (req.url === `https://${peertubeDomain}/nodeinfo/2.0`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            software: {
-              name: 'peertube',
-              version: '6.0.0'
-            }
-          })
-        }
-      }
-      return { status: 404, body: 'Not Found' }
-    })
-
-    expect(await isPeerTubeDomain(peertubeDomain)).toBe(true)
-    const person = MockActivityPubPerson({
-      id: `https://${peertubeDomain}/accounts/framasoft`
-    }) as Actor
-    expect(await isPeerTubeActor(person)).toBe(true)
-    expect(await isMediaOnlyDomain(peertubeDomain)).toBe(true)
-    expect(await isMediaOnlyActor(person)).toBe(true)
-  })
-
-  it('detects Pixelfed instances as media-only with isMediaOnlyDomain and isMediaOnlyActor', async () => {
-    const pixelfedDomain = 'pixelfed.social'
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === `https://${pixelfedDomain}/.well-known/nodeinfo`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            links: [
-              {
-                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                href: `https://${pixelfedDomain}/nodeinfo/2.0`
-              }
-            ]
-          })
-        }
-      }
-      if (req.url === `https://${pixelfedDomain}/nodeinfo/2.0`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            software: {
-              name: 'pixelfed',
-              version: '0.12.9'
-            }
-          })
-        }
-      }
-      return { status: 404, body: 'Not Found' }
-    })
-
-    expect(await isMediaOnlyDomain(pixelfedDomain)).toBe(true)
-    const person = MockActivityPubPerson({
-      id: `https://${pixelfedDomain}/users/gargron`
-    }) as Actor
-    expect(await isMediaOnlyActor(person)).toBe(true)
-  })
-
-  it('returns false for general microblogging platforms in isMediaOnlyDomain', async () => {
-    const mastodonDomain = 'mastodon.social'
-    fetchMock.mockResponse(async (req) => {
-      if (req.url === `https://${mastodonDomain}/.well-known/nodeinfo`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            links: [
-              {
-                rel: 'http://nodeinfo.diaspora.software/ns/schema/2.0',
-                href: `https://${mastodonDomain}/nodeinfo/2.0`
-              }
-            ]
-          })
-        }
-      }
-      if (req.url === `https://${mastodonDomain}/nodeinfo/2.0`) {
-        return {
-          status: 200,
-          body: JSON.stringify({
-            software: {
-              name: 'mastodon',
-              version: '4.3.0'
-            }
-          })
-        }
-      }
-      return { status: 404, body: 'Not Found' }
-    })
-
-    expect(await isPeerTubeDomain(mastodonDomain)).toBe(false)
-    expect(await isMediaOnlyDomain(mastodonDomain)).toBe(false)
   })
 })

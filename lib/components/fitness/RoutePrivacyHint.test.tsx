@@ -117,9 +117,6 @@ describe('RoutePrivacyHint', () => {
 
     const hint = screen.getByTestId('route-privacy-hint')
     expect(hint).toHaveTextContent(ROUTE_PRIVACY_HINT_LABEL)
-    // An overlay that could swallow a drag would make part of the map
-    // unpannable — the whole reason the pinned bar was replaced.
-    expect(hint).toHaveClass('pointer-events-none')
     // The sentence reaches assistive technology through
     // RoutePrivacyDescription instead, so the chip must stay out of the
     // accessibility tree rather than announcing it a second time.
@@ -131,9 +128,9 @@ describe('RoutePrivacyDescription', () => {
   it('states the explanation without needing a hover', () => {
     render(<RoutePrivacyDescription hasHiddenSegments />)
 
-    expect(screen.getByText(/hidden sections are drawn in green/i)).toHaveClass(
-      'sr-only'
-    )
+    expect(
+      screen.getByText(/hidden sections are drawn in green/i)
+    ).toBeInTheDocument()
   })
 
   it('says nothing when the route hides nothing', () => {

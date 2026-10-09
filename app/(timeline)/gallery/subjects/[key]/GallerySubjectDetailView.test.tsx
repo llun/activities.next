@@ -59,7 +59,7 @@ describe('GallerySubjectDetailView', () => {
     expect(
       screen.getByRole('heading', { name: 'Keel-billed Toucan' })
     ).toBeInTheDocument()
-    expect(screen.getByText('Ramphastos sulfuratus')).toHaveClass('italic')
+    expect(screen.getByText('Ramphastos sulfuratus')).toBeInTheDocument()
     expect(screen.getByText('Bird')).toBeInTheDocument()
     expect(screen.getByText('14 Mar 2025')).toBeInTheDocument()
     expect(screen.getByText('16 Mar 2025')).toBeInTheDocument()

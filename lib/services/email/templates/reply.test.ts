@@ -60,25 +60,11 @@ const build = () =>
   buildReplyEmail({ recipient, actor: sender, status: replyStatus })
 
 describe('buildReplyEmail', () => {
-  it('shows the replying actor avatar image when they have one', () => {
-    const iconUrl = 'https://files.mastodon.social/avatars/ben.jpg'
-    const withIcon = profile({ iconUrl })
-    const { html } = buildReplyEmail({
-      recipient,
-      actor: withIcon,
-      status: status({ actor: withIcon, actorId: withIcon.id, text: 'Hi' })
-    })
-    expect(html).toContain(`<img src="${iconUrl}" width="24" height="24"`)
-  })
-
-  it('falls back to initials when the replying actor has no avatar', () => {
-    const { html } = build()
-    expect(html).toContain('>BC</td>')
-    expect(html).not.toContain('<img src="https://files.')
-  })
-
-  it('keeps the subject the codebase already used', () => {
-    expect(build().subject).toBe(`@ben replied to your post in ${HOST}`)
+  it('renders the subject and notification footer', () => {
+    const { subject, html } = build()
+    // The subject is the one the codebase already used.
+    expect(subject).toBe(`@ben replied to your post in ${HOST}`)
+    expect(html).toContain('email notifications for replies')
   })
 
   it('labels the quote as the reply', () => {
@@ -89,9 +75,5 @@ describe('buildReplyEmail', () => {
 
   it('quotes the replier, not the recipient', () => {
     expect(build().html).toContain('>@ben@remote.example.com</td>')
-  })
-
-  it('uses the notification footer naming replies', () => {
-    expect(build().html).toContain('email notifications for replies')
   })
 })

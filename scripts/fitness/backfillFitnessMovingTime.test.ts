@@ -1,6 +1,15 @@
-import { parseArgs } from './backfillFitnessMovingTime'
+import { parseArgs as parseMovingTimeArgs } from './backfillFitnessMovingTime'
+import { parseArgs as parseSummaryMetricsArgs } from './backfillFitnessSummaryMetrics'
 
-describe('backfillFitnessMovingTime parseArgs', () => {
+// Each backfill script owns its own copy of `parseArgs`, so both are held to
+// the same contract here.
+describe.each([
+  { script: 'backfillFitnessMovingTime', parseArgs: parseMovingTimeArgs },
+  {
+    script: 'backfillFitnessSummaryMetrics',
+    parseArgs: parseSummaryMetricsArgs
+  }
+])('$script parseArgs', ({ parseArgs }) => {
   it('requires an actor id', () => {
     expect(() => parseArgs([])).toThrow()
   })

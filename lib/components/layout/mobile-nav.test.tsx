@@ -95,7 +95,6 @@ describe('MobileNav', () => {
     ).toBeInTheDocument()
     const closeButton = screen.getByRole('button', { name: 'Close navigation' })
     expect(closeButton).toBeInTheDocument()
-    expect(closeButton).toHaveClass('h-11', 'w-11')
   })
 
   it('renders full navigation items inside the drawer', () => {

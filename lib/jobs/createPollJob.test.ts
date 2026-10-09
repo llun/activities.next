@@ -132,7 +132,6 @@ describe('createPollJob', () => {
     })
 
     const status = await database.getStatus({ statusId: question.id })
-    expect(status).toBeDefined()
     expect(status?.id).toEqual(question.id)
     expect(status?.type).toEqual(StatusType.enum.Poll)
     expect(status?.actorId).toEqual(question.attributedTo)
@@ -243,9 +242,18 @@ describe('createPollJob', () => {
     ).resolves.toBeNull()
   })
 
-  it('creates poll with oneOf choices', async () => {
+  it.each([
+    {
+      pollType: 'oneOf',
+      titles: ['Option A', 'Option B']
+    },
+    {
+      pollType: 'anyOf',
+      titles: ['Choice 1', 'Choice 2', 'Choice 3']
+    }
+  ])('creates poll with $pollType choices', async ({ pollType, titles }) => {
     const question = MockActivityPubQuestion({
-      oneOf: [createOption('Option A'), createOption('Option B')]
+      [pollType]: titles.map(createOption)
     })
     await createPollJob(database, {
       id: 'id',
@@ -257,32 +265,8 @@ describe('createPollJob', () => {
     if (status?.type !== StatusType.enum.Poll) {
       fail('Status type must be Poll')
     }
-    expect(status.choices).toHaveLength(2)
-    expect(status.choices[0].title).toEqual('Option A')
-    expect(status.choices[1].title).toEqual('Option B')
-    expect(status.pollType).toEqual('oneOf')
-  })
-
-  it('creates poll with anyOf choices', async () => {
-    const question = MockActivityPubQuestion({
-      anyOf: [
-        createOption('Choice 1'),
-        createOption('Choice 2'),
-        createOption('Choice 3')
-      ]
-    })
-    await createPollJob(database, {
-      id: 'id',
-      name: CREATE_POLL_JOB_NAME,
-      data: question
-    })
-
-    const status = await database.getStatus({ statusId: question.id })
-    if (status?.type !== StatusType.enum.Poll) {
-      fail('Status type must be Poll')
-    }
-    expect(status.choices).toHaveLength(3)
-    expect(status.pollType).toEqual('anyOf')
+    expect(status.pollType).toEqual(pollType)
+    expect(status.choices.map((choice) => choice.title)).toEqual(titles)
   })
 
   it('does not add duplicate poll into database', async () => {
@@ -319,29 +303,15 @@ describe('createPollJob', () => {
     expect(actor?.id).toEqual(REMOTE_ACTOR_ID)
   })
 
-  it('creates poll with summary (content warning)', async () => {
-    const question = MockActivityPubQuestion({
-      summary: 'CW: Sensitive topic',
-      content: '<p>What do you think about this?</p>'
-    })
-    await createPollJob(database, {
-      id: 'id',
-      name: CREATE_POLL_JOB_NAME,
-      data: question
-    })
-
-    const status = await database.getStatus({ statusId: question.id })
-    if (status?.type !== StatusType.enum.Poll) {
-      fail('Status type must be Poll')
-    }
-    expect(status.summary).toEqual('CW: Sensitive topic')
-  })
-
-  it('creates poll with end time', async () => {
+  it('maps the optional Question fields (summary, endTime, inReplyTo)', async () => {
     // Use a timestamp without milliseconds since ISO format truncates them
     const endTime = Math.floor((Date.now() + 48 * 60 * 60 * 1000) / 1000) * 1000
+    const replyToId = `${actor1?.id}/statuses/post-1`
     const question = MockActivityPubQuestion({
-      endTime
+      summary: 'CW: Sensitive topic',
+      content: '<p>What do you think about this?</p>',
+      endTime,
+      inReplyTo: replyToId
     })
     await createPollJob(database, {
       id: 'id',
@@ -350,10 +320,12 @@ describe('createPollJob', () => {
     })
 
     const status = await database.getStatus({ statusId: question.id })
-    if (status?.type !== StatusType.enum.Poll) {
-      fail('Status type must be Poll')
-    }
-    expect(status.endAt).toEqual(endTime)
+    expect(status).toMatchObject({
+      type: StatusType.enum.Poll,
+      summary: 'CW: Sensitive topic',
+      endAt: endTime,
+      reply: replyToId
+    })
   })
 
   it('creates poll with emoji tags', async () => {
@@ -379,7 +351,6 @@ describe('createPollJob', () => {
     const status = (await database.getStatus({
       statusId: question.id
     })) as StatusPoll
-    expect(status).toBeDefined()
     expect(status?.tags).toContainEqual(
       expect.objectContaining({
         name: ':smile:',
@@ -407,7 +378,6 @@ describe('createPollJob', () => {
     const status = (await database.getStatus({
       statusId: question.id
     })) as StatusPoll
-    expect(status).toBeDefined()
     expect(status?.tags).toContainEqual(
       expect.objectContaining({
         name: '@user@example.com',
@@ -543,24 +513,6 @@ describe('createPollJob', () => {
     }
   })
 
-  it('handles poll as reply', async () => {
-    const replyToId = `${actor1?.id}/statuses/post-1`
-    const question = MockActivityPubQuestion({
-      inReplyTo: replyToId
-    })
-    await createPollJob(database, {
-      id: 'id',
-      name: CREATE_POLL_JOB_NAME,
-      data: question
-    })
-
-    const status = await database.getStatus({ statusId: question.id })
-    if (status?.type !== StatusType.enum.Poll) {
-      fail('Status type must be Poll')
-    }
-    expect(status.reply).toEqual(replyToId)
-  })
-
   it('handles to/cc as single strings', async () => {
     const question = {
       ...MockActivityPubQuestion(),
@@ -574,7 +526,6 @@ describe('createPollJob', () => {
     })
 
     const status = await database.getStatus({ statusId: question.id })
-    expect(status).toBeDefined()
     expect(status?.to).toEqual([ACTIVITY_STREAM_PUBLIC])
     expect(status?.cc).toEqual([`${REMOTE_ACTOR_ID}/followers`])
   })
@@ -590,9 +541,10 @@ describe('createPollJob', () => {
       data: notAQuestion
     })
 
-    const status = await database.getStatus({ statusId: notAQuestion.id })
-    // Should not be created as a poll since type is Note
-    expect(status?.type).not.toEqual(StatusType.enum.Poll)
+    // Nothing is stored: the job only creates a status for a Question
+    await expect(
+      database.getStatus({ statusId: notAQuestion.id })
+    ).resolves.toBeNull()
   })
 
   it('creates poll without tag field', async () => {
@@ -629,7 +581,6 @@ describe('createPollJob', () => {
     })
 
     const status = await database.getStatus({ statusId: questionWithoutTag.id })
-    expect(status).toBeDefined()
     expect(status?.type).toEqual(StatusType.enum.Poll)
     if (status?.type !== StatusType.enum.Poll) {
       fail('Status type must be Poll')
@@ -682,7 +633,6 @@ describe('createPollJob', () => {
     const status = await database.getStatus({
       statusId: questionWithVotes.id
     })
-    expect(status).toBeDefined()
     expect(status?.type).toEqual(StatusType.enum.Poll)
     if (status?.type !== StatusType.enum.Poll) {
       fail('Status type must be Poll')

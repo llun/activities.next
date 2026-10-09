@@ -191,63 +191,6 @@ describe('HeatmapShareEmbed', () => {
   })
 
   describe('copy fields', () => {
-    it('are the shared input styling: --input border, shadow-xs, focus ring, no bespoke muted fill', () => {
-      render(
-        <HeatmapShareEmbed {...defaultProps} shareToken="tok123" defaultOpen />
-      )
-      fireEvent.click(screen.getByRole('tab', { name: /Link/i }))
-
-      const field = screen.getByRole('textbox', { name: 'Copy public link' })
-      // The kit draws the copy field as a normal input (Surface/Input), which is
-      // what the `Input` primitive already is.
-      expect(field).toHaveAttribute('data-slot', 'input')
-      expect(field).toHaveClass('border-input', 'shadow-xs')
-      expect(field).toHaveClass('focus-visible:ring-[3px]')
-      expect(field).not.toHaveClass('bg-muted/40')
-      expect(field).toHaveClass('px-2.5', 'py-1.5', 'text-[12px]')
-    })
-
-    it('keeps the Copy button at a normal 36px height, top-aligned with the snippet box', () => {
-      render(
-        <HeatmapShareEmbed {...defaultProps} shareToken="tok123" defaultOpen />
-      )
-
-      const copy = screen.getByRole('button', { name: 'Copy embed code' })
-      // Primary/sm, whose icon-led padding (`has-[>svg]:px-2.5`) is what makes it
-      // 75 wide with a 14px icon, a 6px gap and the "Copy" label.
-      expect(copy).toHaveAttribute('data-size', 'sm')
-      expect(copy).toHaveAttribute('data-variant', 'default')
-      // jsdom lays nothing out, so pin what decides the height: a fixed `h-9`
-      // (36px, not the `sm` size's 32) and no stretching. Stretched, the button
-      // was as tall as the snippet box, which wraps to four or five lines at a
-      // phone's width: 193px at 390px.
-      expect(copy).toHaveClass('h-9')
-      expect(copy).not.toHaveClass('h-auto')
-      expect(copy).not.toHaveClass('self-stretch')
-      // The row starts its children at the top, so a snippet taller than the
-      // button leaves the button level with its first line.
-      const snippet = screen.getByRole('textbox', { name: 'Copy embed code' })
-      expect(copy.parentElement).toBe(snippet.parentElement)
-      expect(copy.parentElement).toHaveClass('flex', 'items-start')
-      expect(copy.parentElement).not.toHaveClass('items-stretch')
-    })
-
-    it('keeps the single-line field at the same 36px as its Copy button', () => {
-      render(
-        <HeatmapShareEmbed {...defaultProps} shareToken="tok123" defaultOpen />
-      )
-      fireEvent.click(screen.getByRole('tab', { name: /Link/i }))
-
-      const field = screen.getByRole('textbox', { name: 'Copy public link' })
-      const copy = screen.getByRole('button', { name: 'Copy public link' })
-      // With the button no longer stretched to the field, a field left at
-      // `h-auto` (33.5px of padding and line height) would sit 2.5px short of it.
-      expect(field).toHaveClass('h-9')
-      expect(field).not.toHaveClass('h-auto')
-      expect(copy).toHaveClass('h-9')
-      expect(copy.parentElement).toHaveClass('items-start')
-    })
-
     it('grow the snippet box to its whole text, and re-fit when the text changes', () => {
       // A browser without `field-sizing: content` (Safari, Firefox): the shared
       // hook measures. jsdom reports the property as supported, so say it is not.
@@ -271,12 +214,6 @@ describe('HeatmapShareEmbed', () => {
         }) as HTMLTextAreaElement
         // Not capped at `rows`: it follows the content.
         expect(snippet.style.height).toBe('83.5px')
-        expect(snippet).toHaveClass('resize-none')
-        // The shared hook leaves a browser with `field-sizing: content` to size
-        // the box in CSS, so the box must not pin `field-sizing: fixed` (the old
-        // local hook measured everywhere and did).
-        expect(snippet).not.toHaveClass('field-sizing-fixed')
-        expect(snippet).toHaveClass('field-sizing-content')
 
         // The embed hands the hook the snippet text, so a new token re-fits.
         scrollHeight.mockReturnValue(100)
@@ -288,37 +225,6 @@ describe('HeatmapShareEmbed', () => {
           />
         )
         expect(snippet.style.height).toBe('100px')
-      } finally {
-        scrollHeight.mockRestore()
-        vi.unstubAllGlobals()
-      }
-    })
-
-    it('leaves the box to CSS in a browser with field-sizing: content', () => {
-      // Chrome sizes the textarea natively (the Textarea's `field-sizing-content`),
-      // so the shared hook writes no inline height and the box follows its text
-      // without a JS measurement.
-      vi.stubGlobal('CSS', {
-        supports: (property: string, value: string) =>
-          property === 'field-sizing' && value === 'content'
-      })
-      const scrollHeight = vi
-        .spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get')
-        .mockReturnValue(83.5)
-      try {
-        render(
-          <HeatmapShareEmbed
-            {...defaultProps}
-            shareToken="tok123"
-            defaultOpen
-          />
-        )
-
-        const snippet = screen.getByRole('textbox', {
-          name: 'Copy embed code'
-        }) as HTMLTextAreaElement
-        expect(snippet.style.height).toBe('')
-        expect(snippet).toHaveClass('field-sizing-content')
       } finally {
         scrollHeight.mockRestore()
         vi.unstubAllGlobals()

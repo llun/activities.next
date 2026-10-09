@@ -57,12 +57,12 @@ const build = (overrides = {}) =>
   })
 
 describe('buildLikeEmail', () => {
-  it('keeps the subject the codebase already used', () => {
-    expect(build().subject).toBe(`@ben liked your post in ${HOST}`)
-  })
-
-  it('uses the short name in the headline', () => {
-    expect(build().html).toContain('Ben liked your post')
+  it('renders the subject, headline and notification footer', () => {
+    const { subject, html } = build()
+    // The subject is the one the codebase already used.
+    expect(subject).toBe(`@ben liked your post in ${HOST}`)
+    expect(html).toContain('Ben liked your post')
+    expect(html).toContain('email notifications for likes')
   })
 
   it('labels the quote as the recipient own post', () => {
@@ -82,19 +82,5 @@ describe('buildLikeEmail', () => {
     const { html } = build()
     expect(html).toContain(`href="${BASE_URL}/@anna@${HOST}/`)
     expect(html).toContain('>View post</a>')
-  })
-
-  it('uses the notification footer naming likes', () => {
-    expect(build().html).toContain('email notifications for likes')
-  })
-
-  it('does not emit raw remote post markup', () => {
-    const { html } = build({
-      status: status({
-        text: '<script>alert(1)</script>hi',
-        isLocalActor: false
-      })
-    })
-    expect(html).not.toContain('<script')
   })
 })

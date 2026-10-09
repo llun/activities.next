@@ -62,123 +62,97 @@ describe('composerValidation', () => {
   })
 
   describe('hasNewPostContent', () => {
-    it('returns false for blank or whitespace-only content without attachments', () => {
-      expect(hasNewPostContent('', { attachments: [] }, 500)).toBe(false)
-      expect(hasNewPostContent('   \n\t  ', { attachments: [] }, 500)).toBe(
-        false
-      )
-    })
+    const overLimitText = 'a'.repeat(501)
 
-    it('returns true for non-empty text within limit', () => {
-      expect(hasNewPostContent('Hello world', { attachments: [] }, 500)).toBe(
+    it.each([
+      ['empty text, no attachments', '', { attachments: [] }, false],
+      [
+        'whitespace-only text, no attachments',
+        '   \n\t  ',
+        { attachments: [] },
+        false
+      ],
+      ['non-empty text within limit', 'Hello world', { attachments: [] }, true],
+      ['text over the limit', overLimitText, { attachments: [] }, false],
+      [
+        'empty text with a media attachment',
+        '',
+        { attachments: [sampleAttachment] },
         true
-      )
-    })
-
-    it('returns false when text exceeds character limit', () => {
-      const overLimitText = 'a'.repeat(501)
-      expect(hasNewPostContent(overLimitText, { attachments: [] }, 500)).toBe(
+      ],
+      [
+        'whitespace text with a media attachment',
+        '   ',
+        { attachments: [sampleAttachment] },
+        true
+      ],
+      [
+        'empty text with a fitness file',
+        '',
+        { attachments: [], fitnessFile: {} },
+        true
+      ],
+      [
+        'media attached but text over the limit',
+        overLimitText,
+        { attachments: [sampleAttachment] },
         false
-      )
-    })
-
-    it('returns true for blank text when media attachments are present', () => {
-      expect(
-        hasNewPostContent('', { attachments: [sampleAttachment] }, 500)
-      ).toBe(true)
-      expect(
-        hasNewPostContent('   ', { attachments: [sampleAttachment] }, 500)
-      ).toBe(true)
-    })
-
-    it('returns true for blank text when a fitness file is attached', () => {
-      expect(
-        hasNewPostContent('', { attachments: [], fitnessFile: {} }, 500)
-      ).toBe(true)
-    })
-
-    it('returns false when media is attached but text exceeds limit', () => {
-      const overLimitText = 'a'.repeat(501)
-      expect(
-        hasNewPostContent(
-          overLimitText,
-          { attachments: [sampleAttachment] },
-          500
-        )
-      ).toBe(false)
+      ]
+    ])('%s -> %s', (_case, text, attachments, expected) => {
+      expect(hasNewPostContent(text, attachments, 500)).toBe(expected)
     })
   })
 
   describe('hasEditPostContent', () => {
-    it('returns false when text is blank and no attachments or preserved attachments exist', () => {
-      const emptyStatus: EditableStatus = {
-        ...baseEditableStatus,
-        attachments: []
-      }
-      expect(
-        hasEditPostContent(emptyStatus, '', { attachments: [] }, 500)
-      ).toBe(false)
-      expect(
-        hasEditPostContent(emptyStatus, '   ', { attachments: [] }, 500)
-      ).toBe(false)
-    })
+    const emptyStatus: EditableStatus = {
+      ...baseEditableStatus,
+      attachments: []
+    }
+    const preservedAttachment: Attachment = {
+      id: 'att-preserved',
+      actorId: 'actor-1',
+      statusId: 'status-1',
+      type: 'Document',
+      mediaType: 'application/vnd.antigravity.fitness+json',
+      url: 'https://activities.local/run.fit',
+      name: 'Run',
+      createdAt: 1000,
+      updatedAt: 1000
+    }
+    const statusWithPreserved: EditableStatus = {
+      ...baseEditableStatus,
+      attachments: [preservedAttachment]
+    }
 
-    it('returns true when text is within limit', () => {
-      expect(
-        hasEditPostContent(
-          baseEditableStatus,
-          'Updated text',
-          { attachments: [] },
-          500
-        )
-      ).toBe(true)
-    })
-
-    it('returns false when text exceeds character limit', () => {
-      expect(
-        hasEditPostContent(
-          baseEditableStatus,
-          'a'.repeat(501),
-          { attachments: [sampleAttachment] },
-          500
-        )
-      ).toBe(false)
-    })
-
-    it('returns true for blank text if new attachments are present', () => {
-      const emptyStatus: EditableStatus = {
-        ...baseEditableStatus,
-        attachments: []
-      }
-      expect(
-        hasEditPostContent(
-          emptyStatus,
-          '',
-          { attachments: [sampleAttachment] },
-          500
-        )
-      ).toBe(true)
-    })
-
-    it('returns true for blank text if status has preserved attachments', () => {
-      const preservedAttachment: Attachment = {
-        id: 'att-preserved',
-        actorId: 'actor-1',
-        statusId: 'status-1',
-        type: 'Document',
-        mediaType: 'application/vnd.antigravity.fitness+json',
-        url: 'https://activities.local/run.fit',
-        name: 'Run',
-        createdAt: 1000,
-        updatedAt: 1000
-      }
-      const statusWithPreserved: EditableStatus = {
-        ...baseEditableStatus,
-        attachments: [preservedAttachment]
-      }
-      expect(
-        hasEditPostContent(statusWithPreserved, '', { attachments: [] }, 500)
-      ).toBe(true)
+    it.each([
+      ['blank text, nothing attached', emptyStatus, '', [], false],
+      ['whitespace text, nothing attached', emptyStatus, '   ', [], false],
+      ['text within limit', baseEditableStatus, 'Updated text', [], true],
+      [
+        'text over the limit',
+        baseEditableStatus,
+        'a'.repeat(501),
+        [sampleAttachment],
+        false
+      ],
+      [
+        'blank text with a new attachment',
+        emptyStatus,
+        '',
+        [sampleAttachment],
+        true
+      ],
+      [
+        'blank text with a preserved attachment on the status',
+        statusWithPreserved,
+        '',
+        [],
+        true
+      ]
+    ])('%s -> %s', (_case, status, text, attachments, expected) => {
+      expect(hasEditPostContent(status, text, { attachments }, 500)).toBe(
+        expected
+      )
     })
   })
 
@@ -191,196 +165,123 @@ describe('composerValidation', () => {
   })
 
   describe('isEditDirty', () => {
-    it('returns false when editStatus is undefined or null', () => {
-      expect(
-        isEditDirty({
-          editStatus: null,
-          value: 'Hello',
-          attachments: []
-        })
-      ).toBe(false)
-    })
+    const baseline = {
+      editStatus: baseEditableStatus as EditableStatus | null,
+      value: baseEditableStatus.text,
+      contentWarning: baseEditableStatus.summary!,
+      contentWarningVisible: true,
+      attachments: [sampleAttachment]
+    }
+    const extraAttachment: PostBoxAttachment = {
+      ...sampleAttachment,
+      id: 'media-2'
+    }
+    const att1: Attachment = {
+      ...sampleDomainAttachment,
+      mediaId: 'm1',
+      id: '1'
+    }
+    const att2: Attachment = {
+      ...sampleDomainAttachment,
+      mediaId: 'm2',
+      id: '2'
+    }
+    const statusWithTwo: EditableStatus = {
+      ...baseEditableStatus,
+      attachments: [att1, att2]
+    }
+    const statusNoSummary: EditableStatus = {
+      ...baseEditableStatus,
+      summary: null
+    }
 
-    it('returns false when text, content warning, and attachments match baseline', () => {
-      expect(
-        isEditDirty({
-          editStatus: baseEditableStatus,
-          value: baseEditableStatus.text,
-          contentWarning: baseEditableStatus.summary!,
-          contentWarningVisible: true,
-          attachments: [sampleAttachment]
-        })
-      ).toBe(false)
-    })
-
-    it('returns true when text is modified', () => {
-      expect(
-        isEditDirty({
-          editStatus: baseEditableStatus,
-          value: 'Modified message',
-          contentWarning: baseEditableStatus.summary!,
-          contentWarningVisible: true,
-          attachments: [sampleAttachment]
-        })
-      ).toBe(true)
-    })
-
-    it('returns true when content warning text is modified', () => {
-      expect(
-        isEditDirty({
-          editStatus: baseEditableStatus,
-          value: baseEditableStatus.text,
-          contentWarning: 'Different warning',
-          contentWarningVisible: true,
-          attachments: [sampleAttachment]
-        })
-      ).toBe(true)
-    })
-
-    it('returns true when content warning is toggled hidden when baseline had one', () => {
-      expect(
-        isEditDirty({
-          editStatus: baseEditableStatus,
-          value: baseEditableStatus.text,
-          contentWarning: baseEditableStatus.summary!,
-          contentWarningVisible: false,
-          attachments: [sampleAttachment]
-        })
-      ).toBe(true)
-    })
-
-    it('returns false when content warning is hidden and baseline had no summary', () => {
-      const statusNoSummary: EditableStatus = {
-        ...baseEditableStatus,
-        summary: null
-      }
-      expect(
-        isEditDirty({
+    it.each([
+      [
+        'there is no status being edited',
+        { editStatus: null, value: 'Hello', attachments: [] },
+        false
+      ],
+      ['text, warning and attachments match the baseline', {}, false],
+      ['text is modified', { value: 'Modified message' }, true],
+      [
+        'content warning text is modified',
+        { contentWarning: 'Different warning' },
+        true
+      ],
+      [
+        'content warning is hidden but the baseline had one',
+        { contentWarningVisible: false },
+        true
+      ],
+      [
+        'content warning is hidden and the baseline had no summary',
+        {
           editStatus: statusNoSummary,
           value: statusNoSummary.text,
           contentWarning: 'draft warning',
-          contentWarningVisible: false,
-          attachments: [sampleAttachment]
-        })
-      ).toBe(false)
-    })
-
-    it('returns true when an attachment is removed', () => {
-      expect(
-        isEditDirty({
-          editStatus: baseEditableStatus,
-          value: baseEditableStatus.text,
-          contentWarning: baseEditableStatus.summary!,
-          contentWarningVisible: true,
-          attachments: []
-        })
-      ).toBe(true)
-    })
-
-    it('returns true when an attachment is added', () => {
-      const extraAttachment: PostBoxAttachment = {
-        ...sampleAttachment,
-        id: 'media-2'
-      }
-      expect(
-        isEditDirty({
-          editStatus: baseEditableStatus,
-          value: baseEditableStatus.text,
-          contentWarning: baseEditableStatus.summary!,
-          contentWarningVisible: true,
-          attachments: [sampleAttachment, extraAttachment]
-        })
-      ).toBe(true)
-    })
-
-    it('returns true when attachments are reordered', () => {
-      const att1: Attachment = {
-        ...sampleDomainAttachment,
-        mediaId: 'm1',
-        id: '1'
-      }
-      const att2: Attachment = {
-        ...sampleDomainAttachment,
-        mediaId: 'm2',
-        id: '2'
-      }
-      const statusWithTwo: EditableStatus = {
-        ...baseEditableStatus,
-        attachments: [att1, att2]
-      }
-
-      const reorderedDraft: PostBoxAttachment[] = [
-        { ...sampleAttachment, id: 'm2' },
-        { ...sampleAttachment, id: 'm1' }
-      ]
-
-      expect(
-        isEditDirty({
+          contentWarningVisible: false
+        },
+        false
+      ],
+      ['an attachment is removed', { attachments: [] }, true],
+      [
+        'an attachment is added',
+        { attachments: [sampleAttachment, extraAttachment] },
+        true
+      ],
+      [
+        'attachments are reordered',
+        {
           editStatus: statusWithTwo,
           value: statusWithTwo.text,
           contentWarning: statusWithTwo.summary!,
-          contentWarningVisible: true,
-          attachments: reorderedDraft
-        })
-      ).toBe(true)
+          attachments: [
+            { ...sampleAttachment, id: 'm2' },
+            { ...sampleAttachment, id: 'm1' }
+          ]
+        },
+        true
+      ]
+    ])('is dirty when %s -> %s', (_case, overrides, expected) => {
+      expect(isEditDirty({ ...baseline, ...overrides })).toBe(expected)
     })
   })
 
   describe('isEditSubmittable', () => {
-    it('returns false when edit is not dirty', () => {
-      expect(
-        isEditSubmittable({
-          editStatus: baseEditableStatus,
-          value: baseEditableStatus.text,
-          contentWarning: baseEditableStatus.summary!,
-          contentWarningVisible: true,
-          attachments: [sampleAttachment],
-          maxLength: 500
-        })
-      ).toBe(false)
-    })
+    const baseline = {
+      editStatus: baseEditableStatus as EditableStatus | null,
+      value: baseEditableStatus.text,
+      contentWarning: baseEditableStatus.summary!,
+      contentWarningVisible: true,
+      attachments: [sampleAttachment],
+      maxLength: 500
+    }
 
-    it('returns true when edit is dirty and has valid content within limit', () => {
-      expect(
-        isEditSubmittable({
-          editStatus: baseEditableStatus,
-          value: 'Changed text',
-          contentWarning: baseEditableStatus.summary!,
-          contentWarningVisible: true,
-          attachments: [sampleAttachment],
-          maxLength: 500
-        })
-      ).toBe(true)
-    })
-
-    it('returns false when edit is dirty but exceeds character limit', () => {
-      expect(
-        isEditSubmittable({
-          editStatus: baseEditableStatus,
-          value: 'a'.repeat(501),
-          contentWarning: baseEditableStatus.summary!,
-          contentWarningVisible: true,
-          attachments: [sampleAttachment],
-          maxLength: 500
-        })
-      ).toBe(false)
-    })
-
-    it('returns false when edit is dirty but has empty content and no attachments', () => {
-      const emptyStatus: EditableStatus = {
-        ...baseEditableStatus,
-        attachments: []
-      }
-      expect(
-        isEditSubmittable({
-          editStatus: emptyStatus,
+    it.each([
+      ['the edit is not dirty', {}, false],
+      [
+        'the edit is dirty with valid content within the limit',
+        { value: 'Changed text' },
+        true
+      ],
+      [
+        'the edit is dirty but exceeds the character limit',
+        { value: 'a'.repeat(501) },
+        false
+      ],
+      [
+        'the edit is dirty but has empty content and no attachments',
+        {
+          editStatus: { ...baseEditableStatus, attachments: [] },
           value: '',
           contentWarning: '',
           contentWarningVisible: false,
-          attachments: [],
-          maxLength: 500
-        })
-      ).toBe(false)
+          attachments: []
+        },
+        false
+      ]
+    ])('submittable when %s -> %s', (_case, overrides, expected) => {
+      expect(isEditSubmittable({ ...baseline, ...overrides })).toBe(expected)
     })
   })
 })

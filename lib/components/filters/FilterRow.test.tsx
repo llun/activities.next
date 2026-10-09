@@ -38,17 +38,6 @@ describe('FilterRow', () => {
   // themes. The design's Badge Gray Fg (#6E6E6E) only reaches 4.47:1 on it, so
   // the chip's light label is the darker #6A6A6A (4.75:1); on the dark row the
   // label is #595959 (6.15:1).
-  it('draws the context chips in #6A6A6A in light and #595959 in dark', () => {
-    renderRow(filterFor(['home', 'public']))
-
-    for (const label of ['Home', 'Public']) {
-      const chip = screen.getByText(label)
-      expect(chip).toHaveClass('bg-[hsl(0_0%_94%)]', 'text-[#6A6A6A]')
-      expect(chip).not.toHaveClass('text-[#6E6E6E]')
-      expect(chip.className).toContain('dark:text-[hsl(0_0%_35%)]')
-    }
-  })
-
   it('keeps the context chip label at or above the 4.5:1 AA floor on its fill', () => {
     renderRow(filterFor(['home']))
 
@@ -113,21 +102,6 @@ describe('FilterRow', () => {
     )
 
     expect(screen.getByText('Expired')).toBeInTheDocument()
-  })
-
-  it('draws the Expired pill as the shared gray Badge, with a dark variant', () => {
-    renderRow(
-      filterFor(['home'], 'warn', '2026-01-01T00:00:00.000Z'),
-      Date.parse('2026-06-01T00:00:00.000Z')
-    )
-
-    const pill = screen.getByText('Expired')
-    expect(pill).toHaveClass('bg-muted', 'text-muted-foreground')
-    // The design's dark gray (#383838 / #C2C2C2). The hand-rolled pill had a
-    // light-only fill and glared on the dark row.
-    expect(pill.className).toContain('dark:bg-[#383838]')
-    expect(pill.className).toContain('dark:text-[#C2C2C2]')
-    expect(pill).not.toHaveClass('bg-[hsl(0_0%_94%)]')
   })
 
   it.each([

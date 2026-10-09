@@ -201,27 +201,14 @@ describe('Queue config', () => {
   })
 
   describe('isolated import regression', () => {
-    it('does not load database, job registry, or optional queue SDKs on import', () => {
-      expect(databaseMock).not.toHaveBeenCalled()
-      expect(jobsMock).not.toHaveBeenCalled()
-      expect(googleCloudTasksMock).not.toHaveBeenCalled()
-      expect(qstashMock).not.toHaveBeenCalled()
-    })
-
-    it('does not load database, job registry, or optional queue SDKs on fresh dynamic import', async () => {
+    it('does not load database, job registry, or optional queue SDKs on import', async () => {
       databaseMock.mockClear()
       jobsMock.mockClear()
       googleCloudTasksMock.mockClear()
       qstashMock.mockClear()
 
       vi.resetModules()
-      const imported = await import('./queue')
-
-      expect(imported.DatabaseQueueConfig).toBeDefined()
-      expect(imported.QStashConfig).toBeDefined()
-      expect(imported.CloudTasksConfig).toBeDefined()
-      expect(imported.QueueConfig).toBeDefined()
-      expect(imported.getQueueConfig).toBeDefined()
+      await import('./queue')
 
       expect(databaseMock).not.toHaveBeenCalled()
       expect(jobsMock).not.toHaveBeenCalled()

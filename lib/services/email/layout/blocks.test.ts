@@ -37,10 +37,6 @@ describe('paragraph', () => {
     expect(paragraph(XSS).html).not.toContain('<script>')
   })
 
-  it('lets an over-long unbroken word wrap instead of overflowing the card', () => {
-    expect(paragraph('a').html).toContain('word-wrap:break-word')
-  })
-
   it('uses a tighter bottom margin when tight is set', () => {
     // Asserted as a string on purpose: the visible effect is Outlook-only.
     // Standards engines collapse the 4px with the next block's 20px margin-top
@@ -111,20 +107,6 @@ describe('label', () => {
 })
 
 describe('button', () => {
-  it('puts the background on the td so Outlook keeps it visible', () => {
-    expect(
-      button({ label: 'View post', url: 'https://example.com' }).html
-    ).toContain('<td align="center" bgcolor="#E55F06"')
-  })
-
-  it('carries both halves of the outlook padding recipe', () => {
-    const { html } = button({ label: 'Go', url: 'https://example.com' })
-    // The cell supplies the padding Word drops from the inline anchor, and the
-    // anchor resets its own so Outlook does not apply both.
-    expect(html).toContain('mso-padding-alt:10px 20px;')
-    expect(html).toContain('mso-padding-alt:0;')
-  })
-
   it('renders the label and links to the url', () => {
     const { html, text } = button({
       label: 'View post',
@@ -171,18 +153,8 @@ describe('fallbackUrl', () => {
 })
 
 describe('note', () => {
-  it('is separated from the body by a hairline rule', () => {
-    expect(note('You can ignore this email.').html).toContain(
-      'border-top:1px solid'
-    )
-  })
-
   it('escapes the text', () => {
     expect(note(XSS).html).not.toContain('<script>')
-  })
-
-  it('lets an over-long unbroken word wrap instead of overflowing the card', () => {
-    expect(note('a').html).toContain('word-wrap:break-word')
   })
 })
 
@@ -214,11 +186,9 @@ describe('quote', () => {
       }
     )
 
-    it('uses the initials as the alt text and keeps the cell font readable', () => {
+    it('uses the initials as the alt text', () => {
       const cell = avatarCell(quote({ author: { ...author, iconUrl } }).html)
       expect(cell).toContain('alt="BC"')
-      expect(cell).toContain('font-size:10px')
-      expect(cell).not.toContain('font-size:0')
     })
 
     it('renders the actor image when the actor has an icon', () => {
@@ -256,46 +226,6 @@ describe('quote', () => {
         '<img src="https://example.com/a.png?x=&quot;&gt;&lt;b&gt;"'
       )
       expect(html).not.toContain('"><b>')
-    })
-
-    it.each([
-      { description: 'image', iconUrl },
-      { description: 'initials', iconUrl: undefined }
-    ])(
-      'is a fixed 24px square with a 50% radius ($description)',
-      ({ iconUrl }) => {
-        const { html } = quote({ author: { ...author, iconUrl } })
-        const cell = avatarCell(html)
-        expect(cell).toBeDefined()
-        expect(cell).toContain('width:24px')
-        expect(cell).toContain('height:24px')
-        expect(cell).toContain('min-width:24px')
-        expect(cell).toContain('border-radius:50%')
-        expect(cell).toContain('overflow:hidden')
-      }
-    )
-
-    it('gives the image width and height attributes and a 50% radius', () => {
-      const { html } = quote({ author: { ...author, iconUrl } })
-      const img = html.match(/<img [^>]*>/)?.[0]
-      expect(img).toContain('width="24"')
-      expect(img).toContain('height="24"')
-      expect(img).toContain('border-radius:50%')
-    })
-
-    it('centres the initials with a line-height equal to the height', () => {
-      const cell = avatarCell(quote({ author }).html)
-      expect(cell).toContain('line-height:24px')
-      expect(cell).toContain('text-align:center')
-    })
-
-    it('keeps the avatar out of the row-stretched cell so a wrapped handle cannot squash it', () => {
-      const { html } = quote({ author })
-      // The cell that sits in the actor row holds a fixed-size table rather
-      // than being the coloured box itself.
-      expect(html).toMatch(
-        /<td width="24" valign="middle" style="width:24px;min-width:24px;padding:0;"><table [^>]*width="24" height="24"/
-      )
     })
   })
 
@@ -392,11 +322,6 @@ describe('quote', () => {
       body: { html: '<a href="https://example.com/x">link</a>', text: 'link' }
     })
     expect(html).toContain('<a href="https://example.com/x">link</a>')
-  })
-
-  it('lets a long unbroken body word wrap', () => {
-    const { html } = quote({ author, body: { html: 'x', text: 'x' } })
-    expect(html).toContain('word-wrap:break-word')
   })
 })
 

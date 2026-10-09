@@ -31,8 +31,11 @@ const recipient = actor({
 describe('buildFollowRequestEmail', () => {
   const build = () => buildFollowRequestEmail({ recipient, actor: actor() })
 
-  it('keeps the subject the codebase already used', () => {
-    expect(build().subject).toBe(`@ben wants to follow you in ${HOST}`)
+  it('renders the subject and notification footer', () => {
+    const { subject, html } = build()
+    // The subject is the one the codebase already used.
+    expect(subject).toBe(`@ben wants to follow you in ${HOST}`)
+    expect(html).toContain('email notifications for follow requests')
   })
 
   it('explains why approval is needed', () => {
@@ -43,9 +46,5 @@ describe('buildFollowRequestEmail', () => {
     const { html } = build()
     expect(html).toContain(`href="${BASE_URL}/notifications"`)
     expect(html).toContain('>Review request</a>')
-  })
-
-  it('uses the notification footer naming follow requests', () => {
-    expect(build().html).toContain('email notifications for follow requests')
   })
 })

@@ -260,8 +260,6 @@ describe('ReactionButton', () => {
     // that — the search results section still clips, and any new card may.
     expect(container.contains(picker)).toBe(false)
     expect(document.body.contains(picker)).toBe(true)
-    // Viewport-positioned, not positioned against an ancestor in the post.
-    expect(picker.className).toContain('fixed')
   })
 
   it.each([

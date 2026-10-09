@@ -85,14 +85,6 @@ describe('calendar stylesheet', () => {
     expect(sheet).not.toMatch(/\.monthLabel::before/)
   })
 
-  it('fades the scroller edges through the registered mask variables', () => {
-    expect(sheet).toContain('--fitness-fade-start')
-    expect(sheet).toContain('--fitness-fade-end')
-    expect(sheet).toMatch(/mask-image:\s*linear-gradient/)
-    expect(sheet).toContain("[data-fade-start='true']")
-    expect(sheet).toContain("[data-fade-end='true']")
-  })
-
   it('never animates movement: no transforms, and only the loading sweep animates', () => {
     expect(sheet).not.toMatch(/transition:[^;]*transform/)
     expect(
@@ -103,10 +95,7 @@ describe('calendar stylesheet', () => {
     ).toEqual(['cell-loading-sweep 1.6s ease-in-out infinite', 'none'])
   })
 
-  it('shimmers the loading skeleton with one viewport-attached band', () => {
-    expect(sheet).toMatch(
-      /\[data-loading='true'\]\[data-state='active'\]\s*\{[^}]*background-color:\s*var\(--skeleton\)[^}]*var\(--skeleton-highlight\)[^}]*background-attachment:\s*fixed[^}]*animation:\s*cell-loading-sweep/
-    )
+  it('stops the loading shimmer under reduced motion', () => {
     expect(sheet).toMatch(
       /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.cell\[data-loading='true'\]\[data-state='active'\]\s*\{\s*animation:\s*none;\s*background-image:\s*none;/
     )

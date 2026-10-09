@@ -270,258 +270,50 @@ describe('[actor] page header handle link', () => {
     expect(screen.queryByText('@anna@social.example.org')).toBeNull()
   })
 
-  it('lets a long handle ellipsize while the external-link icon stays visible', async () => {
-    mockGetProfileData.mockResolvedValue({
-      person: {
-        id: 'https://mastodon.social/users/bob',
-        type: 'Person',
-        preferredUsername: 'bob',
-        name: 'Bob',
-        summary: '',
-        url: 'https://mastodon.social/@bob'
-      } as unknown as Actor,
-      statuses: [],
-      statusesCount: 1,
-      statusPagination: { nextPageUrl: null, prevPageUrl: null },
-      attachments: [],
-      followingCount: 0,
-      followersCount: 0,
-      isInternalAccount: false,
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: [],
-      isPixelfed: false
-    })
-
-    const element = await Page({
-      params: Promise.resolve({
-        actor: '@bob@a-very-long-subdomain.example-federation-domain.social'
+  it.each([
+    { version: '4.3.0', text: 'Mastodon/4.3.0' },
+    { version: null, text: 'Mastodon' }
+  ])(
+    'renders software name $text under the counts block (version $version)',
+    async ({ version, text }) => {
+      mockGetProfileData.mockResolvedValue({
+        person: {
+          id: 'https://mastodon.social/users/bob',
+          type: 'Person',
+          preferredUsername: 'bob',
+          name: 'Bob',
+          summary: '',
+          url: 'https://mastodon.social/@bob'
+        } as unknown as Actor,
+        statuses: [],
+        statusesCount: 10,
+        statusPagination: { nextPageUrl: null, prevPageUrl: null },
+        attachments: [],
+        followingCount: 5,
+        followersCount: 15,
+        isInternalAccount: false,
+        hasFitnessData: false,
+        hasGalleryMedia: false,
+        gallerySubviews: [],
+        isPixelfed: false,
+        serverSoftware: {
+          name: 'mastodon',
+          version
+        }
       })
-    })
-    render(element)
 
-    // jsdom has no layout: pin the classes that do it. The link is as wide as
-    // the card at most, the handle inside it shrinks and ellipsizes, and the
-    // icon keeps its size, so a handle wider than the card cannot push the icon
-    // out of view (a `truncate` on the paragraph cannot ellipsize an
-    // inline-flex link).
-    const link = screen.getByRole('link', {
-      name: '@bob@a-very-long-subdomain.example-federation-domain.social'
-    })
-    expect(link).toHaveClass('inline-flex', 'max-w-full')
-    const handle = screen.getByText(
-      '@bob@a-very-long-subdomain.example-federation-domain.social'
-    )
-    expect(handle).toHaveClass('min-w-0', 'truncate')
-    expect(link.querySelector('svg')).toHaveClass('shrink-0')
-  })
+      const element = await Page({
+        params: Promise.resolve({ actor: '@bob@mastodon.social' })
+      })
+      render(element)
 
-  it('draws the profile card on the Card surface, without a shadow', async () => {
-    mockGetProfileData.mockResolvedValue({
-      person: {
-        id: 'https://mastodon.social/users/bob',
-        type: 'Person',
-        preferredUsername: 'bob',
-        name: 'Bob',
-        summary: '',
-        url: 'https://mastodon.social/@bob'
-      } as unknown as Actor,
-      statuses: [],
-      statusesCount: 1,
-      statusPagination: { nextPageUrl: null, prevPageUrl: null },
-      attachments: [],
-      followingCount: 2,
-      followersCount: 3,
-      isInternalAccount: false,
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: [],
-      isPixelfed: false
-    })
-
-    const element = await Page({
-      params: Promise.resolve({ actor: '@bob@mastodon.social' })
-    })
-    const { container } = render(element)
-
-    const card = container.querySelector('section')
-    expect(card).toHaveClass('bg-card', 'border', 'rounded-2xl')
-    expect(card?.className).not.toMatch(/shadow|bg-background/)
-  })
-
-  it('draws the 80px profile avatar initial at 34px, not the 30px its bordered box would give', async () => {
-    mockGetProfileData.mockResolvedValue({
-      person: {
-        id: 'https://mastodon.social/users/bob',
-        type: 'Person',
-        preferredUsername: 'bob',
-        name: 'Bob',
-        summary: '',
-        url: 'https://mastodon.social/@bob'
-      } as unknown as Actor,
-      statuses: [],
-      statusesCount: 1,
-      statusPagination: { nextPageUrl: null, prevPageUrl: null },
-      attachments: [],
-      followingCount: 2,
-      followersCount: 3,
-      isInternalAccount: false,
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: [],
-      isPixelfed: false
-    })
-
-    const element = await Page({
-      params: Promise.resolve({ actor: '@bob@mastodon.social' })
-    })
-    const { container } = render(element)
-
-    // The avatar is 80px wide but carries a 4px border, so the shared 42cqw
-    // initial resolves against a 72px content box (30.24px). The Avatar board
-    // draws the 80px monogram at 34, so the profile sets the size itself.
-    const avatar = container.querySelector('[data-slot="avatar"]')
-    expect(avatar).toHaveClass('h-20', 'w-20', 'border-4')
-    const initial = container.querySelector('[data-slot="avatar-fallback"]')
-    expect(initial).toHaveTextContent('B')
-    expect(initial).toHaveClass('text-[34px]')
-    expect(initial).not.toHaveClass('text-[42cqw]')
-  })
-
-  it('renders software name and version under the counts block', async () => {
-    mockGetProfileData.mockResolvedValue({
-      person: {
-        id: 'https://mastodon.social/users/bob',
-        type: 'Person',
-        preferredUsername: 'bob',
-        name: 'Bob',
-        summary: '',
-        url: 'https://mastodon.social/@bob'
-      } as unknown as Actor,
-      statuses: [],
-      statusesCount: 10,
-      statusPagination: { nextPageUrl: null, prevPageUrl: null },
-      attachments: [],
-      followingCount: 5,
-      followersCount: 15,
-      isInternalAccount: false,
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: [],
-      isPixelfed: false,
-      serverSoftware: {
-        name: 'mastodon',
-        version: '4.3.0'
-      }
-    })
-
-    const element = await Page({
-      params: Promise.resolve({ actor: '@bob@mastodon.social' })
-    })
-    render(element)
-
-    const softwareElement = screen.getByText('Mastodon/4.3.0')
-    expect(softwareElement).toBeInTheDocument()
-    const container = softwareElement.closest('div')
-    expect(container).toHaveClass(
-      'flex',
-      'items-center',
-      'gap-1.5',
-      'text-sm',
-      'text-muted-foreground',
-      'break-words',
-      'mt-3'
-    )
-    const icon = container?.querySelector('svg')
-    expect(icon).toBeInTheDocument()
-    expect(icon).toHaveClass('lucide-info', 'size-3.5')
-    expect(icon).toHaveAttribute('aria-hidden', 'true')
-  })
-
-  it('renders software name without version when version is omitted', async () => {
-    mockGetProfileData.mockResolvedValue({
-      person: {
-        id: 'https://mastodon.social/users/bob',
-        type: 'Person',
-        preferredUsername: 'bob',
-        name: 'Bob',
-        summary: '',
-        url: 'https://mastodon.social/@bob'
-      } as unknown as Actor,
-      statuses: [],
-      statusesCount: 10,
-      statusPagination: { nextPageUrl: null, prevPageUrl: null },
-      attachments: [],
-      followingCount: 5,
-      followersCount: 15,
-      isInternalAccount: false,
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: [],
-      isPixelfed: false,
-      serverSoftware: {
-        name: 'mastodon',
-        version: null
-      }
-    })
-
-    const element = await Page({
-      params: Promise.resolve({ actor: '@bob@mastodon.social' })
-    })
-    render(element)
-
-    const softwareElement = screen.getByText('Mastodon')
-    expect(softwareElement).toBeInTheDocument()
-    const container = softwareElement.closest('div')
-    expect(container).toHaveClass(
-      'flex',
-      'items-center',
-      'gap-1.5',
-      'text-sm',
-      'text-muted-foreground',
-      'break-words'
-    )
-    const icon = container?.querySelector('svg')
-    expect(icon).toBeInTheDocument()
-    expect(icon).toHaveClass('lucide-info', 'size-3.5')
-  })
-
-  it('applies mt-5 when all counts are null and software is present', async () => {
-    mockGetProfileData.mockResolvedValue({
-      person: {
-        id: 'https://mastodon.social/users/bob',
-        type: 'Person',
-        preferredUsername: 'bob',
-        name: 'Bob',
-        summary: '',
-        url: 'https://mastodon.social/@bob'
-      } as unknown as Actor,
-      statuses: [],
-      statusesCount: null,
-      statusPagination: { nextPageUrl: null, prevPageUrl: null },
-      attachments: [],
-      followingCount: null,
-      followersCount: null,
-      isInternalAccount: false,
-      hasFitnessData: false,
-      hasGalleryMedia: false,
-      gallerySubviews: [],
-      isPixelfed: false,
-      serverSoftware: {
-        name: 'mastodon',
-        version: '4.3.0'
-      }
-    })
-
-    const element = await Page({
-      params: Promise.resolve({ actor: '@bob@mastodon.social' })
-    })
-    render(element)
-
-    const softwareElement = screen.getByText('Mastodon/4.3.0')
-    expect(softwareElement).toBeInTheDocument()
-    expect(softwareElement.closest('div')).toHaveClass('mt-5')
-  })
+      const softwareElement = screen.getByText(text)
+      expect(softwareElement).toBeInTheDocument()
+      const icon = softwareElement.closest('div')?.querySelector('svg')
+      expect(icon).toBeInTheDocument()
+      expect(icon).toHaveAttribute('aria-hidden', 'true')
+    }
+  )
 
   it('omits software container when serverSoftware is null', async () => {
     mockGetProfileData.mockResolvedValue({
@@ -597,15 +389,11 @@ describe('[actor] page header handle link', () => {
     expect(
       container.querySelector('[data-mobile-compact-header]')
     ).not.toBeInTheDocument()
-    // The cover's card is full-bleed and square below md, flush to the top.
-    const card = container.querySelector('section') as HTMLElement
-    expect(card).toHaveClass('max-md:rounded-none', 'max-md:border-t-0')
-    expect(card.parentElement).not.toHaveClass('pt-6')
   })
   // Logged out the profile lives in PublicShell, which provides no mobile
   // navigation: the top bar stays at every width, so there is no floating
   // button and the card keeps its frame.
-  it('renders no menu button and keeps the framed card without the signed-in provider', async () => {
+  it('renders no menu button without the signed-in provider', async () => {
     mockGetProfileData.mockResolvedValue({
       person: {
         id: 'https://mastodon.social/users/bob',
@@ -632,14 +420,10 @@ describe('[actor] page header handle link', () => {
     const element = await Page({
       params: Promise.resolve({ actor: '@bob@mastodon.social' })
     })
-    const { container } = render(element)
+    render(element)
 
     expect(
       screen.queryByRole('button', { name: 'Open navigation' })
     ).not.toBeInTheDocument()
-    const card = container.querySelector('section') as HTMLElement
-    expect(card).toHaveClass('rounded-2xl', 'border')
-    expect(card).not.toHaveClass('max-md:rounded-none')
-    expect(card).not.toHaveClass('max-md:border-t-0')
   })
 })

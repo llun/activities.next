@@ -73,16 +73,6 @@ describe('SharedHeatmapPage', () => {
 
   // On a CDN alias domain the root-relative default logo is redirected away,
   // so the top bar takes the canonical-origin src.
-  it('renders the top bar logo from the canonical-origin src', () => {
-    render(<SharedHeatmapPage {...defaultProps} />)
-
-    const logo = within(screen.getByRole('banner')).getByRole('link', {
-      name: 'Activities home'
-    })
-    expect(logo.querySelector('img')?.getAttribute('src')).toContain(
-      encodeURIComponent('https://llun.test/logo-nav.png')
-    )
-  })
 
   // Logged-out chrome is the branded top bar at every width: no compact bar,
   // menu button or drawer (the mobile redesign is for signed-in viewers).

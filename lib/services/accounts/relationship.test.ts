@@ -314,62 +314,49 @@ describe('getRelationship', () => {
     expect(relationship.note).toBe('')
   })
 
-  it('returns muting=true and muting_notifications=true when muted with notifications', async () => {
-    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
-    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
-    mockDatabase.getMute.mockResolvedValue({
-      id: 'mute-1',
-      actorId: mockCurrentActor.id,
-      targetActorId: 'https://example.com/users/target',
-      notifications: true,
-      endsAt: null
-    })
+  it.each([
+    {
+      description: 'muted with notifications',
+      mute: { id: 'mute-1', notifications: true },
+      muting: true,
+      mutingNotifications: true
+    },
+    {
+      description: 'muted without notifications',
+      mute: { id: 'mute-2', notifications: false },
+      muting: true,
+      mutingNotifications: false
+    },
+    {
+      description: 'not muted',
+      mute: null,
+      muting: false,
+      mutingNotifications: false
+    }
+  ])(
+    'returns muting and muting_notifications when $description',
+    async ({ mute, muting, mutingNotifications }) => {
+      mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
+      mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
+      mockDatabase.getMute.mockResolvedValue(
+        mute && {
+          ...mute,
+          actorId: mockCurrentActor.id,
+          targetActorId: 'https://example.com/users/target',
+          endsAt: null
+        }
+      )
 
-    const relationship = await getRelationship({
-      database: mockDatabase as unknown as Database,
-      currentActor: mockCurrentActor as unknown as Actor,
-      targetActorId: 'https://example.com/users/target'
-    })
+      const relationship = await getRelationship({
+        database: mockDatabase as unknown as Database,
+        currentActor: mockCurrentActor as unknown as Actor,
+        targetActorId: 'https://example.com/users/target'
+      })
 
-    expect(relationship.muting).toBe(true)
-    expect(relationship.muting_notifications).toBe(true)
-  })
-
-  it('returns muting=true and muting_notifications=false when muted without notifications', async () => {
-    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
-    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
-    mockDatabase.getMute.mockResolvedValue({
-      id: 'mute-2',
-      actorId: mockCurrentActor.id,
-      targetActorId: 'https://example.com/users/target',
-      notifications: false,
-      endsAt: null
-    })
-
-    const relationship = await getRelationship({
-      database: mockDatabase as unknown as Database,
-      currentActor: mockCurrentActor as unknown as Actor,
-      targetActorId: 'https://example.com/users/target'
-    })
-
-    expect(relationship.muting).toBe(true)
-    expect(relationship.muting_notifications).toBe(false)
-  })
-
-  it('returns muting=false and muting_notifications=false when not muted', async () => {
-    mockDatabase.isCurrentActorFollowing.mockResolvedValue(false)
-    mockDatabase.getAcceptedOrRequestedFollow.mockResolvedValue(null)
-    mockDatabase.getMute.mockResolvedValue(null)
-
-    const relationship = await getRelationship({
-      database: mockDatabase as unknown as Database,
-      currentActor: mockCurrentActor as unknown as Actor,
-      targetActorId: 'https://example.com/users/target'
-    })
-
-    expect(relationship.muting).toBe(false)
-    expect(relationship.muting_notifications).toBe(false)
-  })
+      expect(relationship.muting).toBe(muting)
+      expect(relationship.muting_notifications).toBe(mutingNotifications)
+    }
+  )
 
   it.each([
     {

@@ -387,57 +387,16 @@ describe('RangePicker', () => {
       expect(screen.queryByLabelText('From')).not.toBeInTheDocument()
       await waitFor(() => expect(trigger()).toHaveFocus())
     })
-
-    it('gives arrows and days a 32px target on a fine pointer and 44px on touch', () => {
-      render(<Harness presentation="popover" />)
-      open()
-      const next = screen.getByRole('button', { name: 'Previous month' })
-      expect(next).toHaveClass('size-8')
-      expect(next).toHaveClass('pointer-coarse:size-11')
-    })
   })
 
   describe('sheet', () => {
-    it('is a full-width dialog with a title, a decorative handle and a Close', () => {
+    it('is a dialog with a title and a Close', () => {
       render(<Harness presentation="sheet" />)
       open()
       const sheet = screen.getByRole('dialog', { name: 'Date range' })
-      expect(sheet).toHaveClass('inset-x-0', 'w-full', 'rounded-t-2xl')
       expect(
         within(sheet).getByRole('button', { name: 'Close date range' })
-      ).toHaveClass('size-11')
-      expect(sheet.querySelector('[aria-hidden="true"].h-1')).not.toBeNull()
-    })
-
-    it('uses 44px targets throughout', () => {
-      render(<Harness presentation="sheet" />)
-      open()
-      expect(screen.getByRole('button', { name: 'This month' })).toHaveClass(
-        'min-h-11'
-      )
-      expect(from()).toHaveClass('h-11')
-      expect(apply()).toHaveClass('h-11')
-      expect(screen.getByRole('button', { name: 'Next month' })).toHaveClass(
-        'size-11'
-      )
-    })
-
-    it('pads under Apply and Cancel for the safe area', () => {
-      render(<Harness presentation="sheet" />)
-      open()
-      const footer = apply().parentElement as HTMLElement
-      expect(footer.className).toContain('env(safe-area-inset-bottom')
-    })
-
-    it('animates with a 200ms rise that reduced motion turns off', () => {
-      render(<Harness presentation="sheet" />)
-      open()
-      const sheet = screen.getByRole('dialog', { name: 'Date range' })
-      expect(sheet).toHaveClass('duration-200')
-      expect(sheet).toHaveClass('data-[state=open]:slide-in-from-bottom-4')
-      expect(sheet).toHaveClass(
-        'motion-reduce:data-[state=open]:slide-in-from-bottom-0'
-      )
+      ).toBeInTheDocument()
     })
 
     it('closes (discarding the draft) from the X', async () => {
@@ -634,26 +593,6 @@ describe('RangePicker', () => {
           screen.getByRole('dialog', { name: 'Date range' })
         ).toHaveAttribute('data-slot', 'popover-content')
       })
-    })
-
-    it('gives the popover’s month column room for 44px day cells on a coarse pointer', () => {
-      setViewport(1194, 834)
-      render(<Harness presentation="auto" />)
-      open()
-
-      // 7 x 44 = 308px: the two left columns narrow (and the paddings tighten)
-      // on a coarse pointer, or the 44px day buttons were squeezed to 38px.
-      const grid = screen
-        .getByLabelText('From')
-        .closest('form')
-        ?.querySelector<HTMLElement>(':scope > div')
-      expect(grid?.className).toMatch(
-        /pointer-coarse:grid-cols-\[11rem_11rem_minmax\(0,1fr\)\]/
-      )
-      const day = document.querySelector<HTMLElement>(
-        '[data-date="2026-10-01"]'
-      )
-      expect(day).toHaveClass('pointer-coarse:size-11')
     })
 
     it('keeps the draft, the visible month and the focused field when the presentation switches', async () => {

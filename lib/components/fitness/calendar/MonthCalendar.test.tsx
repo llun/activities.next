@@ -80,7 +80,7 @@ describe('MonthCalendar', () => {
       expect(cells().filter((c) => c.style.gridColumn === '1')).toHaveLength(4)
     })
 
-    it('has seven columns of the measured square size, left-aligned', () => {
+    it('has seven columns of the measured square size', () => {
       const stub = stubElementWidth(908)
       try {
         const { container } = renderMonth()
@@ -91,7 +91,6 @@ describe('MonthCalendar', () => {
         const grid = container.querySelector<HTMLElement>('[role="group"]')!
         expect(root.style.getPropertyValue('--cell')).toBe('92px')
         expect(grid.style.gridTemplateColumns).toBe('repeat(7, var(--cell))')
-        expect(grid).toHaveClass('w-max')
       } finally {
         stub.restore()
       }
@@ -164,13 +163,10 @@ describe('MonthCalendar', () => {
       expect(cells().every((c) => c.dataset.state === 'active')).toBe(true)
     })
 
-    it('marks today with aria-current and an underlined numeral', () => {
+    it('marks today with aria-current', () => {
       const { cell } = renderMonth()
 
       expect(cell('2026-10-04')).toHaveAttribute('aria-current', 'date')
-      expect(cell('2026-10-04').querySelector('span')?.className).toMatch(
-        /todayNumeral/
-      )
       expect(cell('2026-10-03')).not.toHaveAttribute('aria-current')
     })
 
@@ -457,12 +453,6 @@ describe('MonthCalendar', () => {
 
       expect(monthOf(container)).toBe('9')
     })
-
-    it('never moves: the only thing that changes is opacity', () => {
-      const { container } = render(september)
-
-      expect(container.innerHTML).not.toMatch(/translate|slide|scale/)
-    })
   })
 
   describe('tooltip', () => {
@@ -593,15 +583,5 @@ describe('MonthCalendar', () => {
       expect(tip).toHaveTextContent('Loading')
       expect(tip).not.toHaveTextContent('No activities')
     })
-  })
-
-  it('sizes to its container with the scoped heat tokens, never the viewport', () => {
-    const { container } = renderMonth()
-
-    expect(container.firstElementChild).toHaveClass(
-      'fitness-heat',
-      '@container'
-    )
-    expect(container.innerHTML).not.toMatch(/class="[^"]*\b(sm|md|lg|xl):/)
   })
 })

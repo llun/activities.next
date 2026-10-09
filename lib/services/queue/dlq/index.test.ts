@@ -119,35 +119,80 @@ describe('DLQ Providers', () => {
       expect(job.status).toBe('failed')
     })
 
-    it('calls retry with dlqId', async () => {
-      const provider = new QStashDLQProvider(qstashConfig)
-      mockRetry.mockResolvedValue({})
+    it.each([
+      {
+        description: 'retryJob retries one message by dlqId',
+        mock: mockRetry,
+        mockResult: {},
+        run: (provider: QStashDLQProvider) => provider.retryJob('dlq_123'),
+        expectedCount: undefined,
+        expectedArgs: 'dlq_123'
+      },
+      {
+        description: 'discardJob deletes one message by dlqId',
+        mock: mockDelete,
+        mockResult: {},
+        run: (provider: QStashDLQProvider) => provider.discardJob('dlq_123'),
+        expectedCount: undefined,
+        expectedArgs: 'dlq_123'
+      },
+      {
+        description: 'retryAll retries every message and counts the responses',
+        mock: mockRetry,
+        mockResult: { responses: [{ messageId: 'm1' }, { messageId: 'm2' }] },
+        run: (provider: QStashDLQProvider) => provider.retryAll(),
+        expectedCount: 2,
+        expectedArgs: { all: true }
+      },
+      {
+        description: 'clearDiscarded deletes every message and counts them',
+        mock: mockDelete,
+        mockResult: { deleted: 5 },
+        run: (provider: QStashDLQProvider) => provider.clearDiscarded(),
+        expectedCount: 5,
+        expectedArgs: { all: true }
+      },
+      {
+        description: 'dropAll deletes every message and counts them',
+        mock: mockDelete,
+        mockResult: { deleted: 8 },
+        run: (provider: QStashDLQProvider) => provider.dropAll(),
+        expectedCount: 8,
+        expectedArgs: { all: true }
+      },
+      {
+        description: 'retryJobs retries an array of dlqIds',
+        mock: mockRetry,
+        mockResult: { responses: [{ messageId: 'm1' }, { messageId: 'm2' }] },
+        run: (provider: QStashDLQProvider) =>
+          provider.retryJobs(['dlq_1', 'dlq_2']),
+        expectedCount: 2,
+        expectedArgs: { dlqIds: ['dlq_1', 'dlq_2'] }
+      },
+      {
+        description: 'deleteJobs deletes an array of dlqIds',
+        mock: mockDelete,
+        mockResult: { deleted: 2 },
+        run: (provider: QStashDLQProvider) =>
+          provider.deleteJobs(['dlq_1', 'dlq_2']),
+        expectedCount: 2,
+        expectedArgs: { dlqIds: ['dlq_1', 'dlq_2'] }
+      }
+    ])(
+      '$description',
+      async ({ mock, mockResult, run, expectedCount, expectedArgs }) => {
+        const provider = new QStashDLQProvider(qstashConfig)
+        mock.mockResolvedValue(mockResult)
 
-      const res = await provider.retryJob('dlq_123')
-      expect(res.success).toBe(true)
-      expect(mockRetry).toHaveBeenCalledWith('dlq_123')
-    })
+        const res = await run(provider)
 
-    it('calls delete with dlqId', async () => {
-      const provider = new QStashDLQProvider(qstashConfig)
-      mockDelete.mockResolvedValue({})
-
-      const res = await provider.discardJob('dlq_123')
-      expect(res.success).toBe(true)
-      expect(mockDelete).toHaveBeenCalledWith('dlq_123')
-    })
-
-    it('calls retry all', async () => {
-      const provider = new QStashDLQProvider(qstashConfig)
-      mockRetry.mockResolvedValue({
-        responses: [{ messageId: 'm1' }, { messageId: 'm2' }]
-      })
-
-      const res = await provider.retryAll()
-      expect(res.success).toBe(true)
-      expect(res.count).toBe(2)
-      expect(mockRetry).toHaveBeenCalledWith({ all: true })
-    })
+        expect(res.success).toBe(true)
+        if (expectedCount !== undefined) {
+          expect((res as { count: number }).count).toBe(expectedCount)
+        }
+        expect(mock).toHaveBeenCalledWith(expectedArgs)
+      }
+    )
 
     it('orders messages by createdAt descending (last fail first)', async () => {
       const provider = new QStashDLQProvider(qstashConfig)
@@ -180,48 +225,6 @@ describe('DLQ Providers', () => {
       expect(res.jobs[0].id).toBe('dlq_newest')
       expect(res.jobs[1].id).toBe('dlq_middle')
       expect(res.jobs[2].id).toBe('dlq_old')
-    })
-
-    it('calls clear all', async () => {
-      const provider = new QStashDLQProvider(qstashConfig)
-      mockDelete.mockResolvedValue({ deleted: 5 })
-
-      const res = await provider.clearDiscarded()
-      expect(res.success).toBe(true)
-      expect(res.count).toBe(5)
-      expect(mockDelete).toHaveBeenCalledWith({ all: true })
-    })
-
-    it('calls drop all', async () => {
-      const provider = new QStashDLQProvider(qstashConfig)
-      mockDelete.mockResolvedValue({ deleted: 8 })
-
-      const res = await provider.dropAll()
-      expect(res.success).toBe(true)
-      expect(res.count).toBe(8)
-      expect(mockDelete).toHaveBeenCalledWith({ all: true })
-    })
-
-    it('calls retryJobs with array of dlqIds', async () => {
-      const provider = new QStashDLQProvider(qstashConfig)
-      mockRetry.mockResolvedValue({
-        responses: [{ messageId: 'm1' }, { messageId: 'm2' }]
-      })
-
-      const res = await provider.retryJobs(['dlq_1', 'dlq_2'])
-      expect(res.success).toBe(true)
-      expect(res.count).toBe(2)
-      expect(mockRetry).toHaveBeenCalledWith({ dlqIds: ['dlq_1', 'dlq_2'] })
-    })
-
-    it('calls deleteJobs with array of dlqIds', async () => {
-      const provider = new QStashDLQProvider(qstashConfig)
-      mockDelete.mockResolvedValue({ deleted: 2 })
-
-      const res = await provider.deleteJobs(['dlq_1', 'dlq_2'])
-      expect(res.success).toBe(true)
-      expect(res.count).toBe(2)
-      expect(mockDelete).toHaveBeenCalledWith({ dlqIds: ['dlq_1', 'dlq_2'] })
     })
   })
 })

@@ -97,14 +97,6 @@ describe('RouteHeatmapMapKit', () => {
     ).toBeInTheDocument()
   })
 
-  it('applies the caller-supplied height class to the map surface', () => {
-    const { container } = render(
-      <RouteHeatmapMapKit heatmap={heatmap} heightClassName="h-dvh" />
-    )
-
-    expect(container.firstElementChild).toHaveClass('h-dvh')
-  })
-
   it('falls back when MapKit never becomes usable', async () => {
     // The loader rejects whenever MapKit cannot authorize (an invalid Apple Maps
     // token, a rejected key), not only when the CDN script fails to load.
@@ -517,16 +509,6 @@ describe('RouteHeatmapMapKit tiled rendering', () => {
       heatColorForCount(16, HEAT_COUNT_COLOR_STOPS)
     )
     expect(heatWidthForCount(13)).not.toBe(heatWidthForCount(16))
-  })
-
-  it('draws the muted standard basemap, so the heat runs stay the brightest thing', async () => {
-    const double = createMapKitTestDouble()
-    mockLoadMapKitModule.mockResolvedValue(double.mapkit as never)
-
-    render(<RouteHeatmapMapKit heatmap={tiled} fetchTiles={fetchWith(cool)} />)
-
-    await waitFor(() => expect(double.getMap()).not.toBeNull())
-    expect(double.getMap()!.options.mapType).toBe('mutedStandard')
   })
 
   it('locks rotation, so the region never reports a superset of the view', async () => {

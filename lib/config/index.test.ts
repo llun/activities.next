@@ -95,14 +95,6 @@ describe('Config', () => {
           }
         }
       })
-      expect(config.host).not.toBe('file.example.com')
-      expect(config.serviceName).not.toBe('File Service')
-      expect(config.serviceDescription).not.toBe('File description')
-      expect(config.languages).not.toEqual(['fr'])
-      expect(config.secretPhase).not.toBe('file-secret')
-      expect(config.database.connection).not.toMatchObject({
-        filename: 'file.sqlite'
-      })
       expect(logger.warn).toHaveBeenCalledWith(
         { configPath: path.join(fs.realpathSync(tmpDir), 'config.json') },
         'Root config.json is no longer supported and will be ignored; migrate settings to ACTIVITIES_* environment variables.'

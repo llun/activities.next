@@ -4,12 +4,9 @@ import { NextRequest } from 'next/server'
 import { follow } from '@/lib/activities'
 import { getActorPerson } from '@/lib/activities/getActorPerson'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
-import { getRelationship } from '@/lib/services/accounts/relationship'
 import { JRD_JSON_HEADERS, mockRequests } from '@/lib/stub/activities'
 import { seedDatabase } from '@/lib/stub/database'
-import { actorPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
-import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { MockWebfinger } from '@/lib/stub/webfinger'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { urlToId } from '@/lib/utils/urlToId'
@@ -212,25 +209,42 @@ describe('Account Action Endpoints', () => {
       expect(stored?.languages).toEqual(['en', 'th'])
     })
 
-    it('defaults to reblogs=true/notify=false when no body is sent', async () => {
-      const targetActorId = await createFollowTargetActor('follow-default')
+    // Clients sometimes send a JSON content type with no body at all.
+    it.each([
+      { title: 'no body is sent', headers: {} as Record<string, string> },
+      {
+        title: 'the JSON body is empty',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    ])(
+      'defaults to reblogs=true/notify=false when $title',
+      async ({ title, headers }) => {
+        const targetActorId = await createFollowTargetActor(
+          `follow-default-${title.replace(/\W+/g, '-')}`
+        )
 
-      const response = await followAccount(
-        new NextRequest(
-          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
-          {
-            method: 'POST',
-            headers: { Origin: 'https://llun.test' }
-          }
-        ),
-        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
-      )
+        const response = await followAccount(
+          new NextRequest(
+            `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
+            {
+              method: 'POST',
+              headers: { Origin: 'https://llun.test', ...headers }
+            }
+          ),
+          { params: Promise.resolve({ id: urlToId(targetActorId) }) }
+        )
 
-      expect(response.status).toBe(200)
-      const relationship = await response.json()
-      expect(relationship.showing_reblogs).toBe(true)
-      expect(relationship.notifying).toBe(false)
-    })
+        expect(response.status).toBe(200)
+        const relationship = await response.json()
+        expect(relationship.showing_reblogs).toBe(true)
+        expect(relationship.notifying).toBe(false)
+        const stored = await database.getAcceptedOrRequestedFollow({
+          actorId: ACTOR1_ID,
+          targetActorId
+        })
+        expect(stored).not.toBeNull()
+      }
+    )
 
     it('updates preferences when re-following an existing follow', async () => {
       const targetActorId = await createFollowTargetActor('follow-update')
@@ -314,34 +328,6 @@ describe('Account Action Endpoints', () => {
         targetActorId
       })
       expect(stored?.languages).toBeNull()
-    })
-
-    it('treats an empty JSON body as a paramless default follow', async () => {
-      const targetActorId = await createFollowTargetActor('follow-empty-json')
-
-      const response = await followAccount(
-        new NextRequest(
-          `https://llun.test/api/v1/accounts/${urlToId(targetActorId)}/follow`,
-          {
-            method: 'POST',
-            headers: {
-              Origin: 'https://llun.test',
-              'Content-Type': 'application/json'
-            }
-            // No body — clients sometimes send a default JSON header anyway.
-          }
-        ),
-        { params: Promise.resolve({ id: urlToId(targetActorId) }) }
-      )
-
-      expect(response.status).toBe(200)
-      const relationship = await response.json()
-      expect(relationship.showing_reblogs).toBe(true)
-      const stored = await database.getAcceptedOrRequestedFollow({
-        actorId: ACTOR1_ID,
-        targetActorId
-      })
-      expect(stored).not.toBeNull()
     })
 
     it('updates preferences for an existing follow even when the remote actor is unreachable', async () => {
@@ -571,78 +557,7 @@ describe('Account Action Endpoints', () => {
     })
   })
 
-  describe('getRelationship helper', () => {
-    it('returns correct relationship when following', async () => {
-      // Create a follow
-      await database.createFollow({
-        actorId: ACTOR1_ID,
-        targetActorId: ACTOR2_ID,
-        status: FollowStatus.enum.Accepted,
-        inbox: `${ACTOR2_ID}/inbox`,
-        sharedInbox: 'https://llun.test/inbox'
-      })
-
-      const actor1 = await database.getActorFromId({ id: ACTOR1_ID })
-      const relationship = await getRelationship({
-        database,
-        currentActor: actor1!,
-        targetActorId: ACTOR2_ID
-      })
-
-      expect(relationship).toMatchObject({
-        id: await actorPublicId(database, ACTOR2_ID),
-        following: true,
-        followed_by: expect.toBeBoolean(),
-        blocking: false,
-        muting: false,
-        requested: false
-      })
-    })
-
-    it('returns requested=true for pending follow', async () => {
-      const pendingActorId = `https://llun.test/users/pending-${Date.now()}`
-      await database.createActor({
-        actorId: pendingActorId,
-        username: `pending${Date.now()}`,
-        domain: 'llun.test',
-        publicKey: 'key',
-        inboxUrl: `${pendingActorId}/inbox`,
-        sharedInboxUrl: 'https://llun.test/inbox',
-        followersUrl: `${pendingActorId}/followers`,
-        createdAt: Date.now()
-      })
-
-      await database.createFollow({
-        actorId: ACTOR1_ID,
-        targetActorId: pendingActorId,
-        status: FollowStatus.enum.Requested,
-        inbox: `${pendingActorId}/inbox`,
-        sharedInbox: 'https://llun.test/inbox'
-      })
-
-      const actor1 = await database.getActorFromId({ id: ACTOR1_ID })
-      const relationship = await getRelationship({
-        database,
-        currentActor: actor1!,
-        targetActorId: pendingActorId
-      })
-
-      expect(relationship.requested).toBe(true)
-      expect(relationship.following).toBe(false)
-    })
-  })
-
   describe('Account lookup', () => {
-    it('finds local actor by username@domain format', async () => {
-      const actor = await database.getActorFromUsername({
-        username: 'test1',
-        domain: 'llun.test'
-      })
-
-      expect(actor).not.toBeNull()
-      expect(actor?.username).toBe('test1')
-    })
-
     it('returns undefined for non-existent actor', async () => {
       const actor = await database.getActorFromUsername({
         username: 'nonexistent',

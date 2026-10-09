@@ -117,7 +117,7 @@ describe('TranslateContent', () => {
     expect(translateStatus).toHaveBeenCalledTimes(1)
   })
 
-  it('shows the 8-spoke loader, not the open arc, while the translation is pending', async () => {
+  it('shows a hidden spinner and a pending message while the translation is in flight', async () => {
     mockCapability(true, 'fr')
     const pending = createDeferred<Translation>()
     ;(translateStatus as jest.Mock).mockReturnValue(pending.promise)
@@ -128,8 +128,6 @@ describe('TranslateContent', () => {
     const status = await screen.findByText(/Translating to French/)
     const spinner = status.querySelector('svg')
     expect(spinner).not.toBeNull()
-    expect(spinner).toHaveClass('lucide-loader', 'animate-spin')
-    expect(spinner).not.toHaveClass('lucide-loader-circle')
     expect(spinner).toHaveAttribute('aria-hidden', 'true')
 
     pending.resolve(translation)

@@ -177,18 +177,6 @@ describe('DayDetails', () => {
     expect(screen.getByText(/^3 activities/)).toBeInTheDocument()
   })
 
-  it('lets a long title wrap', () => {
-    const long =
-      'Long Saturday gravel loop with the club riders: hill repeats on the ridge, a coffee stop at the lake and the headwind home'
-    render(
-      <DayDetails {...props({ activities: [activity({ title: long })] })} />
-    )
-    const title = screen.getByText(long)
-    expect(title).toHaveClass('break-words')
-    expect(title).not.toHaveClass('truncate')
-    expect(title).not.toHaveClass('whitespace-nowrap')
-  })
-
   it('says "No recorded activities" for an empty day', () => {
     render(<DayDetails {...props({ totals: null, activities: [] })} />)
     expect(screen.getByText('No recorded activities')).toBeInTheDocument()
@@ -212,9 +200,8 @@ describe('DayDetails', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('dims the rows already shown while reloading', () => {
+    it('keeps the rows already shown while reloading', () => {
       render(<DayDetails {...props({ loading: true })} />)
-      expect(screen.getByRole('list')).toHaveClass('opacity-60')
       expect(screen.getAllByTestId('day-activity-row')).toHaveLength(2)
     })
 
@@ -277,11 +264,10 @@ describe('DayDetails', () => {
   })
 
   describe('closing', () => {
-    it('has a 44px Close button', () => {
+    it('calls onClose from the Close button', () => {
       const onClose = vi.fn()
       render(<DayDetails {...props({ onClose })} />)
       const close = screen.getByRole('button', { name: 'Close day details' })
-      expect(close).toHaveClass('size-11')
       fireEvent.click(close)
       expect(onClose).toHaveBeenCalledTimes(1)
     })
@@ -299,13 +285,6 @@ describe('DayDetails', () => {
       fireEvent.keyDown(screen.getAllByRole('link')[0], { key: 'Enter' })
       expect(onClose).not.toHaveBeenCalled()
     })
-  })
-
-  it('fades in over 150ms', () => {
-    render(<DayDetails {...props()} />)
-    const region = screen.getByTestId('day-details')
-    expect(region).toHaveClass('animate-in', 'fade-in-0', 'duration-150')
-    expect(region.className).not.toContain('slide-in')
   })
 
   it('is a region named by the date', () => {

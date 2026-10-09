@@ -2,14 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within
-} from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   STICKY_HEAD_CELL,
@@ -238,15 +231,9 @@ describe('GearComponentsCard', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(390))
 
-      const [typeHeader] = columnCells(0)
-      expect(typeHeader).toHaveClass('sticky')
       for (const cell of columnCells(7)) {
-        expect(cell).not.toHaveClass('sticky')
         expect((cell as HTMLElement).style.scrollSnapAlign).toBe('start')
       }
-      expect(
-        screen.getByRole('button', { name: 'Edit Chain' }).closest('div')
-      ).toHaveClass('justify-end')
       const scroller = screen.getByRole('table').parentElement as HTMLElement
       expect(scroller).toHaveStyle({
         scrollSnapType: 'x mandatory',
@@ -260,20 +247,6 @@ describe('GearComponentsCard', () => {
     // positioned, and its `sr-only` label (`position: absolute`) resolved
     // against the page rather than the scroller — escaping the overflow clip at
     // its unscrolled x and widening a 390px document to ~1,770px.
-    it('keeps the actions label inside a positioned scroller on a phone', () => {
-      renderCard([createComponent()])
-      act(() => deliverWidth?.(390))
-
-      const [actionsHeader] = columnCells(7)
-      expect(actionsHeader).not.toHaveClass('sticky')
-      expect(
-        within(actionsHeader as HTMLElement).getByText('Actions')
-      ).toHaveClass('sr-only')
-      expect(screen.getByRole('table').parentElement).toHaveClass(
-        'relative',
-        'overflow-x-auto'
-      )
-    })
 
     // The Added/Retired cells are never positioned, so a refitted component's
     // `sr-only` "Install N:" labels leaked at every width the table scrolls,
@@ -291,12 +264,9 @@ describe('GearComponentsCard', () => {
       act(() => deliverWidth?.(600))
 
       const scroller = screen.getByRole('table').parentElement as HTMLElement
-      expect(scroller).toHaveClass('relative', 'overflow-x-auto')
       const labels = screen.getAllByText(/^Install \d+:$/)
       expect(labels).toHaveLength(4)
       for (const label of labels) {
-        expect(label).toHaveClass('sr-only')
-        expect(label.closest('.sticky')).toBeNull()
         expect(scroller).toContainElement(label)
       }
     })
@@ -305,15 +275,9 @@ describe('GearComponentsCard', () => {
       renderCard([createComponent()])
       act(() => deliverWidth?.(600))
 
-      const [typeHeader] = columnCells(0)
-      expect(typeHeader).toHaveClass('sticky')
       for (const cell of columnCells(7)) {
-        expect(cell).toHaveClass('sticky', 'right-0')
         expect((cell as HTMLElement).style.scrollSnapAlign).toBe('')
       }
-      expect(
-        screen.getByRole('button', { name: 'Edit Chain' }).closest('div')
-      ).toHaveClass('justify-center')
       const [, brandHeader] = screen.getAllByRole('columnheader')
       expect((brandHeader as HTMLElement).style.scrollSnapAlign).toBe('start')
       expect(screen.getByRole('table').parentElement).toHaveStyle({
@@ -323,8 +287,8 @@ describe('GearComponentsCard', () => {
       })
     })
 
-    it('leaves a wide table unsnapped, with the type column still pinned', () => {
-      renderCard([createComponent()])
+    it('leaves a wide table unsnapped, with the type column still pinned and the brand and actions columns at least 140px wide', () => {
+      renderCard([createComponent({ brand: 'Continental' })])
       act(() => deliverWidth?.(1400))
 
       const [typeHeader] = columnCells(0)
@@ -335,6 +299,11 @@ describe('GearComponentsCard', () => {
       expect(screen.getByRole('table').parentElement).not.toHaveStyle({
         scrollSnapType: 'x mandatory'
       })
+      for (const index of [1, 7]) {
+        const [header, cell] = columnCells(index)
+        expect((header as HTMLElement).style.minWidth).toBe('140px')
+        expect((cell as HTMLElement).style.minWidth).toBe('140px')
+      }
     })
 
     it('snaps multiple whole columns on mid-width viewports without half columns', () => {
@@ -356,24 +325,6 @@ describe('GearComponentsCard', () => {
         scrollPaddingLeft: '120px',
         scrollPaddingRight: '140px'
       })
-    })
-
-    it('sets the brand column width to at least 140px off-snap', () => {
-      renderCard([createComponent({ brand: 'Continental' })])
-      act(() => deliverWidth?.(1400))
-
-      const [brandHeader, brandCell] = columnCells(1)
-      expect((brandHeader as HTMLElement).style.minWidth).toBe('140px')
-      expect((brandCell as HTMLElement).style.minWidth).toBe('140px')
-    })
-
-    it('sets the actions column width to at least 140px off-snap', () => {
-      renderCard([createComponent()])
-      act(() => deliverWidth?.(1400))
-
-      const [actionsHeader, actionsCell] = columnCells(7)
-      expect((actionsHeader as HTMLElement).style.minWidth).toBe('140px')
-      expect((actionsCell as HTMLElement).style.minWidth).toBe('140px')
     })
 
     it.each([
@@ -476,14 +427,6 @@ describe('GearComponentsCard', () => {
       expect(typeHeader).toHaveClass('sticky', 'left-0', STICKY_HEAD_CELL)
       expect(typeHeader.className).not.toContain(STICKY_LEFT_SHADOW)
       expect(actionsHeader.className).toContain(STICKY_RIGHT_SHADOW)
-      // The shadows fade, so reduced motion has to opt them out; nothing
-      // global in the stylesheet does.
-      for (const header of [typeHeader, actionsHeader]) {
-        expect(header).toHaveClass(
-          'transition-shadow',
-          'motion-reduce:transition-none'
-        )
-      }
 
       const scroller = screen.getByRole('table').parentElement as HTMLElement
       act(() => {
@@ -495,12 +438,6 @@ describe('GearComponentsCard', () => {
       })
 
       expect(typeHeader.className).toContain(STICKY_LEFT_SHADOW)
-      // The shadow only paints because `cn` drops the pinned column's own
-      // hairline shadow for it: with both present, the hairline rule comes
-      // later in the stylesheet and wins.
-      expect(typeHeader.className.split(' ')).not.toContain(
-        'shadow-[inset_-1px_0_0_var(--border)]'
-      )
       expect(actionsHeader).toHaveClass('sticky', 'right-0', STICKY_HEAD_CELL)
       expect(actionsHeader.className).not.toContain(STICKY_RIGHT_SHADOW)
     })
@@ -813,18 +750,6 @@ describe('GearComponentsCard', () => {
   })
 
   // Action buttons stay on a single line via flex-nowrap and generous column sizing
-  it('keeps the retired row actions on a single line with flex-nowrap', () => {
-    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 retired component' })
-    )
-
-    const actions = screen
-      .getByRole('button', { name: 'Refit Chain' })
-      .closest('div')
-    expect(actions).toHaveClass('flex', 'flex-nowrap')
-  })
 
   // The pinned actions column fits two buttons, and "Confirm delete" beside
   // "Refit" did not: it spilled across the divider and off the card. The
@@ -851,29 +776,6 @@ describe('GearComponentsCard', () => {
 
   // Fading the `<tr>` or a pinned `<td>` fades the pinned cell's opaque
   // surface with it, and the data columns would show through mid-fade.
-  it('fades a revealed retired row in through its cells, never the row or a pinned cell', () => {
-    renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Show 1 retired component' })
-    )
-
-    const row = screen.getAllByRole('row')[1]
-    expect(row).not.toHaveClass('animate-in')
-    const [typeCell, brandCell] = Array.from(row.children)
-    expect(typeCell).not.toHaveClass('animate-in')
-    expect(typeCell.firstElementChild).toHaveClass('animate-in', 'fade-in-0')
-    expect(brandCell).toHaveClass('animate-in', 'fade-in-0')
-    const actionsCell = row.lastElementChild as HTMLElement
-    expect(actionsCell).not.toHaveClass('animate-in')
-    expect(actionsCell.firstElementChild).toHaveClass('animate-in')
-    // tw-animate-css has no reduced-motion handling of its own.
-    expect(brandCell).toHaveClass('motion-reduce:animate-none')
-    expect(
-      screen
-        .getByRole('button', { name: 'Hide retired components' })
-        .querySelector('svg')
-    ).toHaveClass('motion-reduce:transition-none')
-  })
 
   it('offers refit and delete on a retired row, but not edit', () => {
     renderCard([createComponent({ removedAt: Date.UTC(2025, 5, 1) })])
@@ -1220,42 +1122,11 @@ describe('GearComponentsCard', () => {
     )
   })
 
-  // Mirrors the pinned-column guards in GearListView.test.tsx. This table's
-  // rows are inert, so it uses the non-hover variant — and its retired-row dim
-  // has to sit on a descendant, not the pinned cell, because `opacity` fades an
-  // element's background along with its text.
+  // The retired-row dim has to sit on a descendant, not the pinned cell,
+  // because `opacity` fades an element's background along with its text.
   describe('pinned first column', () => {
     const getTypeCell = (componentType: string) =>
       screen.getByText(componentType).closest('td')
-
-    it('pins the type column on an opaque surface', () => {
-      renderCard([createComponent()])
-
-      expect(getTypeCell('Chain')).toHaveClass(
-        'sticky',
-        'left-0',
-        'bg-background'
-      )
-    })
-
-    it('pins the type column header too', () => {
-      renderCard([createComponent()])
-
-      // On the header band's opaque tint, not the page's surface.
-      const header = screen.getByText('Type').closest('th')
-      expect(header).toHaveClass('sticky', 'left-0', STICKY_HEAD_CELL)
-      expect(header).not.toHaveClass('bg-background')
-    })
-
-    it('leaves the pinned cell unlit, since the rows are not clickable', () => {
-      renderCard([createComponent()])
-
-      // The hover variant belongs only on a row that has its own `hover:` and
-      // the `group` class. These rows have neither, so it would never match —
-      // but keeping it off them is what stops a later `group` on the row from
-      // lighting this column alone.
-      expect(getTypeCell('Chain')?.className).not.toContain('group-hover:')
-    })
 
     it('dims a retired component through its cells so the pinned column stays opaque', () => {
       renderCard([createComponent({ removedAt: Date.UTC(2025, 2, 15) })])

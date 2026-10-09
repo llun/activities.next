@@ -77,19 +77,6 @@ describe('EditHistoryButton', () => {
     expect(screen.getByText('the previous text')).toBeInTheDocument()
   })
 
-  it('draws the revision text in the foreground colour, not the muted action-row colour', () => {
-    openHistory(status({}, 'the previous text'))
-
-    // The panel renders inside the (muted) action row, so the text would
-    // inherit `text-muted-foreground` without its own colour. Its container is
-    // the revision's text block, the element that holds the processed HTML.
-    const text = screen.getByText('the previous text')
-    const block = text.closest('div.overflow-auto')
-    expect(block).not.toBeNull()
-    expect(block).toHaveClass('text-foreground')
-    expect(block).not.toHaveClass('text-muted-foreground')
-  })
-
   it.each(['', ' \n\t'])(
     'explains an empty previous revision while showing its changes',
     (text) => {

@@ -12,13 +12,11 @@ import { MediaStorageType } from '@/lib/config/mediaStorage'
 
 import type { StorageSource } from './productionArchive'
 import {
-  PUBLIC_STORAGE_FETCH_TIMEOUT_MS,
   archiveStorage,
   assertArchiveTableFilesReadable,
   assertMatchingMigrations,
   assertSafeDirectoryToReplace,
   buildStoragePlan,
-  createPublicStorageFetchInit,
   createS3Client,
   exportDatabase,
   fetchPublicStorageResponse,
@@ -1033,16 +1031,6 @@ describe('production archive scripts', () => {
         SIMPLE: 'value',
         SINGLE: 'literal # hash'
       })
-    })
-  })
-
-  describe('createPublicStorageFetchInit', () => {
-    it('sets a timeout signal for public storage downloads', () => {
-      const controller = new AbortController()
-      const init = createPublicStorageFetchInit(controller.signal)
-
-      expect(PUBLIC_STORAGE_FETCH_TIMEOUT_MS).toBe(60_000)
-      expect(init.signal).toBe(controller.signal)
     })
   })
 

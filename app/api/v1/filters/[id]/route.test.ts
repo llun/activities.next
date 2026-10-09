@@ -617,9 +617,35 @@ describe('/api/v1/filters/[id]', () => {
 
   // Rails `resources` maps update to both PATCH and PUT, so v1-era Mastodon
   // clients may send either verb.
-  it('binds PATCH to the same handler as PUT', () => {
-    expect(typeof PATCH).toBe('function')
-    expect(PATCH).toBe(PUT)
+  it('updates the filter when the request is sent as PATCH', async () => {
+    const { filter, keywords } = await createFilterFixture({
+      title: 'patch-old',
+      keywords: [{ keyword: 'patch-old', wholeWord: false }]
+    })
+    const id = keywordId(keywords, 'patch-old')
+
+    const response = await PATCH(
+      requestFor(id, {
+        method: 'PATCH',
+        body: {
+          phrase: 'patch-new',
+          context: ['home'],
+          irreversible: false,
+          whole_word: true
+        }
+      }),
+      { params: Promise.resolve({ id }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      id,
+      phrase: 'patch-new',
+      whole_word: true
+    })
+    expect(
+      await database.getFilter({ actorId: ACTOR1_ID, id: filter.id })
+    ).toMatchObject({ title: 'patch-new' })
   })
 
   it('advertises PATCH in the OPTIONS Access-Control-Allow-Methods header', async () => {

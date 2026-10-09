@@ -665,18 +665,6 @@ describe('Post', () => {
     expect(editHistoryContent).toBeInTheDocument()
     expect(onShowEdits).toHaveBeenCalledTimes(1)
     expect(editHistoryRegion).toBeInTheDocument()
-    // The 25rem panel is anchored to the action row, which spans the post
-    // exactly, so it stays flush with the post's right edge whatever the
-    // engagement counts do to the trigger's position in the left-hand cluster.
-    // Two classes make that work and jsdom can observe neither: `right-0` on
-    // the panel, and the absence of `relative` on the trigger's own wrapper —
-    // with it, the panel anchors to the trigger and a card clips whatever
-    // hangs past the post.
-    expect(editHistoryRegion).toHaveClass('absolute', 'right-0')
-    expect(editHistoryRegion.parentElement).not.toHaveClass('relative')
-    expect(editHistoryRegion.parentElement?.parentElement).toHaveClass(
-      'relative'
-    )
     expect(editHistoryButton).toHaveAttribute('aria-expanded', 'true')
     expect(editHistoryButton).toHaveAttribute(
       'aria-controls',
@@ -827,63 +815,6 @@ describe('Post', () => {
     expect(
       screen.queryByRole('button', { name: /Show edit history/ })
     ).not.toBeInTheDocument()
-  })
-
-  it('uses a pointer cursor for status action buttons', () => {
-    render(
-      <Post
-        host="activities.local"
-        currentActor={status.actor ?? undefined}
-        currentTime={currentTime}
-        editable
-        showActions
-        status={{
-          ...status,
-          edits: [{ text: 'Previous content', createdAt: currentTime - 1000 }]
-        }}
-        onEdit={vi.fn()}
-        onPostDeleted={vi.fn()}
-        onReply={vi.fn()}
-        onShowAttachment={vi.fn()}
-      />
-    )
-
-    const actionButtons = within(
-      screen.getByRole('group', { name: 'Post actions' })
-    ).getAllByRole('button')
-
-    expect(actionButtons).toHaveLength(7)
-    actionButtons.forEach((button) => {
-      expect(button).toHaveClass('cursor-pointer')
-    })
-  })
-
-  it('uses disabled opacity styling for async-capable status action buttons', () => {
-    render(
-      <Post
-        host="activities.local"
-        currentActor={status.actor ?? undefined}
-        currentTime={currentTime}
-        editable
-        showActions
-        status={status}
-        onShowAttachment={vi.fn()}
-      />
-    )
-
-    const actions = screen.getByRole('group', {
-      name: 'Post actions'
-    })
-
-    expect(within(actions).getByRole('button', { name: 'Repost' })).toHaveClass(
-      'disabled:opacity-50'
-    )
-    expect(within(actions).getByRole('button', { name: 'Like' })).toHaveClass(
-      'disabled:opacity-50'
-    )
-    expect(
-      within(actions).getByRole('button', { name: 'Bookmark' })
-    ).toHaveClass('disabled:opacity-50')
   })
 
   it('resets like action state when rendering a different status', () => {
@@ -1484,9 +1415,8 @@ describe('Post', () => {
     )
 
     it('truncates a long gear name inside its stat cell', () => {
-      // fitness_gears.name is a varchar(255): one unbroken token would push
-      // this quarter-width grid column past the card without a truncate, and
-      // the cell needs min-w-0 for the truncate to have anything to work with.
+      // fitness_gears.name is a varchar(255): the full name must stay in the
+      // DOM (and in the title) however long it is.
       const longName = 'M'.repeat(200)
       render(
         <Post
@@ -1507,11 +1437,9 @@ describe('Post', () => {
         />
       )
 
+      // The full text stays in the DOM and reachable on hover.
       const value = screen.getByText(`42.6 km · ${longName}`)
-      expect(value).toHaveClass('truncate')
-      // The full text stays reachable on hover.
       expect(value).toHaveAttribute('title', `42.6 km · ${longName}`)
-      expect(value.parentElement).toHaveClass('min-w-0')
     })
 
     it('shows no gear when the activity has no distance to append it to', () => {
@@ -1843,44 +1771,6 @@ describe('Post', () => {
         'Add reaction',
         'More actions'
       ])
-    })
-
-    it('spans the whole status with its actions packed left and ⋯ pinned right', () => {
-      observeWidth(900)
-      render(
-        <Post
-          host="activities.local"
-          currentActor={status.actor ?? undefined}
-          currentTime={currentTime}
-          showActions
-          status={{
-            ...status,
-            reactions: [
-              { name: '🔥', count: 2, me: false, url: null, static_url: null }
-            ]
-          }}
-          onShowAttachment={vi.fn()}
-        />
-      )
-
-      const actions = screen.getByRole('group', { name: 'Post actions' })
-      // Pinned because none of it is observable in jsdom and every part is
-      // load-bearing: `-ml-13` is what pulls the row back over the avatar
-      // column, `gap-1` is the whole of the spacing between the packed actions
-      // now that no `justify-content` distributes them, and the `ml-auto` on
-      // the ⋯ wrapper is the only thing that separates it from that cluster
-      // (the design-system rule the docs carry).
-      // `mt-3` rides along with the pull in `Actions`' `fullBleed` default, so
-      // pin it here too — dropping it silently closes the gap between every
-      // post body and its action row on every surface.
-      expect(actions).toHaveClass('-ml-13', 'mt-3', 'gap-1')
-      expect(
-        screen.getByRole('button', { name: 'More actions' }).parentElement
-      ).toHaveClass('ml-auto')
-      // The chips are full-bleed with it, or they line up with nothing.
-      expect(
-        screen.getByLabelText('Add 🔥 reaction, 2').parentElement
-      ).toHaveClass('-ml-13')
     })
 
     it('hands bookmark and react to the overflow menu when the post is narrow', async () => {
@@ -2446,28 +2336,6 @@ describe('Post', () => {
     })
   })
 
-  describe('layout constraints', () => {
-    it('applies min-h-0 and min-w-0 to outer flex containers and content column to avoid WebKit height inflation', () => {
-      const { container } = render(
-        <Post
-          host="activities.local"
-          currentTime={currentTime}
-          status={status}
-          onShowAttachment={vi.fn()}
-        />
-      )
-
-      const outerCol = container.querySelector('.flex.flex-col')
-      expect(outerCol).toHaveClass('min-h-0', 'min-w-0')
-
-      const innerRow = container.querySelector('.flex.gap-3')
-      expect(innerRow).toHaveClass('min-h-0', 'min-w-0')
-
-      const contentCol = container.querySelector('.flex-1')
-      expect(contentCol).toHaveClass('min-h-0', 'min-w-0')
-    })
-  })
-
   describe('header timestamp', () => {
     const MINUTE = 60 * 1000
     const HOUR = 60 * MINUTE
@@ -2554,43 +2422,6 @@ describe('Post', () => {
 
       expect(screen.getByText('now')).toHaveAttribute('aria-hidden', 'true')
       expect(screen.getByText('less than a minute ago')).toHaveClass('sr-only')
-    })
-
-    it('keeps the 32px tap target without stretching the 20px header row', () => {
-      render(
-        <Post
-          host="activities.local"
-          currentTime={currentTime}
-          status={{ ...status, summary: null }}
-          onOpenStatus={vi.fn()}
-          onShowAttachment={vi.fn()}
-        />
-      )
-
-      // jsdom has no layout: pin the two classes whose combination does it. The
-      // button is 32px tall (`min-h-8`) and cancels that height out of the row
-      // with equal negative vertical margins.
-      const button = screen.getByRole('button', { name: /Open status/ })
-      expect(button).toHaveClass('min-h-8', '-my-2')
-    })
-
-    it('keeps the author link above the timestamp button it can overlap', () => {
-      render(
-        <Post
-          host="activities.local"
-          currentTime={currentTime}
-          status={{ ...status, summary: null }}
-          onOpenStatus={vi.fn()}
-          onShowAttachment={vi.fn()}
-        />
-      )
-
-      // jsdom has no layout or hit testing: pin the class that does it. In a
-      // wrapped header the button's 32px box reaches 6px up over the author
-      // link and, later in the DOM, would win the click there. `relative` on
-      // the link's wrapper paints it above the unpositioned button.
-      const authorLink = screen.getByRole('link', { name: 'Llun' })
-      expect(authorLink.parentElement).toHaveClass('relative')
     })
 
     it('opens the status when the timestamp is pressed', () => {

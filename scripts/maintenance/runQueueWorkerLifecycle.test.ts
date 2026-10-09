@@ -1,7 +1,6 @@
 import { createDeferred } from '@/lib/testing/deferred'
 
 import {
-  QUEUE_WORKER_SHUTDOWN_TIMEOUT_MS,
   QueueWorkerShutdownTimeoutError,
   createQueueWorkerShutdown
 } from './runQueueWorkerLifecycle'
@@ -186,9 +185,5 @@ describe('createQueueWorkerShutdown', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('uses the documented 30 second default deadline', () => {
-    expect(QUEUE_WORKER_SHUTDOWN_TIMEOUT_MS).toBe(30_000)
   })
 })

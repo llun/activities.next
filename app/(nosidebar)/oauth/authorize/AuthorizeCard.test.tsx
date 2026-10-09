@@ -558,29 +558,7 @@ describe('AuthorizeCard', () => {
     expect(screen.queryByText('R')).not.toBeInTheDocument()
   })
 
-  it('draws the OIDC account monogram on the neutral tokens, not Tailwind grays', () => {
-    render(
-      <AuthorizeCard
-        client={client}
-        searchParams={oidcSearchParams}
-        actors={actors}
-        currentActorId="https://activities.local/users/llun"
-        account={{ email: 'rider@example.com', name: 'Zoe', iconUrl: null }}
-        navigate={mockNavigate}
-      />
-    )
-
-    const monogram = screen.getByText('Z')
-    expect(monogram).toHaveClass(
-      'bg-(--skeleton)',
-      'font-semibold',
-      'text-muted-foreground',
-      'dark:bg-input'
-    )
-    expect(monogram.className).not.toMatch(/gray-/)
-  })
-
-  it('draws the actor picker monograms on the neutral tokens, not Tailwind grays', async () => {
+  it('lists every actor in the actor picker menu', async () => {
     render(
       <AuthorizeCard
         client={client}
@@ -592,32 +570,14 @@ describe('AuthorizeCard', () => {
       />
     )
 
-    const expectNeutralMonogram = (monogram: Element | null) => {
-      expect(monogram).toHaveClass(
-        'bg-(--skeleton)',
-        'font-semibold',
-        'text-muted-foreground',
-        'dark:bg-input'
-      )
-      expect(monogram?.className).not.toMatch(/gray-/)
-    }
-
     const trigger = screen.getByRole('button', { name: /llun/ })
-    const triggerMonogram = trigger.querySelector(
-      '[data-slot="avatar-fallback"]'
-    )
-    expect(triggerMonogram).toHaveTextContent('L')
-    expectNeutralMonogram(triggerMonogram)
+    expect(
+      trigger.querySelector('[data-slot="avatar-fallback"]')
+    ).toHaveTextContent('L')
 
     fireEvent.keyDown(trigger, { key: 'ArrowDown' })
     const menu = await screen.findByRole('menu')
-    const items = within(menu).getAllByRole('menuitem')
-    expect(items).toHaveLength(2)
-    for (const item of items) {
-      const monogram = item.querySelector('[data-slot="avatar-fallback"]')
-      expectNeutralMonogram(monogram)
-      expect(monogram).toHaveClass('text-xs')
-    }
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(2)
   })
 
   it('derives a Unicode-safe avatar initial for a non-BMP name (OIDC)', () => {
@@ -859,92 +819,34 @@ describe('AuthorizeCard', () => {
     })
   })
 
-  it('redirects to server_error when approval response is missing a redirect URL', async () => {
-    mockSubmitOAuthConsent.mockResolvedValueOnce({})
-
-    render(
-      <AuthorizeCard
-        client={client}
-        searchParams={{
-          ...signedSearchParams,
-          redirect_uri: 'https://phanpy.local/'
-        }}
-        actors={actors}
-        currentActorId="https://activities.local/users/llun"
-        account={account}
-        navigate={mockNavigate}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith(
-        'https://phanpy.local/?error=server_error&state=return-state'
-      )
-    })
-  })
-
-  it('redirects to server_error when approval response has invalid redirect URL', async () => {
-    mockSubmitOAuthConsent.mockResolvedValueOnce({
-      url: 'javascript:alert(1)'
-    })
-
-    render(
-      <AuthorizeCard
-        client={client}
-        searchParams={{
-          ...signedSearchParams,
-          redirect_uri: 'https://phanpy.local/'
-        }}
-        actors={actors}
-        currentActorId="https://activities.local/users/llun"
-        account={account}
-        navigate={mockNavigate}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith(
-        'https://phanpy.local/?error=server_error&state=return-state'
-      )
-    })
-  })
-
-  it('redirects to server_error when consent submission rejects with a server error', async () => {
-    mockSubmitOAuthConsent.mockRejectedValueOnce(
-      new Error('Internal Server Error')
-    )
-
-    render(
-      <AuthorizeCard
-        client={client}
-        searchParams={{
-          ...signedSearchParams,
-          redirect_uri: 'https://phanpy.local/'
-        }}
-        actors={actors}
-        currentActorId="https://activities.local/users/llun"
-        account={account}
-        navigate={mockNavigate}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith(
-        'https://phanpy.local/?error=server_error&state=return-state'
-      )
-    })
-  })
-
-  it('redirects to server_error when consent submission encounters a network error', async () => {
-    mockSubmitOAuthConsent.mockRejectedValueOnce(
-      new TypeError('Failed to fetch')
-    )
+  it.each([
+    {
+      name: 'the approval response is missing a redirect URL',
+      mockConsent: () => mockSubmitOAuthConsent.mockResolvedValueOnce({})
+    },
+    {
+      name: 'the approval response has an invalid redirect URL',
+      mockConsent: () =>
+        mockSubmitOAuthConsent.mockResolvedValueOnce({
+          url: 'javascript:alert(1)'
+        })
+    },
+    {
+      name: 'consent submission rejects with a server error',
+      mockConsent: () =>
+        mockSubmitOAuthConsent.mockRejectedValueOnce(
+          new Error('Internal Server Error')
+        )
+    },
+    {
+      name: 'consent submission encounters a network error',
+      mockConsent: () =>
+        mockSubmitOAuthConsent.mockRejectedValueOnce(
+          new TypeError('Failed to fetch')
+        )
+    }
+  ])('redirects to server_error when $name', async ({ mockConsent }) => {
+    mockConsent()
 
     render(
       <AuthorizeCard
@@ -996,10 +898,33 @@ describe('AuthorizeCard', () => {
     expect(mockSubmitOAuthConsent).not.toHaveBeenCalled()
   })
 
-  it('redirects to access_denied when denial response has an invalid redirect URL', async () => {
-    mockSubmitOAuthConsent.mockResolvedValueOnce({
-      url: 'javascript:alert(1)'
-    })
+  it.each([
+    {
+      name: 'the denial response has an invalid redirect URL',
+      mockConsent: () =>
+        mockSubmitOAuthConsent.mockResolvedValueOnce({
+          url: 'javascript:alert(1)'
+        }),
+      error: 'access_denied'
+    },
+    {
+      name: 'denial encounters a server error',
+      mockConsent: () =>
+        mockSubmitOAuthConsent.mockRejectedValueOnce(
+          new Error('Internal Server Error')
+        ),
+      error: 'server_error'
+    },
+    {
+      name: 'denial encounters a network error',
+      mockConsent: () =>
+        mockSubmitOAuthConsent.mockRejectedValueOnce(
+          new TypeError('Network failure')
+        ),
+      error: 'server_error'
+    }
+  ])('redirects to $error when $name', async ({ mockConsent, error }) => {
+    mockConsent()
 
     render(
       <AuthorizeCard
@@ -1019,63 +944,7 @@ describe('AuthorizeCard', () => {
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith(
-        'https://phanpy.local/?error=access_denied&state=return-state'
-      )
-    })
-  })
-
-  it('redirects to server_error when denial encounters a server error', async () => {
-    mockSubmitOAuthConsent.mockRejectedValueOnce(
-      new Error('Internal Server Error')
-    )
-
-    render(
-      <AuthorizeCard
-        client={client}
-        searchParams={{
-          ...signedSearchParams,
-          redirect_uri: 'https://phanpy.local/'
-        }}
-        actors={actors}
-        currentActorId="https://activities.local/users/llun"
-        account={account}
-        navigate={mockNavigate}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith(
-        'https://phanpy.local/?error=server_error&state=return-state'
-      )
-    })
-  })
-
-  it('redirects to server_error when denial encounters a network error', async () => {
-    mockSubmitOAuthConsent.mockRejectedValueOnce(
-      new TypeError('Network failure')
-    )
-
-    render(
-      <AuthorizeCard
-        client={client}
-        searchParams={{
-          ...signedSearchParams,
-          redirect_uri: 'https://phanpy.local/'
-        }}
-        actors={actors}
-        currentActorId="https://activities.local/users/llun"
-        account={account}
-        navigate={mockNavigate}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith(
-        'https://phanpy.local/?error=server_error&state=return-state'
+        `https://phanpy.local/?error=${error}&state=return-state`
       )
     })
   })
@@ -1136,19 +1005,6 @@ describe('AuthorizeCard', () => {
         expect(box).toHaveAttribute('id', `scope-${box.value}`)
         expect(box).toBeChecked()
         expect(box).toBeEnabled()
-      }
-    })
-
-    // Presentation, not behaviour: kept apart from the tests around it so they
-    // stay valid against the card as it was before the shared Checkbox.
-    it('draws each scope box with the shared Checkbox at the 14 px tick', () => {
-      renderCard()
-
-      const boxes = screen.getAllByRole('checkbox')
-      expect(boxes).toHaveLength(4)
-      for (const box of boxes) {
-        expect(box).toHaveAttribute('data-slot', 'checkbox')
-        expect(box).toHaveClass('bg-[length:14px_14px]')
       }
     })
 

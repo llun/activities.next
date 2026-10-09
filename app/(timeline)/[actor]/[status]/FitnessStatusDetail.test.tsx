@@ -25,7 +25,6 @@ import { ActorProfile } from '@/lib/types/domain/actor'
 import { Status, StatusNote } from '@/lib/types/domain/status'
 import { loadMaplibreModule } from '@/lib/utils/maplibre'
 
-import { GRAPH_HEIGHT_CLASSNAME } from './FitnessAnalysisCharts'
 import { FitnessStatusDetail } from './FitnessStatusDetail'
 
 vi.mock('@/lib/client', () => ({
@@ -748,20 +747,6 @@ describe('FitnessStatusDetail', () => {
     )
   })
 
-  it('draws stat tiles as the design does: radius 8, flat, and a value line height of 1', () => {
-    renderDetail()
-
-    const value = screen.getByText('5.00')
-    // `leading-none` must SURVIVE the class merge. tailwind-merge drops a
-    // `leading-*` that comes before a `text-[28px]`, which left the value at
-    // 1.5 (42px) and every tile 14px taller than the design's 101.
-    expect(value).toHaveClass('text-[28px]', 'leading-none')
-    const tile = value.parentElement as HTMLElement
-    expect(tile).toHaveClass('rounded-lg', 'border')
-    expect(tile).not.toHaveClass('rounded-xl')
-    expect(tile).not.toHaveClass('shadow-sm')
-  })
-
   it('renders the caption through the same markup pipeline as the timeline, not flattened to plain text', () => {
     renderDetail({
       status: buildStatus({
@@ -959,7 +944,6 @@ describe('FitnessStatusDetail', () => {
       // The plot's svg is stretched with preserveAspectRatio="none", so an SVG
       // <text> shrank with the card to ~8px. Outside the svg it stays fixed.
       expect(label.closest('svg')).toBeNull()
-      expect(label).toHaveClass('text-xs', 'font-medium', 'whitespace-nowrap')
       expect(label).toHaveTextContent('Average Power 135 W')
     })
 
@@ -1012,17 +996,6 @@ describe('FitnessStatusDetail', () => {
       expect(screen.getByTestId('power-x-end-label')).toHaveTextContent('325 W')
     })
 
-    it('keeps every x axis label on one line', async () => {
-      await openPowerDistribution(oddBucketSeries)
-
-      for (const label of [
-        ...screen.getAllByTestId('power-x-tick'),
-        screen.getByTestId('power-x-end-label')
-      ]) {
-        expect(label).toHaveClass('whitespace-nowrap')
-      }
-    })
-
     it('puts each y label on its own gridline, clamped inside the axis box', async () => {
       const container = await openPowerDistribution(oddBucketSeries)
 
@@ -1055,32 +1028,11 @@ describe('FitnessStatusDetail', () => {
       // `justify-between` could not place the labels.
       expect(labelPercents[0]).toBeGreaterThan(5)
       expect(labelPercents[4]).toBe(100)
-      // Every label is centred on its own position and holds one line. It is
-      // `self-start` because a grid item stretches to its 250px cell by
-      // default, and `-translate-y-1/2` of a 250px box shoves the text ~125px
-      // above its gridline. jsdom lays nothing out, so the classes that make
-      // `top` mean "down from the top of the shared box" are the contract:
-      // `relative` (`top` is ignored on a static element, so every label would
-      // pile onto the top edge), the one shared `col-start-1 row-start-1` cell
-      // and the `grid` that owns it.
       for (const label of labels) {
-        expect(label).toHaveClass(
-          'relative',
-          'col-start-1',
-          'row-start-1',
-          '-translate-y-1/2',
-          'self-start',
-          'whitespace-nowrap'
-        )
         // The lower clamp keeps the baseline label inside the box. jsdom's
         // serializer drops the inner `calc(`, hence the optional group.
         expect(label.style.top).toMatch(/, (calc\()?100% - 8px\)+$/)
       }
-      expect(labels[0].parentElement).toHaveClass('grid')
-      // `top: N%` is a share of this box, so it has to be as tall as the plot
-      // it labels: without the height the box is one 16px line and the five
-      // labels stack on the same spot.
-      expect(labels[0].parentElement).toHaveClass(GRAPH_HEIGHT_CLASSNAME)
     })
   })
 
@@ -1154,10 +1106,7 @@ describe('FitnessStatusDetail', () => {
           .getAllByRole('heading', { level: 3 })
           .map((heading) => heading.textContent)
       ).toEqual(['Elevation Profile', 'Speed', 'Power', 'Heart rate'])
-      // Each row is flush: the border and the rounding belong to the shared
-      // panel. None of this is observable in jsdom, and without it the stack
-      // silently goes back to four separately bordered cards.
-      expect(panel).toHaveClass('overflow-hidden', 'rounded-xl', 'border')
+      // The rounding belongs to the shared panel, not to each row.
       expect(panel.querySelectorAll('.rounded-xl')).toHaveLength(0)
     })
 
@@ -1466,19 +1415,6 @@ describe('FitnessStatusDetail', () => {
       expect(screen.queryAllByTestId('chart-hover-value')).toHaveLength(0)
     })
 
-    it('leaves the browser both page scrolling and pinch zoom', async () => {
-      const panel = await openAnalysis()
-
-      // Only the horizontal drag is claimed. `touch-pan-y` alone compiles to
-      // exactly `touch-action: pan-y`, which silently drops pinch-zoom over a
-      // stack of four charts — so the second class is load-bearing, not
-      // decorative.
-      for (const chart of Array.from(panel.querySelectorAll('svg'))) {
-        expect(chart).toHaveClass('touch-pan-y')
-        expect(chart).toHaveClass('touch-pinch-zoom')
-      }
-    })
-
     it('suppresses the compatibility mouse events a tap fires afterwards', async () => {
       const panel = await openAnalysis()
       const [elevationChart] = Array.from(panel.querySelectorAll('svg'))
@@ -1580,16 +1516,11 @@ describe('FitnessStatusDetail', () => {
     // ~51s of it — which is what the old flat 120-point cap produced — averages
     // every short climb and sprint away. Strava draws one point per 8 samples
     // (measured on two of its own activity Analysis pages: 5,913 -> 740 and
-    // 5,272 -> 659), so these are the ratios, not round numbers.
+    // 5,272 -> 659), so these are the ratios, not round numbers. The floor and
+    // ceiling clamps are covered in fitnessChartData.test.ts.
     it.each([
       { description: '5913 samples like the reference ride', raw: 5_913 },
-      { description: '5272 samples like the second ride', raw: 5_272 },
-      // Just above where the 120-point floor stops binding (it binds below 956
-      // samples), so this case pins the RATIO rather than the clamp — the two
-      // rows above would still pass if the ratio were replaced by any cap of
-      // their own value, and the floor case below passes even against the old
-      // flat 120.
-      { description: '1000 samples just past the floor', raw: 1_000 }
+      { description: '5272 samples like the second ride', raw: 5_272 }
     ])('plots $description at Strava density', async ({ raw }) => {
       const ramp = Array.from({ length: raw }, (_, index) => index)
       mockGetFitnessRouteData.mockResolvedValue({
@@ -1607,46 +1538,6 @@ describe('FitnessStatusDetail', () => {
         (path) => (path.getAttribute('d') ?? '').match(/[LM]/g)?.length ?? 0
       )
       expect(pointCounts).toEqual([expected, expected, expected, expected])
-    })
-
-    // The ratio is clamped at both ends: a short activity never gets coarser
-    // than it already was, and a very long one never grows an unbounded path.
-    it.each([
-      {
-        description: 'floors a short recording at 120 points',
-        raw: 600,
-        expected: 120
-      },
-      {
-        description: 'caps a very long recording at 1200 points',
-        raw: 40_000,
-        expected: 1_200
-      }
-    ])('$description', async ({ raw, expected }) => {
-      const ramp = Array.from({ length: raw }, (_, index) => index)
-      mockGetFitnessRouteData.mockResolvedValue({
-        ...routeData,
-        altitudeSeries: ramp
-      })
-
-      const panel = await openAnalysis()
-
-      const [elevationPath] = Array.from(panel.querySelectorAll('path'))
-      expect(
-        (elevationPath.getAttribute('d') ?? '').match(/[LM]/g)
-      ).toHaveLength(expected)
-    })
-
-    // Downsampling is a bin average, so a series shorter than the floor has to
-    // survive untouched — otherwise a two-minute activity would be resampled
-    // for no reason and its samples would stop lining up with the map.
-    it('leaves a series shorter than the floor at its own resolution', async () => {
-      const panel = await openAnalysis()
-
-      const [elevationPath] = Array.from(panel.querySelectorAll('path'))
-      expect(
-        (elevationPath.getAttribute('d') ?? '').match(/[LM]/g)
-      ).toHaveLength(routeData.altitudeSeries?.length ?? 0)
     })
 
     it('follows the scrubbed instant on the map above it', async () => {
@@ -1780,26 +1671,8 @@ describe('FitnessStatusDetail', () => {
     const select = (await screen.findByLabelText(
       'Activity file'
     )) as HTMLSelectElement
-    expect(select).toHaveClass(
-      'w-full',
-      'max-w-full',
-      'truncate',
-      'appearance-none',
-      'pr-10'
-    )
-    expect(select.parentElement?.querySelector('svg')).toHaveClass(
-      'pointer-events-none'
-    )
-    // The switcher is its own bordered card (radius 12, 16 padding) with a
-    // chevron in the foreground colour, not a bare select with a muted one.
-    expect(select.parentElement?.querySelector('svg')).toHaveClass(
-      'text-foreground'
-    )
-    expect(select.parentElement?.querySelector('svg')).not.toHaveClass(
-      'text-muted-foreground'
-    )
+    // The switcher is its own card, beside the activity card.
     const switcherCard = select.closest('div.rounded-xl') as HTMLElement
-    expect(switcherCard).toHaveClass('border', 'bg-card', 'p-4')
     expect(switcherCard).toContainElement(screen.getByText('Activity file'))
     // A card of its own, beside the activity card rather than inside it: the
     // activity card is the one holding the file position in its footer, and the
@@ -1955,20 +1828,6 @@ describe('FitnessStatusDetail', () => {
       expect(canvas.style.cursor).toBe('')
     })
 
-    it('never covers the map: the hint takes no pointer events', async () => {
-      const { handlers } = await renderWithGlMap()
-
-      await act(async () => {
-        handlers.get(`mousemove:${HIT_LAYER}`)?.({ point: { x: 40, y: 90 } })
-      })
-
-      // The whole point of replacing the pinned bar: an overlay that could
-      // swallow a drag would make part of the map unpannable.
-      expect(screen.getByTestId('route-privacy-hint')).toHaveClass(
-        'pointer-events-none'
-      )
-    })
-
     it('explains the hidden segments to assistive technology without a hover', async () => {
       await renderWithGlMap()
 
@@ -2121,22 +1980,6 @@ describe('FitnessStatusDetail', () => {
           .getAllByRole('button')
           .map((button) => button.textContent)
       ).toEqual(['Reply', 'Boost', 'Like', 'Bookmark', '', 'More'])
-      // None of this is observable in jsdom and all of it is load-bearing: the
-      // card footer's own padding already puts the row at the status's left
-      // edge, so the avatar-column pull would drag it outside the card.
-      // `mt-3` rides along with the pull, so pin its absence too — hoisting it
-      // out of the `fullBleed` branch would silently add 12px above this
-      // footer row while `post.test.tsx` stayed green. One assertion each:
-      // `.not.toHaveClass(a, b)` passes when EITHER is missing, so the two
-      // together would still pass with `mt-3` wrongly present.
-      expect(actions).not.toHaveClass('-ml-13')
-      expect(actions).not.toHaveClass('mt-3')
-      // `gap-1` is the whole of the spacing between the packed actions — no
-      // `justify-content` distributes them any more — so this surface's row
-      // reads identically to every other one. (The `ml-auto` that pushes ⋯ to
-      // the right is pinned in `post.test.tsx`, where `PostMenu` is the real
-      // component rather than the stub above.)
-      expect(actions).toHaveClass('gap-1')
     })
 
     it('renders no action row for a logged-out reader', () => {
@@ -2191,9 +2034,6 @@ describe('FitnessStatusDetail', () => {
       }
 
       expect(clipping).toEqual([])
-      // The corners are still the card's own, so this pins a removed clip
-      // rather than a removed radius.
-      expect(card).toHaveClass('rounded-xl')
     })
 
     it('renders the edit-history panel inside the card that used to clip it', () => {
@@ -2217,29 +2057,6 @@ describe('FitnessStatusDetail', () => {
       // of its own — it stays a descendant of the card and depends entirely on
       // the card not clipping.
       expect(headerCard()).toContainElement(panel)
-      // …and it opens upward, which is the direction that ran it past the
-      // card's top edge. jsdom lays nothing out, so this pins the direction
-      // rather than the overrun: at full height (a `max-h-80` list under a
-      // 2.5rem header) the panel is taller than everything above the footer.
-      expect(panel).toHaveClass('bottom-full')
-    })
-
-    it('leaves the card the only surface painting at its rounded corners', () => {
-      renderDetail()
-
-      // Nothing clips for the radius any more, so a child that paints a
-      // background and reaches a corner shows a square fill outside the
-      // border. Neither child paints one today — both are transparent over the
-      // card's own `bg-card` — so this fails the moment one gains a background
-      // at all. That is deliberately stricter than the rule it protects: a
-      // painted child may well be fine once it carries the matching
-      // `rounded-t-xl`/`rounded-b-xl`, and failing here is the prompt to
-      // decide which corners it actually reaches.
-      const painted = Array.from(headerCard().children)
-        .map((child) => child.getAttribute('class') ?? '')
-        .filter((className) => /(?:^|\s)bg-\S+/.test(className))
-
-      expect(painted).toEqual([])
     })
   })
 

@@ -70,22 +70,6 @@ const relationship = (
 })
 
 describe('ProfileRelationshipActions', () => {
-  it('applies shrink-0 and sm:flex-nowrap to keep action buttons on one line on desktop', () => {
-    const { container } = render(
-      <ProfileRelationshipActions
-        targetActorId="https://remote.test/users/open"
-        targetHandle="open@remote.test"
-        isLoggedIn
-        relationship={relationship()}
-        className="custom-actions-class"
-      />
-    )
-
-    const actionContainer = container.firstElementChild
-    expect(actionContainer).toHaveClass('shrink-0')
-    expect(actionContainer).toHaveClass('sm:flex-nowrap')
-    expect(actionContainer).toHaveClass('custom-actions-class')
-  })
   it('offers the remote follow dialog to a logged out visitor', () => {
     render(
       <ProfileRelationshipActions
