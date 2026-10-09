@@ -12,6 +12,15 @@ import {
   unassignAdminReport,
   updateAdminReport
 } from '@/lib/client'
+import { DetailList } from '@/lib/components/admin/DetailList'
+import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
+import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
+import { Badge } from '@/lib/components/ui/badge'
+import { Button } from '@/lib/components/ui/button'
 import { Select } from '@/lib/components/ui/select'
 import { AdminReport } from '@/lib/types/mastodon/admin/report'
 
@@ -54,150 +63,174 @@ export const AdminReportDetail = ({ reportId }: { reportId: string }) => {
     }
   }
 
+  const retry = () => {
+    setLoading(true)
+    void load()
+  }
+
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading report…</p>
+    return (
+      <SectionSkeleton title={false} sections={[5, 3]} label="Loading report" />
+    )
   }
   if (!report) {
-    return (
-      <p className="text-sm text-destructive">
-        {error ?? 'Report unavailable'}
-      </p>
-    )
+    return <Alert title={error ?? 'Report unavailable'} onRetry={retry} />
   }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <dt className="text-sm text-muted-foreground">Reporter</dt>
-            <dd className="font-medium">{acct(report.account)}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">Target</dt>
-            <dd className="font-medium">{acct(report.target_account)}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">Category</dt>
-            <dd className="font-medium">{report.category}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">Status</dt>
-            <dd className="font-medium">
-              {report.action_taken ? 'Resolved' : 'Open'}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">Assigned to</dt>
-            <dd className="font-medium">
-              {report.assigned_account
+      <Section title="Details">
+        <DetailList
+          items={[
+            { label: 'Reporter', value: acct(report.account) },
+            { label: 'Target', value: acct(report.target_account) },
+            {
+              label: 'Category',
+              value: <span className="capitalize">{report.category}</span>
+            },
+            {
+              label: 'Status',
+              value: (
+                <Badge tone={report.action_taken ? 'gray' : 'primary'}>
+                  {report.action_taken ? 'Resolved' : 'Open'}
+                </Badge>
+              )
+            },
+            {
+              label: 'Assigned to',
+              value: report.assigned_account
                 ? acct(report.assigned_account)
-                : 'Unassigned'}
-            </dd>
-          </div>
-        </dl>
-        {report.comment ? (
-          <p className="mt-4 whitespace-pre-wrap text-sm">{report.comment}</p>
-        ) : null}
-      </div>
+                : 'Unassigned'
+            },
+            ...(report.comment
+              ? [
+                  {
+                    label: 'Comment',
+                    value: (
+                      <span className="font-normal whitespace-pre-wrap">
+                        {report.comment}
+                      </span>
+                    )
+                  }
+                ]
+              : [])
+          ]}
+        />
+      </Section>
 
       {report.rules.length > 0 ? (
-        <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <h2 className="mb-2 text-sm font-semibold">Broken rules</h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm">
+        <Section title="Broken rules" meta={report.rules.length}>
+          <FramedList aria-label="Broken rules">
             {report.rules.map((rule) => (
-              <li key={rule.id}>{rule.text}</li>
+              <FramedListItem key={rule.id} className="text-sm">
+                {rule.text}
+              </FramedListItem>
             ))}
-          </ul>
-        </div>
+          </FramedList>
+        </Section>
       ) : null}
 
       {report.statuses.length > 0 ? (
-        <div className="rounded-2xl border bg-background/80 p-6 shadow-sm">
-          <h2 className="mb-2 text-sm font-semibold">
-            Reported statuses ({report.statuses.length})
-          </h2>
-          <ul className="space-y-2 text-sm">
+        <Section title="Reported statuses" meta={report.statuses.length}>
+          <FramedList aria-label="Reported statuses">
             {report.statuses.map((status) => (
-              <li key={status.id} className="truncate">
+              <FramedListItem key={status.id} className="truncate text-sm">
                 <Link
                   href={status.url ?? '#'}
                   className="text-primary-text hover:underline"
                 >
                   {status.url ?? status.id}
                 </Link>
-              </li>
+              </FramedListItem>
             ))}
-          </ul>
-        </div>
+          </FramedList>
+        </Section>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="text-sm text-muted-foreground">Category</label>
-        <Select
-          value={report.category}
-          disabled={busy}
-          onChange={(event) =>
-            run(() =>
-              updateAdminReport({
-                id: reportId,
-                category: event.target.value as ReportCategory
-              })
-            )
-          }
-          // Sits in a wrapping row beside the buttons, so it takes its content
-          // width rather than the primitive's full width.
-          className="w-auto"
-        >
-          {CATEGORIES.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </Select>
+      <Section title="Moderation">
+        <Frame divided>
+          <FormRow label="Category" htmlFor="report-category">
+            <Select
+              id="report-category"
+              value={report.category}
+              disabled={busy}
+              onChange={(event) =>
+                run(() =>
+                  updateAdminReport({
+                    id: reportId,
+                    category: event.target.value as ReportCategory
+                  })
+                )
+              }
+            >
+              {CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </Select>
+          </FormRow>
 
-        {report.assigned_account ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => run(() => unassignAdminReport(reportId))}
-            className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+          <FormRow
+            label="Assignment"
+            hint={
+              report.assigned_account
+                ? `Assigned to ${acct(report.assigned_account)}.`
+                : 'Nobody is handling this report yet.'
+            }
           >
-            Unassign
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => run(() => assignAdminReportToSelf(reportId))}
-            className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
-          >
-            Assign to me
-          </button>
-        )}
+            {report.assigned_account ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => run(() => unassignAdminReport(reportId))}
+              >
+                Unassign
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => run(() => assignAdminReportToSelf(reportId))}
+              >
+                Assign to me
+              </Button>
+            )}
+          </FormRow>
 
-        {report.action_taken ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => run(() => reopenAdminReport(reportId))}
-            className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+          <FormRow
+            label="Resolution"
+            hint={
+              report.action_taken
+                ? 'This report is resolved.'
+                : 'Resolve it once you have dealt with it.'
+            }
           >
-            Reopen
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => run(() => resolveAdminReport(reportId))}
-            className="rounded-lg border border-primary/40 px-3 py-1.5 text-sm font-medium text-primary-text hover:bg-primary/10 disabled:opacity-50"
-          >
-            Resolve
-          </button>
-        )}
-      </div>
+            {report.action_taken ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => run(() => reopenAdminReport(reportId))}
+              >
+                Reopen
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => run(() => resolveAdminReport(reportId))}
+              >
+                Resolve
+              </Button>
+            )}
+          </FormRow>
+        </Frame>
+      </Section>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <Alert title={error} /> : null}
     </div>
   )
 }

@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -51,7 +54,8 @@ vi.mock('@/lib/utils/getAdminFromSession', () => ({
 vi.mock('next/navigation', () => ({
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`)
-  })
+  }),
+  useRouter: () => ({ refresh: vi.fn() })
 }))
 
 describe('/admin/queues page', () => {
@@ -70,14 +74,77 @@ describe('/admin/queues page', () => {
       await Page({ searchParams: Promise.resolve({}) })
     )
 
-    expect(markup).toContain('Queues &amp; Dead Letter Queue')
+    expect(markup).toContain('Queues &amp; dead letter queue')
     expect(markup).toContain('processActivity')
     expect(markup).toContain('Connection timed out')
     expect(markup).toContain('failed')
-    expect(markup).toContain('Attempts: 5')
+    expect(markup).toContain('Attempts')
     expect(markup).toContain('Retry all failed')
     expect(markup).toContain('Drop all messages')
     expect(markup).toContain('Cloud Tasks (Database DLQ)')
+  })
+
+  it('offers the statuses as links with their counts, marking the current one', async () => {
+    mockDLQProvider.getJobs.mockResolvedValue({
+      jobs: mockJobs,
+      total: 1,
+      counts: { all: 6, failed: 3, retried: 2, discarded: 1 }
+    })
+    const markup = renderToStaticMarkup(
+      await Page({ searchParams: Promise.resolve({ status: 'retried' }) })
+    )
+    const container = document.createElement('div')
+    container.innerHTML = markup
+
+    const nav = container.querySelector('nav[aria-label="Job status"]')
+    const links = Array.from(nav?.querySelectorAll('a') ?? [])
+    expect(links.map((link) => link.textContent)).toEqual([
+      'All6',
+      'Failed3',
+      'Retried2',
+      'Discarded1'
+    ])
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/admin/queues',
+      '/admin/queues?status=failed',
+      '/admin/queues?status=retried',
+      '/admin/queues?status=discarded'
+    ])
+    expect(
+      links.filter((link) => link.getAttribute('aria-current') === 'page')
+    ).toHaveLength(1)
+    expect(links[2].getAttribute('aria-current')).toBe('page')
+  })
+
+  it('only offers All and Failed on the QStash backend', async () => {
+    mockDLQProvider.type = 'qstash'
+    const container = document.createElement('div')
+    container.innerHTML = renderToStaticMarkup(
+      await Page({ searchParams: Promise.resolve({}) })
+    )
+
+    expect(
+      Array.from(
+        container.querySelectorAll('nav[aria-label="Job status"] a')
+      ).map((link) => link.textContent?.replace(/\d+$/, ''))
+    ).toEqual(['All', 'Failed'])
+  })
+
+  it('pages under the table with the status kept in the links', async () => {
+    mockDLQProvider.getJobs.mockResolvedValue({
+      jobs: mockJobs,
+      total: 45,
+      counts: { all: 45, failed: 45, retried: 0, discarded: 0 }
+    })
+    const markup = renderToStaticMarkup(
+      await Page({
+        searchParams: Promise.resolve({ status: 'failed', page: '2' })
+      })
+    )
+
+    expect(markup).toContain('Page 2 of 3 (45 total jobs)')
+    expect(markup).toContain('href="/admin/queues?status=failed"')
+    expect(markup).toContain('href="/admin/queues?status=failed&amp;page=3"')
   })
 
   it('passes status filter to provider query', async () => {

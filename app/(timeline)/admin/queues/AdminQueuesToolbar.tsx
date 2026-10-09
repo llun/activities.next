@@ -66,9 +66,8 @@ export const AdminQueuesToolbar: FC<Props> = ({
           size="sm"
           disabled={isPending}
           onClick={handleRetryAll}
-          className="gap-1.5 text-xs"
         >
-          <RotateCw className="h-3.5 w-3.5" />
+          <RotateCw />
           Retry all failed ({failedCount})
         </Button>
       )}
@@ -78,9 +77,9 @@ export const AdminQueuesToolbar: FC<Props> = ({
           size="sm"
           disabled={isPending}
           onClick={handleClearDiscarded}
-          className="gap-1.5 text-xs text-destructive hover:bg-destructive/10"
+          className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 />
           Clear discarded ({discardedCount})
         </Button>
       )}
@@ -90,9 +89,9 @@ export const AdminQueuesToolbar: FC<Props> = ({
           size="sm"
           disabled={isPending}
           onClick={handleDropAll}
-          className="gap-1.5 text-xs text-destructive hover:bg-destructive/10"
+          className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 />
           Drop all messages ({allCount})
         </Button>
       )}

@@ -3,7 +3,10 @@
 import { FC, useEffect, useState } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { formRowHintId } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
 import { SaveBar } from '@/lib/components/surface/SaveBar'
+import { Section } from '@/lib/components/surface/Section'
 import { Select } from '@/lib/components/ui/select'
 import { MEDIA_STORAGE_ENV_PREFIX } from '@/lib/config/environmentTemplates'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
@@ -19,7 +22,6 @@ import { EnvLockLabel } from './EnvLockBadge'
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { NumberField } from './NumberField'
 import { SettingsField } from './SettingsField'
-import { SettingsSection } from './SettingsSection'
 import { useServerSettingsForm } from './useServerSettingsForm'
 
 const BYTES_PER_MB = 1024 * 1024
@@ -141,80 +143,87 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
         description="Limits for posts, polls, and uploads, plus the storage and map backends behind them. Limits are advertised via the instance API so apps follow along."
       />
 
-      <SettingsSection
+      <Section
         title="Posts"
         description="Limits for new posts, advertised to apps via the instance API."
-        footer={
-          <SaveBar
-            dirty={isDirty(POSTS_KEYS)}
-            saving={postsStatus.saving}
-            saved={postsStatus.saved}
-            error={postsStatus.error}
-            onSave={() => saveSection('posts', POSTS_KEYS)}
-          />
-        }
       >
-        <SettingsField
-          label="Post size"
-          htmlFor="posts-max-characters"
-          help={`New posts and edits are capped at ${maxCharacters.toLocaleString()} characters. Links always count as 23.`}
+        <Frame
+          divided
+          footer={
+            <SaveBar
+              dirty={isDirty(POSTS_KEYS)}
+              saving={postsStatus.saving}
+              saved={postsStatus.saved}
+              error={postsStatus.error}
+              onSave={() => saveSection('posts', POSTS_KEYS)}
+            />
+          }
         >
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-            <Select
-              id="posts-max-characters"
-              value={postSizeMode}
-              onChange={(event) => changePostSizeMode(event.target.value)}
-            >
-              {POST_SIZE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-              <option value={CUSTOM_POST_SIZE}>Custom…</option>
-            </Select>
-            {postSizeMode === CUSTOM_POST_SIZE && (
-              <NumberField
-                id="posts-max-characters-custom"
-                ariaLabel="Custom post size"
-                value={maxCharacters}
-                min={1}
-                suffix="characters"
-                onChange={(next) => setValue('posts.maxCharacters', next)}
-              />
-            )}
-          </div>
-        </SettingsField>
+          <SettingsField
+            label="Post size"
+            htmlFor="posts-max-characters"
+            help={`New posts and edits are capped at ${maxCharacters.toLocaleString()} characters. Links always count as 23.`}
+          >
+            <div className="flex flex-col gap-3">
+              <Select
+                id="posts-max-characters"
+                aria-describedby={formRowHintId('posts-max-characters')}
+                value={postSizeMode}
+                onChange={(event) => changePostSizeMode(event.target.value)}
+              >
+                {POST_SIZE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+                <option value={CUSTOM_POST_SIZE}>Custom…</option>
+              </Select>
+              {postSizeMode === CUSTOM_POST_SIZE && (
+                <NumberField
+                  id="posts-max-characters-custom"
+                  ariaLabel="Custom post size"
+                  value={maxCharacters}
+                  min={1}
+                  suffix="characters"
+                  onChange={(next) => setValue('posts.maxCharacters', next)}
+                />
+              )}
+            </div>
+          </SettingsField>
 
-        <SettingsField
-          label="Media per post"
-          htmlFor="posts-max-media"
-          help={`Up to ${MAX_STORED_MEDIA_ATTACHMENTS}. The fediverse still only ever sees the first ${MAX_FEDERATION_MEDIA_ATTACHMENTS}.`}
-        >
-          <NumberField
-            id="posts-max-media"
-            value={values['posts.maxMediaAttachments'] as number}
-            min={1}
-            max={MAX_STORED_MEDIA_ATTACHMENTS}
-            suffix="attachments"
-            onChange={(next) => setValue('posts.maxMediaAttachments', next)}
-          />
-        </SettingsField>
-      </SettingsSection>
+          <SettingsField
+            label="Media per post"
+            htmlFor="posts-max-media"
+            help={`Up to ${MAX_STORED_MEDIA_ATTACHMENTS}. The fediverse still only ever sees the first ${MAX_FEDERATION_MEDIA_ATTACHMENTS}.`}
+          >
+            <NumberField
+              id="posts-max-media"
+              value={values['posts.maxMediaAttachments'] as number}
+              min={1}
+              max={MAX_STORED_MEDIA_ATTACHMENTS}
+              suffix="attachments"
+              onChange={(next) => setValue('posts.maxMediaAttachments', next)}
+            />
+          </SettingsField>
+        </Frame>
+      </Section>
 
-      <SettingsSection
+      <Section
         title="Polls"
         description="Shape of polls people can attach to posts."
-        footer={
-          <SaveBar
-            dirty={isDirty(POLL_KEYS)}
-            saving={pollsStatus.saving}
-            saved={pollsStatus.saved}
-            error={pollsStatus.error}
-            onSave={() => saveSection('polls', POLL_KEYS)}
-          />
-        }
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <Frame
+          divided
+          footer={
+            <SaveBar
+              dirty={isDirty(POLL_KEYS)}
+              saving={pollsStatus.saving}
+              saved={pollsStatus.saved}
+              error={pollsStatus.error}
+              onSave={() => saveSection('polls', POLL_KEYS)}
+            />
+          }
+        >
           <SettingsField label="Choices per poll" htmlFor="polls-max-options">
             <NumberField
               id="polls-max-options"
@@ -284,65 +293,69 @@ export const PostsMediaSettingsForm: FC<PostsMediaSettingsFormProps> = ({
               ))}
             </Select>
           </SettingsField>
-        </div>
-      </SettingsSection>
+        </Frame>
+      </Section>
 
-      <SettingsSection
+      <Section
         title="Media"
         description="Upload policy. The storage backend itself is infrastructure and stays in the environment."
-        footer={
-          <SaveBar
-            dirty={isDirty(MEDIA_KEYS)}
-            saving={mediaStatus.saving}
-            saved={mediaStatus.saved}
-            error={mediaStatus.error}
-            onSave={() => saveSection('media', MEDIA_KEYS)}
-          />
-        }
       >
-        <SettingsField
-          label="Upload size limit"
-          htmlFor="media-max-file-size"
-          help={`Applies to images and video alike; existing media is never touched. Up to ${MAX_UPLOAD_MB.toLocaleString()} MB.`}
-          locked={lock('media.maxFileSize').locked}
-          envVar={lock('media.maxFileSize').envVar}
-        >
-          <NumberField
-            id="media-max-file-size"
-            value={Math.round(uploadBytes / BYTES_PER_MB)}
-            min={1}
-            // The object-storage driver buffers a stored object back out at the
-            // same resolved cap, so raising this stays consistent with the read
-            // path; the ceiling is what keeps that buffer bounded. See the
-            // media.maxFileSize field in lib/config/serverSettings.
-            max={MAX_UPLOAD_MB}
-            suffix="MB per file"
-            disabled={lock('media.maxFileSize').locked}
-            onChange={(next) =>
-              setValue('media.maxFileSize', Math.round(next * BYTES_PER_MB))
-            }
-          />
-        </SettingsField>
-
-        <SettingsField
-          label={
-            <EnvLockLabel envVar={MEDIA_STORAGE_ENV_PREFIX}>
-              Storage backend
-            </EnvLockLabel>
+        <Frame
+          divided
+          footer={
+            <SaveBar
+              dirty={isDirty(MEDIA_KEYS)}
+              saving={mediaStatus.saving}
+              saved={mediaStatus.saved}
+              error={mediaStatus.error}
+              onSave={() => saveSection('media', MEDIA_KEYS)}
+            />
           }
-          help="Read from the environment at boot — change it with the builder below, not here."
         >
-          <p className="py-1 text-sm font-medium">
-            {storageBackend.label}
-            {storageBackend.detail && (
-              <span className="font-normal text-muted-foreground">
-                {' '}
-                ({storageBackend.detail})
-              </span>
-            )}
-          </p>
-        </SettingsField>
-      </SettingsSection>
+          <SettingsField
+            label="Upload size limit"
+            htmlFor="media-max-file-size"
+            help={`Applies to images and video alike; existing media is never touched. Up to ${MAX_UPLOAD_MB.toLocaleString()} MB.`}
+            locked={lock('media.maxFileSize').locked}
+            envVar={lock('media.maxFileSize').envVar}
+          >
+            <NumberField
+              id="media-max-file-size"
+              value={Math.round(uploadBytes / BYTES_PER_MB)}
+              min={1}
+              // The object-storage driver buffers a stored object back out at the
+              // same resolved cap, so raising this stays consistent with the read
+              // path; the ceiling is what keeps that buffer bounded. See the
+              // media.maxFileSize field in lib/config/serverSettings.
+              max={MAX_UPLOAD_MB}
+              suffix="MB per file"
+              disabled={lock('media.maxFileSize').locked}
+              onChange={(next) =>
+                setValue('media.maxFileSize', Math.round(next * BYTES_PER_MB))
+              }
+            />
+          </SettingsField>
+
+          <SettingsField
+            label={
+              <EnvLockLabel envVar={MEDIA_STORAGE_ENV_PREFIX}>
+                Storage backend
+              </EnvLockLabel>
+            }
+            help="Read from the environment at boot — change it with the builder below, not here."
+          >
+            <p className="py-1 text-sm font-medium">
+              {storageBackend.label}
+              {storageBackend.detail && (
+                <span className="font-normal text-muted-foreground">
+                  {' '}
+                  ({storageBackend.detail})
+                </span>
+              )}
+            </p>
+          </SettingsField>
+        </Frame>
+      </Section>
 
       <EnvBlockBuilder />
     </div>

@@ -236,4 +236,140 @@ describe('AnnouncementsPanel', () => {
 
     expect(await screen.findByText(expectedLabel)).toBeInTheDocument()
   })
+
+  it('shows an empty state pointing at the form when there are none', async () => {
+    mockGetServerAnnouncements.mockResolvedValue([])
+
+    await act(async () => {
+      renderPanel()
+    })
+
+    expect(await screen.findByText('No announcements yet')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Announcements' })).toBeNull()
+  })
+
+  it('waits behind skeleton bars, not loading text', async () => {
+    let finish: (list: ServerAnnouncement[]) => void = () => {}
+    mockGetServerAnnouncements.mockReturnValue(
+      new Promise<ServerAnnouncement[]>((resolve) => {
+        finish = resolve
+      })
+    )
+
+    const { container } = renderPanel()
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Loading announcements'
+    )
+    expect(container.textContent).not.toMatch(/Loading announcements…/)
+    await act(async () => {
+      finish([])
+    })
+    expect(await screen.findByText('No announcements yet')).toBeInTheDocument()
+  })
+
+  it('shows a failed load as an alert whose Retry loads the list again', async () => {
+    mockGetServerAnnouncements.mockRejectedValueOnce(new Error('down'))
+    mockGetServerAnnouncements.mockResolvedValueOnce([
+      buildServerAnnouncement({ text: 'Back online' })
+    ])
+
+    await act(async () => {
+      renderPanel()
+    })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to load announcements. Please try again.'
+    )
+    expect(screen.queryByText('No announcements yet')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByDisplayValue('Back online')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('lists announcements as rows with their status and schedule', async () => {
+    mockGetServerAnnouncements.mockResolvedValue([
+      buildServerAnnouncement({ id: 'a1', text: 'First' }),
+      buildServerAnnouncement({
+        id: 'a2',
+        text: 'Second',
+        published: false,
+        published_at: null,
+        all_day: true
+      })
+    ])
+
+    await act(async () => {
+      renderPanel()
+    })
+
+    const rows = within(
+      await screen.findByRole('list', { name: 'Announcements' })
+    ).getAllByRole('listitem')
+    expect(rows).toHaveLength(2)
+    expect(within(rows[0]).getByText('Published')).toBeInTheDocument()
+    expect(within(rows[0]).getByDisplayValue('First')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('Draft')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('All day')).toBeInTheDocument()
+  })
+
+  it('unpublishes from the row and shows the stored result', async () => {
+    mockGetServerAnnouncements.mockResolvedValue([buildServerAnnouncement()])
+    mockUpdateServerAnnouncement.mockResolvedValue(
+      buildServerAnnouncement({ published: false, published_at: null })
+    )
+
+    await act(async () => {
+      renderPanel()
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Unpublish' }))
+
+    await waitFor(() =>
+      expect(mockUpdateServerAnnouncement).toHaveBeenCalledWith(
+        'announcement-1',
+        { published: false }
+      )
+    )
+    expect(await screen.findByText('Draft')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument()
+  })
+
+  it('puts the announcement back and says so when deleting fails', async () => {
+    mockGetServerAnnouncements.mockResolvedValue([buildServerAnnouncement()])
+    mockDeleteServerAnnouncement.mockResolvedValue(false)
+
+    await act(async () => {
+      renderPanel()
+    })
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Delete announcement Scheduled maintenance tonight'
+      })
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Failed to delete announcement. Please try again.'
+    )
+    expect(
+      screen.getByDisplayValue('Scheduled maintenance tonight')
+    ).toBeInTheDocument()
+  })
+
+  it('labels the submit by what it will do', async () => {
+    await act(async () => {
+      renderPanel()
+    })
+
+    expect(
+      await screen.findByRole('button', { name: /save draft/i })
+    ).toBeDisabled()
+    fireEvent.click(screen.getByRole('switch', { name: 'Publish now' }))
+    expect(screen.getByRole('button', { name: /^publish$/i })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Text'), {
+      target: { value: 'Hello' }
+    })
+    expect(screen.getByRole('button', { name: /^publish$/i })).toBeEnabled()
+  })
 })

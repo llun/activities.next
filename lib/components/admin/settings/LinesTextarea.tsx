@@ -18,6 +18,7 @@ interface LinesTextareaProps {
   placeholder?: string
   className?: string
   'aria-label'?: string
+  'aria-describedby'?: string
 }
 
 const sameLines = (a: string[], b: string[]) =>
@@ -31,7 +32,8 @@ export const LinesTextarea: FC<LinesTextareaProps> = ({
   rows = 3,
   placeholder,
   className,
-  'aria-label': ariaLabel
+  'aria-label': ariaLabel,
+  'aria-describedby': describedBy
 }) => {
   const [text, setText] = useState(() => value.join('\n'))
   const lastEmitted = useRef<string[]>(value)
@@ -62,6 +64,7 @@ export const LinesTextarea: FC<LinesTextareaProps> = ({
       rows={rows}
       placeholder={placeholder}
       aria-label={ariaLabel}
+      aria-describedby={describedBy}
       className={cn('font-mono text-[13px]', className)}
     />
   )

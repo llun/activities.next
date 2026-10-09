@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { usePathname } from 'next/navigation'
 
 import Layout from './layout'
@@ -11,18 +11,63 @@ vi.mock('next/navigation', () => ({
   usePathname: vi.fn()
 }))
 
-describe('Admin Layout', () => {
-  // Below md the description's own 16px bottom padding is the whole gap to
-  // the dropdown; from md up the section keeps its 16px top padding.
-  it('drops the section top padding below md only', () => {
-    ;(usePathname as jest.Mock).mockReturnValue('/admin')
-    render(
-      <Layout>
-        <div>content</div>
-      </Layout>
-    )
+const renderAt = (pathname: string) => {
+  vi.mocked(usePathname).mockReturnValue(pathname)
+  return render(
+    <Layout>
+      <div>content</div>
+    </Layout>
+  )
+}
 
-    const nav = screen.getByRole('navigation', { name: 'Admin' })
-    expect(nav.parentElement).toHaveClass('pt-4', 'max-md:pt-0')
+describe('Admin Layout', () => {
+  it('names the page you are on in the section menu', () => {
+    renderAt('/admin/queues')
+
+    expect(screen.getByRole('button', { name: 'Queues' })).toBeInTheDocument()
+  })
+
+  it('keeps a detail page under its list in the menu', () => {
+    renderAt('/admin/accounts/acct-1')
+
+    expect(screen.getByRole('button', { name: 'Accounts' })).toBeInTheDocument()
+  })
+
+  it('lists every admin page in the menu', () => {
+    renderAt('/admin')
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Overview' }), {
+      button: 0,
+      ctrlKey: false
+    })
+    const items = screen
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent)
+    expect(items).toEqual([
+      'Overview',
+      'Accounts',
+      'Reports',
+      'Server rules',
+      'Hashtags',
+      'Announcements',
+      'Filters',
+      'Custom emojis',
+      'Federation',
+      'Relays',
+      'Posts & media',
+      'Network',
+      'Instance',
+      'Queues',
+      'System'
+    ])
+  })
+
+  it('renders the page inside the section', () => {
+    renderAt('/admin')
+
+    expect(screen.getByText('content')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Admin' })
+    ).toBeInTheDocument()
   })
 })

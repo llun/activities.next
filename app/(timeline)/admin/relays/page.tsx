@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react'
 import { redirect } from 'next/navigation'
+import { ComponentProps } from 'react'
 
 import {
   addRelayAction,
@@ -7,17 +8,25 @@ import {
   subscribeRelayAction,
   unsubscribeRelayAction
 } from '@/app/(timeline)/admin/relays/actions'
+import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FormRow, formRowHintId } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
+import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { RelayState } from '@/lib/types/domain/relay'
-import { cn } from '@/lib/utils'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 export const dynamic = 'force-dynamic'
+
+type BadgeTone = ComponentProps<typeof Badge>['tone']
 
 interface Props {
   searchParams: Promise<Record<string, string | undefined>>
@@ -34,14 +43,11 @@ const STATUS_MESSAGES: Record<string, string> = {
 
 const ERROR_STATUSES = new Set(['invalid-inbox-url', 'duplicate-inbox-url'])
 
-const STATE_BADGE_CLASSES: Record<RelayState, string> = {
-  idle: 'border-border bg-muted text-muted-foreground',
-  pending:
-    'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100',
-  accepted:
-    'border-green-200 bg-green-50 text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-100',
-  rejected:
-    'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100'
+const STATE_BADGE_TONES: Record<RelayState, BadgeTone> = {
+  idle: 'gray',
+  pending: 'warning',
+  accepted: 'success',
+  rejected: 'destructive'
 }
 
 const Page = async ({ searchParams }: Props) => {
@@ -66,71 +72,77 @@ const Page = async ({ searchParams }: Props) => {
       />
 
       {statusMessage && (
-        <div
-          className={cn(
-            'rounded-lg border px-4 py-3 text-sm',
-            isErrorStatus
-              ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100'
-              : 'border-green-200 bg-green-50 text-green-900 dark:border-green-900 dark:bg-green-950 dark:text-green-100'
-          )}
-        >
-          {statusMessage}
-        </div>
+        <Alert
+          tone={isErrorStatus ? 'error' : 'success'}
+          title={statusMessage}
+        />
       )}
 
-      <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">Add relay</h2>
-        <form action={addRelayAction} className="space-y-4">
-          <div className="space-y-1">
-            <Label htmlFor="relay-inbox-url">Inbox URL</Label>
-            <Input
-              id="relay-inbox-url"
-              required
-              type="url"
-              name="inboxUrl"
-              placeholder="https://relay.example/inbox"
-            />
-          </div>
-          <Button type="submit">Add relay</Button>
+      <Section title="Add relay">
+        <form action={addRelayAction}>
+          <Frame
+            divided
+            footer={
+              <div className="flex justify-end">
+                <Button type="submit">Add relay</Button>
+              </div>
+            }
+          >
+            <FormRow
+              label="Inbox URL"
+              htmlFor="relay-inbox-url"
+              hint="The relay's inbox, usually ending in /inbox."
+              wide
+            >
+              <Input
+                id="relay-inbox-url"
+                required
+                type="url"
+                name="inboxUrl"
+                placeholder="https://relay.example/inbox"
+                aria-describedby={formRowHintId('relay-inbox-url')}
+              />
+            </FormRow>
+          </Frame>
         </form>
-      </section>
+      </Section>
 
-      <section className="rounded-xl border bg-background/80 p-5 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold">Relays</h2>
-        <div className="space-y-2">
-          {relays.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No relays configured
-            </p>
-          ) : (
-            relays.map((relay) => {
+      <Section
+        title="Relays"
+        meta={relays.length > 0 ? relays.length : undefined}
+      >
+        {relays.length === 0 ? (
+          <EmptyState icon={ADMIN_ICONS.relays} title="No relays configured">
+            Add a relay above to start sharing public posts with other servers.
+          </EmptyState>
+        ) : (
+          <FramedList aria-label="Relays">
+            {relays.map((relay) => {
               const canSubscribe =
                 relay.state === 'idle' || relay.state === 'rejected'
 
               return (
-                <div
+                <FramedListItem
                   key={relay.id}
-                  className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium">{relay.inboxUrl}</p>
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium capitalize',
-                          STATE_BADGE_CLASSES[relay.state]
-                        )}
+                      <Badge
+                        tone={STATE_BADGE_TONES[relay.state]}
+                        className="shrink-0 capitalize"
                       >
                         {relay.state}
-                      </span>
+                      </Badge>
                     </div>
                     {relay.actorId && (
-                      <p className="truncate text-sm text-muted-foreground">
+                      <p className="text-muted-foreground truncate text-sm">
                         {relay.actorId}
                       </p>
                     )}
                     {relay.lastError && (
-                      <p className="truncate text-sm text-destructive">
+                      <p className="text-destructive-text truncate text-sm">
                         {relay.lastError}
                       </p>
                     )}
@@ -159,16 +171,16 @@ const Page = async ({ searchParams }: Props) => {
                         size="icon"
                         aria-label={`Remove relay ${relay.inboxUrl}`}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 />
                       </Button>
                     </form>
                   </div>
-                </div>
+                </FramedListItem>
               )
-            })
-          )}
-        </div>
-      </section>
+            })}
+          </FramedList>
+        )}
+      </Section>
     </div>
   )
 }

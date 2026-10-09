@@ -1,15 +1,17 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 
+import { DetailList } from '@/lib/components/admin/DetailList'
+import { Pagination } from '@/lib/components/admin/Pagination'
+import { ADMIN_ICONS } from '@/lib/components/admin/adminIcons'
 import { BackLink } from '@/lib/components/back-link'
 import { PageHeader } from '@/lib/components/page-header'
-import { MOBILE_FEED_SURFACE_CLASS } from '@/lib/components/posts/feedLayout'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { cleanJson } from '@/lib/utils/cleanJson'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
+import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 
 import { AdminHashtagPosts } from './AdminHashtagPosts'
 
@@ -47,6 +49,29 @@ const Page = async ({ params, searchParams }: Props) => {
 
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE)
 
+  // Posts are newest first, so the first one on page 1 is the hashtag's latest;
+  // on a later page it is only the newest of that page, and is labelled so.
+  const newestCreatedAt = statuses[0]?.createdAt
+  const facts = [
+    { label: 'Public posts', value: total.toLocaleString() },
+    ...(statuses.length > 0
+      ? [
+          {
+            label: 'Showing',
+            value: `${offset + 1}–${offset + statuses.length}`
+          }
+        ]
+      : []),
+    ...(typeof newestCreatedAt === 'number'
+      ? [
+          {
+            label: page === 1 ? 'Latest post' : 'Newest on this page',
+            value: getISOTimeUTC(newestCreatedAt, true)
+          }
+        ]
+      : [])
+  ]
+
   return (
     <div className="space-y-6">
       {/* Below md the Back is its own "Back" row above the heading; from md
@@ -61,16 +86,19 @@ const Page = async ({ params, searchParams }: Props) => {
         <PageHeader
           className="flex-1"
           title={tag.replace(/^#+/, '')}
-          description={`${total} public post${total !== 1 ? 's' : ''}.`}
+          description="Public posts that use this hashtag."
         />
       </div>
 
+      <DetailList items={facts} />
+
       {statuses.length === 0 ? (
-        <div
-          className={`rounded-xl border border-dashed p-6 text-center text-muted-foreground ${MOBILE_FEED_SURFACE_CLASS}`}
+        <EmptyState
+          icon={ADMIN_ICONS.tags}
+          title={`No public posts with #${tag.replace(/^#+/, '')}`}
         >
-          No public posts with #{tag.replace(/^#+/, '')}
-        </div>
+          Public posts that use this hashtag are listed here.
+        </EmptyState>
       ) : (
         <AdminHashtagPosts
           host={host}
@@ -80,39 +108,19 @@ const Page = async ({ params, searchParams }: Props) => {
       )}
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          {page > 1 ? (
-            <Link
-              href={`/admin/tags/${encodeURIComponent(tag)}?page=${page - 1}`}
-              className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Link>
-          ) : (
-            <span className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground/50">
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </span>
-          )}
-          <span className="text-sm text-muted-foreground">
-            Page {page} of {totalPages}
-          </span>
-          {page < totalPages ? (
-            <Link
-              href={`/admin/tags/${encodeURIComponent(tag)}?page=${page + 1}`}
-              className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-          ) : (
-            <span className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground/50">
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </span>
-          )}
-        </div>
+        <Pagination
+          label={`Page ${page} of ${totalPages}`}
+          previousHref={
+            page > 1
+              ? `/admin/tags/${encodeURIComponent(tag)}?page=${page - 1}`
+              : undefined
+          }
+          nextHref={
+            page < totalPages
+              ? `/admin/tags/${encodeURIComponent(tag)}?page=${page + 1}`
+              : undefined
+          }
+        />
       )}
     </div>
   )

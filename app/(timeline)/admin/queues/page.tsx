@@ -1,14 +1,14 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
+import { PageRefreshButton } from '@/lib/components/admin/PageRefreshButton'
+import { Pagination } from '@/lib/components/admin/Pagination'
 import { PageHeader } from '@/lib/components/page-header'
-import { Button } from '@/lib/components/ui/button'
+import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
+import { Badge } from '@/lib/components/ui/badge'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getDLQProvider } from '@/lib/services/queue/dlq'
 import { DeadLetterJobStatus } from '@/lib/types/database/operations'
-import { cn } from '@/lib/utils'
 import { getAdminFromSession } from '@/lib/utils/getAdminFromSession'
 
 import { AdminQueuesList } from './AdminQueuesList'
@@ -89,48 +89,41 @@ const Page = async ({ searchParams }: Props) => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Queues & Dead Letter Queue"
+        title="Queues & dead letter queue"
         description="Inspect terminally failed background tasks, inspect payloads and stack traces, and trigger retries."
       />
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span>Queue Backend:</span>
-        <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
+      <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
+        <span>Queue backend</span>
+        <Badge tone="gray">
           {provider.type === 'qstash'
             ? 'Upstash QStash (Native DLQ)'
             : 'Cloud Tasks (Database DLQ)'}
-        </span>
+        </Badge>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {tabs.map((tab) => {
-            const isActive = activeStatus === tab.status
-            return (
-              <Link
-                key={tab.label}
-                href={buildHref({ status: tab.status, page: 1 })}
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground'
-                )}
-              >
-                <span>{tab.label}</span>
-                <span
-                  className={cn(
-                    'rounded-full px-1.5 py-0.2 text-[10px]',
-                    isActive
-                      ? 'bg-primary-foreground/20 text-primary-foreground'
-                      : 'bg-background/80 text-foreground'
-                  )}
-                >
-                  {tab.count}
-                </span>
-              </Link>
-            )
-          })}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <SegmentedControl
+            asLinks
+            aria-label="Job status"
+            size="sm"
+            className="min-w-0"
+            items={tabs.map((tab) => ({
+              value: tab.status ?? 'all',
+              href: buildHref({ status: tab.status, page: 1 }),
+              label: (
+                <>
+                  {tab.label}
+                  <span className="text-xs tabular-nums opacity-70">
+                    {tab.count}
+                  </span>
+                </>
+              )
+            }))}
+            value={activeStatus ?? 'all'}
+          />
+          <PageRefreshButton accessibleName="Refresh queues" />
         </div>
 
         <AdminQueuesToolbar
@@ -143,41 +136,13 @@ const Page = async ({ searchParams }: Props) => {
       <AdminQueuesList key={`${activeStatus ?? 'all'}-${page}`} jobs={jobs} />
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t pt-4">
-          <span className="text-xs text-muted-foreground">
-            Page {page} of {totalPages} ({totalCount} total jobs)
-          </span>
-
-          <div className="flex items-center gap-2">
-            {page > 1 ? (
-              <Button variant="outline" size="sm" asChild>
-                <Link href={buildHref({ page: page - 1 })}>
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  Previous
-                </Link>
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" disabled>
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
-            )}
-
-            {page < totalPages ? (
-              <Button variant="outline" size="sm" asChild>
-                <Link href={buildHref({ page: page + 1 })}>
-                  Next
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Link>
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" disabled>
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            )}
-          </div>
-        </div>
+        <Pagination
+          label={`Page ${page} of ${totalPages} (${totalCount} total jobs)`}
+          previousHref={page > 1 ? buildHref({ page: page - 1 }) : undefined}
+          nextHref={
+            page < totalPages ? buildHref({ page: page + 1 }) : undefined
+          }
+        />
       )}
     </div>
   )

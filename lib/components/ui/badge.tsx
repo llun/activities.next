@@ -16,11 +16,14 @@ const badgeVariants = cva(
         // --primary / --destructive fills at 10 % all but vanish there. The
         // labels are the text tokens, which already flip per theme.
         primary: 'bg-primary/10 text-primary-text dark:bg-[#FA802E]/16',
-        success:
-          'bg-green-100 text-green-800 dark:bg-[#163B24] dark:text-[#69D390]',
+        // Success, warning and info are the surface kit's status tokens, the
+        // same ones `Alert` uses: a tint of the status colour behind its `-text`
+        // token (which clears AA on that tint in both themes).
+        success: 'bg-success/10 text-success-text dark:bg-success/25',
+        warning: 'bg-warning/15 text-warning-text dark:bg-warning/25',
+        info: 'bg-info/10 text-info-text dark:bg-info/25',
         destructive:
-          'bg-destructive/10 text-destructive-text dark:bg-[#DF3A3A]/16',
-        blue: 'bg-blue-100 text-blue-800 dark:bg-[#00BCFF]/16 dark:text-foreground'
+          'bg-destructive/10 text-destructive-text dark:bg-[#DF3A3A]/16'
       }
     },
     defaultVariants: {
@@ -34,7 +37,14 @@ function Badge({
   tone,
   ...props
 }: React.ComponentProps<'span'> & VariantProps<typeof badgeVariants>) {
-  return <span className={cn(badgeVariants({ tone }), className)} {...props} />
+  return (
+    <span
+      data-slot="badge"
+      data-tone={tone ?? 'gray'}
+      className={cn(badgeVariants({ tone }), className)}
+      {...props}
+    />
+  )
 }
 
 export { Badge, badgeVariants }

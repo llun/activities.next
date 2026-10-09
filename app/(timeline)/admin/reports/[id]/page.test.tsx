@@ -41,7 +41,7 @@ describe('/admin/reports/[id]', () => {
 
     const back = screen.getByRole('link', { name: 'Back to reports list' })
     expect(back).toHaveAttribute('href', '/admin/reports')
-    expect(within(back).getByText('Back')).toHaveClass('md:sr-only')
+    expect(within(back).getByText('Back')).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { level: 1, name: 'Report' })
     ).not.toContainElement(back)

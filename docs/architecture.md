@@ -847,7 +847,7 @@ The fitness overview (`app/(timeline)/fitness/`, with its calendar components in
 
 ### Surfaces (Shared Surface Kit)
 
-Every page is laid out from one kit in `lib/components/surface/` (import each piece from its own file, for example `@/lib/components/surface/Frame`; `index.ts` re-exports the lot plus `RefreshButton`). The kit began as the Fitness overview's own primitives, which Gallery already borrowed; they were promoted to neutral names, and the `Fitness*` files no longer exist. Fitness, Gallery, Albums, Settings and Account use it today and the rest of the app is migrating to it, so a new surface reuses it instead of a `Card`, a `rounded-2xl` panel or a hand-coloured banner.
+Every page is laid out from one kit in `lib/components/surface/` (import each piece from its own file, for example `@/lib/components/surface/Frame`; `index.ts` re-exports the lot plus `RefreshButton`). The kit began as the Fitness overview's own primitives, which Gallery already borrowed; they were promoted to neutral names, and the `Fitness*` files no longer exist. Fitness, Gallery, Albums, Settings, Account and Admin use it today and the rest of the app is migrating to it, so a new surface reuses it instead of a `Card`, a `rounded-2xl` panel or a hand-coloured banner.
 
 | Component                                                            | Use it for                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -872,6 +872,7 @@ Rules:
 - **Lists.** Every list, post lists included, is one frame with dividers (Home and the Fitness recent activities), never separate cards.
 - **Forms.** Rows are label-and-hint on the left and control on the right inside one `Frame divided`, saved by a `SaveBar` footer or, for controls that save as they change, a `SavedIndicator`; stacked on a phone. Field validation keeps its small red line; a page-level error is an `Alert`.
 - **Settings and Account.** Every Settings and Account page (`/settings/*`, `/account/*`, verify-email included) is built from the kit: one `PageHeader` h1 (the section layouts render a child title as h2), `Section`s of `Frame divided` + `FormRow`, a `SaveBar` footer for forms (`NativeFormSaveBar` for the native-POST profile forms), `FramedList` / `TableFrame` lists with `EmptyState`s, `Alert`s for errors and a danger-zone `Alert` row for destructive actions. Each route has a `loading.tsx` drawn with `SectionSkeleton`.
+- **Admin.** Every Admin page (`/admin/*`) is built from the kit the same way: the Overview is a `SegmentedControl` time range over two `StatStrip`s whose selectable cells choose the chart; list pages (accounts, hashtags, reports, dead-lettered jobs) are `TableFrame`s with an `EmptyState` and the shared `Pagination` (`lib/components/admin/`); below `sm` a table keeps only its primary column and folds the rest into a muted second line (`lib/components/admin/adminTable.ts`), so no value or row action is left behind a sideways scroll, detail pages put a `DetailList` (label and value rows in one `Frame`) under a `Section`, and sort or status choices that navigate are `SegmentedControl asLinks`. Server settings forms are `Section` + `Frame divided` + `SettingsField` (a `FormRow` that also shows the "Set by environment" lock) with a `SaveBar`; relays, federation, rules, announcements, filters and custom emoji are framed lists (`FramedList`, or `Frame divided` rows) next to an add form in its own `Frame divided`. A status carried in the URL (`?status=`) or a request failure is an `Alert` (with Retry for a load); a state label is a `Badge` with a tone (`success`, `warning`, `info`, `destructive`, `primary`, `gray`), never a hand-coloured pill. Each `/admin/*` route has a `loading.tsx` drawn with `SectionSkeleton`, and the admin page icons live in `lib/components/admin/adminIcons.ts` so the menu and the page share them.
 - **Loading.** Skeleton bars in the final layout's shape, never "Loading..." text; a spinner only inside a button.
 - **Guard.** `lib/components/surface/surfaceKitUsage.test.ts` counts `rounded-2xl` + `shadow-sm` panels, raw palette colour utilities and "Loading…" text in the `.tsx` and `.ts` files under `app/` and `lib/` (tests, `.d.ts` and the kit excluded) with comments stripped first, so a class name in a comment does not count and fails when a count goes above its checked-in baseline. Lower the baseline when you migrate a copy away; it never goes up. `surfaceChromeUsage.test.ts` separately guards the translucent chrome bars.
 
@@ -1892,12 +1893,14 @@ legacy shape left to copy.
   (`--surface-chrome`: white at 72 % light, #141414 at 80 % dark) with
   `backdrop-blur`, not `bg-background/NN`. `lib/components/surfaceChromeUsage.test.ts`
   lists the bars.
-- The shared `Badge` carries the design's per-theme tones. `primary` and
-  `destructive` use the text tokens for the label and a lighter hue at 16 % for
-  the dark fill (`#FA802E` / `#DF3A3A`); `success` is `#163B24` / `#69D390` in
-  dark; `blue` (the "Sign-in" badge) is `#00BCFF` at 16 % with foreground text in
-  dark; `gray` is `#383838` with a `#C2C2C2` label in dark (the connected-app
-  scope chips use the same `#383838` fill). Do not hand-roll badge colours with
+- The shared `Badge` has six tones: `gray` (the default; `#383838` fill and
+  `#C2C2C2` label in dark, which the connected-app scope chips share), `primary`
+  and `destructive` (the text token for the label and a lighter hue at 16 % for
+  the dark fill, `#FA802E` / `#DF3A3A`), and `success`, `warning` and `info`,
+  which are the surface kit's status tokens, the same ones `Alert` uses (a tint
+  of the status colour behind its `-text` token, which clears AA on it in both
+  themes). There is no `blue` tone; a "Sign-in" or other neutral-informational
+  label is `info`. Do not hand-roll badge colours with
   fixed `hsl()` values — a pill that has no `dark:` variant renders as a light
   chip on the dark surface. A status or label pill whose meaning fits a tone is
   `<Badge tone="…">` rather than a hand-copied `rounded-full bg-… px-2 py-0.5`
@@ -1906,9 +1909,9 @@ legacy shape left to copy.
   topic, the passkey domain pill, the account's Verified mark and a filter's
   Expired pill are all the shared `Badge` (its `px-2.5` is 4 px wider across
   than the hand-rolled `px-2`, and it carries the design's dark tints). A pill
-  that is not a tone — the relay state chips with their own border colours, the
-  10–11 px file-type and position tags, the filter context chips — stays its
-  own element.
+  that is not a tone — the 10–11 px file-type and position tags, the filter
+  context chips — stays its own element; the admin relay states are `Badge`
+  tones.
 - A native `<select>` is the shared `Select` (`@/lib/components/ui/select`):
   36 px, the design's 3 px focus ring, `shadow-xs`, the OS arrow hidden and the
   muted chevron painted in its place. A call site that needs a different width
