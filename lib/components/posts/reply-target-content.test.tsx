@@ -3,29 +3,10 @@
  */
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
-import React from 'react'
 
 import { StatusNote, StatusType } from '@/lib/types/domain/status'
 
 import { ReplyTargetContent } from './reply-target-content'
-
-vi.mock('next/link', () => ({
-  default: ({
-    children,
-    href,
-    prefetch: _prefetch,
-    ...rest
-  }: {
-    children: React.ReactNode
-    href: string
-    prefetch?: boolean
-    [key: string]: unknown
-  }) => (
-    <a href={href} {...rest}>
-      {children}
-    </a>
-  )
-}))
 
 const currentTime = new Date('2026-10-09T10:00:00.000Z').getTime()
 

@@ -1,6 +1,6 @@
-// Class predicates shared by the status body renderer (`cleanClassName`) and
-// the plain-text flattening that reads the same markup (`htmlToPlainText`).
-// Which tags each class applies to is decided by each caller.
+// Class predicates the status body renderer (`cleanClassName`) uses to read
+// the presentation classes fediverse servers put in status markup. Which tags
+// each class applies to is decided by the caller.
 
 export const hasToken = (value: string | undefined, token: string): boolean =>
   value?.split(/\s+/).includes(token) ?? false
