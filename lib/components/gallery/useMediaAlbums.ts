@@ -182,11 +182,16 @@ export const useMediaAlbums = (
           if (result.skipped.includes(mediaId)) {
             throw new Error(NOT_ADDABLE_HINT)
           }
+          // The server has changed the album, whether or not this control is
+          // still on screen: the page showing that album must hear of it even
+          // if the viewer was closed (or moved on) while the write ran.
+          onChangeRef.current?.(albumId)
           if (generationAtStart === generation.current && mounted.current) {
             setCount(albumId, result.album.itemCount)
           }
         } else {
           const result = await removeGalleryAlbumItems(albumId, [mediaId])
+          onChangeRef.current?.(albumId)
           if (generationAtStart === generation.current && mounted.current) {
             setCount(albumId, result.album.itemCount)
           }
@@ -201,7 +206,6 @@ export const useMediaAlbums = (
             : albumRemovedMessage(album.title),
           canUndo ? () => void setMembership(albumId, !wanted, false) : null
         )
-        onChangeRef.current?.(albumId)
       } catch (error) {
         if (generationAtStart !== generation.current || !mounted.current) return
         setMemberIds((current) =>

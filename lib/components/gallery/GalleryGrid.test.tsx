@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import type { Attachment } from '@/lib/types/domain/attachment'
@@ -14,6 +14,12 @@ vi.mock('@/lib/components/posts/media', () => ({
     // eslint-disable-next-line @next/next/no-img-element
     <img src={attachment?.url} alt="" />
   )
+}))
+
+// The callback the viewer was last given, for a write that answers after the
+// viewer (and so its buttons) is gone.
+const lastViewerProps = vi.hoisted(() => ({
+  onAlbumsChange: null as ((albumId: string) => void) | null
 }))
 
 vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
@@ -29,8 +35,9 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
     albumsOwnerId?: string | null
     onAlbumsChange?: (albumId: string) => void
     onClosed: () => void
-  }) =>
-    medias ? (
+  }) => {
+    lastViewerProps.onAlbumsChange = onAlbumsChange ?? null
+    return medias ? (
       <div role="dialog" aria-label="Media viewer">
         <span data-testid="modal-ids">
           {medias.map((media) => media.mediaId).join(',')}
@@ -42,6 +49,7 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
         <button onClick={onClosed}>Close viewer</button>
       </div>
     ) : null
+  }
 }))
 
 const items = [
@@ -223,6 +231,32 @@ describe('GalleryGrid', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Pill added to a2' }))
       fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
       expect(onAlbumsChanged).toHaveBeenCalledWith(['a2'])
+    })
+
+    it('reports a change that settles after the viewer closed straight away', () => {
+      const onAlbumsChanged = vi.fn()
+      render(
+        <GalleryGrid
+          items={items}
+          albumsOwnerId="owner"
+          onAlbumsChanged={onAlbumsChanged}
+        />
+      )
+      openFirst()
+      // The write is still out when the viewer is closed.
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(onAlbumsChanged).not.toHaveBeenCalled()
+
+      act(() => lastViewerProps.onAlbumsChange?.('a1'))
+
+      expect(onAlbumsChanged).toHaveBeenCalledTimes(1)
+      expect(onAlbumsChanged).toHaveBeenCalledWith(['a1'])
+
+      // Nothing was left queued for the next time the viewer closes.
+      openFirst()
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+      expect(onAlbumsChanged).toHaveBeenCalledTimes(1)
     })
 
     it('closes quietly when the page did not ask to know', () => {

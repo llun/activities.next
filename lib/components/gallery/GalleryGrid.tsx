@@ -62,6 +62,12 @@ export const GalleryGrid: FC<Props> = ({
 }) => {
   const [modalIndex, setModalIndex] = useState<number | null>(null)
   const changedAlbums = useRef(new Set<string>())
+  // Read when a write settles, which can be after the viewer closed (and so
+  // after the render this callback was made in).
+  const viewerOpen = useRef(false)
+  viewerOpen.current = modalIndex !== null
+  const albumsChangedRef = useRef(onAlbumsChanged)
+  albumsChangedRef.current = onAlbumsChanged
 
   return (
     <>
@@ -144,8 +150,15 @@ export const GalleryGrid: FC<Props> = ({
         }
         initialSelection={modalIndex ?? 0}
         albumsOwnerId={albumsOwnerId}
-        onAlbumsChange={(albumId) => changedAlbums.current.add(albumId)}
+        onAlbumsChange={(albumId) => {
+          // Open: collected, and reported when the viewer closes (refreshing
+          // under it would swap the photo being viewed). Already closed: the
+          // write settled late, so nothing else will report it.
+          if (viewerOpen.current) changedAlbums.current.add(albumId)
+          else albumsChangedRef.current?.([albumId])
+        }}
         onClosed={() => {
+          viewerOpen.current = false
           setModalIndex(null)
           if (changedAlbums.current.size === 0) return
           const changed = [...changedAlbums.current]
