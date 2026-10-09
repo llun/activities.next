@@ -4,15 +4,17 @@ import type {
   GalleryAlbumItemsResult,
   GalleryAlbumListResponse,
   GalleryAlbumMediaPage,
-  GalleryAlbumViewResponse
+  GalleryAlbumViewResponse,
+  MediaAlbumsResponse
 } from '@/lib/services/gallery/galleryAlbumEntities'
-import type {
-  GalleryAlbumSort,
-  GalleryAlbumVisibility
+import {
+  GALLERY_ALBUM_FULL_MESSAGE,
+  type GalleryAlbumSort,
+  type GalleryAlbumVisibility
 } from '@/lib/types/database/galleryAlbums'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 
-import { parseApiError } from './http'
+import { ApiRequestError, parseApiError } from './http'
 
 // The owner's album routes. Every call is for the signed-in owner; a missing
 // album and somebody else's are the same 404. The `getAccount…` calls at the
@@ -165,8 +167,30 @@ const batches = <T>(items: T[]): T[][] => {
 }
 
 /**
+ * An add that stopped part way. The batches before the failing one stay added;
+ * `result` merges what they answered, or is null when the first batch failed.
+ * Check `isFull` to tell "the album is at its limit" from any other failure.
+ */
+export class GalleryAlbumAddError extends ApiRequestError {
+  result: GalleryAlbumItemsResult | null
+  isFull: boolean
+
+  constructor(
+    message: string,
+    status: number,
+    result: GalleryAlbumItemsResult | null
+  ) {
+    super(message, status)
+    this.name = 'GalleryAlbumAddError'
+    this.result = result
+    this.isFull = status === 422 && message === GALLERY_ALBUM_FULL_MESSAGE
+  }
+}
+
+/**
  * Adds photos to an album, in requests of at most 100 ids, and merges what
- * each answered. Stops at the first failure: the batches already added stay.
+ * each answered. Stops at the first failure with a `GalleryAlbumAddError`
+ * that carries what the earlier batches added: those stay in the album.
  */
 export const addGalleryAlbumItems = async (
   id: string,
@@ -180,7 +204,11 @@ export const addGalleryAlbumItems = async (
       body: JSON.stringify({ media_ids: batch })
     })
     if (!response.ok) {
-      throw new Error(await parseApiError(response, 'Failed to add photos.'))
+      throw new GalleryAlbumAddError(
+        await parseApiError(response, 'Failed to add photos.'),
+        response.status,
+        result
+      )
     }
     const next = (await response.json()) as GalleryAlbumItemsResult
     result = result
@@ -270,4 +298,24 @@ export const getAccountGalleryAlbum = async (
     throw new Error(await parseApiError(response, 'Failed to load the album.'))
   }
   return (await response.json()) as GalleryAlbumViewResponse
+}
+
+/**
+ * Which of the signed-in owner's albums hold the photo, with the owner's whole
+ * album list for the add-to-album menu. Null when the photo is not the
+ * caller's (or does not exist): the route answers the same 404 for both, and
+ * the menu is simply not shown.
+ */
+export const getMediaAlbums = async (
+  mediaId: string
+): Promise<MediaAlbumsResponse | null> => {
+  const response = await fetch(
+    `/api/v1/media/${encodeURIComponent(mediaId)}/albums`,
+    { method: 'GET', headers: { Accept: 'application/json' } }
+  )
+  if (response.status === 404) return null
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to load albums.'))
+  }
+  return (await response.json()) as MediaAlbumsResponse
 }

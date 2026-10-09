@@ -30,6 +30,9 @@ export const MAX_GALLERY_ALBUM_DESCRIPTION_LENGTH = 1000
 export const MAX_GALLERY_ALBUMS_PER_ACTOR = 200
 export const MAX_GALLERY_ALBUM_ITEMS = 2000
 export const MAX_GALLERY_ALBUM_REQUEST_IDS = 100
+// What the add route answers (422) when the photos would take an album past
+// its cap. The client matches it to tell "album is full" from other failures.
+export const GALLERY_ALBUM_FULL_MESSAGE = 'Too many photos in this album'
 
 export interface SQLGalleryAlbum {
   id: string

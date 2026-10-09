@@ -16,7 +16,10 @@ import {
   OAuthGuardAnyScope,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
-import { MAX_GALLERY_ALBUM_ITEMS } from '@/lib/types/database/galleryAlbums'
+import {
+  GALLERY_ALBUM_FULL_MESSAGE,
+  MAX_GALLERY_ALBUM_ITEMS
+} from '@/lib/types/database/galleryAlbums'
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -138,7 +141,7 @@ export const POST = traceApiRoute(
         return apiResponse({
           req,
           allowedMethods: CORS_HEADERS,
-          data: { error: 'Too many photos in this album' },
+          data: { error: GALLERY_ALBUM_FULL_MESSAGE },
           responseStatusCode: 422
         })
       }

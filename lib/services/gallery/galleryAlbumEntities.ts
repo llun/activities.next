@@ -131,3 +131,23 @@ export interface GalleryAlbumItemsResult {
   skipped: string[]
   album: GalleryAlbumCardEntity
 }
+
+/** One of the owner's albums as the add-to-album menu lists it. */
+export interface MediaAlbumOptionEntity {
+  id: string
+  title: string
+  visibility: GalleryAlbumVisibility
+  // Photos the owner can see in it.
+  itemCount: number
+}
+
+/** `GET /api/v1/media/:id/albums`: owner only. */
+export interface MediaAlbumsResponse {
+  // Every album of the owner, last updated first.
+  albums: MediaAlbumOptionEntity[]
+  // The albums that hold this photo (ids from `albums`).
+  albumIds: string[]
+  // Whether the photo can be added to an album: it is in the owner's gallery
+  // and posted. A photo that is not can still be taken out of an album.
+  addable: boolean
+}

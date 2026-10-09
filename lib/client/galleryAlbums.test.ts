@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  GalleryAlbumAddError,
   addGalleryAlbumItems,
   createGalleryAlbum,
   deleteGalleryAlbum,
@@ -10,6 +11,7 @@ import {
   getGalleryAlbum,
   getGalleryAlbumItems,
   getGalleryAlbums,
+  getMediaAlbums,
   removeGalleryAlbumItems,
   updateGalleryAlbum
 } from './galleryAlbums'
@@ -166,6 +168,52 @@ describe('gallery albums client module', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('addGalleryAlbumItems reports what the earlier batches added and that the album is full', async () => {
+    fetchMock
+      .mockResponseOnce(
+        JSON.stringify({
+          added: ids(100),
+          existing: ['500'],
+          skipped: ['600'],
+          album: { id: 'a1', itemCount: 100 }
+        })
+      )
+      .mockResponseOnce(
+        JSON.stringify({ error: 'Too many photos in this album' }),
+        { status: 422 }
+      )
+
+    const error = await addGalleryAlbumItems('a1', ids(250)).catch(
+      (caught) => caught
+    )
+
+    expect(error).toBeInstanceOf(GalleryAlbumAddError)
+    expect(error).toBeInstanceOf(Error)
+    expect(error).toMatchObject({
+      status: 422,
+      isFull: true,
+      result: { existing: ['500'], skipped: ['600'] }
+    })
+    expect(error.result.added).toHaveLength(100)
+  })
+
+  it('addGalleryAlbumItems has no result when the first batch fails, and is not "full" for other errors', async () => {
+    fetchMock.mockResponseOnce(JSON.stringify({ error: 'Too many requests' }), {
+      status: 429
+    })
+
+    const error = await addGalleryAlbumItems('a1', ids(3)).catch(
+      (caught) => caught
+    )
+
+    expect(error).toMatchObject({
+      message: 'Too many requests',
+      status: 429,
+      isFull: false,
+      result: null
+    })
+  })
+
   it('addGalleryAlbumItems and removeGalleryAlbumItems refuse an empty list', async () => {
     await expect(addGalleryAlbumItems('a1', [])).rejects.toThrow(
       'Choose at least one photo.'
@@ -269,6 +317,41 @@ describe('gallery albums client module', () => {
       await expect(getAccountGalleryAlbums(ACCOUNT)).rejects.toThrow(
         'Failed to load albums.'
       )
+    })
+  })
+
+  describe('getMediaAlbums', () => {
+    it('reads the albums of a photo, encoding the id', async () => {
+      const body = {
+        albums: [
+          { id: 'a1', title: 'Kruger', visibility: 'public', itemCount: 3 }
+        ],
+        albumIds: ['a1'],
+        addable: true
+      }
+      fetchMock.mockResponseOnce(JSON.stringify(body))
+
+      expect(await getMediaAlbums('12/3')).toEqual(body)
+      expect(fetchMock).toHaveBeenCalledWith('/api/v1/media/12%2F3/albums', {
+        method: 'GET',
+        headers: { Accept: 'application/json' }
+      })
+    })
+
+    it('is null for a photo that is not the caller (404)', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Not Found' }), {
+        status: 404
+      })
+
+      expect(await getMediaAlbums('9')).toBeNull()
+    })
+
+    it('throws the server message for any other failure', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Boom' }), {
+        status: 500
+      })
+
+      await expect(getMediaAlbums('9')).rejects.toThrow('Boom')
     })
   })
 })
