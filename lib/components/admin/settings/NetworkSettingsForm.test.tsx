@@ -62,7 +62,7 @@ const updateButtonFor = (sectionTitle: string) => {
   const heading = screen.getByRole('heading', { name: sectionTitle })
   const section = heading.closest('section') ?? heading.parentElement
   if (!section) throw new Error(`No section found for ${sectionTitle}`)
-  return within(section as HTMLElement).getByRole('button', { name: 'Update' })
+  return within(section as HTMLElement).getByRole('button', { name: 'Save' })
 }
 
 describe('NetworkSettingsForm', () => {

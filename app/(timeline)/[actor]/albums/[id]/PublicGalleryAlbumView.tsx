@@ -13,10 +13,10 @@ import {
 } from '@/app/(timeline)/gallery/albums/galleryAlbumsUi'
 import { getAccountGalleryAlbum } from '@/lib/client'
 import { BackLink } from '@/lib/components/back-link'
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
 import { GalleryGrid } from '@/lib/components/gallery/GalleryGrid'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { profileBack } from '@/lib/components/navigation-history/backDestination'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import { Select } from '@/lib/components/ui/select'
 import { useCopyToClipboard } from '@/lib/hooks/useCopyToClipboard'
@@ -227,7 +227,7 @@ export const PublicGalleryAlbumView: FC<Props> = ({
       </div>
 
       {album.itemCount === 0 ? (
-        <FitnessEmptyState icon={Folder} titleAs="h2" title="Nothing to show" />
+        <EmptyState icon={Folder} titleAs="h2" title="Nothing to show" />
       ) : (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">

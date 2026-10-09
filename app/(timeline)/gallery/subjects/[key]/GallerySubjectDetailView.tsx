@@ -5,9 +5,6 @@ import Link from 'next/link'
 import { FC } from 'react'
 
 import { BackLink } from '@/lib/components/back-link'
-import { FITNESS_STAT_STRIP_CLASS } from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatCell } from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { GalleryPagedGrid } from '@/lib/components/gallery/GalleryPagedGrid'
 import {
   GALLERY_CATEGORY_ICONS,
@@ -21,6 +18,8 @@ import {
   toScientificHashtag
 } from '@/lib/components/gallery/galleryTaxonomy'
 import { PageHeader } from '@/lib/components/page-header'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import type {
   GalleryMediaPage,
   GallerySubjectEntry
@@ -117,30 +116,24 @@ export const GallerySubjectDetailView: FC<Props> = ({
         </div>
       ) : null}
 
-      <FitnessStatGrid
-        variant="summary"
-        columns={where ? 4 : 3}
-        className={FITNESS_STAT_STRIP_CLASS}
-      >
-        <FitnessStatCell
+      <StatStrip variant="summary" columns={where ? 4 : 3}>
+        <StatCell
           label="First seen"
           icon={Sparkles}
           value={formatGalleryDate(subject.firstSeenAt) || null}
         />
-        <FitnessStatCell
+        <StatCell
           label="Last seen"
           icon={Clock}
           value={formatGalleryDate(subject.lastSeenAt) || null}
         />
-        <FitnessStatCell
+        <StatCell
           label="Photos"
           icon={Images}
           value={subject.count?.toLocaleString('en-US') ?? null}
         />
-        {where ? (
-          <FitnessStatCell label="Where" icon={MapPin} value={where} />
-        ) : null}
-      </FitnessStatGrid>
+        {where ? <StatCell label="Where" icon={MapPin} value={where} /> : null}
+      </StatStrip>
 
       <GalleryPagedGrid
         actorId={actorId}

@@ -3,12 +3,12 @@
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Switch } from '@/lib/components/ui/switch'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { NumberField } from './NumberField'
-import { SaveBar } from './SaveBar'
 import { ControlRow, SettingsField } from './SettingsField'
 import { SettingsSection } from './SettingsSection'
 import { useServerSettingsForm } from './useServerSettingsForm'

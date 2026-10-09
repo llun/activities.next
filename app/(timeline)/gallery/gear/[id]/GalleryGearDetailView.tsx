@@ -22,16 +22,13 @@ import {
 } from '@/app/(timeline)/gallery/gear/galleryGearUi'
 import { deleteGalleryGear, setGalleryGearRetired } from '@/lib/client'
 import { BackLink } from '@/lib/components/back-link'
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
-import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
-import {
-  FITNESS_STAT_STRIP_CLASS,
-  FitnessStatCell
-} from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { GalleryPagedGrid } from '@/lib/components/gallery/GalleryPagedGrid'
 import { formatCountryCount } from '@/lib/components/gallery/galleryTaxonomy'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { Section } from '@/lib/components/surface/Section'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -153,30 +150,26 @@ export const GalleryGearDetailView: FC<Props> = ({
         }
       />
 
-      {error && <FitnessAlert title={error} />}
+      {error && <Alert title={error} />}
 
       <div className="space-y-4">
         {/* `photoCount` is every gallery item (it matches the grid below), so
             the photos are what is left of it once the videos are taken out.
             The first and last use are in the header line. */}
-        <FitnessStatGrid
-          variant="summary"
-          columns={3}
-          className={FITNESS_STAT_STRIP_CLASS}
-        >
-          <FitnessStatCell
+        <StatStrip variant="summary" columns={3}>
+          <StatCell
             label="Photos"
             icon={Images}
             value={formatInteger(
               Math.max(gear.photoCount - gear.videoCount, 0)
             )}
           />
-          <FitnessStatCell
+          <StatCell
             label="Videos"
             icon={Video}
             value={formatInteger(gear.videoCount)}
           />
-          <FitnessStatCell
+          <StatCell
             label="Places"
             icon={MapPin}
             value={
@@ -185,7 +178,7 @@ export const GalleryGearDetailView: FC<Props> = ({
                 : formatCountryCount(gear.countryCount)
             }
           />
-        </FitnessStatGrid>
+        </StatStrip>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -218,7 +211,7 @@ export const GalleryGearDetailView: FC<Props> = ({
         </div>
       </div>
 
-      <FitnessSection
+      <Section
         title={`Taken with this ${noun}`}
         icon={Images}
         meta={`${formatInteger(gear.photoCount)} ${gear.photoCount === 1 ? 'item' : 'items'}`}
@@ -237,10 +230,10 @@ export const GalleryGearDetailView: FC<Props> = ({
             albumsOwnerId={ownerId}
           />
         )}
-      </FitnessSection>
+      </Section>
 
       {mostUsedWith.length > 0 && (
-        <FitnessSection title="Most used with">
+        <Section title="Most used with">
           <ul className="flex flex-wrap gap-2">
             {mostUsedWith.map(({ gear: paired, count }) => (
               <li key={paired.id}>
@@ -254,7 +247,7 @@ export const GalleryGearDetailView: FC<Props> = ({
               </li>
             ))}
           </ul>
-        </FitnessSection>
+        </Section>
       )}
 
       {isEditOpen && (

@@ -35,10 +35,10 @@ import {
   updateGalleryAlbum
 } from '@/lib/client'
 import { BackLink } from '@/lib/components/back-link'
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
 import { GalleryGrid } from '@/lib/components/gallery/GalleryGrid'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -410,7 +410,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
         </p>
       ) : null}
 
-      {actionError ? <FitnessAlert title={actionError} /> : null}
+      {actionError ? <Alert title={actionError} /> : null}
 
       {album.description ? (
         <p className="text-sm break-words whitespace-pre-line">
@@ -451,7 +451,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
       </div>
 
       {isEmpty ? (
-        <FitnessEmptyState
+        <EmptyState
           icon={Folder}
           titleAs="h2"
           title="This album is empty"
@@ -463,7 +463,7 @@ export const GalleryAlbumDetailView: FC<Props> = ({
           }
         >
           Add photos from your gallery to fill it.
-        </FitnessEmptyState>
+        </EmptyState>
       ) : (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">

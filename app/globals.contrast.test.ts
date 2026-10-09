@@ -277,6 +277,96 @@ describe('like-text contrast (WCAG 2.1 AA SC 1.4.3)', () => {
   )
 })
 
+describe('status tone tokens: success, warning, info (WCAG 2.1 AA SC 1.4.3)', () => {
+  // The surface kit's Alert draws its title and icon in `--<tone>-text` on
+  // `bg-background`, and on the faint `bg-muted/40` panel when it sits inside a
+  // muted frame. `bg-muted/40` is --muted at 40% over --background, so it is
+  // composited here the way the browser does.
+  const mix = (top: Rgb, bottom: Rgb, alpha: number): Rgb =>
+    top.map((channel, i) =>
+      Math.round(channel * alpha + bottom[i] * (1 - alpha))
+    ) as Rgb
+
+  const tones = ['success', 'warning', 'info'] as const
+
+  const textSurfaces = (theme: 'light' | 'dark') => [
+    ...surfaceTokens.map((surface) => ({
+      surface,
+      rgb: rgbOf(themes[theme], surface)
+    })),
+    {
+      surface: 'bg-muted/40',
+      rgb: mix(
+        rgbOf(themes[theme], '--muted'),
+        rgbOf(themes[theme], '--background'),
+        0.4
+      )
+    }
+  ]
+
+  const textCases = (['light', 'dark'] as const).flatMap((theme) =>
+    tones.flatMap((tone) =>
+      textSurfaces(theme).map(({ surface, rgb }) => ({
+        theme,
+        tone,
+        surface,
+        rgb
+      }))
+    )
+  )
+
+  it.each(['light', 'dark'] as const)(
+    'defines every status token in the %s theme',
+    (theme) => {
+      for (const tone of tones) {
+        for (const suffix of ['', '-foreground', '-text']) {
+          expect(themes[theme][`--${tone}${suffix}`]).toBeDefined()
+        }
+      }
+    }
+  )
+
+  it.each(textCases)(
+    '$theme --$tone-text on $surface meets 4.5:1',
+    ({ theme, tone, surface, rgb }) => {
+      const fg = rgbOf(themes[theme], `--${tone}-text`)
+      const ratio = contrastRatio(fg, rgb)
+      expect(
+        ratio,
+        `${theme} ${tone}-text ${JSON.stringify(fg)} on ${surface} ${JSON.stringify(rgb)} = ${ratio.toFixed(3)}:1`
+      ).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  )
+
+  it.each(
+    (['light', 'dark'] as const).flatMap((theme) =>
+      tones.map((tone) => ({ theme, tone }))
+    )
+  )(
+    '$theme --$tone-foreground on the --$tone fill meets 4.5:1',
+    ({ theme, tone }) => {
+      const fg = rgbOf(themes[theme], `--${tone}-foreground`)
+      const bg = rgbOf(themes[theme], `--${tone}`)
+      const ratio = contrastRatio(fg, bg)
+      expect(
+        ratio,
+        `${theme} ${tone} fill ${JSON.stringify(bg)} with foreground ${JSON.stringify(fg)} = ${ratio.toFixed(3)}:1`
+      ).toBeGreaterThanOrEqual(AA_NORMAL)
+    }
+  )
+
+  it.each(['success', 'warning', 'info'])(
+    'maps --color-%s, its foreground and its text to the tokens',
+    (tone) => {
+      for (const suffix of ['', '-foreground', '-text']) {
+        expect(css).toMatch(
+          new RegExp(`--color-${tone}${suffix}:\\s*var\\(--${tone}${suffix}\\)`)
+        )
+      }
+    }
+  )
+})
+
 describe('surface-chrome token', () => {
   it('is white at 72 % in light and #141414 at 80 % in dark', () => {
     expect(themes.light['--surface-chrome']).toBe('hsl(0 0% 100% / 0.72)')

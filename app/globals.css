@@ -30,6 +30,15 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-destructive-text: var(--destructive-text);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-text: var(--success-text);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-text: var(--warning-text);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-text: var(--info-text);
   --color-like-text: var(--like-text);
   --color-surface-chrome: var(--surface-chrome);
   --color-surface-accent: var(--surface-accent);
@@ -129,6 +138,23 @@
      separately, so this is its own token and the like button never reads as a
      destructive action. Exposed as the `text-like-text` utility. */
   --like-text: hsl(357.5 64.1% 43.7%);
+  /* Status tones for the surface kit's Alert (and anything else that must say
+     success, warning or info), as distinct from --destructive for errors. As
+     with --primary vs --primary-text, the plain token is the FILL or accent
+     (the Alert's left rule, an icon tile) with a --*-foreground that clears
+     4.5:1 on it, and --*-text is the darker shade for TEXT and icons, which
+     clears 4.5:1 on --background and on the faint bg-muted/40 panel
+     (app/globals.contrast.test.ts recomputes both). Exposed as the
+     `bg-success` / `text-success-text` family of utilities. */
+  --success: hsl(142 72% 29%);
+  --success-foreground: hsl(0 0% 100%);
+  --success-text: hsl(142 72% 24%);
+  --warning: hsl(38 92% 50%);
+  --warning-foreground: hsl(0 0% 9%);
+  --warning-text: hsl(26 83% 28%);
+  --info: hsl(221 83% 53%);
+  --info-foreground: hsl(0 0% 100%);
+  --info-text: hsl(224 76% 40%);
   /* Translucent "Surface Chrome" behind the sticky page header, sidebar, rail
      and mobile header (white at 72 % light, #141414 at 80 % dark). Paired with
      `backdrop-blur` at the use site. Exposed as the `bg-surface-chrome`
@@ -222,6 +248,19 @@
   --destructive-text: hsl(0 91% 71%);
   /* Like Text (see the light block): the same red-400 as --destructive-text. */
   --like-text: hsl(0 91% 71%);
+  /* Status tones (see the light block). Fills step down to deep shades that
+     keep white (or near-white) foreground text at 4.5:1; the -text shades go UP
+     in lightness (green-400, amber-400, blue-300) to clear 4.5:1 on the dark
+     surfaces. */
+  --success: hsl(142 64% 24%);
+  --success-foreground: hsl(0 0% 98%);
+  --success-text: hsl(142 69% 58%);
+  --warning: hsl(26 90% 37%);
+  --warning-foreground: hsl(0 0% 98%);
+  --warning-text: hsl(43 96% 56%);
+  --info: hsl(224 64% 33%);
+  --info-foreground: hsl(0 0% 98%);
+  --info-text: hsl(213 94% 68%);
   /* Surface Chrome (see the light block): #141414 at 80 %. */
   --surface-chrome: hsl(0 0% 7.8% / 0.8);
   /* Surface Accent (see the light block): #271A11. */

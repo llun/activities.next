@@ -8,7 +8,6 @@ import {
   regenerateFitnessMaps,
   updateFitnessGeneralSettings
 } from '@/lib/client'
-import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
 import {
   PrivacyLocationInput,
   PrivacyLocationsCopy,
@@ -16,6 +15,7 @@ import {
   PrivacyLocationsFooterContext,
   PrivacyLocationsSaveError
 } from '@/lib/components/privacy-locations/PrivacyLocationsEditor'
+import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
 import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
@@ -188,7 +188,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
 
   return (
     <div className="space-y-6">
-      <FitnessSection
+      <Section
         title="Privacy location"
         description="Trim the start and finish of your routes around your saved privacy locations, on your activity maps and generated route images. Route heatmaps are not trimmed: hiding the ends there would leave a gap that points at the location just as clearly."
       >
@@ -211,9 +211,9 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             </Button>
           )}
         />
-      </FitnessSection>
+      </Section>
 
-      <FitnessSection
+      <Section
         title="Route map description"
         description="Configure accessibility descriptions for your activity route maps."
       >
@@ -251,7 +251,7 @@ export const FitnessPrivacyLocationSettings: FC<Props> = ({ mapProvider }) => {
             <p className="text-sm text-green-600">{routeDescriptionMessage}</p>
           ) : null}
         </div>
-      </FitnessSection>
+      </Section>
     </div>
   )
 }

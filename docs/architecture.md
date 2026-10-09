@@ -583,6 +583,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Navigation Customization](#agents-navigation-customization)
 - [Page Header & Sub-Navigation](#agents-page-header-sub-navigation)
 - [Fitness Overview Calendar](#agents-fitness-overview-calendar)
+- [Surfaces (Shared Surface Kit)](#agents-surfaces)
 - [Settings Forms (Client Components)](#agents-settings-forms-client-components)
 - [Transactional & Notification Emails](#agents-transactional-notification-emails)
 - [Link Preview Cards](#agents-link-preview-cards)
@@ -599,6 +600,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - [Review: Runtime vs. build-time configuration](#review-runtime-vs-build-time-configuration)
 - [Review: Client components & data flow](#review-client-components-data-flow)
 - [Review: Page chrome, layout & accessibility](#review-page-chrome-layout-accessibility)
+- [Review: Surfaces](#review-surfaces)
 - [Review: Logging](#review-logging)
 - [Review: Auth error page](#review-auth-error-page)
 - [Review: Better-auth session refresh](#review-better-auth-session-refresh)
@@ -838,8 +840,38 @@ The fitness overview (`app/(timeline)/fitness/`, with its calendar components in
 - **Scoped heat and motion tokens.** Heat colours are the `--heat-0`…`--heat-4` fills, their `--heat-N-fg` numeral colours, `--heat-upcoming` and `--heat-out-of-range`, defined in `app/globals.css` under the `fitness-heat` class (light and `.dark`) that each calendar root carries. Never hard-code a heat colour, and do not move them to `:root`: green means intensity only inside the calendar. Durations are the `--fitness-t-*` tokens beside them. `--fitness-fade-start` and `--fitness-fade-end` are registered with `@property` so the annual scroller's edge-fade mask can transition; an unregistered custom property inside a gradient cannot.
 - **Reload control.** A surface that can be reloaded in place puts the shared `RefreshButton` at the end of its header or section row (the home timeline and the fitness overview do), rather than a hand-rolled Refresh button; pass a `size-*` class to match the row's other controls.
 - **One CSS module.** `lib/components/fitness/calendar/calendar.module.css` is the only `*.module.css` in `app/` and `lib/`. It holds only what Tailwind utilities cannot express: pseudo-element, mask, gradient and hit-band work such as the cell state marks and focus brackets, the slashed out-of-range cell, the skeleton cell, the edge-fade mask, the today marks, the legend swatch and the month-label hit band. Layout, spacing and type stay in Tailwind at the use site. State is read from data attributes (`data-level`, `data-state`, `data-loading`, `aria-pressed` and the like), never from extra classes, so tests assert a cell's state without knowing a hashed class name, and `calendar.module.css.test.ts` guards the selectors and tokens it relies on. Extend this module for calendar visuals rather than starting another.
-- **Section primitives.** Every fitness page builds on the overview's own pieces in `lib/components/fitness/`: `FitnessSection` (a plain `text-base font-semibold` heading on the page with its count and controls on the same row, led by the subject's `text-primary` icon when it has one, as Gear's Bikes, Shoes and Devices and a bike's Components do, and the content in a flat `rounded-lg border` surface below — no `Card` around a section), `FITNESS_TABLE_HEAD_ROW_CLASS` (the faint `bg-muted/40` header band of the Activity types table), `FitnessStatCell` on `FitnessStatGrid`'s `summary` variant inside `FITNESS_STAT_STRIP_CLASS` (the hairline totals strip; pass `columns` for a strip of two or three values so no empty cell is left at the end), `FitnessAlert` (the destructive-ruled error card with an optional Retry) and `FitnessEmptyState` (the muted panel with an icon tile). Loading is the app's shared shimmering `.skeleton` bars (still `--skeleton` blocks under `prefers-reduced-motion`), never a centred "Loading..." line; the calendar's cells, which cannot carry `.skeleton`, sweep one viewport-attached band in `calendar.module.css` instead. The overview, Gear, a gear's page, Files, Heatmaps and Privacy use them; the Strava and Wahoo connection forms keep their own headings in flat `rounded-lg border` panels rather than `Card`s. A new fitness surface reuses them rather than a `Card` with `CardHeader`.
+- **Section primitives.** Fitness pages build on the app-wide surface kit (`lib/components/surface/`, see **Surfaces**): `Section`, `StatStrip` / `StatCell`, `Alert`, `EmptyState` and `TABLE_HEAD_ROW_CLASS`, which started here as the `Fitness*` primitives and were promoted to neutral names. Loading is the shared shimmering `.skeleton` bars (still `--skeleton` blocks under `prefers-reduced-motion`), never a centred "Loading..." line; the calendar's cells, which cannot carry `.skeleton`, sweep one viewport-attached band in `calendar.module.css` instead. The overview, Gear, a gear's page, Files, Heatmaps and Privacy use the kit; the Strava and Wahoo connection forms keep their own headings in flat `rounded-lg border` panels rather than `Card`s, with their status banners as `Alert`s. A new fitness surface reuses the kit rather than a `Card` with `CardHeader`.
 - **Popover.** `lib/components/ui/popover.tsx` wraps `@radix-ui/react-popover` like the other `ui/*` primitives. The range picker uses it when the whole panel fits beside its trigger and falls back to a bottom sheet otherwise (`rangePickerPresentation.ts`); it renders in a portal at the dropdowns' layer (50). The calendar's own cell tooltip is not `ui/tooltip` but one shared `CalendarTooltip` per calendar; its header comment says why.
+
+<a id="agents-surfaces"></a>
+
+### Surfaces (Shared Surface Kit)
+
+Every page is laid out from one kit in `lib/components/surface/` (import each piece from its own file, for example `@/lib/components/surface/Frame`; `index.ts` re-exports the lot plus `RefreshButton`). The kit began as the Fitness overview's own primitives, which Gallery already borrowed; they were promoted to neutral names, and the `Fitness*` files no longer exist. Fitness, Gallery and Albums use it today and the rest of the app is migrating to it, so a new surface reuses it instead of a `Card`, a `rounded-2xl` panel or a hand-coloured banner.
+
+| Component                                                            | Use it for                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Section`                                                            | A titled block: `text-base font-semibold` heading on the page (not in a card), optional `icon`, `meta`, muted `description` and `actions` at the row's end; `headingLevel` (default 2).                                                                                                                                |
+| `Frame`                                                              | The one flat surface, `rounded-lg border bg-background`, no shadow. `muted` tints it `bg-muted/40`, `divided` puts `divide-y` between its children, `footer` adds a bar under a top border.                                                                                                                            |
+| `FormRow`                                                            | One settings row inside `Frame divided`: label (`htmlFor`) and `hint` on the left, control on the right from `sm`, stacked on a phone. `inline` keeps a switch or checkbox on the label's row on a phone, `wide` gives the control the rest of the row. A render-prop child gets `describedBy` for `aria-describedby`. |
+| `SaveBar`, `SavedIndicator`                                          | A form's `Frame` footer: "Unsaved changes" (with a dot) or "Saved" (with a tick) on the left, the error in the alert colour, and a primary button always labelled "Save" (spinner inside while saving, disabled when clean). `SavedIndicator` is the quiet "Saved" tick for controls that save as they change.         |
+| `StatStrip`, `StatCell`                                              | The hairline totals strip (1px dividers, 2x2 on a phone by container query, a dash for a missing value, a skeleton while loading). `variant` `detail` and `chip` are the activity page and post-chip grids. A cell with `onSelect` / `selected` is a pressed-state button.                                             |
+| `FramedList`, `FramedListItem`, `TableFrame`, `TABLE_HEAD_ROW_CLASS` | Lists and tables. A list is one `Frame` with `divide-y` rows (`px-4 py-3`, optional `href`); a table scrolls sideways in a frame under the muted `bg-muted/40 text-xs` header band.                                                                                                                                    |
+| `EmptyState`                                                         | A muted panel with the page's icon in a bordered tile, a bold line, a hint and an optional `action`.                                                                                                                                                                                                                   |
+| `Alert`                                                              | Every message: `tone` `error` (default), `warning`, `success` or `info`, with a 4px left rule and icon in the tone's colour, a title, a description and an `action` or `onRetry`. Error and warning are `role="alert"`, success and info `role="status"`.                                                              |
+| `SegmentedControl`                                                   | A range, filter or tab set in the Fitness calendar's segmented style: a radio group with arrow keys for in-page state, or `asLinks` for navigation (`aria-current="page"`). Sizes `sm` / `md`; scrolls sideways on a narrow screen.                                                                                    |
+| `SkeletonBar`, `SkeletonRows`                                        | Shimmer placeholders drawn in the final layout's shape, for `loading.tsx` and in-view loading.                                                                                                                                                                                                                         |
+| `RefreshButton`                                                      | The reload control for a list that can go stale (re-exported from `lib/components/refresh-button.tsx`).                                                                                                                                                                                                                |
+
+Rules:
+
+- **Radii.** `rounded-lg` frames and panels, `rounded-md` controls and media tiles, `rounded-full` only for avatars and pills, `rounded-xl` only for dialogs. Never `rounded-2xl`, and no shadow on a panel: shadows belong to popovers, menus, dialogs and map overlays.
+- **Copy.** Sentence case for every heading, label and button.
+- **Colour.** Theme tokens only. Say success, warning, info and error with `Alert` and the `success` / `warning` / `info` / `destructive` tokens (`bg-*`, `*-foreground`, and `text-*-text` for text, which clear WCAG AA in both themes; `app/globals.contrast.test.ts` recomputes it). No `text-green-600`, `bg-yellow-50` and the like.
+- **Lists.** Every list, post lists included, is one frame with dividers (Home and the Fitness recent activities), never separate cards.
+- **Forms.** Rows are label-and-hint on the left and control on the right inside one `Frame divided`, saved by a `SaveBar` footer or, for controls that save as they change, a `SavedIndicator`; stacked on a phone. Field validation keeps its small red line; a page-level error is an `Alert`.
+- **Loading.** Skeleton bars in the final layout's shape, never "Loading..." text; a spinner only inside a button.
+- **Guard.** `lib/components/surface/surfaceKitUsage.test.ts` counts `rounded-2xl` + `shadow-sm` panels, raw palette colour utilities and "Loading…" text in the `.tsx` under `app/` and `lib/` (tests and the kit excluded) and fails when a count goes above its checked-in baseline. Lower the baseline when you migrate a copy away; it never goes up. `surfaceChromeUsage.test.ts` separately guards the translucent chrome bars.
 
 <a id="agents-settings-forms-client-components"></a>
 
@@ -852,7 +884,7 @@ The fitness overview (`app/(timeline)/fitness/`, with its calendar components in
   - Manage loading state with `useState`
 - A dozen legacy components still call `fetch()` directly (the `Change*Form`s under `app/(timeline)/account/`, `StravaSettingsForm`, the OAuth/password-reset forms, and several `lib/components` settings/actor-switcher dialogs). They are frozen in the `allowFiles` list of `agents/no-component-fetch` in `.oxlintrc.json`; the lint rule blocks any new offender. Migrate them to `lib/client.ts` when touched and remove them from the list — never add to it.
 - The corresponding API route should return JSON via `apiResponse()`, not `Response.redirect()`.
-- `GalleryPrivacySettings` (`/gallery/privacy`) follows this and auto-saves each switch and select on its own through `gallerySettingsForm.tsx` (`lib/components/settings/`), the load and per-key save logic it shares with `MediaDetailsSettings`. Hidden locations save through `PrivacyLocationsEditor` (`lib/components/privacy-locations/`), which `FitnessPrivacyLocationSettings` also wraps; a second consumer passes its own `mapIdPrefix` so the GL source and layer ids stay distinct. "Hide the place for threatened species" (`hideThreatenedPlaces`, default on) sits under the default precision as one more auto-saving switch; when `speciesLookupsAvailable` is false it carries a `ToggleRow` `notice` saying the server cannot check IUCN status, so places of photos with a species name stay hidden while it is on. `MediaDetailsSettings` (Settings → Media) is where the subject suggestion mode and confidence threshold are set.
+- `GalleryPrivacySettings` (`/gallery/privacy`) follows this, lays itself out with the surface kit (a `Section` per group, `Frame divided` of `FormRow`s with an inline switch or a select, and `GallerySettingsStatus` drawing load and save failures as `Alert`s and the saved state as a `SavedIndicator`), and auto-saves each switch and select on its own through `gallerySettingsForm.tsx` (`lib/components/settings/`), the load and per-key save logic it shares with `MediaDetailsSettings`. Hidden locations save through `PrivacyLocationsEditor` (`lib/components/privacy-locations/`), which `FitnessPrivacyLocationSettings` also wraps; a second consumer passes its own `mapIdPrefix` so the GL source and layer ids stay distinct. "Hide the place for threatened species" (`hideThreatenedPlaces`, default on) sits under the default precision as one more auto-saving switch; when `speciesLookupsAvailable` is false it carries a `ToggleRow` `notice` saying the server cannot check IUCN status, so places of photos with a species name stay hidden while it is on. `MediaDetailsSettings` (Settings → Media) is where the subject suggestion mode and confidence threshold are set.
 
 <a id="agents-transactional-notification-emails"></a>
 
@@ -1784,7 +1816,7 @@ legacy shape left to copy.
   desktop vertical icon rail. Sentence-case labels ("Blocked accounts").
 - Fitness stat strips (the activity detail's header strip, the strip under its
   map, the inline chip in a post, the overview's totals) render through
-  `FitnessStatGrid` and size themselves with **container** queries — no
+  `StatStrip` (`@/lib/components/surface/StatStrip`) and size themselves with **container** queries — no
   hand-rolled `grid-cols-*` strip and no `sm:`/viewport breakpoint, which cannot
   see a narrow column on a wide window. `@container` belongs on a wrapper, never on the grid it sizes. One
   older strip (gear detail) is not migrated yet — see **Fitness Stat Strips** in
@@ -1927,6 +1959,18 @@ legacy shape left to copy.
   full-height layouts, so mobile browser toolbars don't break centering.
 - One `<main>` landmark per page: don't render `<main>` in a `page.tsx` when an
   ancestor layout already provides one.
+
+<a id="review-surfaces"></a>
+
+### Review: Surfaces
+
+- New page UI is built from the surface kit in `lib/components/surface/` (`Section`, `Frame`, `FormRow`, `SaveBar`, `StatStrip`, `FramedList`, `TableFrame`, `EmptyState`, `Alert`, `SegmentedControl`, `SkeletonBar`/`SkeletonRows`), not a `Card`, a hand-rolled panel, tab row, empty state or banner.
+- Radii are `rounded-lg` frames, `rounded-md` controls and tiles, `rounded-xl` dialogs only; no `rounded-2xl`, no panel `shadow-*`.
+- Headings, labels and buttons are sentence case; colours are theme tokens (`success`, `warning`, `info`, `destructive`, `primary`), never raw palette utilities.
+- Every list, post lists included, is one frame with `divide-y`, not separate cards.
+- Settings rows are label-and-hint left, control right, stacked on a phone; the save button says "Save"; instant-save controls show `SavedIndicator`.
+- Loading draws skeleton bars in the final layout's shape, no "Loading…" text; messages and page-level errors are an `Alert` with the right tone and Retry where it helps.
+- The counts in `surfaceKitUsage.test.ts` only go down.
 
 <a id="review-logging"></a>
 

@@ -4,8 +4,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
 import { PageHeader } from '@/lib/components/page-header'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
@@ -61,7 +61,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
     return (
       <div className="space-y-6">
         <PageHeader title="Overview" description={OVERVIEW_DESCRIPTION} />
-        <FitnessEmptyState
+        <EmptyState
           icon={Activity}
           title="No activity yet"
           titleAs="h2"
@@ -78,7 +78,7 @@ const Page: FC<Props> = async ({ searchParams }) => {
         >
           Import a FIT, GPX, or TCX file — or connect Strava — to start tracking
           your fitness here.
-        </FitnessEmptyState>
+        </EmptyState>
       </div>
     )
   }

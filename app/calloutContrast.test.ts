@@ -63,69 +63,44 @@ const contrastRatio = (foreground: string, background: string) => {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-// Callouts written with literal palette classes.
-//
-// This is a REGRESSION TEST OVER AN EXPLICIT TABLE, not a scanner: it reads
-// only the files named here, and a new low-contrast pairing somewhere else is
-// caught by nothing. Add a row when a new callout appears rather than trusting
-// the nearest example in the file — the pairing this replaced was copied from
-// a sibling block in the same file that was already failing, which is exactly
-// how the bug got in.
-const PALETTE_CALLOUTS: {
-  file: string
-  lightForeground: string
-  lightBackground: string
-  darkForeground: string
-  darkBackground: string
-}[] = [
-  {
-    file: 'app/(timeline)/fitness/connections/strava/StravaSettingsForm.tsx',
-    lightForeground: 'yellow-800',
-    lightBackground: 'yellow-50',
-    darkForeground: 'yellow-200',
-    darkBackground: 'yellow-950'
-  }
-]
+// Callouts used to be written with literal palette classes, and this file held
+// an explicit table of them (a regression test over named files, not a scanner:
+// a new low-contrast pairing somewhere else was caught by nothing). The Strava
+// and Wahoo connection banners that were in it are now `Alert`s on the
+// `--warning-text` / `--success-text` / `--info-text` tokens, whose AA contrast
+// `app/globals.contrast.test.ts` recomputes in both themes, and
+// `surfaceKitUsage.test.ts` stops new palette classes being added. Add a row
+// back here only for a callout that genuinely has to use a literal palette.
 
 // WCAG 2.1 SC 1.4.3 for normal-size text. These paragraphs are `text-sm`
 // (14px), so the 3:1 large-text exemption does not apply.
 const MINIMUM_CONTRAST = 4.5
 
 describe('palette callout contrast', () => {
-  it.each(PALETTE_CALLOUTS)(
-    'reads at AA in light mode: $file',
-    ({ lightForeground, lightBackground }) => {
-      expect(
-        contrastRatio(lightForeground, lightBackground)
-      ).toBeGreaterThanOrEqual(MINIMUM_CONTRAST)
-    }
-  )
-
-  it.each(PALETTE_CALLOUTS)(
-    'reads at AA in dark mode: $file',
-    ({ darkForeground, darkBackground }) => {
-      expect(
-        contrastRatio(darkForeground, darkBackground)
-      ).toBeGreaterThanOrEqual(MINIMUM_CONTRAST)
-    }
-  )
-
-  // The table is only worth anything if it describes what the file ships.
-  it.each(PALETTE_CALLOUTS)(
-    'is the pairing $file actually uses',
-    ({ file, lightForeground, darkForeground }) => {
-      const source = readFileSync(join(process.cwd(), file), 'utf-8')
-      expect(source).toContain(
-        `text-${lightForeground} dark:text-${darkForeground}`
-      )
-      expect(source).not.toMatch(/text-yellow-600\b/)
-    }
-  )
+  // The pairing this replaced shipped at 2.83:1 (yellow-600 on yellow-50),
+  // copied from a sibling block that was already failing.
+  it('keeps the Strava connection warnings on the warning Alert, not a yellow palette callout', () => {
+    const source = readFileSync(
+      join(
+        process.cwd(),
+        'app/(timeline)/fitness/connections/strava/StravaSettingsForm.tsx'
+      ),
+      'utf-8'
+    )
+    expect(source).toContain('tone="warning"')
+    expect(source).not.toMatch(/\b(?:bg|text|border)-yellow-\d/)
+  })
 
   // Guards the converter itself: without this, a bug that returned a constant
-  // luminance would make every assertion above pass.
+  // luminance would make every assertion that uses it pass.
   it('rejects the pairing that shipped at 2.83:1', () => {
     expect(contrastRatio('yellow-600', 'yellow-50')).toBeLessThan(
+      MINIMUM_CONTRAST
+    )
+  })
+
+  it('accepts the pairing that replaced it', () => {
+    expect(contrastRatio('yellow-800', 'yellow-50')).toBeGreaterThanOrEqual(
       MINIMUM_CONTRAST
     )
   })

@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { FC } from 'react'
 
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import type { Actor } from '@/lib/types/database'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
@@ -386,7 +386,7 @@ export const Post: FC<PostProps> = (props) => {
           ) : null}
 
           {isFitnessCompleted && fitnessStats.length > 0 ? (
-            <FitnessStatGrid variant="chip" className="mt-2.5">
+            <StatStrip variant="chip" className="mt-2.5">
               {fitnessStats.map((stat) => (
                 // `min-w-0` + `truncate`: the Distance cell carries the gear
                 // name too, and `fitness_gears.name` is a varchar(255) whose
@@ -404,7 +404,7 @@ export const Post: FC<PostProps> = (props) => {
                   </span>
                 </div>
               ))}
-            </FitnessStatGrid>
+            </StatStrip>
           ) : null}
 
           {isFitnessCompleted && fitnessDeviceLabel ? (

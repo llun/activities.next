@@ -248,7 +248,7 @@ export const STICKY_COLUMN =
   'sticky left-0 z-1 bg-background shadow-[inset_-1px_0_0_var(--border)]'
 
 /**
- * The header row's band (`FITNESS_TABLE_HEAD_ROW_CLASS`'s `bg-muted/40`),
+ * The header row's band (`TABLE_HEAD_ROW_CLASS`'s `bg-muted/40`),
  * opaque, for a pinned header cell. Add it after `STICKY_COLUMN` /
  * `STICKY_RIGHT_COLUMN`; `cn` lets it replace their background.
  */

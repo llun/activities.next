@@ -29,17 +29,14 @@ import {
   getFitnessGearList,
   setFitnessGearRetired
 } from '@/lib/client'
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
-import {
-  FITNESS_STAT_STRIP_CLASS,
-  FitnessStatCell
-} from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { PageHeader } from '@/lib/components/page-header'
 import {
   SectionNavSelect,
   type SectionNavSelectTab
 } from '@/lib/components/section-nav-select'
+import { Alert } from '@/lib/components/surface/Alert'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -259,7 +256,7 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
         {backLink}
         {error && error !== GEAR_NOT_FOUND ? (
           // A failed read, not a missing row: say so and offer to try again.
-          <FitnessAlert
+          <Alert
             title="We couldn’t load this gear"
             action={
               <Button
@@ -274,11 +271,11 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
             }
           >
             {error}
-          </FitnessAlert>
+          </Alert>
         ) : (
-          <FitnessAlert title={GEAR_NOT_FOUND}>
+          <Alert title={GEAR_NOT_FOUND}>
             It may have been deleted. Go back to your gear to pick another.
-          </FitnessAlert>
+          </Alert>
         )}
       </div>
     )
@@ -381,33 +378,29 @@ export const GearDetailView: FC<Props> = ({ gearId, feed }) => {
 
       {/* This copy of the error is the one a retire/unretire failure lands in,
           so it announces itself rather than waiting to be noticed. */}
-      {error && <FitnessAlert title={error} />}
+      {error && <Alert title={error} />}
 
       <div className="space-y-4">
         {/* The overview's hairline strip, one column per value. */}
-        <FitnessStatGrid
-          variant="summary"
-          columns={gear.kind === 'bike' ? 3 : 2}
-          className={FITNESS_STAT_STRIP_CLASS}
-        >
-          <FitnessStatCell
+        <StatStrip variant="summary" columns={gear.kind === 'bike' ? 3 : 2}>
+          <StatCell
             label="Distance"
             icon={MapPin}
             value={formatGearDistanceKm(gear.distanceMeters)}
           />
-          <FitnessStatCell
+          <StatCell
             label="Activities"
             icon={Activity}
             value={formatInteger(gear.activityCount)}
           />
           {gear.kind === 'bike' && (
-            <FitnessStatCell
+            <StatCell
               label="Components installed"
               icon={Wrench}
               value={formatInteger(installedCount)}
             />
           )}
-        </FitnessStatGrid>
+        </StatStrip>
 
         {/* The design puts the actions in a left-aligned row under the stat
             tiles, not beside the title. */}

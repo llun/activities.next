@@ -3,7 +3,7 @@ import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { FitnessStatGrid } from './FitnessStatGrid'
+import { StatStrip } from './StatStrip'
 
 // jsdom never evaluates a container query, so these cover the STRUCTURE the
 // rule needs rather than the thresholds themselves — restating
@@ -11,10 +11,10 @@ import { FitnessStatGrid } from './FitnessStatGrid'
 // purpose, and could not catch a hand-rolled strip elsewhere anyway.
 const getGrid = () => screen.getByTestId('cell').parentElement as HTMLElement
 
-const renderGrid = (props: Parameters<typeof FitnessStatGrid>[0]) =>
-  render(<FitnessStatGrid {...props} />)
+const renderGrid = (props: Parameters<typeof StatStrip>[0]) =>
+  render(<StatStrip {...props} />)
 
-describe('FitnessStatGrid', () => {
+describe('StatStrip', () => {
   it('establishes the container on the wrapper, not on the grid it sizes', () => {
     renderGrid({ children: <div data-testid="cell" /> })
 
@@ -57,7 +57,7 @@ describe('FitnessStatGrid', () => {
   })
 
   it('keeps the post chip 2-up where the detail strip goes 1-up', () => {
-    renderGrid({ children: <div data-testid="cell" /> })
+    renderGrid({ variant: 'detail', children: <div data-testid="cell" /> })
     const detail = getGrid().className
     screen.getByTestId('cell').remove()
     renderGrid({ variant: 'chip', children: <div data-testid="cell" /> })
@@ -68,6 +68,18 @@ describe('FitnessStatGrid', () => {
     expect(detail).toContain('grid-cols-1')
     expect(getGrid()).toHaveClass('grid-cols-2')
     expect(getGrid()).not.toHaveClass('grid-cols-1')
+  })
+
+  it('draws the hairline track on the summary strip only', () => {
+    renderGrid({ children: <div data-testid="cell" /> })
+    const summary = getGrid().parentElement as HTMLElement
+    // The 1px grid gap over a `bg-border` track is what draws the dividers, so
+    // the strip carries it itself and callers cannot forget it.
+    expect(summary).toHaveClass('bg-border', 'rounded-lg', 'border')
+
+    screen.getByTestId('cell').remove()
+    renderGrid({ variant: 'detail', children: <div data-testid="cell" /> })
+    expect(getGrid().parentElement).not.toHaveClass('bg-border')
   })
 
   it('keeps the overview summary 2×2 at the default text size, in rem so it follows text zoom', () => {

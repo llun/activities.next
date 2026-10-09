@@ -80,7 +80,7 @@ describe('InstanceSettingsForm', () => {
       renderForm()
       fireEvent.click(screen.getByLabelText('Fitness'))
 
-      const updateButtons = screen.getAllByRole('button', { name: 'Update' })
+      const updateButtons = screen.getAllByRole('button', { name: 'Save' })
       fireEvent.click(updateButtons[updateButtons.length - 1])
 
       await waitFor(() =>
@@ -100,7 +100,7 @@ describe('InstanceSettingsForm', () => {
     })
 
     // One Update button per section; details is the first.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -129,7 +129,7 @@ describe('InstanceSettingsForm', () => {
     fireEvent.change(screen.getByLabelText('Instance name'), {
       target: { value: 'New Name' }
     })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     await waitFor(() =>
       expect(
@@ -137,7 +137,7 @@ describe('InstanceSettingsForm', () => {
       ).toBeInTheDocument()
     )
     // Still dirty (the value was not adopted), so Update stays enabled.
-    expect(screen.getAllByRole('button', { name: 'Update' })[0]).toBeEnabled()
+    expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeEnabled()
   })
 
   it('adopts the server-resolved values and clears dirty after a save', async () => {
@@ -152,9 +152,9 @@ describe('InstanceSettingsForm', () => {
     fireEvent.change(screen.getByLabelText('Instance name'), {
       target: { value: 'New Name' }
     })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     await waitFor(() => expect(screen.getByText('Saved')).toBeInTheDocument())
-    expect(screen.getAllByRole('button', { name: 'Update' })[0]).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeDisabled()
   })
 })

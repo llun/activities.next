@@ -89,6 +89,43 @@ describe('GalleryPrivacySettings', () => {
     ).toEqual(['Hidden', 'Country', 'Area (about 5 km)', 'Exact'])
   })
 
+  it('lays each group out as a flat frame of form rows, not a shadowed panel', async () => {
+    const { container } = renderSettings()
+    await screen.findByRole('switch', { name: SHOW_GEAR })
+
+    expect(container.innerHTML).not.toMatch(/rounded-2xl|shadow-sm/)
+    const frames = container.querySelectorAll('[data-slot="frame"]')
+    expect(frames).toHaveLength(3)
+    for (const frame of frames) {
+      expect(frame).toHaveClass('rounded-lg', 'border')
+    }
+    // Section headings are the kit's text-base, not the old text-lg.
+    expect(screen.getByRole('heading', { name: 'Place' })).toHaveClass(
+      'text-base'
+    )
+    // A switch stays beside its label on a phone; a select stacks.
+    expect(
+      screen
+        .getByRole('switch', { name: SHOW_GEAR })
+        .closest('[data-slot="form-row"]')
+    ).toHaveClass('flex', 'justify-between')
+    expect(
+      screen
+        .getByRole('combobox', { name: PRECISION })
+        .closest('[data-slot="form-row"]')
+    ).toHaveClass('flex-col', 'sm:grid')
+  })
+
+  it('wires each hint to its control for assistive tech', async () => {
+    renderSettings()
+
+    expect(
+      await screen.findByRole('combobox', { name: PRECISION })
+    ).toHaveAccessibleDescription(
+      'You can change it on each photo. GPS is always removed from the file itself.'
+    )
+  })
+
   it('disables every control until the settings are known', async () => {
     const deferred = createDeferred<GallerySettingsEntity>()
     mockGetGallerySettings.mockReturnValue(deferred.promise)

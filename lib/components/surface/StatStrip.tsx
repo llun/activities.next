@@ -3,8 +3,9 @@ import { FC, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * Column rules for the labelled stat strips on fitness surfaces, straight from
- * the design system's `FitnessKit.StatGrid` / `FitnessChip` grids.
+ * Column rules for the labelled stat strips (Fitness, Gallery, and wherever a
+ * set of totals is shown), straight from the design system's
+ * `FitnessKit.StatGrid` / `FitnessChip` grids.
  *
  * They are **container** queries, not viewport breakpoints, because that is
  * what the design measures: the kit's grids read their own width with a
@@ -25,7 +26,7 @@ import { cn } from '@/lib/utils'
  *   four cells still fit in 424px (the kit derives that from 4×100px + 3×8px of
  *   gap) and it never drops to a single column — a 4-row chip in a feed is a
  *   worse trade than a slightly tight cell.
- * - `summary` — the fitness overview's totals (Activities, Distance, Duration,
+ * - `summary` — the Fitness overview's totals (Activities, Distance, Duration,
  *   Elevation). Values are `text-xl`, with a 20px icon beside them only when
  *   four across, and a long total such as "1,234h 56m" then needs ~175px a
  *   cell, so it is 2×2 and 4-up only from 700px: the tablet's 715px column
@@ -45,7 +46,7 @@ const VARIANT_CLASS_NAMES = {
     'gap-px grid-cols-1 @min-[16rem]:grid-cols-2 @min-[43.75rem]:grid-cols-4'
 } as const
 
-export type FitnessStatGridVariant = keyof typeof VARIANT_CLASS_NAMES
+export type StatStripVariant = keyof typeof VARIANT_CLASS_NAMES
 
 /**
  * The `summary` strip with fewer than four cells — the gear pages' totals use
@@ -63,22 +64,35 @@ const SUMMARY_COLUMN_CLASS_NAMES = {
   4: VARIANT_CLASS_NAMES.summary
 } as const
 
-export type FitnessSummaryColumns = keyof typeof SUMMARY_COLUMN_CLASS_NAMES
+export type StatStripColumns = keyof typeof SUMMARY_COLUMN_CLASS_NAMES
+
+/** The `summary` strip's own classes: the hairline track, border and radius. */
+export const STAT_STRIP_CLASS = 'bg-border overflow-hidden rounded-lg border'
 
 /**
  * The wrapper is what carries `@container`: a container query styles a
  * container's *descendants*, never the container itself, so the grid cannot
  * both establish the container and read it. The wrapper is a plain block, so
  * its content box is exactly the grid's width.
+ *
+ * The `summary` variant is the hairline strip: it also paints `bg-border`, the
+ * border and the radius that its cells' 1px gaps cut into dividers, so a caller
+ * only passes margins. Fill it with `StatCell`s.
  */
-export const FitnessStatGrid: FC<{
-  variant?: FitnessStatGridVariant
+export const StatStrip: FC<{
+  variant?: StatStripVariant
   /** `summary` only: how many cells the strip holds (default four). */
-  columns?: FitnessSummaryColumns
+  columns?: StatStripColumns
   className?: string
   children: ReactNode
-}> = ({ variant = 'detail', columns = 4, className, children }) => (
-  <div className={cn('@container', className)}>
+}> = ({ variant = 'summary', columns = 4, className, children }) => (
+  <div
+    className={cn(
+      '@container',
+      variant === 'summary' && STAT_STRIP_CLASS,
+      className
+    )}
+  >
     <div
       className={cn(
         'grid',

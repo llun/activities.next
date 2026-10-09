@@ -426,8 +426,8 @@ Read the applicable rules and review checks below before changing this subsystem
 
 ### Fitness Stat Strips
 
-- **Four stat strips render through `FitnessStatGrid`**
-  (`@/lib/components/fitness/FitnessStatGrid`): the activity detail page's
+- **Four stat strips render through `StatStrip`**
+  (`@/lib/components/surface/StatStrip`): the activity detail page's
   header strip (distance / moving time / avg pace / elev gain), the strip under
   its route map, the inline fitness chip in a timeline post, and the fitness
   overview's totals (`FitnessSummaryStrip`, the `summary` variant). Do not
@@ -466,7 +466,7 @@ Read the applicable rules and review checks below before changing this subsystem
 - `@container` goes on a **wrapper**, never on the grid itself: a container
   query styles a container's descendants, not the container, so a grid cannot
   both establish the container and read it. Guarded by
-  `lib/components/fitness/FitnessStatGrid.test.tsx`.
+  `lib/components/surface/StatStrip.test.tsx`.
 
 <a id="agents-apple-maps-basemap"></a>
 

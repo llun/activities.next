@@ -22,30 +22,21 @@ describe('ActorInfoBanner', () => {
     expect(screen.getByText('@user@example.com')).toBeInTheDocument()
   })
 
-  it('has correct styling classes', () => {
-    const { container } = render(
-      <ActorInfoBanner actorHandle="@test@domain.com" />
-    )
+  it('is an info Alert, a polite status with the info rule', () => {
+    render(<ActorInfoBanner actorHandle="@test@domain.com" />)
 
-    const banner = container.firstChild as HTMLElement
-    expect(banner).toHaveClass(
-      'rounded-md',
-      'border',
-      'border-blue-200',
-      'bg-blue-50',
-      'p-3'
-    )
+    const banner = screen.getByRole('status')
+    expect(banner).toHaveAttribute('data-tone', 'info')
+    expect(banner).toHaveClass('border-l-4', 'border-l-info')
   })
 
-  it('has dark-mode colours, so it is not a pale block on a dark page', () => {
+  it('uses theme tokens only, so it follows dark mode', () => {
     const { container } = render(
       <ActorInfoBanner actorHandle="@test@domain.com" />
     )
 
-    const banner = container.firstChild as HTMLElement
-    expect(banner).toHaveClass('dark:border-blue-900', 'dark:bg-blue-950/40')
-    expect(screen.getByText(/All fitness imports/i)).toHaveClass(
-      'dark:text-blue-200'
+    expect(container.innerHTML).not.toMatch(
+      /(bg|text|border)-(red|green|amber|yellow|blue)-\d/
     )
   })
 })

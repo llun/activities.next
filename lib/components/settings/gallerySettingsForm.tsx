@@ -3,7 +3,8 @@
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getGallerySettings, updateGallerySettings } from '@/lib/client'
-import { Button } from '@/lib/components/ui/button'
+import { Alert } from '@/lib/components/surface/Alert'
+import { SavedIndicator } from '@/lib/components/surface/SaveBar'
 import { Label } from '@/lib/components/ui/label'
 import { Switch } from '@/lib/components/ui/switch'
 import type { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
@@ -135,33 +136,17 @@ interface StatusProps {
   onRetry: () => void
 }
 
-/** The load error with Retry, the save error, and the polite "Saved" status. */
+/** The load error with Retry, the save error, and the polite "Saved" tick. */
 export const GallerySettingsStatus: FC<StatusProps> = ({
   loadError,
   saveError,
   savedStatus,
   onRetry
 }) => (
-  <div className="min-h-5 space-y-2 text-sm">
-    {loadError && (
-      <div
-        role="alert"
-        className="flex flex-wrap items-center gap-3 text-destructive"
-      >
-        <p>{loadError}</p>
-        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-          Retry
-        </Button>
-      </div>
-    )}
-    {saveError && (
-      <p role="alert" className="text-destructive">
-        {saveError}
-      </p>
-    )}
-    <p role="status" aria-live="polite" className="text-muted-foreground">
-      {savedStatus}
-    </p>
+  <div className="min-h-5 space-y-3">
+    {loadError && <Alert title={loadError} onRetry={onRetry} />}
+    {saveError && <Alert title={saveError} />}
+    <SavedIndicator saved={savedStatus !== null} />
   </div>
 )
 

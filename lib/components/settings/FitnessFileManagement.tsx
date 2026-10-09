@@ -19,19 +19,16 @@ import {
   retryAllFitnessImports,
   retryFitnessImportBatch
 } from '@/lib/client'
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
-import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
-import {
-  FITNESS_STAT_STRIP_CLASS,
-  FitnessStatCell
-} from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import {
   FileListPagination,
   ItemsPerPageDropdown,
   getFileStatusLink
 } from '@/lib/components/settings/fileManagementShared'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Section } from '@/lib/components/surface/Section'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -254,32 +251,28 @@ export function FitnessFileManagement({
 
   return (
     <div className="space-y-6">
-      <FitnessSection
+      <Section
         title="Storage"
         description="Fitness files share quota with media uploads."
       >
         <div className="space-y-2">
-          <FitnessStatGrid
-            variant="summary"
-            columns={3}
-            className={FITNESS_STAT_STRIP_CLASS}
-          >
-            <FitnessStatCell
+          <StatStrip variant="summary" columns={3}>
+            <StatCell
               label="Used"
               icon={HardDrive}
               value={formatFileSize(currentUsed)}
             />
-            <FitnessStatCell
+            <StatCell
               label="Quota"
               icon={Gauge}
               value={formatFileSize(limit)}
             />
-            <FitnessStatCell
+            <StatCell
               label="Fitness files"
               icon={Files}
               value={formatInteger(currentTotal)}
             />
-          </FitnessStatGrid>
+          </StatStrip>
           <Progress
             value={percentUsed}
             aria-label="Storage quota used by fitness files"
@@ -288,11 +281,11 @@ export function FitnessFileManagement({
             {percentUsed.toFixed(1)}% of your quota used
           </p>
         </div>
-      </FitnessSection>
+      </Section>
 
       {children}
 
-      <FitnessSection
+      <Section
         title="Files"
         meta={`${formatInteger(currentTotal)} ${currentTotal === 1 ? 'file' : 'files'}`}
         actions={
@@ -316,18 +309,13 @@ export function FitnessFileManagement({
         }
       >
         {retryError && (
-          <FitnessAlert title="We couldn’t retry the import">
-            {retryError}
-          </FitnessAlert>
+          <Alert title="We couldn’t retry the import">{retryError}</Alert>
         )}
         {fitnessFiles.length === 0 ? (
-          <FitnessEmptyState
-            icon={FileUp}
-            title="No fitness files uploaded yet."
-          >
+          <EmptyState icon={FileUp} title="No fitness files uploaded yet.">
             Import a FIT, GPX, or TCX file above, or connect Strava, and its
             source file is kept here.
-          </FitnessEmptyState>
+          </EmptyState>
         ) : (
           <>
             <ul className="divide-y rounded-lg border">
@@ -463,7 +451,7 @@ export function FitnessFileManagement({
             />
           </>
         )}
-      </FitnessSection>
+      </Section>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>

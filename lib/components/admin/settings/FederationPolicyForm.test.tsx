@@ -99,7 +99,7 @@ describe('FederationPolicyForm', () => {
     fireEvent.change(screen.getByLabelText('Mode'), {
       target: { value: 'allowlist' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Update' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(

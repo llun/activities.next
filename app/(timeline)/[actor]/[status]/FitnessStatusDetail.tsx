@@ -40,7 +40,6 @@ import {
   getFitnessRouteData,
   updateFitnessFileGear
 } from '@/lib/client'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { BrandedDeviceLink } from '@/lib/components/posts/BrandedDeviceLink'
 import { Actions } from '@/lib/components/posts/actions/actions'
 import type { PostMenuExtraItem } from '@/lib/components/posts/actions/post-menu'
@@ -59,6 +58,7 @@ import {
   SectionNavSelect,
   type SectionNavSelectTab
 } from '@/lib/components/section-nav-select'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { getGearKindForActivityType } from '@/lib/services/fitness-files/sportTypes'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
 import type { FitnessGearKind } from '@/lib/types/database/fitnessGear'
@@ -1584,7 +1584,7 @@ export const FitnessStatusDetail: FC<Props> = ({
             {caption}
           </div>
 
-          <FitnessStatGrid className="mt-4">
+          <StatStrip variant="detail" className="mt-4">
             <StatTile
               icon={Route}
               label="Distance"
@@ -1623,7 +1623,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                 big
               />
             )}
-          </FitnessStatGrid>
+          </StatStrip>
 
           {/* Reactions belong to the post, so the chips sit inside the card body
               directly under the stats, the way `Post` puts them directly under
@@ -1836,7 +1836,7 @@ export const FitnessStatusDetail: FC<Props> = ({
               // so it is 42px wider) and can legitimately disagree by one step
               // in a narrow band of window widths. That is the rule working on
               // real available width, which is the whole point of it.
-              <FitnessStatGrid>
+              <StatStrip variant="detail">
                 {secondaryStats.map((stat) => (
                   <StatTile
                     key={stat.label}
@@ -1846,7 +1846,7 @@ export const FitnessStatusDetail: FC<Props> = ({
                     sub={stat.sub}
                   />
                 ))}
-              </FitnessStatGrid>
+              </StatStrip>
             )}
 
             {elevationChartValues.length > 0 && (

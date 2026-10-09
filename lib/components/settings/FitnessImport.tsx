@@ -9,8 +9,6 @@ import {
   retryFitnessImportBatch,
   startFitnessImport
 } from '@/lib/client'
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
-import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
 import { ActorInfoBanner } from '@/lib/components/settings/ActorInfoBanner'
 import {
@@ -18,6 +16,8 @@ import {
   getFitnessImportFileIcon,
   getFitnessImportFileState
 } from '@/lib/components/settings/fitnessImportStatus'
+import { Alert } from '@/lib/components/surface/Alert'
+import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
 import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/constants'
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
@@ -160,7 +160,7 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
   }
 
   return (
-    <FitnessSection
+    <Section
       title="Import activities"
       description={
         <>
@@ -287,12 +287,8 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
           </div>
         )}
 
-        {error && (
-          <FitnessAlert title="We couldn’t import these files">
-            {error}
-          </FitnessAlert>
-        )}
+        {error && <Alert title="We couldn’t import these files">{error}</Alert>}
       </div>
-    </FitnessSection>
+    </Section>
   )
 }

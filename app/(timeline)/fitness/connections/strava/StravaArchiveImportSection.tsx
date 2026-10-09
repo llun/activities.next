@@ -14,6 +14,7 @@ import {
   startStravaArchiveImport
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import { Label } from '@/lib/components/ui/label'
@@ -421,9 +422,7 @@ export const StravaArchiveImportSection: FC<Props> = ({ actorHandle }) => {
       {archiveError && (
         <p className="text-sm text-destructive">{archiveError}</p>
       )}
-      {archiveMessage && (
-        <p className="text-sm text-green-600">{archiveMessage}</p>
-      )}
+      {archiveMessage && <Alert tone="success" title={archiveMessage} />}
     </div>
   )
 }

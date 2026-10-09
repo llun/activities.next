@@ -8,6 +8,7 @@ import {
   saveStravaSettings
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -281,29 +282,20 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
             </p>
             {(defaultVisibility === 'public' ||
               defaultVisibility === 'unlisted') && (
-              <div className="rounded-md bg-yellow-50 p-3 dark:bg-yellow-950">
-                <p
-                  role="alert"
-                  className="text-sm text-yellow-800 dark:text-yellow-200"
-                >
-                  Anyone on the fediverse can read these posts. An activity you
-                  marked &quot;Only you&quot; on Strava will still be posted for
-                  everyone, with its route map and stats.
-                </p>
-              </div>
+              <Alert
+                tone="warning"
+                title="Anyone on the fediverse can read these posts."
+              >
+                An activity you marked &quot;Only you&quot; on Strava will still
+                be posted for everyone, with its route map and stats.
+              </Alert>
             )}
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {message && <p className="text-sm text-green-600">{message}</p>}
+          {message && <Alert tone="success" title={message} />}
 
-          {isConnected && (
-            <div className="rounded-md bg-green-50 p-3 dark:bg-green-950">
-              <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                ✓ Connected to Strava
-              </p>
-            </div>
-          )}
+          {isConnected && <Alert tone="success" title="Connected to Strava" />}
 
           {webhookUrl && (
             <div className="space-y-2">
@@ -322,11 +314,10 @@ export const StravaSettingsForm: FC<StravaSettingsFormProps> = ({
           )}
 
           {isConfigured && !isConnected && (
-            <div className="rounded-md bg-yellow-50 p-3 dark:bg-yellow-950">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                Credentials saved but not connected. Please reconnect.
-              </p>
-            </div>
+            <Alert
+              tone="warning"
+              title="Credentials saved but not connected. Please reconnect."
+            />
           )}
 
           <div className="flex gap-2">
