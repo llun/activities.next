@@ -25,7 +25,9 @@ export type BackdatedCreatedAtResult =
 // Parses the request's `created_at`. A missing or blank value means "now"
 // (`createdAt: undefined`), matching how a blank `scheduled_at` is treated.
 // The status's publicId is a UUIDv7 minted from this time, which cannot encode
-// a time before the Unix epoch, so those are rejected as invalid too.
+// a time at or before the Unix epoch, so those are rejected as invalid too
+// (the database layer also treats a createdAt of 0 as falsy, i.e. "now", which
+// would desync the id and attachments from the stored time).
 export const parseBackdatedCreatedAt = (
   input: string | undefined,
   now: number
@@ -35,7 +37,7 @@ export const parseBackdatedCreatedAt = (
 
   const parsed = CreatedAtSchema.safeParse(value)
   const createdAt = parsed.success ? Date.parse(parsed.data) : Number.NaN
-  if (!Number.isFinite(createdAt) || createdAt < 0) {
+  if (!Number.isFinite(createdAt) || createdAt <= 0) {
     return { ok: false, error: CREATED_AT_INVALID_ERROR }
   }
   if (createdAt > now + MAX_CREATED_AT_CLOCK_SKEW_MS) {

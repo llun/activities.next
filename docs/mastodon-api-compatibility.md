@@ -549,9 +549,11 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   the status's UUIDv7 `id` is minted from it (so id order still matches
   `created_at` order on every timeline), and the federated `Create`/`Note`
   carries it as `published`. A blank value means now. It is answered with a
-  422 `{ error }` when it is not a date-time with a zone, is before 1970, is
-  more than one minute in the future, or is combined with `scheduled_at`. A
-  poll's `expires_in` still counts from the time of the request. Mastodon
+  422 `{ error }` when it is not a date-time with a zone, is at or before 1970-01-01T00:00:00Z,
+  is more than one minute in the future, or is combined with `scheduled_at`. A
+  poll's `expires_in` still counts from the time of the request. A backdated
+  status lands at its backdated position on timelines, not at the top as a new
+  post, so clients polling with `since_id`/`min_id` will not pick it up. Mastodon
   clients never send it.
 - **`?format=activities_next`** — timeline endpoints and
   `GET /api/v1/trends/statuses` accept this query flag to return the raw internal

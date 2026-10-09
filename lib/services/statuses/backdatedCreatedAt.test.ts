@@ -36,9 +36,9 @@ describe('parseBackdatedCreatedAt', () => {
       expected: Date.parse('2026-06-14T18:30:00.123Z')
     },
     {
-      description: 'accepts the Unix epoch',
-      input: '1970-01-01T00:00:00Z',
-      expected: 0
+      description: 'accepts the first millisecond after the Unix epoch',
+      input: '1970-01-01T00:00:00.001Z',
+      expected: 1
     },
     {
       description: 'accepts a time inside the clock-skew allowance',
@@ -76,6 +76,11 @@ describe('parseBackdatedCreatedAt', () => {
     {
       description: 'rejects a time before the Unix epoch',
       input: '1969-12-31T23:59:59Z',
+      error: CREATED_AT_INVALID_ERROR
+    },
+    {
+      description: 'rejects the Unix epoch itself',
+      input: '1970-01-01T00:00:00Z',
       error: CREATED_AT_INVALID_ERROR
     }
   ])('$description', ({ input, error }) => {
