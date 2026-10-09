@@ -174,7 +174,7 @@ describe('StravaSettingsForm', () => {
       )
       expect(webhookUrlInput).toHaveAttribute('readonly')
 
-      expect(screen.getByText('✓ Connected to Strava')).toBeInTheDocument()
+      expect(screen.getByText('Connected to Strava')).toBeInTheDocument()
       expect(
         screen.getByRole('button', { name: /save visibility/i })
       ).toBeInTheDocument()
@@ -203,7 +203,7 @@ describe('StravaSettingsForm', () => {
           'Credentials saved but not connected. Please reconnect.'
         )
       ).toBeInTheDocument()
-      expect(screen.queryByText('✓ Connected to Strava')).toBeNull()
+      expect(screen.queryByText('Connected to Strava')).toBeNull()
     })
 
     it('shows success message from URL search params and cleans up URL', async () => {
@@ -632,6 +632,7 @@ describe('StravaSettingsForm', () => {
       await renderFormWithVisibility(visibility)
 
       const alert = await screen.findByRole('alert')
+      expect(alert).toHaveAttribute('data-tone', 'warning')
       expect(alert).toHaveTextContent('Anyone on the fediverse can read')
       expect(alert).toHaveTextContent('Only you')
     })

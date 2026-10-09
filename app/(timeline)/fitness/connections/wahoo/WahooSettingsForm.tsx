@@ -10,6 +10,7 @@ import {
   saveWahooSettings
 } from '@/lib/client'
 import { VisibilitySelector } from '@/lib/components/post-box/visibility-selector'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
 import {
   Dialog,
@@ -245,13 +246,10 @@ export const WahooSettingsForm = () => {
           </p>
           {(defaultVisibility === 'public' ||
             defaultVisibility === 'unlisted') && (
-            <p
-              role="alert"
-              className="rounded-md bg-yellow-50 p-3 text-sm text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200"
-            >
-              Anyone on the fediverse can read imported workouts, including
-              route maps and stats.
-            </p>
+            <Alert
+              tone="warning"
+              title="Anyone on the fediverse can read imported workouts, including route maps and stats."
+            />
           )}
         </div>
 
@@ -283,16 +281,14 @@ export const WahooSettingsForm = () => {
         </div>
 
         {settings?.connected ? (
-          <p
-            role="status"
-            className="text-sm text-green-700 dark:text-green-400"
-          >
-            Connected to Wahoo
-            {settings.providerUserId
-              ? ` (user ${settings.providerUserId})`
-              : ''}
-            .
-          </p>
+          <Alert
+            tone="success"
+            title={`Connected to Wahoo${
+              settings.providerUserId
+                ? ` (user ${settings.providerUserId})`
+                : ''
+            }.`}
+          />
         ) : settings?.configured ? (
           <p role="status" className="text-sm text-muted-foreground">
             Application saved. Connect to authorize your Wahoo account.
@@ -337,14 +333,7 @@ export const WahooSettingsForm = () => {
             {error}
           </p>
         )}
-        {message && (
-          <p
-            role="status"
-            className="text-sm text-green-700 dark:text-green-400"
-          >
-            {message}
-          </p>
-        )}
+        {message && <Alert tone="success" title={message} />}
 
         <div className="flex flex-wrap gap-2">
           <Button type="submit" disabled={isSaving || !settings}>

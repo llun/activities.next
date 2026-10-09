@@ -3,13 +3,13 @@
 import { Loader2, MapPin, X } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
 import { GalleryMapKit } from '@/lib/components/gallery/GalleryMapKit'
 import { GalleryPlacesList } from '@/lib/components/gallery/GalleryPlacesList'
 import { formatGalleryDate } from '@/lib/components/gallery/galleryCategories'
 import { createGalleryMarkerElement } from '@/lib/components/gallery/galleryMapMarker'
 import { getPointBounds } from '@/lib/components/gallery/galleryPlaces'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import type { GalleryMapPoint } from '@/lib/services/gallery/galleryEntities'
 import { cn } from '@/lib/utils'
@@ -589,19 +589,16 @@ export const GalleryMap: FC<GalleryMapProps> = ({
 
   if (points.length === 0) {
     return (
-      <FitnessEmptyState
-        icon={MapPin}
-        title="No photos or videos with a place yet"
-      >
+      <EmptyState icon={MapPin} title="No photos or videos with a place yet">
         Photos and videos that carry a place show up here.
-      </FitnessEmptyState>
+      </EmptyState>
     )
   }
 
   return (
     <div className="space-y-6">
       {fallbackReason ? (
-        <FitnessAlert
+        <Alert
           title="Map unavailable"
           action={
             <Button
@@ -615,7 +612,7 @@ export const GalleryMap: FC<GalleryMapProps> = ({
           }
         >
           The places are still listed below.
-        </FitnessAlert>
+        </Alert>
       ) : (
         <div
           role="region"

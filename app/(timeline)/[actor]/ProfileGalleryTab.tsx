@@ -20,7 +20,6 @@ import {
   getGalleryMap,
   getGallerySubjects
 } from '@/lib/client'
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
 import { GalleryLifeListTable } from '@/lib/components/gallery/GalleryLifeListTable'
 import { GalleryMap } from '@/lib/components/gallery/GalleryMap'
 import { GalleryPagedGrid } from '@/lib/components/gallery/GalleryPagedGrid'
@@ -31,6 +30,7 @@ import {
   SectionNavSelect,
   type SectionNavSelectTab
 } from '@/lib/components/section-nav-select'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
 import { Button } from '@/lib/components/ui/button'
 import type { GalleryAlbumListResponse } from '@/lib/services/gallery/galleryAlbumEntities'
 import type {
@@ -172,7 +172,7 @@ const LifeListPanel: FC<{
   if (result.state === 'loading') return <PanelSkeleton />
   if (result.state === 'error') return <PanelError message={result.message} />
   if (!result.data || result.data.entries.length === 0) {
-    return <FitnessEmptyState icon={ListChecks} title="No life list to show" />
+    return <EmptyState icon={ListChecks} title="No life list to show" />
   }
   return (
     <GalleryLifeListTable
@@ -198,7 +198,7 @@ const AlbumsPanel: FC<{
   if (result.state === 'loading') return <PanelSkeleton />
   if (result.state === 'error') return <PanelError message={result.message} />
   if (result.data.albums.length === 0) {
-    return <FitnessEmptyState icon={FolderOpen} title="No albums to show" />
+    return <EmptyState icon={FolderOpen} title="No albums to show" />
   }
   return (
     <ul className="grid grid-cols-2 gap-x-3 gap-y-5 md:grid-cols-3 md:gap-x-4">

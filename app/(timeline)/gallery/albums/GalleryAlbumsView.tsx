@@ -4,13 +4,10 @@ import { FolderOpen, Images, Lock, Plus, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
-import {
-  FITNESS_STAT_STRIP_CLASS,
-  FitnessStatCell
-} from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { PageHeader } from '@/lib/components/page-header'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { Button } from '@/lib/components/ui/button'
 import { formatInteger } from '@/lib/fitness/calendar/format'
 import type { GalleryAlbumListResponse } from '@/lib/services/gallery/galleryAlbumEntities'
@@ -93,7 +90,7 @@ export const GalleryAlbumsView: FC<Props> = ({ ownerId, data }) => {
       />
 
       {albums.length === 0 ? (
-        <FitnessEmptyState
+        <EmptyState
           icon={FolderOpen}
           titleAs="h2"
           title="Group photos that belong together"
@@ -125,25 +122,21 @@ export const GalleryAlbumsView: FC<Props> = ({ ownerId, data }) => {
         >
           A trip, a species, a day out. An album never makes a photo more public
           than the post it came from.
-        </FitnessEmptyState>
+        </EmptyState>
       ) : (
         <>
-          <FitnessStatGrid
-            variant="summary"
-            columns={3}
-            className={FITNESS_STAT_STRIP_CLASS}
-          >
-            <FitnessStatCell
+          <StatStrip variant="summary" columns={3}>
+            <StatCell
               label="Albums"
               icon={FolderOpen}
               value={formatInteger(albums.length)}
             />
-            <FitnessStatCell
+            <StatCell
               label="Photos in albums"
               icon={Images}
               value={formatInteger(photoCount)}
             />
-            <FitnessStatCell
+            <StatCell
               label="Suggested"
               icon={Sparkles}
               // A dash while the suggestions are being worked out, and when
@@ -152,7 +145,7 @@ export const GalleryAlbumsView: FC<Props> = ({ ownerId, data }) => {
                 suggestionCount === null ? '–' : formatInteger(suggestionCount)
               }
             />
-          </FitnessStatGrid>
+          </StatStrip>
 
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <div

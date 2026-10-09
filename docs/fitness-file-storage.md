@@ -426,19 +426,14 @@ Read the applicable rules and review checks below before changing this subsystem
 
 ### Fitness Stat Strips
 
-- **Four stat strips render through `FitnessStatGrid`**
-  (`@/lib/components/fitness/FitnessStatGrid`): the activity detail page's
-  header strip (distance / moving time / avg pace / elev gain), the strip under
-  its route map, the inline fitness chip in a timeline post, and the fitness
-  overview's totals (`FitnessSummaryStrip`, the `summary` variant). Do not
-  hand-roll a `grid-cols-*` strip beside them, and put a new fitness stat strip
-  on this component rather than on a fourth threshold of its own.
-- **One strip is NOT on it yet**, so do not read the rule as describing the
-  whole tree: the gear detail page's strip
-  (`app/(timeline)/fitness/gear/[id]/GearDetailView.tsx` — still on a
-  `sm:grid-cols-3`/`sm:grid-cols-2` **viewport** query, which is the same defect
-  described below). Migrating it is a worthwhile follow-up; until then this
-  section describes four strips, not every one.
+- **Every labelled stat strip renders through `StatStrip`**
+  (`@/lib/components/surface/StatStrip`): the `detail` variant (the activity
+  detail page's header strip and the strip under its route map), the `chip`
+  variant (the inline fitness chip in a timeline post) and the `summary`
+  variant (the hairline totals strip of the Fitness overview, the gear and
+  Device pages, Gallery, Albums and Files, filled with `StatCell`s). Do not
+  hand-roll a `grid-cols-*` strip beside them, and put a new stat strip on this
+  component rather than on a threshold of its own.
 - **The column rule is a CONTAINER query, never a viewport breakpoint.** The
   design system's `FitnessKit.StatGrid` and `FitnessChip` grids measure their
   own width with a `ResizeObserver` for the same reason `useCompactActionBar`
@@ -465,8 +460,8 @@ Read the applicable rules and review checks below before changing this subsystem
   That is the rule working on real available width, not drift.
 - `@container` goes on a **wrapper**, never on the grid itself: a container
   query styles a container's descendants, not the container, so a grid cannot
-  both establish the container and read it. Guarded by
-  `lib/components/fitness/FitnessStatGrid.test.tsx`.
+  both establish the container and read it. Not test-guarded: jsdom does not
+  evaluate container queries, so check it in a browser.
 
 <a id="agents-apple-maps-basemap"></a>
 

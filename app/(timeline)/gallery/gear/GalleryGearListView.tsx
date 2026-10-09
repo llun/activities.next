@@ -13,12 +13,10 @@ import {
   STICKY_HEAD_CELL
 } from '@/app/(timeline)/fitness/gear/gearUi'
 import { getGalleryGearsWithUsage } from '@/lib/client'
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
-import {
-  FITNESS_TABLE_HEAD_ROW_CLASS,
-  FitnessSection
-} from '@/lib/components/fitness/FitnessSection'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Section } from '@/lib/components/surface/Section'
+import { TABLE_HEAD_ROW_CLASS } from '@/lib/components/surface/TableFrame'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import type { GalleryGearWithUsageEntity } from '@/lib/services/gallery/galleryEntities'
@@ -111,7 +109,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
   const visible = showRetired ? [...active, ...retired] : active
 
   return (
-    <FitnessSection
+    <Section
       title={copy.sectionTitle}
       icon={KindIcon}
       meta={`${active.length} active`}
@@ -123,9 +121,9 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
       }
     >
       {visible.length === 0 ? (
-        <FitnessEmptyState icon={KindIcon} title={copy.emptyTitle}>
+        <EmptyState icon={KindIcon} title={copy.emptyTitle}>
           {copy.emptyState}
-        </FitnessEmptyState>
+        </EmptyState>
       ) : (
         <div className={GEAR_TABLE_SCROLLER}>
           {/* Below `sm` the table is compact: Product page and Used drop out
@@ -141,7 +139,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
               <col className="w-14 sm:w-[10%]" />
             </colgroup>
             <thead>
-              <tr className={FITNESS_TABLE_HEAD_ROW_CLASS}>
+              <tr className={TABLE_HEAD_ROW_CLASS}>
                 <th
                   className={cn(
                     STICKY_COLUMN,
@@ -257,7 +255,7 @@ const GearSection: FC<SectionProps> = ({ kind, gears, onAdd, onEdit }) => {
           </button>
         </div>
       )}
-    </FitnessSection>
+    </Section>
   )
 }
 
@@ -337,7 +335,7 @@ export const GalleryGearListView: FC = () => {
   return (
     <div className="space-y-6">
       {error && (
-        <FitnessAlert
+        <Alert
           title="We couldn’t load your gear"
           action={
             <Button
@@ -353,7 +351,7 @@ export const GalleryGearListView: FC = () => {
           }
         >
           {error}
-        </FitnessAlert>
+        </Alert>
       )}
       {isInitialLoading ? (
         <GearListSkeleton />

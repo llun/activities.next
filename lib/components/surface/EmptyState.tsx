@@ -13,17 +13,17 @@ interface Props {
   titleAs?: 'p' | 'h2' | 'h3'
   /** Muted copy under the title, such as a link to fill the gap. */
   children?: ReactNode
-  /** A follow-up control under the copy, in its own colour. */
+  /** A follow-up control (button or link) under the copy. */
   action?: ReactNode
   className?: string
 }
 
 /**
- * The fitness section's empty state, as the overview draws it: a muted panel
- * with the subject's icon in a bordered tile, a bold line saying what is
- * missing, muted copy saying how to fill it, and an optional action.
+ * The shared empty state, as the Fitness overview draws it: a muted panel with
+ * the page's own icon in a bordered tile, a bold line saying what is missing,
+ * muted copy saying how to fill it, and an optional action.
  */
-export const FitnessEmptyState: FC<Props> = ({
+export const EmptyState: FC<Props> = ({
   icon: Icon,
   title,
   titleAs: Title = 'p',
@@ -32,6 +32,7 @@ export const FitnessEmptyState: FC<Props> = ({
   className
 }) => (
   <div
+    data-slot="empty-state"
     className={cn(
       'bg-muted/40 flex items-start gap-3 rounded-lg border p-4',
       className

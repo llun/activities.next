@@ -2,12 +2,12 @@
 
 import { FC } from 'react'
 
+import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Select } from '@/lib/components/ui/select'
 import type { ResolvedServerSettings } from '@/lib/config/serverSettings'
 
 import type { ServerSettingLocks } from './InstanceSettingsForm'
 import { LinesTextarea } from './LinesTextarea'
-import { SaveBar } from './SaveBar'
 import { SettingsField } from './SettingsField'
 import { SettingsSection } from './SettingsSection'
 import { useServerSettingsForm } from './useServerSettingsForm'

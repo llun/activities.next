@@ -36,6 +36,8 @@ Review the diff against the linked canonical rule source. Check every applicable
 
 - [ ] **Page chrome, layout & accessibility** — Use shared page headers and navigation; verify responsive layout, contrast, and browser behavior. [Detailed checks](docs/architecture.md#review-page-chrome-layout-accessibility).
 
+- [ ] **Surfaces** — Build page UI from the shared surface kit (`lib/components/surface/`): flat `rounded-lg` frames with no panel shadow, sentence case, theme tokens only, every list one framed `divide-y` list, settings rows label-left/control-right (stacked on a phone) with a "Save" footer, `Alert` for messages, skeletons instead of "Loading…". [Detailed checks](docs/architecture.md#review-surfaces).
+
 - [ ] **Post media layout** — Preserve attachment layout, dimensions, unsupported media, and the intended fallback behavior. [Detailed checks](docs/architecture.md#review-post-media-layout).
 
 - [ ] **Link preview cards** — Preserve per-URL caching, failure state, shared text extraction, and current-status URL checks. [Detailed checks](docs/architecture.md#review-link-preview-cards).

@@ -89,6 +89,34 @@ describe('GalleryPrivacySettings', () => {
     ).toEqual(['Hidden', 'Country', 'Area (about 5 km)', 'Exact'])
   })
 
+  it('lays the settings out as named sections of labelled form rows', async () => {
+    const { container } = renderSettings()
+    await screen.findByRole('switch', { name: SHOW_GEAR })
+
+    expect(screen.getByRole('heading', { name: 'Place' })).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-slot="frame"]')).toHaveLength(3)
+    expect(
+      screen
+        .getByRole('switch', { name: SHOW_GEAR })
+        .closest('[data-slot="form-row"]')
+    ).not.toBeNull()
+    expect(
+      screen
+        .getByRole('combobox', { name: PRECISION })
+        .closest('[data-slot="form-row"]')
+    ).not.toBeNull()
+  })
+
+  it('wires each hint to its control for assistive tech', async () => {
+    renderSettings()
+
+    expect(
+      await screen.findByRole('combobox', { name: PRECISION })
+    ).toHaveAccessibleDescription(
+      'You can change it on each photo. GPS is always removed from the file itself.'
+    )
+  })
+
   it('disables every control until the settings are known', async () => {
     const deferred = createDeferred<GallerySettingsEntity>()
     mockGetGallerySettings.mockReturnValue(deferred.promise)

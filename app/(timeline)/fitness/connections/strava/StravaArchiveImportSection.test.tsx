@@ -301,12 +301,14 @@ describe('StravaArchiveImportSection', () => {
       )
     })
 
-    it('shows the running import and locks the controls', async () => {
+    it('shows the running import as info and locks the controls', async () => {
       await renderSection()
 
       expect(
-        screen.getByText('A Strava archive import is currently running.')
-      ).toBeInTheDocument()
+        screen
+          .getByText('A Strava archive import is currently running.')
+          .closest('[data-tone]')
+      ).toHaveAttribute('data-tone', 'info')
       expect(screen.getByText('batch-1')).toBeInTheDocument()
       expect(screen.getByText(/Imported 3\/10/)).toHaveTextContent(
         'Imported 3/10 • Failed 1'
@@ -353,8 +355,10 @@ describe('StravaArchiveImportSection', () => {
       await renderSection()
 
       expect(
-        screen.getByText('Strava archive import completed.')
-      ).toBeInTheDocument()
+        screen
+          .getByText('Strava archive import completed.')
+          .closest('[data-tone]')
+      ).toHaveAttribute('data-tone', 'success')
       expect(screen.getByRole('link', { name: 'Files' })).toHaveAttribute(
         'href',
         '/fitness/files'
@@ -379,10 +383,10 @@ describe('StravaArchiveImportSection', () => {
       await renderSection()
 
       expect(
-        screen.getByText(
-          'Strava archive import finished with partial failures.'
-        )
-      ).toBeInTheDocument()
+        screen
+          .getByText('Strava archive import finished with partial failures.')
+          .closest('[data-tone]')
+      ).toHaveAttribute('data-tone', 'warning')
       expect(screen.getByText(/Failed 2/)).toBeInTheDocument()
     })
 

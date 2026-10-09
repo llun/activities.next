@@ -8,12 +8,9 @@ import {
   formatGearDate,
   getGearDisplayName
 } from '@/app/(timeline)/fitness/gear/gearUi'
-import {
-  FITNESS_STAT_STRIP_CLASS,
-  FitnessStatCell
-} from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { PageHeader } from '@/lib/components/page-header'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import { Button } from '@/lib/components/ui/button'
 import { formatInteger } from '@/lib/fitness/calendar/format'
 import type { GearEntity } from '@/lib/services/fitness-gears/gearEntities'
@@ -85,24 +82,20 @@ export const DeviceDetailView: FC<Props> = ({
         }
       />
 
-      <FitnessStatGrid
-        variant="summary"
-        columns={2}
-        className={FITNESS_STAT_STRIP_CLASS}
-      >
-        <FitnessStatCell
+      <StatStrip variant="summary" columns={2}>
+        <StatCell
           label="Activities"
           icon={Activity}
           value={formatInteger(gear.activityCount)}
         />
-        <FitnessStatCell
+        <StatCell
           label="First used"
           icon={CalendarDays}
           value={
             gear.firstUsedAt === null ? null : formatGearDate(gear.firstUsedAt)
           }
         />
-      </FitnessStatGrid>
+      </StatStrip>
 
       <GearActivitiesFeed
         gearId={gear.id}

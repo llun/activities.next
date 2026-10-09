@@ -169,7 +169,7 @@ describe('PostsMediaSettingsForm', () => {
     fireEvent.change(screen.getByLabelText('Post size'), {
       target: { value: '1000' }
     })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -191,7 +191,7 @@ describe('PostsMediaSettingsForm', () => {
     fireEvent.change(screen.getByLabelText('Custom post size'), {
       target: { value: '750' }
     })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -256,7 +256,7 @@ describe('PostsMediaSettingsForm', () => {
     fireEvent.change(screen.getByLabelText('Post size'), {
       target: { value: '1000' }
     })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     await waitFor(() =>
       expect(screen.getByLabelText('Post size')).toHaveValue('custom')
@@ -284,7 +284,7 @@ describe('PostsMediaSettingsForm', () => {
     fireEvent.change(screen.getByLabelText('Post size'), {
       target: { value: '1000' }
     })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[0])
 
     await waitFor(() =>
       expect(screen.getByLabelText('Post size')).toHaveValue('5000')
@@ -316,7 +316,7 @@ describe('PostsMediaSettingsForm', () => {
       target: { value: '50' }
     })
     // Media is the third section.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[2])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[2])
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -332,7 +332,7 @@ describe('PostsMediaSettingsForm', () => {
     const input = screen.getByLabelText('Upload size limit')
     fireEvent.change(input, { target: { value: '500' } })
     fireEvent.blur(input)
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[2])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[2])
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -350,7 +350,7 @@ describe('PostsMediaSettingsForm', () => {
     const maxMb = MAX_CONFIGURABLE_FILE_SIZE / (1024 * 1024)
     expect(input).toHaveValue(maxMb)
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Update' })[2])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' })[2])
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
         expect.objectContaining({

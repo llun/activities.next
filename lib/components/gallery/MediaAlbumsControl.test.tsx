@@ -193,7 +193,7 @@ describe('MediaAlbumsControl', () => {
         name: 'Albums section'
       })
       expect(
-        within(section).getByRole('button', { name: 'Add to album' })
+        await within(section).findByRole('button', { name: 'Add to album' })
       ).toBeVisible()
     })
 

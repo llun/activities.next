@@ -27,9 +27,9 @@ import {
   refitFitnessGearComponent,
   retireFitnessGearComponent
 } from '@/lib/client'
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
-import { FitnessEmptyState } from '@/lib/components/fitness/FitnessEmptyState'
-import { FITNESS_TABLE_HEAD_ROW_CLASS } from '@/lib/components/fitness/FitnessSection'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { TABLE_HEAD_ROW_CLASS } from '@/lib/components/surface/TableFrame'
 import { Button } from '@/lib/components/ui/button'
 import type { GearComponentEntity } from '@/lib/services/fitness-gears/gearEntities'
 import { cn } from '@/lib/utils'
@@ -338,7 +338,7 @@ export const GearComponentsCard: FC<Props> = ({
 
   return (
     <section aria-labelledby={headingId} className="space-y-3">
-      {/* The overview's section heading row (see `FitnessSection`), built by
+      {/* The overview's section heading row (see `Section`), built by
           hand because the scroll steppers sit between the count and Add. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Wrench aria-hidden className="-mr-1 size-4 shrink-0 text-primary" />
@@ -395,7 +395,7 @@ export const GearComponentsCard: FC<Props> = ({
         </Button>
       </div>
 
-      {error && <FitnessAlert title={error} />}
+      {error && <Alert title={error} />}
 
       <GearComponentFormDialog
         open={isAddOpen || Boolean(editingComponent)}
@@ -411,10 +411,10 @@ export const GearComponentsCard: FC<Props> = ({
       />
 
       {visible.length === 0 ? (
-        <FitnessEmptyState icon={Wrench} title="No components yet.">
+        <EmptyState icon={Wrench} title="No components yet.">
           Add the parts you want to track and each one accrues distance from its
           added date.
-        </FitnessEmptyState>
+        </EmptyState>
       ) : (
         // Below the full-width threshold (1160px: 120px Type + 140px Actions +
         // 6x150px middle) this snaps whole columns per swipe with dual-pinned
@@ -431,7 +431,7 @@ export const GearComponentsCard: FC<Props> = ({
         >
           <table className="w-full text-sm">
             <thead>
-              <tr className={FITNESS_TABLE_HEAD_ROW_CLASS}>
+              <tr className={TABLE_HEAD_ROW_CLASS}>
                 <th
                   className={cn(
                     STICKY_COLUMN,

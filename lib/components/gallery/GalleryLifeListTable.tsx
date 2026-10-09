@@ -4,16 +4,15 @@ import { Images, ListChecks } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { FITNESS_TABLE_HEAD_ROW_CLASS } from '@/lib/components/fitness/FitnessSection'
-import { FitnessStatCell } from '@/lib/components/fitness/FitnessStatCell'
-import { FITNESS_STAT_STRIP_CLASS } from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
 import { getGallerySubjectHref } from '@/lib/components/gallery/GallerySubjectCard'
 import {
   GALLERY_CATEGORY_ICONS,
   GALLERY_CATEGORY_LABELS,
   formatGalleryDate
 } from '@/lib/components/gallery/galleryCategories'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
+import { TABLE_HEAD_ROW_CLASS } from '@/lib/components/surface/TableFrame'
 import type { GalleryLifeListResponse } from '@/lib/services/gallery/galleryEntities'
 import type { MediaSubjectCategory } from '@/lib/types/database/gallery'
 
@@ -48,36 +47,32 @@ export const GalleryLifeListTable: FC<Props> = ({
 
   return (
     <div className="space-y-4">
-      <FitnessStatGrid
-        variant="summary"
-        columns={columns}
-        className={FITNESS_STAT_STRIP_CLASS}
-      >
-        <FitnessStatCell
+      <StatStrip variant="summary" columns={columns}>
+        <StatCell
           label="Species"
           icon={ListChecks}
           value={`${numberFormat.format(data.total)}${suffix}`}
         />
-        <FitnessStatCell
+        <StatCell
           label="Photos"
           icon={Images}
           value={`${numberFormat.format(photos)}${suffix}`}
         />
         {topCategories.map(([category, count]) => (
-          <FitnessStatCell
+          <StatCell
             key={category}
             label={GALLERY_CATEGORY_LABELS[category]}
             icon={GALLERY_CATEGORY_ICONS[category]}
             value={numberFormat.format(count)}
           />
         ))}
-      </FitnessStatGrid>
+      </StatStrip>
 
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <caption className="sr-only">Species, first sighting first</caption>
           <thead>
-            <tr className={FITNESS_TABLE_HEAD_ROW_CLASS}>
+            <tr className={TABLE_HEAD_ROW_CLASS}>
               <th
                 scope="col"
                 className="w-10 px-2 py-2 font-medium sm:w-12 sm:px-3"

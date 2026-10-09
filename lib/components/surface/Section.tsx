@@ -3,6 +3,8 @@ import { FC, ReactNode, useId } from 'react'
 
 import { cn } from '@/lib/utils'
 
+type HeadingLevel = 2 | 3 | 4
+
 interface Props {
   title: ReactNode
   /** The subject's icon, drawn before the heading. */
@@ -13,30 +15,37 @@ interface Props {
   actions?: ReactNode
   /** Muted copy under the heading row. */
   description?: ReactNode
+  /**
+   * The heading's level. `2` under the page's section heading, `3` for a
+   * section nested in another one. The look is the same at every level.
+   */
+  headingLevel?: HeadingLevel
   className?: string
   children: ReactNode
 }
 
 /**
- * A titled block of a fitness page, as the overview lays out "Training
+ * A titled block of a page, as the Fitness overview lays out "Training
  * calendar" and "Activity types": a plain `text-base` heading on the page
  * itself (no card around the whole section), its controls at the end of the
- * same row, and the content below in its own bordered surface. Sections stack
- * in the page's `space-y-6`.
+ * same row, and the content below in its own bordered surface (a `Frame`,
+ * `FramedList`, `StatStrip`...). Sections stack in the page's `space-y-6`.
  */
-export const FitnessSection: FC<Props> = ({
+export const Section: FC<Props> = ({
   title,
   icon: Icon,
   meta,
   actions,
   description,
+  headingLevel = 2,
   className,
   children
 }) => {
   const headingId = useId()
+  const Heading = `h${headingLevel}` as const
   return (
     <section
-      data-slot="fitness-section"
+      data-slot="section"
       aria-labelledby={headingId}
       className={cn('space-y-3', className)}
     >
@@ -45,9 +54,9 @@ export const FitnessSection: FC<Props> = ({
           {Icon ? (
             <Icon aria-hidden className="text-primary -mr-1 size-4 shrink-0" />
           ) : null}
-          <h2 id={headingId} className="text-base font-semibold">
+          <Heading id={headingId} className="text-base font-semibold">
             {title}
-          </h2>
+          </Heading>
           {meta ? (
             <span className="text-muted-foreground text-sm">{meta}</span>
           ) : null}
@@ -65,10 +74,3 @@ export const FitnessSection: FC<Props> = ({
     </section>
   )
 }
-
-/**
- * A table header row in the overview's Activity types style: a faint muted
- * band, small muted labels, a hairline under it.
- */
-export const FITNESS_TABLE_HEAD_ROW_CLASS =
-  'bg-muted/40 text-muted-foreground border-b text-left text-xs'

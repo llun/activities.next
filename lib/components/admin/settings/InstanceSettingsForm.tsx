@@ -3,6 +3,7 @@
 import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
 import { Input } from '@/lib/components/ui/input'
 import { Switch } from '@/lib/components/ui/switch'
 import { Textarea } from '@/lib/components/ui/textarea'
@@ -14,7 +15,6 @@ import {
 
 import { LanguagesPicker } from './LanguagesPicker'
 import { LinesTextarea } from './LinesTextarea'
-import { SaveBar } from './SaveBar'
 import { ControlRow, SettingsField } from './SettingsField'
 import { SettingsSection } from './SettingsSection'
 import { useServerSettingsForm } from './useServerSettingsForm'

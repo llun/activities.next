@@ -1,8 +1,8 @@
 import { Activity, Clock, LucideIcon, MapPin, Mountain } from 'lucide-react'
 import { FC } from 'react'
 
-import { FitnessStatCell } from '@/lib/components/fitness/FitnessStatCell'
-import { FitnessStatGrid } from '@/lib/components/fitness/FitnessStatGrid'
+import { StatCell } from '@/lib/components/surface/StatCell'
+import { StatStrip } from '@/lib/components/surface/StatStrip'
 import {
   formatDistance,
   formatDuration,
@@ -81,7 +81,7 @@ interface Props {
 
 /**
  * Activities, Distance, Duration and Elevation for the applied range, on the
- * shared `FitnessStatGrid` (`summary` variant): four across only where the
+ * shared `StatStrip` (`summary` variant): four across only where the
  * container is wide enough for every value on one line, 2×2 otherwise, and one
  * column at large text sizes. A value is never clipped: if its cell is ever too
  * narrow it breaks inside the cell rather than overflowing it.
@@ -91,9 +91,9 @@ export const FitnessSummaryStrip: FC<Props> = ({
   loading = false,
   className
 }) => (
-  <FitnessStatGrid variant="summary" className={className}>
+  <StatStrip className={className}>
     {STATS.map(({ label, icon, value }) => (
-      <FitnessStatCell
+      <StatCell
         key={label}
         label={label}
         icon={icon}
@@ -101,5 +101,5 @@ export const FitnessSummaryStrip: FC<Props> = ({
         value={totals === null ? null : value(totals)}
       />
     ))}
-  </FitnessStatGrid>
+  </StatStrip>
 )

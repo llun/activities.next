@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import { FC, useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import { getGalleryMap } from '@/lib/client'
-import { FitnessAlert } from '@/lib/components/fitness/FitnessAlert'
 import { GalleryMap } from '@/lib/components/gallery/GalleryMap'
 import { formatGalleryMapSummary } from '@/lib/components/gallery/galleryTaxonomy'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
 import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
@@ -193,19 +193,19 @@ export const GalleryMapView: FC<Props> = ({
       </div>
 
       {previewError ? (
-        <FitnessAlert title={previewError}>Try the switch again.</FitnessAlert>
+        <Alert title={previewError}>Try the switch again.</Alert>
       ) : null}
 
       {isPreview && mapPublic && isLoadingPreview ? (
         <div className="skeleton h-[420px] rounded-xl" aria-busy="true" />
       ) : isPublicPreviewOff ? (
-        <FitnessAlert title="Your map is private">
+        <Alert title="Your map is private">
           Visitors see no map until you switch on Public map in{' '}
           <Link className="underline" href="/gallery/privacy">
             Gallery privacy
           </Link>
           .
-        </FitnessAlert>
+        </Alert>
       ) : (
         <>
           {isPreview ? (

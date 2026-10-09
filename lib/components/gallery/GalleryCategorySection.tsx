@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { FitnessSection } from '@/lib/components/fitness/FitnessSection'
 import {
   GallerySubjectCard,
   getGallerySubjectHref
@@ -13,6 +12,7 @@ import {
   GALLERY_CATEGORY_LABELS,
   pluralize
 } from '@/lib/components/gallery/galleryCategories'
+import { Section } from '@/lib/components/surface/Section'
 import type {
   GallerySubjectEntry,
   GallerySubjectGroupCategory
@@ -49,7 +49,7 @@ export const GalleryCategorySection: FC<Props> = ({
       : pluralize(subjects.length, 'subject')
   const seeAllClass = 'text-primary-text text-sm font-medium hover:underline'
   return (
-    <FitnessSection
+    <Section
       title={GALLERY_CATEGORY_LABELS[category]}
       icon={GALLERY_CATEGORY_ICONS[category]}
       meta={`· ${meta}`}
@@ -78,6 +78,6 @@ export const GalleryCategorySection: FC<Props> = ({
           </li>
         ))}
       </ul>
-    </FitnessSection>
+    </Section>
   )
 }
