@@ -126,7 +126,10 @@ describe('NotificationsList', () => {
     expect(screen.queryByText('Unread')).not.toBeInTheDocument()
     expect(mockMarkNotificationsRead).not.toHaveBeenCalled()
 
-    await act(() => vi.advanceTimersByTimeAsync(1000))
+    // Pin the 1000 ms debounce on both sides of its boundary.
+    await act(() => vi.advanceTimersByTimeAsync(999))
+    expect(mockMarkNotificationsRead).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTimeAsync(1))
 
     expect(mockMarkNotificationsRead).toHaveBeenCalledExactlyOnceWith({
       notificationIds: ['n1']

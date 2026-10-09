@@ -132,15 +132,22 @@ describe('POST /api/v1/notifications/read', () => {
 
   it('records when the notification was read', async () => {
     const notification = await create(ACTOR1_ID)
+    const readTime = new Date('2026-04-05T06:07:08.000Z').getTime()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(readTime)
 
-    await post({ notification_ids: [notification.id] })
+    try {
+      await post({ notification_ids: [notification.id] })
+    } finally {
+      vi.useRealTimers()
+    }
 
     const [row] = await database.getNotifications({
       actorId: ACTOR1_ID,
       limit: 1,
       ids: [notification.id]
     })
-    expect(row.readAt).toEqual(expect.any(Number))
+    expect(row.readAt).toBe(readTime)
   })
 
   it("does not touch another recipient's notifications", async () => {

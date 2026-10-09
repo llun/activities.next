@@ -70,9 +70,7 @@ describe('parseFilterBody', () => {
       keywords_attributes: [{ keyword: 'taboo', whole_word: 'true' }]
     })
   })
-})
 
-describe('parseFilterBody (additional content types)', () => {
   it.each(['application/json', 'text/json'])(
     'parses a %s body as JSON',
     async (contentType) => {
@@ -105,7 +103,7 @@ describe('parseFilterBody (additional content types)', () => {
       body: '{'
     })
 
-    await expect(parseFilterBody(req)).rejects.toThrow()
+    await expect(parseFilterBody(req)).rejects.toThrow(SyntaxError)
   })
 
   it('parses multipart bodies and skips file uploads', async () => {
@@ -443,18 +441,26 @@ describe('parseKeywordCreateInput', () => {
 })
 
 describe('parseKeywordUpdateInput', () => {
-  it('returns an empty change for an empty or null body', () => {
-    expect(parseKeywordUpdateInput({})).toEqual({})
-    expect(parseKeywordUpdateInput(null)).toEqual({})
+  it.each([
+    { description: 'an empty body', body: {} },
+    { description: 'a null body', body: null }
+  ])('returns an empty change for $description', ({ body }) => {
+    expect(parseKeywordUpdateInput(body)).toEqual({})
   })
 
-  it('returns only the fields sent, with the keyword trimmed', () => {
-    expect(
-      parseKeywordUpdateInput({ keyword: ' new ', whole_word: '1' })
-    ).toEqual({ keyword: 'new', wholeWord: true })
-    expect(parseKeywordUpdateInput({ whole_word: false })).toEqual({
-      wholeWord: false
-    })
+  it.each([
+    {
+      description: 'a keyword change, trimmed',
+      body: { keyword: ' new ', whole_word: '1' },
+      expected: { keyword: 'new', wholeWord: true }
+    },
+    {
+      description: 'a whole_word-only change',
+      body: { whole_word: false },
+      expected: { wholeWord: false }
+    }
+  ])('returns only the fields sent for $description', ({ body, expected }) => {
+    expect(parseKeywordUpdateInput(body)).toEqual(expected)
   })
 
   it('ignores a blank keyword instead of clearing it', () => {
@@ -520,11 +526,26 @@ describe('parseV1FilterCreateInput', () => {
     ).toMatchObject({ context: ['home'] })
   })
 
+  it('maps expires_in null to no expiry', () => {
+    expect(
+      parseV1FilterCreateInput({
+        phrase: 'p',
+        context: ['home'],
+        expires_in: null
+      })
+    ).toMatchObject({ expiresAt: null })
+  })
+
   it.each([
+    { description: 'rejects a null body', body: null },
     { description: 'rejects a missing phrase', body: { context: ['home'] } },
     {
       description: 'rejects a blank phrase',
       body: { phrase: '   ', context: ['home'] }
+    },
+    {
+      description: 'rejects a phrase over 100 characters',
+      body: { phrase: 'x'.repeat(101), context: ['home'] }
     },
     { description: 'rejects a missing context', body: { phrase: 'taboo' } },
     {
@@ -570,41 +591,7 @@ describe('parseV1FilterUpdateInput', () => {
     ).toMatchObject({ expiresAt: null })
   })
 
-  it.each([
-    { description: 'still requires phrase', body: { context: ['home'] } },
-    { description: 'still requires context', body: { phrase: 'taboo' } },
-    {
-      description: 'rejects an out-of-range expires_in',
-      body: { phrase: 'taboo', context: ['home'], expires_in: '99999999999999' }
-    }
-  ])('$description', ({ body }) => {
-    expect(parseV1FilterUpdateInput(body)).toBeNull()
-  })
-})
-
-describe('parseV1FilterCreateInput / parseV1FilterUpdateInput (coercion)', () => {
-  it('rejects a phrase over 100 characters', () => {
-    expect(
-      parseV1FilterCreateInput({ phrase: 'x'.repeat(101), context: ['home'] })
-    ).toBeNull()
-  })
-
-  it('treats a null or non-object body as missing required fields', () => {
-    expect(parseV1FilterCreateInput(null)).toBeNull()
-    expect(parseV1FilterUpdateInput('phrase=x')).toBeNull()
-  })
-
-  it('maps expires_in null to no expiry on create', () => {
-    expect(
-      parseV1FilterCreateInput({
-        phrase: 'p',
-        context: ['home'],
-        expires_in: null
-      })
-    ).toMatchObject({ expiresAt: null })
-  })
-
-  it('coerces explicit false-like irreversible and whole_word on update', () => {
+  it('coerces explicit false-like irreversible and whole_word', () => {
     expect(
       parseV1FilterUpdateInput({
         phrase: 'p',
@@ -613,5 +600,17 @@ describe('parseV1FilterCreateInput / parseV1FilterUpdateInput (coercion)', () =>
         whole_word: 0
       })
     ).toMatchObject({ irreversible: false, wholeWord: false })
+  })
+
+  it.each([
+    { description: 'still requires phrase', body: { context: ['home'] } },
+    { description: 'rejects a non-object body', body: 'phrase=x' },
+    { description: 'still requires context', body: { phrase: 'taboo' } },
+    {
+      description: 'rejects an out-of-range expires_in',
+      body: { phrase: 'taboo', context: ['home'], expires_in: '99999999999999' }
+    }
+  ])('$description', ({ body }) => {
+    expect(parseV1FilterUpdateInput(body)).toBeNull()
   })
 })

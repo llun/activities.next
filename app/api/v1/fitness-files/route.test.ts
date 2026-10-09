@@ -234,6 +234,7 @@ describe('POST /api/v1/fitness-files', () => {
     const response = await POST(upload(), context)
 
     expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toContain('/auth/signin')
     expect(mockSaveFitnessFile).not.toHaveBeenCalled()
   })
 })

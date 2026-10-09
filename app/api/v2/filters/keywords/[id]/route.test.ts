@@ -133,7 +133,9 @@ describe('/api/v2/filters/keywords/:id', () => {
   const context = (id: string) => ({ params: Promise.resolve({ id }) })
 
   // Creates a filter holding the given keywords for an actor and returns the
-  // stored keyword rows in creation order.
+  // stored keyword rows in the order of `words`. Rows are matched by text
+  // because createFilter stamps every keyword with the same timestamp, so the
+  // database order of the rows is not defined.
   const createKeywords = async (
     actorId: string,
     title: string,
@@ -147,8 +149,13 @@ describe('/api/v2/filters/keywords/:id', () => {
       expiresAt: null,
       keywords: words.map((keyword) => ({ keyword, wholeWord: false }))
     })
-    const keywords =
+    const stored =
       (await database.getFilterKeywords({ actorId, filterId: filter.id })) ?? []
+    const keywords = words.map((word) => {
+      const row = stored.find((k) => k.keyword === word)
+      if (!row) throw new Error(`keyword ${word} was not stored`)
+      return row
+    })
     return { filter, keywords }
   }
 

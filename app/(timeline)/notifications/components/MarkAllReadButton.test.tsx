@@ -96,18 +96,19 @@ describe('MarkAllReadButton', () => {
     expect(mockRefresh).toHaveBeenCalledTimes(1)
   })
 
+  it('hides the badge when nothing is unread', () => {
+    render(<MarkAllReadButton unreadIds={['a']} unreadCount={0} />)
+
+    expect(screen.queryByText(/^\d+\+?$/)).not.toBeInTheDocument()
+  })
+
   it.each([
-    [0, null],
     [5, '5'],
     [99, '99'],
     [100, '99+']
   ])('shows unread count %s as badge %s', (unreadCount, badge) => {
     render(<MarkAllReadButton unreadIds={['a']} unreadCount={unreadCount} />)
 
-    if (badge === null) {
-      expect(screen.queryByText(/^\d+\+?$/)).not.toBeInTheDocument()
-    } else {
-      expect(screen.getByText(badge)).toBeInTheDocument()
-    }
+    expect(screen.getByText(badge)).toBeInTheDocument()
   })
 })

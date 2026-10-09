@@ -92,7 +92,7 @@ describe('/api/v2/filters/:id/keywords', () => {
     })
 
   describe('GET', () => {
-    it('lists the filter keywords in creation order', async () => {
+    it('lists the filter keywords', async () => {
       const filter = await createFilterFor(ACTOR1_ID, 'list-kw', [
         'first',
         'second'
@@ -101,12 +101,10 @@ describe('/api/v2/filters/:id/keywords', () => {
       const response = await GET(getRequest(filter.id), context(filter.id))
 
       expect(response.status).toBe(200)
-      const body = await response.json()
-      expect(body.map((k: { keyword: string }) => k.keyword)).toEqual([
-        'first',
-        'second'
-      ])
-      expect(body[0]).toEqual({
+      const body: { id: string; keyword: string; whole_word: boolean }[] =
+        await response.json()
+      expect(body.map((k) => k.keyword).sort()).toEqual(['first', 'second'])
+      expect(body.find((k) => k.keyword === 'first')).toEqual({
         id: expect.any(String),
         keyword: 'first',
         whole_word: false

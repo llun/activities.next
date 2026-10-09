@@ -194,6 +194,7 @@ describe('Wahoo failed imports API', () => {
       const response = await get()
 
       expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toContain('/auth/signin')
       expect(mockDb.getWahooImportsByActor).not.toHaveBeenCalled()
     })
   })

@@ -802,21 +802,20 @@ describe('activities', () => {
           vi.restoreAllMocks()
         })
 
-        it.each([400, 404, 410, 500, 503])(
-          'resolves quietly after a %i response, with a single delivery attempt',
-          async (status) => {
-            const errorSpy = vi.spyOn(logger, 'error')
-            fetchMock.resetMocks()
-            fetchMock.mockResponse('', { status })
+        // These senders ignore the status code, so one failing status covers
+        // the shared postActivityToInbox path.
+        it('resolves quietly after a failing response, with a single delivery attempt', async () => {
+          const errorSpy = vi.spyOn(logger, 'error')
+          fetchMock.resetMocks()
+          fetchMock.mockResponse('', { status: 500 })
 
-            await expect(send()).resolves.toBeUndefined()
+          await expect(send()).resolves.toBeUndefined()
 
-            expect(fetchMock).toHaveBeenCalledTimes(1)
-            expect(fetchMock.mock.calls[0][0]).toEqual(inbox)
-            expect(fetchMock.mock.calls[0][1]?.method).toEqual('POST')
-            expect(senderErrors(errorSpy)).toEqual([])
-          }
-        )
+          expect(fetchMock).toHaveBeenCalledTimes(1)
+          expect(fetchMock.mock.calls[0][0]).toEqual(inbox)
+          expect(fetchMock.mock.calls[0][1]?.method).toEqual('POST')
+          expect(senderErrors(errorSpy)).toEqual([])
+        })
 
         it('resolves and logs the failure under its own name when the network fails', async () => {
           const errorSpy = vi.spyOn(logger, 'error')

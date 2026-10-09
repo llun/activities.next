@@ -134,7 +134,7 @@ describe('StravaArchiveImportDatabase', () => {
       })
 
       it('returns the most recently created import when a batch id is reused', async () => {
-        vi.useFakeTimers()
+        vi.useFakeTimers({ toFake: ['Date'] })
         try {
           vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'))
           const older = await create({

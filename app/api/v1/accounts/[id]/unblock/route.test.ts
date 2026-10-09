@@ -178,10 +178,26 @@ describe('POST /api/v1/accounts/:id/unblock', () => {
   })
 
   it('does nothing and returns the relationship when the target is the current actor', async () => {
+    await database.createBlock({
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR1_ID,
+      uri: `${ACTOR1_ID}#blocks/self`
+    })
+
     const response = await post(urlToId(ACTOR1_ID))
 
     expect(response.status).toBe(200)
+    expect(
+      await database.isBlocking({
+        actorId: ACTOR1_ID,
+        targetActorId: ACTOR1_ID
+      })
+    ).toBe(true)
     expect(mockPublish).not.toHaveBeenCalled()
+    await database.deleteBlock({
+      actorId: ACTOR1_ID,
+      targetActorId: ACTOR1_ID
+    })
   })
 
   it('returns 400 when the account id is empty', async () => {

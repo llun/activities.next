@@ -252,6 +252,35 @@ describe('buildGpxFromStravaStreams', () => {
     expect(result).not.toContain('<fast>')
     expect(result).not.toContain('& Run')
   })
+
+  it('writes heart rate, cadence, speed and temperature as track point extensions', () => {
+    const gpx = buildGpxFromStravaStreams(
+      { id: 1, name: 'Ride', sport_type: 'Ride', start_date: undefined },
+      {
+        latlng: { type: 'latlng', data: [[1, 2]] },
+        heartrate: { type: 'heartrate', data: [140] },
+        cadence: { type: 'cadence', data: [85] },
+        velocity_smooth: { type: 'velocity_smooth', data: [7.5] },
+        temp: { type: 'temp', data: [21] }
+      }
+    )
+
+    expect(gpx).toContain(
+      '<trkpt lat="1" lon="2"><extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>140</gpxtpx:hr><gpxtpx:cad>85</gpxtpx:cad><gpxtpx:speed>7.5</gpxtpx:speed><gpxtpx:atemp>21</gpxtpx:atemp></gpxtpx:TrackPointExtension></extensions></trkpt>'
+    )
+  })
+
+  it('omits timestamps when the activity has no start date', () => {
+    const gpx = buildGpxFromStravaStreams(
+      { id: 1, name: 'Ride', sport_type: 'Ride' },
+      {
+        latlng: { type: 'latlng', data: [[1, 2]] },
+        time: { type: 'time', data: [10] }
+      }
+    )
+
+    expect(gpx).not.toContain('<time>')
+  })
 })
 
 describe('buildTcxFromStravaStreams', () => {
@@ -330,6 +359,42 @@ describe('buildTcxFromStravaStreams', () => {
     )
 
     expect(result).toContain('Sport="Run &amp; Bike &lt;test&gt;"')
+  })
+
+  it('writes position, heart rate, cadence, speed and power per trackpoint', () => {
+    const tcx = buildTcxFromStravaStreams(
+      { sport_type: 'Ride', start_date: '2025-01-01T00:00:00Z' },
+      {
+        time: { type: 'time', data: [0, 5] },
+        latlng: {
+          type: 'latlng',
+          data: [
+            [1, 2],
+            [3, 4]
+          ]
+        },
+        heartrate: { type: 'heartrate', data: [120, 130] },
+        cadence: { type: 'cadence', data: [80, 82] },
+        velocity_smooth: { type: 'velocity_smooth', data: [5, 6] },
+        watts: { type: 'watts', data: [200, 210] }
+      }
+    )
+
+    expect(tcx).toContain(
+      '<Trackpoint><Time>2025-01-01T00:00:05.000Z</Time><Position><LatitudeDegrees>3</LatitudeDegrees><LongitudeDegrees>4</LongitudeDegrees></Position><HeartRateBpm><Value>130</Value></HeartRateBpm><Cadence>82</Cadence><Extensions><ns3:TPX xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><ns3:Speed>6</ns3:Speed><ns3:Watts>210</ns3:Watts></ns3:TPX></Extensions></Trackpoint>'
+    )
+  })
+
+  it('omits the track and start time when the activity has no usable start date', () => {
+    const tcx = buildTcxFromStravaStreams(
+      { sport_type: 'Run', start_date: 'not a date', elapsed_time: 600 },
+      { time: { type: 'time', data: [0, 5] } }
+    )
+
+    expect(tcx).toContain('<TotalTimeSeconds>5</TotalTimeSeconds>')
+    expect(tcx).not.toContain('<Track>')
+    expect(tcx).not.toContain('StartTime=')
+    expect(tcx).not.toContain('<Id>')
   })
 })
 
@@ -414,6 +479,57 @@ describe('buildStravaActivitySummary', () => {
 
     expect(summary).toContain('Kayaking')
   })
+
+  it('puts the name, distance with duration and elevation on separate lines, then the description', () => {
+    expect(
+      buildStravaActivitySummary({
+        id: 1,
+        name: '  Morning Run  ',
+        sport_type: 'Run',
+        distance: 12345,
+        elapsed_time: 3725,
+        total_elevation_gain: 80.4,
+        description: '  Felt great  '
+      })
+    ).toBe('🏃 Morning Run\n12.3 km in 1:02:05 • 80 m gain\nFelt great')
+  })
+
+  it.each([
+    ['distance only', { distance: 5000 }, '5.00 km'],
+    ['duration only', { moving_time: 600 }, '10:00'],
+    ['elevation only', { total_elevation_gain: 30 }, '30 m gain']
+  ])('shows %s on the metrics line', (_, metrics, expected) => {
+    const summary = buildStravaActivitySummary({
+      id: 1,
+      name: 'Walk',
+      sport_type: 'Walk',
+      ...metrics
+    })
+
+    expect(summary.split('\n')[1]).toBe(expected)
+  })
+
+  it('falls back to the sport label on the second line when there are no metrics', () => {
+    const summary = buildStravaActivitySummary({
+      id: 1,
+      name: 'Stretch',
+      sport_type: 'Yoga'
+    })
+
+    const [firstLine, secondLine] = summary.split('\n')
+    expect(firstLine).toContain('Stretch')
+    expect(secondLine).toBe('Yoga')
+  })
+
+  it('uses the legacy type field when sport_type is absent', () => {
+    expect(
+      buildStravaActivitySummary({
+        id: 1,
+        type: 'Run',
+        name: 'Loop'
+      }).startsWith('🏃')
+    ).toBe(true)
+  })
 })
 
 describe('getStravaActivityUrl', () => {
@@ -475,59 +591,6 @@ describe('getStravaActivityDurationSeconds', () => {
         moving_time: moving
       })
     ).toBe(expected)
-  })
-})
-
-describe('buildStravaActivitySummary layout', () => {
-  it('puts the name, distance with duration and elevation on separate lines, then the description', () => {
-    expect(
-      buildStravaActivitySummary({
-        id: 1,
-        name: '  Morning Run  ',
-        sport_type: 'Run',
-        distance: 12345,
-        elapsed_time: 3725,
-        total_elevation_gain: 80.4,
-        description: '  Felt great  '
-      })
-    ).toBe('🏃 Morning Run\n12.3 km in 1:02:05 • 80 m gain\nFelt great')
-  })
-
-  it.each([
-    ['distance only', { distance: 5000 }, '5.00 km'],
-    ['duration only', { moving_time: 600 }, '10:00'],
-    ['elevation only', { total_elevation_gain: 30 }, '30 m gain']
-  ])('shows %s on the metrics line', (_, metrics, expected) => {
-    const summary = buildStravaActivitySummary({
-      id: 1,
-      name: 'Walk',
-      sport_type: 'Walk',
-      ...metrics
-    })
-
-    expect(summary.split('\n')[1]).toBe(expected)
-  })
-
-  it('falls back to the sport label on the second line when there are no metrics', () => {
-    const summary = buildStravaActivitySummary({
-      id: 1,
-      name: 'Stretch',
-      sport_type: 'Yoga'
-    })
-
-    const [firstLine, secondLine] = summary.split('\n')
-    expect(firstLine).toContain('Stretch')
-    expect(secondLine).toBe('Yoga')
-  })
-
-  it('uses the legacy type field when sport_type is absent', () => {
-    expect(
-      buildStravaActivitySummary({
-        id: 1,
-        type: 'Run',
-        name: 'Loop'
-      }).startsWith('🏃')
-    ).toBe(true)
   })
 })
 
@@ -871,74 +934,5 @@ describe('getValidStravaAccessToken', () => {
 
     await expect(getToken()).rejects.toThrow('socket hang up')
     expect(updateFitnessSettings).not.toHaveBeenCalled()
-  })
-})
-
-describe('buildGpxFromStravaStreams optional channels', () => {
-  it('writes heart rate, cadence, speed and temperature as track point extensions', () => {
-    const gpx = buildGpxFromStravaStreams(
-      { id: 1, name: 'Ride', sport_type: 'Ride', start_date: undefined },
-      {
-        latlng: { type: 'latlng', data: [[1, 2]] },
-        heartrate: { type: 'heartrate', data: [140] },
-        cadence: { type: 'cadence', data: [85] },
-        velocity_smooth: { type: 'velocity_smooth', data: [7.5] },
-        temp: { type: 'temp', data: [21] }
-      }
-    )
-
-    expect(gpx).toContain(
-      '<trkpt lat="1" lon="2"><extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>140</gpxtpx:hr><gpxtpx:cad>85</gpxtpx:cad><gpxtpx:speed>7.5</gpxtpx:speed><gpxtpx:atemp>21</gpxtpx:atemp></gpxtpx:TrackPointExtension></extensions></trkpt>'
-    )
-  })
-
-  it('omits timestamps when the activity has no start date', () => {
-    const gpx = buildGpxFromStravaStreams(
-      { id: 1, name: 'Ride', sport_type: 'Ride' },
-      {
-        latlng: { type: 'latlng', data: [[1, 2]] },
-        time: { type: 'time', data: [10] }
-      }
-    )
-
-    expect(gpx).not.toContain('<time>')
-  })
-})
-
-describe('buildTcxFromStravaStreams optional channels', () => {
-  it('writes position, heart rate, cadence, speed and power per trackpoint', () => {
-    const tcx = buildTcxFromStravaStreams(
-      { sport_type: 'Ride', start_date: '2025-01-01T00:00:00Z' },
-      {
-        time: { type: 'time', data: [0, 5] },
-        latlng: {
-          type: 'latlng',
-          data: [
-            [1, 2],
-            [3, 4]
-          ]
-        },
-        heartrate: { type: 'heartrate', data: [120, 130] },
-        cadence: { type: 'cadence', data: [80, 82] },
-        velocity_smooth: { type: 'velocity_smooth', data: [5, 6] },
-        watts: { type: 'watts', data: [200, 210] }
-      }
-    )
-
-    expect(tcx).toContain(
-      '<Trackpoint><Time>2025-01-01T00:00:05.000Z</Time><Position><LatitudeDegrees>3</LatitudeDegrees><LongitudeDegrees>4</LongitudeDegrees></Position><HeartRateBpm><Value>130</Value></HeartRateBpm><Cadence>82</Cadence><Extensions><ns3:TPX xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><ns3:Speed>6</ns3:Speed><ns3:Watts>210</ns3:Watts></ns3:TPX></Extensions></Trackpoint>'
-    )
-  })
-
-  it('omits the track and start time when the activity has no usable start date', () => {
-    const tcx = buildTcxFromStravaStreams(
-      { sport_type: 'Run', start_date: 'not a date', elapsed_time: 600 },
-      { time: { type: 'time', data: [0, 5] } }
-    )
-
-    expect(tcx).toContain('<TotalTimeSeconds>5</TotalTimeSeconds>')
-    expect(tcx).not.toContain('<Track>')
-    expect(tcx).not.toContain('StartTime=')
-    expect(tcx).not.toContain('<Id>')
   })
 })

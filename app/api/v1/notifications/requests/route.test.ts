@@ -205,18 +205,18 @@ describe('GET /api/v1/notifications/requests', () => {
     })
 
     it.each([
-      ['0', 1],
-      ['-5', 1],
-      ['abc', 3],
-      ['1000', 3]
+      ['0', '1'],
+      ['-5', '1'],
+      ['abc', '40'],
+      ['1000', '80']
     ])(
-      'clamps limit=%s to a usable page size',
-      async (limit, expectedCount) => {
+      'clamps limit=%s to an effective page size of %s',
+      async (limit, effectiveLimit) => {
         await makeRequests()
 
-        const data = await idsOf(await get(`?limit=${limit}`))
+        const { next } = links(await get(`?limit=${limit}`))
 
-        expect(data).toHaveLength(expectedCount)
+        expect(next?.searchParams.get('limit')).toBe(effectiveLimit)
       }
     )
 

@@ -262,21 +262,33 @@ describe('GET /api/v1/timelines/collection/[id]', () => {
     )
   })
 
-  it('uses since_id as the lower bound when min_id is absent, and prefers min_id when both are sent', async () => {
-    const minUrl = 'https://llun.test/users/test2/statuses/min-cursor'
-    const sinceUrl = 'https://llun.test/users/test2/statuses/since-cursor'
+  const MIN_URL = 'https://llun.test/users/test2/statuses/min-cursor'
+  const SINCE_URL = 'https://llun.test/users/test2/statuses/since-cursor'
+
+  it.each<{
+    name: string
+    params: Record<string, string>
+    expected: string
+  }>([
+    {
+      name: 'uses since_id as the lower bound when min_id is absent',
+      params: { since_id: urlToId(SINCE_URL) },
+      expected: SINCE_URL
+    },
+    {
+      name: 'prefers min_id when both min_id and since_id are sent',
+      params: { min_id: urlToId(MIN_URL), since_id: urlToId(SINCE_URL) },
+      expected: MIN_URL
+    }
+  ])('$name', async ({ params, expected }) => {
     const spy = vi
       .spyOn(database, 'getCollectionTimeline')
       .mockResolvedValue([])
 
-    await GET(request({ since_id: urlToId(sinceUrl) }), context())
-    expect(spy.mock.calls[0][0]).toMatchObject({ minStatusId: sinceUrl })
+    await GET(request(params), context())
 
-    await GET(
-      request({ min_id: urlToId(minUrl), since_id: urlToId(sinceUrl) }),
-      context()
-    )
-    expect(spy.mock.calls[1][0]).toMatchObject({ minStatusId: minUrl })
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][0]).toMatchObject({ minStatusId: expected })
   })
 
   describe('keyword filters (home context)', () => {

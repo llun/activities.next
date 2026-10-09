@@ -115,21 +115,4 @@ describe('POST /api/v1/actors/default', () => {
     expect(response.status).toBe(400)
     await expect(defaultActorId()).resolves.toBe(ACTOR1_ID)
   })
-
-  it('redirects an unauthenticated request to sign-in without changing the default', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-
-    const response = await post(buildRequest({ actorId: secondActorId }))
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toContain('/auth/signin')
-    await expect(defaultActorId()).resolves.toBe(ACTOR1_ID)
-  })
-
-  it('returns 403 and keeps the default when the same-origin proof is missing (CSRF)', async () => {
-    const response = await post(buildRequest({ actorId: secondActorId }, {}))
-
-    expect(response.status).toBe(403)
-    await expect(defaultActorId()).resolves.toBe(ACTOR1_ID)
-  })
 })

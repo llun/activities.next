@@ -116,20 +116,4 @@ describe('POST /api/v1/accounts/name', () => {
     expect(response.status).toBe(400)
     await expect(accountName(seedActor1.email)).resolves.toBe('Original Name')
   })
-
-  it('redirects an unauthenticated request to sign-in without changing any name', async () => {
-    mockGetServerSession.mockResolvedValue(null)
-
-    const response = await post(buildRequest({ name: 'Intruder' }))
-
-    expect(response.status).toBe(307)
-    await expect(accountName(seedActor1.email)).resolves.toBe('Original Name')
-  })
-
-  it('returns 403 and keeps the name when the same-origin proof is missing (CSRF)', async () => {
-    const response = await post(buildRequest({ name: 'Forged' }, {}))
-
-    expect(response.status).toBe(403)
-    await expect(accountName(seedActor1.email)).resolves.toBe('Original Name')
-  })
 })

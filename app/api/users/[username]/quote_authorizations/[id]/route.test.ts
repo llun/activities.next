@@ -158,8 +158,17 @@ describe('GET /api/users/[username]/quote_authorizations/[id]', () => {
   })
 
   it('returns 404 when the quoted status no longer exists', async () => {
-    const { stampUri, quotedStatusId } = await seedEdge('accepted')
-    await database.deleteStatus({ statusId: quotedStatusId })
+    counter += 1
+    const statusId = `${QUOTING_STATUS_ID}-${counter}`
+    const stampUri = buildQuoteAuthorizationUri(ACTOR1_ID, statusId)
+    // An accepted edge pointing at a status that was never created, so the
+    // state check passes and only the missing-status branch can answer 404.
+    await database.createStatusQuote({
+      statusId,
+      quotedStatusId: `${ACTOR1_ID}/statuses/never-created-${counter}`,
+      state: 'accepted',
+      authorizationUri: stampUri
+    })
 
     const response = await get(stampUri)
 

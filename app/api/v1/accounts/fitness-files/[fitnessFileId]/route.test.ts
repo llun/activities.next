@@ -243,6 +243,7 @@ describe('DELETE /api/v1/accounts/fitness-files/[fitnessFileId]', () => {
     const response = await callDelete()
 
     expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toContain('/auth/signin')
     expect(mockDeleteFitnessFileFromStorage).not.toHaveBeenCalled()
   })
 })

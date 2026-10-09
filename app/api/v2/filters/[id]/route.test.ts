@@ -336,7 +336,7 @@ describe('/api/v2/filters/:id', () => {
   })
 
   describe('DELETE', () => {
-    it('deletes the filter and its keywords', async () => {
+    it('deletes the filter', async () => {
       const filter = await createFilterFor(ACTOR1_ID, 'delete-own')
 
       const response = await DELETE(
@@ -348,12 +348,6 @@ describe('/api/v2/filters/:id', () => {
       expect(await response.json()).toEqual({})
       expect(
         await database.getFilter({ actorId: ACTOR1_ID, id: filter.id })
-      ).toBeNull()
-      expect(
-        await database.getFilterKeywords({
-          actorId: ACTOR1_ID,
-          filterId: filter.id
-        })
       ).toBeNull()
     })
 

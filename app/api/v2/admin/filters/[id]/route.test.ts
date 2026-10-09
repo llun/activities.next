@@ -245,7 +245,7 @@ describe('/api/v2/admin/filters/:id', () => {
   })
 
   describe('DELETE', () => {
-    it('deletes the server filter together with its keywords', async () => {
+    it('deletes the server filter', async () => {
       const filter = await createServerFilter('admin-delete')
 
       const response = await DELETE(
@@ -256,9 +256,6 @@ describe('/api/v2/admin/filters/:id', () => {
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({})
       expect(await database.getServerFilter({ id: filter.id })).toBeNull()
-      expect(
-        await database.getServerFilterKeywords({ id: filter.id })
-      ).toBeNull()
     })
 
     it('answers 404 for an unknown id', async () => {

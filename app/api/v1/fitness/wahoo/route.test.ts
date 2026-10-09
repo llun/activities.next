@@ -262,7 +262,7 @@ describe('Wahoo Settings API', () => {
     )
 
   describe('GET', () => {
-    it('reports an unconfigured actor without leaking secrets', async () => {
+    it('reports defaults for an actor with no saved Wahoo settings', async () => {
       mockDb.getFitnessSettings.mockResolvedValue(null)
 
       const response = await call(GET, 'GET')
@@ -349,6 +349,7 @@ describe('Wahoo Settings API', () => {
       const response = await call(GET, 'GET')
 
       expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toContain('/auth/signin')
       expect(mockDb.getFitnessSettings).not.toHaveBeenCalled()
     })
   })
