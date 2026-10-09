@@ -508,7 +508,7 @@ Edit the generated file in `migrations/`, then run:
 yarn migrate
 ```
 
-> **Important:** All migrations must work with SQLite and PostgreSQL, and should avoid assumptions that break MySQL-compatible Knex clients where possible. Use Knex query builder and avoid database-specific SQL unless it is wrapped with backend-specific fallback logic.
+> **Important:** All migrations must work with SQLite and PostgreSQL. Use Knex query builder and avoid database-specific SQL unless it is wrapped with backend-specific fallback logic.
 
 #### Updating the reference schema dumps
 
@@ -1080,7 +1080,7 @@ each ends with the Definition of Done gate.
 ### Adding a database migration
 
 1. `yarn migrate:make <name>` — never hand-write the file (migrations are ESM `.js` with named `up`/`down` from `migrations/migration.stub`).
-2. Use the Knex query builder; the migration must work on SQLite and PostgreSQL and avoid breaking MySQL-compatible clients (see **Database Compatibility Guidelines**).
+2. Use the Knex query builder; the migration must work on SQLite and PostgreSQL (see **Database Compatibility Guidelines**).
 3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate` (the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in `.env.local` from taking over).
 4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**), then the Kysely DB types (see **Regenerating the Kysely DB types** in `docs/setup.md`). This is not optional: the Vitest suite builds its databases from the dumps, and CI's SQLite and PostgreSQL Schema Dump Sync jobs fail on schema-dump or type drift.
 5. Update the affected `lib/database/` code and types, plus tests.

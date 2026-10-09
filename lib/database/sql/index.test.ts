@@ -15,6 +15,20 @@ import { StatusSQLDatabaseMixin } from './status'
 import { StatusDetectedLanguageSQLDatabaseMixin } from './statusDetectedLanguage'
 import { TimelineSQLDatabaseMixin } from './timeline'
 
+const { kyselyForMock, createLikeMock } = vi.hoisted(() => ({
+  kyselyForMock: vi.fn(),
+  createLikeMock: vi.fn()
+}))
+
+vi.mock('@/lib/database/kysely', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/database/kysely')>()),
+  kyselyFor: kyselyForMock
+}))
+
+vi.mock('@/lib/database/domains/like/queries', () => ({
+  likeQueries: { createLike: createLikeMock, isActorLikedStatus: vi.fn() }
+}))
+
 vi.mock('@/lib/database/sql/account', () => ({
   AccountSQLDatabaseMixin: vi.fn()
 }))
@@ -204,8 +218,8 @@ describe('getSQLDatabase', () => {
     expect(statusMixinMock).toHaveBeenCalledWith(
       knexDatabase,
       actorDatabase,
-      // Likes are Kysely queries bound to the same Knex instance (created on
-      // first use, so the mocked Knex is never touched here).
+      // Likes are Kysely queries bound lazily to this Knex instance (see the
+      // dedicated test below).
       expect.objectContaining({
         createLike: expect.any(Function),
         isActorLikedStatus: expect.any(Function)
@@ -221,6 +235,20 @@ describe('getSQLDatabase', () => {
       })
     )
     expect(timelineMixinMock).toHaveBeenCalledWith(knexDatabase, statusDatabase)
+  })
+
+  it('binds like queries to kyselyFor(knex), resolved on each call', async () => {
+    const { database, knexDatabase } = createComposedDatabase()
+    const kyselyDb = { name: 'kysely' }
+    kyselyForMock.mockReturnValue(kyselyDb)
+    createLikeMock.mockResolvedValue(true)
+    expect(kyselyForMock).not.toHaveBeenCalled()
+
+    const params = { actorId: 'actor', statusId: 'status' }
+    await expect(database.createLike(params)).resolves.toBe(true)
+
+    expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
+    expect(createLikeMock).toHaveBeenCalledWith(kyselyDb, params)
   })
 
   it('merges properties with later mixins taking precedence', () => {

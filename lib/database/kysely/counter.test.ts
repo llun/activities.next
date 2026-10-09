@@ -7,6 +7,7 @@ import {
   getCounterValue,
   increaseCounterValue
 } from '@/lib/database/kysely/counter'
+import { increaseCounterValue as increaseKnexCounterValue } from '@/lib/database/sql/utils/counter'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
 
@@ -89,6 +90,19 @@ describe('Kysely counter helpers', () => {
       )
     )
     expect(await getCounterValue(db, 'counter-concurrent')).toBe(20)
+  })
+
+  it('shares a counter row with the Knex helpers', async () => {
+    const db = kyselyFor(instance)
+    await increaseKnexCounterValue(instance, 'counter-interop', 2)
+    await increaseCounterValue(db, 'counter-interop', 3)
+    await increaseKnexCounterValue(instance, 'counter-interop', 4)
+    await decreaseCounterValue(db, 'counter-interop', 1)
+    expect(await getCounterValue(db, 'counter-interop')).toBe(8)
+    const row = await instance('counters')
+      .where('id', 'counter-interop')
+      .first('value')
+    expect(Number(row?.value)).toBe(8)
   })
 
   it('reads 0 for a missing counter', async () => {

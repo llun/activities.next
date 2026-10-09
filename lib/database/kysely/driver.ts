@@ -105,10 +105,10 @@ type KnexQueryEvent = {
 
 let queryCounter = 0
 
-// Only the dialects CI exercises are wired up. MySQL is accepted by
-// lib/config/database.ts for Knex but is not part of the Kysely migration
-// yet, and node-sqlite3 and pg-native lack the per-statement column types and
-// per-query type parsers the normalisation relies on.
+// Only better-sqlite3 and pg are supported. node-sqlite3, pg-native and MySQL
+// lack the per-statement column types, per-query type parsers and upsert
+// syntax the Kysely layer relies on. lib/database/index.ts checks this when the
+// database is first created, so an unsupported client fails at startup.
 export const getKyselyDialectName = (
   client: Knex.Client
 ): KyselyDialectName => {
@@ -119,11 +119,10 @@ export const getKyselyDialectName = (
     return 'postgres'
   }
   throw new Error(
-    `Kysely is not supported for the Knex "${client.dialect}" dialect with ` +
-      `the "${client.driverName}" driver yet; it supports better-sqlite3 and ` +
-      'pg. Database code that has moved to Kysely cannot run on this ' +
-      'configuration until that driver is added (see docs/maintenance.md, ' +
-      'Kysely).'
+    `Unsupported database client: the Knex "${client.dialect}" dialect with ` +
+      `the "${client.driverName}" driver. Only better-sqlite3 (SQLite) and ` +
+      'pg (PostgreSQL) are supported; set ACTIVITIES_DATABASE_CLIENT ' +
+      'accordingly (see docs/setup.md).'
   )
 }
 
@@ -149,6 +148,19 @@ class KnexBorrowedConnection implements DatabaseConnection {
   async *streamQuery<R>(
     compiledQuery: CompiledQuery
   ): AsyncIterableIterator<QueryResult<R>> {
+    // On the root instance the rows would be consumed outside the async
+    // context that holds this connection, so a root Knex or Kysely query in
+    // the loop body would wait on the pool this stream is holding.
+    if (
+      !this.#driver.isTransactionBound &&
+      !isConnectionHeldByCurrentContext(this)
+    ) {
+      throw new MixedDatabaseTransactionError(
+        'stream() is not supported on the root Knex-backed Kysely instance; ' +
+          'use execute(), or stream inside db.transaction().execute() or ' +
+          'db.connection().execute().'
+      )
+    }
     const result = await this.executeQuery<R>(compiledQuery)
     for (const row of result.rows) {
       yield { rows: [row] }
@@ -166,7 +178,6 @@ export class KnexPoolDriver implements Driver {
   readonly #client: Knex.Client
   readonly #dialect: KyselyDialectName
   readonly #postgresTypes: PostgresTypes | null
-  #destroyed = false
 
   constructor(source: Knex, dialect: KyselyDialectName) {
     this.#source = source
@@ -189,9 +200,6 @@ export class KnexPoolDriver implements Driver {
   }
 
   async acquireConnection(): Promise<KnexBorrowedConnection> {
-    if (this.#destroyed) {
-      throw new Error('This Kysely instance has been destroyed')
-    }
     const raw = (await this.#client.acquireConnection()) as RawConnection
     return new KnexBorrowedConnection(this, raw)
   }
@@ -383,10 +391,11 @@ export class KnexPoolDriver implements Driver {
     )
   }
 
-  // Knex owns the pool and the SQLite handle; destroying the Kysely instance
-  // must never close them. It only stops this instance from borrowing more.
+  // Knex owns the pool and the SQLite handle, and kyselyFor() shares one
+  // instance per Knex instance, so destroying it is a no-op: the usual
+  // `await db.destroy()` end-of-script idiom must not break other callers.
   async destroy() {
-    this.#destroyed = true
+    // Nothing to release.
   }
 }
 

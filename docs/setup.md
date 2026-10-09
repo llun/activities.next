@@ -20,7 +20,7 @@ Activity.next supports multiple SQL database backends. Choose the one that best 
 
 - [SQLite Setup Guide](sqlite-setup.md) — Best for development or small instances
 - [PostgreSQL Setup Guide](postgresql-setup.md) — Recommended for production deployments
-- MySQL-compatible Knex configuration paths — Listed in the [Environment Variables Guide](environment-variables.md) for deployments that provide the needed driver/runtime support
+- Only SQLite (`better-sqlite3`) and PostgreSQL (`pg`) are supported; any other `ACTIVITIES_DATABASE_CLIENT` fails at startup (see the [Environment Variables Guide](environment-variables.md))
 
 ## General Configuration
 
@@ -321,7 +321,7 @@ Read the applicable rules and review checks below before changing this subsystem
 
 ### Database Backends & Local Setup
 
-- Supported backends: SQLite (`docs/sqlite-setup.md`) and PostgreSQL (`docs/postgresql-setup.md`). MySQL-compatible Knex configuration paths also exist and should not be broken casually.
+- Supported backends: SQLite (`docs/sqlite-setup.md`) and PostgreSQL (`docs/postgresql-setup.md`). The clients are `better-sqlite3` and `pg`; no other client is supported.
 - Local SQLite is the simplest for development; run `yarn migrate` after updating schema or migrations.
 
 #### Keeping the reference schema dumps in sync
@@ -352,7 +352,12 @@ The app (`yarn migrate`) runs Knex migrations, but the test suite does **not** �
   2. Dump the schema with `sqlite3 ./schema-dump.sqlite3 .schema`.
   3. Strip SQLite's auto-managed internal tables, which it recreates on its own and which must NOT be in the file: the `CREATE TABLE sqlite_sequence(...)` line, and the FTS5 shadow tables (`CREATE TABLE IF NOT EXISTS '<name>_fts_(data|idx|docsize|config|content)'`). Keep the `CREATE VIRTUAL TABLE … USING fts5(…)` statement and its triggers — those are real. A quick sanity check: `sqlite3 /tmp/x.sqlite3 < migrations/schema.sqlite.sql` should load cleanly.
 
-  Then remove the throwaway container / `.sqlite3` file; only the two schema files should change.
+  Then remove the throwaway container / `.sqlite3` file; only the two schema files and `lib/database/kysely/db.ts` should change.
+
+- A Postgres regeneration is a full re-dump, so its diff can be large even for unchanged tables (formatting differs from older dumps). That is expected — do not try to reproduce the old line-by-line formatting by hand. Commit the schema regeneration as `none:` when it is the only change (they are reference artifacts and ship nothing).
+- **Use only a local database for local dev/tests:** SQLite on `localhost`, or the docker-compose PostgreSQL at `activities.local`. Never connect local dev, tests, or user creation to a remote/shared/production database.
+- Tests use isolated SQLite in-memory databases for fast, parallel execution.
+- Docker users should persist data under `/opt/activities.next/data` (bind-mount a host directory there and point the SQLite/media env vars into it). Do **not** bind-mount `/opt/activities.next` itself — that directory contains the application (standalone `server.js`, `.next/static`, …), so a host-path mount shadows the app and the container cannot start (see `docs/setup.md` and the database setup guides).
 
 #### Regenerating the Kysely DB types
 
@@ -363,8 +368,3 @@ ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=pg ACTIVITIES_DATABASE_PG_HOST=�
 ```
 
 It types each column for what the Kysely driver returns on both backends and prints any column whose type differs between the two dumps in a way that changes what is read back (typed as either, and marked `Mismatch` in the file). CI's **PostgreSQL Schema Dump Sync** job regenerates the file with `--output` and fails on drift.
-
-- A Postgres regeneration is a full re-dump, so its diff can be large even for unchanged tables (formatting differs from older dumps). That is expected — do not try to reproduce the old line-by-line formatting by hand. Commit the schema regeneration as `none:` when it is the only change (they are reference artifacts and ship nothing).
-- **Use only a local database for local dev/tests:** SQLite on `localhost`, or the docker-compose PostgreSQL at `activities.local`. Never connect local dev, tests, or user creation to a remote/shared/production database.
-- Tests use isolated SQLite in-memory databases for fast, parallel execution.
-- Docker users should persist data under `/opt/activities.next/data` (bind-mount a host directory there and point the SQLite/media env vars into it). Do **not** bind-mount `/opt/activities.next` itself — that directory contains the application (standalone `server.js`, `.next/static`, …), so a host-path mount shadows the app and the container cannot start (see `docs/setup.md` and the database setup guides).

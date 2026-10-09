@@ -1,6 +1,11 @@
 import type { Knex } from 'knex'
+import { ParseJSONResultsPlugin } from 'kysely'
 
-import { MixedDatabaseTransactionError, kyselyFor } from '@/lib/database/kysely'
+import {
+  MixedDatabaseTransactionError,
+  inTransaction,
+  kyselyFor
+} from '@/lib/database/kysely'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
 import { createDeferred } from '@/lib/testing/deferred'
@@ -171,5 +176,56 @@ describe('mixing Knex and Kysely transactions', () => {
     ).rejects.toThrow(/db\.transaction\(\)\.execute/)
     // The connection went back to the pool.
     await expect(instance('likes').count()).resolves.toBeDefined()
+  })
+
+  it('refuses stream() on the root instance, where it would hold the pool', async () => {
+    await expect(
+      (async () => {
+        for await (const row of kyselyFor(instance)
+          .selectFrom('likes')
+          .selectAll()
+          .stream()) {
+          void row
+        }
+      })()
+    ).rejects.toThrow(MixedDatabaseTransactionError)
+    // The connection went back to the pool.
+    await expect(instance('likes').count()).resolves.toBeDefined()
+  })
+
+  it('streams inside a Kysely transaction and inside kyselyFor(trx)', async () => {
+    await instance('likes').insert({ ...like('guard-stream'), statusId: 's1' })
+    const collect = async (db: ReturnType<typeof kyselyFor>) => {
+      const ids: string[] = []
+      for await (const row of db
+        .selectFrom('likes')
+        .select('actorId')
+        .where('actorId', '=', 'guard-stream')
+        .stream()) {
+        ids.push(row.actorId)
+      }
+      return ids
+    }
+    await kyselyFor(instance)
+      .transaction()
+      .execute(async (trx) => {
+        expect(await collect(trx)).toEqual(['guard-stream'])
+      })
+    await instance.transaction(async (trx) => {
+      expect(await collect(kyselyFor(trx))).toEqual(['guard-stream'])
+    })
+  })
+
+  it('treats instances derived from kyselyFor(trx) as already in the transaction', async () => {
+    await instance.transaction(async (trx) => {
+      const derived = kyselyFor(trx).withPlugin(new ParseJSONResultsPlugin())
+      await inTransaction(derived, async (db) => {
+        await db
+          .insertInto('likes')
+          .values({ ...like('guard-derived'), statusId: 's-derived' })
+          .execute()
+      })
+    })
+    expect(await likedActorIds('guard-derived')).toEqual(['guard-derived'])
   })
 })

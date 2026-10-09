@@ -6,7 +6,8 @@
 // | -------------------- | --------------------------- | --------------------------- | ------------------ |
 // | timestamp(tz)        | Date                        | epoch ms, or 'YYYY-MM-DD    | epoch ms number    |
 // | / datetime           |                             | HH:MM:SS' UTC text          |                    |
-// | int8, numeric        | string                      | number                      | number             |
+// | int8, numeric        | string                      | number                      | number (int8 must  |
+// |                      |                             |                             | be a safe integer) |
 // | boolean              | boolean                     | 0 / 1                       | boolean            |
 // | json, jsonb          | parsed                      | JSON text                   | parsed             |
 // | date                 | Date (local midnight)       | whatever was written        | as written: text   |
@@ -115,6 +116,19 @@ const PG_TIMESTAMP = 1114
 const PG_TIMESTAMPTZ = 1184
 const PG_NUMERIC = 1700
 
+// Knex returns int8 as an exact string; Number() would round anything above
+// 2^53 - 1 silently, which would surface as wrong cursors or lookups.
+export const parseInt8 = (value: string): number => {
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed)) {
+    throw new RangeError(
+      `PostgreSQL bigint value ${value} is outside the safe integer range ` +
+        '(±9007199254740991) and cannot be read as a number'
+    )
+  }
+  return parsed
+}
+
 export const createPostgresTypeParsers = (
   defaults: PostgresTypes
 ): PostgresTypes => ({
@@ -126,6 +140,7 @@ export const createPostgresTypeParsers = (
         return (value) => toEpochMilliseconds(parse(value))
       }
       case PG_INT8:
+        return parseInt8
       case PG_NUMERIC:
         return (value) => Number(value)
       case PG_DATE:

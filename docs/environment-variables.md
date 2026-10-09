@@ -148,7 +148,7 @@ than accepted — see [Media Storage](#media-storage) below for that rule.
 
 ## Database
 
-Activity.next supports SQLite and PostgreSQL. The configuration loader also accepts MySQL-compatible Knex clients for deployments that provide the needed driver/runtime support. See [SQLite Setup](sqlite-setup.md) and [PostgreSQL Setup](postgresql-setup.md) for detailed guides.
+Activity.next supports SQLite (`better-sqlite3`) and PostgreSQL (`pg`) only. Any other `ACTIVITIES_DATABASE_CLIENT` makes the app fail at startup. See [SQLite Setup](sqlite-setup.md) and [PostgreSQL Setup](postgresql-setup.md) for detailed guides.
 
 ### Full JSON Configuration
 
@@ -160,14 +160,14 @@ Activity.next supports SQLite and PostgreSQL. The configuration loader also acce
 
 | Variable                              | Description                                           |
 | ------------------------------------- | ----------------------------------------------------- |
-| `ACTIVITIES_DATABASE_CLIENT`          | Set to `better-sqlite3` or `sqlite3` for SQLite.      |
+| `ACTIVITIES_DATABASE_CLIENT`          | Set to `better-sqlite3` for SQLite.                   |
 | `ACTIVITIES_DATABASE_SQLITE_FILENAME` | Path to SQLite database file (e.g., `./dev.sqlite3`). |
 
 ### Individual Variables (PostgreSQL)
 
 | Variable                          | Description                                                                                                                                                                                                                                                                                                                                                                                        |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ACTIVITIES_DATABASE_CLIENT`      | Set to `pg` or `pg-native` for PostgreSQL.                                                                                                                                                                                                                                                                                                                                                         |
+| `ACTIVITIES_DATABASE_CLIENT`      | Set to `pg` for PostgreSQL.                                                                                                                                                                                                                                                                                                                                                                        |
 | `ACTIVITIES_DATABASE_PG_HOST`     | PostgreSQL host.                                                                                                                                                                                                                                                                                                                                                                                   |
 | `ACTIVITIES_DATABASE_PG_PORT`     | PostgreSQL port (default: `5432`).                                                                                                                                                                                                                                                                                                                                                                 |
 | `ACTIVITIES_DATABASE_PG_USER`     | PostgreSQL username.                                                                                                                                                                                                                                                                                                                                                                               |
@@ -177,18 +177,9 @@ Activity.next supports SQLite and PostgreSQL. The configuration loader also acce
 | `ACTIVITIES_DATABASE_PG_POOL_MIN` | Minimum connection pool size.                                                                                                                                                                                                                                                                                                                                                                      |
 | `ACTIVITIES_DATABASE_PG_POOL_MAX` | Maximum connection pool size.                                                                                                                                                                                                                                                                                                                                                                      |
 
-### Individual Variables (MySQL)
+### Removed: MySQL
 
-| Variable                             | Description                           |
-| ------------------------------------ | ------------------------------------- |
-| `ACTIVITIES_DATABASE_CLIENT`         | Set to `mysql` or `mysql2` for MySQL. |
-| `ACTIVITIES_DATABASE_MYSQL_HOST`     | MySQL host.                           |
-| `ACTIVITIES_DATABASE_MYSQL_PORT`     | MySQL port (default: `3306`).         |
-| `ACTIVITIES_DATABASE_MYSQL_USER`     | MySQL username.                       |
-| `ACTIVITIES_DATABASE_MYSQL_PASSWORD` | MySQL password.                       |
-| `ACTIVITIES_DATABASE_MYSQL_DATABASE` | MySQL database name.                  |
-| `ACTIVITIES_DATABASE_MYSQL_POOL_MIN` | Minimum connection pool size.         |
-| `ACTIVITIES_DATABASE_MYSQL_POOL_MAX` | Maximum connection pool size.         |
+MySQL (`mysql`, `mysql2`) is not supported. The config loader still reads `ACTIVITIES_DATABASE_MYSQL_HOST`, `ACTIVITIES_DATABASE_MYSQL_PORT`, `ACTIVITIES_DATABASE_MYSQL_USER`, `ACTIVITIES_DATABASE_MYSQL_PASSWORD`, `ACTIVITIES_DATABASE_MYSQL_DATABASE`, `ACTIVITIES_DATABASE_MYSQL_POOL_MIN` and `ACTIVITIES_DATABASE_MYSQL_POOL_MAX`, but the app refuses to start with a MySQL client. They will be removed.
 
 ## Authentication
 

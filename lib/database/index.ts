@@ -2,6 +2,7 @@ import knex, { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
+import { getKyselyDialectName } from '@/lib/database/kysely/driver'
 import { getSQLDatabase } from '@/lib/database/sql'
 import {
   getTraceparentCommentSuffix,
@@ -73,9 +74,21 @@ export const attachSqlcommenter = (db: Knex): Knex => {
   return db
 }
 
+export const assertSupportedDatabaseClient = (db: Knex): void => {
+  try {
+    getKyselyDialectName(db.client)
+  } catch (error) {
+    void db.destroy()
+    throw error
+  }
+}
+
 const getDatabaseInstance = memoize((): DatabaseInstance | null => {
   const config = getConfig()
   const db = attachSqlcommenter(knex(config.database))
+  // Only better-sqlite3 and pg are supported. Fail here, at startup, rather
+  // than on the first request that reaches a Kysely-backed query.
+  assertSupportedDatabaseClient(db)
   return { database: getSQLDatabase(db), knex: db }
 })
 

@@ -1211,7 +1211,7 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
 
 ### Database Compatibility Guidelines
 
-- **All database operations must work with SQLite and PostgreSQL, and should avoid assumptions that break MySQL-compatible Knex clients where possible.**
+- **All database operations must work with SQLite and PostgreSQL. Only the `better-sqlite3` and `pg` clients are supported; any other client fails at startup.**
 - Use a query builder for all database operations (Kysely for new or ported domain code, Knex elsewhere; see **Kysely** below)—avoid raw SQL unless absolutely necessary.
 - When writing raw SQL, ensure syntax is compatible across all supported databases.
 - Avoid database-specific features unless wrapped with conditional logic or fallback behavior for each backend.
@@ -1229,7 +1229,7 @@ The database layer is moving from Knex to Kysely one domain at a time. Knex stil
 - **Results are normalised by the driver** (`lib/database/kysely/normalize.ts`): timestamps read as epoch milliseconds, int8/numeric as numbers, booleans as booleans and JSON parsed, on both backends, so ported code needs no `getCompatibleTime`/`getCompatibleJSON` shims. SQLite expression columns (`count(*)`, `max(…)`) have no declared type and are converted in the domain mapper. Write timestamps as `Date`, compare against them with `timestampValue()`, and write JSON as a `JSON.stringify`'d string.
 - **Put dialect-specific SQL in `lib/database/kysely/dialect.ts`** and use Kysely's `sql` tag for it there, rather than branching in a domain (for example `forUpdate()`, which is a no-op on SQLite where Kysely would emit `for update`).
 - **Regenerate `lib/database/kysely/db.ts` whenever a migration changes the schema** (see [Regenerating the Kysely DB types](setup.md#regenerating-the-kysely-db-types)).
-- **Kysely supports better-sqlite3 and pg only.** On MySQL (`mysql`/`mysql2`), `sqlite3` or `pg-native` configurations, ported domains throw on first use, naming the driver. That is a known gap of the in-progress migration; the Knex MySQL paths are untouched.
+- **Kysely supports better-sqlite3 and pg only, and so does the app.** `lib/database/index.ts` refuses any other client (`mysql`, `mysql2`, `sqlite3`, `pg-native`) when the database is first created, naming the driver, so a misconfiguration fails at startup instead of on the first like query.
 - Counters in ported code go through `lib/database/kysely/counter.ts` (one atomic upsert per adjustment); the Knex helpers in `lib/database/sql/utils/counter.ts` remain for unported domains.
 
 <a id="review-uploaded-file-names"></a>
@@ -1286,15 +1286,14 @@ The database layer is moving from Knex to Kysely one domain at a time. Knex stil
 
 - Queries use a query builder (Kysely in new or ported domains, Knex
   elsewhere), not raw SQL, unless unavoidable. Operations must work on SQLite
-  (tests + local dev) and PostgreSQL, and avoid breaking MySQL-compatible Knex
-  clients. Use standard SQL types (e.g. `text`, not `varchar[]`). Ported code
+  (tests + local dev) and PostgreSQL (the only supported clients). Use standard SQL types (e.g. `text`, not `varchar[]`). Ported code
   never mixes the root Knex and Kysely instances inside one transaction (use
   `kyselyFor(trx)`); see [Kysely](#kysely).
 - Any PR that adds/edits/removes a migration regenerates **both**
   `migrations/schema.sql` (PostgreSQL) and `migrations/schema.sqlite.sql` (SQLite)
   in the same PR, against fresh local DBs — never hand-edited — and then
   `lib/database/kysely/db.ts`. Commit a schema-only regeneration as `none:`. (CI's SQLite and PostgreSQL Schema Dump Sync
-  jobs catch schema-dump drift.)
+  jobs catch schema-dump and Kysely-type drift.)
 - The viewer's own follow row is read with `getViewerFollow`
   (`lib/services/getViewerFollow.ts`) on **read** paths — it is
   `cache()`d, so a profile render resolves it once instead of once per call site

@@ -179,15 +179,17 @@ describe('Knex-backed Kysely driver', () => {
     expect(errors).toEqual(['select * from no_such_table'])
   })
 
-  it('leaves the Knex pool open when the Kysely instance is destroyed', async () => {
+  it('keeps the shared instance and the Knex pool usable after destroy()', async () => {
     const test = getTestDatabaseWithInstance(true)
     await test.prepare()
     await test.database.migrate()
     try {
-      await kyselyFor(test.instance).destroy()
+      const db = kyselyFor(test.instance)
+      await db.destroy()
+      expect(kyselyFor(test.instance)).toBe(db)
       await expect(
-        kyselyFor(test.instance).selectFrom('likes').selectAll().execute()
-      ).rejects.toThrow('destroyed')
+        db.selectFrom('likes').selectAll().execute()
+      ).resolves.toEqual([])
       await expect(test.instance('likes').count()).resolves.toBeDefined()
     } finally {
       await test.database.destroy()

@@ -19,7 +19,10 @@ export {
 export type Db = Kysely<DB> | Transaction<DB>
 
 const instances = new WeakMap<Knex, Kysely<DB>>()
-const boundToKnexTransaction = new WeakSet<Db>()
+// Adapters of the instances bound to a Knex transaction. Instances derived
+// with withPlugin()/withSchema() share the executor's adapter, so this
+// recognises them where object identity would not.
+const transactionBoundAdapters = new WeakSet<object>()
 
 /**
  * The Kysely instance for a Knex instance or an open Knex transaction.
@@ -35,8 +38,8 @@ const boundToKnexTransaction = new WeakSet<Db>()
  * built): some tests build the database layer around a mocked Knex that has
  * no `client`.
  *
- * Never `destroy()` the result to close the database; Knex owns the pool and
- * closes it in `database.destroy()`.
+ * `destroy()` on the result is a no-op; Knex owns the pool and closes it in
+ * `database.destroy()`.
  */
 export const kyselyFor = (knexOrTrx: Knex | Knex.Transaction): Kysely<DB> => {
   const cached = instances.get(knexOrTrx)
@@ -53,14 +56,15 @@ export const kyselyFor = (knexOrTrx: Knex | Knex.Transaction): Kysely<DB> => {
   }
   const dialect = createKnexDialect(knexOrTrx)
   const driver = dialect.createDriver() as KnexPoolDriver
+  const adapter = dialect.createAdapter()
   const executor = new DefaultQueryExecutor(
     dialect.createQueryCompiler(),
-    dialect.createAdapter(),
+    adapter,
     new KnexConnectionProvider(driver, knexOrTrx.client)
   )
   const db = new Kysely<DB>({ config: { dialect }, dialect, driver, executor })
   instances.set(knexOrTrx, db)
-  if (driver.isTransactionBound) boundToKnexTransaction.add(db)
+  if (driver.isTransactionBound) transactionBoundAdapters.add(adapter)
   return db
 }
 
@@ -73,7 +77,12 @@ export const inTransaction = <T>(
   db: Db,
   callback: (trx: Db) => Promise<T>
 ): Promise<T> => {
-  if (db.isTransaction || boundToKnexTransaction.has(db)) return callback(db)
+  if (
+    db.isTransaction ||
+    transactionBoundAdapters.has(db.getExecutor().adapter)
+  ) {
+    return callback(db)
+  }
   return db.transaction().execute(callback)
 }
 
