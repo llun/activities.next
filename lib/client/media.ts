@@ -49,6 +49,11 @@ export const createUploadPresignedUrl = async ({
 }: CreateUploadPresignedUrlParams): Promise<{
   presigned: PresignedUrlOutput
 } | null> => {
+  // A file the browser can't decode has no size to send. Returning null
+  // falls back to the direct upload, where the server reads the size itself.
+  const widthAndHeight = await getMediaWidthAndHeight(media)
+  if (!widthAndHeight) return null
+
   const path = '/api/v1/medias/presigned'
   const checksum = await crypto.subtle.digest(
     'SHA-1',
@@ -57,7 +62,6 @@ export const createUploadPresignedUrl = async ({
   const hashArray = Array.from(new Uint8Array(checksum))
   const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 
-  const widthAndHeight = await getMediaWidthAndHeight(media)
   const body = {
     fileName: media.name,
     checksum: hashHex,

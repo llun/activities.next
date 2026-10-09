@@ -128,10 +128,31 @@ describe('resizeImage', () => {
       expected: { width: 4000, height: 4000 }
     },
     {
+      description:
+        'a landscape image is scaled by the height limit when width-scaling would still exceed it',
+      source: { width: 1000, height: 900 },
+      limits: [800, 600],
+      expected: { width: 667, height: 600 }
+    },
+    {
+      description:
+        'a portrait image is scaled by the width limit when height-scaling would still exceed it',
+      source: { width: 900, height: 1000 },
+      limits: [600, 800],
+      expected: { width: 600, height: 667 }
+    },
+    {
       description: 'the scaled edge is rounded to a whole pixel',
       source: { width: 4001, height: 3002 },
       limits: [4000, 4000],
       expected: { width: 4000, height: 3001 }
+    },
+    {
+      description:
+        'a very thin image keeps at least one pixel on its short edge',
+      source: { width: 100000, height: 1 },
+      limits: [4000, 4000],
+      expected: { width: 4000, height: 1 }
     }
   ])('$description', async ({ source, limits, expected }) => {
     decoded = source
