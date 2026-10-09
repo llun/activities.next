@@ -55,6 +55,8 @@ describe('/api/v1/media/[id]/albums', () => {
   const { database, prepare } = getTestDatabaseWithInstance()
   let ids: Record<string, string> = {}
   let unpostedId = ''
+  // Albums a test made: removed after it, so no test sees another's.
+  const made: string[] = []
 
   const createAlbum = async (
     title: string,
@@ -69,6 +71,7 @@ describe('/api/v1/media/[id]/albums', () => {
       itemLimit: 2000
     })
     if (created.status !== 'created') throw new Error('not created')
+    made.push(created.album.id)
     return created.album.id
   }
 
@@ -100,6 +103,12 @@ describe('/api/v1/media/[id]/albums', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     signIn(seedActor1.email)
+  })
+
+  afterEach(async () => {
+    for (const id of made.splice(0)) {
+      await database.deleteGalleryAlbum({ id, actorId: ACTOR1_ID })
+    }
   })
 
   it('advertises GET and OPTIONS', async () => {

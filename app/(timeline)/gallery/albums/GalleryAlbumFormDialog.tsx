@@ -23,6 +23,7 @@ import { Label } from '@/lib/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/lib/components/ui/radio-group'
 import { Textarea } from '@/lib/components/ui/textarea'
 import type { GalleryAlbumCardEntity } from '@/lib/services/gallery/galleryAlbumEntities'
+import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 import {
   DEFAULT_GALLERY_ALBUM_VISIBILITY,
   GALLERY_ALBUM_VISIBILITIES,
@@ -55,6 +56,14 @@ interface Props {
    * can no longer see. Defaults to the visible count.
    */
   storedItemCount?: number
+  /**
+   * Photos to start the new album with, picked before the dialog opened (the
+   * photo whose menu asked for "New album", or a selection from Recent). Only
+   * for `create`; the first is the cover, as for a photo ticked in the picker.
+   */
+  initialMediaIds?: string[]
+  /** The loaded entities behind `initialMediaIds`, when the caller has them (for the cover). */
+  initialItems?: GalleryItemEntity[]
   onOpenChange: (open: boolean) => void
   /** Called with the album id once everything asked for is saved. */
   onSaved: (albumId: string) => void
@@ -93,6 +102,8 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
   album = null,
   existingMediaIds,
   storedItemCount,
+  initialMediaIds,
+  initialItems,
   onOpenChange,
   onSaved
 }) => {
@@ -117,10 +128,13 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
     setTitle(album?.title ?? '')
     setDescription(album?.description ?? '')
     setVisibility(album?.visibility ?? DEFAULT_GALLERY_ALBUM_VISIBILITY)
-    setSelected([])
+    setSelected(intent === 'create' ? (initialMediaIds ?? []) : [])
     setError(null)
     setCreatedId(null)
     setCoverItem(null)
+    // `initialMediaIds` seeds the picker once per opening (the effect runs on
+    // open or a new album only): a parent that builds a new array on every
+    // render must not reset what was ticked since.
   }, [open, album])
 
   // Once the album exists the form is only a way to open it: edits made after
@@ -348,11 +362,19 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
                 {showFields ? (
                   <p className="text-sm leading-5 font-medium">From gallery</p>
                 ) : null}
+                {intent === 'create' && initialMediaIds?.length ? (
+                  <p className="text-muted-foreground text-xs">
+                    {initialMediaIds.length === 1
+                      ? 'The photo you chose is already selected. Choose more below, or create the album with just this one.'
+                      : `The ${formatCount(initialMediaIds.length)} photos you chose are already selected. Choose more below, or create the album with these.`}
+                  </p>
+                ) : null}
                 <GalleryAlbumPicker
                   ownerId={ownerId}
                   selected={selected}
                   onChange={setSelected}
                   onFirstItemChange={setCoverItem}
+                  seedItems={initialItems}
                   capacity={capacity}
                   existingIds={existingMediaIds}
                   disabled={isLocked}

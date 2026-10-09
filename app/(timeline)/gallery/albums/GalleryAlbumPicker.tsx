@@ -36,6 +36,11 @@ interface Props {
   capacity: number
   /** Media ids already in the album: shown as such and not pickable. */
   existingIds?: readonly string[]
+  /**
+   * Photos the caller already holds (the ones it preselected), so the cover
+   * shows even when they are not in the pages loaded here.
+   */
+  seedItems?: readonly GalleryItemEntity[]
   disabled?: boolean
 }
 
@@ -68,6 +73,7 @@ export const GalleryAlbumPicker: FC<Props> = ({
   onFirstItemChange,
   capacity,
   existingIds,
+  seedItems,
   disabled = false
 }) => {
   const [items, setItems] = useState<GalleryItemEntity[]>([])
@@ -83,7 +89,11 @@ export const GalleryAlbumPicker: FC<Props> = ({
   // Bumped by every restart so a slow answer to an older query is dropped.
   const generation = useRef(0)
   // Every photo this picker has shown, so a pick survives a filter change.
-  const seen = useRef(new Map<string, GalleryItemEntity>())
+  const seen = useRef(
+    new Map<string, GalleryItemEntity>(
+      (seedItems ?? []).map((item) => [item.mediaId, item])
+    )
+  )
 
   const load = useCallback(
     async (restart: boolean, cursor?: string) => {
