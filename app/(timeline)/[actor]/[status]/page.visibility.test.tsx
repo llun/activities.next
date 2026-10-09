@@ -528,8 +528,10 @@ describe('Page visibility for logged-in non-recipient viewers', () => {
   })
 
   // Reply visibility for logged-in viewers is enforced by the database query
-  // (`visibleToActorId`), which is unit-tested in lib/database/sql/status.test.ts
-  // and correctly includes recipientless replies to the viewer's own posts. The
+  // (`visibleToActorId`), which is unit-tested in
+  // lib/database/sql/statusActorQueries.test.ts (`getStatusReplies`) and
+  // lib/database/sql/statusLookup.test.ts (recipientless replies to the
+  // viewer's own posts, which it correctly includes). The
   // page-level guarantee is that it forwards the viewer id to that query.
   it('passes the viewer id to getStatusReplies so the query filters by visibility', async () => {
     const focused = buildNote({ id: 'focused' })
