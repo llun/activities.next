@@ -50,6 +50,30 @@ export const getAlbumReadKey = (
 export const tryAlbumRead = (key: string | null): boolean =>
   key === null ? true : albumReads.tryHit(key)
 
+// Suggestions read the owner's whole gallery index, so they are limited like
+// the other costly gallery reads: 20 per actor per minute. The dialog asks once
+// per visit to the Albums tab, so this is a runaway client's ceiling, not a
+// person's. Its photo pages (up to 100 ids each) are cheap by comparison: 120
+// per minute, enough to page through a 2,000 photo suggestion.
+const SUGGESTION_READS_PER_MINUTE = 20
+const SUGGESTION_MEDIA_READS_PER_MINUTE = 120
+const suggestionReads = createWindowCounter({
+  limit: SUGGESTION_READS_PER_MINUTE,
+  windowMs: ONE_MINUTE_MS
+})
+const suggestionMediaReads = createWindowCounter({
+  limit: SUGGESTION_MEDIA_READS_PER_MINUTE,
+  windowMs: ONE_MINUTE_MS
+})
+
+/** Counts one suggestions read for the actor; false once over the limit. */
+export const trySuggestionRead = (actorId: string): boolean =>
+  suggestionReads.tryHit(actorId)
+
+/** Counts one suggestion photo page for the actor; false once over the limit. */
+export const trySuggestionMediaRead = (actorId: string): boolean =>
+  suggestionMediaReads.tryHit(actorId)
+
 export const albumRateLimited = (req: NextRequest, methods: HttpMethod[]) =>
   apiResponse({
     req,

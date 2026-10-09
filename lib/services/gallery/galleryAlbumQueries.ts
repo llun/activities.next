@@ -3,6 +3,7 @@ import type {
   GalleryAlbumIndexRow,
   GalleryAlbumSummary
 } from '@/lib/database/sql/galleryAlbums'
+import type { GalleryIndexRow } from '@/lib/database/sql/galleryMedia'
 import { Database } from '@/lib/database/types'
 import {
   GalleryAlbumCardEntity,
@@ -311,8 +312,8 @@ const toPlaceKey = (
  * threatened species, a hidden location, a `hidden` precision) adds neither a
  * place nor a country. Pass the logged-out audience to get what a visitor sees.
  */
-export const computeGalleryAlbumFacts = (
-  rows: GalleryAlbumIndexRow[],
+export const computeGalleryIndexFacts = (
+  rows: GalleryIndexRow[],
   settings: Pick<GallerySettings, 'hiddenLocations' | 'hideThreatenedPlaces'>
 ): GalleryAlbumFacts => {
   const species = new Set<string>()
@@ -357,6 +358,12 @@ export const computeGalleryAlbumFacts = (
     lastAt: toIso(last)
   }
 }
+
+/** `computeGalleryIndexFacts` for an album's rows. */
+export const computeGalleryAlbumFacts = (
+  rows: GalleryAlbumIndexRow[],
+  settings: Pick<GallerySettings, 'hiddenLocations' | 'hideThreatenedPlaces'>
+): GalleryAlbumFacts => computeGalleryIndexFacts(rows, settings)
 
 /**
  * How many distinct places the owner's own rows have that the public view

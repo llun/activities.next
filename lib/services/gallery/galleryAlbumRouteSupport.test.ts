@@ -158,6 +158,43 @@ describe('public album reads', () => {
         expect(tryAlbumRead(null)).toBeTrue()
       }
     })
+
+describe('suggestion read limits', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-08T00:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('lets an actor read suggestions 20 times a minute and refuses the 21st', async () => {
+    const { trySuggestionRead } = await loadSupport()
+
+    for (let hit = 1; hit <= 20; hit += 1) {
+      expect(trySuggestionRead('actor')).toBeTrue()
+    }
+
+    expect(trySuggestionRead('actor')).toBeFalse()
+    expect(trySuggestionRead('quiet actor')).toBeTrue()
+
+    vi.advanceTimersByTime(60_000)
+    expect(trySuggestionRead('actor')).toBeTrue()
+  })
+
+  it('lets an actor read 120 suggestion photo pages a minute, apart from the suggestions and the writes', async () => {
+    const { trySuggestionMediaRead, trySuggestionRead, tryAlbumWrite } =
+      await loadSupport()
+
+    for (let hit = 1; hit <= 120; hit += 1) {
+      expect(trySuggestionMediaRead('actor')).toBeTrue()
+    }
+
+    expect(trySuggestionMediaRead('actor')).toBeFalse()
+    // Using up one allowance leaves the others whole.
+    expect(trySuggestionRead('actor')).toBeTrue()
+    expect(tryAlbumWrite('actor')).toBeTrue()
   })
 })
 
