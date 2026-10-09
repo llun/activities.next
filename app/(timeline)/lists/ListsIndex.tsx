@@ -8,9 +8,12 @@ import {
   Plus
 } from 'lucide-react'
 import Link from 'next/link'
-import { FC, ReactNode } from 'react'
+import { FC } from 'react'
 
 import { PageHeader } from '@/lib/components/page-header'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { CollectionEntity } from '@/lib/types/mastodon/collection'
@@ -58,7 +61,7 @@ const collectionMemberSummary = (collection: CollectionSummary) => {
 const NewListButton = ({ variant }: { variant?: 'outline' }) => (
   <Button asChild variant={variant}>
     <Link href="/lists/new">
-      <ListPlus className="h-4 w-4" />
+      <ListPlus className="size-4" />
       New list
     </Link>
   </Button>
@@ -67,37 +70,10 @@ const NewListButton = ({ variant }: { variant?: 'outline' }) => (
 const NewCollectionButton = () => (
   <Button asChild>
     <Link href="/collections/new">
-      <Plus className="h-4 w-4" />
+      <Plus className="size-4" />
       New collection
     </Link>
   </Button>
-)
-
-interface IndexGroupProps {
-  icon: typeof ListIcon
-  title: string
-  hint: string
-  children: ReactNode
-}
-
-const IndexGroup: FC<IndexGroupProps> = ({
-  icon: Icon,
-  title,
-  hint,
-  children
-}) => (
-  <section className="space-y-2">
-    <div className="flex items-baseline gap-2 px-1">
-      <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
-        <Icon className="h-4 w-4 text-primary" />
-        {title}
-      </span>
-      <span className="text-xs text-muted-foreground">{hint}</span>
-    </div>
-    <div className="divide-y overflow-hidden rounded-xl border bg-card shadow-sm">
-      {children}
-    </div>
-  </section>
 )
 
 interface ListsIndexProps {
@@ -111,7 +87,7 @@ export const ListsIndex: FC<ListsIndexProps> = ({ lists, collections }) => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Lists & Collections"
+        title="Lists & collections"
         description="Private curated timelines and shareable feeds you highlight"
         stackActionsOnMobile
         actions={
@@ -123,87 +99,98 @@ export const ListsIndex: FC<ListsIndexProps> = ({ lists, collections }) => {
       />
 
       {isEmpty ? (
-        <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
-          <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Layers className="h-6 w-6" />
-          </span>
-          <h2 className="mb-2 text-xl font-semibold text-foreground">
-            Nothing here yet
-          </h2>
-          <p className="mb-6">
-            Make a private list to follow a focused timeline — or a collection
-            to share a feed of people you highlight.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <NewCollectionButton />
-            <NewListButton variant="outline" />
-          </div>
-        </div>
+        <EmptyState
+          icon={Layers}
+          titleAs="h2"
+          title="Nothing here yet"
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <NewCollectionButton />
+              <NewListButton variant="outline" />
+            </div>
+          }
+        >
+          Make a private list to follow a focused timeline, or a collection to
+          share a feed of people you highlight.
+        </EmptyState>
       ) : (
         <>
           {collections.length > 0 && (
-            <IndexGroup
+            <Section
               icon={Layers}
               title="Collections"
-              hint="shareable feeds you curate"
+              description="Shareable feeds you curate"
             >
-              {collections.map((collection) => (
-                <Link
-                  key={collection.id}
-                  href={`/collections/${collection.id}`}
-                  className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-muted/60"
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Layers className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{collection.title}</p>
-                    <p className="truncate text-sm text-muted-foreground">
-                      {collectionMemberSummary(collection)}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
-                </Link>
-              ))}
-            </IndexGroup>
+              <FramedList aria-label="Collections">
+                {collections.map((collection) => (
+                  <FramedListItem
+                    key={collection.id}
+                    href={`/collections/${collection.id}`}
+                  >
+                    <span className="flex items-center gap-4">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <Layers className="size-5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">
+                          {collection.title}
+                        </span>
+                        <span className="block truncate text-sm text-muted-foreground">
+                          {collectionMemberSummary(collection)}
+                        </span>
+                      </span>
+                      <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
+                    </span>
+                  </FramedListItem>
+                ))}
+              </FramedList>
+            </Section>
           )}
 
           {lists.length > 0 && (
-            <IndexGroup icon={ListIcon} title="Lists" hint="private timelines">
-              {lists.map((list) => (
-                <Link
-                  key={list.id}
-                  href={`/lists/${list.id}`}
-                  className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-muted/60"
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                    <ListIcon className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{list.title}</p>
-                    <p className="truncate text-sm text-muted-foreground">
-                      {listMemberSummary(list)}
-                    </p>
-                  </div>
-                  {list.previewMembers.length > 0 && (
-                    <div className="hidden -space-x-2 sm:flex">
-                      {list.previewMembers.map((member) => (
-                        <Avatar
-                          key={member.id}
-                          className="h-7 w-7 ring-2 ring-card"
-                        >
-                          {member.avatar && <AvatarImage src={member.avatar} />}
-                          <AvatarFallback className="text-xs">
-                            {getInitials(member.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                      ))}
-                    </div>
-                  )}
-                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
-                </Link>
-              ))}
-            </IndexGroup>
+            <Section
+              icon={ListIcon}
+              title="Lists"
+              description="Private timelines"
+            >
+              <FramedList aria-label="Lists">
+                {lists.map((list) => (
+                  <FramedListItem key={list.id} href={`/lists/${list.id}`}>
+                    <span className="flex items-center gap-4">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <ListIcon className="size-5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">
+                          {list.title}
+                        </span>
+                        <span className="block truncate text-sm text-muted-foreground">
+                          {listMemberSummary(list)}
+                        </span>
+                      </span>
+                      {list.previewMembers.length > 0 && (
+                        <span className="hidden -space-x-2 sm:flex">
+                          {list.previewMembers.map((member) => (
+                            <Avatar
+                              key={member.id}
+                              className="size-7 ring-2 ring-background"
+                            >
+                              {member.avatar && (
+                                <AvatarImage src={member.avatar} />
+                              )}
+                              <AvatarFallback className="text-xs">
+                                {getInitials(member.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                          ))}
+                        </span>
+                      )}
+                      <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
+                    </span>
+                  </FramedListItem>
+                ))}
+              </FramedList>
+            </Section>
           )}
         </>
       )}

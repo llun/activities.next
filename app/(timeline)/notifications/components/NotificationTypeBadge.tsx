@@ -1,8 +1,8 @@
 import { FC } from 'react'
 
 import { NOTIFICATION_TYPE_CONFIG } from '@/app/(timeline)/notifications/notificationConfig'
+import { Badge } from '@/lib/components/ui/badge'
 import type { NotificationType } from '@/lib/types/database/operations'
-import { cn } from '@/lib/utils'
 
 interface Props {
   type: NotificationType
@@ -19,14 +19,12 @@ export const NotificationTypeBadge: FC<Props> = ({ type }) => {
   const Icon = cfg.icon
 
   return (
-    <span
+    <Badge
       aria-hidden="true"
-      className={cn(
-        'flex size-7 shrink-0 items-center justify-center rounded-full',
-        cfg.badgeClassName
-      )}
+      tone={cfg.badgeTone}
+      className="size-7 shrink-0 justify-center p-0"
     >
       <Icon size={15} {...(cfg.iconFilled ? { fill: 'currentColor' } : {})} />
-    </span>
+    </Badge>
   )
 }

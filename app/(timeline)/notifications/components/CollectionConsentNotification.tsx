@@ -57,7 +57,7 @@ export const CollectionConsentNotification: FC<Props> = ({
 
   return (
     <div className="mt-1.5 space-y-2">
-      <p className="truncate text-[13px] font-medium text-foreground">
+      <p className="truncate text-sm font-medium text-foreground">
         {collectionTitle}
       </p>
       <div className="flex flex-wrap items-center gap-2">
@@ -84,9 +84,9 @@ export const CollectionConsentNotification: FC<Props> = ({
         {state !== 'pending' && (
           <span
             className={cn(
-              'text-[13px] font-medium',
+              'text-sm font-medium',
               state === 'approved'
-                ? 'text-green-600 dark:text-green-500'
+                ? 'text-success-text'
                 : 'text-muted-foreground'
             )}
           >
@@ -99,7 +99,7 @@ export const CollectionConsentNotification: FC<Props> = ({
         public link.
       </p>
       {error && (
-        <p className="text-xs text-destructive" role="alert">
+        <p className="text-xs text-destructive-text" role="alert">
           {error}
         </p>
       )}

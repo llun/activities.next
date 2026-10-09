@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { FollowRequestInitialStatus } from '@/app/(timeline)/notifications/types'
 import { markNotificationsRead } from '@/lib/client'
+import { Alert } from '@/lib/components/surface/Alert'
+import { Frame } from '@/lib/components/surface/Frame'
 import type { GroupedNotification } from '@/lib/services/notifications/groupNotifications'
 import type { Mastodon } from '@/lib/types/activitypub'
 import type { Status } from '@/lib/types/domain/status'
@@ -46,27 +48,34 @@ export const NotificationsList = ({
     () => {}
   )
 
-  const markAsRead = useCallback(
-    async (notificationIds: string[]) => {
-      if (notificationIds.length === 0) return true
+  // Ids with a request in flight. A flush or Retry sends only what is pending
+  // and not already on its way, so no id is ever sent twice at once and a late
+  // failure can only be about ids that really are still unmarked.
+  const inFlightRef = useRef<Set<string>>(new Set())
 
-      try {
-        const didMark = await markNotificationsRead({ notificationIds })
-        if (!didMark) {
-          setMarkReadError(true)
-          return false
-        }
-        setMarkReadError(false)
-        // Refresh the layout to update the notification badge count
-        router.refresh()
-        return true
-      } catch {
+  const sendPending = useCallback(async () => {
+    const ids = Array.from(pendingReadsRef.current).filter(
+      (id) => !inFlightRef.current.has(id)
+    )
+    if (ids.length === 0) return
+    ids.forEach((id) => inFlightRef.current.add(id))
+
+    const didMark = await markNotificationsRead({ notificationIds: ids }).catch(
+      () => false
+    )
+    ids.forEach((id) => inFlightRef.current.delete(id))
+
+    if (!didMark) {
+      if (ids.some((id) => pendingReadsRef.current.has(id))) {
         setMarkReadError(true)
-        return false
       }
-    },
-    [router]
-  )
+      return
+    }
+    ids.forEach((id) => pendingReadsRef.current.delete(id))
+    if (pendingReadsRef.current.size === 0) setMarkReadError(false)
+    // Refresh the layout to update the notification badge count
+    router.refresh()
+  }, [router])
 
   const debouncedMarkAsRead = useCallback(() => {
     if (timeoutRef.current) {
@@ -74,15 +83,17 @@ export const NotificationsList = ({
     }
 
     timeoutRef.current = setTimeout(() => {
-      const idsToMark = Array.from(pendingReadsRef.current)
-      if (idsToMark.length > 0) {
-        void markAsRead(idsToMark).then((didMark) => {
-          if (!didMark) return
-          idsToMark.forEach((id) => pendingReadsRef.current.delete(id))
-        })
-      }
+      void sendPending()
     }, 1000)
-  }, [markAsRead])
+  }, [sendPending])
+
+  // The failed ids stay pending until a request succeeds, so Retry needs no
+  // state of its own. The alert goes away on press and comes back only if this
+  // attempt fails.
+  const retryMarkAsRead = useCallback(() => {
+    setMarkReadError(false)
+    void sendPending()
+  }, [sendPending])
 
   // Update the callback ref whenever dependencies change
   useEffect(() => {
@@ -149,11 +160,12 @@ export const NotificationsList = ({
   return (
     <div className="space-y-3">
       {markReadError ? (
-        <p className="text-sm text-destructive" role="alert">
-          Notifications could not be marked as read.
-        </p>
+        <Alert
+          title="Notifications could not be marked as read."
+          onRetry={retryMarkAsRead}
+        />
       ) : null}
-      <div className="divide-y divide-border overflow-hidden rounded-xl border bg-card shadow-sm">
+      <Frame divided className="overflow-hidden">
         {notifications.map((notification) => (
           <NotificationItem
             key={notification.id}
@@ -167,7 +179,7 @@ export const NotificationsList = ({
             observeElement={observeElement}
           />
         ))}
-      </div>
+      </Frame>
     </div>
   )
 }

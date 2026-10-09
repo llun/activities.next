@@ -4,6 +4,7 @@ import {
   Archive,
   ArrowLeft,
   Loader2,
+  MessageSquare,
   Plus,
   Search,
   Send,
@@ -31,6 +32,11 @@ import {
 import type { DirectConversationView } from '@/lib/client'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { SkeletonRows } from '@/lib/components/surface/Skeleton'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
@@ -43,6 +49,7 @@ import { cn } from '@/lib/utils'
 import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 import { MessageBubble } from './MessageBubble'
+import { MessageThreadSkeleton } from './MessageThreadSkeleton'
 import { INITIAL_CONVERSATIONS_LIMIT } from './constants'
 import { useMessageTimeFormat } from './useMessageTimeFormat'
 
@@ -60,6 +67,15 @@ interface ConversationPreviewCacheEntry {
   key: string
   preview: string
 }
+
+// Failures the page can offer Retry for. The message names the failure, so the
+// alert maps it back to the request to run again.
+const LOAD_THREAD_ERROR = 'Could not load messages'
+const LOAD_OLDER_MESSAGES_ERROR = 'Could not load more messages'
+const LOAD_MORE_CONVERSATIONS_ERROR = 'Could not load more conversations'
+const MARK_READ_ERROR = 'Could not mark conversation as read'
+const SEARCH_ERROR = 'Could not search for account'
+const HIDE_ERROR = 'Could not hide conversation'
 
 const READ_RETRY_COOLDOWN_MS = 30_000
 const LOAD_MORE_CONVERSATIONS_LIMIT = 20
@@ -284,7 +300,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         setNextMaxStatusId(result.nextMaxStatusId)
       } catch (_error) {
         if (latestThreadRequestIdRef.current === requestId) {
-          setError('Could not load messages')
+          setError(LOAD_THREAD_ERROR)
         }
       } finally {
         if (latestThreadRequestIdRef.current === requestId) {
@@ -375,7 +391,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       setNextMaxStatusId(result.nextMaxStatusId)
     } catch (_error) {
       if (latestThreadRequestIdRef.current === requestId) {
-        setError('Could not load more messages')
+        setError(LOAD_OLDER_MESSAGES_ERROR)
       }
     } finally {
       if (
@@ -440,7 +456,11 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     const restoreUnreadState = () => {
       if (!isLatestRequest()) return
       lastFailedReadAtRef.current.set(conversationId, Date.now())
-      setError('Could not mark conversation as read')
+      // Retry reopens the conversation on screen, so only offer it for that
+      // one; the unread dot below is restored either way.
+      if (selectedConversationIdRef.current === conversationId) {
+        setError(MARK_READ_ERROR)
+      }
       setCurrentConversations((previousConversations) =>
         previousConversations.map((conversation) =>
           conversation.id === conversationId
@@ -508,7 +528,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
         result.conversations.length > LOAD_MORE_CONVERSATIONS_LIMIT
       )
     } catch (_error) {
-      setError('Could not load more conversations')
+      setError(LOAD_MORE_CONVERSATIONS_ERROR)
     } finally {
       setLoadingMoreConversations(false)
     }
@@ -549,7 +569,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
       } catch (_error) {
         if (abortController.signal.aborted) return
         if (latestRecipientSearchRequestIdRef.current === requestId) {
-          setError('Could not search for account')
+          setError(SEARCH_ERROR)
         }
       } finally {
         if (recipientSearchAbortControllerRef.current === abortController) {
@@ -633,7 +653,7 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     async (conversationId: string) => {
       const hidden = await hideConversation({ conversationId })
       if (!hidden) {
-        setError('Could not hide conversation')
+        setError(HIDE_ERROR)
         return
       }
 
@@ -709,6 +729,48 @@ export const MessagesPage: FC<MessagesPageProps> = ({
     ]
   )
 
+  // What Retry runs for the failures that can be tried again. A failure not
+  // listed here (a message that did not send, an account that was not found)
+  // keeps the plain alert: the form still holds what was typed.
+  const retryError = (): (() => void) | undefined => {
+    switch (error) {
+      case LOAD_THREAD_ERROR:
+        return selectedConversationId
+          ? () => {
+              setError(null)
+              void loadThread(selectedConversationId)
+            }
+          : undefined
+      case LOAD_OLDER_MESSAGES_ERROR:
+        return () => void loadMoreStatuses()
+      case LOAD_MORE_CONVERSATIONS_ERROR:
+        return () => {
+          setError(null)
+          void loadMoreConversations()
+        }
+      case MARK_READ_ERROR:
+        // Choosing the open conversation again lifts the read cooldown and
+        // sends the request again, as clicking its row does.
+        return selectedConversationId
+          ? () => {
+              selectConversation(selectedConversationId)
+              setError(null)
+            }
+          : undefined
+      case SEARCH_ERROR:
+        return () => searchForRecipients()
+      case HIDE_ERROR:
+        return selectedConversation
+          ? () => {
+              setError(null)
+              void hideSelectedConversation(selectedConversation.id)
+            }
+          : undefined
+      default:
+        return undefined
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 md:gap-6">
       <PageHeader
@@ -727,328 +789,369 @@ export const MessagesPage: FC<MessagesPageProps> = ({
 
       <section
         aria-label="Direct messages"
-        className="grid min-w-0 flex-1 overflow-hidden rounded-xl border bg-background shadow-sm md:min-h-0 md:grid-cols-[minmax(260px,34%)_minmax(0,1fr)] lg:grid-cols-[minmax(320px,30%)_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]"
+        className="flex min-h-0 min-w-0 flex-1 flex-col"
       >
-        <aside
-          aria-label="Conversation list"
-          className={cn(
-            'min-w-0 border-b md:min-h-0 md:border-b-0 md:border-r',
-            !showConversationListOnMobile && 'max-md:hidden'
-          )}
-        >
-          <div className="md:h-full md:overflow-y-auto">
-            {currentConversations.length > 0 ? (
-              currentConversations.map((conversation) => {
-                const isSelected = conversation.id === selectedConversationId
-                const title = conversationTitle(conversation)
-                const avatarAccount = conversation.accounts[0]
-                const preview = conversationPreviews.get(conversation.id)
-                const isOwnLastStatus =
-                  conversation.lastStatus.actorId === currentActor.id
-                return (
-                  <button
-                    key={conversation.id}
-                    type="button"
-                    onClick={() => {
-                      selectConversation(conversation.id)
-                      setError(null)
-                    }}
-                    className={cn(
-                      'flex w-full items-start gap-3 border-b px-3 py-3 text-left last:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 md:px-4 md:py-4',
-                      isSelected ? 'bg-muted' : 'hover:bg-muted/60'
-                    )}
-                  >
-                    <Avatar className="mt-0.5 size-9 shrink-0 md:size-11">
-                      {avatarAccount?.avatar && (
-                        <AvatarImage src={avatarAccount.avatar} />
-                      )}
-                      <AvatarFallback>{getInitial(title)}</AvatarFallback>
-                    </Avatar>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
-                        <span
+        <Frame className="grid min-w-0 flex-1 overflow-hidden md:min-h-0 md:grid-cols-[minmax(260px,34%)_minmax(0,1fr)] lg:grid-cols-[minmax(320px,30%)_minmax(0,1fr)] 2xl:grid-cols-[380px_minmax(0,1fr)]">
+          <aside
+            aria-label="Conversation list"
+            className={cn(
+              'min-w-0 border-b md:min-h-0 md:border-b-0 md:border-r',
+              !showConversationListOnMobile && 'max-md:hidden'
+            )}
+          >
+            <div className="md:h-full md:overflow-y-auto">
+              {currentConversations.length > 0 ? (
+                // The two-pane frame is the list's frame, so the rows are the
+                // kit's list rows without a second outline around them.
+                <ul className="divide-y">
+                  {currentConversations.map((conversation) => {
+                    const isSelected =
+                      conversation.id === selectedConversationId
+                    const title = conversationTitle(conversation)
+                    const avatarAccount = conversation.accounts[0]
+                    const preview = conversationPreviews.get(conversation.id)
+                    const isOwnLastStatus =
+                      conversation.lastStatus.actorId === currentActor.id
+                    return (
+                      <FramedListItem key={conversation.id} className="p-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            selectConversation(conversation.id)
+                            setError(null)
+                          }}
                           className={cn(
-                            'truncate text-sm',
-                            conversation.unread
-                              ? 'font-semibold'
-                              : 'font-medium'
+                            'flex w-full items-start gap-3 px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 md:px-4 md:py-4',
+                            isSelected ? 'bg-muted' : 'hover:bg-muted/60'
                           )}
                         >
-                          {title}
-                        </span>
-                        {conversation.unread && (
-                          <span className="size-2 shrink-0 rounded-full bg-primary" />
-                        )}
-                      </span>
-                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                        {isOwnLastStatus && preview
-                          ? `You: ${preview}`
-                          : preview}
-                      </span>
-                      <span className="block text-xs text-muted-foreground md:mt-1">
-                        {formatTimestamp(conversation.lastStatusCreatedAt)}
-                      </span>
-                    </span>
-                  </button>
-                )
-              })
-            ) : (
-              <div className="p-4 text-sm text-muted-foreground">
-                No messages
-              </div>
-            )}
-            {hasMoreConversations && currentConversations.length > 0 && (
-              <div className="flex justify-center border-t p-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={loadMoreConversations}
-                  disabled={isLoadingMoreConversations}
-                >
-                  {isLoadingMoreConversations && (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  )}
-                  Load more
-                </Button>
-              </div>
-            )}
-          </div>
-        </aside>
-
-        <div
-          aria-label="Conversation thread"
-          className={cn(
-            'flex min-h-[60svh] min-w-0 flex-col md:min-h-0',
-            showConversationListOnMobile && 'max-md:hidden'
-          )}
-        >
-          <div className="flex min-h-14 items-center justify-between gap-3 border-b px-4 md:min-h-16 md:px-5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              title="Back to conversations"
-              aria-label="Back to conversations"
-              className="md:hidden"
-              onClick={() => setShowConversationListOnMobile(true)}
-            >
-              <ArrowLeft className="size-4" />
-            </Button>
-            {headerAccount && (
-              <Avatar className="size-9 shrink-0">
-                {headerAccount.avatar && (
-                  <AvatarImage src={headerAccount.avatar} alt="" />
-                )}
-                <AvatarFallback>
-                  {getInitial(accountLabel(headerAccount))}
-                </AvatarFallback>
-              </Avatar>
-            )}
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-base font-semibold md:text-lg">
-                {headerTitle}
-              </h2>
-              {composerRecipients.length > 0 && (
-                <p className="truncate text-xs text-muted-foreground">
-                  {composerRecipients.map(accountHandle).join(', ')}
-                </p>
+                          <Avatar className="mt-0.5 size-9 shrink-0 md:size-11">
+                            {avatarAccount?.avatar && (
+                              <AvatarImage src={avatarAccount.avatar} />
+                            )}
+                            <AvatarFallback>{getInitial(title)}</AvatarFallback>
+                          </Avatar>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  'truncate text-sm',
+                                  conversation.unread
+                                    ? 'font-semibold'
+                                    : 'font-medium'
+                                )}
+                              >
+                                {title}
+                              </span>
+                              {conversation.unread && (
+                                <>
+                                  <span
+                                    aria-hidden="true"
+                                    className="size-2 shrink-0 rounded-full bg-primary"
+                                  />
+                                  <span className="sr-only">Unread</span>
+                                </>
+                              )}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                              {isOwnLastStatus && preview
+                                ? `You: ${preview}`
+                                : preview}
+                            </span>
+                            <span className="block text-xs text-muted-foreground md:mt-1">
+                              {formatTimestamp(
+                                conversation.lastStatusCreatedAt
+                              )}
+                            </span>
+                          </span>
+                        </button>
+                      </FramedListItem>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <div className="p-4">
+                  <EmptyState
+                    icon={MessageSquare}
+                    title="No messages"
+                    action={
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={startNewConversation}
+                      >
+                        <Plus className="size-4" />
+                        New message
+                      </Button>
+                    }
+                  >
+                    Conversations with people you follow show up here.
+                  </EmptyState>
+                </div>
+              )}
+              {error === LOAD_MORE_CONVERSATIONS_ERROR && (
+                <div className="border-t p-3">
+                  <Alert title={error} onRetry={retryError()} />
+                </div>
+              )}
+              {hasMoreConversations && currentConversations.length > 0 && (
+                <div className="flex justify-center border-t p-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={loadMoreConversations}
+                    disabled={isLoadingMoreConversations}
+                  >
+                    {isLoadingMoreConversations && (
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                    )}
+                    Load more
+                  </Button>
+                </div>
               )}
             </div>
-            {selectedConversation && (
+          </aside>
+
+          <div
+            aria-label="Conversation thread"
+            className={cn(
+              'flex min-h-[60svh] min-w-0 flex-col md:min-h-0',
+              showConversationListOnMobile && 'max-md:hidden'
+            )}
+          >
+            <div className="flex min-h-14 items-center justify-between gap-3 border-b px-4 md:min-h-16 md:px-5">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                title="Hide conversation"
-                aria-label="Hide conversation"
-                onClick={() =>
-                  hideSelectedConversation(selectedConversation.id)
-                }
+                title="Back to conversations"
+                aria-label="Back to conversations"
+                className="md:hidden"
+                onClick={() => setShowConversationListOnMobile(true)}
               >
-                <Archive className="size-4" />
+                <ArrowLeft className="size-4" />
               </Button>
-            )}
-          </div>
-
-          <div
-            ref={threadContainerRef}
-            aria-label="Message thread"
-            className="min-h-0 min-w-0 flex-1 overflow-y-auto"
-          >
-            {isThreadLoading ? (
-              <div className="flex h-full items-center justify-center text-muted-foreground">
-                <Loader2 className="size-5 animate-spin" />
-              </div>
-            ) : displayStatuses.length > 0 ? (
-              <>
-                {nextMaxStatusId && (
-                  <div className="flex justify-center border-b p-3">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={loadMoreStatuses}
-                      disabled={isLoadingMoreStatuses}
-                    >
-                      {isLoadingMoreStatuses && (
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                      )}
-                      Load more
-                    </Button>
-                  </div>
-                )}
-                <div className="space-y-3 px-4 py-4 md:px-6">
-                  {displayStatuses.map((status) => (
-                    <MessageBubble
-                      key={status.id}
-                      host={host}
-                      status={status}
-                      isOwn={status.actorId === currentActor.id}
-                      onShowAttachment={(medias, index) =>
-                        setModalMedias({
-                          medias,
-                          initialSelection: index
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-                {selectedConversationId
-                  ? 'No messages yet'
-                  : 'No conversation selected'}
-              </div>
-            )}
-          </div>
-
-          <form
-            onSubmit={sendMessage}
-            className="space-y-3 border-t p-4 md:p-5"
-          >
-            {!selectedConversation && (
-              <div className="space-y-2">
-                {selectedRecipients.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRecipients.map((account) => (
-                      <span
-                        key={account.id}
-                        className="inline-flex max-w-full items-center gap-2 rounded-md bg-muted px-2 py-1 text-sm"
-                      >
-                        <span className="truncate">
-                          {accountLabel(account)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeRecipient(account.id)}
-                          aria-label={`Remove ${accountLabel(account)}`}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="size-3.5" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="relative">
-                  {isResolvingRecipient ? (
-                    <Loader2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-                  ) : (
-                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              {headerAccount && (
+                <Avatar className="size-9 shrink-0">
+                  {headerAccount.avatar && (
+                    <AvatarImage src={headerAccount.avatar} alt="" />
                   )}
-                  <Input
-                    value={recipientQuery}
-                    onChange={(event) => setRecipientQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault()
-                        void searchForRecipients()
-                      }
-                    }}
-                    name="recipient"
-                    aria-label="Search recipients"
-                    autoComplete="off"
-                    placeholder="@user@example.com"
-                    className="pl-9"
-                  />
-                </div>
-                {recipientSearchResults.length > 0 && (
-                  <ul
-                    aria-label="Recipient search results"
-                    className="divide-y rounded-md border bg-background"
-                  >
-                    {recipientSearchResults.map((account) => (
-                      <li key={account.id}>
-                        <button
-                          type="button"
-                          onClick={() => selectRecipient(account)}
-                          className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
-                        >
-                          <Avatar className="size-8 shrink-0">
-                            {account.avatar && (
-                              <AvatarImage src={account.avatar} />
-                            )}
-                            <AvatarFallback>
-                              {getInitial(accountLabel(account))}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium">
-                              {accountLabel(account)}
-                            </span>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {accountHandle(account)}
-                            </span>
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <AvatarFallback>
+                    {getInitial(accountLabel(headerAccount))}
+                  </AvatarFallback>
+                </Avatar>
+              )}
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-base font-semibold">
+                  {headerTitle}
+                </h2>
+                {composerRecipients.length > 0 && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {composerRecipients.map(accountHandle).join(', ')}
+                  </p>
                 )}
               </div>
-            )}
-
-            <div className="flex items-end gap-2">
-              <Textarea
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                onKeyDown={handleMessageKeyDown}
-                name="message"
-                aria-label="Message text"
-                autoComplete="off"
-                placeholder="Write a message"
-                className="max-h-40 min-h-10 flex-1 resize-none"
-              />
-              <Button
-                type="submit"
-                disabled={isSending || !message.trim()}
-                aria-label="Send message"
-                title="Send message"
-                // 16px of side padding as the design draws it; the default
-                // size drops to 12px for a button whose icon is a direct child.
-                className="shrink-0 has-[>svg]:px-4"
-              >
-                {isSending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Send className="size-4" />
-                )}
-                <span>Send</span>
-              </Button>
+              {selectedConversation && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  title="Hide conversation"
+                  aria-label="Hide conversation"
+                  onClick={() =>
+                    hideSelectedConversation(selectedConversation.id)
+                  }
+                >
+                  <Archive className="size-4" />
+                </Button>
+              )}
             </div>
-            {error && (
-              <p
-                className="text-sm text-destructive"
-                role="alert"
-                aria-live="assertive"
-              >
-                {error}
-              </p>
-            )}
-          </form>
-        </div>
+
+            <div
+              ref={threadContainerRef}
+              aria-label="Message thread"
+              className="min-h-0 min-w-0 flex-1 overflow-y-auto"
+            >
+              {isThreadLoading ? (
+                <MessageThreadSkeleton />
+              ) : displayStatuses.length > 0 ? (
+                <>
+                  {nextMaxStatusId && (
+                    <div className="flex justify-center border-b p-3">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={loadMoreStatuses}
+                        disabled={isLoadingMoreStatuses}
+                      >
+                        {isLoadingMoreStatuses && (
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                        )}
+                        Load more
+                      </Button>
+                    </div>
+                  )}
+                  <div className="space-y-3 px-4 py-4 md:px-6">
+                    {displayStatuses.map((status) => (
+                      <MessageBubble
+                        key={status.id}
+                        host={host}
+                        status={status}
+                        isOwn={status.actorId === currentActor.id}
+                        onShowAttachment={(medias, index) =>
+                          setModalMedias({
+                            medias,
+                            initialSelection: index
+                          })
+                        }
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="flex h-full items-center justify-center p-6">
+                  <EmptyState
+                    icon={MessageSquare}
+                    title={
+                      selectedConversationId
+                        ? 'No messages yet'
+                        : 'Start a conversation'
+                    }
+                    className="max-w-sm"
+                  >
+                    {selectedConversationId
+                      ? 'Write the first message below.'
+                      : currentConversations.length > 0
+                        ? 'Search for someone to message below, or choose a conversation.'
+                        : 'Search for someone to message below.'}
+                  </EmptyState>
+                </div>
+              )}
+            </div>
+
+            <form
+              onSubmit={sendMessage}
+              className="space-y-3 border-t p-4 md:p-5"
+            >
+              {!selectedConversation && (
+                <div className="space-y-2">
+                  {selectedRecipients.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedRecipients.map((account) => (
+                        <span
+                          key={account.id}
+                          className="inline-flex max-w-full items-center gap-2 rounded-md bg-muted px-2 py-1 text-sm"
+                        >
+                          <span className="truncate">
+                            {accountLabel(account)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeRecipient(account.id)}
+                            aria-label={`Remove ${accountLabel(account)}`}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={recipientQuery}
+                      onChange={(event) =>
+                        setRecipientQuery(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          void searchForRecipients()
+                        }
+                      }}
+                      name="recipient"
+                      aria-label="Search recipients"
+                      autoComplete="off"
+                      placeholder="@user@example.com"
+                      className="pl-9"
+                    />
+                  </div>
+                  {isResolvingRecipient ? (
+                    <SkeletonRows
+                      rows={2}
+                      rowClassName="h-12"
+                      label="Searching for accounts"
+                    />
+                  ) : recipientSearchResults.length > 0 ? (
+                    <FramedList aria-label="Recipient search results">
+                      {recipientSearchResults.map((account) => (
+                        <FramedListItem key={account.id} className="p-0">
+                          <button
+                            type="button"
+                            onClick={() => selectRecipient(account)}
+                            className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+                          >
+                            <Avatar className="size-8 shrink-0">
+                              {account.avatar && (
+                                <AvatarImage src={account.avatar} />
+                              )}
+                              <AvatarFallback>
+                                {getInitial(accountLabel(account))}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium">
+                                {accountLabel(account)}
+                              </span>
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {accountHandle(account)}
+                              </span>
+                            </span>
+                          </button>
+                        </FramedListItem>
+                      ))}
+                    </FramedList>
+                  ) : null}
+                </div>
+              )}
+
+              <div className="flex items-end gap-2">
+                <Textarea
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  onKeyDown={handleMessageKeyDown}
+                  name="message"
+                  aria-label="Message text"
+                  autoComplete="off"
+                  placeholder="Write a message"
+                  className="max-h-40 min-h-10 flex-1 resize-none"
+                />
+                <Button
+                  type="submit"
+                  disabled={isSending || !message.trim()}
+                  aria-label="Send message"
+                  title="Send message"
+                  // 16px of side padding as the design draws it; the default
+                  // size drops to 12px for a button whose icon is a direct child.
+                  className="shrink-0 has-[>svg]:px-4"
+                >
+                  {isSending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                  <span>Send</span>
+                </Button>
+              </div>
+              {error && error !== LOAD_MORE_CONVERSATIONS_ERROR && (
+                <Alert title={error} onRetry={retryError()} />
+              )}
+            </form>
+          </div>
+        </Frame>
       </section>
 
       {modalMedias && (

@@ -43,12 +43,12 @@ export const MarkAllReadButton: FC<Props> = ({ unreadIds, unreadCount }) => {
   return (
     <div className="flex items-center gap-2">
       {hasError && (
-        <span className="text-xs text-destructive" role="alert">
+        <span className="text-xs text-destructive-text" role="alert">
           Couldn&apos;t mark read
         </span>
       )}
       {unreadCount > 0 && (
-        <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
+        <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
           {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       )}

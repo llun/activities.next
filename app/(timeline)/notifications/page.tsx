@@ -1,9 +1,13 @@
 import { Bell } from 'lucide-react'
 import { Metadata } from 'next'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { PageHeader, PageSubnavProvider } from '@/lib/components/page-header'
+import { PageRefreshButton } from '@/lib/components/page-refresh-button'
 import { Pagination } from '@/lib/components/pagination/Pagination'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Button } from '@/lib/components/ui/button'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -169,25 +173,33 @@ const Page = async ({ searchParams }: Props) => {
         title="Notifications"
         description="Recent follows, replies, mentions and activity updates."
         actions={
-          <MarkAllReadButton unreadIds={unreadIds} unreadCount={unreadCount} />
+          <div className="flex items-center gap-2">
+            <PageRefreshButton accessibleName="Refresh notifications" />
+            <MarkAllReadButton
+              unreadIds={unreadIds}
+              unreadCount={unreadCount}
+            />
+          </div>
         }
       />
 
       <div className="space-y-4 pt-4">
         {notificationsWithData.length === 0 ? (
-          <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-            <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
-              <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                <Bell className="size-5" />
-              </span>
-              <p className="text-sm font-medium">You&apos;re all caught up</p>
-              <p className="max-w-[28ch] text-sm text-muted-foreground">
-                {tab === 'mentions'
-                  ? 'No mentions or replies yet.'
-                  : 'New activity will show up here.'}
-              </p>
-            </div>
-          </div>
+          <EmptyState
+            icon={Bell}
+            title="You're all caught up"
+            action={
+              tab === 'mentions' ? (
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/notifications">Show all notifications</Link>
+                </Button>
+              ) : undefined
+            }
+          >
+            {tab === 'mentions'
+              ? 'No mentions or replies yet.'
+              : 'New activity will show up here.'}
+          </EmptyState>
         ) : (
           <>
             <NotificationsList

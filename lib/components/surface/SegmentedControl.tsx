@@ -51,7 +51,7 @@ type Props = BaseProps &
   )
 
 const TRACK_CLASS =
-  'bg-muted flex max-w-full items-stretch gap-0.5 overflow-x-auto rounded-lg shadow-[inset_0_0_0_1px_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+  'bg-muted flex max-w-full items-stretch sm:w-fit gap-0.5 overflow-x-auto rounded-lg shadow-[inset_0_0_0_1px_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
 // The transparent border insets the painted pill (and the clipped background)
 // from the track, so the pill reads as a smaller shape on a full-height track.

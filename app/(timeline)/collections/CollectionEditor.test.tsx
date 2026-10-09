@@ -71,7 +71,7 @@ describe('CollectionEditor', () => {
     fireEvent.change(screen.getByLabelText('Collection name'), {
       target: { value: 'New crew' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Create collection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(createCollection).toHaveBeenCalledWith({
@@ -89,7 +89,7 @@ describe('CollectionEditor', () => {
   it('blocks creation when the name is empty', async () => {
     render(<CollectionEditor mode="create" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create collection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Please enter a collection name.'
@@ -106,7 +106,7 @@ describe('CollectionEditor', () => {
     fireEvent.change(screen.getByLabelText('Topic'), {
       target: { value: '#foss dev!' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Create collection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(createCollection).toHaveBeenCalledWith(
@@ -115,28 +115,35 @@ describe('CollectionEditor', () => {
     )
   })
 
-  it("highlights the selected visibility option through the radio's data-state", () => {
+  it('picks one visibility at a time, starting from Public', () => {
     render(<CollectionEditor mode="create" />)
 
     const publicRadio = screen.getByRole('radio', { name: /^Public/ })
     const unlistedRadio = screen.getByRole('radio', { name: /^Unlisted/ })
-    expect(publicRadio).toHaveAttribute('data-state', 'checked')
-
-    // The radio is a Radix <button role="radio">, not a native input, so the
-    // option's orange border and tint must key off `data-state`: a `:checked`
-    // selector never matches it, which left the selected option unmarked.
-    const option = publicRadio.closest('label')
-    expect(option).toHaveClass(
-      'has-data-[state=checked]:border-primary',
-      'has-data-[state=checked]:bg-primary/[0.06]'
-    )
-    expect(option?.className).not.toContain(':checked')
+    expect(publicRadio).toHaveAttribute('aria-checked', 'true')
+    expect(
+      screen.getByRole('radiogroup', { name: 'Visibility' })
+    ).toBeInTheDocument()
 
     fireEvent.click(unlistedRadio)
-    expect(unlistedRadio).toHaveAttribute('data-state', 'checked')
-    expect(publicRadio).toHaveAttribute('data-state', 'unchecked')
-    expect(unlistedRadio.closest('label')).toHaveClass(
-      'has-data-[state=checked]:border-primary'
+    expect(unlistedRadio).toHaveAttribute('aria-checked', 'true')
+    expect(publicRadio).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('saves the chosen visibility and feed setting', async () => {
+    render(<CollectionEditor mode="create" />)
+
+    fireEvent.change(screen.getByLabelText('Collection name'), {
+      target: { value: 'Crew' }
+    })
+    fireEvent.click(screen.getByRole('radio', { name: /^Private/ }))
+    fireEvent.click(screen.getByLabelText('Shareable feed'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(createCollection).toHaveBeenCalledWith(
+        expect.objectContaining({ visibility: 'private', feedEnabled: false })
+      )
     )
   })
 
@@ -167,7 +174,7 @@ describe('CollectionEditor', () => {
       })
     )
     await waitFor(() =>
-      expect(screen.getByText('In this collection · 1')).toBeInTheDocument()
+      expect(screen.getByText('1 in this collection')).toBeInTheDocument()
     )
     expect(searchInput).toHaveValue('')
     expect(
@@ -195,7 +202,7 @@ describe('CollectionEditor', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Could not add that account. Please try again.'
     )
-    expect(screen.queryByText('In this collection · 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('1 in this collection')).not.toBeInTheDocument()
   })
 
   it('limits suggestions in dropdown to 5 accounts', () => {
@@ -283,9 +290,7 @@ describe('CollectionEditor', () => {
       })
     )
     await waitFor(() =>
-      expect(
-        screen.queryByText('In this collection · 1')
-      ).not.toBeInTheDocument()
+      expect(screen.queryByText('1 in this collection')).not.toBeInTheDocument()
     )
   })
 
@@ -306,10 +311,10 @@ describe('CollectionEditor', () => {
       'Could not remove that account. Please try again.'
     )
     // The member is not optimistically dropped on a failed remove.
-    expect(screen.getByText('In this collection · 1')).toBeInTheDocument()
+    expect(screen.getByText('1 in this collection')).toBeInTheDocument()
   })
 
-  it('saves changes and routes back to the collection', async () => {
+  it('keeps Save off until a setting changes, then saves and routes back to the collection', async () => {
     render(
       <CollectionEditor
         mode="edit"
@@ -318,10 +323,14 @@ describe('CollectionEditor', () => {
       />
     )
 
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(screen.getByText('No unsaved changes')).toBeInTheDocument()
+
     fireEvent.change(screen.getByLabelText('Collection name'), {
       target: { value: 'Renamed' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(updateCollection).toHaveBeenCalledWith({
@@ -370,5 +379,76 @@ describe('CollectionEditor', () => {
     )
     expect(mockPush).not.toHaveBeenCalled()
     confirmSpy.mockRestore()
+  })
+
+  it('shows the save error in the footer and lets the owner try again', async () => {
+    ;(updateCollection as jest.Mock).mockResolvedValueOnce(null)
+    render(<CollectionEditor mode="edit" collection={collection} />)
+
+    fireEvent.change(screen.getByLabelText('Collection name'), {
+      target: { value: 'Renamed' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not save your changes. Please try again.'
+    )
+    expect(mockPush).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith('/collections/col-1')
+    )
+  })
+
+  it('leads Cancel back to the collection being edited, or to the lists when creating', () => {
+    const { unmount } = render(
+      <CollectionEditor mode="edit" collection={collection} />
+    )
+    expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute(
+      'href',
+      '/collections/col-1'
+    )
+    unmount()
+
+    render(<CollectionEditor mode="create" />)
+    expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute(
+      'href',
+      '/lists'
+    )
+  })
+
+  it('says no one is in the collection yet, with a hint that fits what can be added', () => {
+    const { unmount } = render(
+      <CollectionEditor
+        mode="edit"
+        collection={collection}
+        initialMembers={[]}
+        followingSuggestions={[]}
+      />
+    )
+    expect(
+      screen.getByText('No one in this collection yet')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Follow some accounts to highlight them in this collection.'
+      )
+    ).toBeInTheDocument()
+    unmount()
+
+    render(
+      <CollectionEditor
+        mode="edit"
+        collection={collection}
+        initialMembers={[]}
+        followingSuggestions={[suggestion]}
+      />
+    )
+    expect(
+      screen.getByText(
+        'This collection has no members yet. Use the search above to add accounts you follow.'
+      )
+    ).toBeInTheDocument()
   })
 })

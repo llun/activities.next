@@ -31,11 +31,11 @@ export const FollowNotification: FC<Props> = ({ account }) => {
   return (
     <div className="mt-1.5">
       <div className="flex items-center justify-between gap-3">
-        <span className="truncate text-[13px] text-muted-foreground">
+        <span className="truncate text-sm text-muted-foreground">
           @{account.acct}
         </span>
         {state === 'done' ? (
-          <span className="shrink-0 text-[13px] font-medium text-muted-foreground">
+          <span className="shrink-0 text-sm font-medium text-muted-foreground">
             Following
           </span>
         ) : (
@@ -51,7 +51,7 @@ export const FollowNotification: FC<Props> = ({ account }) => {
         )}
       </div>
       {state === 'error' && (
-        <p className="mt-1 text-xs text-destructive" role="alert">
+        <p className="mt-1 text-xs text-destructive-text" role="alert">
           Couldn&apos;t follow back. Please try again.
         </p>
       )}

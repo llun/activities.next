@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { render, screen } from '@testing-library/react'
 
-import Loading, { MessagesLoading } from './loading'
+import Loading from './loading'
 
 describe('messages loading', () => {
   it('renders loading messages skeleton with accessibility attributes', () => {
@@ -15,49 +15,11 @@ describe('messages loading', () => {
     expect(loadingRegion).toHaveAttribute('aria-busy', 'true')
   })
 
-  it('exports MessagesLoading named component', () => {
-    render(<MessagesLoading />)
-
-    expect(screen.getByLabelText('Loading messages')).toBeInTheDocument()
-  })
-
-  it('renders every placeholder with the shimmer skeleton utility', () => {
-    // jsdom paints no CSS so classes are the observable; every leaf <div>/<span> in
-    // this skeleton is a placeholder (containers always hold further elements),
-    // and a bare `length > 0` missed both a partial strip and a future
-    // unstyled row; the `.skeleton` definition itself is guarded by
-    // app/globals.skeleton.test.ts.
-    const { container } = render(<Loading />)
-    const leaves = Array.from(container.querySelectorAll('div, span')).filter(
-      (el) => el.children.length === 0
-    )
-    expect(leaves.length).toBeGreaterThan(0)
-    leaves.forEach((el) => expect(el).toHaveClass('skeleton'))
-    expect(container.querySelector('.animate-pulse')).toBeNull()
-  })
-
-  it('renders outline components for header mirroring PageHeader metrics', () => {
+  it('draws no text on screen, only one polite Loading for assistive tech', () => {
     const { container } = render(<Loading />)
 
-    const stickyHeader = container.querySelector('.sticky')
-    expect(stickyHeader).toBeInTheDocument()
-    expect(stickyHeader).toHaveClass('top-0')
-    expect(stickyHeader?.querySelector('.max-w-content')).toBeInTheDocument()
-    // The same mobile pull-up as the page, so the skeleton does not shift when
-    // the page replaces it.
-    expect(stickyHeader).toHaveClass('max-md:-mt-5')
-
-    // Skeletons in the header mirror PageHeader font and action metrics
-    // (text-xl 28px -> h-7, text-xs 16px -> h-4, action button -> h-8 w-18 with self-center)
-    expect(stickyHeader?.querySelector('h1 .skeleton')).toHaveClass('h-7')
-    expect(stickyHeader?.querySelector('h1 + div .skeleton')).toHaveClass('h-4')
-    expect(stickyHeader?.querySelector('.shrink-0')).toHaveClass('self-center')
-    expect(stickyHeader?.querySelector('.shrink-0 .skeleton')).toHaveClass(
-      'h-8'
-    )
-    expect(stickyHeader?.querySelector('.shrink-0 .skeleton')).toHaveClass(
-      'w-18'
-    )
+    expect(screen.getByRole('status')).toHaveTextContent('Loading messages')
+    expect(container.textContent).toBe('Loading messages')
   })
 
   it('renders conversation list and conversation thread landmark regions', () => {
@@ -67,5 +29,16 @@ describe('messages loading', () => {
     expect(screen.getByLabelText('Conversation list')).toBeInTheDocument()
     expect(screen.getByLabelText('Conversation thread')).toBeInTheDocument()
     expect(screen.getByLabelText('Message thread')).toBeInTheDocument()
+  })
+
+  it('draws the two panes inside one frame of shimmer bars', () => {
+    const { container } = render(<Loading />)
+
+    expect(container.querySelectorAll('[data-slot="frame"]')).toHaveLength(1)
+    expect(
+      screen
+        .getByLabelText('Direct messages')
+        .querySelectorAll('[data-slot="skeleton-bar"]').length
+    ).toBeGreaterThan(10)
   })
 })

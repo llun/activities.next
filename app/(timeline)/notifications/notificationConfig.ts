@@ -32,22 +32,29 @@ import type { NotificationType } from '@/lib/types/database/operations'
 //                    branch treats a missing status as a deleted one.
 export type NotificationKind = 'status' | 'relationship' | 'system' | 'plain'
 
+export type NotificationBadgeTone =
+  'primary' | 'success' | 'warning' | 'info' | 'destructive'
+
 export interface NotificationTypeConfig {
   // Type badge glyph shown to the left of every row.
   icon: LucideIcon
   // Heart renders filled; the rest keep their outline stroke.
   iconFilled?: boolean
-  // Tailwind classes for the badge background + glyph color (per-type accent).
-  badgeClassName: string
+  // `Badge` tone for the glyph tile (per-type accent).
+  badgeTone: NotificationBadgeTone
   // The notification text shown on line 1. For status/relationship types it is
   // the verb phrase; for system types it is the full headline.
   verb: string
   kind: NotificationKind
 }
 
-const RELATIONSHIP_BADGE =
-  'bg-[hsl(210_90%_96%)] text-[hsl(210_80%_45%)] dark:bg-[hsl(210_80%_45%/0.16)] dark:text-[hsl(210_75%_68%)]'
-const PRIMARY_BADGE = 'bg-primary/[0.12] text-primary'
+// The badge tints are `Badge`'s own tones, so the glyph tiles and the pills
+// elsewhere share one set of fills.
+const RELATIONSHIP_BADGE: NotificationBadgeTone = 'info'
+const PRIMARY_BADGE: NotificationBadgeTone = 'primary'
+const LIKE_BADGE: NotificationBadgeTone = 'destructive'
+const BOOST_BADGE: NotificationBadgeTone = 'success'
+const REACTION_BADGE: NotificationBadgeTone = 'warning'
 
 export const NOTIFICATION_TYPE_CONFIG: Record<
   NotificationType,
@@ -55,84 +62,80 @@ export const NOTIFICATION_TYPE_CONFIG: Record<
 > = {
   follow_request: {
     icon: UserPlus,
-    badgeClassName: RELATIONSHIP_BADGE,
+    badgeTone: RELATIONSHIP_BADGE,
     verb: 'requested to follow you',
     kind: 'relationship'
   },
   follow: {
     icon: UserPlus,
-    badgeClassName: RELATIONSHIP_BADGE,
+    badgeTone: RELATIONSHIP_BADGE,
     verb: 'followed you',
     kind: 'relationship'
   },
   like: {
     icon: Heart,
     iconFilled: true,
-    badgeClassName:
-      'bg-[hsl(0_84%_60%/0.1)] text-[hsl(0_72%_51%)] dark:bg-[hsl(0_84%_60%/0.16)] dark:text-[hsl(0_84%_70%)]',
+    badgeTone: LIKE_BADGE,
     verb: 'liked your post',
     kind: 'status'
   },
   mention: {
     icon: AtSign,
-    badgeClassName: PRIMARY_BADGE,
+    badgeTone: PRIMARY_BADGE,
     verb: 'mentioned you',
     kind: 'status'
   },
   reply: {
     icon: Reply,
-    badgeClassName: PRIMARY_BADGE,
+    badgeTone: PRIMARY_BADGE,
     verb: 'replied to your post',
     kind: 'status'
   },
   reblog: {
     icon: Repeat2,
-    badgeClassName:
-      'bg-[hsl(142_60%_36%/0.12)] text-[hsl(142_60%_36%)] dark:bg-[hsl(142_60%_45%/0.16)] dark:text-[hsl(142_55%_60%)]',
+    badgeTone: BOOST_BADGE,
     verb: 'boosted your post',
     kind: 'status'
   },
   quote: {
     icon: Quote,
-    badgeClassName:
-      'bg-[hsl(142_60%_36%/0.12)] text-[hsl(142_60%_36%)] dark:bg-[hsl(142_60%_45%/0.16)] dark:text-[hsl(142_55%_60%)]',
+    badgeTone: BOOST_BADGE,
     verb: 'quoted your post',
     kind: 'status'
   },
   quoted_update: {
     icon: PencilLine,
-    badgeClassName: PRIMARY_BADGE,
+    badgeTone: PRIMARY_BADGE,
     verb: 'edited a post you quoted',
     kind: 'status'
   },
   emoji_reaction: {
     icon: Smile,
-    badgeClassName:
-      'bg-[hsl(38_92%_50%/0.12)] text-[hsl(30_80%_38%)] dark:bg-[hsl(38_92%_50%/0.16)] dark:text-[hsl(38_90%_65%)]',
+    badgeTone: REACTION_BADGE,
     verb: 'reacted to your post',
     kind: 'status'
   },
   activity_import: {
     icon: Activity,
-    badgeClassName: PRIMARY_BADGE,
+    badgeTone: PRIMARY_BADGE,
     verb: 'Your fitness activity is ready',
     kind: 'system'
   },
   gear_service_due: {
     icon: Wrench,
-    badgeClassName: PRIMARY_BADGE,
+    badgeTone: PRIMARY_BADGE,
     verb: 'Your gear is due for service',
     kind: 'plain'
   },
   added_to_collection: {
     icon: Users,
-    badgeClassName: RELATIONSHIP_BADGE,
+    badgeTone: RELATIONSHIP_BADGE,
     verb: 'added you to a collection',
     kind: 'relationship'
   },
   collection_update: {
     icon: Library,
-    badgeClassName: RELATIONSHIP_BADGE,
+    badgeTone: RELATIONSHIP_BADGE,
     verb: 'updated a collection you’re in',
     kind: 'relationship'
   }

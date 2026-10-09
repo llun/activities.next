@@ -4,7 +4,7 @@
 import '@testing-library/jest-dom'
 import { fireEvent, render, screen } from '@testing-library/react'
 
-import { PageRefreshButton } from './PageRefreshButton'
+import { PageRefreshButton } from './page-refresh-button'
 
 const refresh = vi.fn()
 

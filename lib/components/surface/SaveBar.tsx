@@ -1,5 +1,5 @@
 import { Check, Loader2 } from 'lucide-react'
-import { FC } from 'react'
+import { FC, ReactNode } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -63,6 +63,11 @@ interface SaveBarProps {
    * to save while an edit is waiting on something else.
    */
   disabledReason?: string
+  /**
+   * Secondary controls set beside Save at the end of the row, such as a Cancel
+   * link on a form that leaves the page when it is done.
+   */
+  actions?: ReactNode
   className?: string
 }
 
@@ -84,43 +89,10 @@ export const SaveBar: FC<SaveBarProps> = ({
   onSave,
   submit = false,
   disabledReason,
+  actions,
   className
-}) => (
-  <div
-    data-slot="save-bar"
-    className={cn('flex w-full items-center justify-between gap-3', className)}
-  >
-    <div className="min-w-0 text-sm">
-      {error ? (
-        <p role="alert" className="text-destructive-text break-words">
-          {error}
-        </p>
-      ) : (
-        <p
-          role="status"
-          aria-live="polite"
-          className="text-muted-foreground flex min-h-5 items-center gap-1.5"
-        >
-          {dirty ? (
-            <>
-              <span
-                aria-hidden="true"
-                className="bg-primary size-2 shrink-0 rounded-full"
-              />
-              Unsaved changes
-              {disabledReason ? <span>· {disabledReason}</span> : null}
-            </>
-          ) : saved ? (
-            <>
-              <Check aria-hidden="true" className="text-success-text size-4" />
-              Saved
-            </>
-          ) : (
-            'No unsaved changes'
-          )}
-        </p>
-      )}
-    </div>
+}) => {
+  const saveButton = (
     <Button
       type={submit ? 'submit' : 'button'}
       onClick={submit ? undefined : onSave}
@@ -136,5 +108,57 @@ export const SaveBar: FC<SaveBarProps> = ({
       ) : null}
       Save
     </Button>
-  </div>
-)
+  )
+  return (
+    <div
+      data-slot="save-bar"
+      className={cn(
+        'flex w-full items-center justify-between gap-3',
+        className
+      )}
+    >
+      <div className="min-w-0 text-sm">
+        {error ? (
+          <p role="alert" className="text-destructive-text break-words">
+            {error}
+          </p>
+        ) : (
+          <p
+            role="status"
+            aria-live="polite"
+            className="text-muted-foreground flex min-h-5 items-center gap-1.5"
+          >
+            {dirty ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="bg-primary size-2 shrink-0 rounded-full"
+                />
+                Unsaved changes
+                {disabledReason ? <span>· {disabledReason}</span> : null}
+              </>
+            ) : saved ? (
+              <>
+                <Check
+                  aria-hidden="true"
+                  className="text-success-text size-4"
+                />
+                Saved
+              </>
+            ) : (
+              'No unsaved changes'
+            )}
+          </p>
+        )}
+      </div>
+      {actions ? (
+        <div className="flex shrink-0 items-center gap-2">
+          {actions}
+          {saveButton}
+        </div>
+      ) : (
+        saveButton
+      )}
+    </div>
+  )
+}

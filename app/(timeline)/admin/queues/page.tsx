@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 
-import { PageRefreshButton } from '@/lib/components/admin/PageRefreshButton'
 import { Pagination } from '@/lib/components/admin/Pagination'
 import { PageHeader } from '@/lib/components/page-header'
+import { PageRefreshButton } from '@/lib/components/page-refresh-button'
 import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Badge } from '@/lib/components/ui/badge'
 import { getDatabase } from '@/lib/database'

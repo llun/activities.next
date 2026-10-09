@@ -96,6 +96,24 @@ describe('SaveBar as a submit button', () => {
       'button'
     )
   })
+
+  it('sets secondary actions beside Save, Save last', () => {
+    const { onSave } = renderBar({
+      dirty: true,
+      actions: <a href="/back">Cancel</a>
+    })
+
+    const buttons = screen
+      .getAllByRole('link')
+      .concat(screen.getAllByRole('button'))
+    expect(buttons.map((el) => el.textContent)).toEqual(['Cancel', 'Save'])
+    expect(
+      screen.getByRole('link', { name: 'Cancel' }).nextElementSibling
+    ).toBe(screen.getByRole('button', { name: 'Save' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('SavedIndicator', () => {

@@ -1,6 +1,7 @@
 'use client'
 
-import { Search, Trash2, UserMinus, UserPlus } from 'lucide-react'
+import { Search, Trash2, UserMinus, UserPlus, Users } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -12,11 +13,17 @@ import {
   updateList
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
+import { Section } from '@/lib/components/surface/Section'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { Select } from '@/lib/components/ui/select'
 import { Switch } from '@/lib/components/ui/switch'
 import { ListEntity } from '@/lib/types/mastodon/list'
@@ -81,7 +88,11 @@ export const ListEditor: FC<ListEditorProps> = ({
   const [pendingMemberIds, setPendingMemberIds] = useState<Set<string>>(
     new Set()
   )
-  const [error, setError] = useState<string | null>(null)
+  // Each failure shows where it happened: the Save footer, the members, the
+  // danger zone.
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [memberError, setMemberError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -122,7 +133,7 @@ export const ListEditor: FC<ListEditorProps> = ({
 
   const addMember = async (account: ListMember): Promise<boolean> => {
     if (!list) return false
-    setError(null)
+    setMemberError(null)
     setMemberPending(account.id, true)
     try {
       const ok = await addListAccounts({
@@ -130,13 +141,13 @@ export const ListEditor: FC<ListEditorProps> = ({
         accountIds: [account.id]
       })
       if (!ok) {
-        setError('Could not add that account. Please try again.')
+        setMemberError('Could not add that account. Please try again.')
         return false
       }
       setMembers((previous) => [...previous, account])
       return true
     } catch {
-      setError('Could not add that account. Please try again.')
+      setMemberError('Could not add that account. Please try again.')
       return false
     } finally {
       // Always clear pending, even when the request throws, so the row's
@@ -147,7 +158,7 @@ export const ListEditor: FC<ListEditorProps> = ({
 
   const removeMember = async (account: ListMember) => {
     if (!list) return
-    setError(null)
+    setMemberError(null)
     setMemberPending(account.id, true)
     try {
       const ok = await removeListAccounts({
@@ -155,26 +166,27 @@ export const ListEditor: FC<ListEditorProps> = ({
         accountIds: [account.id]
       })
       if (!ok) {
-        setError('Could not remove that account. Please try again.')
+        setMemberError('Could not remove that account. Please try again.')
         return
       }
       setMembers((previous) =>
         previous.filter((member) => member.id !== account.id)
       )
     } catch {
-      setError('Could not remove that account. Please try again.')
+      setMemberError('Could not remove that account. Please try again.')
     } finally {
       setMemberPending(account.id, false)
     }
   }
 
   const handleSave = async () => {
+    if (isDeleting) return
     const trimmed = title.trim()
     if (trimmed.length === 0) {
-      setError('Please enter a list name.')
+      setSaveError('Please enter a list name.')
       return
     }
-    setError(null)
+    setSaveError(null)
     setSaving(true)
     try {
       if (mode === 'create') {
@@ -184,7 +196,7 @@ export const ListEditor: FC<ListEditorProps> = ({
           exclusive
         })
         if (!created) {
-          setError('Could not create the list. Please try again.')
+          setSaveError('Could not create the list. Please try again.')
           return
         }
         // Send new members straight to the member editor on the created list.
@@ -201,7 +213,7 @@ export const ListEditor: FC<ListEditorProps> = ({
         exclusive
       })
       if (!updated) {
-        setError('Could not save your changes. Please try again.')
+        setSaveError('Could not save your changes. Please try again.')
         return
       }
       router.push(`/lists/${list.id}`)
@@ -209,7 +221,7 @@ export const ListEditor: FC<ListEditorProps> = ({
     } catch {
       // createList/updateList throw on a network/abort error rather than
       // returning null; surface the same inline error so the user can retry.
-      setError(
+      setSaveError(
         mode === 'create'
           ? 'Could not create the list. Please try again.'
           : 'Could not save your changes. Please try again.'
@@ -228,24 +240,32 @@ export const ListEditor: FC<ListEditorProps> = ({
     ) {
       return
     }
-    setError(null)
+    setDeleteError(null)
     setDeleting(true)
     try {
       const ok = await deleteList(list.id)
       if (!ok) {
-        setError('Could not delete the list. Please try again.')
+        setDeleteError('Could not delete the list. Please try again.')
         return
       }
       router.push('/lists')
       router.refresh()
     } catch {
-      setError('Could not delete the list. Please try again.')
+      setDeleteError('Could not delete the list. Please try again.')
     } finally {
       // On a thrown request the success path returns early; clear the flag here
       // so the Delete/Save buttons don't stay disabled.
       setDeleting(false)
     }
   }
+
+  // A new list has nothing saved yet; an existing one is dirty once a setting
+  // differs from what loaded. Members save as they change, so they never count.
+  const isDirty =
+    mode === 'create' ||
+    title !== (list?.title ?? '') ||
+    repliesPolicy !== (list?.replies_policy ?? 'list') ||
+    exclusive !== (list?.exclusive ?? false)
 
   const cancelHref = mode === 'edit' && list ? `/lists/${list.id}` : '/lists'
 
@@ -260,99 +280,129 @@ export const ListEditor: FC<ListEditorProps> = ({
         }
       />
 
-      <section className="space-y-5 rounded-xl border bg-card p-5 shadow-sm">
-        <div className="space-y-2">
-          <Label htmlFor="list-name">List name</Label>
-          <Input
-            id="list-name"
-            value={title}
-            maxLength={255}
-            placeholder="e.g. Running club"
-            onChange={(event) => setTitle(event.target.value)}
-          />
-        </div>
+      <Section title="Details">
+        <Frame
+          divided
+          footer={
+            <SaveBar
+              dirty={isDirty}
+              saving={isSaving}
+              saved={false}
+              error={saveError}
+              onSave={handleSave}
+              actions={
+                // A link, so a request still running when it is followed
+                // would finish after the page has gone: off until it is done.
+                isSaving || isDeleting ? (
+                  <Button variant="outline" disabled>
+                    Cancel
+                  </Button>
+                ) : (
+                  <Button variant="outline" asChild>
+                    <Link href={cancelHref}>Cancel</Link>
+                  </Button>
+                )
+              }
+            />
+          }
+        >
+          <FormRow label="List name" htmlFor="list-name">
+            <Input
+              id="list-name"
+              value={title}
+              maxLength={255}
+              placeholder="e.g. Running club"
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </FormRow>
 
-        <div className="space-y-2">
-          <Label htmlFor="list-replies-policy">
-            Include replies from list members to
-          </Label>
-          <Select
-            id="list-replies-policy"
-            value={repliesPolicy}
-            onChange={(event) =>
-              setRepliesPolicy(event.target.value as RepliesPolicy)
-            }
+          <FormRow
+            label="Include replies from list members to"
+            htmlFor="list-replies-policy"
+            hint="Whose replies should appear in this list’s timeline."
           >
-            {REPLIES_POLICY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-          <p className="text-sm text-muted-foreground">
-            Whose replies should appear in this list&rsquo;s timeline.
-          </p>
-        </div>
+            {({ describedBy }) => (
+              <Select
+                id="list-replies-policy"
+                aria-describedby={describedBy}
+                value={repliesPolicy}
+                onChange={(event) =>
+                  setRepliesPolicy(event.target.value as RepliesPolicy)
+                }
+              >
+                {REPLIES_POLICY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </FormRow>
 
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="list-exclusive">Hide members from Home</Label>
-            <p className="text-sm text-muted-foreground">
-              If someone is on this list, hide their posts from your Home
-              timeline to avoid seeing them twice. Your own posts always stay in
-              Home.
-            </p>
-          </div>
-          <Switch
-            id="list-exclusive"
-            checked={exclusive}
-            onCheckedChange={setExclusive}
-          />
-        </div>
-      </section>
+          <FormRow
+            inline
+            label="Hide members from Home"
+            htmlFor="list-exclusive"
+            hint="If someone is on this list, hide their posts from your Home timeline to avoid seeing them twice. Your own posts always stay in Home."
+          >
+            {({ describedBy }) => (
+              <Switch
+                id="list-exclusive"
+                aria-describedby={describedBy}
+                checked={exclusive}
+                onCheckedChange={setExclusive}
+              />
+            )}
+          </FormRow>
+        </Frame>
+      </Section>
 
       {mode === 'edit' && list && (
-        <section className="space-y-4 rounded-xl border bg-card p-5 shadow-sm">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Members</h2>
-            <p className="text-sm text-muted-foreground">
-              Add or remove accounts you follow. Changes apply right away.
-            </p>
-          </div>
+        <Section
+          title="Members"
+          meta={
+            members.length > 0 ? `${members.length} in this list` : undefined
+          }
+          description="Add or remove accounts you follow. Changes apply right away."
+        >
+          {memberError && <Alert title={memberError} />}
 
           {currentAccount && !memberIds.has(currentAccount.id) && (
-            // flex-wrap + the text's basis let the button drop below the text
-            // on a narrow row instead of squeezing it to a word per line.
-            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed p-3">
-              <Avatar className="h-10 w-10">
-                {currentAccount.avatar && (
-                  <AvatarImage src={currentAccount.avatar} alt="" />
-                )}
-                <AvatarFallback>
-                  {getInitials(currentAccount.name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1 basis-40">
-                <p className="font-medium">Your posts</p>
-                <p className="text-sm text-muted-foreground">
-                  Show your own posts in this list.
-                </p>
+            <Frame muted>
+              {/* flex-wrap + the text's basis let the button drop below the
+                  text on a narrow row instead of squeezing it to a word per
+                  line. */}
+              <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <Avatar className="size-10">
+                  {currentAccount.avatar && (
+                    <AvatarImage src={currentAccount.avatar} alt="" />
+                  )}
+                  <AvatarFallback>
+                    {getInitials(currentAccount.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1 basis-40">
+                  <p className="text-sm font-medium">Your posts</p>
+                  <p className="text-sm text-muted-foreground">
+                    Show your own posts in this list.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto shrink-0"
+                  disabled={pendingMemberIds.has(currentAccount.id)}
+                  onClick={() => addMember(currentAccount)}
+                >
+                  <UserPlus className="size-4" />
+                  Add yourself
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="ml-auto shrink-0"
-                disabled={pendingMemberIds.has(currentAccount.id)}
-                onClick={() => addMember(currentAccount)}
-              >
-                <UserPlus className="h-4 w-4" />
-                Add yourself
-              </Button>
-            </div>
+            </Frame>
           )}
 
           <div ref={wrapRef} className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
               value={search}
@@ -369,15 +419,15 @@ export const ListEditor: FC<ListEditorProps> = ({
             />
 
             {isDropdownOpen && search.trim().length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-40 mt-1.5 rounded-xl border bg-popover p-1 shadow-lg">
+              <div className="absolute left-0 right-0 top-full z-40 mt-1.5 rounded-lg border bg-popover p-1 shadow-lg">
                 {suggestions.length > 0 ? (
                   <ul className="divide-y divide-border/50">
                     {suggestions.map((account) => (
                       <li
                         key={account.id}
-                        className="flex items-center gap-3 rounded-lg p-2 hover:bg-accent/50"
+                        className="flex items-center gap-3 rounded-md p-2 hover:bg-accent/50"
                       >
-                        <Avatar className="h-8 w-8">
+                        <Avatar className="size-8">
                           {account.avatar && (
                             <AvatarImage src={account.avatar} />
                           )}
@@ -404,7 +454,7 @@ export const ListEditor: FC<ListEditorProps> = ({
                             }
                           }}
                         >
-                          <UserPlus className="h-4 w-4" />
+                          <UserPlus className="size-4" />
                           Add
                         </Button>
                       </li>
@@ -419,103 +469,80 @@ export const ListEditor: FC<ListEditorProps> = ({
             )}
           </div>
 
-          {members.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                In this list · {members.length}
-              </p>
-              <ul className="divide-y">
-                {members.map((member) => {
-                  const isSelf = member.id === currentAccount?.id
-                  return (
-                    <li
-                      key={member.id}
-                      className="flex items-center gap-3 py-3"
+          {members.length > 0 ? (
+            <FramedList aria-label="Members of this list">
+              {members.map((member) => {
+                const isSelf = member.id === currentAccount?.id
+                return (
+                  <FramedListItem
+                    key={member.id}
+                    className="flex items-center gap-3"
+                  >
+                    <Avatar className="size-10">
+                      {member.avatar && <AvatarImage src={member.avatar} />}
+                      <AvatarFallback>
+                        {getInitials(member.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-2 text-sm font-medium">
+                        <span className="min-w-0 truncate">{member.name}</span>
+                        {isSelf && <Badge className="shrink-0">You</Badge>}
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        @{member.handle}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label={
+                        isSelf ? 'Remove yourself' : `Remove ${member.name}`
+                      }
+                      disabled={pendingMemberIds.has(member.id)}
+                      onClick={() => removeMember(member)}
                     >
-                      <Avatar className="h-10 w-10">
-                        {member.avatar && <AvatarImage src={member.avatar} />}
-                        <AvatarFallback>
-                          {getInitials(member.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-2 font-medium">
-                          <span className="min-w-0 truncate">
-                            {member.name}
-                          </span>
-                          {isSelf && <Badge className="shrink-0">You</Badge>}
-                        </p>
-                        <p className="truncate text-sm text-muted-foreground">
-                          @{member.handle}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        aria-label={
-                          isSelf ? 'Remove yourself' : `Remove ${member.name}`
-                        }
-                        disabled={pendingMemberIds.has(member.id)}
-                        onClick={() => removeMember(member)}
-                      >
-                        <UserMinus className="h-4 w-4 text-destructive-text" />
-                      </Button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
-
-          {members.length === 0 && (
-            <p className="py-6 text-center text-sm text-muted-foreground">
+                      <UserMinus className="size-4 text-destructive-text" />
+                    </Button>
+                  </FramedListItem>
+                )
+              })}
+            </FramedList>
+          ) : (
+            <EmptyState icon={Users} title="No members yet">
               {followingSuggestions.length === 0
                 ? 'Follow some accounts to add them to this list.'
                 : 'This list has no members yet. Use the search above to add accounts you follow.'}
-            </p>
+            </EmptyState>
           )}
-        </section>
+        </Section>
       )}
 
-      {error && (
-        <p className="text-sm text-destructive-text" role="alert">
-          {error}
-        </p>
+      {mode === 'edit' && list && (
+        <Section title="Danger zone">
+          <Frame className="overflow-hidden">
+            <Alert
+              flush
+              live={false}
+              title="Delete this list"
+              action={
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={isDeleting || isSaving}
+                  onClick={handleDelete}
+                >
+                  <Trash2 className="size-4" />
+                  Delete list
+                </Button>
+              }
+            >
+              This removes the list but not the accounts on it.
+            </Alert>
+          </Frame>
+          {deleteError && <Alert title={deleteError} />}
+        </Section>
       )}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {mode === 'edit' && list ? (
-          <Button
-            variant="outline"
-            className="border-destructive/40 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
-            disabled={isDeleting || isSaving}
-            onClick={handleDelete}
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete list
-          </Button>
-        ) : (
-          <span />
-        )}
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            disabled={isSaving || isDeleting}
-            onClick={() => router.push(cancelHref)}
-          >
-            Cancel
-          </Button>
-          <Button disabled={isSaving || isDeleting} onClick={handleSave}>
-            {mode === 'create'
-              ? isSaving
-                ? 'Creating...'
-                : 'Create list'
-              : isSaving
-                ? 'Saving...'
-                : 'Save changes'}
-          </Button>
-        </div>
-      </div>
     </div>
   )
 }
