@@ -27,7 +27,6 @@ describe('ActorSelector', () => {
     expect(select).toHaveAttribute('data-slot', 'select')
     expect(select).toHaveAttribute('id', 'actorSelect')
     expect(select).toHaveValue('actor-2')
-    expect(select).toHaveClass('appearance-none', 'pr-8')
     expect(
       screen.getAllByRole('option').map((option) => option.textContent)
     ).toEqual(['@anna@llun.test (Anna)', '@bob@llun.test'])

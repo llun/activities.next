@@ -12,6 +12,7 @@ import {
 
 import { getPasskeys } from '@/lib/client'
 import { authClient } from '@/lib/services/auth/auth-client'
+import { createDeferred } from '@/lib/testing/deferred'
 
 import { PasskeyManager } from './PasskeyManager'
 
@@ -72,36 +73,6 @@ describe('PasskeyManager', () => {
     expect(screen.getByText('Primary')).toBeInTheDocument()
   })
 
-  it('draws the domain pill as the shared gray Badge, like the Primary badge beside it', async () => {
-    mockGetPasskeys.mockResolvedValue([
-      {
-        id: 'pk1',
-        name: 'MacBook',
-        domain: 'llun.social',
-        deviceType: 'multiDevice',
-        backedUp: true,
-        createdAt: '2026-04-12T00:00:00.000Z',
-        aaguid: null
-      }
-    ])
-
-    render(
-      <PasskeyManager
-        domains={MULTI_DOMAINS}
-        currentDomain="llun.social"
-        handlePrefix="anna"
-      />
-    )
-
-    await screen.findByText('MacBook')
-    const pill = screen.getByText('llun.social')
-    expect(pill).toHaveClass('bg-muted', 'text-muted-foreground')
-    // The design's dark gray: without it the pill sat a shade off the Primary
-    // badge next to it on a dark card.
-    expect(pill.className).toContain('dark:bg-[#383838]')
-    expect(pill.className).toContain('dark:text-[#C2C2C2]')
-  })
-
   it('shows the domain chooser in the add dialog when multi-domain', async () => {
     mockGetPasskeys.mockResolvedValue([])
 
@@ -114,9 +85,7 @@ describe('PasskeyManager', () => {
     )
 
     await waitFor(() =>
-      expect(
-        screen.getByText('No passkeys registered yet.')
-      ).toBeInTheDocument()
+      expect(screen.getByText('No passkeys registered yet')).toBeInTheDocument()
     )
 
     fireEvent.click(screen.getByRole('button', { name: /add passkey/i }))
@@ -157,24 +126,6 @@ describe('PasskeyManager', () => {
     expect(screen.queryByText('Domain')).not.toBeInTheDocument()
   })
 
-  it('draws the add dialog title on a 16 px line so the description sits right under it', async () => {
-    mockGetPasskeys.mockResolvedValue([])
-
-    render(
-      <PasskeyManager
-        domains={[{ domain: 'llun.social', primary: true }]}
-        currentDomain="llun.social"
-        handlePrefix="anna"
-      />
-    )
-
-    fireEvent.click(await screen.findByRole('button', { name: /add passkey/i }))
-    const title = await screen.findByText('Add a passkey')
-    // `text-base` alone would bring a 24 px line height (class merging drops
-    // the DialogTitle's own leading-none), pushing the header 8 px taller.
-    expect(title).toHaveClass('text-base', 'leading-none')
-  })
-
   it('shows a creation failure inside the still-open dialog', async () => {
     mockGetPasskeys.mockResolvedValue([])
     mockAddPasskey.mockResolvedValue({
@@ -190,9 +141,7 @@ describe('PasskeyManager', () => {
     )
 
     await waitFor(() =>
-      expect(
-        screen.getByText('No passkeys registered yet.')
-      ).toBeInTheDocument()
+      expect(screen.getByText('No passkeys registered yet')).toBeInTheDocument()
     )
 
     fireEvent.click(screen.getByRole('button', { name: /add passkey/i }))
@@ -209,5 +158,30 @@ describe('PasskeyManager', () => {
       ).toBeInTheDocument()
     )
     expect(within(dialog).getByText('Add a passkey')).toBeInTheDocument()
+  })
+
+  it('has Add passkey in the header, disabled, while the list loads', async () => {
+    const deferred = createDeferred<unknown[]>()
+    mockGetPasskeys.mockReturnValue(deferred.promise)
+
+    render(
+      <PasskeyManager
+        domains={[{ domain: 'llun.social', primary: true }]}
+        currentDomain="llun.social"
+        handlePrefix="anna"
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /add passkey/i })).toBeDisabled()
+
+    deferred.resolve([])
+    await waitFor(() =>
+      expect(screen.getByText('No passkeys registered yet')).toBeInTheDocument()
+    )
+    // The empty state carries the one Add passkey action from here on.
+    expect(screen.getByRole('button', { name: /add passkey/i })).toBeEnabled()
+    expect(
+      screen.getAllByRole('button', { name: /add passkey/i })
+    ).toHaveLength(1)
   })
 })

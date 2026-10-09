@@ -3,6 +3,8 @@
 import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
+import { Alert } from '@/lib/components/surface/Alert'
+import { Frame } from '@/lib/components/surface/Frame'
 import { Button } from '@/lib/components/ui/button'
 
 import { DeleteActorDialog } from './DeleteActorDialog'
@@ -16,6 +18,12 @@ interface DeleteActorSectionProps {
   deletionStatus: string | null
 }
 
+/**
+ * The body of Settings › General › Danger zone: one frame holding a row for
+ * the irreversible action. Deleting is an error-tone alert whose action is the
+ * destructive button; when the actor cannot be deleted, or is already going,
+ * the row says so without offering the button.
+ */
 export function DeleteActorSection({
   actorId,
   actorUsername,
@@ -29,50 +37,50 @@ export function DeleteActorSection({
   // Don't show delete button if this is the default or only actor
   if (isDefaultActor || isOnlyActor) {
     return (
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-0.5">
-          <p className="text-sm text-muted-foreground">
-            {isDefaultActor
-              ? 'This is your default actor and cannot be deleted. Set another actor as default first.'
-              : 'This is your only actor and cannot be deleted.'}
-          </p>
-        </div>
-      </div>
+      <Frame>
+        <p className="text-muted-foreground px-4 py-4 text-sm">
+          {isDefaultActor
+            ? 'This is your default actor and cannot be deleted. Set another actor as default first.'
+            : 'This is your only actor and cannot be deleted.'}
+        </p>
+      </Frame>
     )
   }
 
   // If already being deleted, show status
   if (deletionStatus) {
     return (
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-0.5">
-          <p className="text-sm text-muted-foreground">
-            {deletionStatus === 'deleting'
-              ? 'This actor is currently being deleted...'
-              : 'This actor is scheduled for deletion.'}
-          </p>
-        </div>
-      </div>
+      <Frame className="overflow-hidden">
+        <Alert tone="warning" title="Deletion in progress" flush live={false}>
+          {deletionStatus === 'deleting'
+            ? 'This actor is currently being deleted…'
+            : 'This actor is scheduled for deletion.'}
+        </Alert>
+      </Frame>
     )
   }
 
   return (
     <>
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-0.5">
-          <p className="text-sm text-muted-foreground">
-            Permanently delete this actor and all associated data.
-          </p>
-        </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => setIsDialogOpen(true)}
+      <Frame className="overflow-hidden">
+        <Alert
+          title="Delete this actor"
+          flush
+          live={false}
+          action={
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setIsDialogOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete actor
+            </Button>
+          }
         >
-          <Trash2 className="h-4 w-4 mr-2" />
-          Delete Actor
-        </Button>
-      </div>
+          Permanently delete this actor and all associated data.
+        </Alert>
+      </Frame>
 
       <DeleteActorDialog
         open={isDialogOpen}

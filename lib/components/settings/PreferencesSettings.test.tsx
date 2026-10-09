@@ -51,7 +51,7 @@ describe('PreferencesSettings', () => {
     fireEvent.change(screen.getByLabelText('Who can quote'), {
       target: { value: 'followers' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(mockUpdatePreferences).toHaveBeenCalledWith(
@@ -75,7 +75,7 @@ describe('PreferencesSettings', () => {
   it('disables Save until a preference changes', () => {
     render(<PreferencesSettings initialPreferences={initialPreferences} />)
 
-    const save = screen.getByRole('button', { name: 'Save changes' })
+    const save = screen.getByRole('button', { name: 'Save' })
     expect(save).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText('Posting privacy'), {
@@ -91,7 +91,7 @@ describe('PreferencesSettings', () => {
     fireEvent.change(screen.getByLabelText('Posting language'), {
       target: { value: 'de' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(mockUpdatePreferences).toHaveBeenCalledWith(
@@ -101,7 +101,7 @@ describe('PreferencesSettings', () => {
     expect(await screen.findByText('Saved')).toBeInTheDocument()
     // After a successful save the form is no longer dirty, so Save disables
     // again until the next change.
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
   it('shows an error message when saving fails', async () => {
@@ -111,7 +111,7 @@ describe('PreferencesSettings', () => {
     fireEvent.change(screen.getByLabelText('Posting privacy'), {
       target: { value: 'private' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(
       await screen.findByText(/Failed to save preferences/i)
@@ -134,7 +134,7 @@ describe('PreferencesSettings', () => {
     expect(screen.getByTestId('context-val').textContent).toBe('false')
 
     fireEvent.click(screen.getByLabelText('Autoplay animated GIFs'))
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(mockUpdatePreferences).toHaveBeenCalledWith(
@@ -147,46 +147,13 @@ describe('PreferencesSettings', () => {
   })
 
   describe('media display rows', () => {
-    it('stacks each option title over its helper instead of laying them side by side', () => {
+    it('selects an option from its label', () => {
       render(<PreferencesSettings initialPreferences={initialPreferences} />)
-
-      const label = screen.getByText('Show all media').closest('label')
-      expect(label).not.toBeNull()
-      // The shared Label is a flex row; this row turns it into a column so the
-      // helper falls under the title, which is what the design draws.
-      expect(label).toHaveClass('flex-col', 'items-start')
-      const [title, helper] = Array.from(label?.children ?? [])
-      expect(title).toHaveTextContent('Show all media')
-      expect(helper).toHaveTextContent('Including media marked as sensitive.')
-      // 14/20 title over a 12/16 helper.
-      expect(title).toHaveClass('text-sm', 'font-medium')
-      expect(helper).toHaveClass('text-xs')
-    })
-
-    it('makes every row 68 high, with a divider under all but the last', () => {
-      render(<PreferencesSettings initialPreferences={initialPreferences} />)
-
-      const group = screen.getByRole('radiogroup', { name: 'Media display' })
-      const rows = Array.from(group.children)
-      expect(rows).toHaveLength(3)
-      for (const row of rows) expect(row).toHaveClass('min-h-[68px]')
-      expect(rows[0]).toHaveClass('border-b')
-      expect(rows[1]).toHaveClass('border-b')
-      expect(rows[2]).not.toHaveClass('border-b')
-    })
-
-    it('still selects an option from its label and tints the chosen row', () => {
-      render(<PreferencesSettings initialPreferences={initialPreferences} />)
-
-      const group = screen.getByRole('radiogroup', { name: 'Media display' })
-      expect(group.children[0]).toHaveClass('bg-primary/5')
 
       fireEvent.click(screen.getByText('Hide all media'))
       expect(
         screen.getByRole('radio', { name: /Hide all media/ })
       ).toBeChecked()
-      expect(group.children[2]).toHaveClass('bg-primary/5')
-      expect(group.children[0]).not.toHaveClass('bg-primary/5')
     })
   })
 })

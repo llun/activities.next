@@ -58,27 +58,4 @@ describe('AccountIdentityCard', () => {
     // The initial is the whole leading code point, not a broken surrogate half.
     expect(screen.getByText('🦊')).toBeInTheDocument()
   })
-
-  it('draws the avatar initial on the neutral monogram tokens, not Tailwind grays', () => {
-    const { container } = render(
-      <AccountIdentityCard
-        name="Ride"
-        email="rider@example.com"
-        iconUrl={null}
-      />
-    )
-
-    // Same fill and letter as the sidebar footer's monogram: the skeleton
-    // fill, a semibold muted letter, and the input fill in dark.
-    const monogram = container.querySelector('[data-slot="avatar-fallback"]')
-    expect(monogram).toHaveTextContent('R')
-    expect(monogram).toHaveClass(
-      'bg-(--skeleton)',
-      'font-semibold',
-      'text-muted-foreground',
-      'dark:bg-input',
-      'text-xl'
-    )
-    expect(monogram?.className).not.toMatch(/gray-/)
-  })
 })

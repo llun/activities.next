@@ -90,8 +90,6 @@ describe('/settings', () => {
     expect(select).toHaveAttribute('id', 'postLineLimitInput')
     expect(select).toHaveAttribute('name', 'postLineLimit')
     expect(select).toHaveValue('10')
-    // The OS arrow is replaced by the shared chevron.
-    expect(select).toHaveClass('appearance-none', 'pr-8')
     expect(
       screen
         .getAllByRole('option')

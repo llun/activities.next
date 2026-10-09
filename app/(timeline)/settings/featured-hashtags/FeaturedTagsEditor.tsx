@@ -1,7 +1,7 @@
 'use client'
 
 import { AlertTriangle, Check, Hash, Plus, X } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   addFeaturedTag,
@@ -10,6 +10,12 @@ import {
   removeFeaturedTag
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
+import { SkeletonRows } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 import type { FeaturedTag } from '@/lib/types/mastodon/featuredTag'
@@ -54,45 +60,13 @@ const lastPostLabel = (dateStr: string | null): string => {
 const normalizeName = (raw: string): string =>
   raw.trim().replace(/^#+/, '').toLowerCase()
 
-interface SectionProps {
-  title: string
-  description: string
-  children: React.ReactNode
-}
-
-const Section: FC<SectionProps> = ({ title, description, children }) => (
-  <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-    <div>
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="text-sm text-muted-foreground">{description}</p>
-    </div>
-    {children}
-  </section>
-)
-
 const HashTile: FC = () => (
-  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
     <Hash className="size-[18px]" />
   </span>
 )
 
-const LoadingSkeleton: FC = () => (
-  <div className="space-y-2">
-    {[0, 1, 2].map((index) => (
-      <div
-        key={index}
-        className="flex items-center gap-3 rounded-lg border p-3"
-      >
-        <span className="skeleton h-9 w-9 shrink-0 rounded-lg" />
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="skeleton h-3.5 w-28 rounded" />
-          <div className="skeleton h-3 w-44 rounded" />
-        </div>
-        <span className="skeleton h-8 w-8 shrink-0 rounded-md" />
-      </div>
-    ))}
-  </div>
-)
+const INLINE_MESSAGE_ID = 'featured-tag-message'
 
 const InlineMessageLine: FC<{ message: InlineMessage | null }> = ({
   message
@@ -104,14 +78,15 @@ const InlineMessageLine: FC<{ message: InlineMessage | null }> = ({
   // (assertive); successes use `status` (polite).
   return (
     <div
+      id={INLINE_MESSAGE_ID}
       aria-live={isSuccess ? 'polite' : 'assertive'}
       role={isSuccess ? 'status' : 'alert'}
     >
       {message && (
         <div
           className={cn(
-            'flex items-start gap-2 text-sm',
-            isSuccess ? 'text-green-600' : 'text-destructive'
+            'mt-3 flex items-start gap-2 text-sm',
+            isSuccess ? 'text-success-text' : 'text-destructive-text'
           )}
         >
           <Icon className="mt-0.5 size-4 shrink-0" />
@@ -129,7 +104,7 @@ interface TagRowProps {
 }
 
 const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy }) => (
-  <div className="flex items-center gap-3 rounded-lg border p-3">
+  <FramedListItem className="flex items-center gap-3">
     <HashTile />
     <div className="min-w-0 flex-1">
       <div className="truncate text-sm font-medium">#{tag.name}</div>
@@ -148,7 +123,7 @@ const TagRow: FC<TagRowProps> = ({ tag, onRemove, busy }) => (
     >
       <X className="size-[15px]" />
     </Button>
-  </div>
+  </FramedListItem>
 )
 
 export const FeaturedTagsEditor: FC = () => {
@@ -162,9 +137,12 @@ export const FeaturedTagsEditor: FC = () => {
   const [submitting, setSubmitting] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let active = true
+    setLoading(true)
+    setLoadFailed(false)
     // Featured tags are the critical data — a failure rejects and shows the
     // load error. Suggestions are an optional enhancement, so swallow their
     // failure (network/parse/HTTP) here; it must never discard loaded tags.
@@ -193,6 +171,8 @@ export const FeaturedTagsEditor: FC = () => {
       active = false
     }
   }, [])
+
+  useEffect(() => load(), [load])
 
   // Close the suggestions dropdown on an outside click.
   useEffect(() => {
@@ -291,115 +271,132 @@ export const FeaturedTagsEditor: FC = () => {
       />
 
       <Section
+        icon={Plus}
         title="Add a hashtag"
         description="Type a hashtag or pick one of your most-used tags. People can tap it to see all of your posts with that tag."
-      >
-        <div ref={wrapRef} className="relative">
-          <div className="flex items-stretch gap-2">
-            <div className="relative flex-1">
-              <Hash className="pointer-events-none absolute left-3 top-1/2 size-[15px] -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={value}
-                disabled={atLimit || submitting}
-                placeholder={
-                  atLimit
-                    ? 'You’ve reached the 10-hashtag limit'
-                    : 'Add a hashtag'
-                }
-                aria-label="Add a hashtag"
-                className="pl-8"
-                onChange={(event) => {
-                  setValue(event.target.value)
-                  setOpen(true)
-                  if (message) setMessage(null)
-                }}
-                onFocus={() => setOpen(true)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    commit(value)
-                  }
-                  if (event.key === 'Escape') setOpen(false)
-                }}
-              />
-            </div>
-            <Button
-              type="button"
-              onClick={() => commit(value)}
-              disabled={atLimit || submitting}
-            >
-              <Plus className="size-4" />
-              Add
-            </Button>
-          </div>
-
-          {open && !atLimit && visibleSuggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-[42px] z-40 rounded-xl border bg-popover p-1 shadow-lg">
-              <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Your most-used hashtags
-              </div>
-              {visibleSuggestions.map((suggestion) => (
-                <button
-                  key={suggestion.name}
-                  type="button"
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    commit(suggestion.name)
-                  }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent"
-                >
-                  <Hash className="size-[15px] text-primary" />
-                  <span className="font-medium">#{suggestion.name}</span>
-                  <Plus className="ml-auto size-[15px] text-muted-foreground" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between gap-3 pt-0.5">
-          <InlineMessageLine message={message} />
+        meta={
           <span
             className={cn(
-              'ml-auto shrink-0 text-xs tabular-nums',
-              atLimit
-                ? 'font-medium text-primary-text'
-                : 'text-muted-foreground'
+              'tabular-nums',
+              atLimit && 'text-primary-text font-medium'
             )}
           >
             {tags.length} of {FEATURED_TAGS_LIMIT} featured
           </span>
-        </div>
-        {atLimit && (
-          <p className="text-[0.8rem] text-muted-foreground">
-            You can feature up to 10 hashtags. Remove one to add another.
-          </p>
-        )}
+        }
+      >
+        <Frame className="p-4">
+          <div ref={wrapRef} className="relative">
+            <div className="flex items-stretch gap-2">
+              <div className="relative flex-1">
+                <Hash className="pointer-events-none absolute left-3 top-1/2 size-[15px] -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  ref={inputRef}
+                  value={value}
+                  disabled={atLimit || submitting}
+                  placeholder={
+                    atLimit
+                      ? 'You’ve reached the 10-hashtag limit'
+                      : 'Add a hashtag'
+                  }
+                  aria-label="Add a hashtag"
+                  aria-describedby={message ? INLINE_MESSAGE_ID : undefined}
+                  className="pl-8"
+                  onChange={(event) => {
+                    setValue(event.target.value)
+                    setOpen(true)
+                    if (message) setMessage(null)
+                  }}
+                  onFocus={() => setOpen(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      commit(value)
+                    }
+                    if (event.key === 'Escape') setOpen(false)
+                  }}
+                />
+              </div>
+              <Button
+                type="button"
+                onClick={() => commit(value)}
+                disabled={atLimit || submitting}
+              >
+                <Plus className="size-4" />
+                Add
+              </Button>
+            </div>
+
+            {open && !atLimit && visibleSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-[42px] z-40 rounded-md border bg-popover p-1 shadow-lg">
+                <div className="px-2.5 pb-1 pt-1.5 text-xs font-medium text-muted-foreground">
+                  Your most-used hashtags
+                </div>
+                {visibleSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion.name}
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      commit(suggestion.name)
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent"
+                  >
+                    <Hash className="size-[15px] text-primary" />
+                    <span className="font-medium">#{suggestion.name}</span>
+                    <Plus className="ml-auto size-[15px] text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <InlineMessageLine message={message} />
+          {atLimit && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              You can feature up to 10 hashtags. Remove one to add another.
+            </p>
+          )}
+        </Frame>
       </Section>
 
       <Section
+        icon={Hash}
         title="Your featured hashtags"
         description="Shown on your profile in the order below. They link to your posts tagged with each hashtag."
       >
         {loading ? (
-          <LoadingSkeleton />
+          <Frame className="p-4">
+            <SkeletonRows
+              rows={3}
+              rowClassName="h-14"
+              label="Loading your featured hashtags"
+            />
+          </Frame>
         ) : loadFailed ? (
-          <p role="alert" className="py-8 text-center text-sm text-destructive">
-            Couldn’t load your featured hashtags. Please refresh to try again.
-          </p>
+          <Alert title="Couldn’t load your featured hashtags" onRetry={load}>
+            Check your connection and try again.
+          </Alert>
         ) : tags.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-8 text-center">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Hash className="size-5" />
-            </span>
-            <p className="text-sm font-medium">No featured hashtags yet</p>
-            <p className="max-w-xs text-[0.8rem] text-muted-foreground">
-              Add a hashtag above to show your best posts on a topic right from
-              your profile.
-            </p>
-          </div>
+          <EmptyState
+            icon={Hash}
+            title="No featured hashtags yet"
+            action={
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => inputRef.current?.focus()}
+              >
+                <Plus className="size-4" />
+                Add hashtag
+              </Button>
+            }
+          >
+            Add a hashtag above to show your best posts on a topic right from
+            your profile.
+          </EmptyState>
         ) : (
-          <div className="space-y-2">
+          <FramedList aria-label="Your featured hashtags">
             {tags.map((tag) => (
               <TagRow
                 key={tag.id}
@@ -408,7 +405,7 @@ export const FeaturedTagsEditor: FC = () => {
                 busy={busyId === tag.id}
               />
             ))}
-          </div>
+          </FramedList>
         )}
       </Section>
     </div>

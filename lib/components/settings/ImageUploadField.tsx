@@ -5,9 +5,9 @@ import { FC, SyntheticEvent, useEffect, useRef, useState } from 'react'
 
 import { uploadAttachment } from '@/lib/client'
 import { useInstanceLimits } from '@/lib/components/instance-limits'
+import { FormRow } from '@/lib/components/surface/FormRow'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import {
   ACCEPTED_IMAGE_TYPES,
   MAX_HEIGHT,
@@ -21,13 +21,16 @@ interface ImageUploadFieldProps {
   currentUrl: string | null
   label: string
   previewType: 'thumbnail' | 'landscape'
+  /** Muted help under the label. */
+  hint?: string
 }
 
 export const ImageUploadField: FC<ImageUploadFieldProps> = ({
   fieldName,
   currentUrl,
   label,
-  previewType
+  previewType,
+  hint
 }) => {
   // The instance's configured upload cap (admin setting media.maxFileSize), so
   // this pre-check agrees with what the upload endpoint will actually accept.
@@ -39,6 +42,19 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadButtonRef = useRef<HTMLButtonElement>(null)
   const wasUploadingRef = useRef(false)
+  const submittedInputRef = useRef<HTMLInputElement>(null)
+  const lastUrlRef = useRef(imageUrl)
+
+  // Uploading or removing an image changes the submitted value without any
+  // input event, so tell the enclosing form (a native form with a `SaveBar`
+  // watching for edits) that it changed.
+  useEffect(() => {
+    if (lastUrlRef.current === imageUrl) return
+    lastUrlRef.current = imageUrl
+    submittedInputRef.current?.dispatchEvent(
+      new Event('input', { bubbles: true })
+    )
+  }, [imageUrl])
 
   // The other half of the same WCAG 2.4.3 problem `handleRemoveClick` solves.
   // Both buttons are `disabled` while an upload runs, and disabling the element
@@ -143,97 +159,122 @@ export const ImageUploadField: FC<ImageUploadFieldProps> = ({
       ? 'w-20 h-20 rounded-full'
       : 'w-full h-32 rounded-md'
 
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={fieldName}>{label}</Label>
+  const errorId = `${fieldName}-error`
 
-      {/* Preview */}
-      {imageUrl && (
-        <div
-          className={`relative ${previewClassName} bg-cover bg-center cursor-pointer transition-opacity`}
-          style={{ backgroundImage: `url("${imageUrl}")` }}
-          onMouseEnter={() => setIsHovering(true)}
-          onMouseLeave={() => setIsHovering(false)}
-          onClick={handleUploadClick}
-        >
-          {isHovering && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-[inherit]">
-              <span className="text-white text-sm font-medium">Change</span>
+  return (
+    <FormRow label={label} htmlFor={fieldName} hint={hint}>
+      {({ describedBy }) => (
+        <div className="space-y-2">
+          {/* Preview */}
+          {imageUrl && (
+            <div
+              className={`relative ${previewClassName} bg-cover bg-center cursor-pointer transition-opacity`}
+              style={{ backgroundImage: `url("${imageUrl}")` }}
+              onMouseEnter={() => setIsHovering(true)}
+              onMouseLeave={() => setIsHovering(false)}
+              onClick={handleUploadClick}
+            >
+              {isHovering && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-[inherit]">
+                  <span className="text-white text-sm font-medium">Change</span>
+                </div>
+              )}
             </div>
+          )}
+
+          {/* The field is read-only because the routes behind it only accept a
+              URL on this instance's own media path, which is exactly what the
+              upload button produces. A typeable box would invite a remote URL
+              that the server refuses. */}
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              id={fieldName}
+              value={imageUrl}
+              readOnly
+              placeholder="No image uploaded yet"
+              aria-describedby={
+                [describedBy, uploadError ? errorId : undefined]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+              // `Input` styles `disabled` but not `readOnly`, so without a
+              // muted surface this reads as a typeable box sitting under Name
+              // and Summary, which are. It stays `readOnly` rather than
+              // `disabled` because the preview above is a background-image
+              // `div` that assistive tech cannot see — this field is the only
+              // announced representation of which image is set, and `disabled`
+              // would drop it from the tab order.
+              //
+              // `dark:bg-muted` is required, not redundant. `Input`'s own base
+              // carries `dark:bg-input/30`, and this project compiles the dark
+              // variant as `&:is(.dark *)` — `:is()` takes its most specific
+              // argument's specificity, so that base rule outranks a bare
+              // `bg-muted` and the field stayed indistinguishable in dark
+              // mode. Naming the same variant lets `twMerge` drop the base
+              // instead.
+              className="flex-1 bg-muted dark:bg-muted"
+            />
+            <Button
+              ref={uploadButtonRef}
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={handleUploadClick}
+              disabled={isUploading}
+              aria-label={
+                isUploading ? `Uploading ${label}` : `Upload ${label}`
+              }
+            >
+              {isUploading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Upload className="size-4" />
+              )}
+            </Button>
+            {imageUrl && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleRemoveClick}
+                disabled={isUploading}
+                aria-label={`Remove ${label}`}
+              >
+                <X className="size-4" />
+              </Button>
+            )}
+          </div>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_IMAGE_TYPES.join(',')}
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+
+          {/* Hidden input for form submission */}
+          <input
+            ref={submittedInputRef}
+            type="hidden"
+            name={fieldName}
+            value={imageUrl}
+          />
+
+          {/* Field-level error */}
+          {uploadError && (
+            <p
+              id={errorId}
+              role="alert"
+              className="text-destructive-text text-sm"
+            >
+              {uploadError}
+            </p>
           )}
         </div>
       )}
-
-      {/* The field is read-only because the routes behind it only accept a URL
-          on this instance's own media path, which is exactly what the upload
-          button produces. A typeable box would invite a remote URL that
-          the server refuses. */}
-      <div className="flex gap-2">
-        <Input
-          type="text"
-          id={fieldName}
-          value={imageUrl}
-          readOnly
-          placeholder="No image uploaded yet"
-          // `Input` styles `disabled` but not `readOnly`, so without a muted
-          // surface this reads as a typeable box sitting under Name and
-          // Summary, which are. It stays `readOnly` rather than `disabled`
-          // because the preview above is a background-image `div` that
-          // assistive tech cannot see — this field is the only announced
-          // representation of which image is set, and `disabled` would drop it
-          // from the tab order.
-          //
-          // `dark:bg-muted` is required, not redundant. `Input`'s own base
-          // carries `dark:bg-input/30`, and this project compiles the dark
-          // variant as `&:is(.dark *)` — `:is()` takes its most specific
-          // argument's specificity, so that base rule outranks a bare
-          // `bg-muted` and the field stayed indistinguishable in dark mode.
-          // Naming the same variant lets `twMerge` drop the base instead.
-          className="flex-1 bg-muted dark:bg-muted"
-        />
-        <Button
-          ref={uploadButtonRef}
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={handleUploadClick}
-          disabled={isUploading}
-          aria-label={isUploading ? `Uploading ${label}` : `Upload ${label}`}
-        >
-          {isUploading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Upload className="size-4" />
-          )}
-        </Button>
-        {imageUrl && (
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={handleRemoveClick}
-            disabled={isUploading}
-            aria-label={`Remove ${label}`}
-          >
-            <X className="size-4" />
-          </Button>
-        )}
-      </div>
-
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={ACCEPTED_IMAGE_TYPES.join(',')}
-        className="hidden"
-        onChange={handleFileSelect}
-      />
-
-      {/* Hidden input for form submission */}
-      <input type="hidden" name={fieldName} value={imageUrl} />
-
-      {/* Error message */}
-      {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
-    </div>
+    </FormRow>
   )
 }

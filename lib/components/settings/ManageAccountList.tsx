@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { FC, useState } from 'react'
 
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -26,8 +28,10 @@ interface ManageAccountListProps {
   actionIcon: LucideIcon
   /** Message surfaced in the dialog when the action fails. */
   failureMessage: string
-  /** Empty-state copy when there are no accounts at all. */
+  /** Empty-state title when there are no accounts at all. */
   emptyText: string
+  /** Muted line under the empty-state title: how an account gets here. */
+  emptyHint?: string
   /** Empty-state copy when the current page is empty but more may exist. */
   emptyPageText: string
   dialogTitle: string
@@ -63,6 +67,7 @@ export const ManageAccountList: FC<ManageAccountListProps> = ({
   actionIcon: ActionIcon,
   failureMessage,
   emptyText,
+  emptyHint,
   emptyPageText,
   dialogTitle,
   dialogDescription,
@@ -135,20 +140,20 @@ export const ManageAccountList: FC<ManageAccountListProps> = ({
 
   if (listedAccounts.length === 0 && !nextCursor) {
     return (
-      <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-        {emptyText}
-      </div>
+      <EmptyState icon={ActionIcon} title={emptyText}>
+        {emptyHint}
+      </EmptyState>
     )
   }
 
   return (
     <>
       {listedAccounts.length > 0 ? (
-        <div className="divide-y rounded-lg border">
+        <FramedList>
           {listedAccounts.map((account) => (
-            <div
+            <FramedListItem
               key={account.id}
-              className="flex items-center justify-between gap-4 p-4"
+              className="flex items-center justify-between gap-4"
             >
               <Link
                 href={account.url}
@@ -180,13 +185,11 @@ export const ManageAccountList: FC<ManageAccountListProps> = ({
                 )}
                 {actionLabel}
               </Button>
-            </div>
+            </FramedListItem>
           ))}
-        </div>
+        </FramedList>
       ) : (
-        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          {emptyPageText}
-        </div>
+        <EmptyState icon={ActionIcon} title={emptyPageText} />
       )}
 
       {nextCursor ? (
@@ -216,7 +219,7 @@ export const ManageAccountList: FC<ManageAccountListProps> = ({
             <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
           {error ? (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-destructive-text text-sm">
               {error}
             </p>
           ) : null}

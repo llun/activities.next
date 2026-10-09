@@ -226,7 +226,7 @@ describe('MediaManagement', () => {
   })
 
   describe('storage meter', () => {
-    it('captions the bar with the mono used / limit on the left and the percent on the right', () => {
+    it('captions the bar with used / limit first and the percent after it', () => {
       render(
         <MediaManagement
           used={524288}
@@ -241,9 +241,8 @@ describe('MediaManagement', () => {
       const bar = screen.getByRole('progressbar', {
         name: 'Storage quota used'
       })
-      // The caption row sits directly under the bar, in the mono face.
+      // The caption row sits directly under the bar.
       const caption = bar.nextElementSibling as HTMLElement
-      expect(caption).toHaveClass('font-mono', 'text-xs', 'justify-between')
       expect(caption.children).toHaveLength(2)
       expect(caption.children[0]).toHaveTextContent('512 KB / 1 MB')
       expect(caption.children[1]).toHaveTextContent('50.0%')

@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger
 } from '@/lib/components/ui/dropdown-menu'
 import { getMentionFromActorID } from '@/lib/types/domain/actor'
+import { cn } from '@/lib/utils'
 
 /**
  * Builds the in-app permalink for the status a stored file is attached to, or
@@ -59,6 +60,8 @@ interface FileListPaginationProps {
   itemsPerPage: number
   totalItems: number
   onPageChange: (page: number) => void
+  /** Spacing overrides, such as none when it sits in a frame's footer. */
+  className?: string
 }
 
 /**
@@ -69,7 +72,8 @@ export const FileListPagination: FC<FileListPaginationProps> = ({
   currentPage,
   itemsPerPage,
   totalItems,
-  onPageChange
+  onPageChange,
+  className
 }) => {
   if (totalItems <= 0) return null
 
@@ -80,7 +84,12 @@ export const FileListPagination: FC<FileListPaginationProps> = ({
   const endItem = Math.min(currentPage * itemsPerPage, totalItems)
 
   return (
-    <div className="mt-4 flex items-center justify-between border-t pt-4">
+    <div
+      className={cn(
+        'mt-4 flex items-center justify-between border-t pt-4',
+        className
+      )}
+    >
       <div className="text-sm text-muted-foreground">
         Page {currentPage} of {totalPages} • Showing {startItem}-{endItem} of{' '}
         {totalItems} items

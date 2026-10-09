@@ -27,6 +27,27 @@ describe('ChangePasswordForm', () => {
     expect(form).toHaveAttribute('method', 'post')
   })
 
+  it('keeps Save disabled until a field is filled in', () => {
+    render(<ChangePasswordForm />)
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText(/^current password/i), {
+      target: { value: 'old-secret-123' }
+    })
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+  })
+
+  it('has no "Change Password" button: the form saves with Save', () => {
+    render(<ChangePasswordForm />)
+
+    expect(
+      screen.queryByRole('button', { name: /change password/i })
+    ).not.toBeInTheDocument()
+  })
+
   it('validates password match before calling API', async () => {
     render(<ChangePasswordForm />)
 
@@ -40,7 +61,7 @@ describe('ChangePasswordForm', () => {
       target: { value: 'different-password' }
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /change password/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(screen.getByText('New passwords do not match')).toBeInTheDocument()
     expect(mockChangeAccountPassword).not.toHaveBeenCalled()
@@ -59,7 +80,7 @@ describe('ChangePasswordForm', () => {
       target: { value: 'short' }
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /change password/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(
       screen.getByText('Password must be at least 8 characters long')
@@ -85,16 +106,14 @@ describe('ChangePasswordForm', () => {
       target: { value: 'brand-new-secret-123' }
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /change password/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(mockChangeAccountPassword).toHaveBeenCalledWith({
         currentPassword: 'old-secret-123',
         newPassword: 'brand-new-secret-123'
       })
-      expect(
-        screen.getByText('Password changed successfully!')
-      ).toBeInTheDocument()
+      expect(screen.getByText('Saved')).toBeInTheDocument()
     })
 
     expect(currentInput).toHaveValue('')
@@ -119,7 +138,7 @@ describe('ChangePasswordForm', () => {
       target: { value: 'brand-new-secret-123' }
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /change password/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(
@@ -127,9 +146,7 @@ describe('ChangePasswordForm', () => {
       ).toBeInTheDocument()
     })
 
-    expect(
-      screen.getByRole('button', { name: /change password/i })
-    ).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
   })
 
   it('handles network or non-Error failure gracefully', async () => {
@@ -147,7 +164,7 @@ describe('ChangePasswordForm', () => {
       target: { value: 'brand-new-secret-123' }
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /change password/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       expect(

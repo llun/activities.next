@@ -15,6 +15,7 @@ export {
 export { RefreshButton } from '@/lib/components/refresh-button'
 export { SavedIndicator, SaveBar } from './SaveBar'
 export { Section } from './Section'
+export { SectionSkeleton } from './SectionSkeleton'
 export { SegmentedControl, type SegmentedControlItem } from './SegmentedControl'
 export { SkeletonBar, SkeletonRows } from './Skeleton'
 export { StatCell } from './StatCell'

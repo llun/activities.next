@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 const MUTES_PAGE_LIMIT = 80
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Muted Accounts'
+  title: 'Activities.next: Muted accounts'
 }
 
 const Page = async () => {
@@ -48,20 +48,18 @@ const Page = async () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Muted Accounts"
+        title="Muted accounts"
         description="Manage actors hidden from your timelines and notifications."
       />
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <MutesList
-          accounts={accounts}
-          nextMaxId={
-            mutes.length === MUTES_PAGE_LIMIT
-              ? (mutes[mutes.length - 1]?.id ?? null)
-              : null
-          }
-        />
-      </section>
+      <MutesList
+        accounts={accounts}
+        nextMaxId={
+          mutes.length === MUTES_PAGE_LIMIT
+            ? (mutes[mutes.length - 1]?.id ?? null)
+            : null
+        }
+      />
     </div>
   )
 }

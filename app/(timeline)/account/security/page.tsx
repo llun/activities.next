@@ -1,3 +1,4 @@
+import { KeyRound, ShieldCheck } from 'lucide-react'
 import { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -6,6 +7,7 @@ import { ChangePasswordForm } from '@/app/(timeline)/account/security/ChangePass
 import { PasskeyManager } from '@/app/(timeline)/account/security/PasskeyManager'
 import { TwoFactorManager } from '@/app/(timeline)/account/security/TwoFactorManager'
 import { PageHeader } from '@/lib/components/page-header'
+import { Section } from '@/lib/components/surface/Section'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -19,7 +21,7 @@ import { getActorFromSession } from '@/lib/utils/getActorFromSession'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Activities.next: Account Security'
+  title: 'Activities.next: Account security'
 }
 
 const Page = async () => {
@@ -58,45 +60,30 @@ const Page = async () => {
         description="Protect how you sign in to this account."
       />
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Password</h2>
-          <p className="text-sm text-muted-foreground">
-            Change your password to keep your account secure.
-          </p>
-        </div>
-
+      <Section
+        icon={KeyRound}
+        title="Password"
+        description="Change your password to keep your account secure."
+      >
         <ChangePasswordForm />
-      </section>
+      </Section>
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Two-factor authentication</h2>
-          <p className="text-sm text-muted-foreground">
-            Add a verification code after password sign-in.
-          </p>
-        </div>
-
+      <Section
+        icon={ShieldCheck}
+        title="Two-factor authentication"
+        description="Add a verification code after password sign-in."
+      >
         <TwoFactorManager
           enabled={account.twoFactorEnabled}
           serviceName={serviceName ?? 'Activities.next'}
         />
-      </section>
+      </Section>
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Passkeys</h2>
-          <p className="text-sm text-muted-foreground">
-            Use biometrics or a hardware key to sign in without a password. Each
-            passkey works only on the domain it was created for.
-          </p>
-        </div>
-        <PasskeyManager
-          domains={servedDomains}
-          currentDomain={currentDomain}
-          handlePrefix={actor.username}
-        />
-      </section>
+      <PasskeyManager
+        domains={servedDomains}
+        currentDomain={currentDomain}
+        handlePrefix={actor.username}
+      />
     </div>
   )
 }

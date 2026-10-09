@@ -51,6 +51,29 @@ describe('Alert', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
+  it('keeps its tone and announcement when it sits flush as a frame row', () => {
+    render(
+      <Alert tone="warning" flush title="Heads up">
+        Mind the gap.
+      </Alert>
+    )
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveAttribute('data-tone', 'warning')
+    expect(alert).toHaveTextContent('Heads up')
+    expect(alert).toHaveTextContent('Mind the gap.')
+  })
+
+  it('drops the live role for a row that is just part of the page', () => {
+    render(
+      <Alert tone="warning" live={false} title="Two-factor is off">
+        Add an authenticator app.
+      </Alert>
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByText('Two-factor is off')).toBeVisible()
+  })
+
   it('has no action row without either', () => {
     render(<Alert title="Saved" tone="success" />)
     expect(screen.queryByRole('button')).toBeNull()

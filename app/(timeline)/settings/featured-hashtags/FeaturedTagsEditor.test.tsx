@@ -90,13 +90,33 @@ describe('FeaturedTagsEditor', () => {
     // The skeleton must not get stuck: a load error renders instead of the
     // misleading "no featured hashtags yet" empty state.
     expect(
-      await screen.findByText(
-        'Couldn’t load your featured hashtags. Please refresh to try again.'
-      )
+      await screen.findByText('Couldn’t load your featured hashtags')
     ).toBeInTheDocument()
     expect(
       screen.queryByText('No featured hashtags yet')
     ).not.toBeInTheDocument()
+  })
+
+  it('retries the load from the error alert', async () => {
+    mockGetFeaturedTags.mockRejectedValueOnce(new Error('network'))
+    mockGetFeaturedTags.mockResolvedValueOnce([buildTag({ name: 'running' })])
+    render(<FeaturedTagsEditor />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText('#running')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Couldn’t load your featured hashtags')
+    ).not.toBeInTheDocument()
+  })
+
+  it('points the empty state at the input with its Add hashtag action', async () => {
+    mockGetFeaturedTags.mockResolvedValue([])
+    render(<FeaturedTagsEditor />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add hashtag' }))
+
+    expect(screen.getByRole('textbox', { name: 'Add a hashtag' })).toHaveFocus()
   })
 
   it('still shows loaded tags when only the suggestions request fails', async () => {
@@ -107,9 +127,7 @@ describe('FeaturedTagsEditor', () => {
     // Suggestions are best-effort: their failure must not blank the editor.
     expect(await screen.findByText('#running')).toBeInTheDocument()
     expect(
-      screen.queryByText(
-        'Couldn’t load your featured hashtags. Please refresh to try again.'
-      )
+      screen.queryByText('Couldn’t load your featured hashtags')
     ).not.toBeInTheDocument()
   })
 
@@ -130,7 +148,7 @@ describe('FeaturedTagsEditor', () => {
     render(<FeaturedTagsEditor />)
     await screen.findByText('No featured hashtags yet')
 
-    fireEvent.change(screen.getByLabelText('Add a hashtag'), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Add a hashtag' }), {
       target: { value: 'cycling' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
@@ -151,7 +169,7 @@ describe('FeaturedTagsEditor', () => {
     render(<FeaturedTagsEditor />)
     await screen.findByText('No featured hashtags yet')
 
-    fireEvent.change(screen.getByLabelText('Add a hashtag'), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Add a hashtag' }), {
       target: { value }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
@@ -169,7 +187,7 @@ describe('FeaturedTagsEditor', () => {
     render(<FeaturedTagsEditor />)
     await screen.findByText('#running')
 
-    fireEvent.change(screen.getByLabelText('Add a hashtag'), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Add a hashtag' }), {
       target: { value: '#Running' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
@@ -185,7 +203,7 @@ describe('FeaturedTagsEditor', () => {
     render(<FeaturedTagsEditor />)
     await screen.findByText('No featured hashtags yet')
 
-    fireEvent.change(screen.getByLabelText('Add a hashtag'), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Add a hashtag' }), {
       target: { value: 'valid' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
@@ -203,7 +221,9 @@ describe('FeaturedTagsEditor', () => {
     await screen.findByText('#tag0')
 
     expect(screen.getByText('10 of 10 featured')).toBeInTheDocument()
-    expect(screen.getByLabelText('Add a hashtag')).toBeDisabled()
+    expect(
+      screen.getByRole('textbox', { name: 'Add a hashtag' })
+    ).toBeDisabled()
     expect(
       screen.getByText(
         'You can feature up to 10 hashtags. Remove one to add another.'
@@ -255,7 +275,7 @@ describe('FeaturedTagsEditor', () => {
     render(<FeaturedTagsEditor />)
     await screen.findByText('No featured hashtags yet')
 
-    fireEvent.focus(screen.getByLabelText('Add a hashtag'))
+    fireEvent.focus(screen.getByRole('textbox', { name: 'Add a hashtag' }))
     const suggestion = await screen.findByText('#gravel')
     fireEvent.mouseDown(suggestion)
 

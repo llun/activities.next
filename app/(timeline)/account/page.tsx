@@ -7,10 +7,13 @@ import { ChangeNameForm } from '@/app/(timeline)/account/ChangeNameForm'
 import { PageHeader } from '@/lib/components/page-header'
 import { ActorsSection } from '@/lib/components/settings/ActorsSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
+import { NativeFormSaveBar } from '@/lib/components/settings/NativeFormSaveBar'
+import { Alert } from '@/lib/components/surface/Alert'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { Section } from '@/lib/components/surface/Section'
 import { Badge } from '@/lib/components/ui/badge'
-import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
-import { Label } from '@/lib/components/ui/label'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { getActorFromSession } from '@/lib/utils/getActorFromSession'
@@ -57,15 +60,10 @@ const Page = async ({
         iconUrl={isRealAvatar(account.iconUrl) ? account.iconUrl : null}
       />
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Actors</h2>
-          <p className="text-sm text-muted-foreground">
-            Every actor below shares this account&apos;s email, password, and
-            security. Switch between them, or set the one you sign in as by
-            default.
-          </p>
-        </div>
+      <Section
+        title="Actors"
+        description="Every actor below shares this account’s email, password, and security. Switch between them, or set the one you sign in as by default."
+      >
         <ActorsSection
           currentActor={{
             id: actor.id,
@@ -87,61 +85,53 @@ const Page = async ({
           }))}
           currentDefault={account.defaultActorId || null}
         />
-      </section>
+      </Section>
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Full name</h2>
-          <p className="text-sm text-muted-foreground">
-            Your account display name used across services.
-          </p>
-        </div>
+      <Section
+        title="Full name"
+        description="Your account display name used across services."
+      >
         <ChangeNameForm currentName={account.name || ''} />
-      </section>
+      </Section>
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Profile image</h2>
-          <p className="text-sm text-muted-foreground">
-            Your account avatar, shown in admin and account lists.
-          </p>
-        </div>
-        <form
-          action="/api/v1/accounts/image"
-          method="post"
-          className="space-y-4"
-        >
-          <ImageUploadField
-            fieldName="iconUrl"
-            currentUrl={account.iconUrl || null}
-            label="Profile image"
-            previewType="thumbnail"
-          />
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <div className="flex justify-end">
-            <Button type="submit">Update</Button>
-          </div>
+      <Section
+        title="Profile image"
+        description="Your account avatar, shown in admin and account lists."
+      >
+        {error && <Alert title={error} />}
+        <form action="/api/v1/accounts/image" method="post">
+          <Frame footer={<NativeFormSaveBar />}>
+            <ImageUploadField
+              fieldName="iconUrl"
+              currentUrl={account.iconUrl || null}
+              label="Profile image"
+              previewType="thumbnail"
+            />
+          </Frame>
         </form>
-      </section>
+      </Section>
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Email address</h2>
-          <p className="text-sm text-muted-foreground">
-            Used for sign-in and account notifications.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Current email</Label>
-          <div className="flex items-center gap-2">
-            <Input value={account.email} disabled className="bg-muted" />
-            {account.emailVerifiedAt && <Badge tone="success">Verified</Badge>}
-          </div>
-        </div>
-
-        <ChangeEmailForm currentEmail={account.email} />
-      </section>
+      <Section
+        title="Email address"
+        description="Used for sign-in and account notifications."
+      >
+        <Frame divided className="overflow-hidden">
+          <FormRow label="Current email" htmlFor="currentEmail">
+            <div className="flex items-center gap-2">
+              <Input
+                id="currentEmail"
+                value={account.email}
+                disabled
+                className="bg-muted"
+              />
+              {account.emailVerifiedAt && (
+                <Badge tone="success">Verified</Badge>
+              )}
+            </div>
+          </FormRow>
+          <ChangeEmailForm currentEmail={account.email} />
+        </Frame>
+      </Section>
     </div>
   )
 }

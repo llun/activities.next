@@ -1,7 +1,7 @@
 'use client'
 
-import { Plus } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { Filter as FilterIcon, Plus } from 'lucide-react'
+import { FC, useCallback, useEffect, useState } from 'react'
 
 import {
   type ClientFilter,
@@ -16,11 +16,15 @@ import {
   updateServerFilter
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList } from '@/lib/components/surface/FramedList'
+import { SkeletonRows } from '@/lib/components/surface/Skeleton'
 import { Button } from '@/lib/components/ui/button'
 
 import { FilterEditor, type FilterScope } from './FilterEditor'
 import { FilterRow } from './FilterRow'
-import { FilterSection } from './filterUi'
 
 interface ScopeClient {
   list: () => Promise<ClientFilter[]>
@@ -76,8 +80,10 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
   const [listError, setListError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadFilters = useCallback(() => {
     let active = true
+    setLoading(true)
+    setListError(null)
     client
       .list()
       .then((result) => {
@@ -102,6 +108,8 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
       active = false
     }
   }, [client, scope])
+
+  useEffect(() => loadFilters(), [loadFilters])
 
   const handleSave = async (input: FilterInput) => {
     setSaving(true)
@@ -184,6 +192,11 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
     )
   }
 
+  const addFilter = () => {
+    setEditorError(null)
+    setEditing('new')
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -191,59 +204,70 @@ export const FiltersPanel: FC<FiltersPanelProps> = ({ scope, currentTime }) => {
         description={copy.description}
         actions={
           <Button
-            onClick={() => {
-              setEditorError(null)
-              setEditing('new')
-            }}
+            onClick={addFilter}
             // Block creating while a delete is in flight so a failed-delete
             // rollback can't drop the just-created filter from the list.
             disabled={deletingId !== null}
           >
             <Plus className="size-4" />
-            Add new filter
+            Add filter
           </Button>
         }
       />
 
-      {listError && <p className="text-sm text-destructive">{listError}</p>}
+      {listError && (
+        <Alert
+          title={listError}
+          // A failed load offers another go; a failed delete does not need one.
+          onRetry={filters.length === 0 ? loadFilters : undefined}
+        />
+      )}
 
-      <FilterSection>
-        {loading ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            Loading filters…
-          </p>
-        ) : filters.length === 0 && !listError ? (
-          // Suppress the empty-state copy when a load error is already shown, so
-          // a failed fetch doesn't read as "you have no filters".
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            No filters yet — add one to start hiding unwanted posts.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {filters.map((filter) => (
-              <FilterRow
-                key={filter.id}
-                filter={filter}
-                currentTime={currentTime}
-                onEdit={() => {
-                  setEditorError(null)
-                  setEditing(filter.id)
-                }}
-                onDelete={() => handleDelete(filter)}
-                // Disable every delete button while any delete is in flight so
-                // deletes stay serialized and optimistic rollback is safe.
-                deleting={deletingId !== null}
-              />
-            ))}
-          </div>
-        )}
-      </FilterSection>
+      {loading ? (
+        <Frame className="p-4">
+          <SkeletonRows rows={3} rowClassName="h-14" label="Loading filters" />
+        </Frame>
+      ) : filters.length === 0 && !listError ? (
+        // Suppress the empty-state copy when a load error is already shown, so
+        // a failed fetch doesn't read as "you have no filters".
+        <EmptyState
+          icon={FilterIcon}
+          title="No filters yet"
+          action={
+            <Button size="sm" onClick={addFilter}>
+              <Plus className="size-4" />
+              Add filter
+            </Button>
+          }
+        >
+          Add one to start hiding unwanted posts.
+        </EmptyState>
+      ) : filters.length > 0 ? (
+        <FramedList aria-label={copy.title}>
+          {filters.map((filter) => (
+            <FilterRow
+              key={filter.id}
+              filter={filter}
+              currentTime={currentTime}
+              onEdit={() => {
+                setEditorError(null)
+                setEditing(filter.id)
+              }}
+              onDelete={() => handleDelete(filter)}
+              // Disable every delete button while any delete is in flight so
+              // deletes stay serialized and optimistic rollback is safe.
+              deleting={deletingId !== null}
+            />
+          ))}
+        </FramedList>
+      ) : null}
 
       {scope === 'server' && (
-        <FilterSection
-          title="How server filters behave"
-          description="People cannot remove a server filter, but “hide with a warning” still lets them tap through to the post. Use “hide completely” only for spam."
-        />
+        <Alert tone="info" title="How server filters behave">
+          People cannot remove a server filter, but “hide with a warning” still
+          lets them tap through to the post. Use “hide completely” only for
+          spam.
+        </Alert>
       )}
     </div>
   )

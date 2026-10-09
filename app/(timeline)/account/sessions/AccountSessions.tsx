@@ -14,6 +14,12 @@ import {
   revokeOtherSessions
 } from '@/lib/client'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import { EmptyState } from '@/lib/components/surface/EmptyState'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { FramedList, FramedListItem } from '@/lib/components/surface/FramedList'
+import { Section } from '@/lib/components/surface/Section'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
@@ -107,7 +113,7 @@ const ActorAvatar: FC<{ actor: SessionActor | null; className: string }> = ({
 )
 
 const ScopePill: FC<{ children: string }> = ({ children }) => (
-  <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground dark:bg-[#383838]">
+  <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
     {children}
   </span>
 )
@@ -255,7 +261,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
           <>
             <p>
               Review where you&apos;re signed in and the apps connected to your
-              account.
+              account. Sorted with the most recent first.
             </p>
             <p>
               {sessionCount} active{' '}
@@ -265,54 +271,47 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
             </p>
           </>
         }
+        stackActionsOnMobile
+        actions={
+          others.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={revokeAll}
+              disabled={busy}
+            >
+              <Trash2 className="h-4 w-4" />
+              Revoke all others
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              No other active sessions
+            </span>
+          )
+        }
       />
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
-          Sorted with the most recent first.
-        </p>
-        {others.length > 0 ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={revokeAll}
-            disabled={busy}
-          >
-            <Trash2 className="h-4 w-4" />
-            Revoke all others
-          </Button>
-        ) : (
-          <span className="text-xs text-muted-foreground">
-            No other active sessions
-          </span>
-        )}
-      </div>
+      {error && <Alert title={error} />}
 
       {groups.map((group) => (
-        <section
+        <Section
           key={group.id}
-          className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm"
-        >
-          <div className="flex items-center gap-3 border-b bg-muted/40 px-4 py-3">
-            <ActorAvatar actor={group.actor} className="h-8 w-8" />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold">
+          title={
+            <span className="flex min-w-0 items-center gap-2">
+              <ActorAvatar actor={group.actor} className="size-7" />
+              <span className="truncate">
                 {group.actor?.name || 'Other sessions'}
-              </div>
-              {group.actor && (
-                <div className="truncate text-xs text-muted-foreground">
-                  {group.actor.handle}
-                </div>
-              )}
-            </div>
-            <span className="text-xs text-muted-foreground">
-              {groupSummary(group)}
+              </span>
             </span>
-          </div>
-
-          <div className="divide-y">
+          }
+          meta={
+            <>
+              {group.actor ? <span>{group.actor.handle} · </span> : null}
+              {groupSummary(group)}
+            </>
+          }
+        >
+          <FramedList aria-label={group.actor?.name || 'Other sessions'}>
             {group.sessions.map((session) => {
               const remaining = session.expireAt - currentTime
               // Guard against a negative remaining time so an already-expired
@@ -320,16 +319,16 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
               const soon =
                 !session.current && remaining > 0 && remaining < SOON_MS
               return (
-                <div
+                <FramedListItem
                   key={session.id}
                   className={cn(
-                    'flex items-start gap-3 px-4 py-4',
+                    'flex items-start gap-3',
                     session.current && 'bg-primary/5'
                   )}
                 >
                   <span
                     className={cn(
-                      'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                      'flex h-9 w-9 shrink-0 items-center justify-center rounded-md',
                       session.current
                         ? 'bg-primary/10 text-primary'
                         : 'bg-muted text-muted-foreground'
@@ -361,7 +360,7 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                     <div
                       className={cn(
                         'mt-1 flex items-center gap-1.5 text-xs',
-                        soon ? 'text-destructive' : 'text-muted-foreground'
+                        soon ? 'text-destructive-text' : 'text-muted-foreground'
                       )}
                     >
                       <Clock className="h-3.5 w-3.5" />
@@ -381,17 +380,17 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                       Revoke
                     </Button>
                   )}
-                </div>
+                </FramedListItem>
               )
             })}
 
             {group.apps.map((app) => (
-              <div
+              <FramedListItem
                 key={`${app.clientId}:${app.actorId ?? ''}`}
-                className="flex items-start gap-3 px-4 py-4"
+                className="flex items-start gap-3"
               >
                 <span
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-white"
                   style={{ background: appColor(app.clientId) }}
                   aria-hidden="true"
                 >
@@ -432,28 +431,31 @@ export const AccountSessions: FC<Props> = ({ currentTime, sessions, apps }) => {
                 >
                   Revoke
                 </Button>
-              </div>
+              </FramedListItem>
             ))}
-          </div>
-        </section>
+          </FramedList>
+        </Section>
       ))}
 
       {groups.length === 0 && (
-        <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-          No active sessions found.
-        </div>
+        <EmptyState icon={Monitor} title="No active sessions found">
+          Sign-ins and connected apps show up here, where you can revoke them.
+        </EmptyState>
       )}
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">This device</h2>
-          <p className="text-sm text-muted-foreground">
-            End the session you&apos;re using right now. You&apos;ll be returned
-            to the sign-in screen.
-          </p>
-        </div>
-        <LogoutButton />
-      </section>
+      <Section
+        title="This device"
+        description="End the session you’re using right now. You’ll be returned to the sign-in screen."
+      >
+        <Frame>
+          <FormRow
+            label="Sign out of this device"
+            hint="You can sign in again at any time."
+          >
+            {({ describedBy }) => <LogoutButton describedBy={describedBy} />}
+          </FormRow>
+        </Frame>
+      </Section>
     </div>
   )
 }

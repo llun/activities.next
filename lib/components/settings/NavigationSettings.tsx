@@ -5,7 +5,8 @@ import {
   ChevronUp,
   GripVertical,
   History,
-  Lock
+  Lock,
+  PanelLeft
 } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -16,6 +17,13 @@ import {
 } from '@/lib/components/layout/nav-items'
 import { useNavPreferences } from '@/lib/components/layout/nav-preferences-context'
 import { PageHeader } from '@/lib/components/page-header'
+import { Alert } from '@/lib/components/surface/Alert'
+import {
+  FRAMED_LIST_ITEM_CLASS,
+  FramedList
+} from '@/lib/components/surface/FramedList'
+import { SavedIndicator } from '@/lib/components/surface/SaveBar'
+import { Section } from '@/lib/components/surface/Section'
 import { Button } from '@/lib/components/ui/button'
 import { Switch } from '@/lib/components/ui/switch'
 import {
@@ -148,16 +156,29 @@ export const NavigationSettings: FC<Props> = ({
         description="Choose what shows in your sidebar, and in what order. Hidden items stay one click away under More."
       />
 
-      <section className="space-y-4 rounded-2xl border bg-background/80 p-6 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold">Sidebar items</h2>
-          <p className="text-sm text-muted-foreground">
-            Drag or use the arrows to reorder. Pinned items always show; items
-            your admin turned off are unavailable for everyone.
-          </p>
-        </div>
-
-        <ul className="divide-y overflow-hidden rounded-xl border">
+      <Section
+        icon={PanelLeft}
+        title="Sidebar items"
+        description="Drag or use the arrows to reorder. Pinned items always show; items your admin turned off are unavailable for everyone. Changes save as you make them."
+        actions={
+          <>
+            <SaveStatus />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                reset()
+                announce('Navigation reset to defaults')
+              }}
+            >
+              <History className="h-4 w-4" />
+              Reset to defaults
+            </Button>
+          </>
+        }
+      >
+        <SaveFailure onRetrySaved={() => announce('Your changes are saved')} />
+        <FramedList aria-label="Sidebar items">
           {rows.map(({ item, isHidden, isFeatureOff }, index) => {
             const draggable = !isFeatureOff
             return (
@@ -219,7 +240,8 @@ export const NavigationSettings: FC<Props> = ({
                   commit()
                 }}
                 className={cn(
-                  'flex items-center gap-3 bg-background px-3 py-2.5 transition-colors',
+                  'flex items-center gap-3 transition-colors',
+                  FRAMED_LIST_ITEM_CLASS,
                   dragId === item.id && 'bg-primary/5',
                   isFeatureOff ? 'opacity-55' : 'cursor-grab'
                 )}
@@ -241,7 +263,7 @@ export const NavigationSettings: FC<Props> = ({
 
                 <span
                   className={cn(
-                    'grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted',
+                    'grid h-8 w-8 shrink-0 place-items-center rounded-md bg-muted',
                     isHidden || isFeatureOff
                       ? 'text-muted-foreground'
                       : 'text-foreground'
@@ -320,26 +342,8 @@ export const NavigationSettings: FC<Props> = ({
               </li>
             )
           })}
-        </ul>
-
-        <div className="flex w-full items-center justify-between gap-3">
-          {/* The caption is the only report a save gives — there is no Save
-              button — so a failure has to reach a screen reader as well as the
-              eye. Only the failure, though; see SaveCaption. */}
-          <SaveCaption />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              reset()
-              announce('Navigation reset to defaults')
-            }}
-          >
-            <History className="h-4 w-4" />
-            Reset to defaults
-          </Button>
-        </div>
-      </section>
+        </FramedList>
+      </Section>
 
       <p aria-live="polite" className="sr-only">
         <span key={announcement.seq}>{announcement.text}</span>
@@ -348,9 +352,21 @@ export const NavigationSettings: FC<Props> = ({
   )
 }
 
-// There is no Save button: every change is written as it happens, so this
-// reports what the store is doing rather than asking for a click.
-const SaveCaption = () => {
+// There is no Save button: every change is written as it happens. The quiet
+// "Saved" tick sits in the section's actions; a failed save gets an alert with
+// the one recovery the page offers.
+//
+// The tick is deliberately not a live region. It changes twice per save and a
+// keyboard reorder saves on every keystroke, so announcing it would bury each
+// row's own "moved up, position 2 of 10" under "Saved". Only a save that needs
+// the user speaks: the failure (the alert) and the retry that settles it
+// (`onRetrySaved`).
+const SaveStatus = () => {
+  const { saveState } = useNavPreferences()
+  return <SavedIndicator saved={saveState === 'saved'} announce={false} />
+}
+
+const SaveFailure: FC<{ onRetrySaved: () => void }> = ({ onRetrySaved }) => {
   const { saveState, retry } = useNavPreferences()
   const failed = saveState === 'error'
   // A retry is followed across the save it starts, so the button that started
@@ -359,68 +375,45 @@ const SaveCaption = () => {
   // would drop a keyboard user at the top of the page — and bring it back as a
   // new node to Tab to if the save failed again. This is the hazard the row
   // Move buttons avoid by staying put rather than going `disabled`.
-  const [retryPhase, setRetryPhase] = useState<'none' | 'saving' | 'done'>(
-    'none'
-  )
+  const [retrying, setRetrying] = useState(false)
 
   useEffect(() => {
-    if (retryPhase === 'saving' && saveState === 'saved') setRetryPhase('done')
-    // A fresh failure re-arms the same button.
-    if (retryPhase === 'saving' && saveState === 'error') setRetryPhase('none')
-    // Whatever the user does next has its own result; drop the confirmation
-    // before it can be read as belonging to that.
-    if (retryPhase === 'done' && saveState === 'saving') setRetryPhase('none')
-  }, [retryPhase, saveState])
+    // The retry has an outcome once the store leaves `saving`: it worked (the
+    // tick in the actions says so, and the page's live region speaks it,
+    // because pressing Try again unmounts the alert and would otherwise leave a
+    // screen reader with silence) or it failed again (the alert re-arms).
+    if (retrying && (saveState === 'saved' || saveState === 'error')) {
+      setRetrying(false)
+      if (saveState === 'saved') onRetrySaved()
+    }
+  }, [retrying, saveState, onRetrySaved])
+
+  if (!failed && !retrying) return null
 
   return (
-    <div className="text-xs">
-      {/* Deliberately outside the live region below. This text changes twice
-          per save and a keyboard reorder saves on every keystroke, so
-          announcing it would bury each row's own "moved up, position 2 of 10"
-          under "Saving…" and "Saved…". */}
-      {!failed && retryPhase !== 'saving' && (
-        <span className="text-muted-foreground">
-          {saveState === 'saving'
-            ? 'Saving…'
-            : 'Saved to your account settings as you change it.'}
-        </span>
-      )}
-      {/* Mounted whether or not anything went wrong: a live region inserted
-          into the page at the same moment as its text is missed by some screen
-          readers. Only a save that needs the user — a failure, and the retry
-          that settles it — speaks from here. role="status" is atomic, so the
-          button reads out with the failure that calls for it, and at no other
-          time. */}
-      <span
-        role="status"
-        className={failed ? 'text-destructive' : 'text-muted-foreground'}
-      >
-        {failed && "Couldn't save your changes. "}
-        {retryPhase === 'saving' && 'Saving your changes… '}
-        {/* Spoken, not shown. Pressing Try again unmounts it, so a screen
-            reader would otherwise get silence from the page's only recovery
-            control — while on screen the caption below says the same thing
-            already. It clears before the next save, so it can never be read as
-            that save's result. */}
-        {retryPhase === 'done' && (
-          <span className="sr-only">Your changes are saved.</span>
-        )}
-        {(failed || retryPhase === 'saving') && (
-          <button
-            type="button"
-            // Inert while its own save is in flight, without unmounting.
-            aria-disabled={!failed}
-            onClick={() => {
-              if (!failed) return
-              setRetryPhase('saving')
-              retry()
-            }}
-            className={cn('underline', !failed && 'opacity-60')}
-          >
-            Try again
-          </button>
-        )}
-      </span>
-    </div>
+    <Alert
+      title={retrying ? 'Saving your changes…' : 'Couldn’t save your changes'}
+      action={
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          // Inert while its own save is in flight, without unmounting.
+          aria-disabled={!failed}
+          className={cn(!failed && 'opacity-60')}
+          onClick={() => {
+            if (!failed) return
+            setRetrying(true)
+            retry()
+          }}
+        >
+          Try again
+        </Button>
+      }
+    >
+      {retrying
+        ? 'Hold on while it is sent again.'
+        : 'Your last change may not have reached your account.'}
+    </Alert>
   )
 }

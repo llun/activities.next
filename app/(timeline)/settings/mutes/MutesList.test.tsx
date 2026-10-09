@@ -78,7 +78,7 @@ describe('MutesList', () => {
 
   it('shows the empty state when there are no muted accounts', () => {
     render(<MutesList accounts={[]} nextMaxId={null} />)
-    expect(screen.getByText('No muted accounts.')).toBeInTheDocument()
+    expect(screen.getByText('No muted accounts')).toBeInTheDocument()
   })
 
   it('removes only the successfully unmuted account', async () => {

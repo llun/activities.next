@@ -192,16 +192,6 @@ describe('AccountSessions', () => {
     ).toBeInTheDocument()
   })
 
-  it('draws the App badge and the scope chips on the lighter dark gray', () => {
-    renderSessions()
-    // Both gray pills sit on #383838 in dark mode, above the card, instead of
-    // the near-invisible --muted fill.
-    expect(screen.getByText('App').className).toContain('dark:bg-[#383838]')
-    expect(screen.getByText('read:accounts').className).toContain(
-      'dark:bg-[#383838]'
-    )
-  })
-
   it('revokes all other sessions and keeps the current one', async () => {
     renderSessions()
     fireEvent.click(screen.getByRole('button', { name: 'Revoke all others' }))

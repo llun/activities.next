@@ -25,6 +25,7 @@ describe('SaveBar', () => {
     renderBar()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(screen.queryByText('Unsaved changes')).toBeNull()
+    expect(screen.getByText('No unsaved changes')).toBeInTheDocument()
   })
 
   it('says Unsaved changes and enables Save when dirty', () => {
@@ -59,6 +60,44 @@ describe('SaveBar', () => {
   })
 })
 
+describe('SaveBar with a disabledReason', () => {
+  it('keeps Save off but still says there are unsaved changes, and why', () => {
+    renderBar({ dirty: true, disabledReason: 'Add a keyword to save' })
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument()
+    expect(screen.getByText(/Add a keyword to save/)).toBeInTheDocument()
+    expect(screen.queryByText('No unsaved changes')).toBeNull()
+  })
+})
+
+describe('SaveBar as a submit button', () => {
+  it('submits the enclosing form instead of calling onSave', () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault())
+    const onSave = vi.fn()
+    render(
+      <form onSubmit={onSubmit}>
+        <SaveBar dirty saving={false} saved={false} submit onSave={onSave} />
+      </form>
+    )
+
+    const button = screen.getByRole('button', { name: 'Save' })
+    expect(button).toHaveAttribute('type', 'submit')
+    fireEvent.click(button)
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('stays a plain button without submit', () => {
+    renderBar({ dirty: true })
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute(
+      'type',
+      'button'
+    )
+  })
+})
+
 describe('SavedIndicator', () => {
   it('keeps its polite live region in the page and shows the tick when saved', () => {
     const { rerender } = render(<SavedIndicator saved={false} />)
@@ -69,5 +108,17 @@ describe('SavedIndicator', () => {
     rerender(<SavedIndicator saved />)
     expect(screen.getByRole('status')).toHaveTextContent('Saved')
     expect(screen.getByRole('status')).toBe(region)
+  })
+
+  it('drops the live region but still shows the tick with announce off', () => {
+    const { rerender } = render(
+      <SavedIndicator saved={false} announce={false} />
+    )
+    expect(screen.queryByRole('status')).toBeNull()
+
+    rerender(<SavedIndicator saved announce={false} />)
+    expect(screen.getByText('Saved')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(document.querySelector('[aria-live]')).toBeNull()
   })
 })

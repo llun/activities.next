@@ -218,22 +218,54 @@ describe('NavigationSettings', () => {
     expect(screen.getByText('Timeline is already first')).toBeVisible()
   })
 
-  it('announces a failed save, and nothing on a save that worked', async () => {
+  it('announces a failed save as an alert, and nothing on a save that worked', async () => {
     mockUpdate.mockResolvedValueOnce(false)
     renderSettings(<NavigationSettings />)
 
-    // The caption changes twice per save and a keyboard reorder saves on every
-    // keystroke, so it must not talk over each row's own announcement.
-    expect(
-      screen
-        .getByText('Saved to your account settings as you change it.')
-        .closest('[role="status"]')
-    ).toBeNull()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
 
-    const failure = await screen.findByText(/Couldn't save your changes/)
-    expect(failure.closest('[role="status"]')).not.toBeNull()
+    const failure = await screen.findByText('Couldn’t save your changes')
+    expect(failure.closest('[role="alert"]')).not.toBeNull()
+  })
+
+  // A live region is anything a screen reader watches for changes.
+  const liveRegions = () =>
+    Array.from(
+      document.querySelectorAll('[role="status"], [role="alert"], [aria-live]')
+    )
+
+  it('shows the Saved tick after a save that worked, outside any live region', async () => {
+    renderSettings(<NavigationSettings />)
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
+
+    const section = screen.getByRole('region', { name: 'Sidebar items' })
+    const tick = await within(section).findByText('Saved')
+    expect(tick).toBeVisible()
+    // The tick changes twice per save and a keyboard reorder saves on every
+    // keystroke, so announcing it would bury each row's own announcement.
+    expect(tick.closest('[role="status"], [aria-live]')).toBeNull()
+    for (const region of liveRegions()) {
+      expect(region).not.toHaveTextContent('Saved')
+    }
+  })
+
+  it('says only the row moved after a keyboard reorder, not that it saved', async () => {
+    renderSettings(<NavigationSettings />)
+
+    fireEvent.keyDown(
+      within(rowFor('Search')).getByRole('button', { name: /^Reorder Search/ }),
+      { key: 'ArrowUp' }
+    )
+
+    const section = screen.getByRole('region', { name: 'Sidebar items' })
+    await within(section).findByText('Saved')
+    const spoken = liveRegions()
+      .map((region) => region.textContent?.trim())
+      .filter(Boolean)
+    expect(spoken).toEqual(['Search moved up, position 1 of 10'])
   })
 
   it('keeps the retry under the finger that pressed it while its save runs', async () => {
@@ -252,7 +284,7 @@ describe('NavigationSettings', () => {
     expect(document.activeElement).toBe(retry)
   })
 
-  it('says a retry worked, having announced the failure it clears', async () => {
+  it('says a retry worked: the alert clears, the tick appears, and the page speaks it once', async () => {
     mockUpdate.mockResolvedValueOnce(false)
     renderSettings(<NavigationSettings />)
     fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
@@ -261,13 +293,14 @@ describe('NavigationSettings', () => {
 
     // Pressing it unmounts the button, so without this the outcome of the only
     // recovery the page offers reaches a screen reader as silence.
-    const confirmation = await screen.findByText('Your changes are saved.')
-    expect(confirmation.closest('[role="status"]')).not.toBeNull()
-    // On screen the footer goes back to the line that explains there is no Save
-    // button, rather than keeping the confirmation until the next write.
+    const confirmation = await screen.findByText('Your changes are saved')
+    expect(confirmation.closest('[aria-live="polite"]')).not.toBeNull()
+    const section = screen.getByRole('region', { name: 'Sidebar items' })
+    expect(within(section).getByText('Saved')).toBeVisible()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(
-      screen.getByText('Saved to your account settings as you change it.')
-    ).toBeVisible()
+      screen.queryByRole('button', { name: 'Try again' })
+    ).not.toBeInTheDocument()
   })
 
   it('reorders by dragging one row onto another', async () => {
@@ -442,7 +475,7 @@ describe('NavigationSettings', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Show Favorites' }))
 
     const retry = await screen.findByRole('button', { name: 'Try again' })
-    expect(screen.getByText(/Couldn't save your changes/)).toBeInTheDocument()
+    expect(screen.getByText('Couldn’t save your changes')).toBeInTheDocument()
 
     mockUpdate.mockResolvedValue(true)
     fireEvent.click(retry)

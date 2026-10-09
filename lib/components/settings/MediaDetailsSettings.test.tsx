@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import type { GallerySettingsEntity } from '@/lib/services/gallery/galleryEntities'
 
@@ -175,13 +181,20 @@ describe('MediaDetailsSettings', () => {
     const hashtags = await screen.findByRole('switch', {
       name: SUBJECT_HASHTAGS
     })
-    expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
-    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    const subjects = screen.getByRole('region', { name: 'Subjects' })
+    const descriptions = screen.getByRole('region', {
+      name: 'Descriptions (alt text)'
+    })
+    const subjectsStatus = within(subjects).getByRole('status')
+    expect(subjectsStatus).toHaveAttribute('aria-live', 'polite')
+    expect(subjectsStatus).toBeEmptyDOMElement()
 
     fireEvent.click(hashtags)
 
     expect(await screen.findByText('Saved')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Saved')
+    // The tick sits beside the section that was just saved, not the other one.
+    expect(subjectsStatus).toHaveTextContent('Saved')
+    expect(within(descriptions).getByRole('status')).toBeEmptyDOMElement()
   })
 
   it('does not announce Saved when the save fails', async () => {
@@ -198,7 +211,9 @@ describe('MediaDetailsSettings', () => {
         'Failed to save media settings. Please try again.'
       )
     ).toBeInTheDocument()
-    expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    for (const status of screen.getAllByRole('status')) {
+      expect(status).toBeEmptyDOMElement()
+    }
   })
 
   it('keeps the switch enabled and focused, marked busy, while its save is in flight', async () => {

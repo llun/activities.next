@@ -8,6 +8,11 @@ import type {
   FilterInput,
   FilterKeywordInput
 } from '@/lib/client'
+import { FormRow } from '@/lib/components/surface/FormRow'
+import { Frame } from '@/lib/components/surface/Frame'
+import { SaveBar } from '@/lib/components/surface/SaveBar'
+import { Section } from '@/lib/components/surface/Section'
+import { TABLE_HEAD_ROW_CLASS } from '@/lib/components/surface/TableFrame'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
 import { Input } from '@/lib/components/ui/input'
@@ -22,7 +27,6 @@ import {
   expiresInFromValue,
   expiryOptionForExpiresAt
 } from './filterConstants'
-import { FilterField, FilterSection } from './filterUi'
 
 // Editor row for a single keyword. `id` is set only for keywords that already
 // exist server-side (so we can target them for update/delete); `key` is a
@@ -132,6 +136,20 @@ export const FilterEditor: FC<FilterEditorProps> = ({
   // A filter needs at least one non-empty keyword to match anything.
   const hasKeyword = keywords.some((k) => k.keyword.trim().length > 0)
 
+  // Everything the user can edit, so Save knows whether there is anything to
+  // save. A filter being created always has something to save.
+  const snapshot = () =>
+    JSON.stringify({
+      title,
+      context: [...context].sort(),
+      action,
+      expiryValue,
+      keywords: keywords.map((k) => [k.id ?? null, k.keyword, k.wholeWord]),
+      removedKeywordIds
+    })
+  const [initialSnapshot] = useState(snapshot)
+  const dirty = isNew || snapshot() !== initialSnapshot
+
   const toggleContext = (id: FilterContext) =>
     setContext((current) =>
       current.includes(id)
@@ -199,206 +217,249 @@ export const FilterEditor: FC<FilterEditorProps> = ({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="outline" size="sm" onClick={onCancel}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onCancel}
+          disabled={saving}
+        >
           <ArrowLeft className="size-3.5" />
           Back
         </Button>
-        <h1 className="text-xl font-semibold tracking-tight">
-          {isNew ? 'Add new filter' : `Edit “${initial?.title}”`}
-        </h1>
+        {/* The Settings or Admin layout owns the page's h1. */}
+        <h2 className="text-xl font-semibold tracking-tight">
+          {isNew ? 'Add filter' : `Edit “${initial?.title}”`}
+        </h2>
       </div>
 
-      <FilterSection
+      <Section
         title="Filter"
         description="Name this filter and choose how long it stays active."
       >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FilterField
+        <Frame divided>
+          <FormRow
             label="Title"
             htmlFor="filterTitle"
-            help="Shown in place of hidden posts, e.g. “Filtered: Spoilers”."
+            hint="Shown in place of hidden posts, e.g. “Filtered: Spoilers”."
           >
-            <Input
-              id="filterTitle"
-              value={title}
-              placeholder="e.g. Spoilers"
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </FilterField>
-          <FilterField
+            {({ describedBy }) => (
+              <Input
+                id="filterTitle"
+                aria-describedby={describedBy}
+                value={title}
+                placeholder="e.g. Spoilers"
+                onChange={(event) => setTitle(event.target.value)}
+              />
+            )}
+          </FormRow>
+          <FormRow
             label="Expire after"
             htmlFor="filterExpiry"
-            help="Expired filters stop applying but are kept so you can reactivate them."
+            hint="Expired filters stop applying but are kept so you can reactivate them."
           >
-            <Select
-              id="filterExpiry"
-              value={expiryValue}
-              onChange={(event) => setExpiryValue(event.target.value)}
-            >
-              {EXPIRY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </FilterField>
-        </div>
-      </FilterSection>
+            {({ describedBy }) => (
+              <Select
+                id="filterExpiry"
+                aria-describedby={describedBy}
+                value={expiryValue}
+                onChange={(event) => setExpiryValue(event.target.value)}
+              >
+                {EXPIRY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </FormRow>
+        </Frame>
+      </Section>
 
-      <FilterSection
+      <Section
         title="Filter contexts"
         description="Choose where this filter applies."
       >
-        <div className="space-y-1">
+        <Frame divided>
           {FILTER_CONTEXTS.map((option) => (
-            <label
+            <FormRow
               key={option.id}
-              className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[hsl(0_0%_97%)]"
+              label={option.label}
+              htmlFor={`filterContext-${option.id}`}
+              hint={option.hint}
+              inline
             >
-              <Checkbox
-                className="size-[18px]"
-                checked={context.includes(option.id)}
-                onChange={() => toggleContext(option.id)}
-              />
-              <div className="min-w-0">
-                <div className="text-sm font-medium">{option.label}</div>
-                <div className="text-xs text-muted-foreground">
-                  {option.hint}
-                </div>
-              </div>
-            </label>
+              {({ describedBy }) => (
+                <Checkbox
+                  id={`filterContext-${option.id}`}
+                  aria-describedby={describedBy}
+                  className="size-[18px]"
+                  checked={context.includes(option.id)}
+                  onChange={() => toggleContext(option.id)}
+                />
+              )}
+            </FormRow>
           ))}
-        </div>
-      </FilterSection>
+        </Frame>
+      </Section>
 
-      <FilterSection
+      <Section
         title="Filter action"
         description="What happens when a post matches."
       >
-        <div
-          className="grid gap-3 sm:grid-cols-2"
-          role="radiogroup"
-          aria-label="Filter action"
-        >
-          {ACTION_CARDS.map((card, index) => {
-            const selected = action === card.id
-            return (
-              <button
-                key={card.id}
-                ref={(element) => {
-                  actionRefs.current[index] = element
-                }}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => setAction(card.id)}
-                onKeyDown={(event) => handleActionKeyDown(event, index)}
-                className={cn(
-                  'rounded-xl border p-3 text-left transition-colors',
-                  selected
-                    ? 'border-primary bg-[hsl(24_95%_46%/0.04)] shadow-[0_0_0_3px_hsl(24_95%_46%/0.25)]'
-                    : 'bg-background'
-                )}
-              >
-                <div className="text-sm font-medium">{card.label}</div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  {card.hint(scope)}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-        {action === 'warn' && (
-          // The bare bar a warned post collapses to, as the Filter management
-          // board draws it: no dashed frame, no caption.
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2">
-            <span className="text-sm text-muted-foreground">
-              Filtered: {title.trim() || 'Untitled filter'}
-            </span>
-            <span className="text-sm font-medium text-primary-text">
-              Show anyway
-            </span>
+        <Frame>
+          <div
+            className="divide-y"
+            role="radiogroup"
+            aria-label="Filter action"
+          >
+            {ACTION_CARDS.map((card, index) => {
+              const selected = action === card.id
+              return (
+                <button
+                  key={card.id}
+                  ref={(element) => {
+                    actionRefs.current[index] = element
+                  }}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => setAction(card.id)}
+                  onKeyDown={(event) => handleActionKeyDown(event, index)}
+                  className={cn(
+                    'focus-visible:ring-ring/50 flex w-full items-start gap-3 px-4 py-3 text-left transition-colors outline-none first:rounded-t-lg last:rounded-b-lg focus-visible:ring-[3px] focus-visible:ring-inset',
+                    selected ? 'bg-primary/5' : 'hover:bg-muted/50'
+                  )}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      'mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border',
+                      selected && 'border-primary'
+                    )}
+                  >
+                    {selected ? (
+                      <span className="bg-primary size-2 rounded-full" />
+                    ) : null}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">
+                      {card.label}
+                    </span>
+                    <span className="text-muted-foreground block text-xs">
+                      {card.hint(scope)}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
-        )}
-      </FilterSection>
+          {action === 'warn' && (
+            // The bare bar a warned post collapses to, as the Filter management
+            // board draws it: no dashed frame, no caption.
+            <div className="border-t px-4 py-3">
+              <div className="bg-muted flex items-center justify-between gap-3 rounded-md px-3 py-2">
+                <span className="text-muted-foreground text-sm">
+                  Filtered: {title.trim() || 'Untitled filter'}
+                </span>
+                <span className="text-primary-text text-sm font-medium">
+                  Show anyway
+                </span>
+              </div>
+            </div>
+          )}
+        </Frame>
+      </Section>
 
-      <FilterSection
+      <Section
         title="Keywords"
         description="Matched against post text, content warnings, media descriptions, and poll options."
-        footer={
-          <div className="flex w-full items-center justify-between gap-3">
+      >
+        <Frame
+          footer={
             <Button variant="outline" size="sm" onClick={addKeyword}>
               <Plus className="size-3.5" />
               Add keyword
             </Button>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={onCancel} disabled={saving}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSave}
-                // A filter with no non-empty keywords matches nothing, so block
-                // saving until at least one keyword has text.
-                disabled={saving || !hasKeyword}
-              >
-                {isNew ? 'Create filter' : 'Save changes'}
-              </Button>
-            </div>
-          </div>
-        }
-      >
-        {keywords.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            No keywords yet — add at least one.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 px-1 text-[11px] font-medium uppercase tracking-wide text-[hsl(0_0%_55%)]">
-              <span className="min-w-0 flex-1">Keyword or phrase</span>
-              <span className="w-24 text-center">Whole word</span>
-              <span className="w-8" />
-            </div>
-            {keywords.map((keyword, index) => (
-              <div key={keyword.key} className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <Input
-                    value={keyword.keyword}
-                    placeholder="e.g. spoiler"
-                    aria-label={`Keyword or phrase ${index + 1}`}
-                    onChange={(event) =>
-                      patchKeyword(keyword.key, { keyword: event.target.value })
-                    }
-                  />
-                </div>
-                <div className="flex w-24 justify-center">
-                  <Switch
-                    checked={keyword.wholeWord}
-                    onCheckedChange={(checked) =>
-                      patchKeyword(keyword.key, { wholeWord: checked })
-                    }
-                    aria-label={`Whole word for ${keyword.keyword || 'keyword'}`}
-                  />
-                </div>
-                <button
-                  type="button"
-                  aria-label={`Remove keyword ${keyword.keyword}`}
-                  onClick={() => removeKeyword(keyword.key)}
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted"
-                >
-                  <X className="size-[15px]" />
-                </button>
-              </div>
-            ))}
-            <p className="text-[0.8rem] text-muted-foreground">
-              Whole word only matches when the keyword is surrounded by spaces
-              or punctuation — off, it matches anywhere, even inside other
-              words.
+          }
+        >
+          {keywords.length === 0 ? (
+            <p className="text-muted-foreground px-4 py-6 text-center text-sm">
+              No keywords yet — add at least one.
             </p>
-          </div>
-        )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
-      </FilterSection>
+          ) : (
+            <>
+              <div
+                className={cn(
+                  TABLE_HEAD_ROW_CLASS,
+                  'flex items-center gap-3 rounded-t-lg px-4 py-2.5 font-medium'
+                )}
+              >
+                <span className="min-w-0 flex-1">Keyword or phrase</span>
+                <span className="w-24 text-center">Whole word</span>
+                <span className="w-8" />
+              </div>
+              <div className="divide-y">
+                {keywords.map((keyword, index) => (
+                  <div
+                    key={keyword.key}
+                    className="flex items-center gap-3 px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <Input
+                        value={keyword.keyword}
+                        placeholder="e.g. spoiler"
+                        aria-label={`Keyword or phrase ${index + 1}`}
+                        onChange={(event) =>
+                          patchKeyword(keyword.key, {
+                            keyword: event.target.value
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="flex w-24 justify-center">
+                      <Switch
+                        checked={keyword.wholeWord}
+                        onCheckedChange={(checked) =>
+                          patchKeyword(keyword.key, { wholeWord: checked })
+                        }
+                        aria-label={`Whole word for ${keyword.keyword || 'keyword'}`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Remove keyword ${keyword.keyword}`}
+                      onClick={() => removeKeyword(keyword.key)}
+                      className="text-muted-foreground hover:bg-muted inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors"
+                    >
+                      <X className="size-[15px]" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-muted-foreground border-t px-4 py-3 text-xs">
+                Whole word only matches when the keyword is surrounded by spaces
+                or punctuation — off, it matches anywhere, even inside other
+                words.
+              </p>
+            </>
+          )}
+        </Frame>
+      </Section>
+
+      <Frame className="px-4 py-3">
+        <SaveBar
+          // A filter with no non-empty keywords matches nothing, so block
+          // saving until at least one keyword has text, and say so rather than
+          // claim there is nothing to save.
+          dirty={dirty}
+          disabledReason={hasKeyword ? undefined : 'Add a keyword to save'}
+          saving={saving}
+          saved={false}
+          error={error}
+          onSave={handleSave}
+        />
+      </Frame>
     </div>
   )
 }

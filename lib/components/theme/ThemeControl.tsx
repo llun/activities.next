@@ -22,11 +22,17 @@ interface ThemeControlProps {
   // placements were removed) and is retained for future tight-chrome reuse.
   variant?: 'full' | 'compact'
   className?: string
+  /** Called after the user picks a mode, once it has been applied. */
+  onSelect?: (mode: ThemeMode) => void
+  /** The id of the text that describes the control, for `aria-describedby`. */
+  describedBy?: string
 }
 
 export const ThemeControl: FC<ThemeControlProps> = ({
   variant = 'full',
-  className
+  className,
+  onSelect,
+  describedBy
 }) => {
   const { theme, setTheme } = useTheme()
   const compact = variant === 'compact'
@@ -35,6 +41,7 @@ export const ThemeControl: FC<ThemeControlProps> = ({
     <div
       role="group"
       aria-label="Theme"
+      aria-describedby={describedBy}
       className={cn(
         compact
           ? 'inline-flex gap-0.5 rounded-full border bg-card p-0.5 shadow-sm'
@@ -55,7 +62,10 @@ export const ThemeControl: FC<ThemeControlProps> = ({
             aria-pressed={active}
             aria-label={compact ? `${label} theme` : undefined}
             title={compact ? label : undefined}
-            onClick={() => setTheme(mode)}
+            onClick={() => {
+              setTheme(mode)
+              onSelect?.(mode)
+            }}
             className={cn(
               'inline-flex items-center justify-center gap-2 font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
               compact
