@@ -186,6 +186,7 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
                 type="button"
                 variant="outline"
                 size="sm"
+                className="pointer-coarse:h-10"
                 onClick={() => setAttempt((current) => current + 1)}
               >
                 Try again
@@ -261,6 +262,7 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
           <Button
             type="button"
             variant="outline"
+            className="pointer-coarse:h-10"
             onClick={() => handleOpenChange(false)}
             disabled={isAdding}
           >
@@ -268,6 +270,7 @@ export const GalleryAddToAlbumDialog: FC<Props> = ({
           </Button>
           <Button
             type="button"
+            className="pointer-coarse:h-10"
             onClick={() => void handleAdd()}
             disabled={!chosen || isAdding}
           >
