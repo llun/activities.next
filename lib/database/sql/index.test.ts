@@ -7,7 +7,6 @@ import { BookmarkSQLDatabaseMixin } from './bookmark'
 import { FitnessSettingsSQLDatabaseMixin } from './fitnessSettings'
 import { FollowerSQLDatabaseMixin } from './follow'
 import { getSQLDatabase } from './index'
-import { LikeSQLDatabaseMixin } from './like'
 import { MediaSQLDatabaseMixin } from './media'
 import { NotificationSQLDatabaseMixin } from './notification'
 import { OAuthSQLDatabaseMixin } from './oauth'
@@ -38,10 +37,6 @@ vi.mock('@/lib/database/sql/fitnessSettings', () => ({
 
 vi.mock('@/lib/database/sql/follow', () => ({
   FollowerSQLDatabaseMixin: vi.fn()
-}))
-
-vi.mock('@/lib/database/sql/like', () => ({
-  LikeSQLDatabaseMixin: vi.fn()
 }))
 
 vi.mock('@/lib/database/sql/media', () => ({
@@ -80,7 +75,6 @@ describe('getSQLDatabase', () => {
   const fitnessSettingsMixinMock =
     FitnessSettingsSQLDatabaseMixin as unknown as jest.Mock
   const followerMixinMock = FollowerSQLDatabaseMixin as unknown as jest.Mock
-  const likeMixinMock = LikeSQLDatabaseMixin as unknown as jest.Mock
   const mediaMixinMock = MediaSQLDatabaseMixin as unknown as jest.Mock
   const notificationMixinMock =
     NotificationSQLDatabaseMixin as unknown as jest.Mock
@@ -125,9 +119,6 @@ describe('getSQLDatabase', () => {
     const followerDatabase = {
       getFollowers: vi.fn()
     }
-    const likeDatabase = {
-      createLike: vi.fn()
-    }
     const mediaDatabase = {
       createMedia: vi.fn()
     }
@@ -158,7 +149,6 @@ describe('getSQLDatabase', () => {
     bookmarkMixinMock.mockReturnValue(bookmarkDatabase)
     fitnessSettingsMixinMock.mockReturnValue(fitnessSettingsDatabase)
     followerMixinMock.mockReturnValue(followerDatabase)
-    likeMixinMock.mockReturnValue(likeDatabase)
     mediaMixinMock.mockReturnValue(mediaDatabase)
     notificationMixinMock.mockReturnValue(notificationDatabase)
     oauthMixinMock.mockReturnValue(oauthDatabase)
@@ -180,7 +170,6 @@ describe('getSQLDatabase', () => {
       followerDatabase,
       fitnessSettingsDatabase,
       knexDatabase,
-      likeDatabase,
       mediaDatabase,
       notificationDatabase,
       oauthDatabase,
@@ -196,7 +185,6 @@ describe('getSQLDatabase', () => {
       actorDatabase,
       bookmarkDatabase,
       knexDatabase,
-      likeDatabase,
       mediaDatabase,
       statusDatabase,
       statusDetectedLanguageDatabase
@@ -208,7 +196,6 @@ describe('getSQLDatabase', () => {
     expect(bookmarkMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(fitnessSettingsMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(followerMixinMock).toHaveBeenCalledWith(knexDatabase, actorDatabase)
-    expect(likeMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(mediaMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(notificationMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(oauthMixinMock).toHaveBeenCalledWith(knexDatabase)
@@ -217,7 +204,12 @@ describe('getSQLDatabase', () => {
     expect(statusMixinMock).toHaveBeenCalledWith(
       knexDatabase,
       actorDatabase,
-      likeDatabase,
+      // Likes are Kysely queries bound to the same Knex instance (created on
+      // first use, so the mocked Knex is never touched here).
+      expect.objectContaining({
+        createLike: expect.any(Function),
+        isActorLikedStatus: expect.any(Function)
+      }),
       bookmarkDatabase,
       mediaDatabase,
       statusDetectedLanguageDatabase,

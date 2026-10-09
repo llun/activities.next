@@ -1082,7 +1082,7 @@ each ends with the Definition of Done gate.
 1. `yarn migrate:make <name>` — never hand-write the file (migrations are ESM `.js` with named `up`/`down` from `migrations/migration.stub`).
 2. Use the Knex query builder; the migration must work on SQLite and PostgreSQL and avoid breaking MySQL-compatible clients (see **Database Compatibility Guidelines**).
 3. Apply it locally against a throwaway SQLite file with inline env vars: `ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=better-sqlite3 ACTIVITIES_DATABASE_SQLITE_FILENAME=./throwaway.sqlite3 yarn migrate` (the empty `ACTIVITIES_DATABASE=` keeps a JSON configuration in `.env.local` from taking over).
-4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**). This is not optional: the Vitest suite builds its databases from the dumps, and CI's SQLite and PostgreSQL Schema Dump Sync jobs fail on schema-dump drift.
+4. Regenerate BOTH reference schema dumps (see **Keeping the reference schema dumps in sync**), then the Kysely DB types (see **Regenerating the Kysely DB types** in `docs/setup.md`). This is not optional: the Vitest suite builds its databases from the dumps, and CI's SQLite and PostgreSQL Schema Dump Sync jobs fail on schema-dump or type drift.
 5. Update the affected `lib/database/` code and types, plus tests.
 6. Run the Definition of Done gate.
 
@@ -1131,7 +1131,7 @@ When a change alters what users see, update the design in the same task:
   - `package.json` scripts, tooling, hooks (husky/lint-staged), or CI workflow changes → `AGENTS.md` (Build/Test and Commit sections) and `CONTRIBUTING.md`
   - Environment variables added/removed/renamed, or defaults/validation changed → `docs/environment-variables.md` and `.env.example` (plus any setup guide that shows the variable)
   - API routes added/moved, or HTTP methods changed → `docs/architecture.md` and the relevant feature guide (e.g. `docs/fitness-file-storage.md`)
-  - Knex migrations → regenerate both schema dumps (see Database Backends & Local Setup)
+  - Knex migrations → regenerate both schema dumps and the Kysely DB types (see Database Backends & Local Setup)
   - `scripts/` utilities added or changed → `docs/maintenance.md` (and the feature guide that lists them)
   - Deployment, Docker, or runtime-config changes → `README.md`, `docs/setup.md`, and the database setup guides
   - New or changed coding conventions and patterns → the matching `AGENTS.md` section and the `REVIEW.md` checklist

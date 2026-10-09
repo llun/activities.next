@@ -336,7 +336,7 @@ Use the one that matches the database you are reasoning about:
 
 The app (`yarn migrate`) runs Knex migrations, but the test suite does **not** — `lib/database/testUtils.ts` builds every test database directly from these dumps (see Testing Guidelines). If the dumps drift from the migrations, tests run against a stale schema, so keeping them in lockstep is load-bearing, not just hygiene. They are gitignored by the blanket `*.sql` rule and re-included by explicit `!` negations in `.gitignore`.
 
-- **Any PR that adds, edits, or removes a Knex migration in `migrations/` MUST regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` in the same PR.** Keep them in lockstep — they must always describe the same migration set. CI's **SQLite Schema Dump Sync** and **PostgreSQL Schema Dump Sync** jobs regenerate both reference dumps from the migrations on every push/PR and fail on drift.
+- **Any PR that adds, edits, or removes a Knex migration in `migrations/` MUST regenerate BOTH `migrations/schema.sql` and `migrations/schema.sqlite.sql` in the same PR**, and then the Kysely DB types (see **Regenerating the Kysely DB types** below). Keep them in lockstep — they must always describe the same migration set. CI's **SQLite Schema Dump Sync** and **PostgreSQL Schema Dump Sync** jobs regenerate both reference dumps from the migrations on every push/PR and fail on drift.
 - Regenerate them canonically rather than hand-editing — run every migration against a fresh database of each type and dump the result. In both cases verify `SELECT count(*) FROM knex_migrations` equals the number of `migrations/*.js` files first.
 
   Pass the DB settings **inline** on the `yarn migrate` line — do **not** write a `.env.local` (you'd clobber an existing one, and the cleanup would delete it). Because `knexfile.js` uses `dotenv-flow`, which never overrides variables already in the environment, each inline value wins over the same variable in `.env.local` — but only that one: `.env.local` still supplies whatever the line leaves unset, and an `ACTIVITIES_DATABASE` JSON configuration wins over every individual `ACTIVITIES_DATABASE_*` variable. So start every line with an empty `ACTIVITIES_DATABASE=`, or a JSON configuration in `.env.local` would redirect `yarn migrate` to that database. For the same reason, run in a shell with **no** other `ACTIVITIES_DATABASE*` vars exported (a stray one would be merged in and could target a remote DB — check `env | grep ACTIVITIES_DATABASE`).
@@ -353,6 +353,16 @@ The app (`yarn migrate`) runs Knex migrations, but the test suite does **not** �
   3. Strip SQLite's auto-managed internal tables, which it recreates on its own and which must NOT be in the file: the `CREATE TABLE sqlite_sequence(...)` line, and the FTS5 shadow tables (`CREATE TABLE IF NOT EXISTS '<name>_fts_(data|idx|docsize|config|content)'`). Keep the `CREATE VIRTUAL TABLE … USING fts5(…)` statement and its triggers — those are real. A quick sanity check: `sqlite3 /tmp/x.sqlite3 < migrations/schema.sqlite.sql` should load cleanly.
 
   Then remove the throwaway container / `.sqlite3` file; only the two schema files should change.
+
+#### Regenerating the Kysely DB types
+
+`lib/database/kysely/db.ts` is the Kysely `DB` interface for every application table. It is generated, never hand-edited, by `scripts/maintenance/generateDatabaseTypes.ts`, which introspects a PostgreSQL database migrated to the latest migration (step 2 of the PostgreSQL dump above, before you remove the container) and the committed `migrations/schema.sqlite.sql`, so regenerate the SQLite dump first. Pass the same inline settings as `yarn migrate`; the script only reads the schema:
+
+```bash
+ACTIVITIES_DATABASE= ACTIVITIES_DATABASE_CLIENT=pg ACTIVITIES_DATABASE_PG_HOST=… ACTIVITIES_DATABASE_PG_PORT=… ACTIVITIES_DATABASE_PG_USER=… ACTIVITIES_DATABASE_PG_PASSWORD=… ACTIVITIES_DATABASE_PG_DATABASE=… node scripts/run.cjs scripts/maintenance/generateDatabaseTypes.ts
+```
+
+It types each column for what the Kysely driver returns on both backends and prints any column whose type differs between the two dumps in a way that changes what is read back (typed as either, and marked `Mismatch` in the file). CI's **PostgreSQL Schema Dump Sync** job regenerates the file with `--output` and fails on drift.
 
 - A Postgres regeneration is a full re-dump, so its diff can be large even for unchanged tables (formatting differs from older dumps). That is expected — do not try to reproduce the old line-by-line formatting by hand. Commit the schema regeneration as `none:` when it is the only change (they are reference artifacts and ship nothing).
 - **Use only a local database for local dev/tests:** SQLite on `localhost`, or the docker-compose PostgreSQL at `activities.local`. Never connect local dev, tests, or user creation to a remote/shared/production database.

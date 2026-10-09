@@ -1212,12 +1212,25 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
 ### Database Compatibility Guidelines
 
 - **All database operations must work with SQLite and PostgreSQL, and should avoid assumptions that break MySQL-compatible Knex clients where possible.**
-- Use Knex query builder for all database operations—avoid raw SQL unless absolutely necessary.
+- Use a query builder for all database operations (Kysely for new or ported domain code, Knex elsewhere; see **Kysely** below)—avoid raw SQL unless absolutely necessary.
 - When writing raw SQL, ensure syntax is compatible across all supported databases.
 - Avoid database-specific features unless wrapped with conditional logic or fallback behavior for each backend.
 - Test migrations and queries against SQLite (used in tests) to catch compatibility issues early.
 - Use standard SQL types and avoid vendor-specific extensions (e.g., use `text` instead of PostgreSQL's `varchar[]`).
 - **A client-supplied id compared against a numeric column must be coerced first — PostgreSQL turns a bad id into an error, not a miss.** `medias.id` (and `attachments.mediaId`) are `integer` on PostgreSQL, so `where('medias.id', 'abc')` raises `invalid input syntax for type integer` and a 404 becomes a 500. SQLite's dynamic typing just matches nothing, so the default test run never sees it: `TEST_DATABASE_TYPE=sqlite` is what CI pins, and only `TEST_DATABASE_TYPE=pg` catches this class of bug. In `lib/database/sql/media.ts` every method that **compares** a `mediaId` against `medias.id` runs it through `toMediaRowId` first, so the caller reports "not found" without touching the database. (`createAttachment` **writes** `mediaId` rather than comparing it and is deliberately unguarded, since coercing would silently drop the link instead of surfacing a bad id. The shape check therefore has to sit at the route: `POST /api/v1/accounts/outbox` takes `PostBoxAttachment.id` as a bare `z.string()` and hands it to `lib/actions/createNote.ts`, so a malformed id used to fail the insert on PostgreSQL **after** the status row was committed — a 500, and a published status whose media had silently vanished, because `createNote.ts` opens no transaction to roll back. That route now rejects an id `toMediaRowId` cannot resolve with a 422 before anything is written. Validate at the route rather than in the action: the action runs after the status write, so it is too late to refuse. The id is shape-checked and forwarded unchanged, never normalised — whether the row exists and belongs to the actor stays `resolveAttachmentMediaMetadata`'s question. `POST /api/v1/statuses` and `PUT /api/v1/statuses/:id` never had this hole: they resolve `media_ids` through `getMediaByIdForAccount` and build each attachment from the returned row, so a malformed id resolves to nothing instead of reaching a write. The outbox route is the one that trusts the client's whole attachment object — `url`, `mediaType` and dimensions included — which is why it needs its own guard.) The guard is shape-checked and range-bounded on purpose, not a bare `Number()` — it accepts optional leading zeros, digits, an optional all-zero fraction, and a value in 1..2147483647, and nothing else. Be aware this is deliberately **tighter than the backends themselves**, so on PostgreSQL it is a behaviour change, not only a bug fix: `'0x10'` and `'0b101'` used to resolve media 16 and 5 there (PostgreSQL accepts non-decimal integer literals since 16) and `'+12'`/`' 12 '` used to resolve media 12 on both backends — all now 404, which is the Mastodon answer for something that is not a row id. `'abc'`, `'1e3'`, `'12.0'` and anything above 2147483647 raised `invalid input syntax`/`value out of range` on PostgreSQL and are the 500s being fixed. `'12.0'` is the one spelling kept rather than tightened away, for **SQLite**: `attachments.mediaId` is `varchar` there, so an id bound as a JS number lands as `'1.0'` and gets re-resolved on every status edit. No production writer does that today, so treat it as defence in depth rather than a shim for observed data. Apply the same treatment to any new query that compares a caller-supplied value against a numeric column, and give test fixtures values the column can actually hold.
+
+#### Kysely
+
+The database layer is moving from Knex to Kysely one domain at a time. Knex still runs the migrations and every domain not yet ported.
+
+- **New or ported domain code uses Kysely.** A domain lives in `lib/database/domains/<name>/` as plain query functions `(db: Db, params) => …` (`Db` is the root Kysely instance or a transaction), with its parameter types in `types.ts`; `getSQLDatabase` exposes them through `bindDb(() => kyselyFor(database), queries)` under the unchanged `Database` method names. `lib/database/domains/like/` is the worked example.
+- **`kyselyFor(knexOrTrx)`** (`lib/database/kysely/`) returns the Kysely instance that borrows its connections from Knex's pool. Inside an unported Knex transaction, run ported code through `kyselyFor(trx)`: it uses the transaction's connection and commits or rolls back with it. Opening a transaction on it throws (it is already in one); `inTransaction(db, fn)` reuses the transaction it is given or opens one.
+- **Never use the root instance of one library inside a transaction of the other.** The root Kysely instance inside a Knex transaction, or a root Knex query inside a Kysely transaction, would need a second pooled connection (a deadlock on SQLite's single connection) and would run outside the transaction; both throw `MixedDatabaseTransactionError` instead. Kysely controlled transactions (`db.startTransaction()`) are refused for the same reason; use `db.transaction().execute(…)`.
+- **Results are normalised by the driver** (`lib/database/kysely/normalize.ts`): timestamps read as epoch milliseconds, int8/numeric as numbers, booleans as booleans and JSON parsed, on both backends, so ported code needs no `getCompatibleTime`/`getCompatibleJSON` shims. SQLite expression columns (`count(*)`, `max(…)`) have no declared type and are converted in the domain mapper. Write timestamps as `Date`, compare against them with `timestampValue()`, and write JSON as a `JSON.stringify`'d string.
+- **Put dialect-specific SQL in `lib/database/kysely/dialect.ts`** and use Kysely's `sql` tag for it there, rather than branching in a domain (for example `forUpdate()`, which is a no-op on SQLite where Kysely would emit `for update`).
+- **Regenerate `lib/database/kysely/db.ts` whenever a migration changes the schema** (see [Regenerating the Kysely DB types](setup.md#regenerating-the-kysely-db-types)).
+- **Kysely supports better-sqlite3 and pg only.** On MySQL (`mysql`/`mysql2`), `sqlite3` or `pg-native` configurations, ported domains throw on first use, naming the driver. That is a known gap of the in-progress migration; the Knex MySQL paths are untouched.
+- Counters in ported code go through `lib/database/kysely/counter.ts` (one atomic upsert per adjustment); the Knex helpers in `lib/database/sql/utils/counter.ts` remain for unported domains.
 
 <a id="review-uploaded-file-names"></a>
 
@@ -1271,14 +1284,16 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
 
 ### Review: Database & migrations
 
-- Queries use the Knex query builder, not raw SQL, unless unavoidable. Operations
-  must work on SQLite (tests + local dev) and PostgreSQL, and avoid breaking
-  MySQL-compatible Knex clients. Use standard SQL types (e.g. `text`, not
-  `varchar[]`).
+- Queries use a query builder (Kysely in new or ported domains, Knex
+  elsewhere), not raw SQL, unless unavoidable. Operations must work on SQLite
+  (tests + local dev) and PostgreSQL, and avoid breaking MySQL-compatible Knex
+  clients. Use standard SQL types (e.g. `text`, not `varchar[]`). Ported code
+  never mixes the root Knex and Kysely instances inside one transaction (use
+  `kyselyFor(trx)`); see [Kysely](#kysely).
 - Any PR that adds/edits/removes a migration regenerates **both**
   `migrations/schema.sql` (PostgreSQL) and `migrations/schema.sqlite.sql` (SQLite)
-  in the same PR, against fresh local DBs — never hand-edited. Commit a
-  schema-only regeneration as `none:`. (CI's SQLite and PostgreSQL Schema Dump Sync
+  in the same PR, against fresh local DBs — never hand-edited — and then
+  `lib/database/kysely/db.ts`. Commit a schema-only regeneration as `none:`. (CI's SQLite and PostgreSQL Schema Dump Sync
   jobs catch schema-dump drift.)
 - The viewer's own follow row is read with `getViewerFollow`
   (`lib/services/getViewerFollow.ts`) on **read** paths — it is
