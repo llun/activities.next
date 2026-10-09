@@ -499,6 +499,49 @@ describe('Sidebar', () => {
     })
   })
 
+  describe('pinned account', () => {
+    const user = {
+      handle: '@testuser@example.com',
+      name: 'Test User',
+      username: 'testuser'
+    }
+
+    it('sizes both sidebars to the dynamic viewport so Safari toolbars never cover the account', () => {
+      const { container } = renderSidebar(<Sidebar lists={[]} user={user} />)
+
+      const asides = container.querySelectorAll('aside')
+      expect(asides).toHaveLength(2)
+      for (const aside of asides) {
+        expect(aside).toHaveClass('h-dvh')
+        expect(aside).not.toHaveClass('h-screen')
+      }
+    })
+
+    it('keeps the account rows clear of the home indicator', () => {
+      const { container } = renderSidebar(<Sidebar lists={[]} user={user} />)
+
+      const accountRows = Array.from(
+        container.querySelectorAll(`aside a[href="/${user.handle}"]`)
+      ).map((link) => link.closest('aside > div'))
+      expect(accountRows).toHaveLength(2)
+      for (const row of accountRows) {
+        expect(row?.className).toContain('env(safe-area-inset-bottom,0px)')
+      }
+    })
+
+    it('leaves the bottom inset to the drawer panel in the drawer', () => {
+      const { container } = renderSidebar(
+        <Sidebar variant="drawer" lists={[]} user={user} />
+      )
+
+      const row = container
+        .querySelector(`aside a[href="/${user.handle}"]`)
+        ?.closest('aside > div')
+      expect(row).toHaveClass('pb-4')
+      expect(row?.className).not.toContain('safe-area-inset-bottom')
+    })
+  })
+
   describe('drawer variant', () => {
     it('omits the tablet rail when variant is drawer', () => {
       renderSidebar(<Sidebar variant="drawer" lists={[]} />)
