@@ -10,10 +10,6 @@ import {
   StatusType
 } from '@/lib/types/domain/status'
 
-export const MockAnnouncementPill = () => (
-  <div data-testid="announcement-pill" />
-)
-
 export const MockAnnouncementIcon = () => (
   <div data-testid="announcement-icon" />
 )

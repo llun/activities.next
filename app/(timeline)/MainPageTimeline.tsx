@@ -6,10 +6,7 @@ import { useRouter } from 'next/navigation'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import { getTimeline } from '@/lib/client'
-import {
-  AnnouncementIconButton,
-  AnnouncementPill
-} from '@/lib/components/announcements/AnnouncementBanner'
+import { AnnouncementIconButton } from '@/lib/components/announcements/AnnouncementBanner'
 import { useAnnouncements } from '@/lib/components/announcements/useAnnouncements'
 import { LoadMoreButton } from '@/lib/components/load-more-button/load-more-button'
 import { PageHeader } from '@/lib/components/page-header'
@@ -432,10 +429,9 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
             />
           </div>
         }
-        // Both pills float in one row under the header and follow it on scroll.
+        // The new-posts pill floats under the header and follows it on scroll.
         bottomSlot={
-          <div className="flex items-start justify-center gap-2">
-            <AnnouncementPill state={announcements} />
+          <div className="flex justify-center">
             {newerPostsCount > 0 ? (
               <Button
                 type="button"

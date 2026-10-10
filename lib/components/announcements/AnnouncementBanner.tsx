@@ -15,7 +15,11 @@ import { cn } from '@/lib/utils'
 import { cleanClassName } from '@/lib/utils/text/cleanClassName'
 
 import { formatEventTime } from './formatEventTime'
-import { type AnnouncementsState, SURFACE_SELECTOR } from './useAnnouncements'
+import type { AnnouncementsState } from './useAnnouncements'
+
+// The announcements' own controls: the header icon and the panel.
+const SURFACE_SELECTOR =
+  '[data-announcements-panel],[data-announcements-trigger]'
 
 // Quick-access unicode emoji offered by the reaction picker. Instance-level
 // only — no custom per-account stickers (see design spec).
@@ -41,7 +45,7 @@ interface BadgeProps {
   children: React.ReactNode
 }
 
-// Small inline pill used for the unread count, "New" flag, and admin lifecycle
+// Small inline pill used for the "New" flag and the admin lifecycle
 // status, mapping the design tones to theme-token classes.
 export const AnnouncementBadge: FC<BadgeProps> = ({
   tone = 'orange',
@@ -212,15 +216,13 @@ interface AnnouncementsViewProps {
 // The panel is a popover under the header, centred to the content column. It
 // closes from its trigger, an outside press, focus moving to a control outside
 // it, or Escape; closing never writes storage, and Escape and the trigger
-// return focus to the trigger. Several copies can exist (the header floats one
-// row under the desktop box and another under the mobile bar), so "inside"
-// means inside any announcements surface.
+// return focus to the trigger. Several copies can exist (the header renders its
+// actions in both the desktop box and the mobile bar), so "inside" means inside
+// any announcements surface.
 const AnnouncementsPanel: FC<{
   state: AnnouncementsState
   id: string
-  /** Anchors under the header box itself instead of the pill above it. */
-  fromHeader?: boolean
-}> = ({ state, id, fromHeader }) => {
+}> = ({ state, id }) => {
   const { announcements, current, index, setIndex, onAdd, onToggleReaction } =
     state
   // The HTML content is server-rendered and sanitized by the status pipeline
@@ -247,10 +249,7 @@ const AnnouncementsPanel: FC<{
       aria-label="Announcements"
       data-announcements-panel
       onBlur={closeOnFocusOut(state.close)}
-      className={cn(
-        'bg-popover text-popover-foreground pointer-events-auto absolute inset-x-0 z-30 mx-auto max-h-[60vh] w-[calc(100%-2rem)] max-w-[calc(var(--container-content)-2rem)] space-y-3 overflow-y-auto rounded-lg border p-4 text-left shadow-lg',
-        fromHeader ? 'top-full mt-2' : 'mt-2'
-      )}
+      className="bg-popover text-popover-foreground pointer-events-auto absolute inset-x-0 top-full z-30 mx-auto mt-2 max-h-[60vh] w-[calc(100%-2rem)] max-w-[calc(var(--container-content)-2rem)] space-y-3 overflow-y-auto rounded-lg border p-4 text-left shadow-lg"
     >
       {hasMultiple && (
         <div className="text-muted-foreground text-xs tabular-nums">
@@ -378,71 +377,29 @@ const closeOnFocusOut =
   }
 
 /**
- * The floating pill for unread announcements, rendered in the page header's
- * `bottomSlot` row (it floats under the header and follows it on scroll). Below
- * `sm` it is compact: icon, unread number and chevron.
- */
-export const AnnouncementPill: FC<AnnouncementsViewProps> = ({ state }) => {
-  const { mode, open, close, closeAndRefocus, openPanel, unreadCount } = state
-  const panelId = useId()
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  useDismissWhileOpen(open && mode === 'pill', state)
-  useTakeFocusRequest(state, triggerRef)
-  if (mode !== 'pill') return null
-
-  return (
-    <div>
-      <Button
-        ref={triggerRef}
-        type="button"
-        variant="pill"
-        data-announcements-trigger
-        onClick={open ? closeAndRefocus : openPanel}
-        onBlur={closeOnFocusOut(close)}
-        aria-expanded={open}
-        aria-controls={open ? panelId : undefined}
-        aria-label={
-          unreadCount > 0
-            ? `Announcements, ${formatCount(unreadCount)} new`
-            : 'Announcements'
-        }
-        className="pointer-events-auto h-9 gap-2 px-3 shadow-xs max-sm:gap-1.5 max-sm:px-2.5 dark:bg-background dark:hover:bg-accent"
-      >
-        <Megaphone className="text-primary size-4" />
-        <span className="text-sm font-medium max-sm:hidden">Announcements</span>
-        {unreadCount > 0 && (
-          <AnnouncementBadge tone="orange">
-            <span className="sm:hidden">{formatCount(unreadCount)}</span>
-            <span className="max-sm:hidden">
-              {formatCount(unreadCount)} new
-            </span>
-          </AnnouncementBadge>
-        )}
-        {open ? (
-          <ChevronUp className="text-muted-foreground size-4" />
-        ) : (
-          <ChevronDown className="text-muted-foreground size-4" />
-        )}
-      </Button>
-      {open && <AnnouncementsPanel state={state} id={panelId} />}
-    </div>
-  )
-}
-
-/**
- * The header action for announcements that are all read: a Refresh-style icon
- * button, so the header keeps its height. It opens the same panel under the
- * header.
+ * The header action for announcements: a Refresh-style icon button beside
+ * Refresh, so it never takes space in the header. It is shown whenever there is
+ * at least one active announcement, read or unread, and opens the panel under
+ * the header. While anything is unread it carries a small dot in the primary
+ * token and names the count ("Announcements, 2 new"); the dot drains live as
+ * the mark-read-on-view timer marks items read.
  */
 export const AnnouncementIconButton: FC<AnnouncementsViewProps> = ({
   state
 }) => {
-  const { mode, open, close, closeAndRefocus, openPanel } = state
+  const {
+    hasAnnouncements,
+    open,
+    close,
+    closeAndRefocus,
+    openPanel,
+    unreadCount
+  } = state
   const panelId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
-  useDismissWhileOpen(open && mode === 'icon', state)
+  useDismissWhileOpen(open, state)
   useTakeFocusRequest(state, triggerRef)
-  if (mode !== 'icon') return null
+  if (!hasAnnouncements) return null
 
   return (
     <>
@@ -456,12 +413,23 @@ export const AnnouncementIconButton: FC<AnnouncementsViewProps> = ({
         onBlur={closeOnFocusOut(close)}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        aria-label="Announcements"
-        className="dark:border-border dark:bg-card dark:hover:bg-accent"
+        aria-label={
+          unreadCount > 0
+            ? `Announcements, ${formatCount(unreadCount)} new`
+            : 'Announcements'
+        }
+        className="group relative dark:border-border dark:bg-card dark:hover:bg-accent"
       >
         <Megaphone className="size-4" aria-hidden="true" />
+        {unreadCount > 0 && (
+          <span
+            aria-hidden="true"
+            data-announcements-unread-dot
+            className="bg-primary ring-card group-hover:ring-accent absolute top-1.5 right-1.5 size-2 rounded-full ring-2"
+          />
+        )}
       </Button>
-      {open && <AnnouncementsPanel state={state} id={panelId} fromHeader />}
+      {open && <AnnouncementsPanel state={state} id={panelId} />}
     </>
   )
 }

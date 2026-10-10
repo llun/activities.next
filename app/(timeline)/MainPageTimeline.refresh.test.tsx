@@ -30,13 +30,12 @@ vi.mock('@/lib/client', () => ({
 }))
 
 vi.mock('@/lib/components/announcements/useAnnouncements', () => ({
-  useAnnouncements: () => ({ mode: 'pill' })
+  useAnnouncements: () => ({ hasAnnouncements: true })
 }))
 
 vi.mock('@/lib/components/announcements/AnnouncementBanner', async () => {
   const utils = await import('./MainPageTimeline.testUtils')
   return {
-    AnnouncementPill: utils.MockAnnouncementPill,
     AnnouncementIconButton: utils.MockAnnouncementIcon
   }
 })
