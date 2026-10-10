@@ -23,26 +23,6 @@ const stable = (value: unknown): string => {
 export const recipesEqual = (a: Recipe, b: Recipe): boolean =>
   stable(normalizeRecipe(a)) === stable(normalizeRecipe(b))
 
-/**
- * True when two recipes render the same pixels. The aspect label (and its
- * orientation) is UI state: picking 1:1 and then Original leaves the crop
- * alone, so it is not a change to save.
- */
-export const recipesRenderEqual = (a: Recipe, b: Recipe): boolean => {
-  const strip = (recipe: Recipe): Recipe => {
-    const {
-      aspectPortrait: _portrait,
-      aspect: _aspect,
-      ...geometry
-    } = normalizeRecipe(recipe).geometry
-    return {
-      ...normalizeRecipe(recipe),
-      geometry: { ...geometry, aspect: 'original' }
-    }
-  }
-  return stable(strip(a)) === stable(strip(b))
-}
-
 export const withAdjustments = (
   recipe: Recipe,
   adjustments: Adjustments

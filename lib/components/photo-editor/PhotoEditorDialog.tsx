@@ -21,6 +21,7 @@ import {
   NEUTRAL_RECIPE,
   type Recipe,
   isNeutralRecipe,
+  isSameRender,
   normalizeRecipe,
   parseStoredRecipe
 } from '@/lib/services/medias/edit/recipe'
@@ -52,7 +53,7 @@ import {
   withNetworkRetry
 } from './editErrors'
 import type { EditorControls } from './editorControls'
-import { recipesRenderEqual, setAdjustment, withGeometry } from './editorRecipe'
+import { setAdjustment, withGeometry } from './editorRecipe'
 import { AUTO_KEYS, computeAuto } from './engine/auto'
 import { exportRecipe } from './engine/exportImage'
 import { loadSource } from './engine/loadSource'
@@ -187,7 +188,7 @@ export const PhotoEditorDialog = ({
   )
 
   const edited = Boolean(editState?.edit.editedAt || editState?.edit.recipe)
-  const dirty = ready && !recipesRenderEqual(present, baseline)
+  const dirty = ready && !isSameRender(present, baseline)
   const revertsToOriginal = isNeutralRecipe(present) && edited
   const canSave = dirty && (!isNeutralRecipe(present) || edited)
   const statusCount = editState?.usage.statusCount ?? 0

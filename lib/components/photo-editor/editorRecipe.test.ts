@@ -1,8 +1,8 @@
-import { NEUTRAL_RECIPE } from '@/lib/services/medias/edit/recipe'
+import { NEUTRAL_RECIPE, isSameRender } from '@/lib/services/medias/edit/recipe'
 
-import { recipesEqual, recipesRenderEqual, withGeometry } from './editorRecipe'
+import { recipesEqual, withGeometry } from './editorRecipe'
 
-describe('recipesRenderEqual', () => {
+describe('isSameRender', () => {
   const withAspect = (aspect: '1:1' | 'free', portrait?: boolean) =>
     withGeometry(NEUTRAL_RECIPE, {
       ...NEUTRAL_RECIPE.geometry,
@@ -13,7 +13,7 @@ describe('recipesRenderEqual', () => {
   it('ignores an aspect label that leaves the crop alone', () => {
     const picked = withAspect('1:1', true)
     expect(recipesEqual(picked, NEUTRAL_RECIPE)).toBe(false)
-    expect(recipesRenderEqual(picked, NEUTRAL_RECIPE)).toBe(true)
+    expect(isSameRender(picked, NEUTRAL_RECIPE)).toBe(true)
   })
 
   it('still sees a different crop', () => {
@@ -22,6 +22,6 @@ describe('recipesRenderEqual', () => {
       aspect: '1:1',
       crop: { x: 0.1, y: 0, width: 0.8, height: 1 }
     })
-    expect(recipesRenderEqual(cropped, NEUTRAL_RECIPE)).toBe(false)
+    expect(isSameRender(cropped, NEUTRAL_RECIPE)).toBe(false)
   })
 })

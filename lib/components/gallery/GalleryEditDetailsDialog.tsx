@@ -15,7 +15,10 @@ import type {
   GalleryItemEntity,
   GallerySettingsEntity
 } from '@/lib/services/gallery/galleryEntities'
-import type { MediaDetailsEntity } from '@/lib/services/medias/types'
+import type {
+  MediaDetailsEntity,
+  MediaStorageSaveFileOutput
+} from '@/lib/services/medias/types'
 
 interface Props {
   /** The posted photos to edit, in the order the dialog steps through them. */
@@ -142,6 +145,34 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
     [onSaved]
   )
 
+  // The photo editor saved or reverted a photo: the tile shows the new file
+  // (url, size, BlurHash) and the details that came with it.
+  const handleMediaEdited = useCallback(
+    (id: string, media: MediaStorageSaveFileOutput) => {
+      if (media.details) {
+        const edited = media.details
+        setDetails((current) => ({ ...current, [id]: edited }))
+      }
+      const item = itemsRef.current.find((entry) => entry.mediaId === id)
+      if (!item) return
+      const base = producedRef.current.get(id) ?? item
+      const next: GalleryItemEntity = {
+        ...base,
+        attachment: {
+          ...base.attachment,
+          url: media.url,
+          width: media.meta.original.width ?? base.attachment.width,
+          height: media.meta.original.height ?? base.attachment.height,
+          blurhash: media.blurhash ?? base.attachment.blurhash,
+          thumbnailUrl: media.preview_url ?? media.url
+        }
+      }
+      producedRef.current.set(id, next)
+      onSaved([next])
+    },
+    [onSaved]
+  )
+
   const handleDetailsRefreshed = useCallback(
     (
       id: string,
@@ -166,6 +197,7 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
       ownerId={ownerId}
       onClose={onClose}
       onSaved={handleSaved}
+      onMediaEdited={handleMediaEdited}
       onDetailsRefreshed={handleDetailsRefreshed}
     />
   )

@@ -65,7 +65,8 @@ describe('MediasModal edit', () => {
       camera: null,
       lens: null,
       exposure: null,
-      place: null
+      place: null,
+      editedAt: null
     })
   })
 
