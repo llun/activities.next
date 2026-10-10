@@ -1,6 +1,7 @@
-// Parameter and result types of the fitness settings domain. The
-// `FitnessSettings` result and its stored form live in
-// lib/types/database/fitnessSettings.ts.
+// Parameter types of the fitness settings domain. The decrypted
+// `FitnessSettings` result type lives in lib/types/database/fitnessSettings.ts;
+// the stored row type is the generated `FitnessSettings` table type in
+// lib/database/kysely/db.ts.
 import type {
   FitnessPrivacyLocationSettingsEntry,
   FitnessSettings

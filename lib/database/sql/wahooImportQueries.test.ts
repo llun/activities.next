@@ -463,6 +463,15 @@ describe('wahoo import queries', () => {
   describe('markWahooImportPending', () => {
     it('requeues only that failed or unsupported import', async () => {
       const actor = await newActor()
+      const upsertCompleted = async () => {
+        const created = await database.upsertWahooImport({
+          actorId: actor,
+          providerUserId: 'p',
+          workoutId: 'completed'
+        })
+        await database.updateWahooImport(created.id, { status: 'completed' })
+        return created.id
+      }
       const make = async (workoutId: string, status: 'failed' | 'running') => {
         const created = await database.upsertWahooImport({
           actorId: actor,
@@ -478,8 +487,10 @@ describe('wahoo import queries', () => {
       const neighbour = await make('neighbour', 'failed')
       const running = await make('running', 'running')
       const target = await make('target', 'failed')
+      const completed = await upsertCompleted()
       const neighbourBefore = await rawImport(neighbour)
       const runningBefore = await rawImport(running)
+      const completedBefore = await rawImport(completed)
       at(6000)
 
       await expect(database.markWahooImportPending(target)).resolves.toBe(true)
@@ -489,6 +500,9 @@ describe('wahoo import queries', () => {
       await expect(database.markWahooImportPending('missing')).resolves.toBe(
         false
       )
+      await expect(database.markWahooImportPending(completed)).resolves.toBe(
+        false
+      )
 
       expect(await rawImport(target)).toMatchObject({
         status: 'pending',
@@ -496,6 +510,7 @@ describe('wahoo import queries', () => {
         updatedAt: T0 + 6000
       })
       expect(await rawImport(running)).toEqual(runningBefore)
+      expect(await rawImport(completed)).toEqual(completedBefore)
       expect(await rawImport(neighbour)).toEqual(neighbourBefore)
     })
 

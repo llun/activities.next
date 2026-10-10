@@ -1,6 +1,5 @@
 import { parseStoredPrivacyLocations } from '@/lib/database/domains/fitnessSettings/queries'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
-import { SQLFitnessSettings } from '@/lib/types/database/fitnessSettings'
 import { logger } from '@/lib/utils/logger'
 
 // Lets one test force the (normally total) sanitizer to throw, so the
@@ -795,31 +794,25 @@ describe('parseStoredPrivacyLocations', () => {
       description: 'passes through the already-parsed PostgreSQL jsonb value',
       value: [zone]
     }
-  ])(
-    '$description',
-    ({ value }: { value: SQLFitnessSettings['privacyLocations'] }) => {
-      const loggerErrorSpy = vi
-        .spyOn(logger, 'error')
-        .mockImplementation(() => undefined)
+  ])('$description', ({ value }: { value: unknown }) => {
+    const loggerErrorSpy = vi
+      .spyOn(logger, 'error')
+      .mockImplementation(() => undefined)
 
-      try {
-        expect(parseStoredPrivacyLocations(value, context)).toEqual([zone])
-        expect(loggerErrorSpy).not.toHaveBeenCalled()
-      } finally {
-        loggerErrorSpy.mockRestore()
-      }
+    try {
+      expect(parseStoredPrivacyLocations(value, context)).toEqual([zone])
+      expect(loggerErrorSpy).not.toHaveBeenCalled()
+    } finally {
+      loggerErrorSpy.mockRestore()
     }
-  )
+  })
 
   it.each([
     { description: 'treats a null column as unset', value: null },
     { description: 'treats an absent column as unset', value: undefined }
-  ])(
-    '$description',
-    ({ value }: { value: SQLFitnessSettings['privacyLocations'] }) => {
-      expect(parseStoredPrivacyLocations(value, context)).toBeUndefined()
-    }
-  )
+  ])('$description', ({ value }: { value: unknown }) => {
+    expect(parseStoredPrivacyLocations(value, context)).toBeUndefined()
+  })
 
   it('drops an unusable entry without logging a parse failure', () => {
     const loggerErrorSpy = vi
