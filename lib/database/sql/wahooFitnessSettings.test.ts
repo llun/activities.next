@@ -1,15 +1,14 @@
-import { Knex } from 'knex'
 import { createHash, createHmac } from 'node:crypto'
 
 import { getConfig } from '@/lib/config'
-import { getTestSQLDatabaseWithInstance } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 
 describe('Wahoo fitness settings database operations', () => {
-  let database: Database
-  let instance: Knex
+  const testDb = createTestDatabase()
+  const { database, knex: instance } = testDb
   const webhookToken = 'wahoo-webhook-secret'
   const providerUserId = 'wahoo-user-123'
 
@@ -28,9 +27,7 @@ describe('Wahoo fitness settings database operations', () => {
   }
 
   beforeAll(async () => {
-    const testDatabase = getTestSQLDatabaseWithInstance()
-    database = testDatabase.database
-    instance = testDatabase.instance
+    await testDb.prepare()
     await database.migrate()
     await seedDatabase(database)
   })
@@ -151,9 +148,13 @@ describe('Wahoo fitness settings database operations', () => {
       serviceType: 'wahoo'
     })
 
-    const raw = await instance('fitness_settings')
-      .where({ id: settings.id })
-      .first()
+    // Read through Kysely: a raw Knex read returns the timestamp as a Date on
+    // PostgreSQL and as a number on SQLite.
+    const raw = await testDb.db
+      .selectFrom('fitness_settings')
+      .selectAll()
+      .where('id', '=', settings.id)
+      .executeTakeFirst()
     expect(raw).toMatchObject({
       deletedAt: expect.any(Number),
       clientId: null,
@@ -199,9 +200,13 @@ describe('Wahoo fitness settings database operations', () => {
       })
     ).resolves.toBeNull()
 
-    const raw = await instance('fitness_settings')
-      .where({ id: settings.id })
-      .first()
+    // Read through Kysely: a raw Knex read returns the timestamp as a Date on
+    // PostgreSQL and as a number on SQLite.
+    const raw = await testDb.db
+      .selectFrom('fitness_settings')
+      .selectAll()
+      .where('id', '=', settings.id)
+      .executeTakeFirst()
     expect(raw).toMatchObject({
       deletedAt: expect.any(Number),
       clientId: null,
