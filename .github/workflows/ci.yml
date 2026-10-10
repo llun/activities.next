@@ -238,7 +238,9 @@ jobs:
             lib/database/sql/like.test.ts \
             lib/database/kysely/driver.test.ts \
             lib/database/kysely/guard.test.ts \
-            lib/database/kysely/counter.test.ts
+            lib/database/kysely/counter.test.ts \
+            lib/database/testing/createTestDatabase.test.ts \
+            lib/database/testing/fixtures.test.ts
         env:
           TEST_DATABASE_TYPE: pg
           TEST_DATABASE_HOST: 127.0.0.1
@@ -248,7 +250,7 @@ jobs:
 
   # Drift gate for the committed SQLite reference schema dump. The Vitest
   # suite builds every test database from migrations/schema.sqlite.sql (via
-  # lib/database/testUtils.ts) instead of running the Knex migration chain, so
+  # lib/database/testing/schema.ts) instead of running the Knex migration chain, so
   # a dump that lags the migrations makes the whole suite test a stale schema.
   # This job replays all migrations against a fresh SQLite database, applies
   # the documented dump-and-strip pipeline (CONTRIBUTING.md → "SQLite —

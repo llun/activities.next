@@ -56,7 +56,9 @@ describe('server settings resolver', () => {
 
   it('serves a stored database value over the default', async () => {
     const database = await freshDatabase()
-    await database.setServerSetting({ key: 'posts.maxCharacters', value: 1000 })
+    await database.setServerSettings([
+      { key: 'posts.maxCharacters', value: 1000 }
+    ])
     invalidateServerSettingsCache(database)
 
     const settings = await getResolvedServerSettings(database)
@@ -66,7 +68,9 @@ describe('server settings resolver', () => {
 
   it('lets an env override win over a stored value and locks the field', async () => {
     const database = await freshDatabase()
-    await database.setServerSetting({ key: 'instance.name', value: 'DB Name' })
+    await database.setServerSettings([
+      { key: 'instance.name', value: 'DB Name' }
+    ])
     process.env.ACTIVITIES_SERVICE_NAME = 'Env Name'
     invalidateServerSettingsCache(database)
 
@@ -89,7 +93,9 @@ describe('server settings resolver', () => {
 
   it('ignores an invalid stored value and falls back to the default', async () => {
     const database = await freshDatabase()
-    await database.setServerSetting({ key: 'posts.maxCharacters', value: -5 })
+    await database.setServerSettings([
+      { key: 'posts.maxCharacters', value: -5 }
+    ])
     invalidateServerSettingsCache(database)
 
     const settings = await getResolvedServerSettings(database)
@@ -174,7 +180,9 @@ describe('server settings resolver', () => {
 
   it('keeps serving the last-known-good stored value when a later read fails', async () => {
     const database = await freshDatabase()
-    await database.setServerSetting({ key: 'registrations.open', value: false })
+    await database.setServerSettings([
+      { key: 'registrations.open', value: false }
+    ])
     invalidateServerSettingsCache(database)
     // Prime the cache with the stored (closed) value.
     await expect(getResolvedServerSettings(database)).resolves.toMatchObject({

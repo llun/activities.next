@@ -272,7 +272,7 @@ The suite runs on [Vitest](https://vitest.dev/) (native ESM; use the `vi.*` API,
 
 While the full test suite runs with SQLite in-memory databases for fast execution, database integration test suites can be executed against a local PostgreSQL 17 instance to verify cross-backend portability.
 
-The backend-aware database test harness (`lib/database/testUtils.ts`) configures per-worker databases (`test_<VITEST_POOL_ID>`) dropped and migrated from `migrations/schema.sql`.
+The backend-aware database test harness (`createTestDatabase` in `lib/database/testing/`; `lib/database/testUtils.ts` keeps the older helpers as aliases) configures per-worker databases (`test_<VITEST_POOL_ID>`) dropped and migrated from `migrations/schema.sql`.
 
 1. Start a local disposable PostgreSQL 17 container:
 
@@ -527,7 +527,7 @@ re-included by explicit `!` negations in `.gitignore`.
 Any pull request that adds, edits, or removes a migration **must regenerate BOTH
 files in the same PR**, keeping them in lockstep. The app runs Knex migrations,
 but the Vitest suite loads its database schema directly from these dumps
-(`lib/database/testUtils.ts`), so a drifted dump makes the whole test suite run
+(`lib/database/testing/schema.ts`), so a drifted dump makes the whole test suite run
 against a stale schema — regeneration is mandatory, not just hygiene.
 
 Regenerate them canonically rather than hand-editing. In both cases, run every
@@ -817,7 +817,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `PostgreSQL Database Tests`, `SQLite Schema Dump Sync`, and `PostgreSQL Schema Dump Sync`), so failures in
   `Type Check` (the gate covering `*.test.ts(x)`), database portability, or schema dump drift block
   merging via `CI Success`.
-  The test job pins `TEST_DATABASE_TYPE: sqlite`; `lib/database/testUtils.ts`
+  The test job pins `TEST_DATABASE_TYPE: sqlite`; `createTestDatabase`
   also supports `TEST_DATABASE_TYPE=pg` (with `TEST_DATABASE_HOST` /
   `TEST_DATABASE_USERNAME` / `TEST_DATABASE_PASSWORD`, and optional
   `TEST_DATABASE_PORT` defaulting to 5432) for running the suite against a throwaway **local** PostgreSQL. In that
@@ -829,6 +829,15 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   `SELECT pg_catalog.set_config('search_path', '', false)` is session-scoped and
   would otherwise leave that pooled connection unable to resolve any unqualified
   table name for the rest of its life.
+- **New tests get their database from `createTestDatabase()`**
+  (`lib/database/testing/createTestDatabase.ts`). It returns
+  `{ backend, database, db, knex, prepare, destroy }`: the `Database` facade
+  with the schema-dump `migrate()`, a Kysely `db`, the raw Knex instance, the
+  PostgreSQL `prepare` step (a no-op on SQLite) and `destroy`. Seed or inspect
+  state the public `Database` methods cannot reach with the helpers in
+  `lib/database/testing/fixtures.ts` (`(db, params)` functions over Kysely);
+  use a public method instead when one already does the job. The helpers below
+  are one-line aliases over it.
 - **`getTestSQLDatabase` and `getTestSQLDatabaseWithInstance` are SQLite-ONLY
   and ignore `TEST_DATABASE_TYPE` entirely.** A suite built on either reports a
   clean pass under the pg environment variables having never opened a PostgreSQL
@@ -972,7 +981,7 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   nothing a user can observe.
 - All tests run in parallel using isolated SQLite in-memory databases. The
   schema is loaded from the committed reference dumps (`migrations/schema*.sql`)
-  via `lib/database/testUtils.ts` rather than by running the Knex migration
+  via `lib/database/testing/schema.ts` rather than by running the Knex migration
   chain, so the dumps MUST stay in lockstep with the migrations.
 - **`describe` / `it` names use plain descriptive text — do not prefix them.**
   Name the function or method under test directly (`describe('getVisibility', …)`,

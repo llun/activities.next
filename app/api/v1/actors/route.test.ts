@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { FEDERATION_SIGNING_ACTOR_USERNAME } from '@/lib/services/federation/instanceActor'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
@@ -44,7 +46,7 @@ vi.mock('crypto', async () => {
 })
 
 describe('POST /api/v1/actors', () => {
-  const database = getTestSQLDatabase()
+  const { database, db } = createTestDatabase({ backend: 'sqlite' })
 
   beforeAll(async () => {
     await database.migrate()
@@ -77,10 +79,12 @@ describe('POST /api/v1/actors', () => {
   it('uses the requested domain when it is allowed', async () => {
     mockGetConfig.mockReturnValue({ host: 'llun.test', allowEmails: [] })
     // allowActorDomains is a database-backed federation setting.
-    await database.setServerSetting({
-      key: 'federation.allowActorDomains',
-      value: ['allowed.test', 'llun.test']
-    })
+    await database.setServerSettings([
+      {
+        key: 'federation.allowActorDomains',
+        value: ['allowed.test', 'llun.test']
+      }
+    ])
     invalidateServerSettingsCache(database)
 
     try {
@@ -93,7 +97,7 @@ describe('POST /api/v1/actors', () => {
       expect(response.status).toBe(200)
       expect(data.domain).toBe('allowed.test')
     } finally {
-      await database.deleteServerSetting({
+      await deleteServerSetting(db, {
         key: 'federation.allowActorDomains'
       })
       invalidateServerSettingsCache(database)
