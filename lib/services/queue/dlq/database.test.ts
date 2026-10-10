@@ -9,7 +9,9 @@ import {
   vi
 } from 'vitest'
 
+import { type Db, kyselyFor } from '@/lib/database/kysely'
 import { getSQLDatabase } from '@/lib/database/sql'
+import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { DatabaseDLQProvider } from '@/lib/services/queue/dlq/database'
@@ -18,6 +20,7 @@ import { JobMessage, Queue } from '@/lib/services/queue/type'
 describe('DatabaseDLQProvider', () => {
   let knexDatabase: Knex
   let database: Database
+  let db: Db
   let dbQueue: DatabaseQueue
 
   beforeAll(async () => {
@@ -29,6 +32,7 @@ describe('DatabaseDLQProvider', () => {
       }
     })
     database = getSQLDatabase(knexDatabase)
+    db = kyselyFor(knexDatabase)
     await database.migrate()
     dbQueue = new DatabaseQueue(undefined, database)
   })
@@ -70,7 +74,7 @@ describe('DatabaseDLQProvider', () => {
       const dlqAfter = await database.getDeadLetterJobById('dlq-job-1')
       expect(dlqAfter?.status).toBe('retried')
 
-      const queueJobAfter = await database.getQueueJobById('dlq-job-1')
+      const queueJobAfter = await getQueueJobById(db, 'dlq-job-1')
       expect(queueJobAfter?.status).toBe('pending')
       expect(queueJobAfter?.attempts).toBe(0)
     })
@@ -106,8 +110,8 @@ describe('DatabaseDLQProvider', () => {
       expect(result.success).toBe(true)
       expect(result.count).toBe(2)
 
-      const job1 = await database.getQueueJobById('batch-1')
-      const job2 = await database.getQueueJobById('batch-2')
+      const job1 = await getQueueJobById(db, 'batch-1')
+      const job2 = await getQueueJobById(db, 'batch-2')
       expect(job1?.status).toBe('pending')
       expect(job1?.attempts).toBe(0)
       expect(job2?.status).toBe('pending')
@@ -134,7 +138,7 @@ describe('DatabaseDLQProvider', () => {
       expect(result.count).toBe(3)
 
       for (const id of ['all-1', 'all-2', 'all-3']) {
-        const job = await database.getQueueJobById(id)
+        const job = await getQueueJobById(db, id)
         expect(job?.status).toBe('pending')
         expect(job?.attempts).toBe(0)
         const dlq = await database.getDeadLetterJobById(id)
@@ -167,7 +171,7 @@ describe('DatabaseDLQProvider', () => {
       })
 
       // Ensure no queue_jobs row exists
-      const queueJob = await database.getQueueJobById('cloudtasks-job-1')
+      const queueJob = await getQueueJobById(db, 'cloudtasks-job-1')
       expect(queueJob).toBeNull()
 
       const result = await provider.retryJob('cloudtasks-job-1')

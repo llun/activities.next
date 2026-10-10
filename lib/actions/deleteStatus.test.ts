@@ -8,7 +8,9 @@ import {
   QStashConfig,
   QueueConfig
 } from '@/lib/config/queue'
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { type Db } from '@/lib/database/kysely'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import { SEND_DELETE_NOTE_JOB_NAME } from '@/lib/jobs/names'
 import { getQueue } from '@/lib/services/queue'
@@ -545,10 +547,13 @@ describe('deleteStatusFromUserInput', () => {
 
   describe('Immediate local disappearance (Integration with SQL Database)', () => {
     let database: Database
+    let db: Db
     let actor: Actor
 
     beforeEach(async () => {
-      database = await getTestSQLDatabase()
+      const testDb = createTestDatabase({ backend: 'sqlite' })
+      database = testDb.database
+      db = testDb.db
       await database.migrate()
       const queueConfig: DatabaseQueueConfig = {
         type: 'database',
@@ -604,7 +609,7 @@ describe('deleteStatusFromUserInput', () => {
 
       // Queue job must exist in database in pending status
       const expectedJobId = getHashFromString(`${statusId}#delete`)
-      const persistedJob = await database.getQueueJobById(expectedJobId)
+      const persistedJob = await getQueueJobById(db, expectedJobId)
       expect(persistedJob).not.toBeNull()
       expect(persistedJob?.name).toBe(SEND_DELETE_NOTE_JOB_NAME)
       expect(persistedJob?.status).toBe('pending')
@@ -652,7 +657,7 @@ describe('deleteStatusFromUserInput', () => {
       expect(afterStatus).not.toBeNull()
 
       // Queue job was not persisted
-      const persistedJob = await database.getQueueJobById(expectedJobId)
+      const persistedJob = await getQueueJobById(db, expectedJobId)
       expect(persistedJob).toBeNull()
     })
   })

@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { getQueue } from '@/lib/services/queue'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
@@ -60,7 +62,7 @@ vi.mock('@/lib/config', async () => ({
 }))
 
 describe('PUT /api/v1/statuses/[id]', () => {
-  const database = getTestSQLDatabase()
+  const { database, db } = createTestDatabase({ backend: 'sqlite' })
 
   beforeAll(async () => {
     await database.migrate()
@@ -95,7 +97,9 @@ describe('PUT /api/v1/statuses/[id]', () => {
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
       })
-      await database.setServerSetting({ key: 'posts.maxCharacters', value: 10 })
+      await database.setServerSettings([
+        { key: 'posts.maxCharacters', value: 10 }
+      ])
       invalidateServerSettingsCache(database)
 
       try {
@@ -115,7 +119,7 @@ describe('PUT /api/v1/statuses/[id]', () => {
         )
         expect(response.status).toBe(422)
       } finally {
-        await database.deleteServerSetting({ key: 'posts.maxCharacters' })
+        await deleteServerSetting(db, { key: 'posts.maxCharacters' })
         invalidateServerSettingsCache(database)
       }
     })

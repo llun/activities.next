@@ -1,6 +1,8 @@
 import knex, { Knex } from 'knex'
 
+import { type Db, kyselyFor } from '@/lib/database/kysely'
 import { getSQLDatabase } from '@/lib/database/sql'
+import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import { DatabaseQueue } from '@/lib/services/queue/database'
 import { JobMessage } from '@/lib/services/queue/type'
@@ -8,6 +10,7 @@ import { JobMessage } from '@/lib/services/queue/type'
 describe('DatabaseQueue', () => {
   let knexDatabase: Knex
   let database: Database
+  let db: Db
 
   beforeAll(async () => {
     knexDatabase = knex({
@@ -18,6 +21,7 @@ describe('DatabaseQueue', () => {
       }
     })
     database = getSQLDatabase(knexDatabase)
+    db = kyselyFor(knexDatabase)
     await database.migrate()
   })
 
@@ -38,7 +42,7 @@ describe('DatabaseQueue', () => {
 
     await queue.publish(message)
 
-    const job = await database.getQueueJobById('db-queue-job-1')
+    const job = await getQueueJobById(db, 'db-queue-job-1')
     expect(job).not.toBeNull()
     expect(job?.id).toBe('db-queue-job-1')
     expect(job?.name).toBe('deliverActivity')
@@ -59,7 +63,7 @@ describe('DatabaseQueue', () => {
     const before = Date.now()
     await queue.publish(message)
 
-    const job = await database.getQueueJobById('db-queue-delayed-1')
+    const job = await getQueueJobById(db, 'db-queue-delayed-1')
     expect(job).not.toBeNull()
     expect(job?.nextRunAt).toBeGreaterThanOrEqual(before + 115 * 1000)
   })
@@ -85,7 +89,7 @@ describe('DatabaseQueue', () => {
       attempts: 16,
       error: new Error('Terminal failure')
     })
-    const failed = await database.getQueueJobById('db-queue-idempotent-1')
+    const failed = await getQueueJobById(db, 'db-queue-idempotent-1')
     expect(failed?.status).toBe('failed')
     expect(failed?.attempts).toBe(16)
 
@@ -97,7 +101,7 @@ describe('DatabaseQueue', () => {
       })
     ).resolves.toBeUndefined()
 
-    const stillFailed = await database.getQueueJobById('db-queue-idempotent-1')
+    const stillFailed = await getQueueJobById(db, 'db-queue-idempotent-1')
     expect(stillFailed?.status).toBe('failed')
     expect(stillFailed?.attempts).toBe(16)
     expect(stillFailed?.payload).toEqual(message)
@@ -106,7 +110,7 @@ describe('DatabaseQueue', () => {
     const replaySuccess = await queue.replay('db-queue-idempotent-1')
     expect(replaySuccess).toBe(true)
 
-    const retried = await database.getQueueJobById('db-queue-idempotent-1')
+    const retried = await getQueueJobById(db, 'db-queue-idempotent-1')
     expect(retried?.status).toBe('pending')
     expect(retried?.attempts).toBe(0)
   })

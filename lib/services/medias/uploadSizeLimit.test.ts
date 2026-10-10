@@ -1,4 +1,5 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 
 import { MAX_CONFIGURABLE_FILE_SIZE, MAX_FILE_SIZE } from './constants'
@@ -13,7 +14,7 @@ import {
 const MAX_FILE_SIZE_ENV_KEY = 'ACTIVITIES_MEDIA_STORAGE_MAX_FILE_SIZE'
 
 describe('media upload size limit', () => {
-  const database = getTestSQLDatabase()
+  const { database, db } = createTestDatabase({ backend: 'sqlite' })
   let savedMaxFileSizeEnv: string | undefined
 
   beforeAll(async () => {
@@ -37,7 +38,7 @@ describe('media upload size limit', () => {
   }
 
   beforeEach(async () => {
-    await database.deleteServerSetting({ key: 'media.maxFileSize' })
+    await deleteServerSetting(db, { key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
 

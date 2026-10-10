@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -29,7 +31,7 @@ vi.mock('next/headers', () => ({
 }))
 
 describe('GET /api/v1/actors/domains', () => {
-  const database = getTestSQLDatabase()
+  const { database, db } = createTestDatabase({ backend: 'sqlite' })
 
   beforeAll(async () => {
     await database.migrate()
@@ -73,10 +75,12 @@ describe('GET /api/v1/actors/domains', () => {
   it('returns allowActorDomains when it is set', async () => {
     mockGetConfig.mockReturnValue({ host: 'llun.test', allowEmails: [] })
     // allowActorDomains is a database-backed federation setting.
-    await database.setServerSetting({
-      key: 'federation.allowActorDomains',
-      value: ['domain1.test', 'domain2.test', 'llun.test']
-    })
+    await database.setServerSettings([
+      {
+        key: 'federation.allowActorDomains',
+        value: ['domain1.test', 'domain2.test', 'llun.test']
+      }
+    ])
     invalidateServerSettingsCache(database)
 
     try {
@@ -93,7 +97,7 @@ describe('GET /api/v1/actors/domains', () => {
       ])
       expect(data.host).toBe('llun.test')
     } finally {
-      await database.deleteServerSetting({
+      await deleteServerSetting(db, {
         key: 'federation.allowActorDomains'
       })
       invalidateServerSettingsCache(database)

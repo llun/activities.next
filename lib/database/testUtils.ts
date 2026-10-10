@@ -1,186 +1,23 @@
-import { Knex } from 'knex'
-import knex from 'knex'
-import { noop } from 'lodash'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import type { Client as PostgresClient } from 'pg'
+import type { Knex } from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
-import { Database } from '@/lib/database/types'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import type { Database } from '@/lib/database/types'
 
-// Tests build their schema from the committed reference dumps instead of running
-// the Knex migration chain. This keeps the (ESM) migration files out of the test
-// runtime entirely and makes per-file database setup dramatically faster. The
-// dumps are kept in lockstep with the migrations (see AGENTS.md), so the schema
-// is identical to a fully-migrated database.
-const SQLITE_SCHEMA_PATH = fileURLToPath(
-  new URL('../../migrations/schema.sqlite.sql', import.meta.url)
-)
-const POSTGRES_SCHEMA_PATH = fileURLToPath(
-  new URL('../../migrations/schema.sql', import.meta.url)
-)
-
-const applySqliteSchema = async (instance: Knex) => {
-  const sql = readFileSync(SQLITE_SCHEMA_PATH, 'utf8')
-  const connection = await instance.client.acquireConnection()
-  try {
-    // better-sqlite3 exposes a synchronous multi-statement `exec`.
-    connection.exec(sql)
-  } finally {
-    await instance.client.releaseConnection(connection)
-  }
-}
-
-const applyPostgresSchema = async (instance: Knex) => {
-  const sql = readFileSync(POSTGRES_SCHEMA_PATH, 'utf8')
-  // pg_dump opens the dump with `SELECT pg_catalog.set_config('search_path', '',
-  // false)`. The `false` makes it *session*-scoped rather than transaction-scoped,
-  // so it outlives the load: the pooled connection that ran the dump keeps an
-  // empty search_path for the rest of its life. Every table in the dump is
-  // `public.`-qualified and so is created fine, but any later unqualified query
-  // that the pool happens to route back to that connection cannot resolve it
-  // (`relation "accounts" does not exist`). Hold one connection for both
-  // statements so the reset lands on the connection that was poisoned — knex's
-  // own `searchPath` config would not do, as it is applied when a connection is
-  // created, which is before the dump runs. `RESET` restores the server default
-  // (`"$user", public`), leaving this connection identical to a freshly created
-  // one rather than pinning it to a hardcoded schema list.
-  const connection = await instance.client.acquireConnection()
-  try {
-    await instance.raw(sql).connection(connection)
-    await instance.raw('RESET search_path').connection(connection)
-  } finally {
-    await instance.client.releaseConnection(connection)
-  }
-}
-
-// Replaces the production `migrate()` (which runs Knex migrations) with a fast
-// schema-dump loader for the test database instance.
-const withSchemaDumpMigrate = (
-  database: Database,
-  instance: Knex,
-  loader: (instance: Knex) => Promise<void>
-): Database => {
-  database.migrate = () => loader(instance)
-  return database
-}
-
-// Each Vitest worker needs its own PostgreSQL database. `prepare()` drops and
-// recreates the database before loading the schema, so a single shared name lets
-// one worker destroy the database another worker is running tests against — which
-// surfaces as `relation "..." does not exist` or `Connection terminated
-// unexpectedly` in whichever file lost the race. Vitest hands files to a worker
-// one at a time, so a name per worker is enough isolation; `VITEST_POOL_ID` is
-// unique across the workers running concurrently. Strip it to digits: it is
-// interpolated into `CREATE`/`DROP DATABASE`, which cannot be parameterised.
-const TEST_PG_WORKER_ID = (process.env.VITEST_POOL_ID ?? '').replace(/\D/g, '')
-const TEST_PG_DATABASE = TEST_PG_WORKER_ID
-  ? `test_${TEST_PG_WORKER_ID}`
-  : 'test'
-export const getTestPgPort = (
-  rawPort: string | undefined = process.env.TEST_DATABASE_PORT
-): number => {
-  if (rawPort === undefined) {
-    return 5432
-  }
-  if (!/^[1-9]\d*$/.test(rawPort)) {
-    throw new Error(
-      `Invalid TEST_DATABASE_PORT "${rawPort}": must be a decimal integer between 1 and 65535`
-    )
-  }
-  const port = Number.parseInt(rawPort, 10)
-  if (port > 65535) {
-    throw new Error(
-      `Invalid TEST_DATABASE_PORT "${rawPort}": must be a decimal integer between 1 and 65535`
-    )
-  }
-  return port
-}
-
-export const getTestPgConnection = () => ({
-  host: process.env.TEST_DATABASE_HOST,
-  port: getTestPgPort(),
-  user: process.env.TEST_DATABASE_USERNAME,
-  password: process.env.TEST_DATABASE_PASSWORD
-})
+// Thin aliases over `createTestDatabase` (lib/database/testing/), kept so the
+// existing suites do not change. New tests should call `createTestDatabase`
+// directly and seed state with `lib/database/testing/fixtures.ts`.
+export {
+  getTestPgConnection,
+  getTestPgPort
+} from '@/lib/database/testing/postgres'
 
 export type PrepareFunction = () => Promise<void> | void
 export type TestDatabaseTableItem = [string, Database, PrepareFunction]
 export type TestDatabaseTable = TestDatabaseTableItem[]
 
-type GetTestDatabase = () => {
-  name: string
-  database: Database
-  prepare: () => Promise<void> | void
-}
-
-const DATABASES: Record<string, GetTestDatabase> = {
-  sqlite: () => {
-    const instance = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    return {
-      name: 'sqlite',
-      database: withSchemaDumpMigrate(
-        getSQLDatabase(instance),
-        instance,
-        applySqliteSchema
-      ),
-      prepare: noop
-    }
-  },
-  pg: () => {
-    const connection = getTestPgConnection()
-    const instance = knex({
-      client: 'pg',
-      connection: {
-        ...connection,
-        database: TEST_PG_DATABASE
-      }
-    })
-    return {
-      name: 'pg',
-      database: withSchemaDumpMigrate(
-        getSQLDatabase(instance),
-        instance,
-        applyPostgresSchema
-      ),
-      prepare: async () => {
-        const { Client: DynamicPostgresClient } = await import('pg')
-        const client = new (
-          DynamicPostgresClient as unknown as typeof PostgresClient
-        )({
-          ...connection,
-          database: 'postgres'
-        })
-        await client.connect()
-        await client.query(
-          `DROP DATABASE IF EXISTS ${TEST_PG_DATABASE} WITH (FORCE)`
-        )
-        await client.query(`CREATE DATABASE ${TEST_PG_DATABASE}`)
-        await client.end()
-      }
-    }
-  }
-}
-
 export const getTestDatabaseTable = (): TestDatabaseTable => {
-  switch (process.env.TEST_DATABASE_TYPE) {
-    case 'sqlite':
-    case 'pg': {
-      const { name, database, prepare } =
-        DATABASES[process.env.TEST_DATABASE_TYPE]()
-      return [[name, database, prepare]]
-    }
-    default: {
-      const sqlite = DATABASES.sqlite()
-      return [[sqlite.name, sqlite.database, sqlite.prepare]]
-    }
-  }
+  const { backend, database, prepare } = createTestDatabase()
+  return [[backend, database, prepare]]
 }
 
 export const databaseBeforeAll = async (table: TestDatabaseTable) => {
@@ -208,49 +45,16 @@ export const databaseBeforeAll = async (table: TestDatabaseTable) => {
 export const getTestDatabaseWithInstance = (
   isolated = false,
   backend = process.env.TEST_DATABASE_TYPE
-) => {
-  if (backend !== 'pg') {
-    const { database, instance } = getTestSQLDatabaseWithInstance()
-    return { database, instance, prepare: noop as PrepareFunction }
-  }
-
-  // An isolated caller needs its OWN database, not the suite's: `prepare` drops
-  // and recreates, so sharing the per-worker name would destroy the database
-  // the surrounding suite is running against. ONE extra name per worker rather
-  // than one per caller — Vitest runs a file's tests sequentially and each
-  // isolated caller destroys its instance before the next begins, so reusing
-  // the name keeps the server's database count bounded by the worker count
-  // instead of growing with the number of such tests.
-  const connection = getTestPgConnection()
-  const databaseName = isolated
-    ? `${TEST_PG_DATABASE}_isolated`
-    : TEST_PG_DATABASE
-
-  const instance = knex({
-    client: 'pg',
-    connection: { ...connection, database: databaseName }
+): {
+  database: Database
+  instance: Knex
+  prepare: PrepareFunction
+} => {
+  const { database, knex, prepare } = createTestDatabase({
+    backend: backend === 'pg' ? 'pg' : 'sqlite',
+    isolated
   })
-  return {
-    database: withSchemaDumpMigrate(
-      getSQLDatabase(instance),
-      instance,
-      applyPostgresSchema
-    ),
-    instance,
-    prepare: async () => {
-      const { Client: DynamicPostgresClient } = await import('pg')
-      const client = new (
-        DynamicPostgresClient as unknown as typeof PostgresClient
-      )({
-        ...connection,
-        database: 'postgres'
-      })
-      await client.connect()
-      await client.query(`DROP DATABASE IF EXISTS ${databaseName} WITH (FORCE)`)
-      await client.query(`CREATE DATABASE ${databaseName}`)
-      await client.end()
-    }
-  }
+  return { database, instance: knex, prepare }
 }
 
 // Build a fresh in-memory SQLite database and also hand back the raw Knex
@@ -263,19 +67,8 @@ export const getTestDatabaseWithInstance = (
 // for `getTestDatabaseWithInstance` when the SQL under test must agree on both
 // backends.
 export const getTestSQLDatabaseWithInstance = () => {
-  const instance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
-  const database = withSchemaDumpMigrate(
-    getSQLDatabase(instance),
-    instance,
-    applySqliteSchema
-  )
-  return { database, instance }
+  const { database, knex } = createTestDatabase({ backend: 'sqlite' })
+  return { database, instance: knex }
 }
 
 // SQLite ONLY — see the note on `getTestSQLDatabaseWithInstance`.

@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import sharp from 'sharp'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { publishActorUpdate } from '@/lib/services/actors/actorUpdate'
 import { deleteMediaFile, saveMedia } from '@/lib/services/medias'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
@@ -66,7 +68,7 @@ vi.mock('@/lib/config', () => ({
 }))
 
 describe('PATCH /api/v1/accounts/update_credentials', () => {
-  const database = getTestSQLDatabase()
+  const { database, db } = createTestDatabase({ backend: 'sqlite' })
 
   beforeAll(async () => {
     await database.migrate()
@@ -84,7 +86,7 @@ describe('PATCH /api/v1/accounts/update_credentials', () => {
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
-    await database.deleteServerSetting({ key: 'media.maxFileSize' })
+    await deleteServerSetting(db, { key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
 

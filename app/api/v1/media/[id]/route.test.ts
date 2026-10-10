@@ -1,6 +1,11 @@
 import { NextRequest } from 'next/server'
 
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  deleteServerSetting,
+  getQueueJobById
+} from '@/lib/database/testing/fixtures'
 import {
   RESOLVE_MEDIA_PLACE_JOB_NAME,
   RESOLVE_MEDIA_SUBJECT_JOB_NAME
@@ -97,7 +102,7 @@ describe('/api/v1/media/[id]', () => {
   // It has to run on PostgreSQL for the malformed-id cases below to mean
   // anything: `medias.id` is an integer column there, so a bad id is an error
   // rather than a miss unless the query layer rejects it first.
-  const { database, prepare } = getTestDatabaseWithInstance()
+  const { database, db, prepare } = createTestDatabase()
 
   beforeAll(async () => {
     await prepare()
@@ -119,7 +124,7 @@ describe('/api/v1/media/[id]', () => {
     mockStoredToken.mockResolvedValue(null)
     mockPublish.mockReset()
     mockPublish.mockResolvedValue(undefined)
-    await database.deleteServerSetting({ key: 'media.maxFileSize' })
+    await deleteServerSetting(db, { key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
 
@@ -1034,7 +1039,7 @@ describe('/api/v1/media/[id]', () => {
         expect(new Set(ids).size).toBe(6)
         // Every publish has its own row, so the last edit's jobs will run.
         for (const jobId of ids.slice(-2)) {
-          expect(await database.getQueueJobById(jobId)).toMatchObject({
+          expect(await getQueueJobById(db, jobId)).toMatchObject({
             id: jobId,
             status: 'pending'
           })

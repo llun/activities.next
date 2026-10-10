@@ -1,6 +1,8 @@
 import knex, { Knex } from 'knex'
 
+import { type Db, kyselyFor } from '@/lib/database/kysely'
 import { getSQLDatabase } from '@/lib/database/sql'
+import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import {
   processDueQueueJobs,
@@ -11,6 +13,7 @@ import { JobMessage } from '@/lib/services/queue/type'
 describe('databaseRunner', () => {
   let knexDatabase: Knex
   let database: Database
+  let db: Db
 
   beforeAll(async () => {
     knexDatabase = knex({
@@ -21,6 +24,7 @@ describe('databaseRunner', () => {
       }
     })
     database = getSQLDatabase(knexDatabase)
+    db = kyselyFor(knexDatabase)
     await database.migrate()
   })
 
@@ -60,7 +64,7 @@ describe('databaseRunner', () => {
     expect(processed).toBe(1)
     expect(executed).toContain('test-runner-msg-1')
 
-    const job = await database.getQueueJobById('job-success-1')
+    const job = await getQueueJobById(db, 'job-success-1')
     expect(job?.status).toBe('completed')
   })
 
@@ -87,7 +91,7 @@ describe('databaseRunner', () => {
 
     expect(processed).toBe(1)
 
-    const job = await database.getQueueJobById('job-retry-1')
+    const job = await getQueueJobById(db, 'job-retry-1')
     expect(job?.status).toBe('pending')
     expect(job?.attempts).toBe(1)
     expect(job?.lastErrorMessage).toBe('503 Service Unavailable')
@@ -116,7 +120,7 @@ describe('databaseRunner', () => {
 
     expect(processed).toBe(1)
 
-    const job = await database.getQueueJobById('job-exhausted-1')
+    const job = await getQueueJobById(db, 'job-exhausted-1')
     expect(job?.status).toBe('failed')
     expect(job?.attempts).toBe(3)
     expect(job?.lastErrorMessage).toBe('Fatal 500 Internal Error')
@@ -234,7 +238,7 @@ describe('databaseRunner', () => {
     // First worker's completeQueueJob should have returned false due to token mismatch, so processedCount = 0
     expect(processed).toBe(0)
 
-    const job = await database.getQueueJobById('job-stale-settlement-1')
+    const job = await getQueueJobById(db, 'job-stale-settlement-1')
     expect(job?.status).toBe('processing')
   })
 
@@ -271,7 +275,7 @@ describe('databaseRunner', () => {
     })
 
     expect(processed).toBe(0)
-    const job = await database.getQueueJobById('job-stale-retry-1')
+    const job = await getQueueJobById(db, 'job-stale-retry-1')
     expect(job?.status).toBe('processing')
     expect(job?.attempts).toBe(0)
   })
@@ -309,7 +313,7 @@ describe('databaseRunner', () => {
     })
 
     expect(processed).toBe(0)
-    const job = await database.getQueueJobById('job-stale-fail-1')
+    const job = await getQueueJobById(db, 'job-stale-fail-1')
     expect(job?.status).toBe('processing')
     expect(job?.attempts).toBe(2)
 
@@ -350,9 +354,7 @@ describe('databaseRunner', () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
 
     expect(executed).toEqual(['loop-msg-1'])
-    expect((await database.getQueueJobById('job-loop-2'))?.status).toBe(
-      'pending'
-    )
+    expect((await getQueueJobById(db, 'job-loop-2'))?.status).toBe('pending')
   })
 
   it('awaits currently running job and avoids claiming subsequent jobs on shutdown drain', async () => {
@@ -411,11 +413,11 @@ describe('databaseRunner', () => {
     expect(stopResolved).toBe(true)
 
     // Job 1 should be completed
-    const job1 = await database.getQueueJobById('job-drain-1')
+    const job1 = await getQueueJobById(db, 'job-drain-1')
     expect(job1?.status).toBe('completed')
 
     // Job 2 should never have been claimed
-    const job2 = await database.getQueueJobById('job-drain-2')
+    const job2 = await getQueueJobById(db, 'job-drain-2')
     expect(job2?.status).toBe('pending')
     expect(executed).toEqual(['drain-msg-1'])
   })
@@ -503,7 +505,7 @@ describe('databaseRunner', () => {
     expect(processed).toBe(1)
     expect(executed).toContain('test-runner-msg-1')
 
-    const job = await database.getQueueJobById('job-stalled-runner-1')
+    const job = await getQueueJobById(db, 'job-stalled-runner-1')
     expect(job?.status).toBe('completed')
   })
 
@@ -536,12 +538,12 @@ describe('databaseRunner', () => {
       handleJob: async () => {}
     })
     await vi.waitFor(async () =>
-      expect(await database.getQueueJobById('sweep-old-completed')).toBeNull()
+      expect(await getQueueJobById(db, 'sweep-old-completed')).toBeNull()
     )
     await runner.stop()
 
-    expect(await database.getQueueJobById('sweep-new-completed')).not.toBeNull()
-    expect(await database.getQueueJobById('sweep-old-pending')).not.toBeNull()
+    expect(await getQueueJobById(db, 'sweep-new-completed')).not.toBeNull()
+    expect(await getQueueJobById(db, 'sweep-old-pending')).not.toBeNull()
   })
 
   it('keeps processing jobs when the retention sweep fails', async () => {

@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 
 import type { Config } from '@/lib/config'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 
@@ -37,7 +39,7 @@ const baseConfig = {
 const params = { params: Promise.resolve({}) }
 
 describe('GET /api/v2/instance', () => {
-  const database = getTestSQLDatabase()
+  const { database, db } = createTestDatabase({ backend: 'sqlite' })
 
   beforeAll(async () => {
     await database.migrate()
@@ -219,10 +221,12 @@ describe('GET /api/v2/instance', () => {
   ])('$description', async ({ registrationOpen }) => {
     // Registration state is resolved from server settings (env -> db ->
     // default), so drive it through a stored setting rather than getConfig.
-    await database.setServerSetting({
-      key: 'registrations.open',
-      value: registrationOpen
-    })
+    await database.setServerSettings([
+      {
+        key: 'registrations.open',
+        value: registrationOpen
+      }
+    ])
     invalidateServerSettingsCache(database)
     try {
       const response = await GET(
@@ -237,17 +241,19 @@ describe('GET /api/v2/instance', () => {
         url: null
       })
     } finally {
-      await database.deleteServerSetting({ key: 'registrations.open' })
+      await deleteServerSetting(db, { key: 'registrations.open' })
       invalidateServerSettingsCache(database)
     }
   })
 
   it('echoes database-backed post and poll limits in configuration', async () => {
-    await database.setServerSetting({
-      key: 'posts.maxCharacters',
-      value: 1000
-    })
-    await database.setServerSetting({ key: 'polls.maxOptions', value: 6 })
+    await database.setServerSettings([
+      {
+        key: 'posts.maxCharacters',
+        value: 1000
+      },
+      { key: 'polls.maxOptions', value: 6 }
+    ])
     invalidateServerSettingsCache(database)
     try {
       const response = await GET(
@@ -258,8 +264,8 @@ describe('GET /api/v2/instance', () => {
       expect(body.configuration.statuses.max_characters).toBe(1000)
       expect(body.configuration.polls.max_options).toBe(6)
     } finally {
-      await database.deleteServerSetting({ key: 'posts.maxCharacters' })
-      await database.deleteServerSetting({ key: 'polls.maxOptions' })
+      await deleteServerSetting(db, { key: 'posts.maxCharacters' })
+      await deleteServerSetting(db, { key: 'polls.maxOptions' })
       invalidateServerSettingsCache(database)
     }
   })

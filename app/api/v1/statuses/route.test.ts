@@ -2,8 +2,10 @@ import knex, { Knex } from 'knex'
 import { NextRequest } from 'next/server'
 
 import { GET as getStatusById } from '@/app/api/v1/statuses/[id]/route'
+import { kyselyFor } from '@/lib/database/kysely'
 import { getSQLDatabase } from '@/lib/database/sql'
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { hashToken } from '@/lib/services/guards/OAuthGuard'
 import {
   MAX_FEDERATION_MEDIA_ATTACHMENTS,
@@ -70,6 +72,7 @@ describe('POST /api/v1/statuses', () => {
     connection: { filename: ':memory:' }
   })
   const database = getSQLDatabase(knexInstance)
+  const db = kyselyFor(knexInstance)
 
   beforeAll(async () => {
     await database.migrate()
@@ -583,7 +586,9 @@ describe('POST /api/v1/statuses', () => {
   })
 
   it('rejects a status over the configured character limit with 422', async () => {
-    await database.setServerSetting({ key: 'posts.maxCharacters', value: 10 })
+    await database.setServerSettings([
+      { key: 'posts.maxCharacters', value: 10 }
+    ])
     invalidateServerSettingsCache(database)
     try {
       const response = await POST(
@@ -599,16 +604,18 @@ describe('POST /api/v1/statuses', () => {
       )
       expect(response.status).toBe(422)
     } finally {
-      await database.deleteServerSetting({ key: 'posts.maxCharacters' })
+      await deleteServerSetting(db, { key: 'posts.maxCharacters' })
       invalidateServerSettingsCache(database)
     }
   })
 
   it('accepts a longer status when the character limit is raised', async () => {
-    await database.setServerSetting({
-      key: 'posts.maxCharacters',
-      value: 5000
-    })
+    await database.setServerSettings([
+      {
+        key: 'posts.maxCharacters',
+        value: 5000
+      }
+    ])
     invalidateServerSettingsCache(database)
     try {
       const response = await POST(
@@ -624,13 +631,13 @@ describe('POST /api/v1/statuses', () => {
       )
       expect(response.status).toBe(200)
     } finally {
-      await database.deleteServerSetting({ key: 'posts.maxCharacters' })
+      await deleteServerSetting(db, { key: 'posts.maxCharacters' })
       invalidateServerSettingsCache(database)
     }
   })
 
   it('rejects a poll with more options than the configured limit with 422', async () => {
-    await database.setServerSetting({ key: 'polls.maxOptions', value: 2 })
+    await database.setServerSettings([{ key: 'polls.maxOptions', value: 2 }])
     invalidateServerSettingsCache(database)
     try {
       const response = await POST(
@@ -649,7 +656,7 @@ describe('POST /api/v1/statuses', () => {
       )
       expect(response.status).toBe(422)
     } finally {
-      await database.deleteServerSetting({ key: 'polls.maxOptions' })
+      await deleteServerSetting(db, { key: 'polls.maxOptions' })
       invalidateServerSettingsCache(database)
     }
   })

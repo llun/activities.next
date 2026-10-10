@@ -1,10 +1,12 @@
 import { Knex } from 'knex'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { type Db, kyselyFor } from '@/lib/database/kysely'
 import {
   getTestDatabaseTable,
   getTestDatabaseWithInstance
 } from '@/lib/database/testUtils'
+import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import { CreateQueueJobParams } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -17,6 +19,7 @@ const table = getTestDatabaseTable()
 describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
   let database: Database
   let knexDatabase: Knex
+  let db: Db
   let destroy: () => Promise<void>
   let primaryActor: Actor
   let secondaryActor: Actor
@@ -25,6 +28,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     const testDb = getTestDatabaseWithInstance(true, backendName)
     database = testDb.database
     knexDatabase = testDb.instance
+    db = kyselyFor(knexDatabase)
     destroy = async () => {
       await database.destroy()
     }
@@ -146,7 +150,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     expect(remainingTags).toHaveLength(0)
 
     // Queue job is inserted
-    const persistedJob = await database.getQueueJobById(queueJobId)
+    const persistedJob = await getQueueJobById(db, queueJobId)
     expect(persistedJob).not.toBeNull()
     expect(persistedJob?.id).toBe(queueJobId)
     expect(persistedJob?.name).toBe('sendDeleteNote')
@@ -202,7 +206,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     expect(fetched).not.toBeNull()
 
     // No queue job created
-    const persistedJob = await database.getQueueJobById(queueJobId)
+    const persistedJob = await getQueueJobById(db, queueJobId)
     expect(persistedJob).toBeNull()
   })
 
@@ -230,7 +234,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
 
     expect(result).toBe(false)
 
-    const persistedJob = await database.getQueueJobById(queueJobId)
+    const persistedJob = await getQueueJobById(db, queueJobId)
     expect(persistedJob).toBeNull()
   })
 
@@ -355,7 +359,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     expect(restoredTags).toHaveLength(1)
 
     // No queue job exists
-    const persistedJob = await database.getQueueJobById(queueJobId)
+    const persistedJob = await getQueueJobById(db, queueJobId)
     expect(persistedJob).toBeNull()
   })
 
@@ -397,7 +401,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     }
 
     // Transaction rolled back: no queue job was created
-    const persistedJob = await database.getQueueJobById(queueJobId)
+    const persistedJob = await getQueueJobById(db, queueJobId)
     expect(persistedJob).toBeNull()
 
     // Status remains untouched
@@ -511,7 +515,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     expect(fetched).toBeNull()
 
     // Queue job was still committed
-    const persistedJob = await database.getQueueJobById(queueJobId)
+    const persistedJob = await getQueueJobById(db, queueJobId)
     expect(persistedJob).not.toBeNull()
 
     indexSpy.mockRestore()

@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 
 import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { deleteServerSetting } from '@/lib/database/testing/fixtures'
 import { MediaValidationError } from '@/lib/services/medias/errors'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
 import { seedDatabase } from '@/lib/stub/database'
@@ -94,7 +96,7 @@ const postRequest = (token?: string, form?: FormData) => {
 }
 
 describe('POST /api/v2/media', () => {
-  const database = getTestSQLDatabase()
+  const { database, db } = createTestDatabase({ backend: 'sqlite' })
 
   beforeAll(async () => {
     await database.migrate()
@@ -119,7 +121,7 @@ describe('POST /api/v2/media', () => {
     })
     mockGenerateAltText.mockResolvedValue(null)
     mockExtractVideoPreviewFrame.mockReset()
-    await database.deleteServerSetting({ key: 'media.maxFileSize' })
+    await deleteServerSetting(db, { key: 'media.maxFileSize' })
     invalidateServerSettingsCache(database)
   })
 
