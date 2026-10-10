@@ -6,6 +6,8 @@ import { actorDomainBlockQueries } from '@/lib/database/domains/actorDomainBlock
 import type { ActorDomainBlockDatabase } from '@/lib/database/domains/actorDomainBlock/types'
 import { customEmojiQueries } from '@/lib/database/domains/customEmoji/queries'
 import type { CustomEmojiDatabase } from '@/lib/database/domains/customEmoji/types'
+import { deadLetterJobQueries } from '@/lib/database/domains/deadLetterJob/queries'
+import type { DeadLetterJobDatabase } from '@/lib/database/domains/deadLetterJob/types'
 import { endorsementQueries } from '@/lib/database/domains/endorsement/queries'
 import type { EndorsementDatabase } from '@/lib/database/domains/endorsement/types'
 import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
@@ -20,8 +22,16 @@ import { likeQueries } from '@/lib/database/domains/like/queries'
 import type { LikeDatabase } from '@/lib/database/domains/like/types'
 import { markerQueries } from '@/lib/database/domains/marker/queries'
 import type { MarkerDatabase } from '@/lib/database/domains/marker/types'
+import { oauthQueries } from '@/lib/database/domains/oauth/queries'
+import type { OAuthDatabase } from '@/lib/database/domains/oauth/types'
+import { pushSubscriptionQueries } from '@/lib/database/domains/pushSubscription/queries'
+import type { PushSubscriptionDatabase } from '@/lib/database/domains/pushSubscription/types'
+import { queueJobQueries } from '@/lib/database/domains/queueJob/queries'
+import type { QueueJobDatabase } from '@/lib/database/domains/queueJob/types'
 import { relayQueries } from '@/lib/database/domains/relay/queries'
 import type { RelayDatabase } from '@/lib/database/domains/relay/types'
+import { scheduledStatusQueries } from '@/lib/database/domains/scheduledStatus/queries'
+import type { ScheduledStatusDatabase } from '@/lib/database/domains/scheduledStatus/types'
 import { serverSettingQueries } from '@/lib/database/domains/serverSetting/queries'
 import type { ServerSettingDatabase } from '@/lib/database/domains/serverSetting/types'
 import { translationCacheQueries } from '@/lib/database/domains/translationCache/queries'
@@ -39,7 +49,6 @@ import { BlockSQLDatabaseMixin } from '@/lib/database/sql/block'
 import { BookmarkSQLDatabaseMixin } from '@/lib/database/sql/bookmark'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
-import { DeadLetterJobSQLDatabaseMixin } from '@/lib/database/sql/deadLetterJob'
 import { FeaturedTagSQLDatabaseMixin } from '@/lib/database/sql/featuredTag'
 import { FilterSQLDatabaseMixin } from '@/lib/database/sql/filter'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
@@ -61,11 +70,7 @@ import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
 import { MuteSQLDatabaseMixin } from '@/lib/database/sql/mute'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
-import { OAuthSQLDatabaseMixin } from '@/lib/database/sql/oauth'
-import { PushSubscriptionSQLDatabaseMixin } from '@/lib/database/sql/pushSubscription'
-import { QueueJobSQLDatabaseMixin } from '@/lib/database/sql/queueJob'
 import { ReportSQLDatabaseMixin } from '@/lib/database/sql/report'
-import { ScheduledStatusSQLDatabaseMixin } from '@/lib/database/sql/scheduledStatus'
 import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
 import { ServerFilterSQLDatabaseMixin } from '@/lib/database/sql/serverFilter'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
@@ -124,7 +129,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     customEmojiQueries
   )
-  const deadLetterJobDatabase = DeadLetterJobSQLDatabaseMixin(database)
+  const deadLetterJobDatabase: DeadLetterJobDatabase = bindDb(
+    kysely,
+    deadLetterJobQueries
+  )
   const markerDatabase: MarkerDatabase = bindDb(kysely, markerQueries)
   const muteDatabase = MuteSQLDatabaseMixin(database)
   const endorsementDatabase: EndorsementDatabase = bindDb(
@@ -166,12 +174,18 @@ export const getSQLDatabase = (database: Knex): Database => {
   const mediaDatabase = MediaSQLDatabaseMixin(database)
   const moderationDatabase = ModerationSQLDatabaseMixin(database)
   const notificationDatabase = NotificationSQLDatabaseMixin(database)
-  const pushSubscriptionDatabase = PushSubscriptionSQLDatabaseMixin(database)
-  const queueJobDatabase = QueueJobSQLDatabaseMixin(database)
+  const pushSubscriptionDatabase: PushSubscriptionDatabase = bindDb(
+    kysely,
+    pushSubscriptionQueries
+  )
+  const queueJobDatabase: QueueJobDatabase = bindDb(kysely, queueJobQueries)
   const relayDatabase: RelayDatabase = bindDb(kysely, relayQueries)
   const reportDatabase = ReportSQLDatabaseMixin(database)
-  const scheduledStatusDatabase = ScheduledStatusSQLDatabaseMixin(database)
-  const oauthDatabase = OAuthSQLDatabaseMixin(database)
+  const scheduledStatusDatabase: ScheduledStatusDatabase = bindDb(
+    kysely,
+    scheduledStatusQueries
+  )
+  const oauthDatabase: OAuthDatabase = bindDb(kysely, oauthQueries)
   const searchDatabase = SearchSQLDatabaseMixin(database)
   const stravaArchiveImportDatabase =
     StravaArchiveImportSQLDatabaseMixin(database)

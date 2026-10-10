@@ -1,9 +1,10 @@
 import { Knex } from 'knex'
 
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
+import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
+import { kyselyFor } from '@/lib/database/kysely'
 import { parseElevationSeries } from '@/lib/database/sql/fitnessFile'
 import { incrementLocalStatusBucket } from '@/lib/database/sql/instanceActivity'
-import { QueueJobSQLDatabaseMixin } from '@/lib/database/sql/queueJob'
 import { coercePollEndAt } from '@/lib/database/sql/utils/coercePollEndAt'
 import {
   CounterKey,
@@ -2842,7 +2843,9 @@ export const StatusSQLDatabaseMixin = (
         return false
       }
 
-      await QueueJobSQLDatabaseMixin(trx).createQueueJob(queueJob)
+      // The queue job joins this Knex transaction through its Kysely view, so
+      // it commits or rolls back with the deletion.
+      await createQueueJob(kyselyFor(trx), queueJob)
       return true
     })
 

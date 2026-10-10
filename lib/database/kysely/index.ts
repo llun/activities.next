@@ -69,27 +69,28 @@ export const kyselyFor = (knexOrTrx: Knex | Knex.Transaction): Kysely<DB> => {
 }
 
 /**
- * Runs `callback` in a transaction: `db` itself when it already is one (a
- * Kysely transaction, or `kyselyFor(trx)` inside a Knex transaction),
+ * Whether `db` already runs inside a transaction: a Kysely transaction, or
+ * `kyselyFor(trx)` inside a Knex transaction.
+ */
+export const isInTransaction = (db: Db): boolean =>
+  db.isTransaction || transactionBoundAdapters.has(db.getExecutor().adapter)
+
+/**
+ * Runs `callback` in a transaction: `db` itself when it already is one,
  * otherwise a new Kysely transaction.
  */
 export const inTransaction = <T>(
   db: Db,
   callback: (trx: Db) => Promise<T>
 ): Promise<T> => {
-  if (
-    db.isTransaction ||
-    transactionBoundAdapters.has(db.getExecutor().adapter)
-  ) {
-    return callback(db)
-  }
+  if (isInTransaction(db)) return callback(db)
   return db.transaction().execute(callback)
 }
 
-type Query<P, R> = (db: Db, params: P) => Promise<R>
-
-// `never` params accept a query function of any parameter type.
-type QueryMap = Record<string, Query<never, unknown>>
+// `never` arguments accept a query function of any parameter list after `db`:
+// none, optional, one params object or several positional arguments.
+type Query = (db: Db, ...args: never[]) => Promise<unknown>
+type QueryMap = Record<string, Query>
 
 // Keeps the query's own arguments after `db`: none, optional or required.
 export type BoundQueries<Q extends QueryMap> = {
@@ -110,10 +111,6 @@ export const bindDb = <Q extends QueryMap>(
   Object.fromEntries(
     Object.entries(queries).map(([name, query]) => [
       name,
-      (...args: never[]) =>
-        (query as (db: Db, ...args: never[]) => Promise<unknown>)(
-          getDb(),
-          ...args
-        )
+      (...args: never[]) => query(getDb(), ...args)
     ])
   ) as BoundQueries<Q>

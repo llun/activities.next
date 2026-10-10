@@ -9,7 +9,6 @@ import { FollowerSQLDatabaseMixin } from './follow'
 import { getSQLDatabase } from './index'
 import { MediaSQLDatabaseMixin } from './media'
 import { NotificationSQLDatabaseMixin } from './notification'
-import { OAuthSQLDatabaseMixin } from './oauth'
 import { SearchSQLDatabaseMixin } from './search'
 import { StatusSQLDatabaseMixin } from './status'
 import { StatusDetectedLanguageSQLDatabaseMixin } from './statusDetectedLanguage'
@@ -61,10 +60,6 @@ vi.mock('@/lib/database/sql/notification', () => ({
   NotificationSQLDatabaseMixin: vi.fn()
 }))
 
-vi.mock('@/lib/database/sql/oauth', () => ({
-  OAuthSQLDatabaseMixin: vi.fn()
-}))
-
 vi.mock('@/lib/database/sql/search', () => ({
   SearchSQLDatabaseMixin: vi.fn()
 }))
@@ -92,7 +87,6 @@ describe('getSQLDatabase', () => {
   const mediaMixinMock = MediaSQLDatabaseMixin as unknown as jest.Mock
   const notificationMixinMock =
     NotificationSQLDatabaseMixin as unknown as jest.Mock
-  const oauthMixinMock = OAuthSQLDatabaseMixin as unknown as jest.Mock
   const searchMixinMock = SearchSQLDatabaseMixin as unknown as jest.Mock
   const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
   const statusDetectedLanguageMixinMock =
@@ -139,9 +133,6 @@ describe('getSQLDatabase', () => {
     const notificationDatabase = {
       createNotification: vi.fn()
     }
-    const oauthDatabase = {
-      getClientFromId: vi.fn()
-    }
     const searchDatabase = {
       searchDocuments: vi.fn()
     }
@@ -165,7 +156,6 @@ describe('getSQLDatabase', () => {
     followerMixinMock.mockReturnValue(followerDatabase)
     mediaMixinMock.mockReturnValue(mediaDatabase)
     notificationMixinMock.mockReturnValue(notificationDatabase)
-    oauthMixinMock.mockReturnValue(oauthDatabase)
     searchMixinMock.mockReturnValue(searchDatabase)
     statusMixinMock.mockReturnValue(statusDatabase)
     statusDetectedLanguageMixinMock.mockReturnValue(
@@ -186,7 +176,6 @@ describe('getSQLDatabase', () => {
       knexDatabase,
       mediaDatabase,
       notificationDatabase,
-      oauthDatabase,
       searchDatabase,
       statusDatabase,
       statusDetectedLanguageDatabase,
@@ -212,7 +201,6 @@ describe('getSQLDatabase', () => {
     expect(followerMixinMock).toHaveBeenCalledWith(knexDatabase, actorDatabase)
     expect(mediaMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(notificationMixinMock).toHaveBeenCalledWith(knexDatabase)
-    expect(oauthMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(searchMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(statusDetectedLanguageMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(statusMixinMock).toHaveBeenCalledWith(

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { JobMessage } from '@/lib/services/queue/type'
+import type { CreateQueueJobParams } from '@/lib/database/domains/queueJob/types'
 import { Timeline } from '@/lib/services/timelines/types'
 import {
   IucnCategory,
@@ -30,7 +30,6 @@ import {
   CollectionFeatureState,
   CollectionVisibility
 } from '@/lib/types/domain/collection'
-import { ConnectedApp } from '@/lib/types/domain/connected-app'
 import {
   Filter,
   FilterAction,
@@ -51,7 +50,6 @@ import {
 } from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import * as Mastodon from '@/lib/types/mastodon'
-import { Client } from '@/lib/types/oauth2/client'
 
 // ============================================================================
 // Base Database
@@ -1855,65 +1853,16 @@ export interface FeaturedTagDatabase {
 // Scheduled Status Database
 // ============================================================================
 
-// A status an actor has scheduled for future publication. `params` is the
-// Mastodon "params" payload (text, visibility, media_ids, poll, …) stored as
-// JSON text; `scheduledAt`/`createdAt`/`updatedAt` are epoch milliseconds in
-// the domain shape regardless of the backend's timestamp storage.
-export type ScheduledStatusData = {
-  id: string
-  actorId: string
-  scheduledAt: number
-  params: Mastodon.ScheduledStatusParams
-  createdAt: number
-  updatedAt: number
-}
-
-export type CreateScheduledStatusParams = {
-  actorId: string
-  scheduledAt: number
-  params: Mastodon.ScheduledStatusParams
-}
-export type GetScheduledStatusesParams = {
-  actorId: string
-  limit: number
-  maxId?: string
-  minId?: string
-  sinceId?: string
-}
-export type GetScheduledStatusParams = { actorId: string; id: string }
-export type GetScheduledStatusByIdParams = { id: string }
-export type UpdateScheduledStatusAtParams = {
-  actorId: string
-  id: string
-  scheduledAt: number
-}
-export type DeleteScheduledStatusParams = { actorId: string; id: string }
-
-export interface ScheduledStatusDatabase {
-  createScheduledStatus(
-    params: CreateScheduledStatusParams
-  ): Promise<ScheduledStatusData>
-  // Owner-scoped list ordered by scheduledAt descending (id as a stable
-  // tiebreaker) for Mastodon's scheduled_statuses cursor pagination — the
-  // maxId/minId/sinceId cursors keyset on scheduledAt + id.
-  getScheduledStatuses(
-    params: GetScheduledStatusesParams
-  ): Promise<ScheduledStatusData[]>
-  getScheduledStatus(
-    params: GetScheduledStatusParams
-  ): Promise<ScheduledStatusData | null>
-  // Owner-agnostic lookup by id, for the background publish job which only
-  // carries the scheduled status id.
-  getScheduledStatusById(
-    params: GetScheduledStatusByIdParams
-  ): Promise<ScheduledStatusData | null>
-  // Reschedule; returns the updated row or null when not found/owned.
-  updateScheduledStatusAt(
-    params: UpdateScheduledStatusAtParams
-  ): Promise<ScheduledStatusData | null>
-  // Owner-scoped delete; true when a row was removed.
-  deleteScheduledStatus(params: DeleteScheduledStatusParams): Promise<boolean>
-}
+export type {
+  CreateScheduledStatusParams,
+  DeleteScheduledStatusParams,
+  GetScheduledStatusByIdParams,
+  GetScheduledStatusParams,
+  GetScheduledStatusesParams,
+  ScheduledStatusData,
+  ScheduledStatusDatabase,
+  UpdateScheduledStatusAtParams
+} from '@/lib/database/domains/scheduledStatus/types'
 
 // ============================================================================
 // Instance Rule Database
@@ -3354,100 +3303,17 @@ export type MarkNotificationsReadParams = {
 // Push Subscription Database
 // ============================================================================
 
-// Mastodon WebPushSubscription alert flags. Keys mirror
-// https://docs.joinmastodon.org/entities/WebPushSubscription/#alerts
-export type PushAlerts = {
-  mention: boolean
-  status: boolean
-  reblog: boolean
-  follow: boolean
-  follow_request: boolean
-  favourite: boolean
-  poll: boolean
-  update: boolean
-  quote: boolean
-  quoted_update: boolean
-  // Ecosystem dialect (Akkoma parity), not a core Mastodon alert key.
-  'pleroma:emoji_reaction': boolean
-  'admin.sign_up': boolean
-  'admin.report': boolean
-}
-
-// Mastodon WebPushSubscription policy — who can generate notifications.
-export type PushPolicy = 'all' | 'followed' | 'follower' | 'none'
-
-export interface PushSubscription {
-  id: string
-  actorId: string
-  endpoint: string
-  p256dh: string
-  auth: string
-  alerts: PushAlerts
-  policy: PushPolicy
-  standard: boolean
-  // The plaintext OAuth access token tied to this subscription, when it was
-  // created via a bearer token. Included in the Mastodon Web Push payload so
-  // native clients can attribute the push and fetch the full notification.
-  // Null for browser PushManager subscriptions (web-session auth, no token).
-  accessToken?: string
-  createdAt: number
-  updatedAt: number
-}
-
-export type CreatePushSubscriptionParams = {
-  actorId: string
-  endpoint: string
-  p256dh: string
-  auth: string
-  alerts?: Partial<PushAlerts>
-  policy?: PushPolicy
-  standard?: boolean
-  accessToken?: string
-}
-
-export type UpdatePushSubscriptionParams = {
-  actorId: string
-  endpoint?: string
-  alerts?: Partial<PushAlerts>
-  policy?: PushPolicy
-  // Scope the update to the subscription owned by this access token (per the
-  // Mastodon spec, one subscription per token). Without it the update targets
-  // the actor's most-recent tokenless (web-session) subscription.
-  accessToken?: string
-}
-
-export type DeletePushSubscriptionParams = {
-  endpoint: string
-  actorId: string
-}
-
-export type GetPushSubscriptionsForActorParams = {
-  actorId: string
-}
-
-export type GetPushSubscriptionForActorParams = {
-  actorId: string
-  // Return the subscription owned by this access token (per the Mastodon
-  // spec, one subscription per token). Without it the lookup returns the
-  // actor's most-recent tokenless (web-session) subscription.
-  accessToken?: string
-}
-
-export interface PushSubscriptionDatabase {
-  createPushSubscription(
-    params: CreatePushSubscriptionParams
-  ): Promise<PushSubscription>
-  updatePushSubscription(
-    params: UpdatePushSubscriptionParams
-  ): Promise<PushSubscription | null>
-  deletePushSubscription(params: DeletePushSubscriptionParams): Promise<void>
-  getPushSubscriptionsForActor(
-    params: GetPushSubscriptionsForActorParams
-  ): Promise<PushSubscription[]>
-  getPushSubscriptionForActor(
-    params: GetPushSubscriptionForActorParams
-  ): Promise<PushSubscription | null>
-}
+export type {
+  CreatePushSubscriptionParams,
+  DeletePushSubscriptionParams,
+  GetPushSubscriptionForActorParams,
+  GetPushSubscriptionsForActorParams,
+  PushAlerts,
+  PushPolicy,
+  PushSubscription,
+  PushSubscriptionDatabase,
+  UpdatePushSubscriptionParams
+} from '@/lib/database/domains/pushSubscription/types'
 
 // A grouped, per-source-actor view of policy-filtered notifications — the
 // backing data for Mastodon's NotificationRequest entity.
@@ -3630,65 +3496,14 @@ export type Scope = z.infer<typeof Scope>
 // validator, better-auth provider config, and `scopes_supported` can never drift.
 export const UsableScopes = Scope.options
 
-export const GetClientFromIdParams = z.object({
-  clientId: z.string()
-})
-export type GetClientFromIdParams = z.infer<typeof GetClientFromIdParams>
-
-export type GetAccountConnectedAppsParams = {
-  accountId: string
-}
-
-export type RevokeAccountConnectedAppParams = {
-  accountId: string
-  clientId: string
-  // The actor (consent referenceId) the grant belongs to. Null revokes the
-  // account-scoped grant that has no actor reference.
-  actorId: string | null
-}
-
-export interface OAuthDatabase {
-  getClientFromId(params: GetClientFromIdParams): Promise<Client | null>
-  createOAuthAccessToken(params: CreateOAuthAccessTokenParams): Promise<void>
-  // Move an access token's expiry to `expiresAt`. OAuthGuard calls it to slide a
-  // token that is still in use; see OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS.
-  extendOAuthAccessToken(params: ExtendOAuthAccessTokenParams): Promise<void>
-  // List the third-party OAuth grants (API clients + SSO sign-ins) the account
-  // has authorized, newest first.
-  getAccountConnectedApps(
-    params: GetAccountConnectedAppsParams
-  ): Promise<ConnectedApp[]>
-  // Revoke a connected app for the account: deletes the consent and every
-  // access/refresh token issued for that client + actor.
-  revokeAccountConnectedApp(
-    params: RevokeAccountConnectedAppParams
-  ): Promise<void>
-}
-
-export type ExtendOAuthAccessTokenParams = {
-  // SHA-256 base64url hash of the bearer token, the same value OAuthGuard looks
-  // it up by.
-  hashedToken: string
-  // Epoch milliseconds.
-  expiresAt: number
-}
-
-export type CreateOAuthAccessTokenParams = {
-  // SHA-256 base64url hash of the issued bearer token, matching how
-  // OAuthGuard looks tokens up.
-  // Callers MUST pass the hash, never the raw token, so the raw token never
-  // touches the database.
-  hashedToken: string
-  clientId: string
-  // The owning account id (stored in `userId`).
-  accountId: string
-  // The actor delegated by the token (stored in `referenceId`); OAuthGuard
-  // resolves the request actor from this column.
-  actorId: string
-  scopes: string[]
-  // Epoch milliseconds.
-  expiresAt: number
-}
+export { GetClientFromIdParams } from '@/lib/database/domains/oauth/types'
+export type {
+  CreateOAuthAccessTokenParams,
+  ExtendOAuthAccessTokenParams,
+  GetAccountConnectedAppsParams,
+  OAuthDatabase,
+  RevokeAccountConnectedAppParams
+} from '@/lib/database/domains/oauth/types'
 
 // ============================================================================
 // Timeline Database
@@ -3993,138 +3808,26 @@ export type {
 // Dead Letter Jobs Database
 // ============================================================================
 
-export type DeadLetterJobStatus = 'failed' | 'retried' | 'discarded'
-
-export interface DeadLetterJob {
-  id: string
-  jobName: string
-  payload: JobMessage
-  errorMessage: string
-  errorStack?: string | null
-  attempts: number
-  status: DeadLetterJobStatus
-  createdAt: number
-  updatedAt: number
-}
-
-export interface CreateDeadLetterJobParams {
-  id?: string
-  jobName?: string
-  job_name?: string
-  payload: JobMessage
-  errorMessage?: string
-  error_message?: string
-  errorStack?: string | null
-  error_stack?: string | null
-  attempts?: number
-  status?: DeadLetterJobStatus
-}
-
-export interface GetDeadLetterJobsParams {
-  status?: DeadLetterJobStatus
-  limit?: number
-  offset?: number
-}
-
-export interface DeadLetterJobDatabase {
-  createDeadLetterJob(params: CreateDeadLetterJobParams): Promise<DeadLetterJob>
-  getDeadLetterJobs(params?: GetDeadLetterJobsParams): Promise<DeadLetterJob[]>
-  countDeadLetterJobs(params?: {
-    status?: DeadLetterJobStatus
-  }): Promise<number>
-  getDeadLetterJobById(id: string): Promise<DeadLetterJob | null>
-  updateDeadLetterJobStatus(
-    id: string,
-    status: DeadLetterJobStatus
-  ): Promise<DeadLetterJob | null>
-  deleteDeadLetterJobs(ids: string[]): Promise<number>
-  deleteDeadLetterJobsByStatus(status: DeadLetterJobStatus): Promise<number>
-  deleteAllDeadLetterJobs(): Promise<number>
-}
+export type {
+  CreateDeadLetterJobParams,
+  DeadLetterJob,
+  DeadLetterJobDatabase,
+  DeadLetterJobStatus,
+  GetDeadLetterJobsParams
+} from '@/lib/database/domains/deadLetterJob/types'
 
 // ============================================================================
 // Queue Jobs Database (Option B - Transactional Outbox)
 // ============================================================================
 
-export type QueueJobStatus = 'pending' | 'processing' | 'completed' | 'failed'
-
-export interface QueueJob {
-  id: string
-  name: string
-  payload: JobMessage
-  attempts: number
-  maxRetries: number
-  nextRunAt: number
-  status: QueueJobStatus
-  claimToken?: string | null
-  lastErrorMessage?: string | null
-  lastErrorStack?: string | null
-  createdAt: number
-  updatedAt: number
-}
-
-export interface ClaimedQueueJob extends QueueJob {
-  claimToken: string
-}
-
-export interface CreateQueueJobParams {
-  id?: string
-  name: string
-  payload: JobMessage
-  attempts?: number
-  maxRetries?: number
-  nextRunAt?: number | Date
-  status?: QueueJobStatus
-  lastErrorMessage?: string | null
-  lastErrorStack?: string | null
-}
-
-export interface GetDueQueueJobsParams {
-  limit?: number
-  now?: Date
-  stalledTimeoutMs?: number
-}
-
-export interface ClaimQueueJobParams {
-  id: string
-  now?: Date
-  stalledBefore?: Date
-}
-
-export interface FailQueueJobWithDeadLetterParams {
-  id: string
-  claimToken: string
-  attempts?: number
-  error?: Error | unknown
-}
-
-export interface ReplayQueueJobParams {
-  id: string
-}
-
-export interface QueueJobDatabase {
-  createQueueJob(params: CreateQueueJobParams): Promise<QueueJob>
-  getDueQueueJobs(params?: GetDueQueueJobsParams): Promise<QueueJob[]>
-  claimQueueJob(params: ClaimQueueJobParams): Promise<ClaimedQueueJob | null>
-  completeQueueJob(params: { id: string; claimToken: string }): Promise<boolean>
-  scheduleQueueJobRetry(params: {
-    id: string
-    claimToken: string
-    nextRunAt: Date | number
-    attempts: number
-    error?: Error | unknown
-  }): Promise<boolean>
-  failQueueJobWithDeadLetter(
-    params: FailQueueJobWithDeadLetterParams
-  ): Promise<boolean>
-  replayQueueJob(params: ReplayQueueJobParams): Promise<boolean>
-  /**
-   * Deletes up to `limit` `completed` jobs last updated before `olderThan` and
-   * returns how many were removed. Completed rows keep their full payload and
-   * are otherwise never reaped, so without this the table only grows.
-   */
-  purgeCompletedQueueJobs(params: {
-    olderThan: Date
-    limit?: number
-  }): Promise<number>
-}
+export type {
+  ClaimQueueJobParams,
+  ClaimedQueueJob,
+  CreateQueueJobParams,
+  FailQueueJobWithDeadLetterParams,
+  GetDueQueueJobsParams,
+  QueueJob,
+  QueueJobDatabase,
+  QueueJobStatus,
+  ReplayQueueJobParams
+} from '@/lib/database/domains/queueJob/types'

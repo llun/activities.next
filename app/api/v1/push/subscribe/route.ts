@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { ALL_PUSH_ALERTS_ENABLED } from '@/lib/database/sql/pushSubscription'
+import { ALL_PUSH_ALERTS_ENABLED } from '@/lib/database/domains/pushSubscription/queries'
 import {
   OAuthGuard,
   getTokenFromHeader

@@ -165,7 +165,10 @@ jobs:
   # accounts (sessions and provider links), the small Kysely-ported domains
   # (account notes, domain blocks, custom emojis, endorsements, followed tags,
   # idempotency keys, import locks, instance rules, markers, relays, server
-  # settings, the translation cache, keyset pagination), actor deletion, and
+  # settings, the translation cache, keyset pagination), actor deletion, the
+  # job, OAuth, push and scheduled-status domains (dead letter jobs, queue job
+  # claim and replay, OAuth clients and connected apps, push subscriptions,
+  # scheduled statuses), and
   # the Knex-backed Kysely driver (result normalisation, the mixed-transaction
   # guard, counters).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
@@ -253,6 +256,10 @@ jobs:
             lib/database/sql/relay.test.ts \
             lib/database/sql/serverSetting.test.ts \
             lib/database/sql/actorDeletion.test.ts \
+            lib/database/sql/deadLetterJobs.test.ts \
+            lib/database/sql/oauth.test.ts \
+            lib/database/sql/pushSubscription.test.ts \
+            lib/database/sql/scheduledStatus.test.ts \
             lib/database/kysely/driver.test.ts \
             lib/database/kysely/guard.test.ts \
             lib/database/kysely/counter.test.ts \
