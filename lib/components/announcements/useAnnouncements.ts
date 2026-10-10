@@ -20,20 +20,16 @@ import type {
   AnnouncementReaction
 } from '@/lib/types/mastodon/announcement'
 
-// The announcements' own controls: the pill or icon and the panel.
-export const SURFACE_SELECTOR =
-  '[data-announcements-panel],[data-announcements-trigger]'
-
 /**
  * Owns the home timeline's announcement state once: the fetched list, the
- * pager, whether the floating panel is open, the mark-read-on-view timer and
- * the reactions. The page header renders its floating row and its actions in
- * more than one place (the desktop box and the mobile bar), and every copy is
- * presentational over this one state, so there is one fetch, one timer and one
- * open state however many copies mount.
+ * pager, whether the panel is open, the mark-read-on-view timer and the
+ * reactions. The page header renders its actions in more than one place (the
+ * desktop box and the mobile bar), and every copy is presentational over this
+ * one state, so there is one fetch, one timer and one open state however many
+ * copies mount.
  *
- * Nothing is persisted: the panel opens by itself only while something is
- * unread and is never remembered as open on a later visit.
+ * Nothing is persisted, and the panel never opens by itself: it opens only
+ * from the header icon (which also toggles it closed).
  */
 export interface AnnouncementsState {
   announcements: Announcement[]
@@ -41,13 +37,8 @@ export interface AnnouncementsState {
   index: number
   setIndex: (updater: (value: number) => number) => void
   unreadCount: number
-  /**
-   * Decided once, when the announcements load, and never changed for the page
-   * session: `pill` if anything was unread on load, `icon` if all were read
-   * (the next page load shows the icon once everything has been read). Swapping
-   * the control mid-session would unmount the element the reader is using.
-   */
-  mode: 'none' | 'pill' | 'icon'
+  /** Whether there is at least one active announcement, read or unread. */
+  hasAnnouncements: boolean
   open: boolean
   /** Opens the panel (the triggers close through `closeAndRefocus`). */
   openPanel: () => void
@@ -68,8 +59,6 @@ export const useAnnouncements = (): AnnouncementsState => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [index, setIndexState] = useState(0)
   const [open, setOpenState] = useState(false)
-  // Whether anything was unread on load; fixes `mode` for the page session.
-  const [pillOnLoad, setPillOnLoad] = useState(false)
   // Ids whose mark-read timer already fired, so each announcement dismisses at
   // most once even as the pager moves back and forth.
   const dismissed = useRef<Set<string>>(new Set())
@@ -85,21 +74,9 @@ export const useAnnouncements = (): AnnouncementsState => {
     getAnnouncements()
       .then((loaded) => {
         if (!active) return
-        const unread = loaded.some(
-          (announcement) => announcement.read === false
-        )
         setAnnouncements(loaded)
-        setPillOnLoad(unread)
-        // Auto-open only while nobody has engaged yet: a reader already typing
-        // in the composer keeps the pill collapsed instead of having it covered.
-        const focused = document.activeElement
-        const idle =
-          !focused ||
-          focused === document.body ||
-          Boolean(focused.closest(SURFACE_SELECTOR))
-        setOpenState(unread && idle)
-        // Newest first: open on the first unread item, so the one the panel
-        // opened for is the one that gets marked read.
+        // Newest first: the panel opens on the first unread item, so the one
+        // the reader sees first is the one that gets marked read.
         const firstUnread = loaded.findIndex(
           (announcement) => announcement.read === false
         )
@@ -167,8 +144,7 @@ export const useAnnouncements = (): AnnouncementsState => {
   const close = useCallback(() => setOpenState(false), [])
 
   // Closes and asks the trigger to take focus back (Escape, or the trigger
-  // itself). The trigger never changes during the session, so this is just
-  // "return focus to the control that opened the panel".
+  // itself): "return focus to the control that opened the panel".
   const closeAndRefocus = useCallback(() => {
     focusRequest.current = true
     close()
@@ -177,8 +153,19 @@ export const useAnnouncements = (): AnnouncementsState => {
   const openPanel = useCallback(() => {
     // A failed mark-read is retried once per open.
     failed.current.clear()
+    // Opening from the unread dot should show something new: when the item the
+    // pager rests on is already read and another is unread, jump to the first
+    // unread one. Otherwise the pager stays where the reader left it.
+    setIndexState((value) => {
+      const at = Math.min(value, Math.max(announcements.length - 1, 0))
+      if (announcements[at]?.read !== true) return value
+      const firstUnread = announcements.findIndex(
+        (announcement) => announcement.read === false
+      )
+      return firstUnread >= 0 ? firstUnread : value
+    })
     setOpenState(true)
-  }, [])
+  }, [announcements])
 
   // Runs after the triggers' own effects (children first), so a request made
   // by a close has had its chance to be taken by the mounted trigger.
@@ -254,16 +241,13 @@ export const useAnnouncements = (): AnnouncementsState => {
     [current, mutateReactions, onAdd]
   )
 
-  const mode: AnnouncementsState['mode'] =
-    announcements.length === 0 ? 'none' : pillOnLoad ? 'pill' : 'icon'
-
   return {
     announcements,
     current,
     index: safeIndex,
     setIndex,
     unreadCount,
-    mode,
+    hasAnnouncements: announcements.length > 0,
     open,
     openPanel,
     close,

@@ -15,7 +15,7 @@ import { hydrateServerHtml } from '@/lib/testing/hydrateServerHtml'
 import { withTimeZone } from '@/lib/testing/withTimeZone'
 import type { Announcement } from '@/lib/types/mastodon/announcement'
 
-import { AnnouncementIconButton, AnnouncementPill } from './AnnouncementBanner'
+import { AnnouncementIconButton } from './AnnouncementBanner'
 import { useAnnouncements } from './useAnnouncements'
 
 const mockGetAnnouncements = vi.fn()
@@ -51,9 +51,9 @@ const buildAnnouncement = (
   ...overrides
 })
 
-// What the page header renders: one state, and the pill and icon placed in
-// `copies` places (the header floats one row under the desktop box and another
-// under the mobile bar, and shows its actions in both).
+// What the page header renders: one state, and the icon placed in `copies`
+// places (the header shows its actions in both the desktop box and the mobile
+// bar).
 const Harness = ({ copies = 1 }: { copies?: number }) => {
   const state = useAnnouncements()
   return (
@@ -61,7 +61,6 @@ const Harness = ({ copies = 1 }: { copies?: number }) => {
       {Array.from({ length: copies }, (_, copy) => (
         <div key={copy}>
           <AnnouncementIconButton state={state} />
-          <AnnouncementPill state={state} />
         </div>
       ))}
     </>
@@ -75,6 +74,24 @@ const renderBanner = (copies = 1) =>
       <Harness copies={copies} />
     </>
   )
+
+// Renders, waits for the announcements to load and opens the panel from the
+// first icon, since nothing opens by itself. Returns that icon.
+const loadAndOpen = async (copies = 1) => {
+  await act(async () => {
+    renderBanner(copies)
+  })
+  const [icon] = await screen.findAllByRole('button', {
+    name: /^Announcements/
+  })
+  await act(async () => {
+    fireEvent.click(icon)
+  })
+  return icon
+}
+
+const unreadDot = () =>
+  document.querySelector('[data-announcements-unread-dot]')
 
 describe('Announcements', () => {
   beforeEach(() => {
@@ -114,44 +131,110 @@ describe('Announcements', () => {
     expect(screen.queryByRole('region')).toBeNull()
   })
 
-  it('renders an unread announcement content after loading', async () => {
-    mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
+  it('keeps the icon hidden when loading the announcements fails', async () => {
+    mockGetAnnouncements.mockRejectedValue(new Error('x'))
+
+    await act(async () => {
+      renderBanner()
+    })
+
+    await waitFor(() => {
+      expect(mockGetAnnouncements).toHaveBeenCalled()
+    })
+
+    expect(screen.queryByRole('button', { name: /^Announcements/ })).toBeNull()
+    expect(screen.queryByRole('region')).toBeNull()
+  })
+
+  it('shows the icon with an unread dot and count in its name, closed on load', async () => {
+    mockGetAnnouncements.mockResolvedValue([
+      buildAnnouncement({ id: 'a1' }),
+      buildAnnouncement({ id: 'a2' }),
+      buildAnnouncement({ id: 'a3', read: true })
+    ])
+
+    await act(async () => {
+      renderBanner()
+    })
+    const icon = await screen.findByRole('button', {
+      name: 'Announcements, 2 new'
+    })
+    expect(unreadDot()).toBeInTheDocument()
+    expect(unreadDot()).toHaveAttribute('aria-hidden', 'true')
+    expect(icon).toHaveAttribute('aria-expanded', 'false')
+    expect(icon).not.toHaveAttribute('aria-controls')
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+  })
+
+  it('caps a large unread count at 99+ in the icon name', async () => {
+    mockGetAnnouncements.mockResolvedValue(
+      Array.from({ length: 120 }, (_, index) =>
+        buildAnnouncement({ id: `a${index}` })
+      )
+    )
 
     await act(async () => {
       renderBanner()
     })
 
     expect(
-      await screen.findByText('Scheduled maintenance tonight')
+      await screen.findByRole('button', { name: 'Announcements, 99+ new' })
     ).toBeInTheDocument()
   })
 
-  it('opens by itself for unread announcements and links the panel to its toggle', async () => {
+  it('does not open by itself on load, and marks nothing read while closed', async () => {
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
 
     await act(async () => {
       renderBanner()
     })
-    const toggle = await screen.findByRole('button', {
+    const icon = await screen.findByRole('button', {
       name: 'Announcements, 1 new'
     })
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    const panel = screen.getByRole('region', { name: 'Announcements' })
-    expect(toggle).toHaveAttribute('aria-controls', panel.id)
-    expect(panel).toHaveTextContent('Scheduled maintenance tonight')
-    // Only the pill, never the icon, while something is unread.
-    expect(
-      screen.queryByRole('button', { name: 'Announcements' })
-    ).not.toBeInTheDocument()
+    await act(async () => {
+      vi.advanceTimersByTime(2000)
+    })
+
+    expect(icon).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+    expect(mockDismissAnnouncement).not.toHaveBeenCalled()
+    expect(unreadDot()).toBeInTheDocument()
   })
 
-  it('shows an icon, no pill, and stays closed when every announcement is read', async () => {
+  it('opens and closes from the icon, linking the panel to it', async () => {
+    mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
+
+    await act(async () => {
+      renderBanner()
+    })
+    const icon = await screen.findByRole('button', {
+      name: 'Announcements, 1 new'
+    })
+
+    await act(async () => {
+      fireEvent.click(icon)
+    })
+    expect(icon).toHaveAttribute('aria-expanded', 'true')
+    const panel = screen.getByRole('region', { name: 'Announcements' })
+    expect(icon).toHaveAttribute('aria-controls', panel.id)
+    expect(panel).toHaveTextContent('Scheduled maintenance tonight')
+
+    await act(async () => {
+      fireEvent.click(icon)
+    })
+    expect(icon).toHaveAttribute('aria-expanded', 'false')
+    expect(icon).not.toHaveAttribute('aria-controls')
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+  })
+
+  it('shows the icon without a dot when every announcement is read', async () => {
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement({ read: true })])
 
     await act(async () => {
       renderBanner()
     })
     const icon = await screen.findByRole('button', { name: 'Announcements' })
+    expect(unreadDot()).not.toBeInTheDocument()
     expect(icon).toHaveAttribute('aria-expanded', 'false')
     expect(icon).not.toHaveAttribute('aria-controls')
     expect(screen.queryByRole('region')).not.toBeInTheDocument()
@@ -191,12 +274,7 @@ describe('Announcements', () => {
   it('closes on a press outside the panel but not inside it', async () => {
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
 
-    await act(async () => {
-      renderBanner()
-    })
-    const toggle = await screen.findByRole('button', {
-      name: 'Announcements, 1 new'
-    })
+    const toggle = await loadAndOpen()
     const panel = screen.getByRole('region', { name: 'Announcements' })
 
     fireEvent.pointerDown(panel)
@@ -212,12 +290,7 @@ describe('Announcements', () => {
       buildAnnouncement({ reactions: [{ name: '👍', count: 1, me: false }] })
     ])
 
-    await act(async () => {
-      renderBanner()
-    })
-    const toggle = await screen.findByRole('button', {
-      name: 'Announcements, 1 new'
-    })
+    const toggle = await loadAndOpen()
 
     // From elsewhere on the page: ignored.
     const elsewhere = screen.getByRole('button', { name: 'elsewhere' })
@@ -244,10 +317,7 @@ describe('Announcements', () => {
   it('fetches once and marks read once however many header copies mount', async () => {
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
 
-    await act(async () => {
-      renderBanner(2)
-    })
-    await screen.findAllByRole('button', { name: 'Announcements, 1 new' })
+    await loadAndOpen(2)
     await act(async () => {
       vi.advanceTimersByTime(900)
     })
@@ -256,6 +326,7 @@ describe('Announcements', () => {
     expect(mockDismissAnnouncement).toHaveBeenCalledTimes(1)
     // Both copies show the same state.
     const toggles = screen.getAllByRole('button', { name: /^Announcements/ })
+    expect(toggles).toHaveLength(2)
     for (const toggle of toggles) {
       expect(toggle).toHaveAttribute('aria-expanded', 'true')
     }
@@ -272,9 +343,7 @@ describe('Announcements', () => {
       })
     ])
 
-    await act(async () => {
-      renderBanner()
-    })
+    await loadAndOpen()
 
     // The reader's own time zone decides the clock and its label, and the test
     // runner's zone is not guaranteed, so assert the shape (formatEventTime's
@@ -306,6 +375,12 @@ describe('Announcements', () => {
 
       try {
         expect(serverHtml).toBe('<div></div><div></div>')
+        const [icon] = await within(container).findAllByRole('button', {
+          name: /^Announcements/
+        })
+        await act(async () => {
+          fireEvent.click(icon)
+        })
         expect(
           (
             await within(container).findAllByText(
@@ -340,9 +415,7 @@ describe('Announcements', () => {
       })
     ])
 
-    await act(async () => {
-      renderBanner()
-    })
+    await loadAndOpen()
 
     expect(
       await screen.findByText('Sat Jun 13 – Mon Jun 15')
@@ -355,9 +428,7 @@ describe('Announcements', () => {
       buildAnnouncement({ id: 'a2', content: '<p>Second</p>', read: true })
     ])
 
-    await act(async () => {
-      renderBanner()
-    })
+    await loadAndOpen()
 
     expect(await screen.findByText('First')).toBeInTheDocument()
     expect(screen.getByText('1 / 2')).toBeInTheDocument()
@@ -369,9 +440,7 @@ describe('Announcements', () => {
       buildAnnouncement({ id: 'a2', content: '<p>Second</p>', read: true })
     ])
 
-    await act(async () => {
-      renderBanner()
-    })
+    await loadAndOpen()
 
     expect(await screen.findByText('First')).toBeInTheDocument()
 
@@ -391,19 +460,16 @@ describe('Announcements', () => {
     expect(screen.getByText('First')).toBeInTheDocument()
   })
 
-  it('closes and reopens from the pill without marking read while closed', async () => {
+  it('closes and reopens from the icon without marking read while closed', async () => {
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement({ read: false })])
 
-    await act(async () => {
-      renderBanner()
-    })
+    const icon = await loadAndOpen()
     expect(
-      await screen.findByText('Scheduled maintenance tonight')
+      screen.getByText('Scheduled maintenance tonight')
     ).toBeInTheDocument()
 
-    const header = screen.getByRole('button', { name: /announcements/i })
     await act(async () => {
-      fireEvent.click(header)
+      fireEvent.click(icon)
     })
     expect(
       screen.queryByText('Scheduled maintenance tonight')
@@ -416,43 +482,43 @@ describe('Announcements', () => {
     expect(mockDismissAnnouncement).not.toHaveBeenCalled()
 
     await act(async () => {
-      fireEvent.click(header)
+      fireEvent.click(icon)
     })
     expect(
       screen.getByText('Scheduled maintenance tonight')
     ).toBeInTheDocument()
   })
 
-  it('marks an unread announcement read on view, draining the count but keeping the item', async () => {
+  it('marks an unread announcement read on view, clearing the dot and count but keeping the item', async () => {
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
 
-    await act(async () => {
-      renderBanner()
-    })
+    const icon = await loadAndOpen()
 
     expect(
-      await screen.findByText('Scheduled maintenance tonight')
+      screen.getByText('Scheduled maintenance tonight')
     ).toBeInTheDocument()
-    // The unread badge shows before the mark-read timer fires.
-    expect(screen.getByText('1 new')).toBeInTheDocument()
+    // The dot and the count in the name show before the timer fires.
+    expect(icon).toHaveAccessibleName('Announcements, 1 new')
+    expect(unreadDot()).toBeInTheDocument()
 
     await act(async () => {
       vi.advanceTimersByTime(900)
     })
 
     expect(mockDismissAnnouncement).toHaveBeenCalledWith('announcement-1')
-    // The count drains, but the announcement stays in the banner.
+    // The count drains, but the announcement stays in the panel.
     await waitFor(() => {
-      expect(screen.queryByText('1 new')).not.toBeInTheDocument()
+      expect(icon).toHaveAccessibleName('Announcements')
     })
+    expect(unreadDot()).not.toBeInTheDocument()
     expect(
       screen.getByText('Scheduled maintenance tonight')
     ).toBeInTheDocument()
   })
 
   it('adds a reaction optimistically and calls the add client function', async () => {
-    // Read-only so no mark-read timer competes; the icon starts closed
-    // for an all-read list, so expand it before reacting.
+    // Read-only so no mark-read timer competes; the panel starts closed, so
+    // open it before reacting.
     mockGetAnnouncements.mockResolvedValue([
       buildAnnouncement({ read: true, reactions: [] })
     ])
@@ -657,12 +723,8 @@ describe('Announcements', () => {
 
   it('keeps the panel open for a press on the other header copy, and toggles from it', async () => {
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
-    await act(async () => {
-      renderBanner(2)
-    })
-    const [first, second] = await screen.findAllByRole('button', {
-      name: 'Announcements, 1 new'
-    })
+    const first = await loadAndOpen(2)
+    const second = screen.getAllByRole('button', { name: /^Announcements/ })[1]
     expect(first).toHaveAttribute('aria-expanded', 'true')
 
     await act(async () => {
@@ -678,14 +740,47 @@ describe('Announcements', () => {
     expect(second).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('reopens on the first unread item once the one shown has been read', async () => {
+    mockGetAnnouncements.mockResolvedValue([
+      buildAnnouncement({ id: 'a1', content: '<p>First news</p>' }),
+      buildAnnouncement({ id: 'a2', content: '<p>Second news</p>' })
+    ])
+    const icon = await loadAndOpen()
+
+    // View the first: it is marked read after the timer, the second stays new.
+    expect(screen.getByText('First news')).toBeInTheDocument()
+    await act(async () => {
+      vi.advanceTimersByTime(900)
+    })
+    expect(mockDismissAnnouncement).toHaveBeenCalledTimes(1)
+    expect(mockDismissAnnouncement).toHaveBeenLastCalledWith('a1')
+    expect(icon).toHaveAccessibleName('Announcements, 1 new')
+
+    await act(async () => {
+      fireEvent.click(icon)
+    })
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+
+    // Reopening from the dot shows the unread one, and it gets marked read.
+    await act(async () => {
+      fireEvent.click(icon)
+    })
+    expect(screen.getByText('Second news')).toBeInTheDocument()
+    expect(screen.queryByText('First news')).not.toBeInTheDocument()
+    await act(async () => {
+      vi.advanceTimersByTime(900)
+    })
+    expect(mockDismissAnnouncement).toHaveBeenCalledTimes(2)
+    expect(mockDismissAnnouncement).toHaveBeenLastCalledWith('a2')
+    expect(icon).toHaveAccessibleName('Announcements')
+  })
+
   it('opens on the first unread item and marks that one read', async () => {
     mockGetAnnouncements.mockResolvedValue([
       buildAnnouncement({ id: 'a1', content: '<p>Old news</p>', read: true }),
       buildAnnouncement({ id: 'a2', content: '<p>Fresh news</p>', read: false })
     ])
-    await act(async () => {
-      renderBanner()
-    })
+    await loadAndOpen()
 
     expect(await screen.findByText('Fresh news')).toBeInTheDocument()
     expect(screen.getByText('2 / 2')).toBeInTheDocument()
@@ -697,12 +792,7 @@ describe('Announcements', () => {
 
   it('closes when focus moves from the panel to an outside control, without moving focus', async () => {
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
-    await act(async () => {
-      renderBanner()
-    })
-    const toggle = await screen.findByRole('button', {
-      name: 'Announcements, 1 new'
-    })
+    const toggle = await loadAndOpen()
     const panel = screen.getByRole('region', { name: 'Announcements' })
     const outside = screen.getByRole('button', { name: 'elsewhere' })
 
@@ -720,22 +810,19 @@ describe('Announcements', () => {
   })
 
   it.each([1, 2])(
-    'keeps the pill, and focus on it, after the item is read and the panel closes (%i header copies)',
+    'keeps the icon, and focus on it, after the item is read and the panel closes (%i header copies)',
     async (copies) => {
       mockGetAnnouncements.mockResolvedValue([
         buildAnnouncement({
           reactions: [{ name: '👍', count: 1, me: false }]
         })
       ])
-      await act(async () => {
-        renderBanner(copies)
-      })
-      await screen.findAllByRole('button', { name: 'Announcements, 1 new' })
+      await loadAndOpen(copies)
       await act(async () => {
         vi.advanceTimersByTime(900)
       })
-      const pill = screen.getAllByRole('button', { name: 'Announcements' })[0]
-      expect(pill).toHaveAttribute('aria-expanded', 'true')
+      const icon = screen.getAllByRole('button', { name: 'Announcements' })[0]
+      expect(icon).toHaveAttribute('aria-expanded', 'true')
 
       // Escape from a control inside the panel.
       const chip = screen.getAllByRole('button', { name: 'Add 👍 reaction' })[0]
@@ -743,34 +830,29 @@ describe('Announcements', () => {
       await act(async () => {
         fireEvent.keyDown(chip, { key: 'Escape' })
       })
-      expect(pill).toHaveAttribute('aria-expanded', 'false')
-      expect(pill).toHaveFocus()
-      // Still the same pill: the control never swaps mid-session.
+      expect(icon).toHaveAttribute('aria-expanded', 'false')
+      expect(icon).toHaveFocus()
+      // Still the same icon element after closing.
       expect(screen.getAllByRole('button', { name: 'Announcements' })[0]).toBe(
-        pill
+        icon
       )
 
-      // Reopen, then close by clicking (or pressing Enter on) the focused pill.
+      // Reopen, then close by clicking (or pressing Enter on) the focused icon.
       await act(async () => {
-        fireEvent.click(pill)
+        fireEvent.click(icon)
       })
-      pill.focus()
+      icon.focus()
       await act(async () => {
-        fireEvent.click(pill)
+        fireEvent.click(icon)
       })
-      expect(pill).toHaveAttribute('aria-expanded', 'false')
-      expect(pill).toHaveFocus()
+      expect(icon).toHaveAttribute('aria-expanded', 'false')
+      expect(icon).toHaveFocus()
     }
   )
 
   it('leaves an Escape alone when focus is on the body, and does not close for one already handled', async () => {
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
-    await act(async () => {
-      renderBanner()
-    })
-    const toggle = await screen.findByRole('button', {
-      name: 'Announcements, 1 new'
-    })
+    const toggle = await loadAndOpen()
 
     // Something earlier (like a Radix dismissable layer) handles Escape first:
     // the panel stays open.
@@ -856,46 +938,13 @@ describe('Announcements', () => {
     expect(outside).toHaveFocus()
   })
 
-  it('does not auto-open over a reader who is already typing elsewhere', async () => {
-    mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
-    let loaded: () => void = () => {}
-    mockGetAnnouncements.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          loaded = () => resolve([buildAnnouncement()])
-        })
-    )
-    await act(async () => {
-      renderBanner()
-    })
-    screen.getByRole('button', { name: 'elsewhere' }).focus()
-    await act(async () => {
-      loaded()
-    })
-
-    const pill = await screen.findByRole('button', {
-      name: 'Announcements, 1 new'
-    })
-    expect(pill).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('region')).not.toBeInTheDocument()
-    await act(async () => {
-      vi.advanceTimersByTime(2000)
-    })
-    expect(mockDismissAnnouncement).not.toHaveBeenCalled()
-  })
-
   it('retries once on the next open when a mark-read fails after the panel closed', async () => {
     let resolveDismiss: (ok: boolean) => void = () => {}
     mockDismissAnnouncement.mockImplementationOnce(
       () => new Promise<boolean>((resolve) => (resolveDismiss = resolve))
     )
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
-    await act(async () => {
-      renderBanner()
-    })
-    const pill = await screen.findByRole('button', {
-      name: 'Announcements, 1 new'
-    })
+    const icon = await loadAndOpen()
     await act(async () => {
       vi.advanceTimersByTime(900)
     })
@@ -909,12 +958,12 @@ describe('Announcements', () => {
       resolveDismiss(false)
     })
     expect(screen.getByRole('button', { name: 'Announcements, 1 new' })).toBe(
-      pill
+      icon
     )
 
     // The next open retries.
     await act(async () => {
-      fireEvent.click(pill)
+      fireEvent.click(icon)
     })
     await act(async () => {
       vi.advanceTimersByTime(900)
@@ -925,10 +974,7 @@ describe('Announcements', () => {
   it('does not retry a failed mark-read until the panel is opened again', async () => {
     mockDismissAnnouncement.mockResolvedValue(false)
     mockGetAnnouncements.mockResolvedValue([buildAnnouncement()])
-    await act(async () => {
-      renderBanner()
-    })
-    await screen.findByRole('button', { name: 'Announcements, 1 new' })
+    await loadAndOpen()
 
     await act(async () => {
       vi.advanceTimersByTime(5000)

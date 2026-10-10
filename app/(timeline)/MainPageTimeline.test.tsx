@@ -35,13 +35,12 @@ vi.mock('@/lib/client', () => ({
 }))
 
 vi.mock('@/lib/components/announcements/useAnnouncements', () => ({
-  useAnnouncements: () => ({ mode: 'pill' })
+  useAnnouncements: () => ({ hasAnnouncements: true })
 }))
 
 vi.mock('@/lib/components/announcements/AnnouncementBanner', async () => {
   const utils = await import('./MainPageTimeline.testUtils')
   return {
-    AnnouncementPill: utils.MockAnnouncementPill,
     AnnouncementIconButton: utils.MockAnnouncementIcon
   }
 })
@@ -111,9 +110,9 @@ describe('MainPageTimeline', () => {
     }
   })
 
-  // Announcements never add a node to the header's layout: the pill floats in
-  // the bottom slot and the icon is a header action beside Refresh.
-  it('hands the announcement pill to the floating row and the icon to the actions', () => {
+  // Announcements never add a node to the header's layout: the icon is a
+  // header action beside Refresh, and nothing of them floats in the bottom slot.
+  it('hands the announcement icon to the header actions, not the floating row', () => {
     render(
       <MainPageTimeline
         host="activities.local"
@@ -125,15 +124,15 @@ describe('MainPageTimeline', () => {
     )
 
     expect(
-      within(screen.getByTestId('header-bottom-slot')).getByTestId(
-        'announcement-pill'
-      )
-    ).toBeInTheDocument()
-    expect(
       within(screen.getByTestId('header-actions')).getByTestId(
         'announcement-icon'
       )
     ).toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('header-bottom-slot')).queryByTestId(
+        'announcement-icon'
+      )
+    ).not.toBeInTheDocument()
   })
 
   // Below md Refresh sits in the compact bar and the full-bleed composer meets

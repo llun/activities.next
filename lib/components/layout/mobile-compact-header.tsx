@@ -21,13 +21,14 @@ export interface MobileCompactHeaderProps {
   as?: 'h1' | 'p'
   /**
    * Overlay hung just below the bar (`top-full`) without taking space — the
-   * home timeline's "N new posts" and announcements pills, which stay
-   * reachable on scroll because the bar is sticky.
+   * home timeline's "N new posts" pill, which stays reachable on scroll
+   * because the bar is sticky.
    */
   bottomSlot?: ReactNode
   /**
    * Controls at the end of the bar, after the title (the home timeline's
-   * Refresh). Every other page keeps its actions in the content below.
+   * announcements icon and Refresh). Every other page keeps its actions in
+   * the content below.
    */
   actions?: ReactNode
   className?: string
@@ -37,8 +38,9 @@ export interface MobileCompactHeaderProps {
  * The mobile "Compact B" bar: the menu button and one truncating title —
  * no logo, subtitle, breadcrumb, unread badge or Back. Page actions, counts,
  * descriptions, filters and Back live in the content below it, except an
- * `actions` slot a page opts into (the home timeline's Refresh). Renders only
- * under a `MobileNavigationProvider` and only below `md`.
+ * `actions` slot a page opts into (the home timeline's announcements icon and
+ * Refresh). Renders only under a `MobileNavigationProvider` and only below
+ * `md`.
  */
 export function MobileCompactHeader({
   title,
