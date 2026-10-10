@@ -181,13 +181,16 @@ jobs:
   # and which indexed statuses a viewer can find, featured tags with their
   # stats, trending tags and statuses), the admin domain (account and hashtag
   # listings, service statistics, domain block and allow rules with their
-  # import), the direct conversation domain (conversation listings and their
-  # cursors, read and hidden state, syncing statuses into conversations with
-  # their participants and blocks, the read-marker row lock, the legacy
-  # conversation backfill), the Kysely status visibility filter checked
-  # against its Knex original, and the Knex-backed Kysely driver (result
-  # normalisation, the mixed-transaction guard, counters, bucket counters,
-  # chunked IN lists, savepoints).
+  # import), the account and moderation domains (account and actor creation
+  # with their counters and search documents, sessions and the OAuth token
+  # detach, e-mail change and password reset, actor and account moderation
+  # state, the admin account listing), the direct conversation domain
+  # (conversation listings and their cursors, read and hidden state, syncing
+  # statuses into conversations with their participants and blocks, the
+  # read-marker row lock, the legacy conversation backfill), the Kysely status
+  # visibility filter checked against its Knex original, and the Knex-backed
+  # Kysely driver (result normalisation, the mixed-transaction guard,
+  # counters, bucket counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -308,6 +311,10 @@ jobs:
             lib/database/kysely/visibility/visibilityEquivalence.test.ts \
             lib/database/sql/admin.test.ts \
             lib/database/sql/adminDomainRules.test.ts \
+            lib/database/sql/accountQueries.test.ts \
+            lib/database/sql/sessionTokenDetach.test.ts \
+            lib/database/sql/moderation.test.ts \
+            lib/database/sql/moderationQueries.test.ts \
             lib/database/sql/conversation.test.ts \
             lib/database/sql/conversationQueries.test.ts \
             lib/database/sql/directConversationsMigration.test.ts \

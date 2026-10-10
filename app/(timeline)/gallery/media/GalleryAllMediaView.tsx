@@ -5,7 +5,12 @@ import Link from 'next/link'
 import { FC, useCallback, useMemo, useRef, useState } from 'react'
 
 import { GalleryAlbumFormDialog } from '@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog'
-import { GalleryPagedGrid } from '@/lib/components/gallery/GalleryPagedGrid'
+import { GalleryEditDetailsDialog } from '@/lib/components/gallery/GalleryEditDetailsDialog'
+import {
+  GalleryPagedGrid,
+  type GalleryPagedGridController
+} from '@/lib/components/gallery/GalleryPagedGrid'
+import { GalleryShowSelect } from '@/lib/components/gallery/GalleryShowSelect'
 import {
   GALLERY_CATEGORY_ICONS,
   GALLERY_CATEGORY_LABELS
@@ -21,6 +26,7 @@ import type {
   GalleryMediaPage
 } from '@/lib/services/gallery/galleryEntities'
 import {
+  type GalleryShow,
   MEDIA_SUBJECT_CATEGORIES,
   type MediaSubjectCategory
 } from '@/lib/types/database/gallery'
@@ -30,10 +36,12 @@ import {
   GALLERY_SELECTION_BAR_ID,
   GallerySelectionBar
 } from './GallerySelectionBar'
+import { describeHiddenSkipped } from './galleryAddToAlbumUi'
 
 interface Props {
   actorId: string
   initialCategory: MediaSubjectCategory | null
+  initialShow: GalleryShow
   initialPage: GalleryMediaPage
 }
 
@@ -50,16 +58,27 @@ const FILTER_TABS: SectionNavSelectTab<Filter>[] = [
 
 interface Outcome {
   message: string
-  albumId: string
+  /** The album the message links to, when it is about one. */
+  albumId?: string
 }
 
-export const GalleryRecentView: FC<Props> = ({
+const EMPTY_TITLES: Record<GalleryShow, string> = {
+  all: 'No photos or videos yet',
+  in_gallery: 'No photos in your gallery yet',
+  hidden: 'Nothing is hidden from your gallery'
+}
+
+export const GalleryAllMediaView: FC<Props> = ({
   actorId,
   initialCategory,
+  initialShow,
   initialPage
 }) => {
   const [filter, setFilterState] = useState<Filter>(initialCategory ?? 'all')
   const startFilter = initialCategory ?? 'all'
+  const [show, setShowState] = useState<GalleryShow>(initialShow)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const gridController = useRef<GalleryPagedGridController | null>(null)
   const [isSelecting, setIsSelecting] = useState(false)
   // In the order they were picked: the first is the cover of a new album.
   const [selected, setSelected] = useState<string[]>([])
@@ -67,6 +86,10 @@ export const GalleryRecentView: FC<Props> = ({
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
+  // The page the server rendered is only the first list this view shows: once
+  // the owner has switched filters (or edited anything) it is stale, so a later
+  // return to the starting filter loads its own.
+  const [reuseInitialPage, setReuseInitialPage] = useState(true)
 
   const selectButton = useRef<HTMLButtonElement>(null)
   // Set when an add or create finished, so the dialog that closes hands focus
@@ -78,12 +101,59 @@ export const GalleryRecentView: FC<Props> = ({
     () => loaded.filter((item) => selectedSet.has(item.mediaId)),
     [loaded, selectedSet]
   )
+  // The photos Edit details was opened for: fixed while the dialog is open, so
+  // a tile that drops out of the list after a save does not pull the item from
+  // under it.
+  const [editItems, setEditItems] = useState<GalleryItemEntity[]>([])
 
   const setFilter = (next: Filter) => {
     // A different filter is a different list: a selection does not carry over.
     setSelected([])
+    setReuseInitialPage(false)
     setFilterState(next)
   }
+
+  const setShow = (next: GalleryShow) => {
+    setSelected([])
+    setReuseInitialPage(false)
+    setShowState(next)
+  }
+
+  // The grid reports its photos whenever they change (a page loads, an edit
+  // moves one out of the list). A pick of a photo that is gone is dropped, so
+  // the count and what Add to album sends match what the owner can see.
+  const handleItemsChange = useCallback((items: GalleryItemEntity[]) => {
+    setLoaded(items)
+    setSelected((current) => {
+      const present = new Set(items.map((item) => item.mediaId))
+      const next = current.filter((id) => present.has(id))
+      return next.length === current.length ? current : next
+    })
+  }, [])
+
+  // Albums hold only photos shown in the gallery. A hidden one in a selection is
+  // left out of an add or a new album, and the owner is told so.
+  const hiddenIds = useMemo(
+    () =>
+      new Set(
+        selectedItems
+          .filter((item) => item.inGallery === false)
+          .map((item) => item.mediaId)
+      ),
+    [selectedItems]
+  )
+  const addableIds = useMemo(
+    () => selected.filter((id) => !hiddenIds.has(id)),
+    [selected, hiddenIds]
+  )
+  const addableItems = useMemo(
+    () => selectedItems.filter((item) => item.inGallery !== false),
+    [selectedItems]
+  )
+  const withHiddenNote = (message: string) =>
+    hiddenIds.size > 0
+      ? `${message} ${describeHiddenSkipped(hiddenIds.size)}`
+      : message
 
   const toggle = useCallback((item: GalleryItemEntity) => {
     setSelected((current) =>
@@ -127,8 +197,8 @@ export const GalleryRecentView: FC<Props> = ({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Recent"
-        description="Your newest photos and videos first"
+        title="All media"
+        description="Every photo and video you've posted, newest first"
         actions={
           <Button
             ref={selectButton}
@@ -150,26 +220,34 @@ export const GalleryRecentView: FC<Props> = ({
           </Button>
         }
       />
-      <SectionNavSelect
-        label="Category"
-        tabs={FILTER_TABS}
-        active={filter}
-        onChange={setFilter}
-      />
+      <div className="flex flex-wrap gap-2">
+        <SectionNavSelect
+          label="Category"
+          tabs={FILTER_TABS}
+          active={filter}
+          onChange={setFilter}
+        />
+        <GalleryShowSelect value={show} onChange={setShow} />
+      </div>
       {/* Always on the page (hidden visually while empty), so the result is
           announced when it appears. */}
       <div role="status" aria-live="polite" className="empty:sr-only">
         {outcome ? (
           <div className="bg-card flex items-start gap-3 rounded-lg border px-3 py-2.5 text-sm">
             <p className="min-w-0 flex-1 break-words">
-              {outcome.message}{' '}
-              <Link
-                href={`/gallery/albums/${encodeURIComponent(outcome.albumId)}`}
-                prefetch={false}
-                className="text-primary-text font-medium hover:underline"
-              >
-                Open album
-              </Link>
+              {outcome.message}
+              {outcome.albumId ? (
+                <>
+                  {' '}
+                  <Link
+                    href={`/gallery/albums/${encodeURIComponent(outcome.albumId)}`}
+                    prefetch={false}
+                    className="text-primary-text font-medium hover:underline"
+                  >
+                    Open album
+                  </Link>
+                </>
+              ) : null}
             </p>
             <button
               type="button"
@@ -184,7 +262,7 @@ export const GalleryRecentView: FC<Props> = ({
       </div>
       <div role="status" aria-live="polite" className="sr-only">
         {isSelecting
-          ? 'Select mode is on. Choose photos, then add them to an album.'
+          ? 'Select mode is on. Choose photos, then edit their details or add them to an album.'
           : ''}
       </div>
       {isSelecting ? (
@@ -200,18 +278,24 @@ export const GalleryRecentView: FC<Props> = ({
       ) : null}
       <GalleryPagedGrid
         // A different filter is a different query, so a fresh grid.
-        key={filter}
+        key={`${filter}:${show}`}
         actorId={actorId}
         category={filter === 'all' ? undefined : filter}
-        initialPage={filter === startFilter ? initialPage : undefined}
+        show={show}
+        initialPage={
+          reuseInitialPage && filter === startFilter && show === initialShow
+            ? initialPage
+            : undefined
+        }
+        controllerRef={gridController}
         emptyTitle={
           filter === 'all'
-            ? 'No photos in your gallery yet'
+            ? EMPTY_TITLES[show]
             : `No ${GALLERY_CATEGORY_LABELS[filter].toLowerCase()} yet`
         }
         selection={selection}
         albumsOwnerId={actorId}
-        onItemsChange={setLoaded}
+        onItemsChange={handleItemsChange}
       />
       {isSelecting ? (
         <GallerySelectionBar
@@ -219,33 +303,58 @@ export const GalleryRecentView: FC<Props> = ({
           loadedCount={loaded.length}
           onSelectAllLoaded={selectAllLoaded}
           onClear={() => setSelected([])}
+          hiddenCount={hiddenIds.size}
           onAddToAlbum={() => setIsAddOpen(true)}
+          onEditDetails={() => {
+            setEditItems(selectedItems)
+            setIsEditOpen(true)
+          }}
+        />
+      ) : null}
+
+      {isEditOpen && editItems.length > 0 ? (
+        <GalleryEditDetailsDialog
+          items={editItems}
+          initialMediaId={editItems[0].mediaId}
+          ownerId={actorId}
+          onClose={() => setIsEditOpen(false)}
+          onSaved={(saved) => {
+            gridController.current?.updateItems(saved)
+            setOutcome({
+              message:
+                saved.length === 1
+                  ? 'Details saved for 1 item.'
+                  : `Details saved for ${saved.length} items.`
+            })
+          }}
         />
       ) : null}
 
       <GalleryAddToAlbumDialog
         open={isAddOpen}
-        mediaIds={selected}
+        mediaIds={addableIds}
         onOpenChange={setIsAddOpen}
         onNewAlbum={() => {
           setIsAddOpen(false)
           setIsCreateOpen(true)
         }}
-        onAdded={finish}
+        onAdded={(result) =>
+          finish({ ...result, message: withHiddenNote(result.message) })
+        }
         onCloseAutoFocus={restoreFocus}
       />
       <GalleryAlbumFormDialog
         open={isCreateOpen}
         ownerId={actorId}
         intent="create"
-        initialMediaIds={selected}
-        initialItems={selectedItems}
+        initialMediaIds={addableIds}
+        initialItems={addableItems}
         onOpenChange={setIsCreateOpen}
         onCloseAutoFocus={restoreFocus}
         onSaved={(albumId) =>
           finish({
             albumId,
-            message: 'Album created.'
+            message: withHiddenNote('Album created.')
           })
         }
       />

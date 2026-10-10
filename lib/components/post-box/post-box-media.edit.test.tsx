@@ -196,6 +196,48 @@ describe('PostBox media details', () => {
         />
       )
 
+    it('opens an edit with several media at the first tile', async () => {
+      const scrollTo = vi.fn()
+      Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+        configurable: true,
+        value: scrollTo
+      })
+      try {
+        const edit = makeEditStatus() as unknown as {
+          attachments: { id: string; url: string; mediaId: string }[]
+        }
+        const [first] = edit.attachments
+        edit.attachments = ['1', '2', '3'].map((n) => ({
+          ...first,
+          id: `att-${n}`,
+          url: `https://activities.local/api/v1/files/${n}.png`,
+          mediaId: `media-${n}`
+        }))
+        getMediaMock.mockImplementation(async (id) => mediaEntity(id, null))
+        render(
+          <PostBox
+            host="activities.local"
+            profile={profile}
+            editStatus={edit as never}
+            isMediaUploadEnabled
+            onDiscardReply={vi.fn()}
+            onPostCreated={vi.fn()}
+            onPostUpdated={vi.fn()}
+            onDiscardEdit={vi.fn()}
+          />
+        )
+
+        await waitFor(() =>
+          expect(
+            screen.getAllByRole('button', { name: /^Remove media/ })
+          ).toHaveLength(3)
+        )
+        expect(scrollTo).not.toHaveBeenCalled()
+      } finally {
+        delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo
+      }
+    })
+
     it('keeps the attachment name when the dialog closes without saving', async () => {
       const edit = makeEditStatus() as unknown as {
         attachments: { name: string }[]

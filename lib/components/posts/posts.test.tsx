@@ -82,13 +82,19 @@ vi.mock('./inline-status-composer', () => ({
 vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
   MediasModal: ({
     medias,
-    albumsOwnerId
+    albumsOwnerId,
+    onEdit
   }: {
     medias: unknown[] | null
     albumsOwnerId?: string | null
+    onEdit?: unknown
   }) =>
     medias ? (
-      <div data-testid="viewer" data-albums-owner={albumsOwnerId ?? 'none'} />
+      <div
+        data-testid="viewer"
+        data-albums-owner={albumsOwnerId ?? 'none'}
+        data-editable={onEdit ? 'yes' : 'no'}
+      />
     ) : null
 }))
 
@@ -175,6 +181,11 @@ describe('Posts', () => {
         'data-albums-owner',
         pollStatusFixture.actorId
       )
+      // The viewer's Edit button comes with it.
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-editable',
+        'yes'
+      )
     })
 
     it('offers nobody else’s post an albums pill', () => {
@@ -186,6 +197,10 @@ describe('Posts', () => {
       expect(screen.getByTestId('viewer')).toHaveAttribute(
         'data-albums-owner',
         'none'
+      )
+      expect(screen.getByTestId('viewer')).toHaveAttribute(
+        'data-editable',
+        'no'
       )
     })
 

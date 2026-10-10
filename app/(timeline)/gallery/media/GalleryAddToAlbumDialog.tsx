@@ -50,7 +50,7 @@ type AlbumLoad =
 const formatCount = (count: number) => count.toLocaleString('en-US')
 
 /**
- * Where a selection from Recent goes: an existing album, or a new one. The add
+ * Where a selection from All media goes: an existing album, or a new one. The add
  * runs in batches of 100 through the client helper, and an album that fills up
  * part way says how far it got.
  */

@@ -171,10 +171,10 @@ describe('backfillTable', () => {
   it('backfills in bulk statements instead of one query per row', async () => {
     // The backfill used to issue one UPDATE per row and fan the whole
     // --batch-size out with Promise.all. This script runs on the APP's pool,
-    // which caps at ACTIVITIES_DATABASE_PG_POOL_MAX (5 in production, 1 if
-    // unset), so the rest queued in tarn and the batch had to drain inside a
-    // single 60s acquireConnectionTimeout — the same failure that killed the
-    // migration, on a tighter pool.
+    // which caps at ACTIVITIES_DATABASE_PG_POOL_MAX (5 in production
+    // and by default), so the rest queued in tarn and the batch had to drain
+    // inside a single 60s acquireConnectionTimeout — the same failure that
+    // killed the migration, on a tighter pool.
     const rowCount = 450
     await insertStatuses(rowCount)
 

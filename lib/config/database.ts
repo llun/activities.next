@@ -71,7 +71,7 @@ export const getDatabaseConfig = (): { database: DatabaseConfig } | null => {
               : 1,
             max: process.env.ACTIVITIES_DATABASE_PG_POOL_MAX
               ? parseInt(process.env.ACTIVITIES_DATABASE_PG_POOL_MAX, 10)
-              : 1
+              : 5
           }
         }
       }

@@ -72,7 +72,7 @@ interface Props {
   storedItemCount?: number
   /**
    * Photos to start the new album with, picked before the dialog opened (the
-   * photo whose menu asked for "New album", or a selection from Recent). Only
+   * photo whose menu asked for "New album", or a selection from All media). Only
    * for `create`; the first is the cover, as for a photo ticked in the picker.
    */
   initialMediaIds?: string[]

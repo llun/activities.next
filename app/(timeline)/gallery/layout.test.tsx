@@ -24,7 +24,7 @@ describe('Gallery Layout', () => {
   it.each([
     ['/gallery', 'Subjects'],
     ['/gallery/subjects/sci%3Aalcedo%20atthis', 'Subjects'],
-    ['/gallery/recent', 'Recent'],
+    ['/gallery/media', 'All media'],
     ['/gallery/albums', 'Albums'],
     ['/gallery/albums/abc123', 'Albums'],
     ['/gallery/map', 'Map'],
@@ -55,7 +55,7 @@ describe('Gallery Layout', () => {
     expect(screen.getByText('content')).toBeInTheDocument()
   })
 
-  it('lists the seven sections, in order, with Albums after Recent', async () => {
+  it('lists the seven sections, in order, with Albums after All media', async () => {
     ;(usePathname as jest.Mock).mockReturnValue('/gallery')
     renderLayout()
 
@@ -66,7 +66,7 @@ describe('Gallery Layout', () => {
     const items = within(menu).getAllByRole('menuitem')
     expect(items.map((item) => item.textContent)).toEqual([
       'Subjects',
-      'Recent',
+      'All media',
       'Albums',
       'Map',
       'Life list',
@@ -75,7 +75,7 @@ describe('Gallery Layout', () => {
     ])
     expect(items.map((item) => item.getAttribute('href'))).toEqual([
       '/gallery',
-      '/gallery/recent',
+      '/gallery/media',
       '/gallery/albums',
       '/gallery/map',
       '/gallery/life-list',

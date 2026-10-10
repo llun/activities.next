@@ -22,7 +22,7 @@ interface Props {
   linkSubjects?: boolean
   /** The profile tab filters in place instead. */
   onSelectSubject?: (key: string, label: string) => void
-  /** Owner pages: "See all" goes to Recent filtered by the category. */
+  /** Owner pages: "See all" goes to All media filtered by the category. */
   getSeeAllHref?: (category: GallerySubjectGroupCategory) => string | undefined
   /** Profile tab: "See all" switches to the Recent subview. */
   onSeeAll?: (category: GallerySubjectGroupCategory) => void

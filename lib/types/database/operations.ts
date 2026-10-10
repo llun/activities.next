@@ -10,13 +10,7 @@ import {
   MediaSubjectCategory,
   MediaSubjectSuggestions
 } from '@/lib/types/database/gallery'
-import {
-  ActorSettings,
-  PostLineLimit,
-  SQLAccount,
-  SQLActor
-} from '@/lib/types/database/rows'
-import { Account } from '@/lib/types/domain/account'
+import { ActorSettings, PostLineLimit } from '@/lib/types/database/rows'
 import { Actor, ActorType } from '@/lib/types/domain/actor'
 import {
   Attachment,
@@ -30,7 +24,6 @@ import {
 } from '@/lib/types/domain/collection'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
-import { Session } from '@/lib/types/domain/session'
 import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import * as Mastodon from '@/lib/types/mastodon'
@@ -285,180 +278,33 @@ export interface ActorDatabase {
 // Account Database
 // ============================================================================
 
-export type IsAccountExistsParams = { email: string }
-export type IsUsernameExistsParams = { username: string; domain: string }
-export type CreateAccountParams = {
-  email: string
-  username: string
-  name?: string | null
-  passwordHash: string
-  verificationCode?: string | null
-  domain: string
-  privateKey: string
-  publicKey: string
-}
-export type GetAccountFromIdParams = { id: string }
-export type GetAccountFromEmailParams = { email: string }
-export type LinkAccountWithProviderParams = {
-  accountId: string
-  provider: string
-  providerAccountId: string
-}
-export type VerifyAccountParams = {
-  verificationCode: string
-}
-export type CreateAccountSessionParams = {
-  accountId: string
-  token: string
-  expireAt: number
-  actorId?: string | null
-}
-export type GetAccountAllSessionsParams = {
-  accountId: string
-}
-export type DeleteAccountSessionByIdParams = {
-  // Only a session this account owns is deleted; anything else matches nothing.
-  accountId: string
-  id: string
-}
-export type DeleteOtherAccountSessionsParams = {
-  accountId: string
-  // The session to keep (the device making the request). Every other session
-  // for the account is revoked.
-  exceptToken: string
-}
-
-export type UnlinkAccountFromProviderParams = {
-  accountId: string
-  provider: string
-}
-
-export type CreateActorForAccountParams = {
-  accountId: string
-  username: string
-  domain: string
-  privateKey: string
-  publicKey: string
-}
-export type GetActorsForAccountParams = { accountId: string }
-export type SetDefaultActorParams = { accountId: string; actorId: string }
-
-export type RequestEmailChangeParams = {
-  accountId: string
-  newEmail: string
-  emailChangeCode: string
-}
-export type VerifyEmailChangeParams = {
-  accountId?: string
-  emailChangeCode: string
-}
-export type RequestPasswordResetParams = {
-  email: string
-  passwordResetCode: string | null
-  expiresAt?: number | null
-  // When set, the code is written only if the account has no live code issued
-  // within this many milliseconds; otherwise nothing is written and the call
-  // returns false. The check is a predicate on the UPDATE, so concurrent
-  // requests cannot each slip past it.
-  cooldownMs?: number
-}
-export type ValidatePasswordResetCodeParams = {
-  passwordResetCode: string
-}
-export type ResetPasswordWithCodeParams = {
-  accountId?: string
-  passwordResetCode: string
-  newPasswordHash: string
-}
-export type ChangePasswordParams = {
-  accountId: string
-  newPasswordHash: string
-}
-export type RepointUnconfirmedAccountEmailParams = {
-  accountId: string
-  email: string
-  // A freshly minted code for the NEW address.
-  //
-  // This method is for one job — moving an account that is still awaiting
-  // confirmation onto a different address — and it is named for that job
-  // because the write is only correct there. It replaces every proof the
-  // account had about its OLD address: the code, `emailVerified`, `verifiedAt`
-  // and `emailVerifiedAt` all move together, because each of them proves
-  // control of the address it was set for and none may outlive it.
-  //
-  // The UPDATE is predicated on the account still being pending
-  // (`verificationCode` non-empty and not marked `emailVerified`), so an
-  // account confirmed concurrently is not re-pointed. The re-read account is
-  // returned so the caller can distinguish "no such account" (null) from
-  // "no longer pending" (isAccountConfirmationPending false).
-  //
-  // So do NOT reach for this to change a CONFIRMED account's address. It would
-  // strip that account's verification and leave it unable to sign in
-  // (`requireEmailVerification` reads `emailVerified`) and unable to resend
-  // (`POST /api/v1/emails/confirmations` requires an outstanding code) — an
-  // unrecoverable state that nothing flags, because
-  // `isAccountConfirmationPending` reads a code that is no longer set. The
-  // confirmed-user flow is `requestEmailChange`/`verifyEmailChange`, which
-  // proves the new address before moving anything.
-  verificationCode: string
-}
-export type UpdateAccountNameParams = {
-  accountId: string
-  name: string | null
-}
-export type UpdateAccountImageParams = {
-  accountId: string
-  iconUrl: string | null
-}
-
-export interface AccountDatabase {
-  isAccountExists(params: IsAccountExistsParams): Promise<boolean>
-  isUsernameExists(params: IsUsernameExistsParams): Promise<boolean>
-
-  createAccount(params: CreateAccountParams): Promise<string>
-  getAccountFromId(params: GetAccountFromIdParams): Promise<Account | null>
-  getAccountFromEmail(
-    params: GetAccountFromEmailParams
-  ): Promise<Account | null>
-  verifyAccount(params: VerifyAccountParams): Promise<Account | null>
-
-  createAccountSession(params: CreateAccountSessionParams): Promise<void>
-  getAccountAllSessions(params: GetAccountAllSessionsParams): Promise<Session[]>
-  // Deletes the session with this row id when it belongs to `accountId`, and
-  // returns how many rows were deleted (0 for an unknown or foreign id).
-  deleteAccountSessionById(
-    params: DeleteAccountSessionByIdParams
-  ): Promise<number>
-  // Revoke every session for the account except `exceptToken`. Returns the
-  // number of sessions revoked.
-  deleteOtherAccountSessions(
-    params: DeleteOtherAccountSessionsParams
-  ): Promise<number>
-
-  unlinkAccountFromProvider(
-    params: UnlinkAccountFromProviderParams
-  ): Promise<void>
-
-  createActorForAccount(params: CreateActorForAccountParams): Promise<string>
-  getActorsForAccount(params: GetActorsForAccountParams): Promise<Actor[]>
-  setDefaultActor(params: SetDefaultActorParams): Promise<void>
-
-  requestEmailChange(params: RequestEmailChangeParams): Promise<void>
-  verifyEmailChange(params: VerifyEmailChangeParams): Promise<Account | null>
-  requestPasswordReset(params: RequestPasswordResetParams): Promise<boolean>
-  validatePasswordResetCode(
-    params: ValidatePasswordResetCodeParams
-  ): Promise<string | null>
-  resetPasswordWithCode(
-    params: ResetPasswordWithCodeParams
-  ): Promise<Account | null>
-  changePassword(params: ChangePasswordParams): Promise<void>
-  repointUnconfirmedAccountEmail(
-    params: RepointUnconfirmedAccountEmailParams
-  ): Promise<Account | null>
-  updateAccountName(params: UpdateAccountNameParams): Promise<void>
-  updateAccountImage(params: UpdateAccountImageParams): Promise<void>
-}
+export type {
+  AccountDatabase,
+  ChangePasswordParams,
+  CreateAccountParams,
+  CreateAccountSessionParams,
+  CreateActorForAccountParams,
+  DeleteAccountSessionByIdParams,
+  DeleteOtherAccountSessionsParams,
+  GetAccountAllSessionsParams,
+  GetAccountFromEmailParams,
+  GetAccountFromIdParams,
+  GetActorsForAccountParams,
+  IsAccountExistsParams,
+  IsUsernameExistsParams,
+  LinkAccountWithProviderParams,
+  RepointUnconfirmedAccountEmailParams,
+  RequestEmailChangeParams,
+  RequestPasswordResetParams,
+  ResetPasswordWithCodeParams,
+  SetDefaultActorParams,
+  UnlinkAccountFromProviderParams,
+  UpdateAccountImageParams,
+  UpdateAccountNameParams,
+  ValidatePasswordResetCodeParams,
+  VerifyAccountParams,
+  VerifyEmailChangeParams
+} from '@/lib/database/domains/account/types'
 
 // ============================================================================
 // Status Database
@@ -1659,165 +1505,29 @@ export type {
 // Moderation Database
 // ============================================================================
 
-// The moderator actions recorded in the append-only `moderation_actions` audit
-// log. `none` is an audit-only action (e.g. resolving a report with no state
-// change). The rest mirror the admin account action matrix.
-export const ModerationActionType = z.enum([
-  'none',
-  'disable',
-  'enable',
-  'sensitive',
-  'unsensitive',
-  'silence',
-  'unsilence',
-  'suspend',
-  'unsuspend',
-  'approve',
-  'reject',
-  'destroy'
-])
-export type ModerationActionType = z.infer<typeof ModerationActionType>
-
-// Per-actor moderation state, read as epoch-millisecond timestamps (null when
-// the state is not set). Only actors carrying at least one non-null state are
-// returned by getModerationStatesForActors, so an absent map entry means the
-// actor is not moderated.
-export type ModerationStates = {
-  suspendedAt: number | null
-  silencedAt: number | null
-  sensitizedAt: number | null
-}
-
-export type ModerationAction = {
-  id: string
-  targetActorId: string
-  moderatorAccountId: string
-  moderatorActorId: string | null
-  action: ModerationActionType
-  reportId: string | null
-  text: string
-  createdAt: number
-}
-
-export type SetActorSuspendedParams = { actorId: string; suspended: boolean }
-export type SetActorSilencedParams = { actorId: string; silenced: boolean }
-export type SetActorSensitizedParams = { actorId: string; sensitized: boolean }
-export type SetAccountDisabledParams = { accountId: string; disabled: boolean }
-export type ApproveAccountParams = { accountId: string }
-export type RejectPendingAccountParams = { accountId: string }
-export type GetModerationStatesForActorsParams = { actorIds: string[] }
-export type CreateModerationActionParams = {
-  targetActorId: string
-  moderatorAccountId: string
-  moderatorActorId?: string | null
-  action: ModerationActionType
-  reportId?: string | null
-  text?: string
-}
-export type DeleteAllAccountSessionsParams = { accountId: string }
-export type SetReportResolutionParams = {
-  reportId: string
-  // true → mark action_taken with the timestamp and moderator; false → reopen
-  // (clear all three).
-  resolved: boolean
-  actionTakenByActorId?: string | null
-}
-
-export interface ModerationDatabase {
-  // Stamp/clear the actor state columns. Idempotent: setting a state that is
-  // already set refreshes the timestamp; clearing an unset state is a no-op.
-  setActorSuspended(params: SetActorSuspendedParams): Promise<void>
-  setActorSilenced(params: SetActorSilencedParams): Promise<void>
-  setActorSensitized(params: SetActorSensitizedParams): Promise<void>
-  // Login-level state, on the account row (no remote analogue).
-  setAccountDisabled(params: SetAccountDisabledParams): Promise<void>
-  // Idempotently mark an account approved (sets approvedAt only when null).
-  approveAccount(params: ApproveAccountParams): Promise<void>
-  // Delete a registration-pending account (approvedAt null) and all its actors
-  // in one transaction. Returns false (and changes nothing) for an already
-  // approved account.
-  rejectPendingAccount(params: RejectPendingAccountParams): Promise<boolean>
-  // Batch-load the moderation state for a set of actor ids in one query. Only
-  // moderated actors (≥1 non-null state) appear in the returned map.
-  getModerationStatesForActors(
-    params: GetModerationStatesForActorsParams
-  ): Promise<Map<string, ModerationStates>>
-  // Append an immutable audit-log row and return it.
-  createModerationAction(
-    params: CreateModerationActionParams
-  ): Promise<ModerationAction>
-  // Revoke every better-auth session for the account (used by disable/suspend).
-  deleteAllAccountSessions(
-    params: DeleteAllAccountSessionsParams
-  ): Promise<void>
-  // Resolve/reopen a report's action-taken workflow columns. Returns true when
-  // a matching report row was updated. Shared by the account action endpoint
-  // (resolve on moderation) and the admin reports API.
-  setReportResolution(params: SetReportResolutionParams): Promise<boolean>
-}
-
-// ============================================================================
-// Admin Accounts (Admin::Account listing/lookup)
-// ============================================================================
-
-// One actor row plus its owning account row (null for remote actors). The
-// Admin::Account serializer hydrates both plus session IPs and the public
-// Account entity.
-export type AdminAccountRecord = {
-  actor: SQLActor
-  account: SQLAccount | null
-}
-
-export type AdminAccountIp = { ip: string; usedAt: number }
-
-export type GetAdminAccountsParams = {
-  limit?: number
-  // Locality: local = account-backed on this instance; remote = foreign actor.
-  local?: boolean
-  remote?: boolean
-  // Status filters (v1 booleans; v2 `status`/`origin` map onto these).
-  active?: boolean
-  pending?: boolean
-  disabled?: boolean
-  silenced?: boolean
-  suspended?: boolean
-  sensitized?: boolean
-  // Text filters.
-  username?: string
-  displayName?: string
-  byDomain?: string
-  email?: string
-  ip?: string
-  staff?: boolean
-  // Keyset cursors on (createdAt desc, id) — actor-URL ids.
-  maxId?: string | null
-  minId?: string | null
-  sinceId?: string | null
-}
-
-export type GetAdminAccountParams = { actorId: string }
-export type GetAdminAccountRecordsParams = { actorIds: string[] }
-export type GetSessionIpsForAccountsParams = { accountIds: string[] }
-
-export interface AdminAccountDatabase {
-  // Actor-driven, filter/keyset-paginated listing for the admin accounts API.
-  getAdminAccounts(
-    params: GetAdminAccountsParams
-  ): Promise<AdminAccountRecord[]>
-  // Single Admin::Account record by actor id (URL form), or null.
-  getAdminAccount(
-    params: GetAdminAccountParams
-  ): Promise<AdminAccountRecord | null>
-  // Batch Admin::Account records by actor ids (URL form); order not guaranteed.
-  // Used to hydrate the four embedded accounts on Admin::Report.
-  getAdminAccountRecords(
-    params: GetAdminAccountRecordsParams
-  ): Promise<AdminAccountRecord[]>
-  // Latest-first session IPs per account (local accounts only carry sessions).
-  getSessionIpsForAccounts(
-    params: GetSessionIpsForAccountsParams
-  ): Promise<Map<string, AdminAccountIp[]>>
-}
+export { ModerationActionType } from '@/lib/database/domains/moderation/types'
+export type {
+  AdminAccountDatabase,
+  AdminAccountIp,
+  AdminAccountRecord,
+  ApproveAccountParams,
+  CreateModerationActionParams,
+  DeleteAllAccountSessionsParams,
+  GetAdminAccountParams,
+  GetAdminAccountRecordsParams,
+  GetAdminAccountsParams,
+  GetModerationStatesForActorsParams,
+  GetSessionIpsForAccountsParams,
+  ModerationAction,
+  ModerationDatabase,
+  ModerationStates,
+  RejectPendingAccountParams,
+  SetAccountDisabledParams,
+  SetActorSensitizedParams,
+  SetActorSilencedParams,
+  SetActorSuspendedParams,
+  SetReportResolutionParams
+} from '@/lib/database/domains/moderation/types'
 
 // ============================================================================
 // Account Note Database

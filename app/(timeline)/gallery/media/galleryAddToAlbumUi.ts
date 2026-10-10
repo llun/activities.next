@@ -2,7 +2,7 @@ import { pluralize } from '@/lib/components/gallery/galleryCategories'
 import type { GalleryAlbumItemsResult } from '@/lib/services/gallery/galleryAlbumEntities'
 import { MAX_GALLERY_ALBUM_ITEMS } from '@/lib/types/database/galleryAlbums'
 
-// Wording for adding a selection from Recent to an album: what the server
+// Wording for adding a selection from All media to an album: what the server
 // answered, and what to tell the owner when it stopped part way.
 
 type Outcome = Pick<GalleryAlbumItemsResult, 'added' | 'existing' | 'skipped'>
@@ -12,6 +12,14 @@ const quoted = (title: string) => `“${title}”`
 // A server message is a bare phrase, so it gets its full stop when it has none.
 const endSentence = (text: string) =>
   /[.!?…]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`
+
+/**
+ * Said after an add or a new album from a selection that held hidden photos:
+ * albums hold only photos shown in the gallery, so those were left out before
+ * anything was sent.
+ */
+export const describeHiddenSkipped = (hidden: number): string =>
+  `${pluralize(hidden, 'hidden photo')} skipped: turn on Show in my gallery to add ${hidden === 1 ? 'it' : 'them'} to albums.`
 
 /** What a finished add did, one sentence per kind of result. */
 export const describeAddResult = (title: string, outcome: Outcome): string => {
@@ -33,7 +41,7 @@ export const describeAddResult = (title: string, outcome: Outcome): string => {
   }
   if (skipped.length > 0) {
     parts.push(
-      `${pluralize(skipped.length, 'photo')} couldn’t be added: ${skipped.length === 1 ? 'it isn’t' : 'they aren’t'} in your gallery any more.`
+      `${pluralize(skipped.length, 'photo')} couldn’t be added: ${skipped.length === 1 ? 'it is' : 'they are'} hidden from your gallery or no longer posted.`
     )
   }
   return parts.join(' ')

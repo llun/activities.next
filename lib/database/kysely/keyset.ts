@@ -18,24 +18,25 @@ type KeysetTable = {
 /**
  * Rows strictly older (`<`) or newer (`>`) than `cursor` in
  * (createdAt, tieBreaker) order: `createdAt op cursor.createdAt` or, on equal
- * timestamps, `tieBreakerColumn op cursor.tieBreaker`. The tie-breaker column is
- * type-checked against the queried table; `createdAt` is referenced unqualified,
- * so a joined query needs a qualified variant.
+ * timestamps, `tieBreakerColumn op cursor.tieBreaker`. Both columns are
+ * type-checked against the queried table; a query that joins another table with
+ * a `createdAt` column passes the qualified one (e.g. `actors.createdAt`).
  */
 export const pastKeyset = <TB extends KeysetTable>(
   eb: ExpressionBuilder<DB, TB>,
   cursor: KeysetCursor,
   operator: '<' | '>',
   // NoInfer: TB comes from `eb` only, so another table's column is rejected.
-  tieBreakerColumn: NoInfer<StringReference<DB, TB>>
+  tieBreakerColumn: NoInfer<StringReference<DB, TB>>,
+  createdAtColumn?: NoInfer<StringReference<DB, TB>>
 ) => {
   const createdAt = timestampValue(cursor.createdAt)
-  const createdAtColumn = sql.ref('createdAt')
+  const createdAtRef = sql.ref(createdAtColumn ?? 'createdAt')
   const tieColumn = sql.ref(tieBreakerColumn)
   return eb.or([
-    eb(createdAtColumn, operator, createdAt),
+    eb(createdAtRef, operator, createdAt),
     eb.and([
-      eb(createdAtColumn, '=', createdAt),
+      eb(createdAtRef, '=', createdAt),
       eb(tieColumn, operator, cursor.tieBreaker)
     ])
   ])

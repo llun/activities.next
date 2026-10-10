@@ -4,7 +4,10 @@ import type {
   GalleryMediaPage,
   GallerySubjectsResponse
 } from '@/lib/services/gallery/galleryEntities'
-import type { MediaSubjectCategory } from '@/lib/types/database/gallery'
+import type {
+  GalleryShow,
+  MediaSubjectCategory
+} from '@/lib/types/database/gallery'
 import { toIdPathSegment } from '@/lib/utils/urlToId'
 
 import { parseApiError } from './http'
@@ -17,6 +20,12 @@ export interface GetGalleryMediaOptions {
   category?: MediaSubjectCategory
   /** Owner only; anyone else gets a 422. */
   gearId?: string
+  /**
+   * Owner only: `all` posted media or just the `hidden` ones. Without it the
+   * server answers with the gallery (`in_gallery`); for anyone but the owner it
+   * is ignored.
+   */
+  show?: GalleryShow
 }
 
 const galleryUrl = (
@@ -64,7 +73,7 @@ const readGalleryOrNull = async <T>(
 /** A page of the account's gallery photos, newest upload first. */
 export const getGalleryMedia = async (
   actorId: string,
-  { maxId, limit, subject, category, gearId }: GetGalleryMediaOptions = {}
+  { maxId, limit, subject, category, gearId, show }: GetGalleryMediaOptions = {}
 ): Promise<GalleryMediaPage> => {
   const query = new URLSearchParams()
   if (maxId !== undefined) query.set('max_id', maxId)
@@ -72,6 +81,7 @@ export const getGalleryMedia = async (
   if (subject !== undefined) query.set('subject', subject)
   if (category !== undefined) query.set('category', category)
   if (gearId !== undefined) query.set('gear_id', gearId)
+  if (show !== undefined) query.set('show', show)
   return readGallery<GalleryMediaPage>(
     galleryUrl(actorId, 'media', query),
     'Failed to load photos.'
