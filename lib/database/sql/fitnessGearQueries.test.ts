@@ -1,5 +1,7 @@
 import { type Insertable, sql } from 'kysely'
 
+import { retireFitnessGearComponent } from '@/lib/database/domains/fitnessGear/components'
+import type { Db } from '@/lib/database/kysely'
 import type {
   FitnessFiles,
   FitnessGearComponentPeriods,
@@ -243,6 +245,41 @@ const expectRolledBack = async (
     await drop()
   }
   expect(await dumpTables()).toEqual(before)
+}
+
+// `db` with `interleave` run once, right after the first query through it has
+// finished: the gap between a method's ownership read and its write, which a
+// concurrent request lands in and a single-process test cannot reach any other
+// way. Query builders are wrapped as they chain, so the first `execute*` of the
+// first query is the one that is followed.
+const interleaveAfterFirstQuery = (
+  inner: Db,
+  interleave: () => Promise<void>
+): Db => {
+  let done = false
+  const wrap = <T extends object>(target: T): T =>
+    new Proxy(target, {
+      get(object, property) {
+        const value = Reflect.get(object, property, object)
+        if (typeof value !== 'function') return value
+        return (...args: unknown[]) => {
+          const result = value.apply(object, args)
+          if (result instanceof Promise) {
+            return result.then(async (rows) => {
+              if (!done) {
+                done = true
+                await interleave()
+              }
+              return rows
+            })
+          }
+          return typeof result === 'object' && result !== null
+            ? wrap(result)
+            : result
+        }
+      }
+    })
+  return wrap(inner)
 }
 
 describe('gear reads', () => {
@@ -1611,7 +1648,7 @@ describe('component writes', () => {
       ])
     ).toEqual([[ms('2026-01-01'), ms('2026-06-01'), ms('2026-01-01')]])
 
-    // A bound that would invert its own period is refused, the other applied.
+    // A bound that would invert the period it lands on is refused.
     await database.updateFitnessGearComponent({
       id: componentId,
       gearId,
@@ -1940,6 +1977,44 @@ describe('component writes', () => {
     expect((await componentRow(neighbour)).updatedAt).toBe(ms('2026-01-01'))
   })
 
+  it('retireFitnessGearComponent leaves the period open when the component is deleted after the ownership read', async () => {
+    const actorId = await newActor()
+    const gearId = await seedGear(actorId)
+    const componentId = await seedComponent(
+      gearId,
+      {},
+      { addedAt: at('2026-01-01'), removedAt: null }
+    )
+    const neighbour = await seedComponent(gearId, {}, { removedAt: null })
+
+    const retired = await retireFitnessGearComponent(
+      interleaveAfterFirstQuery(db(), async () => {
+        await db()
+          .updateTable('fitness_gear_components')
+          .set({ deletedAt: at('2026-02-01') })
+          .where('id', '=', componentId)
+          .execute()
+      }),
+      { id: componentId, gearId, actorId }
+    )
+
+    // The deletion landed between the read and the UPDATE, so the UPDATE found
+    // no live component to close a period of, and the touch after it never ran.
+    expect(retired).toBeNull()
+    expect(await periodRows(componentId)).toEqual([
+      expect.objectContaining({ removedAt: null, updatedAt: ms('2026-01-01') })
+    ])
+    expect(await componentRow(componentId)).toEqual(
+      expect.objectContaining({
+        deletedAt: ms('2026-02-01'),
+        updatedAt: ms('2026-01-01')
+      })
+    )
+    expect(await periodRows(neighbour)).toEqual([
+      expect.objectContaining({ removedAt: null })
+    ])
+  })
+
   it('refitFitnessGearComponent opens the next period of a retired component', async () => {
     const actorId = await newActor()
     const otherActorId = await newActor()
@@ -2195,6 +2270,13 @@ describe('getFitnessGearComponentDistanceRollups', () => {
     })
     await seedFile(otherActorId, {
       gearId: othersGear,
+      activityStartTime: at('2026-03-01'),
+      totalDistanceMeters: 1_000_000
+    })
+    // The actor's activity on another of their gears belongs to that gear's
+    // components, not to these.
+    await seedFile(actorId, {
+      gearId: otherGear,
       activityStartTime: at('2026-03-01'),
       totalDistanceMeters: 1_000_000
     })
