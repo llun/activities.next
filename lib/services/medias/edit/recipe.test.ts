@@ -6,6 +6,7 @@ import {
   RecipeSchema,
   countChangedAdjustments,
   isNeutralRecipe,
+  isSameMasks,
   isSameRender,
   normalizeRecipe,
   parseRecipe,
@@ -423,5 +424,32 @@ describe('isSameRender', () => {
     ]
   ])('is false when %s differs', (_, other) => {
     expect(isSameRender(edited, other)).toBe(false)
+  })
+})
+
+describe('isSameMasks', () => {
+  it("ignores the order of a mask's adjustment keys", () => {
+    const a = recipe({
+      masks: [subject('abcd1234', { adjustments: { contrast: 1, tint: 10 } })]
+    })
+    const b = recipe({
+      masks: [subject('abcd1234', { adjustments: { tint: 10, contrast: 1 } })]
+    })
+    expect(isSameMasks(a, b)).toBe(true)
+  })
+
+  it('sees a changed value or a mask that is added', () => {
+    const a = recipe({
+      masks: [subject('abcd1234', { adjustments: { tint: 10 } })]
+    })
+    expect(
+      isSameMasks(
+        a,
+        recipe({
+          masks: [subject('abcd1234', { adjustments: { tint: 11 } })]
+        })
+      )
+    ).toBe(false)
+    expect(isSameMasks(a, recipe())).toBe(false)
   })
 })

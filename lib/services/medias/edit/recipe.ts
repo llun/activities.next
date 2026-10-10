@@ -298,6 +298,13 @@ const isSameValue = (left: unknown, right: unknown): boolean => {
 export const isSameRender = (left: Recipe, right: Recipe): boolean =>
   isSameValue(getPixelRecipe(left), getPixelRecipe(right))
 
+/**
+ * True when both recipes have the same masks once normalized, whatever the
+ * order of their keys (a slider moved to 0 and back is the same mask).
+ */
+export const isSameMasks = (left: Recipe, right: Recipe): boolean =>
+  isSameValue(normalizeRecipe(left).masks, normalizeRecipe(right).masks)
+
 export type ParseRecipeResult =
   { ok: true; recipe: Recipe } | { ok: false; error: string }
 

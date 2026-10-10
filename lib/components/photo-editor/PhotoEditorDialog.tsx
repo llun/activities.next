@@ -20,7 +20,9 @@ import {
   MAX_SOURCE_PIXELS,
   NEUTRAL_RECIPE,
   type Recipe,
+  getEffectiveMaskIds,
   isNeutralRecipe,
+  isSameMasks,
   isSameRender,
   normalizeRecipe,
   parseStoredRecipe
@@ -110,12 +112,15 @@ export const PhotoEditorDialog = ({
   const isDesktop = useIsDesktop()
   const history = useEditorHistory(NEUTRAL_RECIPE)
   const [phase, setPhase] = useState<Phase>('loading')
-  const [lostMasks, setLostMasks] = useState(0)
+  // Masks whose image could not be read, and whether any of them drew.
+  const [lostMasks, setLostMasks] = useState({ count: 0, drawing: false })
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tooLarge, setTooLarge] = useState(false)
   const [loadVersion, setLoadVersion] = useState(0)
   const [editState, setEditState] = useState<MediaEditState | null>(null)
   const [baseline, setBaseline] = useState<Recipe>(NEUTRAL_RECIPE)
+  // What the editor opened with: the baseline without the masks it lost.
+  const [opened, setOpened] = useState<Recipe>(NEUTRAL_RECIPE)
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null)
   const [tab, setTab] = useState<EditorTab>('adjust')
   const [phoneCategory, setPhoneCategory] = useState<ControlGroup>('light')
@@ -250,7 +255,12 @@ export const PhotoEditorDialog = ({
         setBitmap(decoded)
         setEditState(state)
         setBaseline(start)
-        setLostMasks(failed.length)
+        setOpened(working)
+        const drawing = getEffectiveMaskIds(start)
+        setLostMasks({
+          count: failed.length,
+          drawing: failed.some((id) => drawing.has(id))
+        })
         resetHistory(working)
         setPhase('ready')
       } catch {
@@ -273,13 +283,13 @@ export const PhotoEditorDialog = ({
     []
   )
 
-  // A change the owner would lose on Cancel.
+  // A change the owner would lose on Cancel: against what the editor opened
+  // with, so a lost mask the owner never touched is not an edit.
   const dirty =
     ready &&
-    (!isSameRender(present, baseline) ||
-      !sameRasters(getRasters(present), getRasters(baseline)) ||
-      JSON.stringify(normalizeRecipe(present).masks) !==
-        JSON.stringify(normalizeRecipe(baseline).masks))
+    (!isSameRender(present, opened) ||
+      !sameRasters(getRasters(present), getRasters(opened)) ||
+      !isSameMasks(present, opened))
   // A change that moves a pixel. A mask with no adjustment draws nothing, so
   // adding one (or painting it) does not enable Save until a slider moves.
   const rendersDifferently =
@@ -494,12 +504,26 @@ export const PhotoEditorDialog = ({
   ) : null
 
   const lostMasksAlert =
-    lostMasks > 0 ? (
+    lostMasks.count > 0 ? (
       <Alert
         title={
-          lostMasks === 1
-            ? "A saved mask couldn't be loaded, so it is left out of this edit and is removed when you save. Cancel to keep things as they are."
-            : "Some saved masks couldn't be loaded, so they are left out of this edit and are removed when you save. Cancel to keep things as they are."
+          lostMasks.drawing
+            ? lostMasks.count === 1
+              ? "A saved mask couldn't be loaded, so it is left out of this edit and is removed when you save. Try again, or Cancel to keep things as they are."
+              : "Some saved masks couldn't be loaded, so they are left out of this edit and are removed when you save. Try again, or Cancel to keep things as they are."
+            : lostMasks.count === 1
+              ? "A saved mask couldn't be loaded. It had no adjustments, so the photo looks the same, and it is dropped the next time you save a change."
+              : "Some saved masks couldn't be loaded. They had no adjustments, so the photo looks the same, and they are dropped the next time you save a change."
+        }
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => (dirty ? setReloadOpen(true) : reload())}
+          >
+            Try again
+          </Button>
         }
       />
     ) : null

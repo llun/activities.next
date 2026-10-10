@@ -861,6 +861,107 @@ describe('PhotoEditorDialog', () => {
       expect(mockSaveMediaEdit).not.toHaveBeenCalled()
     })
 
+    it('closes without asking when a lost mask is the only thing that differs, and Save stays on', async () => {
+      vi.mocked(loadMaskRasters).mockResolvedValue({
+        rasters: {},
+        failed: ['aaaaaaaa']
+      })
+      const { onClose } = await setup({
+        recipe: savedMasks,
+        editedAt: '2026-10-09T10:00:00.000Z',
+        masks: [{ id: 'aaaaaaaa', url: '/x' }]
+      })
+      expect(screen.getByText(/is removed when you save/)).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(screen.queryByText('Discard your edits?')).toBeNull()
+    })
+
+    it('says a lost mask with no adjustment changes nothing, and Cancel closes quietly', async () => {
+      vi.mocked(loadMaskRasters).mockResolvedValue({
+        rasters: {},
+        failed: ['aaaaaaaa']
+      })
+      const { onClose } = await setup({
+        recipe: {
+          ...savedMasks,
+          adjustments: { contrast: 20 },
+          masks: [{ ...savedMasks.masks[0], adjustments: {} }]
+        } as Recipe,
+        editedAt: '2026-10-09T10:00:00.000Z',
+        masks: [{ id: 'aaaaaaaa', url: '/x' }]
+      })
+
+      expect(screen.getByText(/It had no adjustments/)).toBeInTheDocument()
+      expect(screen.queryByText(/removed when you save/)).toBeNull()
+      // Dropping it is not a render change, so there is nothing to save yet.
+      expect(saveButton()).toBeDisabled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('loads the masks again from "Try again"', async () => {
+      const raster = createRaster({ width: 8, height: 6 }, 255)
+      vi.mocked(loadMaskRasters)
+        .mockResolvedValueOnce({ rasters: {}, failed: ['aaaaaaaa'] })
+        .mockResolvedValue({ rasters: { aaaaaaaa: raster }, failed: [] })
+      await setup({
+        recipe: savedMasks,
+        editedAt: '2026-10-09T10:00:00.000Z',
+        masks: [{ id: 'aaaaaaaa', url: '/x' }]
+      })
+      expect(
+        screen.getByText(/A saved mask couldn't be loaded/)
+      ).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+      await waitFor(() =>
+        expect(screen.queryByText(/A saved mask couldn't be loaded/)).toBeNull()
+      )
+      expect(loadMaskRasters).toHaveBeenCalledTimes(2)
+      // The mask is back, so nothing is left to save.
+      expect(
+        await screen.findByRole('slider', { name: 'Exposure' })
+      ).toBeTruthy()
+      expect(saveButton()).toBeDisabled()
+    })
+
+    it('closes without asking after a mask slider goes to 0 and back', async () => {
+      const raster = createRaster({ width: 8, height: 6 }, 255)
+      vi.mocked(loadMaskRasters).mockResolvedValue({
+        rasters: { aaaaaaaa: raster },
+        failed: []
+      })
+      const { onClose } = await setup({
+        recipe: {
+          ...savedMasks,
+          masks: [
+            {
+              ...savedMasks.masks[0],
+              adjustments: { contrast: 1, saturation: 10 }
+            }
+          ]
+        } as Recipe,
+        editedAt: '2026-10-09T10:00:00.000Z',
+        masks: [{ id: 'aaaaaaaa', url: '/x' }]
+      })
+      openMasks()
+      const contrast = await screen.findByRole('slider', { name: 'Contrast' })
+
+      fireEvent.keyDown(contrast, { key: 'ArrowLeft' })
+      fireEvent.keyDown(contrast, { key: 'ArrowRight' })
+      // The same values again, with the keys in another order.
+      expect(saveButton()).toBeDisabled()
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(screen.queryByText('Discard your edits?')).toBeNull()
+    })
+
     it('does not enable Save for a mask with no adjustment until a slider moves', async () => {
       await setup({ subjectModel: null })
       openMasks()
