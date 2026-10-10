@@ -388,6 +388,8 @@ export const deleteUnpostedMedia = async (mediaId: string): Promise<void> => {
   if (response.status === 422) {
     throw new Error('This photo is in a post, so it can’t be deleted.')
   }
+  // Already gone (deleted in another tab): the goal is met.
+  if (response.status === 404) return
   if (!response.ok) {
     throw new Error(await parseApiError(response, 'Failed to delete media.'))
   }

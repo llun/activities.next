@@ -186,6 +186,9 @@ export const PostBox: FC<Props> = ({
   // photos, which abandoning the composer must not delete either.
   const keptMediaIdsRef = useRef<Set<string>>(new Set())
   const initialMediaTakenRef = useRef(false)
+  // The photos seeded from `initialMedia`, and whether they have been drawn.
+  const seededMediaRef = useRef<PostBoxAttachment[]>([])
+  const seededMediaShownRef = useRef(false)
   const isMountedRef = useRef(true)
   // Media details live beside the attachments, keyed by media id, rather than
   // on PostBoxAttachment: that type is what goes to the outbox, and the details
@@ -231,6 +234,13 @@ export const PostBox: FC<Props> = ({
 
   useEffect(() => {
     postExtensionRef.current = postExtension
+    if (
+      postExtension.attachments.some((attachment) =>
+        keptMediaIdsRef.current.has(attachment.id)
+      )
+    ) {
+      seededMediaShownRef.current = true
+    }
   }, [postExtension])
 
   useEffect(() => {
@@ -1240,6 +1250,24 @@ export const PostBox: FC<Props> = ({
   }, [replyStatus, postExtension.fitnessFile, onRemoveFitnessFile])
 
   useEffect(() => {
+    // The photos a "Post" action in Gallery handed over. They seed the first
+    // time through. React StrictMode re-runs effects in development before the
+    // seeded photos have been drawn, and the profile can change identity
+    // later: while those photos are still the whole draft, seed them again
+    // rather than lose them.
+    const keptIds = keptMediaIdsRef.current
+    const currentAttachments = postExtensionRef.current.attachments
+    const seedStillWhole = seededMediaShownRef.current
+      ? keptIds.size > 0 &&
+        currentAttachments.length === keptIds.size &&
+        currentAttachments.every((attachment) => keptIds.has(attachment.id))
+      : currentAttachments.length === 0
+    const seedAttachments = !initialMediaTakenRef.current
+      ? (initialMedia ?? []).slice(0, maxMediaAttachments)
+      : seedStillWhole
+        ? seededMediaRef.current
+        : []
+
     // The composer is being re-targeted: media uploaded for the previous draft
     // and never posted is abandoned (unless a submit is still using it).
     if (!submitInFlightRef.current) {
@@ -1276,12 +1304,10 @@ export const PostBox: FC<Props> = ({
       setAllowPost(false)
     }
 
-    // The photos a "Post" action in Gallery handed over, once.
-    const seeded =
-      !initialMediaTakenRef.current && !replyStatus && !quotedStatus
-        ? (initialMedia ?? []).slice(0, maxMediaAttachments)
-        : []
+    const seeded = !replyStatus && !quotedStatus ? seedAttachments : []
     initialMediaTakenRef.current = true
+    seededMediaRef.current = seeded
+    if (seeded.length === 0) seededMediaShownRef.current = false
     keptMediaIdsRef.current = new Set(seeded.map((attachment) => attachment.id))
     if (seeded.length > 0) {
       postExtensionRef.current = {

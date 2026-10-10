@@ -34,7 +34,7 @@ export const GALLERY_SHOW_OPTIONS: ShowOption[] = [
   {
     id: 'hidden',
     label: 'Hidden from gallery',
-    hint: 'Posted, with Show in my gallery switched off'
+    hint: 'Show in my gallery is switched off'
   },
   {
     id: 'not_posted',

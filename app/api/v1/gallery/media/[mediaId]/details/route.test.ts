@@ -394,11 +394,37 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
       expect((await request(id)).status).toBe(404)
     })
 
-    it('answers 404 for media only added in Gallery and not posted', async () => {
+    it.each([
+      ['anonymous', null, 404],
+      ['a follower', seedActor2.email, 404],
+      ['another signed-in actor', seedActor3.email, 404],
+      ['the owner', seedActor1.email, 200]
+    ])(
+      'answers %s for media only added in Gallery and not posted with %i',
+      async (_, email, status) => {
+        signInAs(email)
+        const { id } = await createMedia({})
+        await database.addMediaToGallery({
+          actorId: ACTOR1_ID,
+          mediaIds: [id]
+        })
+
+        expect((await request(id)).status).toBe(status)
+      }
+    )
+
+    it('gives the owner of an unposted photo the same trimmed details', async () => {
+      signInAs(seedActor1.email)
       const { id } = await createMedia({})
       await database.addMediaToGallery({ actorId: ACTOR1_ID, mediaIds: [id] })
 
-      expect((await request(id)).status).toBe(404)
+      const body = await (await request(id)).json()
+      const posted = await createMedia({ to: [ACTIVITY_STREAM_PUBLIC] })
+      const postedBody = await (await request(posted.id)).json()
+
+      expect(Object.keys(body).sort()).toEqual(Object.keys(postedBody).sort())
+      expect(body).not.toHaveProperty('actorId')
+      expect(body).not.toHaveProperty('inGallery')
     })
 
     it('reads the media through whichever attached post the viewer may see', async () => {

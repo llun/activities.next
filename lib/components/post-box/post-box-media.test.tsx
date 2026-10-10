@@ -9,7 +9,7 @@ import {
   waitFor,
   within
 } from '@testing-library/react'
-import { useState } from 'react'
+import { StrictMode, useState } from 'react'
 
 import {
   createNote,
@@ -1126,20 +1126,24 @@ describe('PostBox media details', () => {
       }
     ]
 
+    // StrictMode runs the mount effects twice, as `yarn dev` does: the photos
+    // must survive that.
     const renderWith = (initialMedia = prefilled, maxAttachments?: number) =>
       render(
-        <InstanceLimitsProvider maxMediaAttachments={maxAttachments}>
-          <PostBox
-            host="activities.local"
-            profile={profile}
-            isMediaUploadEnabled
-            initialMedia={initialMedia}
-            onDiscardReply={vi.fn()}
-            onPostCreated={vi.fn()}
-            onPostUpdated={vi.fn()}
-            onDiscardEdit={vi.fn()}
-          />
-        </InstanceLimitsProvider>
+        <StrictMode>
+          <InstanceLimitsProvider maxMediaAttachments={maxAttachments}>
+            <PostBox
+              host="activities.local"
+              profile={profile}
+              isMediaUploadEnabled
+              initialMedia={initialMedia}
+              onDiscardReply={vi.fn()}
+              onPostCreated={vi.fn()}
+              onPostUpdated={vi.fn()}
+              onDiscardEdit={vi.fn()}
+            />
+          </InstanceLimitsProvider>
+        </StrictMode>
       )
 
     it('opens with the photos attached, reads their details and allows posting', async () => {
@@ -1152,7 +1156,11 @@ describe('PostBox media details', () => {
         screen.getByRole('button', { name: 'Remove media 2' })
       ).toBeInTheDocument()
       expect(uploadAttachmentMock).not.toHaveBeenCalled()
-      await waitFor(() => expect(getMediaMock).toHaveBeenCalledTimes(2))
+      await waitFor(() =>
+        expect(new Set(getMediaMock.mock.calls.map(([id]) => id))).toEqual(
+          new Set(['7', '8'])
+        )
+      )
       expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
     })
 

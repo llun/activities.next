@@ -306,7 +306,7 @@ describe('GalleryAllMediaView', () => {
       expect(items.map((item) => item.textContent)).toEqual([
         'EverythingPhotos and videos you’ve posted or added',
         'In galleryShown in your gallery',
-        'Hidden from galleryPosted, with Show in my gallery switched off',
+        'Hidden from galleryShow in my gallery is switched off',
         'Not postedAdded in Gallery, only you can see them'
       ])
       expect(items[0]).toHaveAttribute('aria-current', 'true')
@@ -391,7 +391,10 @@ describe('GalleryAllMediaView', () => {
   })
 
   describe('add to gallery', () => {
-    const renderView = (items = [buildGalleryItem('5')]) =>
+    const renderView = (
+      items = [buildGalleryItem('5')],
+      isMediaUploadEnabled?: boolean
+    ) =>
       render(
         <InstanceLimitsProvider maxMediaAttachments={4}>
           <GalleryAllMediaView
@@ -399,6 +402,7 @@ describe('GalleryAllMediaView', () => {
             initialCategory={null}
             initialShow="all"
             initialPage={{ items, nextMaxId: null }}
+            isMediaUploadEnabled={isMediaUploadEnabled}
           />
         </InstanceLimitsProvider>
       )
@@ -538,6 +542,55 @@ describe('GalleryAllMediaView', () => {
       expect(
         screen.queryByText('2 added to your gallery.')
       ).not.toBeInTheDocument()
+    })
+
+    it('turns Post them off above the instance limit, and says it', async () => {
+      getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
+      renderView()
+      pick(photo('a.jpg'))
+      const mediaIds = ['1', '2', '3', '4', '5']
+
+      await act(async () => addDialog.current?.onAdded(mediaIds))
+      act(() => addDialog.current?.onClose())
+
+      expect(await screen.findByText('5 added to your gallery.')).toBeVisible()
+      const post = screen.getByRole('button', { name: 'Post them' })
+      expect(post).toBeDisabled()
+      expect(post).toHaveAccessibleDescription('Up to 4 per post')
+      fireEvent.click(post)
+      expect(router.push).not.toHaveBeenCalled()
+    })
+
+    it('offers neither Add nor the drop when there is no media storage', () => {
+      renderView([buildGalleryItem('5')], false)
+
+      expect(
+        screen.queryByRole('button', { name: 'Add' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByLabelText('Choose photos and videos to add')
+      ).not.toBeInTheDocument()
+      const dataTransfer = { types: ['Files'], files: [photo('a.jpg')] }
+      fireEvent.dragEnter(window, { dataTransfer })
+      fireEvent.drop(window, { dataTransfer })
+      expect(screen.queryByTestId('drop-overlay')).not.toBeInTheDocument()
+      expect(addDialog.current).toBeNull()
+    })
+
+    it('ignores a second drop while Add to gallery is open', () => {
+      renderView()
+      const first = photo('first.jpg')
+      const dataTransfer = (file: File) => ({ types: ['Files'], files: [file] })
+      fireEvent.dragEnter(window, { dataTransfer: dataTransfer(first) })
+      fireEvent.drop(window, { dataTransfer: dataTransfer(first) })
+      expect(addDialog.current?.files).toEqual([first])
+
+      const second = photo('second.jpg')
+      fireEvent.dragEnter(window, { dataTransfer: dataTransfer(second) })
+      expect(screen.queryByTestId('drop-overlay')).not.toBeInTheDocument()
+      fireEvent.drop(window, { dataTransfer: dataTransfer(second) })
+
+      expect(addDialog.current?.files).toEqual([first])
     })
 
     it('shows Everything again when it was added from Hidden from gallery', async () => {

@@ -42,6 +42,35 @@ describe('GalleryAddedToast', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the buttons out of the status region', () => {
+    renderToast()
+
+    expect(screen.getByRole('status')).not.toContainElement(
+      screen.getByRole('button', { name: 'Post them' })
+    )
+    expect(screen.getByRole('status')).not.toContainElement(
+      screen.getByRole('button', { name: 'Dismiss' })
+    )
+  })
+
+  it('disables the action and says why', () => {
+    const onSelect = vi.fn()
+    renderToast({
+      action: {
+        label: 'Post them',
+        onSelect,
+        disabled: true,
+        hint: 'Up to 4 per post'
+      }
+    })
+
+    const button = screen.getByRole('button', { name: 'Post them' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAccessibleDescription('Up to 4 per post')
+    fireEvent.click(button)
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('goes away on its own', () => {
     const { onDismiss } = renderToast()
 

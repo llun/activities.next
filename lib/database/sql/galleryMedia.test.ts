@@ -1133,6 +1133,140 @@ describe('GalleryMediaDatabase', () => {
         ).toEqual([])
       })
 
+      // An addition is private only until a post uses it, and it goes back to
+      // private if that post goes away: the photo is the owner's, the post is
+      // what shares it.
+      describe('when an addition is posted and the post changes', () => {
+        const strangerAudience: GalleryAudience = {
+          kind: 'viewer',
+          publicOnly: false,
+          visibleToActorId: strangerId,
+          includeFollowersOnly: false,
+          followersAudience: adderFollowers
+        }
+        const audiencesByName: Record<string, GalleryAudience> = {
+          owner: OWNER_GALLERY_AUDIENCE,
+          'logged out': PUBLIC_GALLERY_AUDIENCE,
+          stranger: strangerAudience,
+          follower: adderAudiences.follower
+        }
+
+        // Where a viewer finds the media: list, by id, index and map.
+        const seenBy = async (name: string, mediaId: string) => {
+          const audience = audiencesByName[name]
+          const list = await database.getGalleryMedia({
+            actorId: adder,
+            audience,
+            limit: 50
+          })
+          const byIds = await database.getGalleryMediaByIds({
+            actorId: adder,
+            audience,
+            mediaIds: [mediaId]
+          })
+          const index = await database.getGalleryMediaIndex({
+            actorId: adder,
+            audience,
+            limit: 50
+          })
+          const map = await database.getGalleryMapRows({
+            actorId: adder,
+            audience,
+            limit: 50
+          })
+          return {
+            list: list.some((row) => row.media.id === mediaId),
+            byIds: byIds.length === 1,
+            index: index.some((row) => row.id === mediaId),
+            map: map.some((row) => row.id === mediaId)
+          }
+        }
+        const everywhere = { list: true, byIds: true, index: true, map: true }
+        const nowhere = { list: false, byIds: false, index: false, map: false }
+
+        const addWithPlace = async (name: string) => {
+          const mediaId = await createMedia(
+            name,
+            { placeLatitude: 7, placeLongitude: 8, placePrecision: 'exact' },
+            adder
+          )
+          await database.addMediaToGallery({
+            actorId: adder,
+            mediaIds: [mediaId]
+          })
+          return mediaId
+        }
+
+        it('shows a followers-only post to the owner and followers, nobody else', async () => {
+          const mediaId = await addWithPlace('add-followers-post')
+          expect(await seenBy('owner', mediaId)).toMatchObject({
+            list: true,
+            byIds: true,
+            index: true
+          })
+          for (const name of ['logged out', 'stranger', 'follower']) {
+            expect(await seenBy(name, mediaId)).toEqual(nowhere)
+          }
+
+          const statusId = await note(
+            'add-followers-post',
+            [adderFollowers],
+            [],
+            adder
+          )
+          await attach(statusId, mediaId, { actorId: adder })
+
+          expect(await seenBy('owner', mediaId)).toEqual(everywhere)
+          expect(await seenBy('follower', mediaId)).toMatchObject({
+            list: true,
+            byIds: true,
+            index: true
+          })
+          expect(await seenBy('logged out', mediaId)).toEqual(nowhere)
+          expect(await seenBy('stranger', mediaId)).toEqual(nowhere)
+        })
+
+        it('returns to the owner alone when the post is deleted', async () => {
+          const mediaId = await addWithPlace('add-deleted-post')
+          const statusId = await note(
+            'add-deleted-post',
+            [ACTIVITY_STREAM_PUBLIC],
+            [],
+            adder
+          )
+          await attach(statusId, mediaId, { actorId: adder })
+          expect(await seenBy('logged out', mediaId)).toMatchObject({
+            list: true,
+            byIds: true,
+            index: true
+          })
+
+          await database.deleteStatus({ statusId })
+
+          for (const name of ['logged out', 'stranger', 'follower']) {
+            expect(await seenBy(name, mediaId)).toEqual(nowhere)
+          }
+          expect(await seenBy('owner', mediaId)).toEqual(everywhere)
+          const [row] = await database.getGalleryMediaByIds({
+            actorId: adder,
+            audience: OWNER_GALLERY_AUDIENCE,
+            mediaIds: [mediaId]
+          })
+          expect(row).toMatchObject({
+            attachment: null,
+            statusId: null,
+            statusPublicId: null
+          })
+          const unposted = await database.getGalleryMedia({
+            actorId: adder,
+            audience: OWNER_GALLERY_AUDIENCE,
+            limit: 50,
+            show: 'not_posted'
+          })
+          expect(unposted.map((item) => item.media.id)).toContain(mediaId)
+        })
+      })
+
       describe('getUnattachedMedia', () => {
         it('returns the actor own media no status uses, newest first', async () => {
           const unattached = await createMedia('add-un-1', {}, adder)
@@ -1240,6 +1374,35 @@ describe('GalleryMediaDatabase', () => {
           expect(first).toEqual([mediaId])
           expect(second).toEqual([mediaId])
           expect(rows.filter((row) => row.media.id === mediaId)).toHaveLength(1)
+        })
+
+        it('does not turn the gallery switch back on when repeated', async () => {
+          const mediaId = await createMedia('add-repeat-off', {}, adder)
+          await database.addMediaToGallery({
+            actorId: adder,
+            mediaIds: [mediaId]
+          })
+          const accountId = (await database.getActorFromId({ id: adder }))!
+            .account!.id
+          await database.updateMedia({
+            mediaId,
+            accountId,
+            details: { inGallery: false }
+          })
+
+          const again = await database.addMediaToGallery({
+            actorId: adder,
+            mediaIds: [mediaId]
+          })
+
+          expect(again).toEqual([mediaId])
+          const [row] = await database.getGalleryMediaByIds({
+            actorId: adder,
+            audience: OWNER_GALLERY_AUDIENCE,
+            mediaIds: [mediaId],
+            show: 'all'
+          })
+          expect(row.media.details?.inGallery).toBe(false)
         })
 
         it('reads nothing for no ids', async () => {

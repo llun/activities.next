@@ -618,12 +618,20 @@ describe('client media module', () => {
       )
     })
 
-    it('rejects with the server message', async () => {
+    it('counts a photo that is already gone as deleted', async () => {
       fetchMock.mockResponseOnce(JSON.stringify({ error: 'Not found' }), {
         status: 404
       })
 
-      await expect(deleteUnpostedMedia('1')).rejects.toThrow('Not found')
+      await expect(deleteUnpostedMedia('1')).resolves.toBeUndefined()
+    })
+
+    it('rejects with the server message', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Something broke' }), {
+        status: 500
+      })
+
+      await expect(deleteUnpostedMedia('1')).rejects.toThrow('Something broke')
     })
   })
 })

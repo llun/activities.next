@@ -218,8 +218,8 @@ export interface GalleryMediaDatabase {
     params: GetGalleryGearUsageRowsParams
   ): Promise<GalleryGearUsageRow[]>
   // Keeps the actor's own media that no status uses in their gallery: stamps
-  // `galleryAddedAt` (once, so repeating the call changes nothing) and turns
-  // `inGallery` on. Media of another actor, media a status already uses and
+  // `galleryAddedAt` and turns `inGallery` on, both only the first time, so
+  // repeating the call changes nothing (a photo hidden since stays hidden). Media of another actor, media a status already uses and
   // ids that are not media are skipped. Returns the ids that are now added.
   addMediaToGallery(params: AddMediaToGalleryParams): Promise<string[]>
   // The actor's own media among `mediaIds` that no status uses, whether or not
@@ -914,13 +914,19 @@ export const GalleryMediaSQLDatabaseMixin = (
 
           // `galleryAddedAt` keeps the first time, so a repeated call is a
           // no-op rather than moving the media to the front of the list.
+          // `inGallery` is switched on only that first time: a photo the owner
+          // has since hidden stays hidden when the same confirm is retried.
           await trx('medias')
             .whereIn(
               'id',
               rows.map((row) => row.id)
             )
             .update({
-              inGallery: true,
+              inGallery: trx.raw('CASE WHEN ?? IS NULL THEN ? ELSE ?? END', [
+                'galleryAddedAt',
+                true,
+                'inGallery'
+              ]),
               galleryAddedAt: trx.raw('COALESCE(??, ?)', [
                 'galleryAddedAt',
                 now

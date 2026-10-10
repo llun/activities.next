@@ -50,6 +50,8 @@ interface Props {
   initialCategory: MediaSubjectCategory | null
   initialShow: GalleryShow
   initialPage: GalleryMediaPage
+  /** False when the instance has no media storage: nothing can be added. */
+  isMediaUploadEnabled?: boolean
 }
 
 type Filter = MediaSubjectCategory | 'all'
@@ -97,7 +99,8 @@ export const GalleryAllMediaView: FC<Props> = ({
   actorId,
   initialCategory,
   initialShow,
-  initialPage
+  initialPage,
+  isMediaUploadEnabled: isUploadEnabled = true
 }) => {
   const [filter, setFilterState] = useState<Filter>(initialCategory ?? 'all')
   const startFilter = initialCategory ?? 'all'
@@ -282,17 +285,31 @@ export const GalleryAllMediaView: FC<Props> = ({
     })
   }, [])
 
+  // A dialog being open (Add, edit, delete, album) means a drop is not for this
+  // page: it would replace the files being added or open Add on top of it.
+  const dialogOpen =
+    addFiles !== null ||
+    isEditOpen ||
+    isAddOpen ||
+    isCreateOpen ||
+    deleteIds !== null
+  const dialogOpenRef = useRef(dialogOpen)
+  useEffect(() => {
+    dialogOpenRef.current = dialogOpen
+  }, [dialogOpen])
+
   // Dropping files anywhere on the page adds them. The overlay says so while
   // files are dragged over the window; a drag of anything else is left alone.
   useEffect(() => {
+    if (!isUploadEnabled) return
     let depth = 0
     const enter = (event: DragEvent) => {
-      if (!hasFiles(event)) return
+      if (!hasFiles(event) || dialogOpenRef.current) return
       depth += 1
       setIsDragging(true)
     }
     const over = (event: DragEvent) => {
-      if (!hasFiles(event)) return
+      if (!hasFiles(event) || dialogOpenRef.current) return
       event.preventDefault()
     }
     const leave = (event: DragEvent) => {
@@ -302,9 +319,10 @@ export const GalleryAllMediaView: FC<Props> = ({
     }
     const drop = (event: DragEvent) => {
       if (!hasFiles(event)) return
-      event.preventDefault()
       depth = 0
       setIsDragging(false)
+      if (dialogOpenRef.current) return
+      event.preventDefault()
       const files = Array.from(event.dataTransfer?.files ?? [])
       if (files.length > 0) startAdd(files)
     }
@@ -318,7 +336,7 @@ export const GalleryAllMediaView: FC<Props> = ({
       window.removeEventListener('dragleave', leave)
       window.removeEventListener('drop', drop)
     }
-  }, [startAdd])
+  }, [startAdd, isUploadEnabled])
 
   const allUnposted =
     selectedItems.length > 0 &&
@@ -337,30 +355,34 @@ export const GalleryAllMediaView: FC<Props> = ({
         description="Every photo and video you've posted or added, newest first"
         actions={
           <div className="flex items-center gap-2">
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              accept={ADDABLE_TYPES.join(',')}
-              aria-label="Choose photos and videos to add"
-              className="hidden"
-              onChange={(event) => {
-                const input = event.currentTarget
-                const picked = input.files ? Array.from(input.files) : []
-                // Clear it so picking the same files again still fires `change`.
-                input.value = ''
-                if (picked.length > 0) startAdd(picked)
-              }}
-            />
-            <Button
-              ref={addButton}
-              type="button"
-              className="pointer-coarse:h-10"
-              onClick={() => fileInput.current?.click()}
-            >
-              <ImagePlus aria-hidden="true" />
-              Add
-            </Button>
+            {isUploadEnabled ? (
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  multiple
+                  accept={ADDABLE_TYPES.join(',')}
+                  aria-label="Choose photos and videos to add"
+                  className="hidden"
+                  onChange={(event) => {
+                    const input = event.currentTarget
+                    const picked = input.files ? Array.from(input.files) : []
+                    // Clear it so picking the same files again still fires `change`.
+                    input.value = ''
+                    if (picked.length > 0) startAdd(picked)
+                  }}
+                />
+                <Button
+                  ref={addButton}
+                  type="button"
+                  className="pointer-coarse:h-10"
+                  onClick={() => fileInput.current?.click()}
+                >
+                  <ImagePlus aria-hidden="true" />
+                  Add
+                </Button>
+              </>
+            ) : null}
             <Button
               ref={selectButton}
               type="button"
@@ -542,6 +564,9 @@ export const GalleryAllMediaView: FC<Props> = ({
           message={toast.message}
           action={{
             label: 'Post them',
+            // More than one post holds: choose some in Select mode instead.
+            disabled: toast.mediaIds.length > maxMediaAttachments,
+            hint: `Up to ${maxMediaAttachments} per post`,
             onSelect: () => {
               dismissToast()
               postMedia(toast.mediaIds)
