@@ -2,6 +2,7 @@ import Image from 'next/image'
 import { FC, ReactNode } from 'react'
 
 import { Frame } from '@/lib/components/surface/Frame'
+import { cn } from '@/lib/utils'
 
 interface Props {
   /** The page's one h1: sentence case, saying what this screen is for. */
@@ -14,8 +15,8 @@ interface Props {
    */
   logoSrc?: string
   /**
-   * For a page with no form: the "other" link, in an `AuthCardActions` band
-   * under the content. A form page puts its own `AuthCardActions` inside its
+   * For a page with no form (only `auth/error` today): the "other" link, in an
+   * `AuthCardActions` band under the content. A form page puts its own `AuthCardActions` inside its
    * `<form>` instead, so the submit button stays in the form.
    */
   footer?: ReactNode
@@ -39,7 +40,14 @@ export const AuthCard: FC<Props> = ({
   children
 }) => (
   <Frame>
-    <div className="space-y-2 p-6 pb-0 text-center">
+    <div
+      className={cn(
+        'space-y-2 p-6 text-center',
+        // Body or actions follow with their own top padding; a header-only
+        // card (an empty state) keeps its bottom padding.
+        (children || footer) && 'pb-0'
+      )}
+    >
       {logoSrc ? (
         <Image
           src={logoSrc}
@@ -58,9 +66,7 @@ export const AuthCard: FC<Props> = ({
     {children}
     {footer ? (
       // With no body the band would butt against the header's description.
-      <div className={children ? undefined : 'pt-6'}>
-        <AuthCardActions>{footer}</AuthCardActions>
-      </div>
+      <AuthCardActions afterHeader={!children}>{footer}</AuthCardActions>
     ) : null}
   </Frame>
 )
@@ -75,18 +81,29 @@ export const AuthCardBody: FC<{ children: ReactNode }> = ({ children }) => (
 /**
  * The action band at the bottom of an auth card, set off by the card's one top
  * border: the full-width submit button, any secondary action (the passkey
- * button) and the "Don't have an account? Sign up" style line.
+ * button) and the "Don't have an account? Sign up" style line (an
+ * `AuthCardFooter`). The band keeps the normal text colour and alignment so an
+ * `Alert` in it reads like everywhere else; only `AuthCardFooter` is centred and
+ * muted. It hides itself while it has no content (the passkey button renders
+ * nothing until support is detected). `afterHeader` is for a band that follows
+ * the header directly, with no body in between.
  */
-export const AuthCardActions: FC<{ children: ReactNode }> = ({ children }) => (
+export const AuthCardActions: FC<{
+  children: ReactNode
+  afterHeader?: boolean
+}> = ({ children, afterHeader = false }) => (
   <div
     data-slot="auth-card-actions"
-    className="grid gap-3 border-t px-6 py-5 text-center text-sm text-muted-foreground"
+    className={cn(
+      'grid gap-3 border-t px-6 py-5 empty:hidden',
+      afterHeader && 'mt-6'
+    )}
   >
     {children}
   </div>
 )
 
-/** The centred line of links in an auth card's action band. */
+/** The centred, muted line of links in an auth card's action band. */
 export const AuthCardFooter: FC<{ children: ReactNode }> = ({ children }) => (
-  <p>{children}</p>
+  <p className="text-center text-sm text-muted-foreground">{children}</p>
 )

@@ -88,7 +88,7 @@ export function DeleteActorDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4">
           <Alert
             live={false}
             title="Warning: All data will be permanently deleted"

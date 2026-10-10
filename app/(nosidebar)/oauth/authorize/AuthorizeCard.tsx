@@ -281,7 +281,7 @@ export const AuthorizeCard: FC<Props> = ({
             {isOidc && (
               <div className="space-y-2 px-4 py-4">
                 {/* Informational caption — not a form-control label, so a <p>
-                  rather than <Label> (which would label nothing). */}
+                    rather than <Label> (which would label nothing). */}
                 <p className="text-sm font-medium text-muted-foreground">
                   Signed in as
                 </p>
@@ -297,9 +297,10 @@ export const AuthorizeCard: FC<Props> = ({
                       {accountDisplayName}
                     </p>
                     {/* Show the email as a secondary line only when a distinct
-                      name is the primary identity. Covers name=null, blank, and
-                      name===email (which would otherwise render twice). The
-                      comparison is case-insensitive because emails are. */}
+                        name is the primary identity. Covers name=null, blank,
+                        and name===email (which would otherwise render twice).
+                        The comparison is case-insensitive because emails
+                        are. */}
                     {accountDisplayName.toLowerCase() !==
                       account.email.toLowerCase() && (
                       <p className="text-xs text-muted-foreground truncate">

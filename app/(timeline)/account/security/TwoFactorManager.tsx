@@ -293,7 +293,7 @@ export const TwoFactorManager: FC<Props> = ({
         >
           Add an authenticator app to protect password sign-ins.
           {/* The password sits inside the alert, ahead of its Set up button,
-                so keyboard focus meets the field the hint says to fill first. */}
+              so keyboard focus meets the field the hint says to fill first. */}
           {!setup && (
             <div className="mt-3 max-w-xs space-y-1.5">
               <Label htmlFor="twoFactorPassword" className="text-foreground">

@@ -4,7 +4,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, FormEvent, useRef, useState } from 'react'
 
-import { AuthCardActions, AuthCardBody } from '@/app/(nosidebar)/AuthCard'
+import {
+  AuthCardActions,
+  AuthCardBody,
+  AuthCardFooter
+} from '@/app/(nosidebar)/AuthCard'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
@@ -140,14 +144,14 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? 'Verifying…' : 'Verify and sign in'}
         </Button>
-        <p>
+        <AuthCardFooter>
           <Link
             href="/auth/signin"
             className="text-primary-text hover:underline"
           >
             Back to sign in
           </Link>
-        </p>
+        </AuthCardFooter>
       </AuthCardActions>
     </form>
   )

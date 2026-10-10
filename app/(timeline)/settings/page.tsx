@@ -49,33 +49,38 @@ const Page = async () => {
         description="Profile, appearance, and privacy for this actor."
       />
 
+      <AppearanceSection />
+
       <form
         action="/api/v1/accounts/profile"
         method="post"
         className="space-y-6"
       >
-        <AppearanceSection>
-          <FormRow
-            label="Post line limit"
-            htmlFor="postLineLimitInput"
-            hint="Number of lines to show before a “Show more” button appears. Set to “No limit” to always show full post content."
-          >
-            {({ describedBy }) => (
-              <Select
-                id="postLineLimitInput"
-                name="postLineLimit"
-                aria-describedby={describedBy}
-                defaultValue={String(settings?.postLineLimit ?? 5)}
-              >
-                <option value="5">5 lines</option>
-                <option value="10">10 lines</option>
-                <option value="0">No limit</option>
-              </Select>
-            )}
-          </FormRow>
-        </AppearanceSection>
-
         <Frame form stickyFooter footer={<NativeFormSaveBar />}>
+          <FormGroup
+            title="Timeline"
+            description="How posts appear on your timeline."
+          >
+            <FormRow
+              label="Post line limit"
+              htmlFor="postLineLimitInput"
+              hint="Number of lines to show before a “Show more” button appears. Set to “No limit” to always show full post content."
+            >
+              {({ describedBy }) => (
+                <Select
+                  id="postLineLimitInput"
+                  name="postLineLimit"
+                  aria-describedby={describedBy}
+                  defaultValue={String(settings?.postLineLimit ?? 5)}
+                >
+                  <option value="5">5 lines</option>
+                  <option value="10">10 lines</option>
+                  <option value="0">No limit</option>
+                </Select>
+              )}
+            </FormRow>
+          </FormGroup>
+
           <FormGroup
             title="Profile"
             description="Public information visible on your profile."

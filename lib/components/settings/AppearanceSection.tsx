@@ -1,6 +1,6 @@
 'use client'
 
-import { FC, ReactNode, useEffect, useRef, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
@@ -10,18 +10,13 @@ import { ThemeControl } from '@/lib/components/theme'
 
 const SAVED_MS = 2000
 
-interface Props {
-  /** More rows for the same frame, such as the post line limit. */
-  children?: ReactNode
-}
-
 /**
  * Settings › General › Appearance. The theme is a device-local preference that
  * applies the moment it is picked, so it shows the quiet "Saved" tick in the
- * section's actions instead of asking for a Save; the rows passed as children
- * belong to the page's form and save with it.
+ * section's actions instead of asking for a Save. It sits outside the page's
+ * native `<form>` (its radios are not form fields and must not mark it dirty).
  */
-export const AppearanceSection: FC<Props> = ({ children }) => {
+export const AppearanceSection: FC = () => {
   const [saved, setSaved] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -41,7 +36,7 @@ export const AppearanceSection: FC<Props> = ({ children }) => {
   return (
     <Section
       title="Appearance"
-      description="Theme for this device, and how posts appear on your timeline."
+      description="The theme for this device."
       actions={<SavedIndicator saved={saved} />}
     >
       <Frame form>
@@ -57,7 +52,6 @@ export const AppearanceSection: FC<Props> = ({ children }) => {
             />
           )}
         </FormRow>
-        {children}
       </Frame>
     </Section>
   )

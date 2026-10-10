@@ -109,4 +109,27 @@ describe('Frame', () => {
       'pb-[max(0.75rem,env(safe-area-inset-bottom))]'
     )
   })
+
+  it('gives the content a scroll margin clear of a sticky footer', () => {
+    for (const props of [{ form: true }, { divided: true }, {}]) {
+      const { container, unmount } = render(
+        <Frame {...props} stickyFooter footer={<span>Footer</span>}>
+          <input aria-label="Field" />
+        </Frame>
+      )
+      const content = screen.getByLabelText('Field').parentElement
+      expect(content, JSON.stringify(props)).toHaveClass('[&_*]:scroll-mb-24')
+      expect(container.firstElementChild).not.toHaveClass('[&_*]:scroll-mb-24')
+      unmount()
+    }
+  })
+
+  it('adds no scroll margin without stickyFooter', () => {
+    const { container } = render(
+      <Frame form footer={<span>Footer</span>}>
+        <p>Body</p>
+      </Frame>
+    )
+    expect(container.innerHTML).not.toContain('scroll-mb-24')
+  })
 })

@@ -65,7 +65,6 @@ describe('DialogFooter', () => {
     expect(screen.getByTestId('footer')).toHaveClass(
       '-mx-6',
       '-mb-6',
-      'mt-2',
       'border-t',
       'px-6',
       'py-4'

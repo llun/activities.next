@@ -141,14 +141,25 @@ const measure = () => {
   return found
 }
 
-// The rows of a form (`FormRow`, `SettingsField`) belong in `Frame form`, which
-// spaces them instead of ruling them. `Frame divided` is for lists. This reads
-// each `<Frame ...>` opening tag (balancing `{}` so a `footer={...}` with `>`
-// inside does not end it), finds its matching `</Frame>` and reports a divided
-// frame whose body holds a form row. Nested frames are counted by depth.
-const FORM_ROW_TAG = /<(?:FormRow|SettingsField)\b/
+// The rows of a form (`FormRow` and every wrapper of it: `SettingsField`,
+// `ControlRow`, `ToggleRow`, `SelectRow`, `ImageUploadField`, `NumberField`)
+// belong in `Frame form`, which spaces them (and pads them to 16px from the
+// edge) instead of ruling them. `Frame divided` is for lists. This reads each
+// `<Frame ...>` opening tag (balancing `{}` so a `footer={...}` with `>`
+// inside does not end it), finds its matching `</Frame>` and reports a frame
+// whose body holds a form row and that is not `form`: a `divided` one (a rule
+// between every field) or a plain one (rows 10px from the edge). A `<Frame form
+// divided>` is fine: `form` wins over `divided` (see `Frame`), so it is not
+// flagged. Nested frames are counted by depth.
+const FORM_ROW_TAG =
+  /<(?:FormRow|SettingsField|ControlRow|ToggleRow|SelectRow|ImageUploadField|NumberField)\b/
 const frameOpenings = (source: string) => {
-  const found: { divided: boolean; selfClosing: boolean; end: number }[] = []
+  const found: {
+    form: boolean
+    divided: boolean
+    selfClosing: boolean
+    end: number
+  }[] = []
   for (const match of source.matchAll(/<Frame(?=[\s>/])/g)) {
     let depth = 0
     let i = match.index + match[0].length
@@ -159,20 +170,22 @@ const frameOpenings = (source: string) => {
       else if (char === '>' && depth === 0) break
     }
     const tag = source.slice(match.index, i)
+    const attributes = tag.replace(/\{[\s\S]*?\}/g, '')
     found.push({
-      divided: /\sdivided\b/.test(tag.replace(/\{[\s\S]*?\}/g, '')),
+      form: /\sform\b/.test(attributes),
+      divided: /\sdivided\b/.test(attributes),
       selfClosing: source[i - 1] === '/',
       end: i + 1
     })
   }
   return found
 }
-const formRowsInDividedFrames = (source: string) => {
+const formRowsOutsideFormFrames = (source: string) => {
   let hits = 0
   const openings = frameOpenings(source)
   const tokens = [...source.matchAll(/<Frame(?=[\s>/])|<\/Frame>/g)]
   for (const opening of openings) {
-    if (!opening.divided || opening.selfClosing) continue
+    if (opening.form || opening.selfClosing) continue
     let depth = 1
     for (const token of tokens) {
       if (token.index < opening.end) continue
@@ -211,29 +224,52 @@ describe('surface kit usage', () => {
     ).toBe(0)
   })
 
-  it('has no FormRow or SettingsField inside a Frame divided', () => {
+  it('has no form row inside a Frame that is not a Frame form', () => {
     const offenders = [...SCANNED_DIRS.flatMap(collectSources)].filter(
-      (file) => formRowsInDividedFrames(read(file)) > 0
+      (file) => formRowsOutsideFormFrames(read(file)) > 0
     )
     expect(
       offenders,
-      'Form rows in a `Frame divided` get a hairline between every field. A form is one box without rules: use `<Frame form>` (with `FormGroup`s for several groups) and keep `divided` for lists. See "Forms." in docs/architecture.md.'
+      'Form rows (`FormRow`, `SettingsField`, `ToggleRow`, ...) in a `Frame divided` get a hairline between every field, and in a plain `Frame` sit 10px from the edge. A form is one box without rules: use `<Frame form>` (with `FormGroup`s for several groups) and keep `divided` for lists. See "Forms." in docs/architecture.md.'
     ).toEqual([])
   })
 
-  it('recognises a form row inside a divided frame', () => {
+  it('recognises a form row inside a frame that is not a form frame', () => {
     const bad =
       '<Frame divided footer={<SaveBar a={() => 1} />}><FormRow label="a" /></Frame>'
     const list =
       '<Frame divided><Row /></Frame><Frame form><FormRow label="a" /></Frame>'
     const nested = '<Frame divided><Frame form><FormRow /></Frame></Frame>'
-    expect(formRowsInDividedFrames(bad)).toBe(1)
-    expect(formRowsInDividedFrames(list)).toBe(0)
+    expect(formRowsOutsideFormFrames(bad)).toBe(1)
+    expect(formRowsOutsideFormFrames(list)).toBe(0)
     expect(
-      formRowsInDividedFrames('<Frame divided><SettingsField /></Frame>')
+      formRowsOutsideFormFrames('<Frame divided><SettingsField /></Frame>')
     ).toBe(1)
     // A nested form frame inside a list frame still sits in the list's body.
-    expect(formRowsInDividedFrames(nested)).toBe(1)
+    expect(formRowsOutsideFormFrames(nested)).toBe(1)
+    // Every FormRow wrapper counts.
+    for (const row of [
+      'ControlRow',
+      'ToggleRow',
+      'SelectRow',
+      'ImageUploadField',
+      'NumberField'
+    ]) {
+      expect(
+        formRowsOutsideFormFrames(`<Frame divided><${row} /></Frame>`),
+        row
+      ).toBe(1)
+    }
+    // A plain frame around rows is flagged too; `form` wins over `divided`.
+    expect(formRowsOutsideFormFrames('<Frame><FormRow /></Frame>')).toBe(1)
+    expect(
+      formRowsOutsideFormFrames('<Frame form divided><FormRow /></Frame>')
+    ).toBe(0)
+    expect(
+      formRowsOutsideFormFrames(
+        '<Frame divided footer={<A form />}><Row /></Frame>'
+      )
+    ).toBe(0)
   })
 
   it('lists only existing fixed-colour files that still hold a raw colour', () => {

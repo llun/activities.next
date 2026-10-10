@@ -319,11 +319,7 @@ export const FilterEditor: FC<FilterEditorProps> = ({
           title="Filter action"
           description="What happens when a post matches."
         >
-          <div
-            className="space-y-0.5 px-2 pt-2"
-            role="radiogroup"
-            aria-label="Filter action"
-          >
+          <div className="space-y-0.5 px-2 pt-2" role="radiogroup">
             {ACTION_CARDS.map((card, index) => {
               const selected = action === card.id
               return (

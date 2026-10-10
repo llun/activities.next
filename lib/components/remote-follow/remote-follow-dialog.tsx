@@ -140,7 +140,7 @@ export const RemoteFollowDialog: FC<RemoteFollowDialogProps> = ({
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-2 py-2">
+            <div className="space-y-2 pb-4">
               <Label htmlFor="remote-follow-account">Your address</Label>
               <Input
                 id="remote-follow-account"

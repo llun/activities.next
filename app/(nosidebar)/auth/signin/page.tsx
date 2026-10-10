@@ -107,12 +107,10 @@ const Page: FC<Props> = async ({ searchParams }) => {
           }
         />
       ) : (
-        <div className="pt-6">
-          <AuthCardActions>
-            {passkeyButton}
-            {signUpLine}
-          </AuthCardActions>
-        </div>
+        <AuthCardActions afterHeader>
+          {passkeyButton}
+          {signUpLine}
+        </AuthCardActions>
       )}
     </AuthCard>
   )

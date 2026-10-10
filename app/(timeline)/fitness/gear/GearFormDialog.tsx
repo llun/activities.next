@@ -329,7 +329,10 @@ export const GearFormDialog: FC<Props> = ({
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1">
                   <Label htmlFor="gear-alert-enabled">Distance alert</Label>
-                  <p className="text-xs text-muted-foreground">
+                  <p
+                    id="gear-alert-enabled-hint"
+                    className="text-xs text-muted-foreground"
+                  >
                     Most running shoes wear out between 500 and 800 km.
                     You&apos;ll get a notification and an email when the pair
                     passes the mark.
@@ -337,6 +340,7 @@ export const GearFormDialog: FC<Props> = ({
                 </div>
                 <Switch
                   id="gear-alert-enabled"
+                  aria-describedby="gear-alert-enabled-hint"
                   checked={isAlertEnabled}
                   onCheckedChange={setIsAlertEnabled}
                   disabled={isSaving}

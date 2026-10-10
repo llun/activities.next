@@ -17,7 +17,9 @@ interface Props {
   form?: boolean
   /**
    * Keep the footer in reach on a long form: it sticks to the bottom of the
-   * viewport (respecting the safe area) until the box ends.
+   * viewport (respecting the safe area) until the box ends. The content gets a
+   * scroll margin (`scroll-mb-24`) so a field focused with Tab scrolls clear of
+   * the footer instead of landing under it.
    */
   stickyFooter?: boolean
   className?: string
@@ -48,9 +50,18 @@ export const Frame: FC<Props> = ({
     )}
   >
     {form ? (
-      <div className="py-1.5">{children}</div>
+      <div
+        data-slot="frame-content"
+        className={cn('py-1.5', stickyFooter && '[&_*]:scroll-mb-24')}
+      >
+        {children}
+      </div>
     ) : divided ? (
-      <div className="divide-y">{children}</div>
+      <div className={cn('divide-y', stickyFooter && '[&_*]:scroll-mb-24')}>
+        {children}
+      </div>
+    ) : stickyFooter ? (
+      <div className="[&_*]:scroll-mb-24">{children}</div>
     ) : (
       children
     )}

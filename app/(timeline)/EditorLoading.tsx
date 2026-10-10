@@ -22,6 +22,6 @@ export const EditorLoading: FC<Props> = ({ label, sections }) => (
       title={<SkeletonBar className="h-7 w-40" />}
       description={<SkeletonBar className="h-4 w-72 max-w-full" />}
     />
-    <SectionSkeleton title={false} sections={sections} label={label} />
+    <SectionSkeleton title={false} sections={sections} form label={label} />
   </div>
 )
