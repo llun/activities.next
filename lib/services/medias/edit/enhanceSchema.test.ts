@@ -48,6 +48,13 @@ describe('parseEnhanceAnswer', () => {
       })
     ],
     [
+      'a vignette in the global values',
+      JSON.stringify({
+        ...answer,
+        vivid: { ...style, global: { vignette: 10 } }
+      })
+    ],
+    [
       'a vignette in subject values',
       JSON.stringify({
         ...answer,
@@ -121,7 +128,8 @@ describe('the schema', () => {
     expect(ENHANCE_STYLES).toEqual(['natural', 'vivid', 'dramatic'])
   })
 
-  it('allows a vignette in the global values only', () => {
-    expect(AiAdjustments.safeParse({ vignette: 20 }).success).toBeTrue()
+  it('has no vignette, global or local', () => {
+    expect(AiAdjustments.safeParse({ vignette: 20 }).success).toBeFalse()
+    expect(AiAdjustments.safeParse({ exposure: 0.2 }).success).toBeTrue()
   })
 })

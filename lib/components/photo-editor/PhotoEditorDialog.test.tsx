@@ -1107,6 +1107,101 @@ describe('PhotoEditorDialog', () => {
       expect(contrast()).toHaveAttribute('aria-valuetext', '+16')
     })
 
+    const strengthSlider = () =>
+      screen.getByRole('slider', { name: 'Strength' })
+
+    it('follows undo: the panel says not applied and a style applies it again', async () => {
+      await setup({ enhance: AVAILABLE })
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      await screen.findByText('Suggested by vision-1')
+      expect(screen.getByRole('radio', { name: 'Natural' })).toBeChecked()
+
+      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+
+      expect(screen.queryAllByRole('radio', { checked: true })).toEqual([])
+      expect(screen.getByText(/Not applied/)).toBeInTheDocument()
+      expect(strengthSlider()).toHaveAttribute(
+        'aria-valuetext',
+        '80, not applied'
+      )
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
+      expect(screen.getByRole('radio', { name: 'Vivid' })).toBeChecked()
+      expect(screen.queryByText(/Not applied/)).not.toBeInTheDocument()
+    })
+
+    it('announces the suggestion and each style in the live region', async () => {
+      await setup({ enhance: AVAILABLE })
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      await screen.findByText('Suggested by vision-1')
+      expect(screen.getByText('Natural suggestion applied')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+
+      expect(
+        screen.getByText('Dramatic suggestion applied')
+      ).toBeInTheDocument()
+    })
+
+    it('leaves an answer that arrives during a save out of the photo', async () => {
+      let answer: (value: typeof SUGGESTION) => void = () => {}
+      vi.mocked(enhanceMediaEdit).mockReturnValue(
+        new Promise((resolve) => (answer = resolve))
+      )
+      let finish: (
+        value: Awaited<ReturnType<typeof saveMediaEdit>>
+      ) => void = () => {}
+      mockSaveMediaEdit.mockImplementation(
+        () => new Promise((resolve) => (finish = resolve))
+      )
+      const { onSaved } = await setup({ enhance: AVAILABLE })
+      nudgeExposure()
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      await screen.findByRole('button', { name: 'Enhancing…' })
+
+      fireEvent.click(saveButton())
+      await screen.findByText('Saving…')
+      await act(async () => answer(SUGGESTION))
+
+      // The photo being stored is the one that was saved: no suggestion lands
+      // on it, and the panel is not left waiting.
+      expect(screen.queryByText('Suggested by vision-1')).toBeNull()
+      expect(
+        screen.queryByText('Natural suggestion applied')
+      ).not.toBeInTheDocument()
+      expect(mockSaveMediaEdit.mock.calls[0][1].recipe.adjustments).toEqual({
+        exposure: 0.01
+      })
+      await act(async () =>
+        finish({ ...editState(), posts: { updated: [], skipped: [] } })
+      )
+      expect(onSaved).toHaveBeenCalled()
+    })
+
+    it('forgets the suggestion when the editor reloads', async () => {
+      mockSaveMediaEdit.mockRejectedValue(
+        new MediaEditError(409, 'stale', { version: 9, saveId: 'other' })
+      )
+      await setup({ enhance: AVAILABLE })
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      await screen.findByText('Suggested by vision-1')
+      fireEvent.click(saveButton())
+      fireEvent.click(await screen.findByRole('button', { name: 'Reload' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Discard' }))
+      await waitFor(() => expect(mockGetMediaEdit).toHaveBeenCalledTimes(2))
+
+      // The AI tab stays selected through the reload, but starts over.
+      expect(
+        await screen.findByRole('button', { name: 'Enhance' })
+      ).toBeInTheDocument()
+      expect(screen.queryByText('Suggested by vision-1')).toBeNull()
+      expect(screen.queryByRole('radiogroup')).toBeNull()
+    })
+
     it('shows a failed suggestion and leaves the photo alone', async () => {
       vi.mocked(enhanceMediaEdit).mockRejectedValue(
         new MediaEditError(502, "Couldn't get a suggestion")

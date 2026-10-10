@@ -22,5 +22,7 @@ export const getBaseURL = vi.fn().mockReturnValue(`https://${TEST_DOMAIN}`)
 
 // Reads the environment like the real one, without the warning.
 export const getPhotoEditorConfig = vi.fn(() =>
-  photoEditor.getPhotoEditorConfig({ altText: getAltTextConfig()?.altText })
+  photoEditor.getPhotoEditorConfig({
+    altText: getAltTextConfig({ quiet: true })?.altText
+  })
 )

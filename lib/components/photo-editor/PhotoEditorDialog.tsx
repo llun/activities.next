@@ -185,7 +185,9 @@ export const PhotoEditorDialog = ({
     bitmap,
     recipe: present,
     onChange: change,
-    disabled: !ready
+    disabled: !ready,
+    announce: setAnnouncement,
+    resetKey: loadVersion
   })
 
   // The mask pixels the preview draws: the recipe's, with a stroke in progress.

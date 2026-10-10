@@ -16,7 +16,9 @@ const step = () =>
 const warmth = () =>
   z.number().int().min(-ENHANCE_MAX_WARMTH).max(ENHANCE_MAX_WARMTH).optional()
 
-// Subject and background values have no vignette: a mask has none.
+// No style has a vignette: a mask has none, and the prompt never asks for one
+// globally (the editor leaves Effects to the person), so an answer that
+// carries one fails the strict parse like any other unknown key.
 const MaskAiAdjustments = z.strictObject({
   exposure: z
     .number()
@@ -37,7 +39,7 @@ const MaskAiAdjustments = z.strictObject({
 })
 export type AiMaskAdjustments = z.infer<typeof MaskAiAdjustments>
 
-export const AiAdjustments = MaskAiAdjustments.extend({ vignette: step() })
+export const AiAdjustments = MaskAiAdjustments
 export type AiAdjustments = z.infer<typeof AiAdjustments>
 
 export const AiStyle = z.strictObject({

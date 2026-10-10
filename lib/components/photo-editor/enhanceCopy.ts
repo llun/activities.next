@@ -10,6 +10,11 @@ export const ENHANCE_COPY = {
   suggestedBy: (model: string) => `Suggested by ${model}`,
   needSubject:
     'Subject and background changes apply once you select a subject in Masks.',
+  needBackground:
+    'Background changes apply once you add a background in Masks.',
+  notApplied: 'Not applied. Pick a style to apply it again.',
+  gettingSuggestion: 'Getting a suggestion',
+  applied: (style: string) => `${style} suggestion applied`,
   failed: "Couldn't get a suggestion.",
   off: 'AI enhance is turned off.',
   notSetUp: "AI enhance isn't set up on this server.",

@@ -29,7 +29,10 @@ export const requestEnhance = async (
   const answer = await requestVisionCompletion(config, preview, 'image/jpeg', {
     systemPrompt: ENHANCE_SYSTEM_PROMPT,
     prompt: ENHANCE_USER_PROMPT,
-    maxTokens: ENHANCE_MAX_TOKENS
+    maxTokens: ENHANCE_MAX_TOKENS,
+    // The photo goes only to the configured model: a redirect to another host
+    // is a failure, not something to follow.
+    allowCrossHostRedirects: false
   })
   if (!answer) throw new EnhanceError('The model answered with nothing')
 

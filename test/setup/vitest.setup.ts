@@ -180,7 +180,9 @@ vi.mock('@/lib/config', async () => {
     getBaseURL: vi.fn().mockReturnValue(`https://${TEST_DOMAIN}`),
     // Reads the environment like the real one, without the warning.
     getPhotoEditorConfig: vi.fn(() =>
-      photoEditor.getPhotoEditorConfig({ altText: getAltTextConfig()?.altText })
+      photoEditor.getPhotoEditorConfig({
+        altText: getAltTextConfig({ quiet: true })?.altText
+      })
     ),
     getAuthScheme: vi.fn().mockReturnValue('https'),
     buildBaseURL: vi.fn((host: string) =>

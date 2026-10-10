@@ -154,6 +154,21 @@ describe('Config', () => {
       expect(getPhotoEditorConfig().enhance).toBeNull()
     })
 
+    it('does not repeat the partial alt text warning on every call', async () => {
+      const { logger } = await import('@/lib/utils/logger')
+      const { getPhotoEditorConfig } = await import('./index')
+      delete process.env.NEXT_PHASE
+      delete process.env.ACTIVITIES_ALT_TEXT_API_KEY
+      delete process.env.ACTIVITIES_ALT_TEXT_MODEL
+      process.env.ACTIVITIES_ALT_TEXT_ENDPOINT = 'https://alt.example.com/v1'
+
+      for (let call = 0; call < 5; call++) {
+        expect(getPhotoEditorConfig().enhance).toBeNull()
+      }
+
+      expect(logger.warn).not.toHaveBeenCalled()
+    })
+
     it('stays quiet during the production build', async () => {
       const { logger } = await import('@/lib/utils/logger')
       const { getPhotoEditorConfig } = await import('./index')

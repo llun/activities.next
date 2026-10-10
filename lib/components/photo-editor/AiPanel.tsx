@@ -1,6 +1,7 @@
 'use client'
 
 import { Loader2, Sparkles } from 'lucide-react'
+import { useRef } from 'react'
 
 import { Alert } from '@/lib/components/surface/Alert'
 import { Button } from '@/lib/components/ui/button'
@@ -38,6 +39,7 @@ export const AiPanel = ({
 }) => {
   const { ai, disabled } = controls
   const loading = ai.status === 'loading'
+  const enhanceButton = useRef<HTMLButtonElement>(null)
 
   return (
     <div className={compact ? 'space-y-3 px-3 py-3' : 'space-y-5 p-4'}>
@@ -48,19 +50,33 @@ export const AiPanel = ({
       {ai.error ? (
         <Alert
           title={ai.error}
-          onRetry={loading || disabled ? undefined : ai.enhance}
+          onRetry={
+            ai.retryable && !loading && !disabled
+              ? () => {
+                  // The alert goes away with the retry; keep focus on the
+                  // panel rather than losing it to the page.
+                  enhanceButton.current?.focus()
+                  ai.enhance()
+                }
+              : undefined
+          }
         />
       ) : null}
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {/* aria-disabled, not disabled, while it loads: a disabled button
+            drops keyboard focus to the page, and the label says what is
+            happening. */}
         <Button
+          ref={enhanceButton}
           type="button"
           variant="pill"
           size="sm"
-          className="max-md:min-h-10"
-          disabled={disabled || loading}
+          className="max-md:min-h-10 aria-disabled:pointer-events-none aria-disabled:opacity-50"
+          disabled={disabled}
+          aria-disabled={loading || undefined}
           aria-busy={loading}
-          onClick={ai.enhance}
+          onClick={loading ? undefined : ai.enhance}
         >
           {loading ? (
             <Loader2 className="animate-spin" aria-hidden="true" />
@@ -91,6 +107,14 @@ export const AiPanel = ({
             onValueChange={(style) => ai.setStyle(style as EnhanceStyle)}
           />
 
+          {/* Always rendered, so a screen reader hears it appear. */}
+          <div
+            role="status"
+            className="text-xs text-muted-foreground empty:hidden"
+          >
+            {ai.style === null ? ENHANCE_COPY.notApplied : null}
+          </div>
+
           <div
             className="space-y-1"
             onPointerDownCapture={() =>
@@ -118,7 +142,9 @@ export const AiPanel = ({
               step={1}
               disabled={disabled || loading}
               defaultValue={DEFAULT_ENHANCE_STRENGTH}
-              formatValue={(value) => `${value}`}
+              formatValue={(value) =>
+                ai.style === null ? `${value}, not applied` : `${value}`
+              }
               onValueChange={ai.setStrength}
               onValueCommit={controls.onGestureEnd}
             />
@@ -127,6 +153,11 @@ export const AiPanel = ({
           {ai.needsSubjectMask ? (
             <p className="text-xs text-muted-foreground">
               {ENHANCE_COPY.needSubject}
+            </p>
+          ) : null}
+          {ai.needsBackgroundMask ? (
+            <p className="text-xs text-muted-foreground">
+              {ENHANCE_COPY.needBackground}
             </p>
           ) : null}
         </>

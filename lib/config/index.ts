@@ -223,7 +223,9 @@ let didWarnAboutPhotoEditorConfig = false
 // fails a request or the build.
 export const getPhotoEditorConfig = (): PhotoEditorConfig =>
   readPhotoEditorConfig({
-    altText: getAltTextConfig()?.altText,
+    // Quiet: this runs on every editor request, and `getConfig()` already
+    // warned once about a partial alt text configuration.
+    altText: getAltTextConfig({ quiet: true })?.altText,
     onInvalid: (message) => {
       if (
         didWarnAboutPhotoEditorConfig ||

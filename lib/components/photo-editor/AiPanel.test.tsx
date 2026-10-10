@@ -18,7 +18,11 @@ import {
 import { AiPanel } from './AiPanel'
 import type { EditorControls } from './editorControls'
 import { renderEnhancePreview } from './engine/enhancePreview'
-import { useAiEnhance } from './useAiEnhance'
+import {
+  describeEnhanceError,
+  isRetryableEnhanceError,
+  useAiEnhance
+} from './useAiEnhance'
 import { useEditorHistory } from './useEditorHistory'
 
 vi.mock('@/lib/client/mediaEdit', async (importOriginal) => ({
@@ -79,10 +83,16 @@ let latest: { recipe: Recipe; past: number } = {
 
 const Harness = ({
   start = NEUTRAL_RECIPE,
-  available = true
+  available = true,
+  disabled = false,
+  announce,
+  resetKey
 }: {
   start?: Recipe
   available?: boolean
+  disabled?: boolean
+  announce?: (text: string) => void
+  resetKey?: number
 }) => {
   const history = useEditorHistory(start)
   const ai = useAiEnhance({
@@ -92,13 +102,15 @@ const Harness = ({
     bitmap: { width: 4000, height: 3000 } as ImageBitmap,
     recipe: history.present,
     onChange: (recipe, coalesceKey) => history.set(recipe, { coalesceKey }),
-    disabled: false
+    disabled,
+    announce,
+    resetKey
   })
   latest = { recipe: history.present, past: history.pastLength }
   const controls = {
     recipe: history.present,
     source: { width: 4000, height: 3000 },
-    disabled: false,
+    disabled,
     onGestureStart: history.beginGesture,
     onGestureEnd: history.endGesture,
     ai
@@ -108,6 +120,20 @@ const Harness = ({
       <AiPanel controls={controls} />
       <button type="button" onClick={history.undo}>
         Undo
+      </button>
+      <button type="button" onClick={history.redo}>
+        Redo
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          history.set({
+            ...history.present,
+            adjustments: { ...history.present.adjustments, tint: 7 }
+          })
+        }
+      >
+        Nudge
       </button>
     </>
   )
@@ -154,7 +180,9 @@ describe('AiPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enhance' }))
 
     const busy = await screen.findByRole('button', { name: 'Enhancing…' })
-    expect(busy).toBeDisabled()
+    // aria-disabled, not disabled, so keyboard focus stays on the button.
+    expect(busy).toHaveAttribute('aria-disabled', 'true')
+    expect(busy).not.toBeDisabled()
     expect(busy).toHaveAttribute('aria-busy', 'true')
     await waitFor(() => expect(mockEnhance).toHaveBeenCalledTimes(1))
     expect(mockPreview).toHaveBeenCalledWith(
@@ -347,8 +375,56 @@ describe('AiPanel', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Enhance' }))
 
       expect(await screen.findByText(message)).toBeInTheDocument()
+
       expect(latest.recipe.adjustments).toEqual({})
       expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+    })
+
+    it.each([
+      ['a 502', new MediaEditError(502, 'x'), true],
+      ['a 500', new MediaEditError(500, 'x'), true],
+      ['a network error', new TypeError('Failed to fetch'), true],
+      ['AI enhance turned off (409)', new MediaEditError(409, 'x'), false],
+      ['AI enhance not set up (503)', new MediaEditError(503, 'x'), false],
+      ['too many suggestions (429)', new MediaEditError(429, 'x'), false],
+      ['a refused preview (422)', new MediaEditError(422, 'x'), false],
+      ['a too-large preview (413)', new MediaEditError(413, 'x'), false]
+    ])('offers Retry only when it can help: %s', async (_, failure, retry) => {
+      mockEnhance.mockRejectedValue(failure)
+      render(<Harness />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Enhance' }))
+
+      await screen.findByRole('alert')
+      expect(!!screen.queryByRole('button', { name: 'Retry' })).toBe(retry)
+      // Enhance itself stays available to press again.
+      expect(screen.getByRole('button', { name: 'Enhance' })).toBeEnabled()
+    })
+
+    it('describes and classifies the errors', () => {
+      expect(describeEnhanceError(new MediaEditError(409, 'x'))).toBe(
+        'AI enhance is turned off.'
+      )
+      expect(describeEnhanceError(new Error('boom'))).toBe(
+        "Couldn't get a suggestion."
+      )
+      expect(isRetryableEnhanceError(new Error('boom'))).toBeTrue()
+      expect(isRetryableEnhanceError(new MediaEditError(504, 'x'))).toBeTrue()
+      expect(isRetryableEnhanceError(new MediaEditError(503, 'x'))).toBeFalse()
+    })
+
+    it('keeps focus on the Enhance button when Retry is pressed', async () => {
+      mockEnhance.mockRejectedValueOnce(new MediaEditError(502, 'x'))
+      render(<Harness />)
+      fireEvent.click(screen.getByRole('button', { name: 'Enhance' }))
+      await screen.findByRole('button', { name: 'Retry' })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      await screen.findByText('Suggested by vision-1')
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Enhance again' })
+      )
     })
 
     it('shows a preview that cannot be made as a failed suggestion', async () => {
@@ -393,6 +469,392 @@ describe('AiPanel', () => {
       render(<Harness available={false} />)
       fireEvent.click(enhanceButton())
       expect(mockEnhance).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('masks from before the suggestion', () => {
+    const manual = { exposure: 0.1, contrast: 5 }
+    const start = (): Recipe => ({
+      ...NEUTRAL_RECIPE,
+      masks: [
+        { ...subject, adjustments: manual },
+        { ...background, adjustments: { tint: 3 } }
+      ]
+    })
+    const masks = () => latest.recipe.masks.map((mask) => mask.adjustments)
+
+    it('are restored when a style has no values for them', async () => {
+      render(<Harness start={start()} />)
+      await runEnhance()
+      expect(masks()).toEqual([
+        { exposure: 0.24, shadows: 20 },
+        { saturation: -16 }
+      ])
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+
+      // Dramatic has no subject or background values: not Natural's.
+      expect(masks()).toEqual([manual, { tint: 3 }])
+      expect(latest.recipe.adjustments).toEqual({ contrast: 48, blacks: -40 })
+    })
+
+    it('are restored, and Strength keeps them there, through every style', async () => {
+      render(<Harness start={start()} />)
+      await runEnhance()
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+      const strength = screen.getByRole('slider', { name: 'Strength' })
+
+      fireEvent.keyDown(strength, { key: 'Home' })
+      expect(latest.recipe.adjustments).toEqual({})
+      expect(masks()).toEqual([manual, { tint: 3 }])
+
+      fireEvent.keyDown(strength, { key: 'End' })
+      expect(masks()).toEqual([manual, { tint: 3 }])
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
+      expect(masks()).toEqual([
+        { exposure: 0.3, shadows: 25 },
+        { saturation: -20 }
+      ])
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+      expect(masks()).toEqual([manual, { tint: 3 }])
+    })
+
+    it('stay the true base when Enhance is pressed again', async () => {
+      render(<Harness start={start()} />)
+      await runEnhance()
+      mockEnhance.mockResolvedValue({
+        ...SUGGESTION,
+        natural: style({ subject: { exposure: 0.9 }, background: null })
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Enhance again' }))
+      await waitFor(() => expect(mockEnhance).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(masks()[0]).toEqual({ exposure: 0.72 }))
+      // The second answer has nothing for the background: it is the original,
+      // not the first suggestion's value.
+      expect(masks()[1]).toEqual({ tint: 3 })
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+      expect(masks()).toEqual([manual, { tint: 3 }])
+    })
+
+    it('are taken again from the photo after a hand edit', async () => {
+      render(<Harness start={start()} />)
+      await runEnhance()
+      fireEvent.click(screen.getByRole('button', { name: 'Nudge' }))
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+
+      // The masks the hand edit left (Natural's values) are the new base.
+      expect(masks()).toEqual([
+        { exposure: 0.24, shadows: 20 },
+        { saturation: -16 }
+      ])
+    })
+  })
+
+  describe('what the controls show', () => {
+    const checked = () =>
+      screen
+        .queryAllByRole('radio', { checked: true })
+        .map((radio) => radio.textContent)
+    const strengthSlider = () =>
+      screen.getByRole('slider', { name: 'Strength' })
+
+    it('follows undo and redo, and says so when nothing is applied', async () => {
+      render(<Harness />)
+      await runEnhance()
+      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
+      fireEvent.keyDown(strengthSlider(), { key: 'End' })
+      expect(checked()).toEqual(['Vivid'])
+      expect(strengthSlider()).toHaveAttribute('aria-valuenow', '100')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(checked()).toEqual(['Vivid'])
+      expect(strengthSlider()).toHaveAttribute('aria-valuenow', '80')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(checked()).toEqual(['Natural'])
+      expect(strengthSlider()).toHaveAttribute('aria-valuenow', '80')
+      expect(screen.queryByRole('status')?.textContent).toBe('')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(latest.recipe).toBe(NEUTRAL_RECIPE)
+      expect(checked()).toEqual([])
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Not applied. Pick a style to apply it again.'
+      )
+      // The last Strength chosen, labelled as not applied.
+      expect(strengthSlider()).toHaveAttribute(
+        'aria-valuetext',
+        '100, not applied'
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
+      expect(checked()).toEqual(['Natural'])
+      expect(screen.getByRole('status')).toBeEmptyDOMElement()
+      expect(strengthSlider()).toHaveAttribute('aria-valuetext', '80')
+    })
+
+    it('shows Strength as it was when the photo is back at an older step', async () => {
+      render(<Harness />)
+      await runEnhance()
+      fireEvent.keyDown(strengthSlider(), { key: 'Home' })
+      expect(strengthSlider()).toHaveAttribute('aria-valuenow', '0')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+      expect(strengthSlider()).toHaveAttribute('aria-valuenow', '80')
+    })
+
+    it('says not applied once a slider is moved by hand, and a style applies it again', async () => {
+      render(<Harness />)
+      await runEnhance()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Nudge' }))
+      expect(checked()).toEqual([])
+      expect(screen.getByRole('status')).toHaveTextContent('Not applied')
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
+      expect(checked()).toEqual(['Vivid'])
+      expect(screen.getByRole('status')).toBeEmptyDOMElement()
+    })
+
+    it('applies the last style at the Strength moved to, from not applied', async () => {
+      render(<Harness />)
+      await runEnhance()
+      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Nudge' }))
+
+      fireEvent.keyDown(strengthSlider(), { key: 'End' })
+
+      expect(checked()).toEqual(['Vivid'])
+      expect(latest.recipe.adjustments).toMatchObject({
+        exposure: 0.2,
+        contrast: 40
+      })
+    })
+
+    it('still shows the style picked when two styles make the same recipe', async () => {
+      render(<Harness />)
+      await runEnhance()
+      fireEvent.keyDown(strengthSlider(), { key: 'Home' })
+      expect(latest.recipe.adjustments).toEqual({})
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
+
+      expect(checked()).toEqual(['Vivid'])
+    })
+
+    it('can be reached by keyboard when nothing is checked', async () => {
+      render(<Harness />)
+      await runEnhance()
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+
+      expect(
+        screen.getAllByRole('radio').map((radio) => radio.tabIndex)
+      ).toEqual([0, -1, -1])
+    })
+
+    it('forgets the suggestion when the editor reloads', async () => {
+      const { rerender } = render(<Harness resetKey={0} />)
+      await runEnhance()
+
+      rerender(<Harness resetKey={1} />)
+
+      expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Suggested by/)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Enhance' })).toBeEnabled()
+      expect(screen.getByText(/Get a suggested edit/)).toBeInTheDocument()
+    })
+
+    it('drops a request still waiting when the editor reloads', async () => {
+      let answer: (value: EnhanceResponse) => void = () => {}
+      mockEnhance.mockReturnValue(new Promise((resolve) => (answer = resolve)))
+      const { rerender } = render(<Harness resetKey={0} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Enhance' }))
+      await waitFor(() => expect(mockEnhance).toHaveBeenCalled())
+
+      rerender(<Harness resetKey={1} />)
+      await act(async () => answer(SUGGESTION))
+
+      expect(latest.past).toBe(0)
+      expect(screen.queryByText(/Suggested by/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('while the editor saves', () => {
+    it('abandons a request that is waiting and never applies its answer', async () => {
+      let answer: (value: EnhanceResponse) => void = () => {}
+      mockEnhance.mockReturnValue(new Promise((resolve) => (answer = resolve)))
+      const { rerender } = render(<Harness />)
+      fireEvent.click(screen.getByRole('button', { name: 'Enhance' }))
+      await waitFor(() => expect(mockEnhance).toHaveBeenCalled())
+      const signal = mockEnhance.mock.calls[0][2] as AbortSignal
+
+      rerender(<Harness disabled />)
+      expect(signal.aborted).toBeTrue()
+      await act(async () => answer(SUGGESTION))
+
+      expect(latest.recipe).toBe(NEUTRAL_RECIPE)
+      expect(latest.past).toBe(0)
+      expect(screen.queryByText(/Suggested by/)).not.toBeInTheDocument()
+      // The button is not stuck on Enhancing….
+      expect(
+        screen.getByRole('button', { name: 'Enhance' })
+      ).toBeInTheDocument()
+    })
+
+    it('can ask again once saving is over', async () => {
+      mockEnhance.mockReturnValueOnce(new Promise(() => {}))
+      const { rerender } = render(<Harness />)
+      fireEvent.click(screen.getByRole('button', { name: 'Enhance' }))
+      await waitFor(() => expect(mockEnhance).toHaveBeenCalled())
+      rerender(<Harness disabled />)
+      rerender(<Harness />)
+
+      await runEnhance()
+
+      expect(latest.past).toBe(1)
+    })
+
+    it('keeps an applied suggestion when a later request is abandoned', async () => {
+      const { rerender } = render(<Harness />)
+      await runEnhance()
+      mockEnhance.mockReturnValue(new Promise(() => {}))
+      fireEvent.click(screen.getByRole('button', { name: 'Enhance again' }))
+      await waitFor(() => expect(mockEnhance).toHaveBeenCalledTimes(2))
+
+      rerender(<Harness disabled />)
+
+      expect(latest.recipe.adjustments.contrast).toBe(16)
+      expect(latest.past).toBe(1)
+      expect(screen.getByRole('radio', { name: 'Natural' })).toHaveAttribute(
+        'aria-checked',
+        'true'
+      )
+      expect(
+        screen.getByRole('button', { name: 'Enhance again' })
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('announcements', () => {
+    it('speaks the request, the suggestion and each style', async () => {
+      const announce = vi.fn()
+      render(<Harness announce={announce} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Enhance' }))
+      await screen.findByText('Suggested by vision-1')
+      expect(announce.mock.calls.map(([text]) => text)).toEqual([
+        'Getting a suggestion',
+        'Natural suggestion applied'
+      ])
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
+      expect(announce).toHaveBeenLastCalledWith('Vivid suggestion applied')
+    })
+
+    it('stays quiet while Strength moves', async () => {
+      const announce = vi.fn()
+      render(<Harness announce={announce} />)
+      await runEnhance()
+      announce.mockClear()
+
+      fireEvent.keyDown(screen.getByRole('slider', { name: 'Strength' }), {
+        key: 'End'
+      })
+      fireEvent.keyDown(screen.getByRole('slider', { name: 'Strength' }), {
+        key: 'Home'
+      })
+
+      expect(announce).not.toHaveBeenCalled()
+    })
+
+    it('speaks a style that undo or redo brings back', async () => {
+      const announce = vi.fn()
+      render(<Harness announce={announce} />)
+      await runEnhance()
+      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(announce).toHaveBeenLastCalledWith('Natural suggestion applied')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
+      expect(announce).toHaveBeenLastCalledWith('Vivid suggestion applied')
+    })
+
+    it('says nothing for a failed request beyond the alert', async () => {
+      const announce = vi.fn()
+      mockEnhance.mockRejectedValue(new MediaEditError(502, 'x'))
+      render(<Harness announce={announce} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Enhance' }))
+      await screen.findByRole('alert')
+
+      expect(announce.mock.calls.map(([text]) => text)).toEqual([
+        'Getting a suggestion'
+      ])
+    })
+
+    it('keeps focus on the Enhance button while it loads', async () => {
+      let answer: (value: EnhanceResponse) => void = () => {}
+      mockEnhance.mockReturnValue(new Promise((resolve) => (answer = resolve)))
+      render(<Harness />)
+      const button = screen.getByRole('button', { name: 'Enhance' })
+      button.focus()
+
+      fireEvent.click(button)
+      await screen.findByRole('button', { name: 'Enhancing…' })
+
+      expect(document.activeElement).toBe(button)
+      // Pressing it again while it loads does not send a second request.
+      fireEvent.click(button)
+      expect(mockEnhance).toHaveBeenCalledTimes(1)
+      await act(async () => answer(SUGGESTION))
+      expect(document.activeElement).toBe(button)
+    })
+  })
+
+  describe('a subject without a background', () => {
+    const noteText =
+      'Background changes apply once you add a background in Masks.'
+
+    it('says the background values were not applied', async () => {
+      render(<Harness start={{ ...NEUTRAL_RECIPE, masks: [subject] }} />)
+      await runEnhance()
+
+      expect(latest.recipe.masks[0].adjustments).toEqual({
+        exposure: 0.24,
+        shadows: 20
+      })
+      expect(screen.getByText(noteText)).toBeInTheDocument()
+      expect(
+        screen.queryByText(/select a subject in Masks/)
+      ).not.toBeInTheDocument()
+    })
+
+    it('is quiet with a background, with no subject, or when the style has none', async () => {
+      const { unmount } = render(
+        <Harness start={{ ...NEUTRAL_RECIPE, masks: [subject, background] }} />
+      )
+      await runEnhance()
+      expect(screen.queryByText(noteText)).not.toBeInTheDocument()
+      unmount()
+
+      render(<Harness />)
+      await runEnhance()
+      expect(screen.queryByText(noteText)).not.toBeInTheDocument()
+    })
+
+    it('goes away for a style with no background values', async () => {
+      render(<Harness start={{ ...NEUTRAL_RECIPE, masks: [subject] }} />)
+      await runEnhance()
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+
+      expect(screen.queryByText(noteText)).not.toBeInTheDocument()
     })
   })
 

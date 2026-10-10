@@ -13,7 +13,8 @@ export interface PillItem {
 interface Props {
   'aria-label': string
   items: ReadonlyArray<PillItem>
-  value: string
+  /** The chosen value; null leaves every pill unchecked (nothing applies). */
+  value: string | null
   onValueChange: (value: string) => void
   disabled?: boolean
   /**
@@ -40,9 +41,12 @@ export const PillGroup = ({
   ...rest
 }: Props) => {
   const group = useRef<HTMLDivElement>(null)
-  const current = items.some((item) => item.value === value)
-    ? value
-    : items[0]?.value
+  const current =
+    value === null
+      ? null
+      : items.some((item) => item.value === value)
+        ? value
+        : items[0]?.value
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const index = items.findIndex((item) => item.value === current)
@@ -78,7 +82,7 @@ export const PillGroup = ({
       onKeyDown={onKeyDown}
       className={cn('flex flex-wrap gap-2', compact && 'gap-1.5', className)}
     >
-      {items.map((item) => {
+      {items.map((item, index) => {
         const active = item.value === current
         return (
           <Button
@@ -90,7 +94,8 @@ export const PillGroup = ({
             aria-checked={active}
             data-state={active ? 'checked' : 'unchecked'}
             data-pill={item.value}
-            tabIndex={active ? 0 : -1}
+            // With nothing checked the first pill is the one tab stop.
+            tabIndex={active || (current === null && index === 0) ? 0 : -1}
             disabled={disabled}
             onClick={() => onValueChange(item.value)}
             className={cn(

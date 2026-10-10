@@ -307,6 +307,18 @@ describe('MediaDetailsSettings', () => {
     )
   })
 
+  it('describes the Photo editor section without saying it is only before posting', async () => {
+    render(<MediaDetailsSettings />)
+
+    await screen.findByRole('switch', { name: 'AI enhance' })
+    expect(
+      screen.getByText(
+        'Edit a photo from its details, before or after you post it.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/before you post it\./)).not.toBeInTheDocument()
+  })
+
   describe('AI enhance', () => {
     const AI_ENHANCE = 'AI enhance'
 

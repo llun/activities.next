@@ -102,9 +102,11 @@ export const POST = traceApiRoute(
         return answer(req, { error: MEDIA_NOT_EDITABLE_ERROR }, 422)
       }
 
-      // The photo's own actor's switch, as the editor's capabilities read it.
+      // The switch of the actor the person is acting as, the one Settings →
+      // Media writes, as the editor's capabilities and subject suggestions
+      // read it.
       const { photoEnhance } = await database.getGallerySettings({
-        actorId: media.actorId
+        actorId: currentActor.id
       })
       if (!photoEnhance) return answer(req, { error: ERROR_ENHANCE_OFF }, 409)
 

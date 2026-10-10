@@ -802,6 +802,42 @@ describe('/api/v1/media/[id]/edit', () => {
       })
     })
 
+    it('follows the switch of the actor the person acts as, not the photo owner’s', async () => {
+      configured()
+      const actor = await database.getActorFromId({ id: ACTOR1_ID })
+      const second = await database.createActorForAccount({
+        accountId: actor!.account!.id,
+        username: 'second-enhance',
+        domain: 'llun.test',
+        privateKey: 'private',
+        publicKey: 'public'
+      })
+      const id = await createMediaFor(second)
+      await database.updateGallerySettings({
+        actorId: second,
+        photoEnhance: false
+      })
+
+      expect((await (await get(id)).json()).capabilities.enhance).toEqual({
+        available: true,
+        model: 'vision-1'
+      })
+
+      await database.updateGallerySettings({
+        actorId: ACTOR1_ID,
+        photoEnhance: false
+      })
+      await database.updateGallerySettings({
+        actorId: second,
+        photoEnhance: true
+      })
+
+      expect((await (await get(id)).json()).capabilities.enhance).toEqual({
+        available: false,
+        model: null
+      })
+    })
+
     it('never leaks the endpoint or the key', async () => {
       configured()
       const id = await createMediaFor(ACTOR1_ID)

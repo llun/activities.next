@@ -54,4 +54,54 @@ describe('PillGroup', () => {
     })
     expect(onValueChange).toHaveBeenLastCalledWith('a')
   })
+
+  describe('with no value', () => {
+    it('checks nothing and keeps the first pill as the tab stop', () => {
+      render(
+        <PillGroup
+          aria-label="Pick"
+          items={items}
+          value={null}
+          onValueChange={vi.fn()}
+        />
+      )
+      expect(screen.queryAllByRole('radio', { checked: true })).toEqual([])
+      expect(
+        screen.getAllByRole('radio').map((radio) => radio.tabIndex)
+      ).toEqual([0, -1, -1])
+    })
+
+    it('moves to the first pill with ArrowRight and the last with ArrowLeft', () => {
+      const onValueChange = vi.fn()
+      render(
+        <PillGroup
+          aria-label="Pick"
+          items={items}
+          value={null}
+          onValueChange={onValueChange}
+        />
+      )
+      const first = screen.getByRole('radio', { name: 'Alpha' })
+
+      fireEvent.keyDown(first, { key: 'ArrowRight' })
+      expect(onValueChange).toHaveBeenLastCalledWith('a')
+
+      fireEvent.keyDown(first, { key: 'ArrowLeft' })
+      expect(onValueChange).toHaveBeenLastCalledWith('c')
+    })
+
+    it('still chooses a pill on click', () => {
+      const onValueChange = vi.fn()
+      render(
+        <PillGroup
+          aria-label="Pick"
+          items={items}
+          value={null}
+          onValueChange={onValueChange}
+        />
+      )
+      fireEvent.click(screen.getByRole('radio', { name: 'Beta' }))
+      expect(onValueChange).toHaveBeenCalledWith('b')
+    })
+  })
 })

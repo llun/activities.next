@@ -389,6 +389,48 @@ describe('POST /api/v1/media/[id]/edit/enhance', () => {
       expect(safeRemoteFetch).not.toHaveBeenCalled()
     })
 
+    describe('when the account has two actors', () => {
+      // The switch is the one Settings → Media writes: the actor the person
+      // is acting as (ACTOR1), whichever of the account's actors owns the
+      // photo.
+      const createSecondActorMedia = async () => {
+        const actor = await database.getActorFromId({ id: ACTOR1_ID })
+        const second = await database.createActorForAccount({
+          accountId: actor!.account!.id,
+          username: `second${counter}`,
+          domain: 'llun.test',
+          privateKey: 'private',
+          publicKey: 'public'
+        })
+        return { secondId: second, mediaId: await createMediaFor(second) }
+      }
+
+      it('reads the current actor’s switch, not the photo owner’s', async () => {
+        const { secondId, mediaId } = await createSecondActorMedia()
+        await database.updateGallerySettings({
+          actorId: secondId,
+          photoEnhance: false
+        })
+
+        expect((await post(mediaId)).status).toBe(200)
+
+        await database.updateGallerySettings({
+          actorId: ACTOR1_ID,
+          photoEnhance: false
+        })
+        await database.updateGallerySettings({
+          actorId: secondId,
+          photoEnhance: true
+        })
+
+        const response = await post(mediaId)
+        expect(response.status).toBe(409)
+        expect(await response.json()).toEqual({
+          error: 'AI enhance is turned off'
+        })
+      })
+    })
+
     it('is 503 when the server has no model, before the rate limit', async () => {
       vi.mocked(getPhotoEditorConfig).mockReturnValue({
         subjectModel: null,
