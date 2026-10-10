@@ -1,5 +1,11 @@
 import { Knex } from 'knex'
 
+import { searchQueries } from '@/lib/database/domains/search/queries'
+import {
+  getSearchDocumentId,
+  normalizeSearchText
+} from '@/lib/database/domains/search/rows'
+import { kyselyFor } from '@/lib/database/kysely'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   SQLITE_MAX_BINDINGS,
@@ -23,11 +29,8 @@ import { htmlToPlainText } from '@/lib/utils/text/htmlToPlainText'
 
 import {
   SEARCH_DOCUMENTS_TABLE,
-  applySearchDocumentFilter,
-  deleteSearchDocument,
-  getSearchDocumentId,
-  normalizeSearchText
-} from './documents'
+  applySearchDocumentFilter
+} from './knexDocuments'
 
 export type SQLStatusSearchRow = {
   id: string
@@ -230,7 +233,7 @@ export const deleteStatusSearchDocument = async (
   database: Knex,
   { statusId }: { statusId: string }
 ): Promise<void> => {
-  await deleteSearchDocument(database, {
+  await searchQueries.deleteSearchDocument(kyselyFor(database), {
     entityType: 'status',
     entityId: statusId
   })
@@ -541,7 +544,7 @@ export const searchStatusIds = async (
     .where('search_documents.entityType', 'status')
     .whereIn('statuses.type', [StatusType.enum.Note, StatusType.enum.Poll])
 
-  await applySearchDocumentFilter({ database, query, q })
+  applySearchDocumentFilter({ database, query, q })
   if (accountId) query.where('statuses.actorId', accountId)
 
   applyPotentiallyReadableStatusFilter({

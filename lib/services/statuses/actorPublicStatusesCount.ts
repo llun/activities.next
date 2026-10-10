@@ -27,9 +27,8 @@ import { Database } from '@/lib/database/types'
 //
 // Caching the PROMISE rather than the resolved count is what makes a concurrent
 // miss free: it needs no second map of in-flight queries, and no reasoning about
-// which settles first. `getMySQLFullTextMinTokenSize` in
-// `lib/database/sql/search/documents.ts` does the same, and deletes its entry on
-// failure for the same reason this does.
+// which settles first. A rejection deletes the entry so a failure is never
+// cached.
 //
 // Keyed per database instance so the production singleton is cached while each
 // test's throwaway database resolves independently, and per actor because one

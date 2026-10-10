@@ -2,7 +2,8 @@ import { Knex } from 'knex'
 import { randomUUID } from 'node:crypto'
 
 import { getConfig } from '@/lib/config'
-import { deleteActorSearchDocument } from '@/lib/database/sql/search'
+import { searchQueries } from '@/lib/database/domains/search/queries'
+import { kyselyFor } from '@/lib/database/kysely'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   AdminAccountDatabase,
@@ -89,7 +90,7 @@ export const ModerationSQLDatabaseMixin = (
         .where('accountId', accountId)
         .select<{ id: string }[]>('id')
       for (const { id } of actors) {
-        await deleteActorSearchDocument(trx, { id })
+        await searchQueries.deleteActorSearchDocument(kyselyFor(trx), { id })
       }
       if (actors.length > 0) {
         await trx('actors')

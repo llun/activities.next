@@ -175,9 +175,12 @@ jobs:
   # actor mutes, bookmarks, quote edges, emoji reactions, link preview cards),
   # the announcement, notification and instance activity domains
   # (announcements with their reads and reactions, notifications and their
-  # requests queue, weekly activity and login buckets), and the Knex-backed
-  # Kysely driver (result normalisation, the mixed-transaction guard, counters,
-  # bucket counters, chunked IN lists, savepoints).
+  # requests queue, weekly activity and login buckets), the search document and
+  # account search domains (the full-text index, account search by profile text,
+  # exact handle and followed accounts, and which indexed statuses a viewer can
+  # find), and the Knex-backed Kysely driver (result normalisation, the
+  # mixed-transaction guard, counters, bucket counters, chunked IN lists,
+  # savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -283,6 +286,10 @@ jobs:
             lib/database/sql/announcement.test.ts \
             lib/database/sql/notification.test.ts \
             lib/database/sql/instanceActivityDatabase.test.ts \
+            lib/database/sql/searchAccounts.test.ts \
+            lib/database/sql/searchAccountQueries.test.ts \
+            lib/database/sql/searchDocuments.test.ts \
+            lib/database/sql/searchDocumentFilter.test.ts \
             lib/database/kysely/driver.test.ts \
             lib/database/kysely/guard.test.ts \
             lib/database/kysely/counter.test.ts \

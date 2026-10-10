@@ -10,7 +10,7 @@ loadEnvConfig(projectDir, process.env.NODE_ENV === 'development')
 
 const parseBatchSize = () => {
   const value = Number(process.env.SEARCH_REINDEX_BATCH_SIZE)
-  return Number.isFinite(value) && value > 0 ? value : DEFAULT_BATCH_SIZE
+  return Number.isSafeInteger(value) && value > 0 ? value : DEFAULT_BATCH_SIZE
 }
 
 async function reindexEntity(

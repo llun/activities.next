@@ -50,6 +50,8 @@ import { reportQueries } from '@/lib/database/domains/report/queries'
 import type { ReportDatabase } from '@/lib/database/domains/report/types'
 import { scheduledStatusQueries } from '@/lib/database/domains/scheduledStatus/queries'
 import type { ScheduledStatusDatabase } from '@/lib/database/domains/scheduledStatus/types'
+import { searchQueries } from '@/lib/database/domains/search/queries'
+import type { SearchDatabase } from '@/lib/database/domains/search/types'
 import { serverFilterQueries } from '@/lib/database/domains/serverFilter/queries'
 import type { ServerFilterDatabase } from '@/lib/database/domains/serverFilter/types'
 import { serverSettingQueries } from '@/lib/database/domains/serverSetting/queries'
@@ -92,7 +94,19 @@ import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
-import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
+import {
+  deleteHashtagSearchDocument,
+  indexHashtagSearchDocument,
+  indexHashtagSearchDocuments,
+  reindexSearchHashtags,
+  searchHashtags
+} from '@/lib/database/sql/search/hashtag'
+import {
+  deleteStatusSearchDocument,
+  indexStatusSearchDocument,
+  reindexSearchStatuses,
+  searchStatusIds
+} from '@/lib/database/sql/search/status'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
@@ -227,7 +241,25 @@ export const getSQLDatabase = (database: Knex): Database => {
     scheduledStatusQueries
   )
   const oauthDatabase: OAuthDatabase = bindDb(kysely, oauthQueries)
-  const searchDatabase = SearchSQLDatabaseMixin(database)
+  // Search documents and account search run on Kysely; the hashtag and status
+  // halves are still Knex (sql/search/hashtag.ts and status.ts).
+  const searchDatabase: SearchDatabase = {
+    ...bindDb(kysely, searchQueries),
+    searchHashtags: (params) => searchHashtags(database, params),
+    indexHashtagSearchDocument: (params) =>
+      indexHashtagSearchDocument(database, params),
+    indexHashtagSearchDocuments: (params) =>
+      indexHashtagSearchDocuments(database, params),
+    deleteHashtagSearchDocument: (params) =>
+      deleteHashtagSearchDocument(database, params),
+    reindexSearchHashtags: (params) => reindexSearchHashtags(database, params),
+    searchStatusIds: (params) => searchStatusIds(database, params),
+    indexStatusSearchDocument: (params) =>
+      indexStatusSearchDocument(database, params),
+    deleteStatusSearchDocument: (params) =>
+      deleteStatusSearchDocument(database, params),
+    reindexSearchStatuses: (params) => reindexSearchStatuses(database, params)
+  }
   const stravaArchiveImportDatabase =
     StravaArchiveImportSQLDatabaseMixin(database)
   const wahooImportDatabase = WahooImportSQLDatabaseMixin(database)

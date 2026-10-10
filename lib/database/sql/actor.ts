@@ -1,13 +1,13 @@
 import { Knex } from 'knex'
 
 import { getConfig } from '@/lib/config'
+import { searchQueries } from '@/lib/database/domains/search/queries'
+import { kyselyFor } from '@/lib/database/kysely'
 import {
-  deleteActorSearchDocument,
-  deleteStatusSearchDocumentsByStatusIds,
-  indexActorSearchDocument,
   indexHashtagSearchDocuments,
   normalizeHashtagSearchName
-} from '@/lib/database/sql/search'
+} from '@/lib/database/sql/search/hashtag'
+import { deleteStatusSearchDocumentsByStatusIds } from '@/lib/database/sql/search/status'
 import {
   CounterKey,
   decreaseCounterValue,
@@ -236,7 +236,10 @@ const insertActorWithSearchIndex = async (
 
   await database.transaction(async (trx) => {
     await trx('actors').insert(actor)
-    await indexActorSearchDocument(trx, { id: actorId, actor })
+    await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
+      id: actorId,
+      actor
+    })
   })
 }
 
@@ -901,8 +904,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // per-request MAX(statuses.createdAt) GROUP BY aggregation. Actors who
       // have never posted (NULL) sort last on both SQLite and PostgreSQL:
       // `?? is null` yields false (0) before true (1), the portable NULLS LAST
-      // pattern the search document queries also use (documents.ts); newest
-      // account breaks ties.
+      // pattern; newest account breaks ties.
       query
         .orderByRaw('?? is null', ['actors.lastStatusAt'])
         .orderBy('actors.lastStatusAt', 'desc')
@@ -1141,7 +1143,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
           settings: JSON.stringify(finalSettings),
           updatedAt: currentTime
         })
-      await indexActorSearchDocument(trx, {
+      await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
         id: actorId,
         actor: { ...updatedActor, settings: JSON.stringify(finalSettings) }
       })
@@ -1152,7 +1154,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
   async deleteActor({ actorId }: DeleteActorParams) {
     await database.transaction(async (trx) => {
       await trx('actors').where('id', actorId).delete()
-      await deleteActorSearchDocument(trx, { id: actorId })
+      await searchQueries.deleteActorSearchDocument(kyselyFor(trx), {
+        id: actorId
+      })
     })
   },
 
@@ -1248,7 +1252,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         deletionScheduledAt: scheduledAt,
         updatedAt: currentTime
       })
-      await indexActorSearchDocument(trx, { id: actorId })
+      await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
+        id: actorId
+      })
     })
   },
 
@@ -1260,7 +1266,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         deletionScheduledAt: null,
         updatedAt: currentTime
       })
-      await indexActorSearchDocument(trx, { id: actorId })
+      await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
+        id: actorId
+      })
     })
   },
 
@@ -1271,7 +1279,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         deletionStatus: 'deleting',
         updatedAt: currentTime
       })
-      await indexActorSearchDocument(trx, { id: actorId })
+      await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
+        id: actorId
+      })
     })
   },
 
@@ -1951,7 +1961,9 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
       // Finally delete the actor
       await trx('actors').where('id', actorId).delete()
-      await deleteActorSearchDocument(trx, { id: actorId })
+      await searchQueries.deleteActorSearchDocument(kyselyFor(trx), {
+        id: actorId
+      })
     })
 
     if (affectedHashtags.length > 0) {
