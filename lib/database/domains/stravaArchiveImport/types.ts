@@ -1,5 +1,7 @@
-// Parameter and result types of the Strava archive import domain. The stored
-// and result shapes live in lib/types/database/stravaArchiveImport.ts.
+// Parameter and result types of the Strava archive import domain. The result
+// shape lives in lib/types/database/stravaArchiveImport.ts; the stored row type
+// is the generated `StravaArchiveImports` table type in
+// lib/database/kysely/db.ts.
 import type {
   StravaArchiveImport,
   StravaArchiveImportStatus,
