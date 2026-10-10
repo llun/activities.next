@@ -501,6 +501,84 @@ not produce a CSP-less, year-cacheable file response. `test/proxy.test.ts` check
 the matcher with Next's own config parser and runtime matcher. Do not fold the
 `/api` entries back into the catch-all.
 
+**Photo edits are non-destructive.** The photo editor renders the edit in the
+browser and uploads the result (`POST /api/v1/media/:id/edit`); the server never
+applies a recipe itself. It checks the render's pixel size against the recipe
+(`getRecipeOutputSize` in `lib/services/medias/edit/geometry.ts`, within 2 px),
+stores it through the same pipeline as any image (`saveEditedImage` on both
+drivers: WebP, no EXIF, inside the 4000 px box) and makes it the live file:
+`medias.original` points at the render, so every reader (the Mastodon entity,
+the gallery, new posts) serves it with no special case. The recipe, an
+optimistic `editVersion`, `editedAt` and the client's `editSaveId` live on the
+`medias` row.
+
+The files an edit keeps sit in `media_edit_files`, one row per slot:
+
+- `original`: the file the photo was uploaded as, moved there by the first save
+  together with its `originalMetaData` (including `upload.clientPath`), BlurHash
+  and focus, so a revert (`POST /api/v1/media/:id/edit/revert`) restores every
+  field exactly.
+- `superseded:<id>`: an earlier render a post may still show. "Update posts"
+  points each post at the new file (an ordinary edit of the post, sent as
+  `Update(Note)`) and then prunes the superseded renders; "Gallery only" keeps
+  them, because those posts still reference them.
+- `mask:<id>`: reserved for phase 2.
+
+The prune belongs to the latest write only. Updating the posts can take
+seconds (each one federates), and a save or revert from another tab can
+commit meanwhile: a "Gallery only" one supersedes this save's render precisely
+so that the posts just updated keep it. So `pruneSupersededMediaEditFiles`
+takes the version the write produced and, under the row lock, prunes nothing
+once the media has moved past it, and `refreshPostsForEditedMedia` stops (the
+rest go to `skipped`) as soon as the media's version moves, rather than
+pointing a post at a render the later write is free to prune. That check runs
+before each post's write, so a refresh can still write an older render into a
+post just after a later save committed; the prune therefore also keeps any
+superseded render an attachment of the photo still shows. For an edited
+photo, the file a post shows is never taken from the client as sent:
+`resolveOwnedAttachments` accepts the live file or, on an edit, the file that
+post already shows for the photo. Anything else (a stale composer, an outbox
+client, a refresh that lost a race with a later save) falls back to the file
+the post already shows for the photo, so a refresh racing a later "Gallery
+only" save or revert leaves the post as it was rather than writing that save's
+file into it. Only a photo new to the post (a new attachment, or a new post)
+takes the live file.
+
+A "Gallery only" post keeps the file it was published with, and later edits of
+that post keep it too: `withAttachmentMediaMetadata` re-reads the BlurHash,
+focal point and thumbnail from the media row only for an attachment showing the
+live file, and an attachment still on an earlier file of an edited photo keeps
+what its row recorded for that file (so an "Update posts" save of another photo
+in the post, or a text edit in the composer, does not federate the new
+render's placeholder and focal point with the old image). Every edit through
+`PUT /api/v1/statuses/:id` keeps each photo's file too: an alt-text or
+focal-point edit (`media_attributes`, from the composer, the Gallery's Edit
+details or a Mastodon client), a text edit from a Mastodon client (which
+resends `media_ids`), and the composer adding, removing or reordering photos
+(`media_ids`). The route rebuilds each photo the post already shows on the
+file its own row shows (`withStatusAttachmentFile`); only a photo new to the
+post takes the live file. A focal point set on a photo the post still shows on
+an earlier file was drawn on that file, so it is written to the post's
+attachment row and the media row (the render's) keeps its own. Only two
+things move such a post to the live file: an "Update posts" save of that
+photo, and a revert with "Update posts". A superseded
+render is pruned once no post shows it, but the post's edit history
+(`status_history`, `GET /api/v1/statuses/:id/history`) still names it, so an
+earlier revision's media then points at a missing file (it keeps its BlurHash,
+so clients that draw one show the placeholder); renders are not kept for the
+history. A thumbnail a client uploaded for a photo stands for the image as it
+was, so an edited photo has none (`getLiveThumbnail`): its `preview_url` and
+the attachment's thumbnail are the edited file, until a revert.
+
+Every kept file counts toward the account's storage usage. The editor reads the
+uploaded original through `GET /api/v1/media/:id/edit/source`, served from this
+origin with `Cache-Control: private` so the canvas is never tainted by a CDN or
+S3 origin. Deleting a media removes these rows and their files too. Deleting
+an account or an actor removes the rows and frees their bytes from the usage
+counter, and leaves the files to the storage cleanup script
+(`cleanupMediaStorage.ts`), as it does the media's own files. The storage
+cleanup and both archives treat the files as referenced.
+
 ## Database Schema (Simplified)
 
 ```
@@ -879,6 +957,15 @@ Rules:
 - **Auth pages.** The standalone pages under `app/(nosidebar)/` (`auth/signin|signup|forgot-password|reset-password|two-factor|select-actor|confirmation|error`, `authorize_interaction`, `oauth/authorize`) keep their deliberate centred single column (the layout caps it at 28rem) and are not the section chrome. Each page is an `AuthCard` (`app/(nosidebar)/AuthCard.tsx`): the kit `Frame` look (`rounded-lg border bg-background`, no shadow), the logo (`getAuthLogoSrc`, an absolute URL on the configured host), the page's one `text-xl` sentence-case h1, a muted description, and an optional footer of links under a top border. Fields are a `Frame divided` of `FormRow stacked` rows (label above control, since the two-column row has no room in 28rem), the submit button is full width and primary. A missing or invalid field is the inline field-error line under its input (see Failures and Forms), never the page-level `Alert`; every request failure or confirmation is an `Alert` (`error` for a failed sign-in, passkey or code, `success` for a sent reset link or a reset password, `info` for the "passkeys aren't available" notice), and the confirmation page's verified or invalid result is an `Alert` with `live={false}` because it is page content at load, not the result of an action. `auth/error` is the failure page itself and uses only the card's title and description. A two-factor method switch is a `SegmentedControl`. `ui/card.tsx` is gone: nothing uses a shadowed `Card` any more, so a new surface starts from `Frame`.
 - **Loading.** Skeleton bars in the final layout's shape under one polite `role="status"` with an `sr-only` label, never "Loading..." text. Every route that reads on the server has a `loading.tsx` (Settings, Account, Admin, Fitness, Gallery and Albums, Lists, Collections and every timeline route), drawn in the page's loaded geometry so nothing jumps at 390 or 1280px: a section page is `ScreenSkeleton` (or `SectionSkeleton` with the real section and row counts) under the layout's own header and dropdown, a feed is `PostFeedLoading` / `PostListSkeleton`, and a photo grid is `GalleryGridSkeleton` (`captions` where the loaded tile prints one). A page whose client view already has its own first-load skeleton (the gear lists, a gear's page, the Fitness overview) reuses that export, so the route's skeleton and the view's are the same shape. A screen announces its wait once: exactly one `role="status"`, never a second one from a nested skeleton. Pages that a signed-out visitor, a crawler or another server opens directly and that redirect or 404 (the auth pages, OAuth, the shared heatmap and its embed) have no `loading.tsx`, because a streamed loading boundary turns `redirect()` / `notFound()` into a 200; signed-in section pages accept that trade. A spinner (`Loader2`) is for inside a pending button only: a map that has not drawn yet is `MapLoadingOverlay` (`lib/components/map/`, a shimmer block over the map with one "Loading map" status), an attachment that is uploading gets a shimmer over its thumbnail, and a task that is queued or generating shows a static `Hourglass`. A pending button's label is a present participle and an ellipsis character (`Saving…`, `Posting…`, never three dots); the label may also say what it is doing (`Loading more…`).
 - **Guard.** `lib/components/surface/surfaceKitUsage.test.ts` counts `rounded-2xl` + `shadow-sm` panels, raw palette colour utilities (every Tailwind palette family with a shade, on any colour utility) and "Loading…" text in the `.tsx` and `.ts` files under `app/` and `lib/` (tests, `.d.ts` and the kit excluded) with comments stripped first, and **fails when any of the three is not zero**: the migration is finished, so a new copy is a regression, not something to baseline. It also counts an arbitrary hex (`bg-[#ff0000]`) and the palette variable (`text-(--color-red-500)`, `text-[var(--color-red-500)]`), and covers every family Tailwind ships, `mauve`, `olive`, `mist` and `taupe` included. The only skipped files are the fixed-colour files listed in that test, each by path with a one-line reason: `DATA_PALETTE_FILES` (today `lib/components/fitness/palette.ts`, the chart series colours) and `DESIGN_HEX_FILES` (the two badge files that carry the design's hex fills; only the arbitrary hex is skipped there, a palette utility in them still counts); the test also fails if a listed file is missing or no longer holds a raw colour (for the badge files, a hex), so the list cannot go stale. Do not add a file for a colour that means success, warning, info or an error: use `Alert`, `Badge` or the tokens. `surfaceChromeUsage.test.ts` separately guards the translucent chrome bars.
+
+### Photo Editor (Client)
+
+The editor is `lib/components/photo-editor/`, opened from `PhotoEditPreview` (the pill over the image in the media details dialog) as a full-screen dialog loaded with `next/dynamic`, so the engine ships only when someone edits. The server contract is wrapped by `lib/client/mediaEdit.ts` (`getMediaEdit`, `saveMediaEdit`, `revertMediaEdit`, typed `MediaEditError`).
+
+- **Engine** (`engine/`): geometry (crop, rotate, flip, straighten) is drawn with Canvas2D from `getGeometryTransform`; colour adjustments run in a WebGL2 shader that mirrors the CPU reference `applyAdjustments` (`adjustments.ts`, shared constants in `colour.ts`). Shadows, highlights, texture and clarity read low-resolution blurred copies of the image. Export renders in tiles with an 8 px halo (`tiles.ts`) and encodes JPEG at quality 0.95. WebGL is not available in jsdom, so tests cover the CPU reference and mock the GL layer; change the shader and the CPU reference together.
+- **Editing state** is a recipe (the server's `normalizeRecipe` shape) plus `useEditorHistory` (past/present/future, 100 entries, slider drags and 500 ms of keyboard nudges coalesce into one step).
+- **Saving** sends a fresh `save_id` per click and retries a network failure once with the same id; a 409 whose `edit.saveId` is ours counts as success. The "Update the post / Gallery only" choice appears when the photo is attached to statuses. A neutral recipe on an edited photo saves as a revert.
+- **Slider** (`lib/components/ui/slider.tsx`) wraps `@radix-ui/react-slider`; `bipolar` draws the fill from the centre, double-click or Delete resets. The stage colour is the `--photo-stage` token.
 
 <a id="agents-settings-forms-client-components"></a>
 

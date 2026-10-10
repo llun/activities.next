@@ -56,6 +56,38 @@ describe('getMediaAttachment', () => {
     })
   })
 
+  // A thumbnail a client uploaded shows the photo as it was before an edit.
+  it('previews an edited photo with the edited file, not its old thumbnail', () => {
+    const thumbnail = {
+      path: 'medias/2026-01-01/thumb.jpg',
+      bytes: 500,
+      mimeType: 'image/jpeg',
+      metaData: { width: 200, height: 150 }
+    }
+    const edited = getMediaAttachment(
+      {
+        ...baseMedia,
+        original: { ...baseMedia.original, path: 'medias/render.webp' },
+        thumbnail,
+        edit: { version: 1, editedAt: Date.now() }
+      },
+      'llun.test'
+    )
+    expect(edited.preview_url).toBe(
+      'https://llun.test/api/v1/files/medias/render.webp'
+    )
+    expect(edited.meta.small).toBeUndefined()
+
+    // Reverted: the thumbnail stands for the live file again.
+    const reverted = getMediaAttachment(
+      { ...baseMedia, thumbnail, edit: { version: 2, editedAt: null } },
+      'llun.test'
+    )
+    expect(reverted.preview_url).toBe(
+      'https://llun.test/api/v1/files/medias/2026-01-01/thumb.jpg'
+    )
+  })
+
   it('classifies video mime types and emits null preview_url without thumbnail', () => {
     const attachment = getMediaAttachment(
       {

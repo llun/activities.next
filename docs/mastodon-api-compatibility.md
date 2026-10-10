@@ -480,6 +480,21 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   limit; the counters are in process
   (`createWindowCounter`, `lib/services/gallery/lookups/rateLimit.ts`). See "Media Details, EXIF and Gallery Settings" in
   [maintenance.md](maintenance.md#media-details-exif-and-gallery-settings).
+- **Photo edits** — owner-only, non-Mastodon routes under
+  `/api/v1/media/:id/edit` (`write` or `write:media`, or the web session):
+  `GET` answers `{ media, edit, usage, capabilities }`, `GET …/edit/source`
+  streams the uploaded original from this origin, `POST` (multipart: `file`,
+  `recipe`, `base_version`, `save_id`, `apply_to_posts`, `focus`) stores the
+  browser's render as the live file, and `POST …/edit/revert` (JSON) restores
+  the original. Errors are `{ error }`; a stale `base_version` is
+  `409 { error: 'stale', edit: { version, saveId } }`. The owner's `details`
+  gains `edit: { version, editedAt }` and the public media details gain
+  `editedAt` (ISO 8601, null when unedited). The Mastodon `MediaAttachment`
+  is unchanged: its `url` and `meta` already describe the live file, so a
+  Mastodon client sees an edited photo as an ordinary one (`preview_url` is
+  the edited file too, even when a client had uploaded a thumbnail for it). See "Media Details,
+  EXIF and Gallery Settings" in
+  [maintenance.md](maintenance.md#media-details-exif-and-gallery-settings).
 - **Gallery albums** — owner-only, non-Mastodon routes (snake_case on the way
   in), taking `read` or `read:statuses` to read and `write` or `write:media` to
   write (or the web session). `GET /api/v1/gallery/albums` returns `albums`
@@ -1339,6 +1354,7 @@ When reviewing code that interfaces with Mastodon APIs, ActivityPub, or JSON-LD 
 - **FEP-044f Quote Terms Need Their Context:** a document emitting the quote aliases (`quote`/`quoteUrl`/`quoteUri`/`_misskey_quote`/`quoteAuthorization`) or `interactionPolicy` must declare `QUOTE_ACTIVITY_CONTEXT`, never the bare `ACTIVITY_STREAM_URL`. Both emitters (`getNoteFromStatus` for delivery, `toActivityPubObject` for fetch) build these fields via `lib/activities/quoteNoteFields.ts` and emit `interactionPolicy` unconditionally, so this binds every note-carrying surface — quote post or not. A receiver that compacts drops any term the document's own context never defined, so the note keeps its content and silently loses its quote: no error, no failing test, because nothing reads `interactionPolicy` inbound. Flag any new AP surface returning a note that does not carry a `@context` assertion pinning it. The legacy content fallback rides with the fields: both emitters prepend `<p class="quote-inline">RE: <a …></a></p>` via `addQuoteFallbackToContent` (same module, same live-edge gate) — flag a new note-emitting surface that builds `content` without it, and flag any change that adds the fallback on a rejected/revoked/deleted edge or stores it into `status.text`. See **ActivityPub & JSON-LD** in `AGENTS.md`.
 - **Internal API CORS:** Next.js API routes exclusively consumed by the internal web client (e.g., via `lib/client.ts`) do not require `OPTIONS` handlers or CORS preflight configurations, even if they use `apiResponse` with `allowedMethods`.
 - **Rotated Sender Keys:** a request whose signature fails against the stored remote key is retried once against a freshly fetched key, throttled per owner, and the new key is persisted only after the request verifies with it. See the `ActivityPub & JSON-LD` section.
+- **An inbound `Update(Note)` replaces a remote post's attachments.** `updateNoteJob` compares the Update's attachment URLs, in order, with the post's stored remote attachments and, when they differ, replaces them in one transaction (`buildRemoteAttachments` in `lib/jobs/noteAttachments.ts`, then `replaceRemoteAttachmentsForStatus`), as Mastodon does, so a failure leaves the old rows and no reader sees the post without its media. Each new row's `createdAt` is `published` plus its position in the note's full attachment list, the same rule the Create used, so the order holds against the fitness rows the Update keeps. That is how another activities.next server picks up a photo edited with "Update posts". Only rows the note brought (no `mediaId`, not a fitness file) are replaced, and a local status is never touched.
 - **Conditional Object Spreading:** Spreading `null` in object literals (e.g., `...(cond ? { ... } : null)`) is a deliberate, consistent no-op pattern used to cleanly omit keys and should not be flagged as confusing or replaced with `{}`.
 
 <a id="review-fetched-activitypub-document-ids"></a>

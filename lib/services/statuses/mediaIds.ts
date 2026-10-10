@@ -1,7 +1,7 @@
 import { getBaseURL } from '@/lib/config'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
-import { PostBoxAttachment } from '@/lib/types/domain/attachment'
+import { Attachment, PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
 
 const getMediaUrl = (path: string) => `${getBaseURL()}/api/v1/files/${path}`
@@ -87,4 +87,32 @@ export const resolveStatusAttachmentMediaIds = (
   )
   if (mediaIdByAttachmentId.size === 0) return ids
   return ids.map((id) => mediaIdByAttachmentId.get(id) ?? id)
+}
+
+/**
+ * A media the status already shows, rebuilt by `getAttachmentsFromMediaIds`
+ * from its media row, put back on the file the status shows for it: the
+ * media row's file is the live one, and a photo edited "Gallery only" keeps
+ * its earlier file in its posts until an "Update posts" save. An edit of the
+ * post (text, alt text, focal point, or adding, removing or reordering its
+ * photos) must not publish that edit, so only a media new to the post takes
+ * the live file. The BlurHash and focal point follow from the url
+ * (`withAttachmentMediaMetadata` keeps the snapshot of an earlier file).
+ */
+export const withStatusAttachmentFile = (
+  attachment: PostBoxAttachment,
+  existing: Pick<
+    Attachment,
+    'url' | 'mediaType' | 'width' | 'height' | 'thumbnailUrl'
+  >
+): PostBoxAttachment => {
+  const { posterUrl: _rowPosterUrl, ...rest } = attachment
+  return {
+    ...rest,
+    mediaType: existing.mediaType,
+    url: existing.url,
+    width: existing.width ?? rest.width,
+    height: existing.height ?? rest.height,
+    ...(existing.thumbnailUrl ? { posterUrl: existing.thumbnailUrl } : {})
+  }
 }

@@ -11,7 +11,7 @@ import { persistDetectedLanguage } from '@/lib/services/language-detection'
 import { syncStatusLinkPreview } from '@/lib/services/link-previews/syncStatusLinkPreview'
 import {
   EMPTY_ATTACHMENT_MEDIA_METADATA,
-  resolveAttachmentMediaMetadata
+  resolveOwnedAttachments
 } from '@/lib/services/medias/attachmentMediaMetadata'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { sendNotificationAlerts } from '@/lib/services/notifications/sendNotificationAlerts'
@@ -611,28 +611,25 @@ export const createNoteFromUserInput = async ({
       text: [text, summary ?? '', ...attachments.map((a) => a.name || '')]
     })
 
-    const mediaIds = attachments
-      .map((attachment) => attachment.id)
-      .filter((id): id is string => Boolean(id))
-
-    const mediaMetadataById = await resolveAttachmentMediaMetadata({
+    // The file, placeholder and focal point are read back from the owner's own
+    // media rows: a stale composer or an outbox client can send an earlier
+    // render of an edited photo, which a later save may prune.
+    const ownedAttachments = await resolveOwnedAttachments({
       database,
       currentActor,
-      mediaIds
+      attachments
     })
 
     const attachmentsCreatedAt = Date.now()
     await Promise.all([
       addStatusToTimelines(database, createdStatus),
-      ...attachments.map((attachment, index) => {
+      ...ownedAttachments.map(({ attachment, metadata }, index) => {
         // Link the attachment to a media row only when that row belongs to
         // the author's account. The outbox takes attachment ids from the
         // client, and `attachments.mediaId` is read as proof the media's owner
         // published it (the public details endpoint relies on it), so an id
         // that did not resolve to an owned row is written without a link.
-        const ownedMetadata = attachment.id
-          ? mediaMetadataById.get(String(attachment.id))
-          : undefined
+        const ownedMetadata = metadata ?? undefined
         return database.createAttachment({
           // The inserts run in parallel, so without a distinct, increasing
           // createdAt every attachment of the status would share one

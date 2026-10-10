@@ -713,7 +713,8 @@ describe('/api/v1/media/[id]', () => {
         exposure: null,
         place: null,
         inGallery: false,
-        subjectSuggestions: null
+        subjectSuggestions: null,
+        edit: { version: 0, editedAt: null }
       })
     })
 

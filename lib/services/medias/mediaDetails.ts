@@ -105,7 +105,15 @@ export const buildOwnerMediaDetails = async (
         }
       : null,
     subjectSuggestions: details.subjectSuggestions,
-    inGallery: details.inGallery
+    inGallery: details.inGallery,
+    ...(media.edit
+      ? {
+          edit: {
+            version: media.edit.version,
+            editedAt: toIsoTime(media.edit.editedAt)
+          }
+        }
+      : {})
   }
 }
 

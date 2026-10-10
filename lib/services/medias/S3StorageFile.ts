@@ -58,6 +58,7 @@ import { saveMediaFile } from '@/lib/services/medias/saveMediaFile'
 import { createStoredImagePipeline } from '@/lib/services/medias/storedImagePipeline'
 import { readValidThumbnail } from '@/lib/services/medias/thumbnailInput'
 import {
+  EditedImageStorageOutput,
   ImageRenditionOutput,
   MediaSchema,
   MediaStorage,
@@ -67,6 +68,7 @@ import {
   MediaType,
   PresigedMediaInput,
   PresignedUrlOutput,
+  SaveEditedImageParams,
   SaveFileOptions,
   ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
@@ -978,6 +980,26 @@ export class S3FileStorage implements MediaStorage {
         width: outputInfo.width,
         height: outputInfo.height
       }
+    }
+  }
+
+  async saveEditedImage({
+    buffer,
+    manualFocus
+  }: SaveEditedImageParams): Promise<EditedImageStorageOutput> {
+    // The same pipeline and encoder as every stored image: orientation
+    // applied, fitted inside the stored-image box, WebP with no EXIF, at
+    // `medias/<yyyy-MM-dd>/<hex>.webp`.
+    const { outputInfo, path, contentType, blurhash, focus } =
+      await this._uploadImageBufferToS3(Date.now(), buffer, { manualFocus })
+    return {
+      path,
+      bytes: outputInfo.size,
+      mimeType: contentType,
+      width: outputInfo.width,
+      height: outputInfo.height,
+      blurhash,
+      focus
     }
   }
 
