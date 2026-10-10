@@ -1,5 +1,6 @@
 import type { Db } from '@/lib/database/kysely'
 import { increaseCounterValue } from '@/lib/database/kysely/counter'
+import { timestampValue } from '@/lib/database/kysely/dialect'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
 import {
   formatBucketHour,
@@ -9,7 +10,7 @@ import {
 // Kysely counterpart of incrementBucket in
 // lib/database/sql/utils/counterBucket.ts, for domains that have moved to
 // Kysely; the Knex helper stays for the ones that have not. Both write the same
-// `counters` rows.
+// `counters` rows. getBucketStats reads them back for the admin dashboard.
 
 /**
  * Increment the bucket counter for the hour containing `currentTime`. Buckets
@@ -38,3 +39,29 @@ export const incrementBucket = async (
     .where('bucketHour', 'is', null)
     .execute()
 }
+
+export type BucketStat = {
+  /** Start of the hour, as epoch milliseconds. */
+  bucketHour: number
+  value: number
+}
+
+/**
+ * The `counterType` buckets whose hour lies within `[startTime, endTime]`
+ * (both ends included), oldest hour first.
+ */
+export const getBucketStats = (
+  db: Db,
+  counterType: string,
+  startTime: Date,
+  endTime: Date
+): Promise<BucketStat[]> =>
+  db
+    .selectFrom('counters')
+    // Only a bucket row has a bucketHour; a NULL one fails both comparisons.
+    .select((eb) => [eb.ref('bucketHour').$notNull().as('bucketHour'), 'value'])
+    .where('id', 'like', `${CounterKey.bucketKey(counterType, '')}%`)
+    .where('bucketHour', '>=', timestampValue(startTime))
+    .where('bucketHour', '<=', timestampValue(endTime))
+    .orderBy('bucketHour', 'asc')
+    .execute()

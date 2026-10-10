@@ -34,6 +34,26 @@ export const getCounterValue = async (db: Db, id: string): Promise<number> => {
   return parseCounterValue(row?.value)
 }
 
+/**
+ * The values of the counters among `ids`, keyed by id. A missing counter has
+ * no entry. Runs one statement, so a caller with a long list splits it first.
+ */
+export const getCounterValues = async (
+  db: Db,
+  ids: string[]
+): Promise<Record<string, number>> => {
+  if (ids.length === 0) return {}
+
+  const rows = await db
+    .selectFrom('counters')
+    .select(['id', 'value'])
+    .where('id', 'in', ids)
+    .execute()
+  return Object.fromEntries(
+    rows.map((row) => [row.id, parseCounterValue(row.value)])
+  )
+}
+
 export const adjustCounterValue = async (
   db: Db,
   id: string,

@@ -51,38 +51,3 @@ export const incrementBucket = async (
     .whereNull('bucketHour')
     .update({ bucketHour, updatedAt: currentTime })
 }
-
-export interface BucketStatRow {
-  bucketHour: Date
-  value: number
-}
-
-/**
- * Fetch all bucket rows for a counter type within [startTime, endTime].
- * Results are sorted by bucketHour ascending.
- */
-export const getBucketStats = async (
-  database: Knex,
-  counterType: string,
-  startTime: Date,
-  endTime: Date
-): Promise<BucketStatRow[]> => {
-  const rows = await database('counters')
-    .where('id', 'like', `bucket:${counterType}:%`)
-    .whereNotNull('bucketHour')
-    .andWhere('bucketHour', '>=', startTime)
-    .andWhere('bucketHour', '<=', endTime)
-    .orderBy('bucketHour', 'asc')
-    .select('bucketHour', 'value')
-
-  return rows.map((row) => ({
-    bucketHour:
-      row.bucketHour instanceof Date
-        ? row.bucketHour
-        : new Date(row.bucketHour),
-    value:
-      typeof row.value === 'number'
-        ? row.value
-        : parseInt(String(row.value ?? '0'), 10)
-  }))
-}
