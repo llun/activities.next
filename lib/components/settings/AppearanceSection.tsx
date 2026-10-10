@@ -44,7 +44,7 @@ export const AppearanceSection: FC<Props> = ({ children }) => {
       description="Theme for this device, and how posts appear on your timeline."
       actions={<SavedIndicator saved={saved} />}
     >
-      <Frame divided>
+      <Frame form>
         <FormRow
           label="Theme"
           hint="System follows this device’s setting. Saved instantly on this device."

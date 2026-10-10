@@ -49,6 +49,7 @@ export const ChangeNameForm: FC<Props> = ({ currentName }) => {
     // would serialize the name into the URL. POST keeps it in the request body.
     <form onSubmit={handleSubmit} method="post">
       <Frame
+        form
         footer={
           <SaveBar
             submit

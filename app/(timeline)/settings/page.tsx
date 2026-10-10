@@ -6,6 +6,7 @@ import { AppearanceSection } from '@/lib/components/settings/AppearanceSection'
 import { DeleteActorSection } from '@/lib/components/settings/DeleteActorSection'
 import { ImageUploadField } from '@/lib/components/settings/ImageUploadField'
 import { NativeFormSaveBar } from '@/lib/components/settings/NativeFormSaveBar'
+import { FormGroup } from '@/lib/components/surface/FormGroup'
 import { FormRow } from '@/lib/components/surface/FormRow'
 import { Frame } from '@/lib/components/surface/Frame'
 import { Section } from '@/lib/components/surface/Section'
@@ -74,11 +75,11 @@ const Page = async () => {
           </FormRow>
         </AppearanceSection>
 
-        <Section
-          title="Profile"
-          description="Public information visible on your profile."
-        >
-          <Frame divided>
+        <Frame form stickyFooter footer={<NativeFormSaveBar />}>
+          <FormGroup
+            title="Profile"
+            description="Public information visible on your profile."
+          >
             <FormRow
               label="Handle"
               htmlFor="handleInput"
@@ -130,11 +131,9 @@ const Page = async () => {
               label="Header image"
               previewType="landscape"
             />
-          </Frame>
-        </Section>
+          </FormGroup>
 
-        <Section title="Privacy" description="Control who can follow you.">
-          <Frame divided>
+          <FormGroup title="Privacy" description="Control who can follow you.">
             <FormRow
               label="Manually approve followers"
               htmlFor="manuallyApprovesFollowersInput"
@@ -157,15 +156,8 @@ const Page = async () => {
                 </>
               )}
             </FormRow>
-          </Frame>
-        </Section>
-
-        {/* One form spans several Sections, so the bar stays in reach. */}
-        <div className="sticky bottom-0 z-10 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          <Frame className="px-4 py-3">
-            <NativeFormSaveBar />
-          </Frame>
-        </div>
+          </FormGroup>
+        </Frame>
       </form>
 
       <Section

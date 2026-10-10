@@ -325,9 +325,16 @@ export const GearFormDialog: FC<Props> = ({
           )}
 
           {kind === 'shoes' && (
-            <div className="space-y-3 rounded-md border p-3">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="gear-alert-enabled">Distance alert</Label>
+            <>
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="gear-alert-enabled">Distance alert</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Most running shoes wear out between 500 and 800 km.
+                    You&apos;ll get a notification and an email when the pair
+                    passes the mark.
+                  </p>
+                </div>
                 <Switch
                   id="gear-alert-enabled"
                   checked={isAlertEnabled}
@@ -354,11 +361,7 @@ export const GearFormDialog: FC<Props> = ({
                   </Select>
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">
-                Most running shoes wear out between 500 and 800 km. You&apos;ll
-                get a notification and an email when the pair passes the mark.
-              </p>
-            </div>
+            </>
           )}
 
           {!isDevice && (
@@ -375,7 +378,7 @@ export const GearFormDialog: FC<Props> = ({
 
           {error && <Alert title={error} />}
 
-          <DialogFooter>
+          <DialogFooter separated>
             <Button
               type="button"
               variant="outline"

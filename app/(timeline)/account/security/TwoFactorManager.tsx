@@ -264,245 +264,249 @@ export const TwoFactorManager: FC<Props> = ({
       {error && <Alert title={error} />}
       {success && <Alert tone="success" title={success} />}
 
-      <Frame divided className="overflow-hidden">
-        {enabled ? (
-          <Alert
-            tone="success"
-            flush
-            live={false}
-            title="Two-factor authentication is on"
-          >
-            A verification code is required after password sign-in.
-          </Alert>
-        ) : (
-          <Alert
-            tone="warning"
-            flush
-            live={false}
-            title="Two-factor authentication is off"
-            action={
-              !setup ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleStartSetup}
-                  disabled={loadingAction === 'setup'}
-                >
-                  <ShieldCheck />
-                  {loadingAction === 'setup' ? 'Starting…' : 'Set up'}
-                </Button>
-              ) : undefined
-            }
-          >
-            Add an authenticator app to protect password sign-ins.
-            {/* The password sits inside the alert, ahead of its Set up button,
+      {enabled ? (
+        <Alert
+          tone="success"
+          live={false}
+          title="Two-factor authentication is on"
+        >
+          A verification code is required after password sign-in.
+        </Alert>
+      ) : (
+        <Alert
+          tone="warning"
+          live={false}
+          title="Two-factor authentication is off"
+          action={
+            !setup ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleStartSetup}
+                disabled={loadingAction === 'setup'}
+              >
+                <ShieldCheck />
+                {loadingAction === 'setup' ? 'Starting…' : 'Set up'}
+              </Button>
+            ) : undefined
+          }
+        >
+          Add an authenticator app to protect password sign-ins.
+          {/* The password sits inside the alert, ahead of its Set up button,
                 so keyboard focus meets the field the hint says to fill first. */}
-            {!setup && (
-              <div className="mt-3 max-w-xs space-y-1.5">
-                <Label htmlFor="twoFactorPassword" className="text-foreground">
-                  Current password
-                </Label>
-                <Input
-                  id="twoFactorPassword"
-                  type="password"
-                  autoComplete="current-password"
-                  aria-describedby="twoFactorPassword-hint"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <p id="twoFactorPassword-hint" className="text-xs">
-                  Enter your password, then choose Set up.
-                </p>
-              </div>
-            )}
-          </Alert>
-        )}
+          {!setup && (
+            <div className="mt-3 max-w-xs space-y-1.5">
+              <Label htmlFor="twoFactorPassword" className="text-foreground">
+                Current password
+              </Label>
+              <Input
+                id="twoFactorPassword"
+                type="password"
+                autoComplete="current-password"
+                aria-describedby="twoFactorPassword-hint"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <p id="twoFactorPassword-hint" className="text-xs">
+                Enter your password, then choose Set up.
+              </p>
+            </div>
+          )}
+        </Alert>
+      )}
 
-        {setup && (
-          <>
-            <FormRow
-              label="Authenticator app"
-              hint="Scan this code with your authenticator app."
-            >
-              {({ describedBy }) => (
-                <div
-                  role="group"
-                  aria-label="Authenticator app"
-                  aria-describedby={describedBy}
-                  className="flex size-52 items-center justify-center rounded-md border bg-white p-3"
-                >
-                  {qrCodeUrl ? (
-                    <img
-                      src={qrCodeUrl}
-                      alt="Authenticator app QR code"
-                      className="size-48"
+      {(setup || enabled) && (
+        <Frame form className="overflow-hidden">
+          {setup && (
+            <>
+              <FormRow
+                label="Authenticator app"
+                hint="Scan this code with your authenticator app."
+              >
+                {({ describedBy }) => (
+                  <div
+                    role="group"
+                    aria-label="Authenticator app"
+                    aria-describedby={describedBy}
+                    className="flex size-52 items-center justify-center rounded-md border bg-white p-3"
+                  >
+                    {qrCodeUrl ? (
+                      <img
+                        src={qrCodeUrl}
+                        alt="Authenticator app QR code"
+                        className="size-48"
+                      />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        QR unavailable
+                      </span>
+                    )}
+                  </div>
+                )}
+              </FormRow>
+              <FormRow
+                label="Manual setup key"
+                htmlFor="twoFactorSetupKey"
+                hint="Enter this key instead if you cannot scan the code."
+              >
+                {({ describedBy }) => (
+                  <div className="flex gap-2">
+                    <Input
+                      id="twoFactorSetupKey"
+                      readOnly
+                      aria-describedby={describedBy}
+                      value={setup.secret || setup.totpURI}
+                      className="font-mono text-xs"
                     />
-                  ) : (
-                    <span className="text-sm text-muted-foreground">
-                      QR unavailable
-                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Copy setup key"
+                      onClick={() =>
+                        copyText(setup.secret || setup.totpURI, 'Setup key')
+                      }
+                    >
+                      <Copy />
+                    </Button>
+                  </div>
+                )}
+              </FormRow>
+              <FormRow
+                label="Verification code"
+                htmlFor="twoFactorCode"
+                hint="Enter the code your app shows to finish setup."
+              >
+                {({ describedBy }) => (
+                  <div className="space-y-2">
+                    <Input
+                      id="twoFactorCode"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      aria-describedby={describedBy}
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleVerify}
+                      disabled={loadingAction === 'verify'}
+                    >
+                      <Check />
+                      {loadingAction === 'verify'
+                        ? 'Verifying…'
+                        : 'Verify code'}
+                    </Button>
+                  </div>
+                )}
+              </FormRow>
+              {backupCodes.length > 0 && (
+                <FormRow
+                  label="Backup codes"
+                  hint="Save these codes before leaving this page."
+                >
+                  {({ describedBy, labelledBy }) => (
+                    <div
+                      role="group"
+                      aria-labelledby={labelledBy}
+                      aria-describedby={describedBy}
+                      className="space-y-2"
+                    >
+                      {codeGrid}
+                      {copyCodesButton}
+                    </div>
                   )}
-                </div>
+                </FormRow>
               )}
-            </FormRow>
-            <FormRow
-              label="Manual setup key"
-              htmlFor="twoFactorSetupKey"
-              hint="Enter this key instead if you cannot scan the code."
-            >
-              {({ describedBy }) => (
-                <div className="flex gap-2">
-                  <Input
-                    id="twoFactorSetupKey"
-                    readOnly
-                    aria-describedby={describedBy}
-                    value={setup.secret || setup.totpURI}
-                    className="font-mono text-xs"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Copy setup key"
-                    onClick={() =>
-                      copyText(setup.secret || setup.totpURI, 'Setup key')
-                    }
-                  >
-                    <Copy />
-                  </Button>
-                </div>
-              )}
-            </FormRow>
-            <FormRow
-              label="Verification code"
-              htmlFor="twoFactorCode"
-              hint="Enter the code your app shows to finish setup."
-            >
-              {({ describedBy }) => (
-                <div className="space-y-2">
-                  <Input
-                    id="twoFactorCode"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    aria-describedby={describedBy}
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    onClick={handleVerify}
-                    disabled={loadingAction === 'verify'}
-                  >
-                    <Check />
-                    {loadingAction === 'verify' ? 'Verifying…' : 'Verify code'}
-                  </Button>
-                </div>
-              )}
-            </FormRow>
-            {backupCodes.length > 0 && (
+            </>
+          )}
+
+          {enabled && (
+            <>
               <FormRow
-                label="Backup codes"
-                hint="Save these codes before leaving this page."
+                label="Generate backup codes"
+                htmlFor="twoFactorBackupPassword"
+                hint="Creating new backup codes invalidates the previous set."
               >
-                {({ describedBy, labelledBy }) => (
-                  <div
-                    role="group"
-                    aria-labelledby={labelledBy}
-                    aria-describedby={describedBy}
-                    className="space-y-2"
-                  >
-                    {codeGrid}
-                    {copyCodesButton}
+                {({ describedBy }) => (
+                  <div className="space-y-2">
+                    <Input
+                      id="twoFactorBackupPassword"
+                      type="password"
+                      autoComplete="current-password"
+                      aria-describedby={describedBy}
+                      placeholder="Current password"
+                      value={backupPassword}
+                      onChange={(e) => setBackupPassword(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleGenerateBackupCodes}
+                      disabled={loadingAction === 'backup'}
+                    >
+                      <RefreshCw />
+                      {loadingAction === 'backup'
+                        ? 'Generating…'
+                        : 'Generate codes'}
+                    </Button>
                   </div>
                 )}
               </FormRow>
-            )}
-          </>
-        )}
 
-        {enabled && (
-          <>
-            <FormRow
-              label="Generate backup codes"
-              htmlFor="twoFactorBackupPassword"
-              hint="Creating new backup codes invalidates the previous set."
-            >
-              {({ describedBy }) => (
-                <div className="space-y-2">
-                  <Input
-                    id="twoFactorBackupPassword"
-                    type="password"
-                    autoComplete="current-password"
-                    aria-describedby={describedBy}
-                    placeholder="Current password"
-                    value={backupPassword}
-                    onChange={(e) => setBackupPassword(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleGenerateBackupCodes}
-                    disabled={loadingAction === 'backup'}
-                  >
-                    <RefreshCw />
-                    {loadingAction === 'backup'
-                      ? 'Generating…'
-                      : 'Generate codes'}
-                  </Button>
-                </div>
+              {backupCodes.length > 0 && (
+                <FormRow
+                  label="Save your backup codes"
+                  hint="They are shown once. Store them somewhere safe."
+                >
+                  {({ describedBy, labelledBy }) => (
+                    <div
+                      role="group"
+                      aria-labelledby={labelledBy}
+                      aria-describedby={describedBy}
+                      className="space-y-2"
+                    >
+                      {codeGrid}
+                      {copyCodesButton}
+                    </div>
+                  )}
+                </FormRow>
               )}
-            </FormRow>
 
-            {backupCodes.length > 0 && (
               <FormRow
-                label="Save your backup codes"
-                hint="They are shown once. Store them somewhere safe."
+                label="Disable 2FA"
+                htmlFor="twoFactorDisablePassword"
+                hint="Password sign-ins will no longer ask for a verification code."
               >
-                {({ describedBy, labelledBy }) => (
-                  <div
-                    role="group"
-                    aria-labelledby={labelledBy}
-                    aria-describedby={describedBy}
-                    className="space-y-2"
-                  >
-                    {codeGrid}
-                    {copyCodesButton}
+                {({ describedBy }) => (
+                  <div className="space-y-2">
+                    <Input
+                      id="twoFactorDisablePassword"
+                      type="password"
+                      autoComplete="current-password"
+                      aria-describedby={describedBy}
+                      placeholder="Current password"
+                      value={disablePassword}
+                      onChange={(e) => setDisablePassword(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={handleDisable}
+                      disabled={loadingAction === 'disable'}
+                    >
+                      <ShieldOff />
+                      {loadingAction === 'disable'
+                        ? 'Disabling…'
+                        : 'Disable 2FA'}
+                    </Button>
                   </div>
                 )}
               </FormRow>
-            )}
-
-            <FormRow
-              label="Disable 2FA"
-              htmlFor="twoFactorDisablePassword"
-              hint="Password sign-ins will no longer ask for a verification code."
-            >
-              {({ describedBy }) => (
-                <div className="space-y-2">
-                  <Input
-                    id="twoFactorDisablePassword"
-                    type="password"
-                    autoComplete="current-password"
-                    aria-describedby={describedBy}
-                    placeholder="Current password"
-                    value={disablePassword}
-                    onChange={(e) => setDisablePassword(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={handleDisable}
-                    disabled={loadingAction === 'disable'}
-                  >
-                    <ShieldOff />
-                    {loadingAction === 'disable' ? 'Disabling…' : 'Disable 2FA'}
-                  </Button>
-                </div>
-              )}
-            </FormRow>
-          </>
-        )}
-      </Frame>
+            </>
+          )}
+        </Frame>
+      )}
     </>
   )
 }

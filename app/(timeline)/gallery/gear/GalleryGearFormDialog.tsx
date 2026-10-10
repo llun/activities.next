@@ -188,7 +188,7 @@ export const GalleryGearFormDialog: FC<Props> = ({
 
           {error && <Alert title={error} />}
 
-          <DialogFooter>
+          <DialogFooter separated>
             <Button
               type="button"
               variant="outline"

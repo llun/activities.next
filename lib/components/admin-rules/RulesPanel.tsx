@@ -458,6 +458,7 @@ export const RulesPanel: FC = () => {
       <Section title="Add a rule">
         <form onSubmit={handleCreate} className="space-y-3">
           <Frame
+            form
             footer={
               <div className="flex justify-end">
                 <Button

@@ -65,7 +65,7 @@ export const ChangePasswordForm: FC = () => {
     // of the URL if a `name` attribute is added later.
     <form onSubmit={handleSubmit} method="post">
       <Frame
-        divided
+        form
         footer={
           <SaveBar
             submit

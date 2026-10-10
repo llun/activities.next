@@ -110,7 +110,7 @@ export function DeleteActorDialog({
               }
               className="space-y-2"
             >
-              <div className="flex items-start space-x-3 rounded-lg border p-3">
+              <div className="flex items-start space-x-3 py-1">
                 <RadioGroupItem value="delayed" id="delayed" className="mt-1" />
                 <div className="space-y-1">
                   <Label htmlFor="delayed" className="font-medium">
@@ -122,7 +122,7 @@ export function DeleteActorDialog({
                   </p>
                 </div>
               </div>
-              <div className="flex items-start space-x-3 rounded-lg border p-3">
+              <div className="flex items-start space-x-3 py-1">
                 <RadioGroupItem
                   value="immediate"
                   id="immediate"
@@ -144,7 +144,7 @@ export function DeleteActorDialog({
           {error && <Alert title={error} />}
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter separated className="gap-2">
           <Button
             type="button"
             variant="outline"

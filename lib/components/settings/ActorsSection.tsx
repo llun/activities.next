@@ -149,7 +149,7 @@ export function ActorsSection({
       )}
 
       <Frame
-        divided
+        form
         footer={
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button

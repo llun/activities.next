@@ -579,7 +579,12 @@ export const GalleryAlbumFormDialog: FC<Props> = ({
           ) : null}
           {error ? <Alert title={error} /> : null}
 
-          <DialogFooter className="flex-col sm:flex-row sm:items-center sm:justify-between">
+          {/* This content is `p-4` on phones (`sm:p-6` above), so the separated
+              footer's bleed matches each. */}
+          <DialogFooter
+            separated
+            className="-mx-4 -mb-4 flex-col px-4 sm:-mx-6 sm:-mb-6 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+          >
             {showPicker ? (
               <p
                 className="text-muted-foreground text-sm"

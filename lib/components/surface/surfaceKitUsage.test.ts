@@ -141,6 +141,52 @@ const measure = () => {
   return found
 }
 
+// The rows of a form (`FormRow`, `SettingsField`) belong in `Frame form`, which
+// spaces them instead of ruling them. `Frame divided` is for lists. This reads
+// each `<Frame ...>` opening tag (balancing `{}` so a `footer={...}` with `>`
+// inside does not end it), finds its matching `</Frame>` and reports a divided
+// frame whose body holds a form row. Nested frames are counted by depth.
+const FORM_ROW_TAG = /<(?:FormRow|SettingsField)\b/
+const frameOpenings = (source: string) => {
+  const found: { divided: boolean; selfClosing: boolean; end: number }[] = []
+  for (const match of source.matchAll(/<Frame(?=[\s>/])/g)) {
+    let depth = 0
+    let i = match.index + match[0].length
+    for (; i < source.length; i++) {
+      const char = source[i]
+      if (char === '{') depth++
+      else if (char === '}') depth--
+      else if (char === '>' && depth === 0) break
+    }
+    const tag = source.slice(match.index, i)
+    found.push({
+      divided: /\sdivided\b/.test(tag.replace(/\{[\s\S]*?\}/g, '')),
+      selfClosing: source[i - 1] === '/',
+      end: i + 1
+    })
+  }
+  return found
+}
+const formRowsInDividedFrames = (source: string) => {
+  let hits = 0
+  const openings = frameOpenings(source)
+  const tokens = [...source.matchAll(/<Frame(?=[\s>/])|<\/Frame>/g)]
+  for (const opening of openings) {
+    if (!opening.divided || opening.selfClosing) continue
+    let depth = 1
+    for (const token of tokens) {
+      if (token.index < opening.end) continue
+      depth += token[0] === '</Frame>' ? -1 : 1
+      if (depth === 0) {
+        const body = source.slice(opening.end, token.index)
+        if (FORM_ROW_TAG.test(body)) hits += 1
+        break
+      }
+    }
+  }
+  return hits
+}
+
 const found = measure()
 
 describe('surface kit usage', () => {
@@ -163,6 +209,31 @@ describe('surface kit usage', () => {
       found.loadingText,
       'Do not write "Loading…" on screen. Draw the final layout with `SkeletonBar` / `SkeletonRows` from `@/lib/components/surface` (a `loading.tsx` for a route), and keep a spinner for inside a button only. Screen readers still get an `sr-only` "Loading".'
     ).toBe(0)
+  })
+
+  it('has no FormRow or SettingsField inside a Frame divided', () => {
+    const offenders = [...SCANNED_DIRS.flatMap(collectSources)].filter(
+      (file) => formRowsInDividedFrames(read(file)) > 0
+    )
+    expect(
+      offenders,
+      'Form rows in a `Frame divided` get a hairline between every field. A form is one box without rules: use `<Frame form>` (with `FormGroup`s for several groups) and keep `divided` for lists. See "Forms." in docs/architecture.md.'
+    ).toEqual([])
+  })
+
+  it('recognises a form row inside a divided frame', () => {
+    const bad =
+      '<Frame divided footer={<SaveBar a={() => 1} />}><FormRow label="a" /></Frame>'
+    const list =
+      '<Frame divided><Row /></Frame><Frame form><FormRow label="a" /></Frame>'
+    const nested = '<Frame divided><Frame form><FormRow /></Frame></Frame>'
+    expect(formRowsInDividedFrames(bad)).toBe(1)
+    expect(formRowsInDividedFrames(list)).toBe(0)
+    expect(
+      formRowsInDividedFrames('<Frame divided><SettingsField /></Frame>')
+    ).toBe(1)
+    // A nested form frame inside a list frame still sits in the list's body.
+    expect(formRowsInDividedFrames(nested)).toBe(1)
   })
 
   it('lists only existing fixed-colour files that still hold a raw colour', () => {
