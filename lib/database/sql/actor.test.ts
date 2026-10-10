@@ -127,7 +127,14 @@ describe('ActorDatabase', () => {
           publicKey: 'publicKey',
           createdAt: Date.now()
         })
-        await database.increaseActorStatusCount(actorId, 3)
+        await database.createNote({
+          id: `${actorId}/statuses/counted`,
+          url: `${actorId}/statuses/counted`,
+          actorId,
+          text: 'counted',
+          to: [],
+          cc: []
+        })
 
         await database.setActorCounters({
           actorId,
@@ -142,7 +149,7 @@ describe('ActorDatabase', () => {
         ).resolves.toMatchObject({
           followers_count: 12,
           following_count: 0,
-          statuses_count: 3
+          statuses_count: 1
         })
       })
     })
@@ -199,10 +206,7 @@ describe('ActorDatabase', () => {
           publicKey: 'publicKey'
         })
 
-        const actor = await database.getMastodonActorFromUsername({
-          username,
-          domain: TEST_DOMAIN
-        })
+        const actor = await database.getMastodonActorFromId({ id: actorId })
 
         expect(actor).toMatchObject({
           id: await getActorPublicId(actorId),
@@ -271,10 +275,7 @@ describe('ActorDatabase', () => {
           headerDescription: 'Mountains at dawn'
         })
 
-        const actor = await database.getMastodonActorFromUsername({
-          username,
-          domain: TEST_DOMAIN
-        })
+        const actor = await database.getMastodonActorFromId({ id: actorId })
 
         // Both are required members of the Account entity as of Mastodon 4.6.
         expect(actor).toMatchObject({
@@ -286,12 +287,10 @@ describe('ActorDatabase', () => {
       it('defaults the 4.6 description fields to empty strings when unset', async () => {
         const suffix = crypto.randomUUID().slice(0, 8)
         const username = `no-alt-${suffix}`
+        const actorId = `https://${TEST_DOMAIN}/users/${username}`
         await createSigningAccount(database, username)
 
-        const actor = await database.getMastodonActorFromUsername({
-          username,
-          domain: TEST_DOMAIN
-        })
+        const actor = await database.getMastodonActorFromId({ id: actorId })
 
         expect(actor).toMatchObject({
           avatar_description: '',
@@ -358,9 +357,8 @@ describe('ActorDatabase', () => {
         const actor = await database.getActorFromId({ id: actorId })
         expect(actor?.type).toBe('Service')
 
-        const mastodonActor = await database.getMastodonActorFromUsername({
-          username,
-          domain
+        const mastodonActor = await database.getMastodonActorFromId({
+          id: actorId
         })
         expect(mastodonActor?.bot).toBeTrue()
       })

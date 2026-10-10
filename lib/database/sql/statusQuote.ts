@@ -7,7 +7,6 @@ import {
   GetStatusQuoteByAuthorizationUriParams,
   GetStatusQuoteByQuoteRequestIdParams,
   GetStatusQuoteParams,
-  MarkQuotesDeletedByQuotedStatusIdParams,
   StatusQuoteDatabase,
   StatusQuoteRecord,
   UpdateStatusQuoteStateParams
@@ -134,18 +133,6 @@ export const StatusQuoteSQLDatabaseMixin = (
         .orderBy('statusId')
         .first(...STATUS_QUOTE_CURSOR_COLUMNS)
       return row ? fixStatusQuoteRow(row) : null
-    },
-
-    async markQuotesDeletedByQuotedStatusId({
-      quotedStatusId
-    }: MarkQuotesDeletedByQuotedStatusIdParams): Promise<number> {
-      // Only edges that could still render the quoted status (pending/accepted)
-      // move to `deleted`; already-terminal edges (rejected/revoked/deleted)
-      // stay put, matching the one-way state machine.
-      return database('status_quotes')
-        .where('quotedStatusId', quotedStatusId)
-        .whereIn('state', ['pending', 'accepted'])
-        .update({ state: 'deleted', updatedAt: new Date() })
     },
 
     async updateStatusQuoteState({

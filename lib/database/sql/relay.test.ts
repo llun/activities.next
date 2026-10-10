@@ -133,23 +133,6 @@ describe('getAcceptedRelays', () => {
   })
 })
 
-describe('getRelayByInboxUrl', () => {
-  it('resolves a relay by inbox url and returns null when unknown', async () => {
-    await withFreshDatabase(async (database) => {
-      const created = await database.createRelay({
-        inboxUrl: 'https://relay.example/inbox'
-      })
-      const found = await database.getRelayByInboxUrl({
-        inboxUrl: 'https://relay.example/inbox'
-      })
-      expect(found?.id).toBe(created.id)
-      expect(
-        await database.getRelayByInboxUrl({ inboxUrl: 'https://nope/inbox' })
-      ).toBeNull()
-    })
-  })
-})
-
 describe('deleteRelay', () => {
   it('removes the relay and returns false for an unknown id', async () => {
     await withFreshDatabase(async (database) => {

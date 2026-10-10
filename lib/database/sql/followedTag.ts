@@ -8,7 +8,6 @@ import {
   FollowTagParams,
   FollowedTag,
   FollowedTagDatabase,
-  GetFollowedTagParams,
   GetFollowedTagsParams,
   IsFollowingTagParams,
   UnfollowTagParams
@@ -74,14 +73,6 @@ export const FollowedTagSQLDatabaseMixin = (
 
     await database('followed_tags').where('id', existing.id).delete()
     return fixFollowedTag(existing)
-  },
-
-  async getFollowedTag({ actorId, name }: GetFollowedTagParams) {
-    const nameNormalized = normalizeTagName(name)
-    const row = await database<SQLFollowedTag>('followed_tags')
-      .where({ actorId, nameNormalized })
-      .first()
-    return row ? fixFollowedTag(row) : null
   },
 
   async getFollowedTags({

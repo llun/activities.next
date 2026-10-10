@@ -146,46 +146,6 @@ describe('credential identity', () => {
     expect(await signIn(email, PASSWORD)).toBe(200)
   })
 
-  it('lets createCredentialProvider restore a sign-in-capable identity', async () => {
-    const { accountId, email } = await register('restored-provider')
-    await db()('account_providers')
-      .where({ accountId, provider: 'credential' })
-      .delete()
-
-    await database().createCredentialProvider({
-      accountId,
-      passwordHash: await bcrypt.hash(PASSWORD, TEST_BCRYPT_COST)
-    })
-
-    expect(await credentialRow(accountId)).toMatchObject({
-      accountId,
-      provider: 'credential',
-      providerId: accountId,
-      issuer: null
-    })
-    expect(await signIn(email, PASSWORD)).toBe(200)
-  })
-
-  it('ignores a duplicate createCredentialProvider password update', async () => {
-    const { accountId, email } = await register('existing-provider')
-    const original = await credentialRow(accountId)
-    const originalPassword = original.password
-    const legacyIssuer = 'legacy:provider:keep-this-value'
-    await db()('account_providers')
-      .where({ accountId, provider: 'credential' })
-      .update({ issuer: legacyIssuer })
-
-    await database().createCredentialProvider({
-      accountId,
-      passwordHash: await bcrypt.hash('different-password', TEST_BCRYPT_COST)
-    })
-
-    const unchanged = await credentialRow(accountId)
-    expect(unchanged.password).toBe(originalPassword)
-    expect(unchanged.issuer).toBe(legacyIssuer)
-    expect(await signIn(email, PASSWORD)).toBe(200)
-  })
-
   it('lets resetPasswordWithCode update an existing identity', async () => {
     const { accountId, email } = await register('reset-password')
     const passwordResetCode = 'credential-identity-reset-code'

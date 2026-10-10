@@ -15,7 +15,6 @@ import {
   EXTERNAL_ACTORS,
   TEST_DOMAIN,
   TEST_DOMAIN_2,
-  TEST_EMAIL,
   TEST_PASSWORD_HASH,
   TEST_USERNAME3
 } from '@/lib/stub/const'
@@ -48,28 +47,10 @@ describe('ActorDatabase mastodon actors', () => {
     })
 
     describe('mastodon actor', () => {
-      it.each([
-        [
-          'id',
-          () =>
-            database.getMastodonActorFromId({
-              id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-            })
-        ],
-        [
-          'username',
-          () =>
-            database.getMastodonActorFromUsername({
-              username: TEST_USERNAME3,
-              domain: TEST_DOMAIN
-            })
-        ],
-        [
-          'email',
-          () => database.getMastodonActorFromEmail({ email: TEST_EMAIL })
-        ]
-      ])('returns mastodon actor from %s', async (_, lookup) => {
-        const actor = await lookup()
+      it('returns mastodon actor from id', async () => {
+        const actor = await database.getMastodonActorFromId({
+          id: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
+        })
 
         expect(actor).toMatchObject({
           id: await getActorPublicId(
@@ -525,9 +506,8 @@ describe('ActorDatabase mastodon actors', () => {
             publicKey: `aliasPub-${suffix}`
           })
 
-          const homeActor = await database.getMastodonActorFromUsername({
-            username,
-            domain: TEST_DOMAIN
+          const homeActor = await database.getMastodonActorFromId({
+            id: `https://${TEST_DOMAIN}/users/${username}`
           })
           const aliasActor = await database.getMastodonActorFromId({
             id: aliasActorId
@@ -622,7 +602,7 @@ describe('ActorDatabase mastodon actors', () => {
 
       it('creates actor without account in the database and returns mastodon actor model', async () => {
         const currentTime = Date.now()
-        const actor = await database.createMastodonActor({
+        await database.createActor({
           actorId: EXTERNAL_ACTORS[1].id,
           username: EXTERNAL_ACTORS[1].username,
           name: EXTERNAL_ACTORS[1].name,
@@ -632,6 +612,9 @@ describe('ActorDatabase mastodon actors', () => {
           sharedInboxUrl: EXTERNAL_ACTORS[1].inbox_url,
           publicKey: 'publicKey',
           createdAt: currentTime
+        })
+        const actor = await database.getMastodonActorFromId({
+          id: EXTERNAL_ACTORS[1].id
         })
         expect(actor).toEqual({
           id: await getActorPublicId(EXTERNAL_ACTORS[1].id),

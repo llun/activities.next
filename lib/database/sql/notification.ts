@@ -13,8 +13,7 @@ import {
   NotificationDatabase,
   NotificationGroupKeyParams,
   NotificationRequest,
-  ResolveNotificationRequestsParams,
-  UpdateNotificationParams
+  ResolveNotificationRequestsParams
 } from '@/lib/types/database/operations'
 import { generatePublicId } from '@/lib/utils/publicId'
 
@@ -254,30 +253,6 @@ export const NotificationSQLDatabaseMixin = (
       readAt: currentTime,
       updatedAt: currentTime
     })
-  },
-
-  async updateNotification({
-    notificationId,
-    isRead,
-    readAt
-  }: UpdateNotificationParams) {
-    const updates: {
-      updatedAt: Date
-      isRead?: boolean
-      readAt?: Date | null
-    } = {
-      updatedAt: new Date()
-    }
-
-    if (isRead !== undefined) {
-      updates.isRead = isRead
-    }
-
-    if (readAt !== undefined) {
-      updates.readAt = new Date(readAt)
-    }
-
-    await database('notifications').where('id', notificationId).update(updates)
   },
 
   async getNotificationRequests({

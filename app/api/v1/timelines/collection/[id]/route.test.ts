@@ -66,10 +66,9 @@ describe('GET /api/v1/timelines/collection/[id]', () => {
       actorId: ACTOR1_ID,
       targetActorIds: [ACTOR2_ID]
     })
-    await database.setCollectionMemberState({
-      id: collectionId,
-      actorId: ACTOR1_ID,
-      targetActorId: ACTOR2_ID,
+    await database.setOwnCollectionMembershipState({
+      collectionId: collectionId,
+      actorId: ACTOR2_ID,
       state: 'approved'
     })
 
@@ -129,10 +128,9 @@ describe('GET /api/v1/timelines/collection/[id]', () => {
       actorId: ACTOR1_ID,
       targetActorIds: [ACTOR5_ID, ACTOR6_ID]
     })
-    await database.setCollectionMemberState({
-      id: ordering.id,
-      actorId: ACTOR1_ID,
-      targetActorId: ACTOR5_ID,
+    await database.setOwnCollectionMembershipState({
+      collectionId: ordering.id,
+      actorId: ACTOR5_ID,
       state: 'approved'
     })
     const base = Date.UTC(2026, 0, 1)

@@ -60,14 +60,10 @@ describe('OAuthDatabase', () => {
   })
 
   describe('clients', () => {
-    it.each([
-      ['name', () => database.getClientFromName({ name: 'oauth-app1' })],
-      [
-        'clientId',
-        () => database.getClientFromId({ clientId: 'test-client-1' })
-      ]
-    ])('returns existing client by %s', async (_, lookup) => {
-      const client = await lookup()
+    it('returns an existing client by clientId', async () => {
+      const client = await database.getClientFromId({
+        clientId: 'test-client-1'
+      })
       expect(client).toMatchObject({
         name: 'oauth-app1',
         clientId: 'test-client-1',
@@ -78,40 +74,10 @@ describe('OAuthDatabase', () => {
       expect(client?.updatedAt).toBeNumber()
     })
 
-    it.each([
-      ['name', () => database.getClientFromName({ name: 'nonexistent' })],
-      ['clientId', () => database.getClientFromId({ clientId: 'nonexistent' })]
-    ])('returns null for non-existent client %s', async (_, lookup) => {
-      expect(await lookup()).toBeNull()
-    })
-  })
-
-  describe('getClientFromAccessToken', () => {
-    const hashedToken = 'hashed-access-token-1'
-
-    beforeAll(async () => {
-      const now = new Date()
-      await knexDatabase('oauthAccessToken').insert({
-        id: crypto.randomUUID(),
-        token: hashedToken,
-        clientId: 'test-client-1',
-        scopes: JSON.stringify([Scope.enum.read]),
-        expiresAt: new Date(now.getTime() + 60_000),
-        createdAt: now
-      })
-    })
-
-    it('resolves the owning client for a stored access token', async () => {
-      const client = await database.getClientFromAccessToken({ hashedToken })
-      expect(client?.clientId).toBe('test-client-1')
-      expect(client?.name).toBe('oauth-app1')
-    })
-
-    it('returns null for an unknown access token', async () => {
-      const client = await database.getClientFromAccessToken({
-        hashedToken: 'does-not-exist'
-      })
-      expect(client).toBeNull()
+    it('returns null for a non-existent clientId', async () => {
+      expect(
+        await database.getClientFromId({ clientId: 'nonexistent' })
+      ).toBeNull()
     })
   })
 

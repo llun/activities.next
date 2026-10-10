@@ -200,26 +200,6 @@ describe('DeadLetterJobSQLDatabaseMixin', () => {
     })
   })
 
-  it('deletes job by id', async () => {
-    await withFreshDatabase(async (database) => {
-      const job = await database.createDeadLetterJob({
-        jobName: 'jobToDelete',
-        payload: samplePayload,
-        errorMessage: 'err',
-        status: 'failed'
-      })
-
-      const deleted = await database.deleteDeadLetterJob(job.id)
-      expect(deleted).toBe(true)
-
-      const fetched = await database.getDeadLetterJobById(job.id)
-      expect(fetched).toBeNull()
-
-      const deletedAgain = await database.deleteDeadLetterJob(job.id)
-      expect(deletedAgain).toBe(false)
-    })
-  })
-
   it('deletes jobs by status (batch purge)', async () => {
     await withFreshDatabase(async (database) => {
       await database.createDeadLetterJob({

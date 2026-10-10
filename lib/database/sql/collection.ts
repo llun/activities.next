@@ -45,7 +45,6 @@ import {
   GetPublicCollectionTimelineParams,
   RemoveCollectionItemByIdParams,
   RemoveCollectionMembersParams,
-  SetCollectionMemberStateParams,
   SetOwnCollectionMembershipStateParams,
   UpdateCollectionParams
 } from '@/lib/types/database/operations'
@@ -602,19 +601,6 @@ export const CollectionSQLDatabaseMixin = (
           .delete()
       }
     })
-  },
-
-  async setCollectionMemberState({
-    id,
-    actorId,
-    targetActorId,
-    state
-  }: SetCollectionMemberStateParams) {
-    const seq = await getOwnedCollectionSeq(database, id, actorId)
-    if (seq === null) return
-    await database('collection_members')
-      .where({ collectionSeq: seq, targetActorId })
-      .update({ featureState: state })
   },
 
   async setOwnCollectionMembershipState({

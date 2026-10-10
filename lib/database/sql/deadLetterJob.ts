@@ -139,11 +139,6 @@ export const DeadLetterJobSQLDatabaseMixin = (
     return updated ? toDeadLetterJob(updated) : null
   },
 
-  async deleteDeadLetterJob(id: string) {
-    const count = await database('dead_letter_jobs').where({ id }).delete()
-    return count > 0
-  },
-
   async deleteDeadLetterJobs(ids: string[]) {
     if (ids.length === 0) return 0
     return await database('dead_letter_jobs').whereIn('id', ids).delete()

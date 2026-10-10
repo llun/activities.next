@@ -228,7 +228,7 @@ export const GET = traceApiRoute(
       // Internal actors (account-backed users and the headless signer, which
       // always carries a private key) never live-fetch their own outbox; the
       // actor row loaded above already answers this without an
-      // isInternalActor query.
+      // extra lookup.
       if (
         currentActor &&
         isFirstPage &&

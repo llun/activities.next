@@ -10,7 +10,6 @@ import {
   GetMuteParams,
   GetMuteRelationsParams,
   GetMutesParams,
-  IsMutingParams,
   MuteDatabase,
   MuteRelation
 } from '@/lib/types/database/operations'
@@ -132,19 +131,6 @@ export const MuteSQLDatabaseMixin = (database: Knex): MuteDatabase => ({
     const fixed = fixMuteDataDate(mute)
     if (fixed.endsAt !== null && fixed.endsAt < Date.now()) return null
     return fixed
-  },
-
-  async isMuting({ actorId, targetActorId }: IsMutingParams) {
-    const mute = await database<Mute>('mutes')
-      .where({ actorId, targetActorId })
-      .first('id', 'endsAt')
-    if (!mute) return false
-    const endsAt =
-      mute.endsAt !== null && mute.endsAt !== undefined
-        ? Number(mute.endsAt)
-        : null
-    if (endsAt !== null && endsAt < Date.now()) return false
-    return true
   },
 
   async getMutes({

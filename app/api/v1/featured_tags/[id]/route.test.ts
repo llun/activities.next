@@ -75,8 +75,10 @@ describe('DELETE /api/v1/featured_tags/:id', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({})
     expect(
-      await database.getFeaturedTag({ actorId: ACTOR1_ID, id: created.id })
-    ).toBeNull()
+      (await database.getFeaturedTags({ actorId: ACTOR1_ID })).find(
+        (tag) => tag.id === created.id
+      )
+    ).toBeUndefined()
   })
 
   it('returns 404 when the tag belongs to another account', async () => {
@@ -93,8 +95,10 @@ describe('DELETE /api/v1/featured_tags/:id', () => {
     expect(response.status).toBe(404)
     // The tag still exists for its owner.
     expect(
-      await database.getFeaturedTag({ actorId: ACTOR1_ID, id: owned.id })
-    ).not.toBeNull()
+      (await database.getFeaturedTags({ actorId: ACTOR1_ID })).find(
+        (tag) => tag.id === owned.id
+      )
+    ).toBeDefined()
   })
 
   it('returns 404 for an unknown id', async () => {

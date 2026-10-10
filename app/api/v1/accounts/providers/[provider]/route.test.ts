@@ -1,6 +1,10 @@
 import { NextRequest } from 'next/server'
 
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  getAccountProviders,
+  linkAccountWithProvider
+} from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
@@ -13,7 +17,7 @@ vi.mock('@/lib/services/auth/getSession', () => ({
   getServerAuthSession: () => mockGetServerSession()
 }))
 
-const database = getTestSQLDatabase()
+const { database, db } = createTestDatabase({ backend: 'sqlite' })
 let mockDatabase: Database | null = database
 vi.mock('@/lib/database', () => ({
   getDatabase: () => mockDatabase
@@ -50,8 +54,8 @@ describe('DELETE /api/v1/accounts/providers/[provider]', () => {
   let account2Id: string
 
   const providersOf = async (accountId: string) =>
-    (await database.getAccountProviders({ accountId }))
-      .map((item) => item.provider)
+    (await getAccountProviders(db, { accountId }))
+      .map((item) => item.provider ?? '')
       .sort()
 
   beforeAll(async () => {
@@ -81,17 +85,17 @@ describe('DELETE /api/v1/accounts/providers/[provider]', () => {
         await database.unlinkAccountFromProvider({ accountId, provider })
       }
     }
-    await database.linkAccountWithProvider({
+    await linkAccountWithProvider(db, {
       accountId: account1Id,
       provider: 'github',
       providerAccountId: 'gh-1'
     })
-    await database.linkAccountWithProvider({
+    await linkAccountWithProvider(db, {
       accountId: account1Id,
       provider: 'google',
       providerAccountId: 'g-1'
     })
-    await database.linkAccountWithProvider({
+    await linkAccountWithProvider(db, {
       accountId: account2Id,
       provider: 'github',
       providerAccountId: 'gh-2'

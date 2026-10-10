@@ -81,9 +81,11 @@ describe('GET /api/v2/notifications/[group_key]', () => {
       })
       for (const n of existing) await database.deleteNotification(n.id)
     }
-    const filters = await database.getFilters({ actorId: ACTOR1_ID })
-    for (const f of filters) {
-      await database.deleteFilter({ actorId: ACTOR1_ID, id: f.id })
+    const records = await database.getFilterRecordsForActor({
+      actorId: ACTOR1_ID
+    })
+    for (const { filter } of records) {
+      await database.deleteFilter({ actorId: ACTOR1_ID, id: filter.id })
     }
   })
 

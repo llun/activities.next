@@ -99,10 +99,9 @@ describe('/api/v1/collections/[id]', () => {
       actorId: ACTOR1_ID,
       targetActorIds: [ACTOR2_ID, pending.id]
     })
-    await database.setCollectionMemberState({
-      id: publicCollectionId,
-      actorId: ACTOR1_ID,
-      targetActorId: ACTOR2_ID,
+    await database.setOwnCollectionMembershipState({
+      collectionId: publicCollectionId,
+      actorId: ACTOR2_ID,
       state: 'approved'
     })
 
@@ -113,10 +112,9 @@ describe('/api/v1/collections/[id]', () => {
       actorId: ACTOR1_ID,
       targetActorIds: [ACTOR2_ID, pending.id]
     })
-    await database.setCollectionMemberState({
-      id: unlistedCollectionId,
-      actorId: ACTOR1_ID,
-      targetActorId: ACTOR2_ID,
+    await database.setOwnCollectionMembershipState({
+      collectionId: unlistedCollectionId,
+      actorId: ACTOR2_ID,
       state: 'approved'
     })
 

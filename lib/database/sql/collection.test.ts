@@ -374,10 +374,9 @@ describe('CollectionDatabase', () => {
         expect(publicBefore.accounts).toHaveLength(0)
 
         // Approve alice only.
-        await database.setCollectionMemberState({
-          id: collection.id,
-          actorId: owner.id,
-          targetActorId: alice.id,
+        await database.setOwnCollectionMembershipState({
+          collectionId: collection.id,
+          actorId: alice.id,
           state: 'approved'
         })
         const publicAfter = await database.getCollectionMembers({
@@ -466,10 +465,9 @@ describe('CollectionDatabase', () => {
           })
         ).toEqual([])
 
-        await database.setCollectionMemberState({
-          id: collection.id,
-          actorId: owner.id,
-          targetActorId: bob.id,
+        await database.setOwnCollectionMembershipState({
+          collectionId: collection.id,
+          actorId: bob.id,
           state: 'approved'
         })
         // Approved member is returned with its resolved actor type.
@@ -539,10 +537,9 @@ describe('CollectionDatabase', () => {
           actorId: owner.id,
           targetActorIds: [alice.id, bob.id]
         })
-        await database.setCollectionMemberState({
-          id: collection.id,
-          actorId: owner.id,
-          targetActorId: bob.id,
+        await database.setOwnCollectionMembershipState({
+          collectionId: collection.id,
+          actorId: bob.id,
           state: 'approved'
         })
 
@@ -727,10 +724,9 @@ describe('CollectionDatabase', () => {
           actorId: curator.id,
           targetActorIds: [featured.id]
         })
-        await database.setCollectionMemberState({
-          id: publicApproved.id,
-          actorId: curator.id,
-          targetActorId: featured.id,
+        await database.setOwnCollectionMembershipState({
+          collectionId: publicApproved.id,
+          actorId: featured.id,
           state: 'approved'
         })
 
@@ -828,10 +824,9 @@ describe('CollectionDatabase', () => {
           targetActorIds: [member.id]
         })
         // Member must be approved to appear in the public projection at all.
-        await database.setCollectionMemberState({
-          id: collection.id,
-          actorId: owner.id,
-          targetActorId: member.id,
+        await database.setOwnCollectionMembershipState({
+          collectionId: collection.id,
+          actorId: member.id,
           state: 'approved'
         })
 
@@ -882,10 +877,9 @@ describe('CollectionDatabase', () => {
           actorId: owner.id,
           targetActorIds: [member.id]
         })
-        await database.setCollectionMemberState({
-          id: collection.id,
-          actorId: owner.id,
-          targetActorId: member.id,
+        await database.setOwnCollectionMembershipState({
+          collectionId: collection.id,
+          actorId: member.id,
           state: 'approved'
         })
 
@@ -1011,10 +1005,9 @@ describe('CollectionDatabase', () => {
         actorId: owner.id,
         targetActorIds: [member.id]
       })
-      await database.setCollectionMemberState({
-        id: collection.id,
-        actorId: owner.id,
-        targetActorId: member.id,
+      await database.setOwnCollectionMembershipState({
+        collectionId: collection.id,
+        actorId: member.id,
         state: 'approved'
       })
       const pub = await publicNote(database, member.id, 'pub')

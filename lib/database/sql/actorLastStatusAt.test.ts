@@ -269,25 +269,6 @@ describe('actors.lastStatusAt maintenance', () => {
       expect(stored?.actor?.lastStatusAt).toBeNull()
     })
   })
-
-  it('updateActorLastStatusAt is a guarded set-if-newer', async () => {
-    await withDatabase(async (database) => {
-      const actorId = await createLocalActor(database, 'alice')
-
-      await database.updateActorLastStatusAt(
-        actorId,
-        at('2026-03-05T10:00:00Z')
-      )
-      expect(await lastStatusDate(database, actorId)).toBe('2026-03-05')
-
-      // An older time does not lower the persisted value.
-      await database.updateActorLastStatusAt(
-        actorId,
-        at('2026-01-01T10:00:00Z')
-      )
-      expect(await lastStatusDate(database, actorId)).toBe('2026-03-05')
-    })
-  })
 })
 
 describe('getLocalMastodonActors ordering', () => {

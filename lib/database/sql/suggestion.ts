@@ -63,7 +63,7 @@ export const SuggestionSQLDatabaseMixin = (
       })
       // Mutes are one-directional (only what the actor mutes) and expire: a
       // mute is active while endsAt IS NULL or endsAt >= now (matching
-      // applyBlockMuteFilter and getMute/isMuting's "expired when endsAt < now").
+      // applyBlockMuteFilter and getMute's "expired when endsAt < now").
       .whereNotIn('f2.targetActorId', function () {
         this.select('targetActorId')
           .from('mutes')
