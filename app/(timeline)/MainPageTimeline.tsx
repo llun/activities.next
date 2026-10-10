@@ -33,6 +33,7 @@ import { Button } from '@/lib/components/ui/button'
 import { Timeline } from '@/lib/services/timelines/types'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
+import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import {
   Status,
   StatusNote,
@@ -49,6 +50,8 @@ interface MainPageTimelineProps {
   profile: ActorProfile
   currentTime: number
   isMediaUploadEnabled: boolean
+  /** Photos the top composer opens with (`/?media=`), already validated. */
+  initialMedia?: PostBoxAttachment[]
   statuses: Status[]
   timelineContext?: TimelineContext
   initialNextMaxStatusId?: string | null
@@ -61,6 +64,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
   profile,
   currentTime,
   isMediaUploadEnabled,
+  initialMedia,
   statuses,
   timelineContext,
   initialNextMaxStatusId = null,
@@ -457,6 +461,7 @@ export const MainPageTimeline: FC<MainPageTimelineProps> = ({
           host={host}
           profile={profile}
           isMediaUploadEnabled={isMediaUploadEnabled}
+          initialMedia={initialMedia}
           onDiscardReply={() => {}}
           onDiscardQuote={() => {}}
           onDiscardEdit={() => {}}

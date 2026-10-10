@@ -249,10 +249,10 @@ export const GalleryAlbumDetailView: FC<Props> = ({
     ;(target ?? gridRef.current)?.focus()
   }, [busyId])
 
-  // After anything that changes the album: the facts, chips and cover come
-  // from the server render, the grid from here.
   // Set when an edit hid a photo, so the viewer's close reads the album again.
   const hiddenByEdit = useRef(false)
+  // After anything that changes the album: the facts, chips and cover come
+  // from the server render, the grid from here.
   const refreshAll = async () => {
     router.refresh()
     await reload(sort, subject)

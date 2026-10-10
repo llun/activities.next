@@ -970,6 +970,194 @@ describe('gallery queries', () => {
         }
       })
     })
+
+    // What the owner keeps in Gallery without a post is the owner's alone.
+    describe('Gallery additions', () => {
+      const adder = { id: actors.primary.id }
+      const addedIds: Record<string, string> = {}
+
+      beforeAll(async () => {
+        const statusId = `${adder.id}/statuses/queries-adder-public`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: adder.id,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'public'
+        })
+        const create = async (
+          name: string,
+          details: Partial<MediaDetailsRecord>
+        ) => {
+          const media = await database.createMedia({
+            actorId: adder.id,
+            original: {
+              path: `medias/queries-adder-${name}.webp`,
+              bytes: 1000,
+              mimeType: 'image/webp',
+              metaData: { width: 640, height: 480 }
+            },
+            thumbnail: {
+              path: `medias/queries-adder-${name}-thumb.webp`,
+              bytes: 100,
+              mimeType: 'image/webp',
+              metaData: { width: 100, height: 75 }
+            },
+            description: `${name} alt`,
+            details: { inGallery: true, ...details }
+          })
+          addedIds[name] = media!.id
+          return media!.id
+        }
+        const posted = await create('posted', {
+          subjectName: 'Posted Otter',
+          subjectCategory: 'mammal'
+        })
+        await create('added', {
+          subjectName: 'Added Otter',
+          subjectCategory: 'mammal',
+          placeLatitude: 13.7,
+          placeLongitude: 100.5,
+          placePrecision: 'exact'
+        })
+        await database.createAttachment({
+          actorId: adder.id,
+          statusId,
+          mediaType: 'image/webp',
+          url: 'https://media.test/queries-adder-posted.webp',
+          width: 640,
+          height: 480,
+          mediaId: posted
+        })
+        await database.addMediaToGallery({
+          actorId: adder.id,
+          mediaIds: [addedIds.added]
+        })
+      })
+
+      const idsOf = (page: { items: { mediaId: string }[] }) =>
+        page.items.map((item) => item.mediaId)
+
+      it('lists an addition for the owner with no status, marked unposted', async () => {
+        const page = await getGalleryMediaPage({
+          database,
+          owner: adder,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 30,
+          show: 'all'
+        })
+
+        expect(idsOf(page)).toEqual([addedIds.added, addedIds.posted])
+        expect(page.items[0]).toMatchObject({
+          statusId: null,
+          posted: false,
+          inGallery: true,
+          attachment: {
+            mediaId: addedIds.added,
+            name: 'added alt',
+            url: expect.stringContaining('/api/v1/files/medias/'),
+            thumbnailUrl: expect.stringContaining('-thumb.webp')
+          }
+        })
+        expect(page.items[1]).toMatchObject({
+          posted: true,
+          statusId: expect.any(String)
+        })
+      })
+
+      it('lists only the additions under Not posted', async () => {
+        const page = await getGalleryMediaPage({
+          database,
+          owner: adder,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 30,
+          show: 'not_posted'
+        })
+
+        expect(idsOf(page)).toEqual([addedIds.added])
+      })
+
+      it('keeps the default list to the gallery, additions included', async () => {
+        const page = await getGalleryMediaPage({
+          database,
+          owner: adder,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 30
+        })
+
+        expect(idsOf(page)).toEqual([addedIds.added, addedIds.posted])
+      })
+
+      it.each(['all', 'not_posted', 'in_gallery'] as const)(
+        'shows the public only the posted photo, whatever show=%s asks',
+        async (show) => {
+          const page = await getGalleryMediaPage({
+            database,
+            owner: adder,
+            audience: PUBLIC_GALLERY_AUDIENCE,
+            limit: 30,
+            show
+          })
+
+          expect(idsOf(page)).toEqual([addedIds.posted])
+          expect(page.items[0]).not.toHaveProperty('posted')
+        }
+      )
+
+      it('counts an addition in the owner subjects and not in the public ones', async () => {
+        const subjectNames = async (audience: GalleryAudience) =>
+          (
+            await getGallerySubjects({ database, owner: adder, audience })
+          ).groups.flatMap((group) =>
+            group.subjects.map((subject) => subject.name)
+          )
+
+        expect(await subjectNames(OWNER_GALLERY_AUDIENCE)).toEqual(
+          expect.arrayContaining(['Added Otter', 'Posted Otter'])
+        )
+        expect(await subjectNames(PUBLIC_GALLERY_AUDIENCE)).toEqual([
+          'Posted Otter'
+        ])
+      })
+
+      it('puts an addition on the owner map without a status, and not on the public one', async () => {
+        const ownerMap = await getGalleryMapPoints({
+          database,
+          owner: adder,
+          audience: OWNER_GALLERY_AUDIENCE
+        })
+        const publicMap = await getGalleryMapPoints({
+          database,
+          owner: adder,
+          audience: PUBLIC_GALLERY_AUDIENCE
+        })
+
+        expect(ownerMap.points).toEqual([
+          expect.objectContaining({
+            mediaId: addedIds.added,
+            statusId: null,
+            publicState: 'not-public-post',
+            thumbnailUrl: expect.stringContaining('-thumb.webp')
+          })
+        ])
+        expect(publicMap.points).toEqual([])
+      })
+
+      it('puts an addition in the owner life list only', async () => {
+        const names = async (audience: GalleryAudience) =>
+          (
+            await getGalleryLifeList({ database, owner: adder, audience })
+          ).entries.map((entry) => entry.name)
+
+        expect(await names(OWNER_GALLERY_AUDIENCE)).toEqual(
+          expect.arrayContaining(['Added Otter'])
+        )
+        expect(await names(PUBLIC_GALLERY_AUDIENCE)).not.toContain(
+          'Added Otter'
+        )
+      })
+    })
   })
 })
 
@@ -1057,6 +1245,7 @@ describe('gallery queries at the index cap', () => {
       subjectLookupStatus: null,
       takenAt: null,
       thumbnailUrl: null,
+      file: { path: 'a.jpg', thumbnailPath: null, mimeType: 'image/jpeg' },
       statusId: `status-${index}`,
       statusPublicId: null
     }))

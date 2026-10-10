@@ -3,10 +3,12 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getGallerySettings, getMedia } from '@/lib/client'
+import { ConfirmDeleteMediaDialog } from '@/lib/components/gallery/ConfirmDeleteMediaDialog'
 import {
   applySavedToItem,
   toMediaDetailsDialogItem
 } from '@/lib/components/gallery/galleryItemEdit'
+import { useInstanceLimits } from '@/lib/components/instance-limits'
 import {
   MediaDetailsDialog,
   type MediaDetailsSavedItem
@@ -30,14 +32,25 @@ interface Props {
   onClose: () => void
   /** The tiles as they are after a save, for the items that changed. */
   onSaved: (items: GalleryItemEntity[]) => void
+  /**
+   * Post… on a photo added in Gallery and not posted yet (its details are
+   * saved first). Without it the dialog offers no Post….
+   */
+  onPost?: (mediaIds: string[]) => void
+  /**
+   * Delete on a photo not posted yet, once confirmed and done. The dialog then
+   * closes. Without it the dialog offers no Delete.
+   */
+  onDeleted?: (mediaIds: string[]) => void
 }
 
 // How many owner details are read at once when several photos are edited.
 const DETAILS_CONCURRENCY = 4
 
 /**
- * Edit details for posted gallery photos: the media details dialog the composer
- * uses, loaded with the owner's own details for each photo. The photo it opens
+ * Edit details for gallery photos (posted, or added in Gallery and not posted
+ * yet, which can also be posted or deleted from here): the media details
+ * dialog the composer uses, loaded with the owner's own details for each photo. The photo it opens
  * on is read first; a photo's details that have not arrived yet do not block
  * the dialog (they fill in when they do, and a field nobody touched is never
  * sent back). A posted photo's alt text is saved as an edit of its post.
@@ -47,8 +60,12 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
   initialMediaId,
   ownerId,
   onClose,
-  onSaved
+  onSaved,
+  onPost,
+  onDeleted
 }) => {
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const { maxMediaAttachments } = useInstanceLimits()
   const [settings, setSettings] = useState<GallerySettingsEntity | null>(null)
   const [details, setDetails] = useState<Record<string, MediaDetailsEntity>>({})
   // The tiles as the dialog last saw them, so a save maps onto them.
@@ -192,17 +209,42 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
     []
   )
 
+  // Post… from the photo on screen posts every photo of the dialog that is
+  // not posted yet (that one first), as many as one post holds: the details
+  // of all of them were just saved with it.
+  const handlePostItem = (id: string) => {
+    const unposted = itemsRef.current
+      .filter((item) => item.posted === false)
+      .map((item) => item.mediaId)
+    const ordered = [id, ...unposted.filter((mediaId) => mediaId !== id)]
+    onPost?.(ordered.slice(0, maxMediaAttachments))
+  }
+
   return (
-    <MediaDetailsDialog
-      context="gallery"
-      items={dialogItems}
-      initialId={initialMediaId}
-      settings={settings}
-      ownerId={ownerId}
-      onClose={onClose}
-      onSaved={handleSaved}
-      onMediaEdited={handleMediaEdited}
-      onDetailsRefreshed={handleDetailsRefreshed}
-    />
+    <>
+      <MediaDetailsDialog
+        context="gallery"
+        items={dialogItems}
+        initialId={initialMediaId}
+        settings={settings}
+        ownerId={ownerId}
+        onClose={onClose}
+        onSaved={handleSaved}
+        onMediaEdited={handleMediaEdited}
+        onDetailsRefreshed={handleDetailsRefreshed}
+        onPostItem={onPost ? handlePostItem : undefined}
+        onDeleteItem={onDeleted ? (id) => setDeletingId(id) : undefined}
+      />
+      {deletingId !== null && onDeleted ? (
+        <ConfirmDeleteMediaDialog
+          mediaIds={[deletingId]}
+          onCancel={() => setDeletingId(null)}
+          onDeleted={(ids) => {
+            onDeleted(ids)
+            onClose()
+          }}
+        />
+      ) : null}
+    </>
   )
 }

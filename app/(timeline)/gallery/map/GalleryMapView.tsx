@@ -144,7 +144,8 @@ export const GalleryMapView: FC<Props> = ({
 
   const openPhoto = (mediaId: string) => {
     const point = shown.points.find((entry) => entry.mediaId === mediaId)
-    if (!point) return
+    // An unposted photo has no post to open.
+    if (!point?.statusId) return
     router.push(
       `/${getActorMentionPathSegment({ username, domain })}/${encodeURIComponent(point.statusId)}`
     )

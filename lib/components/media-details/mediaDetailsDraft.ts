@@ -47,6 +47,8 @@ export type SharedSections = {
   gallery: boolean
   gear: boolean
   place: boolean
+  /** Add to gallery's Apply to all; the other dialogs share it per picker. */
+  subject?: boolean
 }
 
 /**
@@ -65,6 +67,15 @@ export const applySharedSections = (
     : {}),
   ...(shared.place
     ? { placeName: source.placeName, placePrecision: source.placePrecision }
+    : {}),
+  ...(shared.subject
+    ? {
+        subjectName: source.subjectName,
+        subjectScientificName: source.subjectScientificName,
+        subjectCategory: source.subjectCategory,
+        subjectTaxonKey: source.subjectTaxonKey,
+        subjectTaxonPath: source.subjectTaxonPath
+      }
     : {})
 })
 

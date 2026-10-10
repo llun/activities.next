@@ -20,10 +20,12 @@ interface Params {
 const MAX_STATUSES_CHECKED = 10
 
 // GET /api/v1/gallery/media/:mediaId/details — the public-safe details of a
-// photo, for the viewer. It answers only for media attached to a status the
-// viewer may read (the same `canActorReadStatus` rule the status endpoints use)
-// and 404s otherwise, so an unattached or private upload is indistinguishable
-// from one that does not exist. What it returns is decided by
+// photo, for the viewer. It answers for media attached to a status the viewer
+// may read (the same `canActorReadStatus` rule the status endpoints use), and
+// for the signed-in actor's own media even when it is not posted (a photo they
+// added to their gallery without a post). Anyone else gets a 404, so an
+// unattached or private upload is indistinguishable from one that does not
+// exist. What it returns is decided by
 // `buildPublicMediaDetails`: coordinates are rounded or withheld by the media's
 // `placePrecision`, a place inside one of the owner's hidden locations is
 // withheld entirely, and gear is withheld unless the owner shows it.
@@ -55,6 +57,12 @@ export const GET = traceApiRoute(
             break
           }
         }
+      }
+
+      // The owner's own unposted photo: their viewer shows it, and its details
+      // are the same privacy-trimmed ones a visitor would get.
+      if (found && !readable && currentActor?.id === found.media.actorId) {
+        readable = true
       }
 
       if (!found || !readable) {

@@ -448,8 +448,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   non-Mastodon `details` object (snake_case on the way in), and
   `/api/v1/gallery/*` and `/api/v1/accounts/:id/gallery/*` serve the gallery.
   `GET /api/v1/accounts/:id/gallery/media` takes an owner-only `show`
-  (`all`, `in_gallery`, `hidden`; ignored for anyone else) and reports
-  `inGallery` on each of the owner's items.
+  (`all`, `in_gallery`, `hidden`, `not_posted`; ignored for anyone else) and
+  reports `inGallery` and `posted` on each of the owner's items. Photos the
+  owner added in Gallery without a post (`POST /api/v1/gallery/media` with
+  `{ "media_ids": [...] }`, up to 40, scope `write` or `write:media`, answers
+  `{ "media_ids": [...] }` with the ones kept) are listed to the owner only,
+  with a `null` `statusId`; they are never shown to anyone else and never
+  federated, and `DELETE /api/v1/media/:id` removes one (Mastodon's media
+  destroy, which still refuses media a post uses).
   `PUT /api/v1/statuses/:id` accepts `media_attributes[][description]` of up to
   1500 characters, as `PUT /api/v1/media/:id` does and as Mastodon does (it was
   255 here), and an edit that sends only `media_attributes` keeps the post's

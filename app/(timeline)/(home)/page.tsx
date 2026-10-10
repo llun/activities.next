@@ -5,6 +5,12 @@ import { Landing } from '@/app/(timeline)/landing/Landing'
 import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
+import {
+  COMPOSER_MEDIA_QUERY_PARAM,
+  getComposerPrefillAttachments,
+  parseComposerMediaParam
+} from '@/lib/services/gallery/composerMedia'
+import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import {
   getFilteredStatusPage,
@@ -31,7 +37,11 @@ export const metadata: Metadata = {
   title: 'Activities.next: Timeline'
 }
 
-const Page = async () => {
+interface PageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+const Page = async ({ searchParams }: PageProps = {}) => {
   const { host, serviceName, mediaStorage } = getConfig()
   const database = getDatabase()
   if (!database) {
@@ -94,6 +104,18 @@ const Page = async () => {
   }
 
   const settings = await database.getActorSettings({ actorId: actor.id })
+  // `/?media=12,13` opens the composer with those photos (a "Post" action in
+  // Gallery). Only the actor's own media no post uses is taken; the composer
+  // trims the list to the instance's attachment limit.
+  const prefillIds = parseComposerMediaParam(
+    (await searchParams)?.[COMPOSER_MEDIA_QUERY_PARAM],
+    MAX_STORED_MEDIA_ATTACHMENTS
+  )
+  const initialMedia = await getComposerPrefillAttachments({
+    database,
+    actorId: actor.id,
+    mediaIds: prefillIds
+  })
   const { statuses, nextMaxStatusId } = await getFilteredTimelinePage({
     database,
     timeline: Timeline.MAIN,
@@ -113,6 +135,7 @@ const Page = async () => {
       initialNextMaxStatusId={nextMaxStatusId}
       profile={getActorProfile(actor)}
       isMediaUploadEnabled={Boolean(mediaStorage)}
+      initialMedia={initialMedia}
       postLineLimit={settings?.postLineLimit}
     />
   )

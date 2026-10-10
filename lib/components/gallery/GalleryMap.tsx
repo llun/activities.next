@@ -1,6 +1,6 @@
 'use client'
 
-import { MapPin, X } from 'lucide-react'
+import { Lock, MapPin, X } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 
 import { GalleryMapKit } from '@/lib/components/gallery/GalleryMapKit'
@@ -444,7 +444,13 @@ const SelectionCard: FC<SelectionCardProps> = ({ point, onClose, onOpen }) => {
         {meta ? (
           <p className="text-muted-foreground truncate text-xs">{meta}</p>
         ) : null}
-        {onOpen ? (
+        {point.statusId === null ? (
+          // Added in Gallery, not posted: there is no post to open.
+          <p className="text-muted-foreground flex items-center gap-1 text-xs">
+            <Lock aria-hidden="true" className="size-3" />
+            Only you can see this
+          </p>
+        ) : onOpen ? (
           <Button
             type="button"
             variant="link"
@@ -498,7 +504,9 @@ const SelectionListCard: FC<SelectionListCardProps> = ({
               type="button"
               className="hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2 rounded-md p-1 text-left focus-visible:ring-2 focus-visible:outline-none"
               onClick={() =>
-                onOpen ? onOpen(point.mediaId) : onFocusPoint(point.mediaId)
+                onOpen && point.statusId !== null
+                  ? onOpen(point.mediaId)
+                  : onFocusPoint(point.mediaId)
               }
             >
               {point.thumbnailUrl ? (
