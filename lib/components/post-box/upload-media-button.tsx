@@ -191,7 +191,7 @@ export const UploadMediaButton: FC<Props> = ({
         size="icon-sm"
         onClick={onOpenFile}
         disabled={disabled || attachments.length >= maxMediaAttachments}
-        className="text-muted-foreground hover:text-foreground"
+        className="size-10 text-muted-foreground hover:text-foreground md:size-8"
         aria-label={`Add media (${attachments.length}/${maxMediaAttachments})`}
         title={`Add media (${attachments.length}/${maxMediaAttachments})`}
       >

@@ -38,6 +38,7 @@ import {
   uploadAttachmentMock,
   uploaded
 } from './post-box-media.testUtils'
+import { choosePostOption } from './post-box.testUtils'
 
 vi.mock('@/lib/client', () => ({
   createNote: vi.fn(),
@@ -206,7 +207,7 @@ describe('PostBox media details', () => {
     attach('a.png')
     await screen.findByText('Review')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add poll' }))
+    await choosePostOption('Poll')
 
     expect(vi.mocked(deleteAccountMedia)).toHaveBeenCalledWith({
       mediaId: 'media-a.png'

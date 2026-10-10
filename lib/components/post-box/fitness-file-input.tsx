@@ -1,27 +1,34 @@
-import { Activity } from 'lucide-react'
-import { FC, SyntheticEvent, useRef } from 'react'
+import { FC, Ref, SyntheticEvent, useImperativeHandle, useRef } from 'react'
 
-import { Button } from '@/lib/components/ui/button'
 import { ACCEPTED_FITNESS_FILE_EXTENSIONS } from '@/lib/services/fitness-files/constants'
 
+export interface FitnessFileInputHandle {
+  /** Opens the browser's file picker, as if the hidden input was clicked. */
+  open: () => void
+}
+
 interface Props {
-  disabled?: boolean
+  ref?: Ref<FitnessFileInputHandle>
   onFileSelected: (file: File) => void
   onError: (message: string) => void
 }
 
-export const UploadFitnessFileButton: FC<Props> = ({
-  disabled,
+/**
+ * The hidden file input behind the composer's "Fitness file" menu item. It has
+ * no visible control of its own: the menu item calls `ref.current.open()`, and
+ * this component keeps the extension validation and its error message, so the
+ * input can stay mounted while the menu (and the item) comes and goes.
+ */
+export const FitnessFileInput: FC<Props> = ({
+  ref,
   onFileSelected,
   onError
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const onOpenFile = () => {
-    const input = fileInputRef.current
-    if (!input) return
-    input.click()
-  }
+  useImperativeHandle(ref, () => ({
+    open: () => fileInputRef.current?.click()
+  }))
 
   const onSelectFile = async (
     event: SyntheticEvent<HTMLInputElement, Event>
@@ -48,26 +55,14 @@ export const UploadFitnessFileButton: FC<Props> = ({
   }
 
   return (
-    <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        accept={ACCEPTED_FITNESS_FILE_EXTENSIONS.join(',')}
-        onChange={onSelectFile}
-      />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="text-muted-foreground hover:text-foreground"
-        onClick={onOpenFile}
-        disabled={disabled}
-        title="Upload fitness activity file (.fit, .gpx, .tcx)"
-        aria-label="Upload fitness activity file"
-      >
-        <Activity className="size-4" />
-      </Button>
-    </>
+    <input
+      ref={fileInputRef}
+      type="file"
+      className="hidden"
+      accept={ACCEPTED_FITNESS_FILE_EXTENSIONS.join(',')}
+      aria-label="Fitness activity file"
+      tabIndex={-1}
+      onChange={onSelectFile}
+    />
   )
 }

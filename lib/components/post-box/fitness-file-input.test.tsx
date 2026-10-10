@@ -2,9 +2,10 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render } from '@testing-library/react'
+import { createRef } from 'react'
 
-import { UploadFitnessFileButton } from './upload-fitness-file-button'
+import { FitnessFileInput, FitnessFileInputHandle } from './fitness-file-input'
 
 const fileInput = (container: HTMLElement) =>
   container.querySelector('input[type="file"]') as HTMLInputElement
@@ -13,7 +14,7 @@ const selectFile = (input: HTMLInputElement, file: File) => {
   fireEvent.change(input, { target: { files: [file] } })
 }
 
-describe('UploadFitnessFileButton', () => {
+describe('FitnessFileInput', () => {
   const onFileSelected = vi.fn()
   const onError = vi.fn()
 
@@ -21,18 +22,18 @@ describe('UploadFitnessFileButton', () => {
     vi.clearAllMocks()
   })
 
-  it('opens the hidden file picker when the button is clicked', () => {
+  it('opens the hidden file picker when asked through its handle', () => {
+    const ref = createRef<FitnessFileInputHandle>()
     const { container } = render(
-      <UploadFitnessFileButton
+      <FitnessFileInput
+        ref={ref}
         onFileSelected={onFileSelected}
         onError={onError}
       />
     )
     const click = vi.spyOn(fileInput(container), 'click')
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Upload fitness activity file' })
-    )
+    ref.current?.open()
 
     expect(click).toHaveBeenCalledTimes(1)
   })
@@ -41,10 +42,7 @@ describe('UploadFitnessFileButton', () => {
     'passes %s to onFileSelected',
     (name) => {
       const { container } = render(
-        <UploadFitnessFileButton
-          onFileSelected={onFileSelected}
-          onError={onError}
-        />
+        <FitnessFileInput onFileSelected={onFileSelected} onError={onError} />
       )
       const file = new File(['data'], name)
 
@@ -59,10 +57,7 @@ describe('UploadFitnessFileButton', () => {
     'rejects %s with an invalid file type message',
     (name) => {
       const { container } = render(
-        <UploadFitnessFileButton
-          onFileSelected={onFileSelected}
-          onError={onError}
-        />
+        <FitnessFileInput onFileSelected={onFileSelected} onError={onError} />
       )
 
       selectFile(fileInput(container), new File(['data'], name))
@@ -76,10 +71,7 @@ describe('UploadFitnessFileButton', () => {
 
   it('ignores a change event with no file chosen', () => {
     const { container } = render(
-      <UploadFitnessFileButton
-        onFileSelected={onFileSelected}
-        onError={onError}
-      />
+      <FitnessFileInput onFileSelected={onFileSelected} onError={onError} />
     )
 
     fireEvent.change(fileInput(container), { target: { files: [] } })
@@ -90,10 +82,7 @@ describe('UploadFitnessFileButton', () => {
 
   it('clears the input after a valid pick so the same file can be chosen again', () => {
     const { container } = render(
-      <UploadFitnessFileButton
-        onFileSelected={onFileSelected}
-        onError={onError}
-      />
+      <FitnessFileInput onFileSelected={onFileSelected} onError={onError} />
     )
     const input = fileInput(container)
     const setValue = vi.fn()
