@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { FC } from 'react'
 
-import { AuthCard } from '@/app/(nosidebar)/AuthCard'
+import { AuthCard, AuthCardBody } from '@/app/(nosidebar)/AuthCard'
 import { getAuthLogoSrc } from '@/app/(nosidebar)/getAuthLogoSrc'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
@@ -43,15 +43,17 @@ const Page: FC = async () => {
       title="Select an actor"
       description="Choose which identity you want to use for this session"
     >
-      <ActorSelectionList
-        actors={actors.map((a) => ({
-          id: a.id,
-          username: a.username,
-          domain: a.domain,
-          name: a.name,
-          iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null
-        }))}
-      />
+      <AuthCardBody>
+        <ActorSelectionList
+          actors={actors.map((a) => ({
+            id: a.id,
+            username: a.username,
+            domain: a.domain,
+            name: a.name,
+            iconUrl: isRealAvatar(a.iconUrl) ? a.iconUrl : null
+          }))}
+        />
+      </AuthCardBody>
     </AuthCard>
   )
 }

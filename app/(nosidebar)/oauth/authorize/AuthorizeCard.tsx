@@ -5,7 +5,11 @@ import { Check, ChevronDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { FC, useState } from 'react'
 
-import { AuthCard } from '@/app/(nosidebar)/AuthCard'
+import {
+  AuthCard,
+  AuthCardActions,
+  AuthCardBody
+} from '@/app/(nosidebar)/AuthCard'
 import {
   type OAuthConsentResponse,
   submitOAuthConsent,
@@ -271,172 +275,178 @@ export const AuthorizeCard: FC<Props> = ({
         )
       }
     >
-      <form onSubmit={handleApprove} className="space-y-6">
-        <Frame divided>
-          {isOidc && (
-            <div className="space-y-2 px-4 py-4">
-              {/* Informational caption — not a form-control label, so a <p>
+      <form onSubmit={handleApprove}>
+        <AuthCardBody>
+          <Frame divided>
+            {isOidc && (
+              <div className="space-y-2 px-4 py-4">
+                {/* Informational caption — not a form-control label, so a <p>
                   rather than <Label> (which would label nothing). */}
-              <p className="text-sm font-medium text-muted-foreground">
-                Signed in as
-              </p>
-              <div className="flex w-full items-center gap-3">
-                <Avatar className="h-10 w-10" aria-hidden="true">
-                  {account.iconUrl && <AvatarImage src={account.iconUrl} />}
-                  <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
-                    {getAvatarInitial(accountDisplayName)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 overflow-hidden">
-                  <p className="text-sm font-medium truncate">
-                    {accountDisplayName}
-                  </p>
-                  {/* Show the email as a secondary line only when a distinct
+                <p className="text-sm font-medium text-muted-foreground">
+                  Signed in as
+                </p>
+                <div className="flex w-full items-center gap-3">
+                  <Avatar className="h-10 w-10" aria-hidden="true">
+                    {account.iconUrl && <AvatarImage src={account.iconUrl} />}
+                    <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
+                      {getAvatarInitial(accountDisplayName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-sm font-medium truncate">
+                      {accountDisplayName}
+                    </p>
+                    {/* Show the email as a secondary line only when a distinct
                       name is the primary identity. Covers name=null, blank, and
                       name===email (which would otherwise render twice). The
                       comparison is case-insensitive because emails are. */}
-                  {accountDisplayName.toLowerCase() !==
-                    account.email.toLowerCase() && (
-                    <p className="text-xs text-muted-foreground truncate">
-                      {account.email}
-                    </p>
-                  )}
+                    {accountDisplayName.toLowerCase() !==
+                      account.email.toLowerCase() && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        {account.email}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {showActorPicker && (
-            <div className="space-y-2 px-4 py-4">
-              <Label className="text-sm font-medium text-muted-foreground">
-                Authorize as
-              </Label>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-md border bg-background p-3 text-left transition-colors hover:bg-muted"
-                    disabled={isSwitching}
-                  >
-                    <Avatar className="h-10 w-10">
-                      {selectedActor?.iconUrl && (
-                        <AvatarImage src={selectedActor.iconUrl} />
-                      )}
-                      <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
-                        {getAvatarInitial(selectedActor?.username || '')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 overflow-hidden">
-                      <p className="text-sm font-medium truncate">
-                        <ActorDisplayName
-                          name={selectedActor?.name || selectedActor?.username}
-                          tags={selectedActor?.tags}
-                        />
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {selectedActor && getHandle(selectedActor)}
-                      </p>
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[300px]">
-                  {actors.map((actor) => (
-                    <DropdownMenuItem
-                      key={actor.id}
-                      onClick={() => handleActorChange(actor.id)}
+            {showActorPicker && (
+              <div className="space-y-2 px-4 py-4">
+                <Label className="text-sm font-medium text-muted-foreground">
+                  Authorize as
+                </Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 rounded-md border bg-background p-3 text-left transition-colors hover:bg-muted"
                       disabled={isSwitching}
-                      className="flex items-center gap-3"
                     >
-                      <Avatar className="h-8 w-8">
-                        {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
-                        <AvatarFallback className="bg-(--skeleton) text-xs font-semibold text-muted-foreground dark:bg-input">
-                          {getAvatarInitial(actor.username)}
+                      <Avatar className="h-10 w-10">
+                        {selectedActor?.iconUrl && (
+                          <AvatarImage src={selectedActor.iconUrl} />
+                        )}
+                        <AvatarFallback className="bg-(--skeleton) font-semibold text-muted-foreground dark:bg-input">
+                          {getAvatarInitial(selectedActor?.username || '')}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 overflow-hidden">
                         <p className="text-sm font-medium truncate">
                           <ActorDisplayName
-                            name={actor.name || actor.username}
-                            tags={actor.tags}
+                            name={
+                              selectedActor?.name || selectedActor?.username
+                            }
+                            tags={selectedActor?.tags}
                           />
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {getHandle(actor)}
+                          {selectedActor && getHandle(selectedActor)}
                         </p>
                       </div>
-                      {actor.id === selectedActorId && (
-                        <Check className="h-4 w-4 text-primary" />
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-[300px]">
+                    {actors.map((actor) => (
+                      <DropdownMenuItem
+                        key={actor.id}
+                        onClick={() => handleActorChange(actor.id)}
+                        disabled={isSwitching}
+                        className="flex items-center gap-3"
+                      >
+                        <Avatar className="h-8 w-8">
+                          {actor.iconUrl && <AvatarImage src={actor.iconUrl} />}
+                          <AvatarFallback className="bg-(--skeleton) text-xs font-semibold text-muted-foreground dark:bg-input">
+                            {getAvatarInitial(actor.username)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 overflow-hidden">
+                          <p className="text-sm font-medium truncate">
+                            <ActorDisplayName
+                              name={actor.name || actor.username}
+                              tags={actor.tags}
+                            />
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {getHandle(actor)}
+                          </p>
+                        </div>
+                        {actor.id === selectedActorId && (
+                          <Check className="h-4 w-4 text-primary" />
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
+
+            <div className="space-y-4 px-4 py-4">
+              <h2 className="text-sm font-medium text-muted-foreground">
+                Review permissions
+              </h2>
+              <div className="space-y-3">
+                {availabledScopes.map((scope) => {
+                  // `openid` is what makes this an OIDC authentication request and
+                  // gates id_token issuance, so it must not be strippable. Render
+                  // it locked (disabled + checked) and submit it via a hidden
+                  // field so a disabled checkbox (which a browser omits from form
+                  // data) can't silently drop it. Optional OIDC scopes
+                  // (profile/email) stay user-toggleable.
+                  const lockedOidcScope = isOidc && scope === 'openid'
+                  return (
+                    <div key={scope} className="flex items-center space-x-2">
+                      <Checkbox
+                        // `peer` lets the label below dim for a locked scope;
+                        // the 14 px tick is the consent card's own check size.
+                        className="peer bg-[length:14px_14px]"
+                        // A disabled control is omitted from form submission, but
+                        // also drop the name so a non-standard serializer can't
+                        // double-submit `openid` alongside the hidden field.
+                        name={lockedOidcScope ? undefined : 'scope'}
+                        value={scope}
+                        id={`scope-${scope}`}
+                        defaultChecked
+                        disabled={lockedOidcScope}
+                      />
+                      {lockedOidcScope && (
+                        <input type="hidden" name="scope" value={scope} />
                       )}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      <Label
+                        htmlFor={`scope-${scope}`}
+                        className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {scope}
+                      </Label>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          )}
+          </Frame>
+        </AuthCardBody>
 
-          <div className="space-y-4 px-4 py-4">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              Review permissions
-            </h2>
-            <div className="space-y-3">
-              {availabledScopes.map((scope) => {
-                // `openid` is what makes this an OIDC authentication request and
-                // gates id_token issuance, so it must not be strippable. Render
-                // it locked (disabled + checked) and submit it via a hidden
-                // field so a disabled checkbox (which a browser omits from form
-                // data) can't silently drop it. Optional OIDC scopes
-                // (profile/email) stay user-toggleable.
-                const lockedOidcScope = isOidc && scope === 'openid'
-                return (
-                  <div key={scope} className="flex items-center space-x-2">
-                    <Checkbox
-                      // `peer` lets the label below dim for a locked scope;
-                      // the 14 px tick is the consent card's own check size.
-                      className="peer bg-[length:14px_14px]"
-                      // A disabled control is omitted from form submission, but
-                      // also drop the name so a non-standard serializer can't
-                      // double-submit `openid` alongside the hidden field.
-                      name={lockedOidcScope ? undefined : 'scope'}
-                      value={scope}
-                      id={`scope-${scope}`}
-                      defaultChecked
-                      disabled={lockedOidcScope}
-                    />
-                    {lockedOidcScope && (
-                      <input type="hidden" name="scope" value={scope} />
-                    )}
-                    <Label
-                      htmlFor={`scope-${scope}`}
-                      className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      {scope}
-                    </Label>
-                  </div>
-                )
-              })}
-            </div>
+        <AuthCardActions>
+          <div className="flex gap-2">
+            <Button
+              className="flex-1"
+              variant="outline"
+              type="button"
+              onClick={handleDeny}
+              disabled={isSubmitting || isSwitching}
+            >
+              {submittingAction === 'deny' ? 'Denying…' : 'Deny'}
+            </Button>
+            <Button
+              className="flex-1"
+              type="submit"
+              disabled={isSubmitting || isSwitching}
+            >
+              {submittingAction === 'approve' ? 'Approving…' : 'Approve'}
+            </Button>
           </div>
-        </Frame>
-
-        <div className="flex gap-2">
-          <Button
-            className="flex-1"
-            variant="outline"
-            type="button"
-            onClick={handleDeny}
-            disabled={isSubmitting || isSwitching}
-          >
-            {submittingAction === 'deny' ? 'Denying…' : 'Deny'}
-          </Button>
-          <Button
-            className="flex-1"
-            type="submit"
-            disabled={isSubmitting || isSwitching}
-          >
-            {submittingAction === 'approve' ? 'Approving…' : 'Approve'}
-          </Button>
-        </div>
+        </AuthCardActions>
       </form>
     </AuthCard>
   )

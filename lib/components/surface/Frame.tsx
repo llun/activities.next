@@ -7,8 +7,19 @@ interface Props {
   footer?: ReactNode
   /** The faint `bg-muted/40` panel instead of the page background. */
   muted?: boolean
-  /** Hairline `divide-y` rules between the children (form rows, list rows). */
+  /** Hairline `divide-y` rules between the children (list rows). */
   divided?: boolean
+  /**
+   * One form's box: the children are `FormRow`s (and `FormGroup`s) spaced by
+   * their padding, never divided, with `py-1.5` so the first and last rows sit
+   * 16px from the edge. Wins over `divided`.
+   */
+  form?: boolean
+  /**
+   * Keep the footer in reach on a long form: it sticks to the bottom of the
+   * viewport (respecting the safe area) until the box ends.
+   */
+  stickyFooter?: boolean
   className?: string
   children: ReactNode
 }
@@ -16,12 +27,15 @@ interface Props {
 /**
  * The one flat surface: `rounded-lg border bg-background`, no shadow. Content
  * that belongs together (a settings form's rows, a list's rows, a chart) sits
- * in one Frame, with `divided` drawing the hairlines between its children.
+ * in one Frame: `divided` draws the hairlines between a list's rows, `form`
+ * spaces a form's rows with no lines and leaves the one rule above the footer.
  */
 export const Frame: FC<Props> = ({
   footer,
   muted = false,
   divided = false,
+  form = false,
+  stickyFooter = false,
   className,
   children
 }) => (
@@ -33,9 +47,22 @@ export const Frame: FC<Props> = ({
       className
     )}
   >
-    {divided ? <div className="divide-y">{children}</div> : children}
+    {form ? (
+      <div className="py-1.5">{children}</div>
+    ) : divided ? (
+      <div className="divide-y">{children}</div>
+    ) : (
+      children
+    )}
     {footer ? (
-      <div data-slot="frame-footer" className="border-t px-4 py-3">
+      <div
+        data-slot="frame-footer"
+        className={cn(
+          'border-t px-4 py-3',
+          stickyFooter &&
+            'sticky bottom-0 z-10 rounded-b-lg bg-background pb-[max(0.75rem,env(safe-area-inset-bottom))]'
+        )}
+      >
         {footer}
       </div>
     ) : null}

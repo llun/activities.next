@@ -25,19 +25,21 @@ const Page: FC<Props> = async ({ searchParams }) => {
       logoSrc={getAuthLogoSrc()}
       title="Reset your password"
       description="Set a new password for your account."
-      footer={
-        <AuthCardFooter>
-          Need a new reset link?{' '}
-          <Link
-            href="/auth/forgot-password"
-            className="text-primary-text hover:underline"
-          >
-            Request one
-          </Link>
-        </AuthCardFooter>
-      }
     >
-      <ResetPasswordForm initialCode={passwordResetCode} />
+      <ResetPasswordForm
+        initialCode={passwordResetCode}
+        footer={
+          <AuthCardFooter>
+            Need a new reset link?{' '}
+            <Link
+              href="/auth/forgot-password"
+              className="text-primary-text hover:underline"
+            >
+              Request one
+            </Link>
+          </AuthCardFooter>
+        }
+      />
     </AuthCard>
   )
 }
