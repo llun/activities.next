@@ -20,6 +20,7 @@ import {
 } from '@/lib/database/sql/utils/knex'
 import type { GalleryAudience } from '@/lib/services/gallery/galleryAudience'
 import {
+  GalleryShow,
   IucnCategory,
   MEDIA_PLACE_PRECISIONS,
   MEDIA_SUBJECT_CATEGORIES,
@@ -43,6 +44,11 @@ import { Attachment } from '@/lib/types/domain/attachment'
 // sees exactly the photos of the posts they could read on the profile. The
 // status filter is `buildActorVisibleStatusIdsQuery`, the same subquery the
 // profile's posts and Media tab use — never re-derived here.
+//
+// Only the owner's "All media" list may widen the first condition, through the
+// `show` option (`all`, `in_gallery`, `hidden`). It is read for the owner
+// audience alone: any other audience is scoped to `inGallery = true` whatever
+// `show` says, so a request parameter can never reach a hidden photo.
 
 /** A gallery photo or video together with the post it is shown through. */
 export interface GalleryMediaRow {
@@ -133,12 +139,16 @@ export interface GetGalleryMediaParams {
   limit: number
   // Camera or lens.
   gearId?: string
+  // Owner only (ignored for a viewer): which posted media to list.
+  show?: GalleryShow
 }
 
 export interface GetGalleryMediaByIdsParams {
   actorId: string
   audience: GalleryAudience
   mediaIds: string[]
+  // Owner only (ignored for a viewer): the same `show` the ids were found with.
+  show?: GalleryShow
 }
 
 export interface GetGalleryMediaIndexParams {
@@ -147,6 +157,8 @@ export interface GetGalleryMediaIndexParams {
   limit: number
   // Only media with an id below this one. An invalid id reads nothing.
   maxId?: string
+  // Owner only (ignored for a viewer): which posted media to index.
+  show?: GalleryShow
 }
 
 export interface GetGalleryMapRowsParams {
@@ -295,17 +307,29 @@ export const mediaIdRef = (database: Knex) =>
 /**
  * Applies the gallery scope to a query over `medias`. `requireInGallery: false`
  * is only for the owner's gear usage, which counts every posted photo.
+ *
+ * `show` narrows the owner's view of posted media (`all` adds no `inGallery`
+ * condition, `hidden` requires it to be false). It is honoured for the owner
+ * audience only; every other audience keeps `inGallery = true`.
  */
 export const buildGalleryMediaScope = (
   database: Knex,
   actorId: string,
   audience: GalleryAudience,
-  { requireInGallery = true }: { requireInGallery?: boolean } = {}
+  {
+    requireInGallery = true,
+    show
+  }: { requireInGallery?: boolean; show?: GalleryShow } = {}
 ) => {
+  const effectiveShow: GalleryShow =
+    audience?.kind === 'owner' && show !== undefined ? show : 'in_gallery'
   return (query: Knex.QueryBuilder): Knex.QueryBuilder => {
     query.where('medias.actorId', actorId)
-    // Bound as `true`; SQLite stores the column as 0/1 and knex binds 1.
-    if (requireInGallery) query.where('medias.inGallery', true)
+    // Bound as `true`/`false`; SQLite stores the column as 0/1 and knex binds
+    // 1/0.
+    if (requireInGallery && effectiveShow !== 'all') {
+      query.where('medias.inGallery', effectiveShow === 'in_gallery')
+    }
 
     // See `mediaIdRef` for why SQLite compares against the text form.
     const posted = database(`attachments as ${ATTACHMENTS}`)
@@ -523,7 +547,7 @@ export const GalleryMediaSQLDatabaseMixin = (
       return Boolean(row)
     },
 
-    async getGalleryMedia({ actorId, audience, maxId, limit, gearId }) {
+    async getGalleryMedia({ actorId, audience, maxId, limit, gearId, show }) {
       const size = normalizeLimit(limit)
       if (size === 0) return []
 
@@ -534,7 +558,7 @@ export const GalleryMediaSQLDatabaseMixin = (
       }
 
       const query = selectMediaColumns()
-      buildGalleryMediaScope(database, actorId, audience)(query)
+      buildGalleryMediaScope(database, actorId, audience, { show })(query)
       if (maxRowId !== null) query.where('medias.id', '<', maxRowId)
       if (gearId !== undefined) {
         query.where((builder) =>
@@ -550,7 +574,7 @@ export const GalleryMediaSQLDatabaseMixin = (
       return toGalleryMediaRows(actorId, audience, rows)
     },
 
-    async getGalleryMediaByIds({ actorId, audience, mediaIds }) {
+    async getGalleryMediaByIds({ actorId, audience, mediaIds, show }) {
       const rowIds = [
         ...new Set(
           mediaIds
@@ -566,7 +590,7 @@ export const GalleryMediaSQLDatabaseMixin = (
         getWhereInBatchSize(database, RESERVED_BINDINGS)
       )) {
         const query = selectMediaColumns().whereIn('medias.id', chunk)
-        buildGalleryMediaScope(database, actorId, audience)(query)
+        buildGalleryMediaScope(database, actorId, audience, { show })(query)
         rows.push(...((await query) as MediaRow[]))
       }
 
@@ -577,7 +601,7 @@ export const GalleryMediaSQLDatabaseMixin = (
       )
     },
 
-    async getGalleryMediaIndex({ actorId, audience, limit, maxId }) {
+    async getGalleryMediaIndex({ actorId, audience, limit, maxId, show }) {
       const size = normalizeLimit(limit)
       if (size === 0) return []
 
@@ -605,7 +629,7 @@ export const GalleryMediaSQLDatabaseMixin = (
         'medias.takenAt',
         'medias.createdAt'
       )
-      buildGalleryMediaScope(database, actorId, audience)(query)
+      buildGalleryMediaScope(database, actorId, audience, { show })(query)
       if (maxRowId !== null) query.where('medias.id', '<', maxRowId)
       const rows: Array<Record<string, unknown>> = await query
         .orderBy('medias.id', 'desc')

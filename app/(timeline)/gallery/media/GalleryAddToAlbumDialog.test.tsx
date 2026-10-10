@@ -136,7 +136,7 @@ describe('GalleryAddToAlbumDialog', () => {
 
     await waitFor(() => expect(onAdded).toHaveBeenCalled())
     expect(onAdded.mock.calls[0][0].message).toBe(
-      'Added 1 photo to “Garden birds”. 1 photo was already there. 1 photo couldn’t be added: it isn’t in your gallery any more.'
+      'Added 1 photo to “Garden birds”. 1 photo was already there. 1 photo couldn’t be added: it is hidden from your gallery or no longer posted.'
     )
   })
 

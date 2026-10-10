@@ -202,14 +202,13 @@ describe('GalleryAlbumPicker', () => {
     expect(screen.getByTestId('selected')).toHaveTextContent('1')
   })
 
-  it('points an empty gallery to Recent', async () => {
+  it('points an empty gallery to All media', async () => {
     media.mockResolvedValue({ items: [], nextMaxId: null })
     render(<Harness />)
     expect(await screen.findByText('No photos to add yet')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Go to Recent' })).toHaveAttribute(
-      'href',
-      '/gallery/recent'
-    )
+    expect(
+      screen.getByRole('link', { name: 'Go to All media' })
+    ).toHaveAttribute('href', '/gallery/media')
   })
 
   it('shows a load failure and retries', async () => {

@@ -150,12 +150,12 @@ describe('GallerySubjectsOverview', () => {
       <GallerySubjectsOverview
         data={data}
         linkSubjects
-        getSeeAllHref={(category) => `/gallery/recent?category=${category}`}
+        getSeeAllHref={(category) => `/gallery/media?category=${category}`}
       />
     )
     expect(screen.getAllByRole('link', { name: 'See all' })[0]).toHaveAttribute(
       'href',
-      '/gallery/recent?category=bird'
+      '/gallery/media?category=bird'
     )
   })
 

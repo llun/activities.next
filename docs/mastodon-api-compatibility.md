@@ -447,6 +447,15 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
 - **Media details and gallery** — `GET`/`PUT`/`PATCH /api/v1/media/:id` carry a
   non-Mastodon `details` object (snake_case on the way in), and
   `/api/v1/gallery/*` and `/api/v1/accounts/:id/gallery/*` serve the gallery.
+  `GET /api/v1/accounts/:id/gallery/media` takes an owner-only `show`
+  (`all`, `in_gallery`, `hidden`; ignored for anyone else) and reports
+  `inGallery` on each of the owner's items.
+  `PUT /api/v1/statuses/:id` accepts `media_attributes[][description]` of up to
+  1500 characters, as `PUT /api/v1/media/:id` does and as Mastodon does (it was
+  255 here), and an edit that sends only `media_attributes` keeps the post's
+  text, spoiler, sensitivity, visibility and other attachments (with the alt
+  text they already publish: only the photos it describes change theirs),
+  records a history entry and federates one Update.
   The owner's `details` (camelCase on the way out) also reports what the
   lookups found: `subject.taxonKey`, `subject.taxonPath`,
   `subject.iucnCategory`, `subject.threatStatus` (`threatened`,

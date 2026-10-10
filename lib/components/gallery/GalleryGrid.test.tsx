@@ -28,12 +28,14 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
     initialSelection,
     albumsOwnerId,
     onAlbumsChange,
+    onEdit,
     onClosed
   }: {
     medias: Attachment[] | null
     initialSelection: number
     albumsOwnerId?: string | null
     onAlbumsChange?: (albumId: string) => void
+    onEdit?: (index: number) => void
     onClosed: () => void
   }) => {
     lastViewerProps.onAlbumsChange = onAlbumsChange ?? null
@@ -46,9 +48,31 @@ vi.mock('@/lib/components/medias-modal/medias-modal', () => ({
         <span data-testid="modal-owner">{albumsOwnerId ?? 'none'}</span>
         <button onClick={() => onAlbumsChange?.('a1')}>Pill added to a1</button>
         <button onClick={() => onAlbumsChange?.('a2')}>Pill added to a2</button>
+        {onEdit ? (
+          <button onClick={() => onEdit(initialSelection)}>Edit</button>
+        ) : null}
         <button onClick={onClosed}>Close viewer</button>
       </div>
     ) : null
+  }
+}))
+
+const editorProps = vi.hoisted(() => ({
+  current: null as null | {
+    items: { mediaId: string }[]
+    initialMediaId: string
+    ownerId: string
+    onClose: () => void
+    onSaved: (items: unknown[]) => void
+  }
+}))
+
+vi.mock('@/lib/components/gallery/GalleryEditDetailsDialog', () => ({
+  GalleryEditDetailsDialog: (
+    props: NonNullable<typeof editorProps.current>
+  ) => {
+    editorProps.current = props
+    return <div role="dialog" aria-label="Edit details" />
   }
 }))
 
@@ -126,6 +150,159 @@ describe('GalleryGrid', () => {
     rerender(<GalleryGrid items={items} albumsOwnerId="owner-1" />)
     fireEvent.click(screen.getByRole('button', { name: 'Open media 2' }))
     expect(screen.getByTestId('modal-owner')).toHaveTextContent('owner-1')
+  })
+
+  describe('hidden from the gallery', () => {
+    const hidden = buildGalleryItem('4', { inGallery: false })
+
+    it('badges a photo the owner hid and says so in the tile name', () => {
+      render(
+        <GalleryGrid
+          items={[buildGalleryItem('3', { inGallery: true }), hidden]}
+        />
+      )
+
+      expect(screen.getAllByTestId('hidden-badge')).toHaveLength(1)
+      expect(
+        screen.getByRole('button', {
+          name: 'Open media 2, hidden from your gallery'
+        })
+      ).toHaveTextContent('Hidden')
+      // A photo in the gallery has no badge and no state in its name.
+      expect(
+        screen.getByRole('button', { name: 'Open media 1' })
+      ).not.toHaveTextContent('Hidden')
+    })
+
+    it('keeps the state in the name when the tile has alt text or a subject', () => {
+      const withAlt = buildGalleryItem('5', { inGallery: false })
+      withAlt.attachment.name = 'A fox in the snow'
+      const withSubject = buildGalleryItem('6', {
+        inGallery: false,
+        subject: {
+          name: 'Red Fox',
+          scientificName: null,
+          category: 'mammal',
+          taxonKey: null,
+          taxonPath: null
+        }
+      })
+      render(<GalleryGrid items={[withAlt, withSubject]} />)
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Open media: A fox in the snow, hidden from your gallery'
+        })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', {
+          name: 'Open media: Red Fox, hidden from your gallery'
+        })
+      ).toBeInTheDocument()
+    })
+
+    it('shows nothing for a viewer, who is never told (inGallery is omitted)', () => {
+      render(<GalleryGrid items={items} />)
+
+      expect(screen.queryByTestId('hidden-badge')).not.toBeInTheDocument()
+      expect(screen.queryByText('Hidden')).not.toBeInTheDocument()
+    })
+
+    it('moves the badge clear of the select mark in select mode', () => {
+      render(
+        <GalleryGrid
+          items={[hidden]}
+          selection={{ selected: new Set(), onToggle: vi.fn() }}
+        />
+      )
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Select media 1, hidden from your gallery'
+        })
+      ).toContainElement(screen.getByTestId('hidden-badge'))
+      expect(screen.getByTestId('select-mark')).toBeInTheDocument()
+    })
+  })
+
+  describe('edit from the viewer', () => {
+    it('offers Edit to the owner only', () => {
+      const { rerender } = render(<GalleryGrid items={items} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Open media 2' }))
+      expect(
+        screen.queryByRole('button', { name: 'Edit' })
+      ).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+
+      rerender(<GalleryGrid items={items} albumsOwnerId="owner-1" />)
+      fireEvent.click(screen.getByRole('button', { name: 'Open media 2' }))
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    })
+
+    it('opens Edit details over the viewer for the photo on screen alone', () => {
+      render(<GalleryGrid items={items} albumsOwnerId="owner-1" />)
+      fireEvent.click(screen.getByRole('button', { name: 'Open media 2' }))
+      expect(
+        screen.queryByRole('dialog', { name: 'Edit details' })
+      ).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+      expect(
+        screen.getByRole('dialog', { name: 'Edit details' })
+      ).toBeInTheDocument()
+      expect(editorProps.current?.items.map((item) => item.mediaId)).toEqual([
+        '2'
+      ])
+      expect(editorProps.current?.initialMediaId).toBe('2')
+      expect(editorProps.current?.ownerId).toBe('owner-1')
+      // The viewer stays under it.
+      expect(
+        screen.getByRole('dialog', { name: 'Media viewer' })
+      ).toBeInTheDocument()
+
+      act(() => editorProps.current?.onClose())
+      expect(
+        screen.queryByRole('dialog', { name: 'Edit details' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows the saved details on the tile and in the viewer, and tells the page', () => {
+      const onItemEdited = vi.fn()
+      render(
+        <GalleryGrid
+          items={items}
+          albumsOwnerId="owner-1"
+          onItemEdited={onItemEdited}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Open media 2' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+      const saved = buildGalleryItem('2', { inGallery: false })
+      saved.attachment.name = 'A new alt text'
+      act(() => editorProps.current?.onSaved([saved]))
+      act(() => editorProps.current?.onClose())
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+
+      expect(onItemEdited).toHaveBeenCalledWith(saved)
+      expect(
+        screen.getByRole('button', {
+          name: 'Open media: A new alt text, hidden from your gallery'
+        })
+      ).toBeInTheDocument()
+    })
+
+    it('tells the page when the viewer closes, so a moved photo can leave the list', () => {
+      const onViewerClosed = vi.fn()
+      render(<GalleryGrid items={items} onViewerClosed={onViewerClosed} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Open media 2' }))
+      expect(onViewerClosed).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+
+      expect(onViewerClosed).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('select mode', () => {

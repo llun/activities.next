@@ -173,4 +173,106 @@ describe('GET /api/v1/accounts/:id/gallery/media', () => {
     expect(response.status).toBe(200)
     expect((await response.json()).items).toEqual([])
   })
+
+  describe('show', () => {
+    // Posted on a public post, but with Show in my gallery switched off.
+    beforeAll(async () => {
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: '/test/route-hidden.jpg',
+          bytes: 1000,
+          mimeType: 'image/jpeg',
+          metaData: { width: 100, height: 100 }
+        },
+        details: { inGallery: false, subjectName: 'Hidden Wren' }
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId: `${ACTOR1_ID}/statuses/gallery-route-public`,
+        mediaType: 'image/jpeg',
+        url: 'https://media.test/route-hidden.jpg',
+        width: 100,
+        height: 100,
+        mediaId: media!.id
+      })
+    })
+
+    it.each([
+      {
+        description: 'is the gallery when the owner sends nothing',
+        query: '',
+        expected: ['Grey Heron', 'Lakes', 'Red Fox', 'Kingfisher']
+      },
+      {
+        description: 'lists every posted photo with show=all',
+        query: '?show=all',
+        expected: [
+          'Hidden Wren',
+          'Grey Heron',
+          'Lakes',
+          'Red Fox',
+          'Kingfisher'
+        ]
+      },
+      {
+        description: 'lists the gallery with show=in_gallery',
+        query: '?show=in_gallery',
+        expected: ['Grey Heron', 'Lakes', 'Red Fox', 'Kingfisher']
+      },
+      {
+        description: 'lists only hidden photos with show=hidden',
+        query: '?show=hidden',
+        expected: ['Hidden Wren']
+      }
+    ])('for the owner $description', async ({ query, expected }) => {
+      signIn(seedActor1.email)
+
+      const response = await call(ACTOR1_ID, query)
+
+      expect(response.status).toBe(200)
+      expect(await names(response)).toEqual(expected)
+    })
+
+    it('tells the owner which photos are in the gallery', async () => {
+      signIn(seedActor1.email)
+
+      const { items } = await (await call(ACTOR1_ID, '?show=all')).json()
+
+      expect(
+        items.map((item: { inGallery: boolean }) => item.inGallery)
+      ).toEqual([false, true, true, true, true])
+    })
+
+    it.each([
+      ['a logged-out caller', null],
+      ['a stranger', seedActor2.email],
+      ['a follower', seedActor3.email]
+    ])('is ignored for %s', async (_, email) => {
+      signIn(email)
+      const baseline = await (await call(ACTOR1_ID)).json()
+
+      for (const show of ['all', 'hidden', 'in_gallery']) {
+        const body = await (await call(ACTOR1_ID, `?show=${show}`)).json()
+        expect(body).toEqual(baseline)
+        expect(
+          body.items.map(
+            (item: { subject: { name: string } | null }) => item.subject?.name
+          )
+        ).not.toContain('Hidden Wren')
+        for (const item of body.items) {
+          expect(item).not.toHaveProperty('inGallery')
+        }
+      }
+    })
+
+    it('answers 422 for an unknown value', async () => {
+      signIn(seedActor1.email)
+
+      const response = await call(ACTOR1_ID, '?show=everything')
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ error: 'Unprocessable entity' })
+    })
+  })
 })

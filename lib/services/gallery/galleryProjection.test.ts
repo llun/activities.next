@@ -186,6 +186,31 @@ describe('toGalleryItemEntity place', () => {
   })
 })
 
+describe('toGalleryItemEntity gallery membership', () => {
+  it.each([true, false])(
+    'tells the owner whether the photo is in the gallery (%s)',
+    (inGallery) => {
+      const item = toGalleryItemEntity(mediaRow({ inGallery }), {
+        viewer: 'owner',
+        settings: settingsWith(),
+        gearNames: {}
+      })
+
+      expect(item.inGallery).toBe(inGallery)
+    }
+  )
+
+  it('leaves it out for everyone else', () => {
+    const item = toGalleryItemEntity(mediaRow({ inGallery: true }), {
+      viewer: 'public',
+      settings: settingsWith(),
+      gearNames: {}
+    })
+
+    expect(item).not.toHaveProperty('inGallery')
+  })
+})
+
 describe('toGalleryItemEntity gear and identity', () => {
   const row = mediaRow({
     subjectName: 'Common Kingfisher',

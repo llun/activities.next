@@ -17,7 +17,7 @@ import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlb
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import { GALLERY_ALBUM_FULL_MESSAGE } from '@/lib/types/database/galleryAlbums'
 
-import { GalleryRecentView } from './GalleryRecentView'
+import { GalleryAllMediaView } from './GalleryAllMediaView'
 
 enableFetchMocks()
 
@@ -62,6 +62,23 @@ vi.mock('@/app/(timeline)/gallery/albums/GalleryAlbumFormDialog', () => ({
   }
 }))
 
+const editDialog = vi.hoisted(() => ({
+  current: null as null | {
+    items: { mediaId: string }[]
+    initialMediaId: string
+    ownerId: string
+    onClose: () => void
+    onSaved: (items: unknown[]) => void
+  }
+}))
+
+vi.mock('@/lib/components/gallery/GalleryEditDetailsDialog', () => ({
+  GalleryEditDetailsDialog: (props: NonNullable<typeof editDialog.current>) => {
+    editDialog.current = props
+    return <div role="dialog" aria-label="Edit details" />
+  }
+}))
+
 vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
   GalleryGrid: ({
     items,
@@ -95,18 +112,20 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
 
 const getGalleryMediaMock = getGalleryMedia as jest.Mock
 
-describe('GalleryRecentView', () => {
+describe('GalleryAllMediaView', () => {
   beforeEach(() => {
     getGalleryMediaMock.mockReset()
     fetchMock.resetMocks()
     formDialog.current = null
+    editDialog.current = null
   })
 
   it('renders the server page without fetching', () => {
     render(
-      <GalleryRecentView
+      <GalleryAllMediaView
         actorId="actor-1"
         initialCategory={null}
+        initialShow="all"
         initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
       />
     )
@@ -116,9 +135,10 @@ describe('GalleryRecentView', () => {
 
   it('starts on the category from the URL', () => {
     render(
-      <GalleryRecentView
+      <GalleryAllMediaView
         actorId="actor-1"
         initialCategory="bird"
+        initialShow="all"
         initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
       />
     )
@@ -133,9 +153,10 @@ describe('GalleryRecentView', () => {
       nextMaxId: null
     })
     render(
-      <GalleryRecentView
+      <GalleryAllMediaView
         actorId="actor-1"
         initialCategory={null}
+        initialShow="all"
         initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
       />
     )
@@ -152,7 +173,179 @@ describe('GalleryRecentView', () => {
       limit: 30,
       maxId: undefined,
       subject: undefined,
-      category: 'mammal'
+      category: 'mammal',
+      show: 'all'
+    })
+  })
+
+  it('loads fresh instead of reusing the server page after the filters were left', async () => {
+    getGalleryMediaMock.mockResolvedValue({
+      items: [buildGalleryItem('5', { inGallery: false })],
+      nextMaxId: null
+    })
+    render(
+      <GalleryAllMediaView
+        actorId="actor-1"
+        initialCategory={null}
+        initialShow="in_gallery"
+        initialPage={{
+          items: [buildGalleryItem('5', { inGallery: true })],
+          nextMaxId: null
+        }}
+      />
+    )
+    expect(getGalleryMediaMock).not.toHaveBeenCalled()
+
+    const chooseShow = async (label: RegExp) => {
+      const group = screen.getByRole('group', { name: 'Show' })
+      fireEvent.keyDown(group.querySelector('button')!, { key: 'ArrowDown' })
+      fireEvent.click(await screen.findByRole('menuitem', { name: label }))
+    }
+    await chooseShow(/^Everything/)
+    await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(1))
+    await chooseShow(/^In gallery/)
+
+    // Back on the starting list: not the page the server rendered before the
+    // photo was edited, but a new read.
+    await waitFor(() => expect(getGalleryMediaMock).toHaveBeenCalledTimes(2))
+    expect(getGalleryMediaMock).toHaveBeenLastCalledWith(
+      'actor-1',
+      expect.objectContaining({ show: 'in_gallery' })
+    )
+  })
+
+  it('titles the page All media', () => {
+    render(
+      <GalleryAllMediaView
+        actorId="actor-1"
+        initialCategory={null}
+        initialShow="all"
+        initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+      />
+    )
+    expect(
+      screen.getByRole('heading', { name: 'All media' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText("Every photo and video you've posted, newest first")
+    ).toBeInTheDocument()
+  })
+
+  describe('show filter', () => {
+    const openShowMenu = async () => {
+      const nav = screen.getByRole('group', { name: 'Show' })
+      fireEvent.keyDown(nav.querySelector('button')!, { key: 'ArrowDown' })
+      return screen.findByRole('menu')
+    }
+
+    it('starts on the list from the URL, Everything by default', () => {
+      const { unmount } = render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      )
+      expect(screen.getByRole('group', { name: 'Show' })).toHaveTextContent(
+        'Show Everything'
+      )
+      unmount()
+
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="hidden"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      )
+      expect(screen.getByRole('group', { name: 'Show' })).toHaveTextContent(
+        'Show Hidden from gallery'
+      )
+    })
+
+    it('offers the three lists with a hint each', async () => {
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      )
+      const menu = await openShowMenu()
+      const items = within(menu).getAllByRole('menuitem')
+      expect(items.map((item) => item.textContent)).toEqual([
+        'EverythingPhotos and videos you’ve posted',
+        'In galleryPosted and shown in your gallery',
+        'Hidden from galleryPosted, with Show in my gallery switched off'
+      ])
+      expect(items[0]).toHaveAttribute('aria-current', 'true')
+    })
+
+    it.each([
+      {
+        description: 'in the gallery',
+        label: /^In gallery/,
+        show: 'in_gallery'
+      },
+      {
+        description: 'hidden from the gallery',
+        label: /^Hidden from gallery/,
+        show: 'hidden'
+      }
+    ])(
+      'reloads from the first page for $description',
+      async ({ label, show }) => {
+        getGalleryMediaMock.mockResolvedValue({
+          items: [buildGalleryItem('8')],
+          nextMaxId: null
+        })
+        render(
+          <GalleryAllMediaView
+            actorId="actor-1"
+            initialCategory="bird"
+            initialShow="all"
+            initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+          />
+        )
+
+        await openShowMenu()
+        fireEvent.click(await screen.findByRole('menuitem', { name: label }))
+
+        await waitFor(() =>
+          expect(screen.getByTestId('grid')).toHaveTextContent('8')
+        )
+        expect(getGalleryMediaMock).toHaveBeenCalledWith('actor-1', {
+          limit: 30,
+          maxId: undefined,
+          subject: undefined,
+          category: 'bird',
+          show
+        })
+      }
+    )
+
+    it('says what an empty list means', async () => {
+      getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      )
+
+      await openShowMenu()
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: /^Hidden from gallery/ })
+      )
+
+      expect(
+        await screen.findByText('Nothing is hidden from your gallery')
+      ).toBeInTheDocument()
     })
   })
 
@@ -162,11 +355,12 @@ describe('GalleryRecentView', () => {
         buildGalleryItem(String(index + 1))
       )
 
-    const renderRecent = (count = 3) =>
+    const renderAllMedia = (count = 3) =>
       render(
-        <GalleryRecentView
+        <GalleryAllMediaView
           actorId="actor-1"
           initialCategory={null}
+          initialShow="all"
           initialPage={{ items: photos(count), nextMaxId: null }}
         />
       )
@@ -201,7 +395,7 @@ describe('GalleryRecentView', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Select' }))
 
     it('is off until Select is pressed, and has no bar', () => {
-      renderRecent()
+      renderAllMedia()
 
       expect(screen.getByTestId('grid')).toHaveAttribute('data-selecting', 'no')
       expect(
@@ -228,7 +422,7 @@ describe('GalleryRecentView', () => {
     })
 
     it('sends focus to the bar from a skip link', () => {
-      renderRecent()
+      renderAllMedia()
       expect(
         screen.queryByRole('button', { name: 'Skip to selection bar' })
       ).not.toBeInTheDocument()
@@ -242,7 +436,7 @@ describe('GalleryRecentView', () => {
     })
 
     it('counts the picks and turns a pick off again', () => {
-      renderRecent()
+      renderAllMedia()
       startSelecting()
 
       fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
@@ -258,7 +452,7 @@ describe('GalleryRecentView', () => {
     })
 
     it('selects every loaded photo, and clears', () => {
-      renderRecent(3)
+      renderAllMedia(3)
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select 2' }))
 
@@ -284,7 +478,7 @@ describe('GalleryRecentView', () => {
     })
 
     it('leaves select mode and forgets the picks on Cancel', () => {
-      renderRecent()
+      renderAllMedia()
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
 
@@ -304,7 +498,7 @@ describe('GalleryRecentView', () => {
         items: [buildGalleryItem('8')],
         nextMaxId: null
       })
-      renderRecent()
+      renderAllMedia()
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
 
@@ -320,7 +514,7 @@ describe('GalleryRecentView', () => {
 
     it('adds the selection to an album in the order picked and links to it', async () => {
       answerWith((ids) => accepted(ids))
-      renderRecent()
+      renderAllMedia()
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select 3' }))
       fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
@@ -357,7 +551,7 @@ describe('GalleryRecentView', () => {
         sent.push(ids)
         return accepted(ids)
       })
-      renderRecent(250)
+      renderAllMedia(250)
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }))
       expect(
@@ -380,7 +574,7 @@ describe('GalleryRecentView', () => {
           ? accepted(ids)
           : { status: 422, body: { error: GALLERY_ALBUM_FULL_MESSAGE } }
       })
-      renderRecent(250)
+      renderAllMedia(250)
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }))
 
@@ -405,7 +599,7 @@ describe('GalleryRecentView', () => {
           ? accepted(ids)
           : { status: 500, body: { error: 'Server is down' } }
       })
-      renderRecent(250)
+      renderAllMedia(250)
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }))
 
@@ -425,7 +619,7 @@ describe('GalleryRecentView', () => {
 
     it('hands focus to the Select button when an add finishes', async () => {
       answerWith((ids) => accepted(ids))
-      renderRecent()
+      renderAllMedia()
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
       fireEvent.click(screen.getByRole('button', { name: 'Add to album' }))
@@ -452,7 +646,7 @@ describe('GalleryRecentView', () => {
           album: albums[0]
         }
       }))
-      renderRecent()
+      renderAllMedia()
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }))
 
@@ -469,7 +663,7 @@ describe('GalleryRecentView', () => {
 
     it('opens the create dialog with the selection and its photos', async () => {
       answerWith((ids) => accepted(ids))
-      renderRecent()
+      renderAllMedia()
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select 2' }))
       fireEvent.click(screen.getByRole('button', { name: 'Select 3' }))
@@ -503,9 +697,209 @@ describe('GalleryRecentView', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('opens Edit details with the selected photos and reports the save', async () => {
+      renderAllMedia(3)
+      startSelecting()
+      fireEvent.click(screen.getByRole('button', { name: 'Select 3' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
+
+      fireEvent.click(
+        within(screen.getByRole('region', { name: 'Selection' })).getByRole(
+          'button',
+          { name: 'Edit details' }
+        )
+      )
+
+      expect(
+        await screen.findByRole('dialog', { name: 'Edit details' })
+      ).toBeVisible()
+      // Newest first, as the grid lists them.
+      expect(editDialog.current?.items.map((i) => i.mediaId)).toEqual([
+        '1',
+        '3'
+      ])
+      expect(editDialog.current?.ownerId).toBe('actor-1')
+
+      await act(async () =>
+        editDialog.current?.onSaved([
+          buildGalleryItem('1'),
+          buildGalleryItem('3')
+        ])
+      )
+      await act(async () => editDialog.current?.onClose())
+
+      expect(
+        screen.queryByRole('dialog', { name: 'Edit details' })
+      ).not.toBeInTheDocument()
+      expect(screen.getByText('Details saved for 2 items.')).toBeVisible()
+      // Select mode and the picks stay, for a follow-up like Add to album.
+      expect(
+        screen.getByRole('region', { name: 'Selection' })
+      ).toHaveTextContent('2 selected')
+    })
+
+    it('does nothing from Edit details until a photo is picked', () => {
+      renderAllMedia()
+      startSelecting()
+
+      const edit = within(
+        screen.getByRole('region', { name: 'Selection' })
+      ).getByRole('button', { name: 'Edit details' })
+      expect(edit).toHaveAttribute('aria-disabled', 'true')
+      fireEvent.click(edit)
+
+      expect(
+        screen.queryByRole('dialog', { name: 'Edit details' })
+      ).not.toBeInTheDocument()
+    })
+
+    describe('hidden photos', () => {
+      const mixed = () => [
+        buildGalleryItem('1', { inGallery: true }),
+        buildGalleryItem('2', { inGallery: false }),
+        buildGalleryItem('3', { inGallery: false }),
+        buildGalleryItem('4', { inGallery: true })
+      ]
+      const renderMixed = (show: 'all' | 'in_gallery' = 'all') =>
+        render(
+          <GalleryAllMediaView
+            actorId="actor-1"
+            initialCategory={null}
+            initialShow={show}
+            initialPage={{ items: mixed(), nextMaxId: null }}
+          />
+        )
+      const bar = () => screen.getByRole('region', { name: 'Selection' })
+      const pick = (...ids: string[]) =>
+        ids.forEach((id) =>
+          fireEvent.click(screen.getByRole('button', { name: `Select ${id}` }))
+        )
+
+      it('turns Add to album off while only hidden photos are selected', () => {
+        renderMixed()
+        startSelecting()
+        pick('2', '3')
+
+        const add = within(bar()).getByRole('button', { name: 'Add to album' })
+        expect(add).toHaveAttribute('aria-disabled', 'true')
+        expect(bar()).toHaveTextContent(
+          'Hidden photos can’t be added to albums. Turn on Show in my gallery first.'
+        )
+        fireEvent.click(add)
+        expect(
+          screen.queryByRole('dialog', { name: /Add \d+ photos? to an album/ })
+        ).not.toBeInTheDocument()
+        // Editing them is still fine.
+        expect(
+          within(bar()).getByRole('button', { name: 'Edit details' })
+        ).not.toHaveAttribute('aria-disabled')
+      })
+
+      it('adds the photos in the gallery and says how many hidden ones were skipped', async () => {
+        answerWith((ids) => accepted(ids))
+        renderMixed()
+        startSelecting()
+        pick('2', '1', '3')
+        expect(bar()).toHaveTextContent('2 hidden photos will be skipped')
+        fireEvent.click(
+          within(bar()).getByRole('button', { name: 'Add to album' })
+        )
+        fireEvent.click(await screen.findByRole('radio', { name: /^Kruger/ }))
+        fireEvent.click(screen.getByRole('button', { name: 'Add 1 photo' }))
+
+        expect(
+          await screen.findByText(
+            /Added 1 photo to “Kruger”\. 2 hidden photos skipped: turn on Show in my gallery to add them to albums\./
+          )
+        ).toBeVisible()
+        const posts = fetchMock.mock.calls.filter(
+          ([, init]) => init?.method === 'POST'
+        )
+        expect(JSON.parse(String(posts[0][1]?.body))).toEqual({
+          media_ids: ['1']
+        })
+      })
+
+      it('starts a new album from the photos in the gallery only', async () => {
+        answerWith((ids) => accepted(ids))
+        renderMixed()
+        startSelecting()
+        pick('4', '2')
+        fireEvent.click(
+          within(bar()).getByRole('button', { name: 'Add to album' })
+        )
+        fireEvent.click(
+          await screen.findByRole('button', {
+            name: 'New album with this photo'
+          })
+        )
+
+        expect(formDialog.current?.initialMediaIds).toEqual(['4'])
+        expect(formDialog.current?.initialItems?.map((i) => i.mediaId)).toEqual(
+          ['4']
+        )
+        await act(async () => formDialog.current?.onSaved('new-album'))
+        expect(
+          await screen.findByText(
+            'Album created. 1 hidden photo skipped: turn on Show in my gallery to add it to albums.'
+          )
+        ).toBeVisible()
+      })
+
+      it('forgets a pick that left the list after a save', async () => {
+        renderMixed('in_gallery')
+        startSelecting()
+        pick('1', '4')
+        fireEvent.click(
+          within(bar()).getByRole('button', { name: 'Edit details' })
+        )
+
+        await act(async () =>
+          editDialog.current?.onSaved([
+            buildGalleryItem('1', { inGallery: false })
+          ])
+        )
+
+        expect(bar()).toHaveTextContent('1 selected')
+        expect(
+          screen.queryByRole('button', { name: 'Select 1' })
+        ).not.toBeInTheDocument()
+      })
+    })
+
+    it('caps Edit details at 40 photos', () => {
+      const many = (count: number) =>
+        Array.from({ length: count }, (_, index) =>
+          buildGalleryItem(String(index + 1))
+        )
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory={null}
+          initialShow="all"
+          initialPage={{ items: many(41), nextMaxId: null }}
+        />
+      )
+      startSelecting()
+      fireEvent.click(screen.getByRole('button', { name: 'Select all loaded' }))
+
+      const bar = screen.getByRole('region', { name: 'Selection' })
+      const edit = within(bar).getByRole('button', { name: 'Edit details' })
+      expect(edit).toHaveAttribute('aria-disabled', 'true')
+      expect(bar).toHaveTextContent('Edit up to 40 at a time')
+      fireEvent.click(edit)
+      expect(editDialog.current).toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Select 41' }))
+      expect(edit).not.toHaveAttribute('aria-disabled')
+      expect(bar).not.toHaveTextContent('Edit up to 40 at a time')
+      fireEvent.click(edit)
+      expect(editDialog.current?.items).toHaveLength(40)
+    })
+
     it('dismisses the result', async () => {
       answerWith((ids) => accepted(ids))
-      renderRecent()
+      renderAllMedia()
       startSelecting()
       fireEvent.click(screen.getByRole('button', { name: 'Select 1' }))
       fireEvent.click(screen.getByRole('button', { name: 'Add to album' }))

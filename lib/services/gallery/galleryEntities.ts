@@ -118,6 +118,9 @@ export interface GalleryItemEntity {
   camera: { id?: string; name: string } | null
   lens: { id?: string; name: string } | null
   exposure: MediaPublicDetails['exposure']
+  // Owner only (omitted for everyone else): whether "Show in my gallery" is on.
+  // False for a posted photo the owner hid from the gallery.
+  inGallery?: boolean
   // The owner gets the stored place with coordinates whatever the precision;
   // everyone else gets `getPublicPlace`.
   place:

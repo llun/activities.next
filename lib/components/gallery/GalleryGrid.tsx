@@ -1,8 +1,9 @@
 'use client'
 
-import { Check, Video } from 'lucide-react'
-import { FC, useMemo, useRef, useState } from 'react'
+import { Check, EyeOff, Video } from 'lucide-react'
+import { FC, useCallback, useMemo, useRef, useState } from 'react'
 
+import { GalleryEditDetailsDialog } from '@/lib/components/gallery/GalleryEditDetailsDialog'
 import { formatGalleryDate } from '@/lib/components/gallery/galleryCategories'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import { Media } from '@/lib/components/posts/media'
@@ -23,9 +24,17 @@ interface Props {
   selection?: GalleryGridSelection
   /**
    * The signed-in viewer's actor id when every photo is theirs: the viewer
-   * then offers each photo's albums menu.
+   * then offers each photo's albums menu and an Edit button that opens Edit
+   * details over it. The tiles show what the owner's edit changed.
    */
   albumsOwnerId?: string | null
+  /**
+   * Told the tile as it is after an owner's edit saved, so the page holding the
+   * list can keep it (the grid shows the edit itself until `items` changes).
+   */
+  onItemEdited?: (item: GalleryItemEntity) => void
+  /** Called once the viewer has closed. */
+  onViewerClosed?: () => void
   /**
    * Called once the viewer closes, with the ids of the albums whose photos
    * its albums pill changed, so a page that shows one of them can refresh.
@@ -43,10 +52,15 @@ const isVideo = (item: GalleryItemEntity) =>
 const itemLabel = (item: GalleryItemEntity, index: number, verb = 'Open') => {
   const noun = isVideo(item) ? 'video' : 'media'
   const alt = item.attachment.name?.trim()
-  if (alt) return `${verb} ${noun}: ${alt}`
-  if (item.subject?.name) return `${verb} ${noun}: ${item.subject.name}`
-  return `${verb} ${noun} ${index + 1}`
+  // Only the owner is told (`inGallery` is omitted for everyone else). Spoken
+  // here, in the name, because the visible "Hidden" pill is decoration.
+  const state = item.inGallery === false ? ', hidden from your gallery' : ''
+  if (alt) return `${verb} ${noun}: ${alt}${state}`
+  if (item.subject?.name) return `${verb} ${noun}: ${item.subject.name}${state}`
+  return `${verb} ${noun} ${index + 1}${state}`
 }
+
+const EMPTY_EDITS: Record<string, GalleryItemEntity> = {}
 
 /**
  * A square grid of gallery photos and videos. A tile opens `MediasModal` over
@@ -57,10 +71,50 @@ export const GalleryGrid: FC<Props> = ({
   showCaption = false,
   selection,
   albumsOwnerId,
+  onItemEdited,
+  onViewerClosed,
   onAlbumsChanged,
   className
 }) => {
   const [modalIndex, setModalIndex] = useState<number | null>(null)
+  // The photo Edit details is open on, by media id.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  // Tiles as the owner's edits left them. Tied to the `items` they were made
+  // against: a new list (a reload, a page appended) brings its own copies.
+  const [edits, setEdits] = useState<{
+    base: GalleryItemEntity[]
+    byId: Record<string, GalleryItemEntity>
+  }>({ base: items, byId: EMPTY_EDITS })
+  const editedById = edits.base === items ? edits.byId : EMPTY_EDITS
+  const shownItems = useMemo(
+    () =>
+      Object.keys(editedById).length === 0
+        ? items
+        : items.map((item) => editedById[item.mediaId] ?? item),
+    [items, editedById]
+  )
+  const editingItems = useMemo(
+    () =>
+      editingId === null
+        ? []
+        : shownItems.filter((item) => item.mediaId === editingId),
+    [shownItems, editingId]
+  )
+  const onItemEditedRef = useRef(onItemEdited)
+  onItemEditedRef.current = onItemEdited
+  const handleEdited = useCallback(
+    (saved: GalleryItemEntity[]) => {
+      setEdits((current) => ({
+        base: items,
+        byId: {
+          ...(current.base === items ? current.byId : EMPTY_EDITS),
+          ...Object.fromEntries(saved.map((item) => [item.mediaId, item]))
+        }
+      }))
+      for (const item of saved) onItemEditedRef.current?.(item)
+    },
+    [items]
+  )
   const changedAlbums = useRef(new Set<string>())
   // Read when a write settles, which can be after the viewer closed (and so
   // after the render this callback was made in).
@@ -71,8 +125,8 @@ export const GalleryGrid: FC<Props> = ({
   // A new array resets the viewer's open overlay and details cache, so it only
   // changes when the items do.
   const attachments = useMemo(
-    () => items.map((item) => item.attachment),
-    [items]
+    () => shownItems.map((item) => item.attachment),
+    [shownItems]
   )
 
   return (
@@ -83,7 +137,7 @@ export const GalleryGrid: FC<Props> = ({
           className
         )}
       >
-        {items.map((item, index) => {
+        {shownItems.map((item, index) => {
           const caption = [item.subject?.name, formatGalleryDate(item.takenAt)]
             .filter(Boolean)
             .join(' · ')
@@ -119,6 +173,20 @@ export const GalleryGrid: FC<Props> = ({
                   loading="lazy"
                   className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
                 />
+                {item.inGallery === false ? (
+                  <span
+                    data-testid="hidden-badge"
+                    aria-hidden="true"
+                    className={cn(
+                      'pointer-events-none absolute top-1.5 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[11px] leading-4 font-medium text-white backdrop-blur-xs',
+                      // Clear of the select mark that sits in the same corner.
+                      selection ? 'left-9' : 'left-1.5'
+                    )}
+                  >
+                    <EyeOff className="size-3" aria-hidden="true" />
+                    Hidden
+                  </span>
+                ) : null}
                 {selection ? (
                   <span
                     aria-hidden="true"
@@ -154,6 +222,11 @@ export const GalleryGrid: FC<Props> = ({
         medias={modalIndex === null ? null : attachments}
         initialSelection={modalIndex ?? 0}
         albumsOwnerId={albumsOwnerId}
+        onEdit={
+          albumsOwnerId
+            ? (index) => setEditingId(shownItems[index]?.mediaId ?? null)
+            : undefined
+        }
         onAlbumsChange={(albumId) => {
           // Open: collected, and reported when the viewer closes (refreshing
           // under it would swap the photo being viewed). Already closed: the
@@ -164,12 +237,24 @@ export const GalleryGrid: FC<Props> = ({
         onClosed={() => {
           viewerOpen.current = false
           setModalIndex(null)
+          onViewerClosed?.()
           if (changedAlbums.current.size === 0) return
           const changed = [...changedAlbums.current]
           changedAlbums.current.clear()
           onAlbumsChanged?.(changed)
         }}
       />
+      {albumsOwnerId && editingId !== null ? (
+        <GalleryEditDetailsDialog
+          // Over the viewer, for the photo on screen only: the viewer's own
+          // arrows and strip stay where they were.
+          items={editingItems}
+          initialMediaId={editingId}
+          ownerId={albumsOwnerId}
+          onClose={() => setEditingId(null)}
+          onSaved={handleEdited}
+        />
+      ) : null}
     </>
   )
 }

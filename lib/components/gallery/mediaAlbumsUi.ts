@@ -1,7 +1,7 @@
 import type { MediaAlbumOptionEntity } from '@/lib/services/gallery/galleryAlbumEntities'
 
 // Pure helpers for the add-to-album menu (the details dialog row, the lightbox
-// pill and Recent's multi-select picker): copy and accessible names, so the
+// pill and All media's multi-select picker): copy and accessible names, so the
 // components stay about layout and behaviour.
 
 const pluralPhotos = (count: number) =>

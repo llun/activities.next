@@ -52,12 +52,12 @@ describe('GalleryCategorySection', () => {
       <GalleryCategorySection
         category="bird"
         subjects={subjects}
-        seeAllHref="/gallery/recent?category=bird"
+        seeAllHref="/gallery/media?category=bird"
       />
     )
     expect(screen.getByRole('link', { name: 'See all' })).toHaveAttribute(
       'href',
-      '/gallery/recent?category=bird'
+      '/gallery/media?category=bird'
     )
 
     rerender(
