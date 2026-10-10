@@ -246,6 +246,11 @@ describe('MasksPanel', () => {
       screen.queryByRole('button', { name: 'Select subject' })
     ).not.toBeInTheDocument()
     expect(screen.queryByText(/Select a subject first/)).not.toBeInTheDocument()
+    // No subject can be made, so a background has nothing to follow.
+    expect(
+      screen.queryByRole('button', { name: 'Background' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('No masks yet. Paint a brush mask.')).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: 'Brush' }))
 

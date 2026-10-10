@@ -77,7 +77,9 @@ export const MasksPhoneControls = ({ controls, selected, onSelect }: Props) => {
           />
         ) : (
           <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-            {MASK_COPY.empty}
+            {tools.canSelectSubject
+              ? MASK_COPY.empty
+              : MASK_COPY.emptyBrushOnly}
           </p>
         )}
         <Button

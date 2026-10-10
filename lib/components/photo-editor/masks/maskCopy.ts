@@ -2,6 +2,7 @@
 export const MASK_COPY = {
   tab: 'Masks',
   empty: 'No masks yet. Select the subject, or paint a brush mask.',
+  emptyBrushOnly: 'No masks yet. Paint a brush mask.',
   selectSubject: 'Select subject',
   background: 'Background',
   brush: 'Brush',

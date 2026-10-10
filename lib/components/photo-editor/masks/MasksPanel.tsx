@@ -99,7 +99,9 @@ export const MasksPanel = ({
       <MaskModelStatus tools={tools} />
 
       {tools.masks.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{MASK_COPY.empty}</p>
+        <p className="text-sm text-muted-foreground">
+          {tools.canSelectSubject ? MASK_COPY.empty : MASK_COPY.emptyBrushOnly}
+        </p>
       ) : (
         <div
           role="radiogroup"

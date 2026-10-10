@@ -59,15 +59,15 @@ export const EditorPanel = ({
       </div>
       <div className="px-4 pt-3">
         <TabsList className="w-full">
-          <TabsTrigger value="adjust">
+          <TabsTrigger value="adjust" className="px-2">
             <SlidersHorizontal aria-hidden="true" />
             Adjust
           </TabsTrigger>
-          <TabsTrigger value="crop">
+          <TabsTrigger value="crop" className="px-2">
             <CropIcon aria-hidden="true" />
             Crop
           </TabsTrigger>
-          <TabsTrigger value="masks">
+          <TabsTrigger value="masks" className="px-2">
             <CircleDashed aria-hidden="true" />
             Masks
           </TabsTrigger>

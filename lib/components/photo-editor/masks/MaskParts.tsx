@@ -78,17 +78,19 @@ export const MaskAddButtons = ({
             {MASK_COPY.selectSubject}
           </Button>
         ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="max-md:min-h-10"
-          disabled={blocked || !tools.canAddBackground}
-          onClick={tools.addBackground}
-        >
-          <Contrast aria-hidden="true" />
-          {MASK_COPY.background}
-        </Button>
+        {tools.canSelectSubject || hasSubject ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="max-md:min-h-10"
+            disabled={blocked || !tools.canAddBackground}
+            onClick={tools.addBackground}
+          >
+            <Contrast aria-hidden="true" />
+            {MASK_COPY.background}
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"
