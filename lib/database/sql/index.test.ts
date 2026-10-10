@@ -140,7 +140,7 @@ describe('getSQLDatabase', () => {
       createNotification: vi.fn()
     }
     const oauthDatabase = {
-      getClientFromName: vi.fn()
+      getClientFromId: vi.fn()
     }
     const searchDatabase = {
       searchDocuments: vi.fn()

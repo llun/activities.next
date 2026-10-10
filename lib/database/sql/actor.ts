@@ -15,7 +15,6 @@ import {
   deleteCounterValues,
   getCounterValue,
   getCounterValues,
-  increaseCounterValue,
   parseCounterValue,
   setCounterValue
 } from '@/lib/database/sql/utils/counter'
@@ -43,7 +42,6 @@ import {
   FEDERATION_SIGNING_ACTOR_USERNAME,
   getFederationSigningActorId,
   getFederationSigningActorUsername,
-  isFederationSigningActor,
   isFederationSigningActorUsername
 } from '@/lib/services/federation/instanceActor'
 import { Mastodon } from '@/lib/types/activitypub'
@@ -68,7 +66,6 @@ import {
   GetLocalActorsParams,
   HasActorCountersParams,
   IsCurrentActorFollowingParams,
-  IsInternalActorParams,
   NotificationPolicy,
   ScheduleActorDeletionParams,
   SetActorCountersParams,
@@ -436,14 +433,6 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     return this.getActorFromId({ id: actorId })
   },
 
-  async createMastodonActor(
-    params: CreateActorParams
-  ): Promise<Mastodon.Account | null> {
-    await insertActorWithSearchIndex(database, params)
-    const { actorId } = params
-    return this.getMastodonActor(actorId)
-  },
-
   async getActorFromEmail({ email }: GetActorFromEmailParams) {
     const persistedActor = await database('actors')
       .select<SQLActor>('actors.*')
@@ -467,16 +456,6 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       getSqlActorLastStatusAtTime(persistedActor),
       account
     )
-  },
-
-  async getMastodonActorFromEmail({ email }: GetActorFromEmailParams) {
-    const result = await database('actors')
-      .select('actors.id')
-      .leftJoin('accounts', 'actors.accountId', 'accounts.id')
-      .where('accounts.email', email)
-      .first<{ id: string }>()
-    if (!result) return null
-    return this.getMastodonActor(result.id)
   },
 
   async isCurrentActorFollowing({
@@ -623,23 +602,6 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
         federationSigningActorCreationLocks.delete(domain)
       }
     }
-  },
-
-  async getMastodonActorFromUsername({
-    username,
-    domain
-  }: GetActorFromUsernameParams) {
-    // Folds casing for the same reason `getActorFromUsername` does. The two
-    // differ only in return shape, so a caller would reasonably assume they
-    // resolve identically — and today this one has no production caller, which
-    // makes it the cheapest possible moment to stop them diverging.
-    const persistedActor = await findActorRowByUsername(database, {
-      username,
-      domain
-    })
-    if (!persistedActor) return null
-
-    return this.getMastodonActor(persistedActor.id)
   },
 
   async getActorFromId({ id }: GetActorFromIdParams) {
@@ -1240,56 +1202,12 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
     return key in counters
   },
 
-  async increaseActorStatusCount(actorId: string, amount: number = 1) {
-    await increaseCounterValue(
-      database,
-      CounterKey.totalStatus(actorId),
-      amount
-    )
-  },
-
-  async decreaseActorStatusCount(actorId: string, amount: number = 1) {
-    await decreaseCounterValue(
-      database,
-      CounterKey.totalStatus(actorId),
-      amount
-    )
-  },
-
-  async updateActorLastStatusAt(actorId: string, time: number) {
-    // Guarded set-if-newer so an out-of-order or backdated write cannot lower a
-    // more recent value. The status create path maintains this inline inside its
-    // own transaction; this method exists for callers outside that path.
-    const lastStatusAt = new Date(time)
-    await database<SQLActor>('actors')
-      .where('id', actorId)
-      .andWhere((builder) =>
-        builder
-          .whereNull('lastStatusAt')
-          .orWhere('lastStatusAt', '<', lastStatusAt)
-      )
-      .update({ lastStatusAt })
-  },
-
   async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
     return getCounterValue(database, CounterKey.totalFollowing(actorId))
   },
 
   async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
     return getCounterValue(database, CounterKey.totalFollowers(actorId))
-  },
-
-  async isInternalActor({ actorId }: IsInternalActorParams) {
-    const persistedActor = await database<SQLActor>('actors')
-      .where('id', actorId)
-      .first()
-    if (!persistedActor) return false
-    if (persistedActor.accountId) return true
-
-    return (
-      persistedActor.domain === getConfiguredActorDomain() &&
-      isFederationSigningActor(this.getActor(persistedActor, 0, 0, 0, 0))
-    )
   },
 
   async getActorSettings({ actorId }: GetActorSettingsParams) {

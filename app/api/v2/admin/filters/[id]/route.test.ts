@@ -95,7 +95,9 @@ describe('/api/v2/admin/filters/:id', () => {
       )
 
       expect(response.status).toBe(403)
-      expect(await database.getServerFilter({ id: filter.id })).toMatchObject({
+      expect(
+        (await database.getServerFilterRecord({ id: filter.id }))?.filter
+      ).toMatchObject({
         title: `guarded-${method}`
       })
     }
@@ -159,13 +161,13 @@ describe('/api/v2/admin/filters/:id', () => {
           context: ['home', 'public'],
           server: true
         })
-        expect(await database.getServerFilter({ id: filter.id })).toMatchObject(
-          {
-            title: `renamed-${method}`,
-            filterAction: 'warn',
-            context: ['home', 'public']
-          }
-        )
+        expect(
+          (await database.getServerFilterRecord({ id: filter.id }))?.filter
+        ).toMatchObject({
+          title: `renamed-${method}`,
+          filterAction: 'warn',
+          context: ['home', 'public']
+        })
       }
     )
 
@@ -229,7 +231,9 @@ describe('/api/v2/admin/filters/:id', () => {
       )
 
       expect(response.status).toBe(422)
-      expect(await database.getServerFilter({ id: filter.id })).toMatchObject({
+      expect(
+        (await database.getServerFilterRecord({ id: filter.id }))?.filter
+      ).toMatchObject({
         title: 'admin-invalid'
       })
     })
@@ -255,7 +259,7 @@ describe('/api/v2/admin/filters/:id', () => {
 
       expect(response.status).toBe(200)
       expect(await response.json()).toEqual({})
-      expect(await database.getServerFilter({ id: filter.id })).toBeNull()
+      expect(await database.getServerFilterRecord({ id: filter.id })).toBeNull()
     })
 
     it('answers 404 for an unknown id', async () => {

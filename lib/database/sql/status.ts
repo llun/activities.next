@@ -55,7 +55,6 @@ import {
 } from '@/lib/types/database/operations'
 import { MediaDatabase } from '@/lib/types/database/operations'
 import {
-  AddStatusTagParams,
   CreateAnnounceParams,
   CreateNoteParams,
   CreatePollAnswerParams,
@@ -1653,22 +1652,6 @@ export const StatusSQLDatabaseMixin = (
       )
     ).filter((status): status is Status => status !== null)
     return statusesWithAttachments
-  }
-
-  async function hasActorAnnouncedStatus({
-    actorId,
-    statusId
-  }: HasActorAnnouncedStatusParams): Promise<boolean> {
-    if (!actorId) return false
-
-    const result = await database('statuses')
-      .where('type', StatusType.enum.Announce)
-      .where('originalStatusId', statusId)
-      .where('actorId', actorId)
-      .count<{ count: string }>('* as count')
-      .first()
-    if (!result) return false
-    return parseInt(result.count, 10) !== 0
   }
 
   async function getActorAnnounceStatus({
@@ -4132,86 +4115,6 @@ export const StatusSQLDatabaseMixin = (
     return result?.id ?? null
   }
 
-  async function countStatus({ actorId }: { actorId: string }) {
-    return getCounterValue(database, CounterKey.totalStatus(actorId))
-  }
-
-  async function updatePollChoice({
-    statusId,
-    choices
-  }: {
-    statusId: string
-    choices: { title: string }[]
-  }) {
-    await database('poll_choices').where('statusId', statusId).delete()
-    if (choices.length > 0) {
-      await database('poll_choices').insert(
-        choices.map((choice, index) => ({
-          statusId,
-          choiceId: index,
-          title: choice.title,
-          totalVotes: 0
-        }))
-      )
-    }
-  }
-
-  async function addPollVote({
-    actorId,
-    statusId,
-    choice
-  }: {
-    actorId: string
-    statusId: string
-    choice: number
-  }) {
-    await database('poll_answers').insert({
-      actorId,
-      statusId,
-      answerId: choice
-    })
-  }
-
-  async function getPollVotes({
-    actorId,
-    statusId
-  }: {
-    actorId: string
-    statusId: string
-  }) {
-    const results = await database('poll_answers')
-      .where({ actorId, statusId })
-      .select<{ answerId: number }[]>('answerId')
-    return results.map((r) => r.answerId)
-  }
-
-  async function addStatusTag({
-    actorId,
-    statusId,
-    type,
-    name,
-    value,
-    skipSearchIndex = false
-  }: AddStatusTagParams) {
-    await database('tags').insert({
-      actorId,
-      statusId,
-      type,
-      name,
-      value,
-      ...(type === 'hashtag'
-        ? { nameNormalized: `#${normalizeHashtagSearchName(name)}` }
-        : undefined),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
-    if (type === 'hashtag' && !skipSearchIndex) {
-      // Hashtag search stores an aggregate across all public statuses for the
-      // tag, so the inserted row alone is not enough to update the document.
-      await indexHashtagSearchDocument(database, { hashtag: name })
-    }
-  }
-
   async function updateStatusQuoteApprovalPolicy({
     statusId,
     quoteApprovalPolicy
@@ -4256,7 +4159,6 @@ export const StatusSQLDatabaseMixin = (
     getStatusPublicIds,
     getActorStatusFromPathSegment,
     getActorAnnouncedStatusId,
-    hasActorAnnouncedStatus,
     getActorAnnounceStatus,
     getActorStatusesCount,
     getActorStatuses,
@@ -4266,11 +4168,6 @@ export const StatusSQLDatabaseMixin = (
     getStatusesByIds,
     deleteStatus,
     deleteStatusWithQueueJob,
-    countStatus,
-    updatePollChoice,
-    addPollVote,
-    getPollVotes,
-    addStatusTag,
     getFavouritedBy,
     getRebloggedBy,
     createTag,

@@ -226,49 +226,6 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
     return updatedCount > 0
   },
 
-  async failQueueJob({
-    id,
-    claimToken,
-    attempts,
-    error
-  }: {
-    id: string
-    claimToken: string
-    attempts?: number
-    error?: Error | unknown
-  }) {
-    let lastErrorMessage: string | null = null
-    let lastErrorStack: string | null = null
-
-    if (error) {
-      if (error instanceof Error) {
-        lastErrorMessage = error.message
-        lastErrorStack = error.stack ?? null
-      } else {
-        lastErrorMessage = String(error)
-      }
-    }
-
-    const updatedAt = new Date()
-    const updateData: Record<string, unknown> = {
-      status: 'failed',
-      claim_token: null,
-      last_error_message: lastErrorMessage,
-      last_error_stack: lastErrorStack,
-      updated_at: updatedAt
-    }
-
-    if (attempts !== undefined) {
-      updateData.attempts = attempts
-    }
-
-    const updatedCount = await database('queue_jobs')
-      .where({ id, claim_token: claimToken, status: 'processing' })
-      .update(updateData)
-
-    return updatedCount > 0
-  },
-
   async failQueueJobWithDeadLetter({
     id,
     claimToken,
@@ -407,18 +364,6 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
     }
   },
 
-  async getQueueJobById(id: string) {
-    const row = await database<SQLQueueJob>('queue_jobs').where({ id }).first()
-
-    if (!row) return null
-    return toQueueJob(row)
-  },
-
-  async deleteQueueJob(id: string) {
-    const deletedCount = await database('queue_jobs').where({ id }).delete()
-    return deletedCount > 0
-  },
-
   async purgeCompletedQueueJobs({
     olderThan,
     limit = 500
@@ -446,16 +391,5 @@ export const QueueJobSQLDatabaseMixin = (database: Knex): QueueJobDatabase => ({
       )
       .andWhere('status', 'completed')
       .delete()
-  },
-
-  async countQueueJobs(params: { status?: QueueJobStatus } = {}) {
-    let query = database('queue_jobs')
-    if (params.status) {
-      query = query.where('status', params.status)
-    }
-    const result = await query
-      .count<{ count: string | number }>('id as count')
-      .first()
-    return parseInt(String(result?.count ?? '0'), 10)
   }
 })

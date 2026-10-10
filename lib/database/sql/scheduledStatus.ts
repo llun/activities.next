@@ -6,7 +6,6 @@ import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   CreateScheduledStatusParams,
   DeleteScheduledStatusParams,
-  GetDueScheduledStatusesParams,
   GetScheduledStatusByIdParams,
   GetScheduledStatusParams,
   GetScheduledStatusesParams,
@@ -161,18 +160,5 @@ export const ScheduledStatusSQLDatabaseMixin = (
       .where({ actorId, id })
       .delete()
     return deleted > 0
-  },
-
-  async getDueScheduledStatuses({
-    before,
-    limit
-  }: GetDueScheduledStatusesParams) {
-    const query = database<SQLScheduledStatus>('scheduled_statuses')
-      .where('scheduledAt', '<=', new Date(before))
-      .orderBy('scheduledAt', 'asc')
-      .orderBy('id', 'asc')
-    if (limit) query.limit(limit)
-    const rows = await query
-    return rows.map(toScheduledStatus)
   }
 })

@@ -146,7 +146,7 @@ describe('ServerFilterDatabase', () => {
     const deleted = await database.deleteServerFilter({ id: filter.id })
     expect(deleted?.id).toBe(filter.id)
 
-    expect(await database.getServerFilter({ id: filter.id })).toBeNull()
+    expect(await database.getServerFilterRecord({ id: filter.id })).toBeNull()
     expect(await database.getServerFilterKeywords({ id: filter.id })).toBeNull()
   })
 })

@@ -7,6 +7,11 @@ import {
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import {
+  getAccountProviders,
+  linkAccountWithProvider
+} from '@/lib/database/testing/fixtures'
 import { Database } from '@/lib/database/types'
 import {
   TEST_DOMAIN,
@@ -80,10 +85,7 @@ describe('AccountDatabase', () => {
         publicKey: 'publicKey2'
       })
       const actorId = `https://${TEST_DOMAIN}/users/${TEST_USERNAME2}`
-      const actor = await database.getMastodonActorFromUsername({
-        username: TEST_USERNAME2,
-        domain: TEST_DOMAIN
-      })
+      const actor = await database.getMastodonActorFromId({ id: actorId })
       const publicIds = await database.getActorPublicIds({
         actorIds: [actorId]
       })
@@ -374,7 +376,6 @@ describe('AccountDatabase', () => {
           passwordResetCode: null,
           passwordResetCodeExpiresAt: null
         })
-        expect(await database.getAccountSession({ token })).toBeNull()
         expect(
           await database.getAccountAllSessions({ accountId })
         ).toHaveLength(0)
@@ -539,7 +540,9 @@ describe('AccountDatabase', () => {
           passwordResetCode: null,
           passwordResetCodeExpiresAt: null
         })
-        expect(await database.getAccountSession({ token })).toBeNull()
+        expect(
+          await database.getAccountAllSessions({ accountId })
+        ).toHaveLength(0)
       })
 
       it('stores account email lowercased even when created with mixed case', async () => {
@@ -707,81 +710,17 @@ describe('AccountDatabase', () => {
       })
     })
 
-    describe('account providers', () => {
-      it('links, resolves, and unlinks account providers', async () => {
-        const { accountId } = await createTestAccount()
-        const provider = 'external'
-        const providerAccountId = `external-${crypto.randomUUID()}`
-
-        const linked = await database.linkAccountWithProvider({
-          accountId,
-          provider,
-          providerAccountId
-        })
-        expect(linked?.id).toBe(accountId)
-
-        const resolved = await database.getAccountFromProviderId({
-          provider,
-          accountId: providerAccountId
-        })
-        expect(resolved?.id).toBe(accountId)
-
-        const providers = await database.getAccountProviders({ accountId })
-        expect(providers).toHaveLength(2)
-        expect(providers).toContainEqual(
-          expect.objectContaining({
-            provider: 'credential',
-            providerId: accountId
-          })
-        )
-        expect(providers).toContainEqual(
-          expect.objectContaining({
-            provider,
-            providerId: providerAccountId
-          })
-        )
-
-        await database.unlinkAccountFromProvider({ accountId, provider })
-        const afterUnlink = await database.getAccountProviders({ accountId })
-        expect(afterUnlink).toHaveLength(1)
-        expect(afterUnlink).not.toContainEqual(
-          expect.objectContaining({
-            provider,
-            providerId: providerAccountId
-          })
-        )
-      })
-    })
-
     describe('account sessions', () => {
-      it('creates, updates, and deletes account sessions', async () => {
+      it('creates and lists account sessions', async () => {
         const { accountId } = await createTestAccount()
         const token = `token-${crypto.randomUUID()}`
         const expireAt = Date.now() + 60_000
 
         await database.createAccountSession({ accountId, token, expireAt })
 
-        const sessionResult = await database.getAccountSession({ token })
-        expect(sessionResult).toMatchObject({
-          account: { id: accountId },
-          session: { token, accountId, expireAt }
-        })
-
         const sessions = await database.getAccountAllSessions({ accountId })
         expect(sessions).toHaveLength(1)
         expect(sessions[0]).toMatchObject({ token, expireAt })
-
-        const updatedExpireAt = Date.now() + 120_000
-        await database.updateAccountSession({
-          token,
-          expireAt: updatedExpireAt
-        })
-        const updated = await database.getAccountSession({ token })
-        expect(updated?.session.expireAt).toBe(updatedExpireAt)
-
-        await database.deleteAccountSession({ token })
-        const deleted = await database.getAccountSession({ token })
-        expect(deleted).toBeNull()
       })
 
       // The sessions page revokes by row id so the token (the cookie
@@ -818,11 +757,13 @@ describe('AccountDatabase', () => {
             id: otherSession.id
           })
         ).toBe(0)
-        expect(await database.getAccountSession({ token: otherToken })).toEqual(
-          expect.objectContaining({
-            session: expect.objectContaining({ id: otherSession.id })
-          })
-        )
+        expect(
+          (
+            await database.getAccountAllSessions({
+              accountId: other.accountId
+            })
+          ).map((session) => session.id)
+        ).toEqual([otherSession.id])
 
         expect(
           await database.deleteAccountSessionById({
@@ -830,7 +771,9 @@ describe('AccountDatabase', () => {
             id: ownSession.id
           })
         ).toBe(1)
-        expect(await database.getAccountSession({ token: ownToken })).toBeNull()
+        expect(
+          await database.getAccountAllSessions({ accountId })
+        ).toHaveLength(0)
       })
 
       it('revokes every session except the kept one and leaves other accounts untouched', async () => {
@@ -995,5 +938,77 @@ describe('AccountDatabase', () => {
         }
       })
     })
+  })
+})
+
+describe('unlinkAccountFromProvider', () => {
+  // The suite above has no Kysely handle, so this one owns an isolated
+  // database; it runs on PostgreSQL under TEST_DATABASE_TYPE=pg.
+  const testDb = createTestDatabase({ isolated: true })
+  const { database, db } = testDb
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    await database.migrate()
+  })
+
+  afterAll(async () => {
+    await testDb.destroy()
+  })
+
+  it('removes a linked provider and ignores a missing link', async () => {
+    const suffix = crypto.randomUUID().slice(0, 8)
+    const accountId = await database.createAccount({
+      email: `unlink-${suffix}@${TEST_DOMAIN}`,
+      username: `unlink-${suffix}`,
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: `privateKey-${suffix}`,
+      publicKey: `publicKey-${suffix}`
+    })
+    const otherAccountId = await database.createAccount({
+      email: `unlink-other-${suffix}@${TEST_DOMAIN}`,
+      username: `unlink-other-${suffix}`,
+      passwordHash: TEST_PASSWORD_HASH,
+      domain: TEST_DOMAIN,
+      privateKey: `privateKey-other-${suffix}`,
+      publicKey: `publicKey-other-${suffix}`
+    })
+    const provider = 'github'
+    const providerAccountId = `gh-${suffix}`
+
+    expect(
+      await linkAccountWithProvider(db, {
+        accountId,
+        provider,
+        providerAccountId
+      })
+    ).toBe(true)
+    // Another account on the same provider must keep its link.
+    expect(
+      await linkAccountWithProvider(db, {
+        accountId: otherAccountId,
+        provider,
+        providerAccountId: `gh-other-${suffix}`
+      })
+    ).toBe(true)
+    // createAccount also writes a `credential` link, so look for ours.
+    expect(await getAccountProviders(db, { accountId })).toContainEqual({
+      provider,
+      providerId: providerAccountId
+    })
+
+    await database.unlinkAccountFromProvider({ accountId, provider })
+    const remaining = await getAccountProviders(db, { accountId })
+    expect(remaining.map((row) => row.provider)).not.toContain(provider)
+    expect(remaining.map((row) => row.provider)).toContain('credential')
+    expect(
+      await getAccountProviders(db, { accountId: otherAccountId })
+    ).toContainEqual({ provider, providerId: `gh-other-${suffix}` })
+
+    // Unlinking a link that does not exist resolves without error (void).
+    await expect(
+      database.unlinkAccountFromProvider({ accountId, provider })
+    ).resolves.toBeUndefined()
   })
 })

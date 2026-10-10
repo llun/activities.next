@@ -44,9 +44,9 @@ describe('createTestDatabase', () => {
       })
       .execute()
 
-    await expect(
-      database.getServerSetting({ key: 'created.by.kysely' })
-    ).resolves.toMatchObject({ key: 'created.by.kysely', value: 'kysely' })
+    await expect(database.getAllServerSettings()).resolves.toMatchObject([
+      { key: 'created.by.kysely', value: 'kysely' }
+    ])
   })
 
   it('reads a row written through database via db', async () => {

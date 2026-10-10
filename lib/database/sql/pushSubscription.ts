@@ -306,13 +306,5 @@ export const PushSubscriptionSQLDatabaseMixin = (
   }: GetPushSubscriptionForActorParams): Promise<PushSubscription | null> {
     const row = await findOwnedSubscription(database, { actorId, accessToken })
     return row ? fixPushSubscription(row) : null
-  },
-
-  async deletePushSubscriptionsForActor({
-    actorId
-  }: {
-    actorId: string
-  }): Promise<void> {
-    await database('push_subscriptions').where({ actorId }).delete()
   }
 })

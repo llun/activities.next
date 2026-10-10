@@ -231,7 +231,6 @@ export type GetActorDeletionStatusParams = {
 export type GetActorFollowingCountParams = { actorId: string }
 export type GetActorFollowersCountParams = { actorId: string }
 export type GetActorSettingsParams = { actorId: string }
-export type IsInternalActorParams = { actorId: string }
 export type CancelActorDeletionParams = { actorId: string }
 export type GetActorsScheduledForDeletionParams = { beforeDate: Date }
 export type StartActorDeletionParams = { actorId: string }
@@ -239,9 +238,6 @@ export type DeleteActorDataParams = { actorId: string }
 
 export interface ActorDatabase {
   createActor(params: CreateActorParams): Promise<Actor | null>
-  createMastodonActor(
-    params: CreateActorParams
-  ): Promise<Mastodon.Account | null>
   getActorFromId(params: GetActorFromIdParams): Promise<Actor | null>
   getActorsFromIds(params: GetActorsFromIdsParams): Promise<Actor[]>
   getActorIdByPublicId(
@@ -260,12 +256,6 @@ export interface ActorDatabase {
     params: GetActorFromUsernameParams
   ): Promise<Actor | null>
   getFederationSigningActor(): Promise<Actor | null>
-  getMastodonActorFromEmail(
-    params: GetActorFromEmailParams
-  ): Promise<Mastodon.Account | null>
-  getMastodonActorFromUsername(
-    params: GetActorFromUsernameParams
-  ): Promise<Mastodon.Account | null>
   getMastodonActorFromId(
     params: GetActorFromIdParams
   ): Promise<Mastodon.Account | null>
@@ -279,9 +269,6 @@ export interface ActorDatabase {
   deleteActor(params: DeleteActorParams): Promise<void>
   setActorCounters(params: SetActorCountersParams): Promise<void>
   hasActorCounters(params: HasActorCountersParams): Promise<boolean>
-  increaseActorStatusCount(actorId: string, amount?: number): Promise<void>
-  decreaseActorStatusCount(actorId: string, amount?: number): Promise<void>
-  updateActorLastStatusAt(actorId: string, time: number): Promise<void>
   isCurrentActorFollowing(
     params: IsCurrentActorFollowingParams
   ): Promise<boolean>
@@ -297,7 +284,6 @@ export interface ActorDatabase {
   ): Promise<{ status: string | null; scheduledAt: number | null } | undefined>
   getActorFollowingCount(params: GetActorFollowingCountParams): Promise<number>
   getActorFollowersCount(params: GetActorFollowersCountParams): Promise<number>
-  isInternalActor(params: IsInternalActorParams): Promise<boolean>
   getActorSettings(
     params: GetActorSettingsParams
   ): Promise<ActorSettings | undefined>
@@ -335,10 +321,6 @@ export type CreateAccountParams = {
 }
 export type GetAccountFromIdParams = { id: string }
 export type GetAccountFromEmailParams = { email: string }
-export type GetAccountFromProviderIdParams = {
-  provider: string
-  accountId: string
-}
 export type LinkAccountWithProviderParams = {
   accountId: string
   provider: string
@@ -347,24 +329,14 @@ export type LinkAccountWithProviderParams = {
 export type VerifyAccountParams = {
   verificationCode: string
 }
-export type CreateCredentialProviderParams = {
-  accountId: string
-  passwordHash: string
-}
 export type CreateAccountSessionParams = {
   accountId: string
   token: string
   expireAt: number
   actorId?: string | null
 }
-export type GetAccountSessionParams = {
-  token: string
-}
 export type GetAccountAllSessionsParams = {
   accountId: string
-}
-export type DeleteAccountSessionParams = {
-  token: string
 }
 export type DeleteAccountSessionByIdParams = {
   // Only a session this account owns is deleted; anything else matches nothing.
@@ -376,14 +348,6 @@ export type DeleteOtherAccountSessionsParams = {
   // The session to keep (the device making the request). Every other session
   // for the account is revoked.
   exceptToken: string
-}
-export type UpdateAccountSessionParams = {
-  token: string
-  expireAt?: number
-}
-
-export type GetAccountProvidersParams = {
-  accountId: string
 }
 
 export type UnlinkAccountFromProviderParams = {
@@ -400,7 +364,6 @@ export type CreateActorForAccountParams = {
 }
 export type GetActorsForAccountParams = { accountId: string }
 export type SetDefaultActorParams = { accountId: string; actorId: string }
-export type SetSessionActorParams = { token: string; actorId: string }
 
 export type RequestEmailChangeParams = {
   accountId: string
@@ -475,28 +438,14 @@ export interface AccountDatabase {
   isUsernameExists(params: IsUsernameExistsParams): Promise<boolean>
 
   createAccount(params: CreateAccountParams): Promise<string>
-  createCredentialProvider(
-    params: CreateCredentialProviderParams
-  ): Promise<void>
   getAccountFromId(params: GetAccountFromIdParams): Promise<Account | null>
   getAccountFromEmail(
     params: GetAccountFromEmailParams
   ): Promise<Account | null>
-  getAccountFromProviderId(
-    params: GetAccountFromProviderIdParams
-  ): Promise<Account | null>
-  linkAccountWithProvider(
-    params: LinkAccountWithProviderParams
-  ): Promise<Account | null>
   verifyAccount(params: VerifyAccountParams): Promise<Account | null>
 
   createAccountSession(params: CreateAccountSessionParams): Promise<void>
-  getAccountSession(
-    params: GetAccountSessionParams
-  ): Promise<{ account: Account; session: Session } | null>
   getAccountAllSessions(params: GetAccountAllSessionsParams): Promise<Session[]>
-  updateAccountSession(params: UpdateAccountSessionParams): Promise<void>
-  deleteAccountSession(params: DeleteAccountSessionParams): Promise<void>
   // Deletes the session with this row id when it belongs to `accountId`, and
   // returns how many rows were deleted (0 for an unknown or foreign id).
   deleteAccountSessionById(
@@ -508,14 +457,6 @@ export interface AccountDatabase {
     params: DeleteOtherAccountSessionsParams
   ): Promise<number>
 
-  getAccountProviders(params: GetAccountProvidersParams): Promise<
-    {
-      provider: string
-      providerId: string
-      createdAt: number
-      updatedAt: number
-    }[]
-  >
   unlinkAccountFromProvider(
     params: UnlinkAccountFromProviderParams
   ): Promise<void>
@@ -523,7 +464,6 @@ export interface AccountDatabase {
   createActorForAccount(params: CreateActorForAccountParams): Promise<string>
   getActorsForAccount(params: GetActorsForAccountParams): Promise<Actor[]>
   setDefaultActor(params: SetDefaultActorParams): Promise<void>
-  setSessionActor(params: SetSessionActorParams): Promise<void>
 
   requestEmailChange(params: RequestEmailChangeParams): Promise<void>
   verifyEmailChange(params: VerifyEmailChangeParams): Promise<Account | null>
@@ -749,39 +689,6 @@ export type GetActorAnnouncedStatusIdParams = {
   actorId: string
   originalStatusId: string
 }
-export type CountStatusParams = {
-  actorId: string
-}
-
-export type UpdatePollChoiceParams = {
-  statusId: string
-  choices: { title: string }[]
-}
-
-export type AddPollVoteParams = {
-  actorId: string
-  statusId: string
-  choice: number
-}
-
-export type GetPollVotesParams = {
-  actorId: string
-  statusId: string
-}
-
-export type AddStatusTagParams = {
-  actorId: string
-  statusId: string
-  type: TagType
-  name: string
-  value: string
-  /**
-   * For multi-hashtag insert flows only. Callers that set this for hashtag tags
-   * must call indexHashtagSearchDocuments once after all skipped tags are
-   * inserted.
-   */
-  skipSearchIndex?: boolean
-}
 
 export type GetActorStatusesCountParams = {
   actorId: string
@@ -1003,9 +910,6 @@ export interface StatusDatabase {
   getActorAnnouncedStatusId(
     params: GetActorAnnouncedStatusIdParams
   ): Promise<string | null>
-  hasActorAnnouncedStatus(
-    params: HasActorAnnouncedStatusParams
-  ): Promise<boolean>
   getActorAnnounceStatus(
     params: HasActorAnnouncedStatusParams
   ): Promise<Status | null>
@@ -1013,11 +917,6 @@ export interface StatusDatabase {
   deleteStatusWithQueueJob(
     params: DeleteStatusWithQueueJobParams
   ): Promise<boolean>
-  countStatus(params: CountStatusParams): Promise<number>
-  updatePollChoice(params: UpdatePollChoiceParams): Promise<void>
-  addPollVote(params: AddPollVoteParams): Promise<void>
-  getPollVotes(params: GetPollVotesParams): Promise<number[]>
-  addStatusTag(params: AddStatusTagParams): Promise<void>
   getActorStatusesCount(params: GetActorStatusesCountParams): Promise<number>
   getActorStatuses(params: GetActorStatusesParams): Promise<Status[]>
   pinStatus(params: PinStatusParams): Promise<boolean>
@@ -1501,10 +1400,6 @@ export type GetMuteParams = {
   actorId: string
   targetActorId: string
 }
-export type IsMutingParams = {
-  actorId: string
-  targetActorId: string
-}
 export type GetMuteRelationsParams = {
   actorIds: string[]
   targetActorIds: string[]
@@ -1551,7 +1446,6 @@ export interface MuteDatabase {
   createMute(params: CreateMuteParams): Promise<Mute>
   deleteMute(params: DeleteMuteParams): Promise<Mute | null>
   getMute(params: GetMuteParams): Promise<Mute | null>
-  isMuting(params: IsMutingParams): Promise<boolean>
   getMuteRelations(params: GetMuteRelationsParams): Promise<MuteRelation[]>
   getMutes(params: GetMutesParams): Promise<Mute[]>
 }
@@ -1759,12 +1653,6 @@ export type RemoveCollectionMembersParams = {
   actorId: string
   targetActorIds: string[]
 }
-export type SetCollectionMemberStateParams = {
-  id: string
-  actorId: string
-  targetActorId: string
-  state: CollectionFeatureState
-}
 // Member-facing consent action: the member (actorId) sets the state of THEIR
 // OWN membership in a collection, regardless of who owns it. Used by the
 // approve / revoke endpoints. Returns false when no such membership exists.
@@ -1907,9 +1795,6 @@ export interface CollectionDatabase {
   // (not already members), so callers can notify only the newly-added members.
   addCollectionMembers(params: AddCollectionMembersParams): Promise<string[]>
   removeCollectionMembers(params: RemoveCollectionMembersParams): Promise<void>
-  setCollectionMemberState(
-    params: SetCollectionMemberStateParams
-  ): Promise<void>
   // Member-facing approve/revoke of the caller's own membership. Returns true
   // when a membership row was updated, false when none matched.
   setOwnCollectionMembershipState(
@@ -1979,7 +1864,6 @@ export type FollowedTag = {
 }
 export type FollowTagParams = { actorId: string; name: string }
 export type UnfollowTagParams = { actorId: string; name: string }
-export type GetFollowedTagParams = { actorId: string; name: string }
 export type GetFollowedTagsParams = {
   actorId: string
   limit?: number
@@ -1992,7 +1876,6 @@ export type IsFollowingTagParams = { actorId: string; name: string }
 export interface FollowedTagDatabase {
   followTag(params: FollowTagParams): Promise<FollowedTag>
   unfollowTag(params: UnfollowTagParams): Promise<FollowedTag | null>
-  getFollowedTag(params: GetFollowedTagParams): Promise<FollowedTag | null>
   getFollowedTags(params: GetFollowedTagsParams): Promise<FollowedTag[]>
   isFollowingTag(params: IsFollowingTagParams): Promise<boolean>
 }
@@ -2022,7 +1905,6 @@ export type FeaturedTagSuggestion = {
   lastStatusAt: number | null
 }
 export type GetFeaturedTagsParams = { actorId: string }
-export type GetFeaturedTagParams = { actorId: string; id: string }
 export type GetFeaturedTagByNameParams = { actorId: string; name: string }
 export type CreateFeaturedTagParams = { actorId: string; name: string }
 export type DeleteFeaturedTagParams = { actorId: string; id: string }
@@ -2041,9 +1923,6 @@ export interface FeaturedTagDatabase {
   getFeaturedTags(
     params: GetFeaturedTagsParams
   ): Promise<FeaturedTagWithStats[]>
-  getFeaturedTag(
-    params: GetFeaturedTagParams
-  ): Promise<FeaturedTagWithStats | null>
   getFeaturedTagByName(
     params: GetFeaturedTagByNameParams
   ): Promise<FeaturedTagWithStats | null>
@@ -2096,12 +1975,6 @@ export type UpdateScheduledStatusAtParams = {
   scheduledAt: number
 }
 export type DeleteScheduledStatusParams = { actorId: string; id: string }
-export type GetDueScheduledStatusesParams = {
-  before: number
-  // Optional cap so a future cron poller can drain due rows in bounded batches
-  // rather than loading every overdue scheduled status into memory at once.
-  limit?: number
-}
 
 export interface ScheduledStatusDatabase {
   createScheduledStatus(
@@ -2127,11 +2000,6 @@ export interface ScheduledStatusDatabase {
   ): Promise<ScheduledStatusData | null>
   // Owner-scoped delete; true when a row was removed.
   deleteScheduledStatus(params: DeleteScheduledStatusParams): Promise<boolean>
-  // Rows due for publication (scheduledAt <= before) across all actors, for the
-  // background publish job.
-  getDueScheduledStatuses(
-    params: GetDueScheduledStatusesParams
-  ): Promise<ScheduledStatusData[]>
 }
 
 // ============================================================================
@@ -2199,22 +2067,14 @@ export type ServerSettingData = {
   updatedAt: number
 }
 
-export type GetServerSettingParams = { key: string }
 export type SetServerSettingParams = { key: string; value: ServerSettingValue }
 export type DeleteServerSettingParams = { key: string }
 
 export interface ServerSettingDatabase {
-  getServerSetting(
-    params: GetServerSettingParams
-  ): Promise<ServerSettingData | null>
   // Every stored setting row, ordered by key ascending.
   getAllServerSettings(): Promise<ServerSettingData[]>
-  // Upsert; overwrites value and bumps updatedAt, returning the stored row.
-  setServerSetting(params: SetServerSettingParams): Promise<ServerSettingData>
   // Upsert several settings in a single transaction (all-or-nothing).
   setServerSettings(params: SetServerSettingParams[]): Promise<void>
-  // True when a row was removed.
-  deleteServerSetting(params: DeleteServerSettingParams): Promise<boolean>
 }
 
 // ============================================================================
@@ -2236,7 +2096,6 @@ export type UpdateRelayParams = {
 }
 export type DeleteRelayParams = { id: string }
 export type GetRelayByIdParams = { id: string }
-export type GetRelayByInboxUrlParams = { inboxUrl: string }
 export type GetRelayByActorIdParams = { actorId: string }
 export type GetRelayByFollowActivityIdParams = { followActivityId: string }
 
@@ -2252,9 +2111,6 @@ export interface RelayDatabase {
   // All relays ordered by createdAt ascending.
   getRelays(): Promise<RelayData[]>
   getRelayById(params: GetRelayByIdParams): Promise<RelayData | null>
-  getRelayByInboxUrl(
-    params: GetRelayByInboxUrlParams
-  ): Promise<RelayData | null>
   // Resolve a relay by its actor id (used to recognise an inbound
   // relay-forwarded activity's HTTP signer). Returns null when unknown.
   getRelayByActorId(params: GetRelayByActorIdParams): Promise<RelayData | null>
@@ -2801,10 +2657,6 @@ export type CreateFilterParams = {
   keywords?: CreateFilterKeywordInput[]
 }
 
-export type GetFiltersParams = {
-  actorId: string
-}
-
 export type GetFilterParams = {
   actorId: string
   id: string
@@ -2892,7 +2744,6 @@ export type DeleteFilterStatusParams = {
 
 export interface FilterDatabase {
   createFilter(params: CreateFilterParams): Promise<Filter>
-  getFilters(params: GetFiltersParams): Promise<Filter[]>
   getFilter(params: GetFilterParams): Promise<Filter | null>
   updateFilter(params: UpdateFilterParams): Promise<Filter | null>
   deleteFilter(params: DeleteFilterParams): Promise<Filter | null>
@@ -2978,7 +2829,6 @@ export interface ServerFilterDatabase {
   getServerFilterRecord(
     params: GetServerFilterParams
   ): Promise<ActiveServerFilterRecord | null>
-  getServerFilter(params: GetServerFilterParams): Promise<ServerFilter | null>
   getServerFilterKeywords(
     params: GetServerFilterParams
   ): Promise<FilterKeyword[] | null>
@@ -3146,9 +2996,6 @@ export type GetStatusQuoteByQuoteRequestIdParams = { quoteRequestId: string }
 export type GetStatusQuoteByAuthorizationUriParams = {
   authorizationUri: string
 }
-export type MarkQuotesDeletedByQuotedStatusIdParams = {
-  quotedStatusId: string
-}
 export type UpdateStatusQuoteStateParams = {
   statusId: string
   state: QuoteState
@@ -3185,11 +3032,6 @@ export interface StatusQuoteDatabase {
   updateStatusQuoteState(
     params: UpdateStatusQuoteStateParams
   ): Promise<StatusQuoteRecord | null>
-  // Mark every accepted/pending edge quoting `quotedStatusId` as `deleted`
-  // (the quoted status was removed). Returns the number of edges updated.
-  markQuotesDeletedByQuotedStatusId(
-    params: MarkQuotesDeletedByQuotedStatusIdParams
-  ): Promise<number>
   // Ids of statuses quoting `quotedStatusId`, newest first, for GET /:id/quotes.
   getQuotingStatusIds(params: GetQuotingStatusIdsParams): Promise<string[]>
 }
@@ -3430,10 +3272,6 @@ export type DeleteMediaForAccountResult =
   | { status: 'deleted'; files: string[] }
   | { status: 'not-found' }
   | { status: 'in-use' }
-export type DeleteMediaByPathParams = {
-  actorId: string
-  path: string
-}
 export type DeleteAttachmentsByIdsParams = {
   attachmentIds: string[]
 }
@@ -3613,7 +3451,6 @@ export interface MediaDatabase {
   deleteMediaForAccount(
     params: DeleteMediaForAccountParams
   ): Promise<DeleteMediaForAccountResult>
-  deleteMediaByPath(params: DeleteMediaByPathParams): Promise<boolean>
 }
 
 // ============================================================================
@@ -3720,12 +3557,6 @@ export type MarkNotificationsReadParams = {
   notificationIds: string[]
 }
 
-export type UpdateNotificationParams = {
-  notificationId: string
-  isRead?: boolean
-  readAt?: number
-}
-
 // ============================================================================
 // Push Subscription Database
 // ============================================================================
@@ -3823,7 +3654,6 @@ export interface PushSubscriptionDatabase {
   getPushSubscriptionForActor(
     params: GetPushSubscriptionForActorParams
   ): Promise<PushSubscription | null>
-  deletePushSubscriptionsForActor(params: { actorId: string }): Promise<void>
 }
 
 // A grouped, per-source-actor view of policy-filtered notifications — the
@@ -3871,7 +3701,6 @@ export interface NotificationDatabase {
   getNotifications(params: GetNotificationsParams): Promise<Notification[]>
   getNotificationsCount(params: GetNotificationsCountParams): Promise<number>
   markNotificationsRead(params: MarkNotificationsReadParams): Promise<void>
-  updateNotification(params: UpdateNotificationParams): Promise<void>
   deleteNotification(notificationId: string): Promise<void>
 
   // Notification requests: grouped views over filtered = true notifications.
@@ -4008,11 +3837,6 @@ export type Scope = z.infer<typeof Scope>
 // validator, better-auth provider config, and `scopes_supported` can never drift.
 export const UsableScopes = Scope.options
 
-export const GetClientFromNameParams = z.object({
-  name: z.string()
-})
-export type GetClientFromNameParams = z.infer<typeof GetClientFromNameParams>
-
 export const GetClientFromIdParams = z.object({
   clientId: z.string()
 })
@@ -4031,11 +3855,7 @@ export type RevokeAccountConnectedAppParams = {
 }
 
 export interface OAuthDatabase {
-  getClientFromName(params: GetClientFromNameParams): Promise<Client | null>
   getClientFromId(params: GetClientFromIdParams): Promise<Client | null>
-  getClientFromAccessToken(
-    params: GetClientFromAccessTokenParams
-  ): Promise<Client | null>
   createOAuthAccessToken(params: CreateOAuthAccessTokenParams): Promise<void>
   // Move an access token's expiry to `expiresAt`. OAuthGuard calls it to slide a
   // token that is still in use; see OAUTH_ACCESS_TOKEN_EXPIRES_IN_SECONDS.
@@ -4052,13 +3872,6 @@ export interface OAuthDatabase {
   ): Promise<void>
 }
 
-export const GetClientFromAccessTokenParams = z.object({
-  hashedToken: z.string()
-})
-export type GetClientFromAccessTokenParams = z.infer<
-  typeof GetClientFromAccessTokenParams
->
-
 export type ExtendOAuthAccessTokenParams = {
   // SHA-256 base64url hash of the bearer token, the same value OAuthGuard looks
   // it up by.
@@ -4069,7 +3882,7 @@ export type ExtendOAuthAccessTokenParams = {
 
 export type CreateOAuthAccessTokenParams = {
   // SHA-256 base64url hash of the issued bearer token, matching how
-  // OAuthGuard looks tokens up (GetClientFromAccessTokenParams.hashedToken).
+  // OAuthGuard looks tokens up.
   // Callers MUST pass the hash, never the raw token, so the raw token never
   // touches the database.
   hashedToken: string
@@ -4457,7 +4270,6 @@ export interface DeadLetterJobDatabase {
     id: string,
     status: DeadLetterJobStatus
   ): Promise<DeadLetterJob | null>
-  deleteDeadLetterJob(id: string): Promise<boolean>
   deleteDeadLetterJobs(ids: string[]): Promise<number>
   deleteDeadLetterJobsByStatus(status: DeadLetterJobStatus): Promise<number>
   deleteAllDeadLetterJobs(): Promise<number>
@@ -4535,18 +4347,10 @@ export interface QueueJobDatabase {
     attempts: number
     error?: Error | unknown
   }): Promise<boolean>
-  failQueueJob(params: {
-    id: string
-    claimToken: string
-    attempts?: number
-    error?: Error | unknown
-  }): Promise<boolean>
   failQueueJobWithDeadLetter(
     params: FailQueueJobWithDeadLetterParams
   ): Promise<boolean>
   replayQueueJob(params: ReplayQueueJobParams): Promise<boolean>
-  getQueueJobById(id: string): Promise<QueueJob | null>
-  deleteQueueJob(id: string): Promise<boolean>
   /**
    * Deletes up to `limit` `completed` jobs last updated before `olderThan` and
    * returns how many were removed. Completed rows keep their full payload and
@@ -4556,5 +4360,4 @@ export interface QueueJobDatabase {
     olderThan: Date
     limit?: number
   }): Promise<number>
-  countQueueJobs(params?: { status?: QueueJobStatus }): Promise<number>
 }

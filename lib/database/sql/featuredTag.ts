@@ -14,7 +14,6 @@ import {
   FeaturedTagSuggestion,
   FeaturedTagWithStats,
   GetFeaturedTagByNameParams,
-  GetFeaturedTagParams,
   GetFeaturedTagSuggestionsParams,
   GetFeaturedTagsParams
 } from '@/lib/types/database/operations'
@@ -196,17 +195,6 @@ export const FeaturedTagSQLDatabaseMixin = (
       .count<{ count: number | string }>({ count: '*' })
       .first()
     return Number(row?.count ?? 0)
-  },
-
-  async getFeaturedTag({ actorId, id }: GetFeaturedTagParams) {
-    const row = await database<SQLFeaturedTag>('featured_tags')
-      .where({ actorId, id })
-      .first()
-    if (!row) return null
-    const stats = await getActorHashtagStats(database, actorId, {
-      lookupNames: getHashtagLookupNames(row.name)
-    })
-    return withStats(row, stats)
   },
 
   async getFeaturedTagByName({ actorId, name }: GetFeaturedTagByNameParams) {

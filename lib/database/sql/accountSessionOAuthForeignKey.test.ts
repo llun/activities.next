@@ -145,12 +145,18 @@ describe('account sessions that minted OAuth tokens (foreign keys enforced)', ()
       token
     )
 
+    const session = await knexDatabase('sessions')
+      .where('token', token)
+      .first<{ id: string }>('id')
+
     // The bug: this threw with PostgreSQL FK error 23503 before the fix.
     await expect(
-      sqlDatabase.deleteAccountSession({ token })
-    ).resolves.toBeUndefined()
+      sqlDatabase.deleteAccountSessionById({ accountId, id: session.id })
+    ).resolves.toBe(1)
 
-    expect(await sqlDatabase.getAccountSession({ token })).toBeNull()
+    expect(await sqlDatabase.getAccountAllSessions({ accountId })).toHaveLength(
+      0
+    )
     // The tokens survive, detached from the now-deleted session, so the
     // connected app keeps working.
     const access = await knexDatabase('oauthAccessToken')

@@ -55,7 +55,7 @@ describe('FilterDatabase', () => {
     expect(keywords?.[0].wholeWord).toBe(true)
   })
 
-  it('returns expired filters via getFilter but excludes them from getFilters and getActiveFiltersForActor', async () => {
+  it('returns expired filters via getFilter but excludes them from getActiveFiltersForActor', async () => {
     const filter = await database.createFilter({
       actorId: ACTOR1_ID,
       title: 'ExpiredFilter',
@@ -71,10 +71,6 @@ describe('FilterDatabase', () => {
     })
     expect(fetched).not.toBeNull()
     expect(fetched?.id).toBe(filter.id)
-
-    // getFilters excludes expired filters (user-facing list should only show active)
-    const all = await database.getFilters({ actorId: ACTOR1_ID })
-    expect(all.find((entry) => entry.id === filter.id)).toBeUndefined()
 
     // getActiveFiltersForActor excludes expired filters (timeline/notification filtering)
     const active = await database.getActiveFiltersForActor({

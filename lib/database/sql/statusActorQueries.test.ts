@@ -857,24 +857,6 @@ describe('StatusDatabase actor queries', () => {
       })
     })
 
-    describe('hasActorAnnouncedStatus', () => {
-      it('returns true if actor has announced status', async () => {
-        const result = await database.hasActorAnnouncedStatus({
-          statusId: statuses.replyAuthor.mentionReplyToPrimary,
-          actorId: replyAuthorId
-        })
-        expect(result).toBeTrue()
-      })
-
-      it('returns false if actor has not announced status', async () => {
-        const result = await database.hasActorAnnouncedStatus({
-          statusId: statuses.primary.post,
-          actorId: primaryActorId
-        })
-        expect(result).toBeFalse()
-      })
-    })
-
     describe('getActorAnnounceStatus', () => {
       it('returns announce status for actor', async () => {
         const announce = await database.getActorAnnounceStatus({

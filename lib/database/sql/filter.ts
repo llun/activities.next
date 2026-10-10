@@ -24,7 +24,6 @@ import {
   GetFilterRecordsForActorParams,
   GetFilterStatusParams,
   GetFilterStatusesParams,
-  GetFiltersParams,
   UpdateFilterKeywordParams,
   UpdateFilterParams
 } from '@/lib/types/database/operations'
@@ -196,16 +195,6 @@ export const FilterSQLDatabaseMixin = (database: Knex): FilterDatabase => {
       })
 
       return filter
-    },
-
-    async getFilters({ actorId }: GetFiltersParams) {
-      const rows = await database<FilterRow>('filters')
-        .where({ actorId })
-        .orderBy('createdAt', 'desc')
-      const now = Date.now()
-      return rows
-        .map(fixFilterRow)
-        .filter((filter) => isFilterActive(filter, now))
     },
 
     async getFilter({ actorId, id }: GetFilterParams) {

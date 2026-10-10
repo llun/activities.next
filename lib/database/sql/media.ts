@@ -36,7 +36,6 @@ import {
   CreateAttachmentParams,
   CreateMediaParams,
   DeleteAttachmentsByIdsParams,
-  DeleteMediaByPathParams,
   DeleteMediaForAccountParams,
   DeleteMediaForAccountResult,
   DeleteMediaParams,
@@ -1586,12 +1585,5 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       .where('id', id)
       .update({ subjectSuggestions: value })
     return changed > 0
-  },
-
-  async deleteMediaByPath({
-    actorId,
-    path
-  }: DeleteMediaByPathParams): Promise<boolean> {
-    return deleteMediaByConditions(database, { actorId, original: path })
   }
 })

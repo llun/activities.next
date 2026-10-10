@@ -59,10 +59,9 @@ describe('/api/v1/accounts/[id]/in_collections', () => {
       actorId: ACTOR1_ID,
       targetActorIds: [ACTOR2_ID]
     })
-    await database.setCollectionMemberState({
-      id: publicApproved.id,
-      actorId: ACTOR1_ID,
-      targetActorId: ACTOR2_ID,
+    await database.setOwnCollectionMembershipState({
+      collectionId: publicApproved.id,
+      actorId: ACTOR2_ID,
       state: 'approved'
     })
 

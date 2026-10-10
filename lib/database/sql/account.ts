@@ -20,30 +20,22 @@ import {
   CreateAccountParams,
   CreateAccountSessionParams,
   CreateActorForAccountParams,
-  CreateCredentialProviderParams,
   DeleteAccountSessionByIdParams,
-  DeleteAccountSessionParams,
   DeleteOtherAccountSessionsParams,
   GetAccountAllSessionsParams,
   GetAccountFromEmailParams,
   GetAccountFromIdParams,
-  GetAccountFromProviderIdParams,
-  GetAccountProvidersParams,
-  GetAccountSessionParams,
   GetActorsForAccountParams,
   IsAccountExistsParams,
   IsUsernameExistsParams,
-  LinkAccountWithProviderParams,
   RepointUnconfirmedAccountEmailParams,
   RequestEmailChangeParams,
   RequestPasswordResetParams,
   ResetPasswordWithCodeParams,
   SetDefaultActorParams,
-  SetSessionActorParams,
   UnlinkAccountFromProviderParams,
   UpdateAccountImageParams,
   UpdateAccountNameParams,
-  UpdateAccountSessionParams,
   ValidatePasswordResetCodeParams,
   VerifyAccountParams,
   VerifyEmailChangeParams
@@ -192,27 +184,6 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     return accountId
   },
 
-  async createCredentialProvider({
-    accountId,
-    passwordHash
-  }: CreateCredentialProviderParams): Promise<void> {
-    const currentTime = new Date()
-    await database('account_providers')
-      .insert({
-        id: `credential_${accountId}`,
-        accountId,
-        provider: CREDENTIAL_PROVIDER,
-        providerId: accountId,
-        password: passwordHash,
-        createdAt: currentTime,
-        updatedAt: currentTime
-      })
-      .onConflict('id')
-      // Existing credential rows retain their password and any historical
-      // issuer value.
-      .ignore()
-  },
-
   async getAccountFromId({ id }: GetAccountFromIdParams) {
     const account = await database<SQLAccount>('accounts')
       .where('id', id)
@@ -228,49 +199,6 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       .where('email', normalizeEmail(email))
       .first()
     if (!account) return null
-    return toDomainAccount(account)
-  },
-
-  async getAccountFromProviderId({
-    provider,
-    accountId
-  }: GetAccountFromProviderIdParams): Promise<Account | null> {
-    const account = await database('account_providers')
-      .where('provider', provider)
-      .where('providerId', accountId)
-      .join('accounts', 'account_providers.accountId', '=', 'accounts.id')
-      .select<SQLAccount>('accounts.*')
-      .first()
-    if (!account) return null
-    return toDomainAccount(account)
-  },
-
-  async linkAccountWithProvider({
-    accountId,
-    providerAccountId,
-    provider
-  }: LinkAccountWithProviderParams): Promise<Account | null> {
-    const [existingLinkAccount, account] = await Promise.all([
-      database('account_providers')
-        .where('provider', provider)
-        .where('providerId', providerAccountId)
-        .first(),
-      database('accounts').where('id', accountId).first()
-    ])
-
-    if (existingLinkAccount) return null
-    if (!account) return null
-
-    const currentTime = new Date()
-    await database('account_providers').insert({
-      id: crypto.randomUUID(),
-      provider,
-      providerId: providerAccountId,
-      accountId,
-
-      createdAt: currentTime,
-      updatedAt: currentTime
-    })
     return toDomainAccount(account)
   },
 
@@ -315,39 +243,6 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     await recordWeeklyLoginSafely(database, accountId, currentTime)
   },
 
-  async getAccountSession({ token }: GetAccountSessionParams): Promise<{
-    account: Account
-    session: Session
-  } | null> {
-    const session = await database('sessions').where('token', token).first()
-    if (!session) return null
-
-    const {
-      id: sessionId,
-      accountId,
-      token: sessionToken,
-      actorId,
-      expireAt,
-      createdAt,
-      updatedAt
-    } = session
-    const account = await this.getAccountFromId({ id: accountId })
-    if (!account) return null
-
-    return {
-      account,
-      session: Session.parse({
-        id: sessionId,
-        accountId,
-        actorId: actorId ?? null,
-        expireAt: getCompatibleTime(expireAt),
-        token: sessionToken,
-        createdAt: getCompatibleTime(createdAt),
-        updatedAt: getCompatibleTime(updatedAt)
-      })
-    }
-  },
-
   async getAccountAllSessions({
     accountId
   }: GetAccountAllSessionsParams): Promise<Session[]> {
@@ -364,25 +259,6 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         createdAt: getCompatibleTime(session.createdAt),
         updatedAt: getCompatibleTime(session.updatedAt)
       })
-    )
-  },
-
-  async updateAccountSession({
-    token,
-    expireAt
-  }: UpdateAccountSessionParams): Promise<void> {
-    if (!expireAt) return
-
-    return database('sessions')
-      .where('token', token)
-      .update({ expireAt: new Date(expireAt) })
-  },
-
-  async deleteAccountSession({
-    token
-  }: DeleteAccountSessionParams): Promise<void> {
-    await database.transaction((trx) =>
-      deleteSessionsWithTokenDetach(trx, (query) => query.where('token', token))
     )
   },
 
@@ -408,31 +284,6 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         query.where('accountId', accountId).andWhereNot('token', exceptToken)
       )
     )
-  },
-
-  async getAccountProviders({ accountId }: GetAccountProvidersParams): Promise<
-    {
-      provider: string
-      providerId: string
-      createdAt: number
-      updatedAt: number
-    }[]
-  > {
-    const providers = await database('account_providers')
-      .where('accountId', accountId)
-      .select<
-        {
-          provider: string
-          providerId: string
-          createdAt: number
-          updatedAt: number
-        }[]
-      >('provider', 'providerId', 'createdAt', 'updatedAt')
-    return providers.map((provider) => ({
-      ...provider,
-      createdAt: getCompatibleTime(provider.createdAt),
-      updatedAt: getCompatibleTime(provider.updatedAt)
-    }))
   },
 
   async unlinkAccountFromProvider({
@@ -589,17 +440,6 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
     const currentTime = new Date()
     await database('accounts').where('id', accountId).update({
       defaultActorId: actorId,
-      updatedAt: currentTime
-    })
-  },
-
-  async setSessionActor({
-    token,
-    actorId
-  }: SetSessionActorParams): Promise<void> {
-    const currentTime = new Date()
-    await database('sessions').where('token', token).update({
-      actorId,
       updatedAt: currentTime
     })
   },

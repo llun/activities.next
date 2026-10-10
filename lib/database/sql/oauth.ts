@@ -7,9 +7,7 @@ import {
   CreateOAuthAccessTokenParams,
   ExtendOAuthAccessTokenParams,
   GetAccountConnectedAppsParams,
-  GetClientFromAccessTokenParams,
   GetClientFromIdParams,
-  GetClientFromNameParams,
   OAuthDatabase,
   RevokeAccountConnectedAppParams
 } from '@/lib/types/database/operations'
@@ -53,27 +51,10 @@ const parseClientRow = (row: Record<string, unknown>): Client => {
 }
 
 export const OAuthSQLDatabaseMixin = (database: Knex): OAuthDatabase => ({
-  async getClientFromName({ name }: GetClientFromNameParams) {
-    const row = await database('oauthClient').where('name', name).first()
-    if (!row) return null
-    return parseClientRow(row)
-  },
-
   async getClientFromId({ clientId }: GetClientFromIdParams) {
     const row = await database('oauthClient')
       .where('clientId', clientId)
       .first()
-    if (!row) return null
-    return parseClientRow(row)
-  },
-
-  async getClientFromAccessToken({
-    hashedToken
-  }: GetClientFromAccessTokenParams) {
-    const row = await database('oauthAccessToken')
-      .join('oauthClient', 'oauthClient.clientId', 'oauthAccessToken.clientId')
-      .where('oauthAccessToken.token', hashedToken)
-      .first('oauthClient.*')
     if (!row) return null
     return parseClientRow(row)
   },

@@ -1,12 +1,14 @@
-import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { getQueueJobById } from '@/lib/database/testing/fixtures'
 import { JobMessage } from '@/lib/services/queue/type'
 
 describe('QueueJobDatabase', () => {
   const {
     database,
-    instance: knexDatabase,
+    db,
+    knex: knexDatabase,
     prepare
-  } = getTestDatabaseWithInstance(true)
+  } = createTestDatabase({ isolated: true })
 
   beforeAll(async () => {
     await prepare()
@@ -42,7 +44,7 @@ describe('QueueJobDatabase', () => {
     expect(job.createdAt).toBeTypeOf('number')
     expect(job.nextRunAt).toBeTypeOf('number')
 
-    const fetched = await database.getQueueJobById('custom-id-1')
+    const fetched = await getQueueJobById(db, 'custom-id-1')
     expect(fetched).toEqual(job)
   })
 
@@ -94,7 +96,7 @@ describe('QueueJobDatabase', () => {
     const secondClaim = await database.claimQueueJob({ id: 'claimable-1' })
     expect(secondClaim).toBeNull()
 
-    const job = await database.getQueueJobById('claimable-1')
+    const job = await getQueueJobById(db, 'claimable-1')
     expect(job?.status).toBe('processing')
     expect(job?.claimToken).toBe(firstClaim?.claimToken)
   })
@@ -152,9 +154,7 @@ describe('QueueJobDatabase', () => {
     })
     expect(claim).toBeNull()
 
-    const job = await database.getQueueJobById(
-      'rescheduled-between-discovery-1'
-    )
+    const job = await getQueueJobById(db, 'rescheduled-between-discovery-1')
     expect(job?.status).toBe('pending')
   })
 
@@ -182,7 +182,7 @@ describe('QueueJobDatabase', () => {
     })
     expect(completed).toBe(true)
 
-    const job = await database.getQueueJobById('completable-1')
+    const job = await getQueueJobById(db, 'completable-1')
     expect(job?.status).toBe('completed')
     expect(job?.claimToken).toBeNull()
 
@@ -227,7 +227,7 @@ describe('QueueJobDatabase', () => {
     })
     expect(scheduled).toBe(true)
 
-    const job = await database.getQueueJobById('retryable-1')
+    const job = await getQueueJobById(db, 'retryable-1')
     expect(job?.status).toBe('pending')
     expect(job?.attempts).toBe(1)
     expect(job?.claimToken).toBeNull()
@@ -243,52 +243,6 @@ describe('QueueJobDatabase', () => {
       error: err
     })
     expect(secondRetry).toBe(false)
-  })
-
-  it('fails a job terminally with valid claimToken and rejects invalid or stale claimToken', async () => {
-    await database.createQueueJob({
-      id: 'failable-1',
-      name: 'deliverActivity',
-      payload: samplePayload
-    })
-
-    const claim = await database.claimQueueJob({ id: 'failable-1' })
-    expect(claim).not.toBeNull()
-
-    const err = new Error('Permanent 410 Gone')
-
-    // Wrong token fails
-    const invalidTokenFail = await database.failQueueJob({
-      id: 'failable-1',
-      claimToken: 'wrong-token-uuid',
-      attempts: 16,
-      error: err
-    })
-    expect(invalidTokenFail).toBe(false)
-
-    // Valid token succeeds
-    const failed = await database.failQueueJob({
-      id: 'failable-1',
-      claimToken: claim!.claimToken,
-      attempts: 16,
-      error: err
-    })
-    expect(failed).toBe(true)
-
-    const job = await database.getQueueJobById('failable-1')
-    expect(job?.status).toBe('failed')
-    expect(job?.attempts).toBe(16)
-    expect(job?.claimToken).toBeNull()
-    expect(job?.lastErrorMessage).toBe('Permanent 410 Gone')
-
-    // Second fail with same token is rejected
-    const secondFail = await database.failQueueJob({
-      id: 'failable-1',
-      claimToken: claim!.claimToken,
-      attempts: 17,
-      error: err
-    })
-    expect(secondFail).toBe(false)
   })
 
   describe('failQueueJobWithDeadLetter', () => {
@@ -314,7 +268,7 @@ describe('QueueJobDatabase', () => {
       expect(success).toBe(true)
 
       // Verify queue_jobs state
-      const queueJob = await database.getQueueJobById('fail-dlq-1')
+      const queueJob = await getQueueJobById(db, 'fail-dlq-1')
       expect(queueJob?.status).toBe('failed')
       expect(queueJob?.attempts).toBe(16)
       expect(queueJob?.claimToken).toBeNull()
@@ -352,7 +306,7 @@ describe('QueueJobDatabase', () => {
 
       expect(success).toBe(true)
 
-      const queueJob = await database.getQueueJobById('fail-dlq-str-err')
+      const queueJob = await getQueueJobById(db, 'fail-dlq-str-err')
       expect(queueJob?.lastErrorMessage).toBe('raw-string-error')
       expect(queueJob?.lastErrorStack).toBeNull()
 
@@ -381,7 +335,7 @@ describe('QueueJobDatabase', () => {
       expect(success).toBe(false)
 
       // queue_jobs must be unchanged
-      const queueJob = await database.getQueueJobById('fail-dlq-stale-1')
+      const queueJob = await getQueueJobById(db, 'fail-dlq-stale-1')
       expect(queueJob?.status).toBe('processing')
       expect(queueJob?.claimToken).toBe(claim?.claimToken)
 
@@ -460,7 +414,7 @@ describe('QueueJobDatabase', () => {
         ).rejects.toThrow()
 
         // Transaction must have rolled back: queue_jobs is STILL in 'processing' with original claimToken
-        const queueJob = await database.getQueueJobById('fail-dlq-rollback-1')
+        const queueJob = await getQueueJobById(db, 'fail-dlq-rollback-1')
         expect(queueJob?.status).toBe('processing')
         expect(queueJob?.claimToken).toBe(claim!.claimToken)
       } finally {
@@ -503,7 +457,7 @@ describe('QueueJobDatabase', () => {
 
       expect(success).toBe(true)
 
-      const queueJob = await database.getQueueJobById('fail-dlq-no-err-1')
+      const queueJob = await getQueueJobById(db, 'fail-dlq-no-err-1')
       expect(queueJob?.lastErrorMessage).toBe('Prior retry failure message')
       expect(queueJob?.lastErrorStack).toBeDefined()
 
@@ -632,25 +586,8 @@ describe('QueueJobDatabase', () => {
     })
     expect(worker2Complete).toBe(true)
 
-    const job = await database.getQueueJobById('stalled-reclaim-1')
+    const job = await getQueueJobById(db, 'stalled-reclaim-1')
     expect(job?.status).toBe('completed')
-  })
-
-  it('counts and deletes jobs', async () => {
-    await database.createQueueJob({
-      id: 'custom-id-delete',
-      name: 'deliverActivity',
-      payload: samplePayload
-    })
-
-    const pendingBefore = await database.countQueueJobs({ status: 'pending' })
-    expect(pendingBefore).toBeGreaterThan(0)
-
-    const deleted = await database.deleteQueueJob('custom-id-delete')
-    expect(deleted).toBe(true)
-
-    const notFound = await database.getQueueJobById('custom-id-delete')
-    expect(notFound).toBeNull()
   })
 
   it('preserves payload, attempts, schedule, state, and claim token on duplicate enqueue across all states', async () => {
@@ -732,7 +669,7 @@ describe('QueueJobDatabase', () => {
       payload: samplePayload
     })
     const claimedFailed = await database.claimQueueJob({ id: 'dup-failed-1' })
-    await database.failQueueJob({
+    await database.failQueueJobWithDeadLetter({
       id: 'dup-failed-1',
       claimToken: claimedFailed!.claimToken,
       attempts: 16,
@@ -794,7 +731,7 @@ describe('QueueJobDatabase', () => {
       error: new Error('Terminal crash')
     })
 
-    const failedJob = await database.getQueueJobById('replay-test-1')
+    const failedJob = await getQueueJobById(db, 'replay-test-1')
     expect(failedJob?.status).toBe('failed')
     expect(failedJob?.attempts).toBe(16)
     expect(failedJob?.lastErrorMessage).toBe('Terminal crash')
@@ -808,7 +745,7 @@ describe('QueueJobDatabase', () => {
     const success = await database.replayQueueJob({ id: 'replay-test-1' })
     expect(success).toBe(true)
 
-    const replayedJob = await database.getQueueJobById('replay-test-1')
+    const replayedJob = await getQueueJobById(db, 'replay-test-1')
     expect(replayedJob?.status).toBe('pending')
     expect(replayedJob?.attempts).toBe(0)
     expect(replayedJob?.claimToken).toBeNull()
@@ -866,7 +803,7 @@ describe('QueueJobDatabase', () => {
     expect(results.filter(Boolean)).toHaveLength(1)
     expect(results.filter((r) => !r)).toHaveLength(1)
 
-    const job = await database.getQueueJobById('concurrent-replay-1')
+    const job = await getQueueJobById(db, 'concurrent-replay-1')
     expect(job?.status).toBe('pending')
     expect(job?.attempts).toBe(0)
 
@@ -953,14 +890,14 @@ describe('QueueJobDatabase', () => {
       })
 
       expect(purged).toBe(1)
-      expect(await database.getQueueJobById('purge-old-completed')).toBeNull()
+      expect(await getQueueJobById(db, 'purge-old-completed')).toBeNull()
       for (const id of [
         'purge-new-completed',
         'purge-old-pending',
         'purge-old-processing',
         'purge-old-failed'
       ]) {
-        expect(await database.getQueueJobById(id)).not.toBeNull()
+        expect(await getQueueJobById(db, id)).not.toBeNull()
       }
     })
 

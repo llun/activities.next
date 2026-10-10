@@ -162,42 +162,6 @@ describe('case-insensitive actor username lookup', () => {
       }))
   })
 
-  // `getMastodonActorFromUsername` differs from `getActorFromUsername` only in
-  // return shape, so it goes through the same helper — but nothing proved it.
-  // A mutation reverting it to its old raw exact-match query left the whole
-  // suite green, because its only callers are pre-existing exact-case fixtures.
-  describe('getMastodonActorFromUsername', () => {
-    it.each([
-      { description: 'the stored spelling', lookup: 'MixedCase' },
-      { description: 'all lowercase', lookup: 'mixedcase' },
-      { description: 'all uppercase', lookup: 'MIXEDCASE' }
-    ])('folds casing the same way, asked with $description', ({ lookup }) =>
-      withFreshDatabase(async (database) => {
-        await createActorWithRawUsername(database, 'MixedCase')
-
-        const actor = await database.getMastodonActorFromUsername({
-          username: lookup,
-          domain: TEST_DOMAIN
-        })
-
-        expect(actor).not.toBeNull()
-        expect(actor?.username).toBe('MixedCase')
-      })
-    )
-
-    it('still refuses a username that is genuinely absent', () =>
-      withFreshDatabase(async (database) => {
-        await createActorWithRawUsername(database, 'MixedCase')
-
-        expect(
-          await database.getMastodonActorFromUsername({
-            username: 'someoneelse',
-            domain: TEST_DOMAIN
-          })
-        ).toBeNull()
-      }))
-  })
-
   // `domain` is deliberately NOT folded — the helper's docblock calls that a
   // separate change with its own index implications. The `does not fold across
   // domains` cases above cannot prove it: they use a DIFFERENT domain, so they

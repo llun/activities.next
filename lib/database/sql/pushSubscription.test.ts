@@ -607,29 +607,6 @@ describe('PushSubscription Database', () => {
         expect(subs.some((s) => s.endpoint === endpoint)).toBe(false)
       })
     })
-
-    describe('deletePushSubscriptionsForActor', () => {
-      it('deletes all subscriptions for an actor', async () => {
-        const actorId = 'https://example.com/users/push-cleanup'
-        await database.createPushSubscription({
-          actorId,
-          endpoint: 'https://push.example.com/cleanup/1',
-          p256dh: 'key',
-          auth: 'auth'
-        })
-        await database.createPushSubscription({
-          actorId,
-          endpoint: 'https://push.example.com/cleanup/2',
-          p256dh: 'key2',
-          auth: 'auth2'
-        })
-
-        await database.deletePushSubscriptionsForActor({ actorId })
-
-        const subs = await database.getPushSubscriptionsForActor({ actorId })
-        expect(subs).toEqual([])
-      })
-    })
   })
 })
 

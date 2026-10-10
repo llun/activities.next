@@ -245,43 +245,6 @@ describe('StatusQuoteDatabase', () => {
       expect(found?.state).toBe('accepted')
     })
 
-    it('marks pending/accepted edges deleted when the quoted status is removed, leaving terminal edges', async () => {
-      const quotedStatusId = uniqueId('deleted-target')
-      const pending = uniqueId('deleted-pending')
-      const accepted = uniqueId('deleted-accepted')
-      const rejected = uniqueId('deleted-rejected')
-      await database.createStatusQuote({
-        statusId: pending,
-        quotedStatusId,
-        state: 'pending'
-      })
-      await database.createStatusQuote({
-        statusId: accepted,
-        quotedStatusId,
-        state: 'accepted'
-      })
-      await database.createStatusQuote({
-        statusId: rejected,
-        quotedStatusId,
-        state: 'rejected'
-      })
-
-      const count = await database.markQuotesDeletedByQuotedStatusId({
-        quotedStatusId
-      })
-      expect(count).toBe(2)
-      expect(
-        (await database.getStatusQuote({ statusId: pending }))?.state
-      ).toBe('deleted')
-      expect(
-        (await database.getStatusQuote({ statusId: accepted }))?.state
-      ).toBe('deleted')
-      // A terminal (rejected) edge is untouched.
-      expect(
-        (await database.getStatusQuote({ statusId: rejected }))?.state
-      ).toBe('rejected')
-    })
-
     it('lists quoting status ids newest first, filtered by state', async () => {
       const quotedStatusId = uniqueId('listing-target')
       const accepted: string[] = []

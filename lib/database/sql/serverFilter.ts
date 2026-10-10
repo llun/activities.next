@@ -163,10 +163,6 @@ export const ServerFilterSQLDatabaseMixin = (
       return hydrate(rows.map(fixServerFilterRow))
     },
 
-    async getServerFilter({ id }: GetServerFilterParams) {
-      return getServerFilterById(id)
-    },
-
     async getServerFilterRecord({ id }: GetServerFilterParams) {
       const filter = await getServerFilterById(id)
       if (!filter) return null

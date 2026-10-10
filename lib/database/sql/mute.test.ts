@@ -45,8 +45,8 @@ describe('MuteDatabase', () => {
     expect(mute.notifications).toBe(true)
     expect(mute.endsAt).toBeNull()
     expect(
-      await database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })
-    ).toBe(true)
+      await database.getMute({ actorId: ACTOR1_ID, targetActorId: target })
+    ).not.toBeNull()
   })
 
   it('updates notifications and endsAt when re-muting the same target', async () => {
@@ -95,8 +95,8 @@ describe('MuteDatabase', () => {
 
     expect(deleted?.id).toBe(created.id)
     expect(
-      await database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })
-    ).toBe(false)
+      await database.getMute({ actorId: ACTOR1_ID, targetActorId: target })
+    ).toBeNull()
   })
 
   it('returns null when deleting a non-existent mute', async () => {
@@ -108,12 +108,9 @@ describe('MuteDatabase', () => {
     expect(result).toBeNull()
   })
 
-  it('reports no mute from isMuting and getMute when none exists', async () => {
+  it('reports no mute from getMute when none exists', async () => {
     const target = targetActorId()
 
-    expect(
-      await database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })
-    ).toBe(false)
     expect(
       await database.getMute({ actorId: ACTOR1_ID, targetActorId: target })
     ).toBeNull()
@@ -210,7 +207,7 @@ describe('MuteDatabase', () => {
     ).resolves.not.toBeNull()
   })
 
-  it('ignores an expired mute in getMute and isMuting', async () => {
+  it('ignores an expired mute in getMute', async () => {
     const target = targetActorId()
     const pastEndsAt = Date.now() - 1000
 
@@ -229,9 +226,6 @@ describe('MuteDatabase', () => {
     await expect(
       database.getMute({ actorId: ACTOR1_ID, targetActorId: target })
     ).resolves.toBeNull()
-    await expect(
-      database.isMuting({ actorId: ACTOR1_ID, targetActorId: target })
-    ).resolves.toBe(false)
   })
 
   describe('getMutes', () => {

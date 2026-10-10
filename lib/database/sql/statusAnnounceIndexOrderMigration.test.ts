@@ -4,9 +4,9 @@ import * as migration from '@/migrations/20260822000000_reorder_status_announce_
 
 // Pins the COLUMN ORDER of the announce lookup index, not merely its existence.
 //
-// Both orderings serve `hasActorAnnouncedStatus`, `getActorAnnounceStatus`,
-// `getActorAnnouncedStatusId` and the batched announce hydration identically —
-// those constrain all three columns — so every result-based assertion in the
+// Both orderings serve `getActorAnnounceStatus`, `getActorAnnouncedStatusId`
+// and the batched announce hydration identically — those constrain all three
+// columns — so every result-based assertion in the
 // suite passes either way, and so does a test that only checks the index is
 // there. What separates them is `getRebloggedBy`, which constrains `type` and
 // `originalStatusId` but NOT `actorId`: with `actorId` in the middle,

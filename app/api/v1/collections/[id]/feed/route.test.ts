@@ -84,10 +84,9 @@ describe('GET /api/v1/collections/[id]/feed', () => {
         actorId: ACTOR1_ID,
         targetActorIds: [member.id]
       })
-      await database.setCollectionMemberState({
-        id,
-        actorId: ACTOR1_ID,
-        targetActorId: member.id,
+      await database.setOwnCollectionMembershipState({
+        collectionId: id,
+        actorId: member.id,
         state: 'approved'
       })
     }

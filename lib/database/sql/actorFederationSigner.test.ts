@@ -1,5 +1,3 @@
-import crypto from 'crypto'
-
 import {
   createFreshDatabaseRunner,
   createSigningAccount,
@@ -15,12 +13,7 @@ import {
   getFederationSigningActorId,
   getFederationSigningActorUsername
 } from '@/lib/services/federation/instanceActor'
-import {
-  EXTERNAL_ACTORS,
-  TEST_DOMAIN,
-  TEST_DOMAIN_2,
-  TEST_USERNAME3
-} from '@/lib/stub/const'
+import { EXTERNAL_ACTORS, TEST_DOMAIN, TEST_DOMAIN_2 } from '@/lib/stub/const'
 
 describe('ActorDatabase federation signer', () => {
   const table = getTestDatabaseTable()
@@ -163,61 +156,6 @@ describe('ActorDatabase federation signer', () => {
           expect(second?.id).toBe(first?.id)
           expect(second?.privateKey).toBe(first?.privateKey)
         })
-      })
-    })
-
-    describe('isInternalActor', () => {
-      it('returns true when actor is internal', async () => {
-        const result = await database.isInternalActor({
-          actorId: `https://${TEST_DOMAIN}/users/${TEST_USERNAME3}`
-        })
-        expect(result).toBeTrue()
-      })
-
-      it('returns true for the headless instance actor', async () => {
-        const actor = await database.getFederationSigningActor()
-        if (!actor) fail('Expected federation signing actor')
-
-        const result = await database.isInternalActor({
-          actorId: actor.id
-        })
-        expect(result).toBeTrue()
-      })
-
-      it('returns false for non-signer accountless local service actors', async () => {
-        const suffix = crypto.randomUUID().slice(0, 8)
-        const username = `local-service-${suffix}`
-        const actorId = `https://${TEST_DOMAIN}/users/${username}`
-
-        await database.createActor({
-          actorId,
-          type: 'Service',
-          username,
-          domain: TEST_DOMAIN,
-          followersUrl: `${actorId}/followers`,
-          inboxUrl: `${actorId}/inbox`,
-          sharedInboxUrl: `https://${TEST_DOMAIN}/inbox`,
-          publicKey: 'public-key',
-          privateKey: 'private-key',
-          createdAt: Date.now()
-        })
-
-        const result = await database.isInternalActor({ actorId })
-        expect(result).toBeFalse()
-      })
-
-      it('returns false when actor is external', async () => {
-        const result = await database.isInternalActor({
-          actorId: EXTERNAL_ACTORS[0].id
-        })
-        expect(result).toBeFalse()
-      })
-
-      it('returns false when actor is not exists', async () => {
-        const result = await database.isInternalActor({
-          actorId: 'https://notfound.test/actor'
-        })
-        expect(result).toBeFalse()
       })
     })
   })

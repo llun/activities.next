@@ -19,7 +19,7 @@ describe('test fixtures', () => {
   })
 
   describe('getQueueJobById', () => {
-    it('returns the same job the facade method does', async () => {
+    it('returns the job createQueueJob stored', async () => {
       const created = await database.createQueueJob({
         id: 'fixture-job-1',
         name: 'deliverActivity',
@@ -29,7 +29,6 @@ describe('test fixtures', () => {
 
       const job = await getQueueJobById(db, 'fixture-job-1')
       expect(job).toEqual(created)
-      expect(job).toEqual(await database.getQueueJobById('fixture-job-1'))
       expect(job).toMatchObject({
         status: 'pending',
         attempts: 0,
@@ -55,9 +54,7 @@ describe('test fixtures', () => {
       await expect(
         deleteServerSetting(db, { key: 'posts.maxCharacters' })
       ).resolves.toBe(true)
-      await expect(
-        database.getServerSetting({ key: 'posts.maxCharacters' })
-      ).resolves.toBeNull()
+      await expect(database.getAllServerSettings()).resolves.toEqual([])
     })
 
     it('reports false when the setting was not stored', async () => {

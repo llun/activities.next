@@ -90,9 +90,11 @@ describe('/api/v1/admin/server_settings', () => {
 
     const data = await response.json()
     expect(data.settings.posts.maxCharacters).toBe(1500)
-    await expect(
-      holder.db?.getServerSetting({ key: 'posts.maxCharacters' })
-    ).resolves.toMatchObject({ value: 1500 })
+    expect(
+      (await holder.db?.getAllServerSettings())?.find(
+        (setting) => setting.key === 'posts.maxCharacters'
+      )
+    ).toMatchObject({ value: 1500 })
   })
 
   it('rejects an invalid value with 422 and writes nothing', async () => {
@@ -106,9 +108,11 @@ describe('/api/v1/admin/server_settings', () => {
       key: 'posts.maxCharacters',
       reason: 'invalid'
     })
-    await expect(
-      holder.db?.getServerSetting({ key: 'posts.maxCharacters' })
-    ).resolves.toBeNull()
+    expect(
+      (await holder.db?.getAllServerSettings())?.find(
+        (setting) => setting.key === 'posts.maxCharacters'
+      )
+    ).toBeUndefined()
   })
 
   it('rejects writes to an env-locked field with 422', async () => {
