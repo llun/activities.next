@@ -94,6 +94,7 @@ export const StatusBox: FC<Props> = ({
           initialSelection={modalMedias?.initialSelection ?? 0}
           ownerName={actualStatus.actor?.name || actualStatus.actor?.username}
           albumsOwnerId={getAlbumsOwnerId(currentActor, actualStatus)}
+          onAltTextSaved={() => router.refresh()}
           onClosed={() => setModalMedias(null)}
         />
       </>
@@ -173,6 +174,7 @@ export const StatusBox: FC<Props> = ({
         initialSelection={modalMedias?.initialSelection ?? 0}
         ownerName={actualStatus.actor?.name || actualStatus.actor?.username}
         albumsOwnerId={getAlbumsOwnerId(currentActor, actualStatus)}
+        onAltTextSaved={() => router.refresh()}
         onClosed={() => setModalMedias(null)}
       />
     </>

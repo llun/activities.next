@@ -77,7 +77,8 @@ const attachment = (
 const renderModal = (
   medias: Attachment[],
   albumsOwnerId: string | null = OWNER,
-  onClosed = vi.fn()
+  onClosed = vi.fn(),
+  onAltTextSaved?: () => void
 ) => {
   const ui = (list: Attachment[]) => (
     <OwnPostMediasModal
@@ -85,6 +86,7 @@ const renderModal = (
       initialSelection={0}
       albumsOwnerId={albumsOwnerId}
       onClosed={onClosed}
+      onAltTextSaved={onAltTextSaved}
     />
   )
   const view = render(ui(medias))
@@ -157,6 +159,41 @@ describe('OwnPostMediasModal', () => {
     expect(onClosed).toHaveBeenCalledTimes(1)
     rerenderWith([attachment('1')])
     expect(screen.getByTestId('alt-1')).toHaveTextContent('A new description')
+  })
+
+  it('stops showing a saved alt text once the post says something else', () => {
+    const { rerenderWith } = renderModal([attachment('1', { name: 'Old' })])
+    fireEvent.click(screen.getByRole('button', { name: 'Edit 1' }))
+    act(() =>
+      editor.current?.onSaved([
+        {
+          ...editor.current.items[0],
+          attachment: { ...attachment('1'), name: 'A' }
+        }
+      ])
+    )
+    expect(screen.getByTestId('alt-1')).toHaveTextContent('A')
+
+    // The post was edited elsewhere (the inline composer) and refreshed.
+    rerenderWith([attachment('1', { name: 'B' })])
+    expect(screen.getByTestId('alt-1')).toHaveTextContent('B')
+  })
+
+  it('tells the page a save happened so it can refresh the post', () => {
+    const onAltTextSaved = vi.fn()
+    renderModal([attachment('1')], OWNER, vi.fn(), onAltTextSaved)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit 1' }))
+
+    act(() =>
+      editor.current?.onSaved([
+        {
+          ...editor.current.items[0],
+          attachment: { ...attachment('1'), name: 'New' }
+        }
+      ])
+    )
+
+    expect(onAltTextSaved).toHaveBeenCalledTimes(1)
   })
 
   it('closes the editor with the viewer', () => {

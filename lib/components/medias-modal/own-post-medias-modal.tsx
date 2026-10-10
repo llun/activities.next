@@ -7,7 +7,10 @@ import { toPostEditItem } from '@/lib/components/gallery/galleryItemEdit'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
 import type { Attachment } from '@/lib/types/domain/attachment'
 
-type Props = Omit<ComponentProps<typeof MediasModal>, 'onEdit' | 'canEdit'>
+type Props = Omit<ComponentProps<typeof MediasModal>, 'onEdit' | 'canEdit'> & {
+  /** Called after an Edit details save, for a page that can refresh its post. */
+  onAltTextSaved?: () => void
+}
 
 /**
  * The photo viewer for posts in a timeline, a profile or a thread. When the
@@ -24,19 +27,26 @@ export const OwnPostMediasModal: FC<Props> = ({
   medias,
   albumsOwnerId,
   onClosed,
+  onAltTextSaved,
   ...rest
 }) => {
-  // Alt text as the owner's saves left it, by media id. Kept for as long as the
-  // component lives so a viewer opened again shows it too.
-  const [altTextById, setAltTextById] = useState<Record<string, string>>({})
+  // Alt text as the owner's saves left it, by media id, with the alt text the
+  // photo had when it was saved. Kept for as long as the component lives so a
+  // viewer opened again shows it too, but only while the photo still has that
+  // alt text: a later edit of the post (or a refreshed feed) brings its own.
+  const [altTextById, setAltTextById] = useState<
+    Record<string, { name: string; base: string }>
+  >({})
   const [editingMediaId, setEditingMediaId] = useState<string | null>(null)
 
   const shown = useMemo(
     () =>
       medias && Object.keys(altTextById).length > 0
         ? medias.map((media) =>
-            media.mediaId && altTextById[media.mediaId] !== undefined
-              ? { ...media, name: altTextById[media.mediaId] }
+            media.mediaId &&
+            altTextById[media.mediaId] !== undefined &&
+            (media.name ?? '') === altTextById[media.mediaId].base
+              ? { ...media, name: altTextById[media.mediaId].name }
               : media
           )
         : medias,
@@ -73,14 +83,25 @@ export const OwnPostMediasModal: FC<Props> = ({
           initialMediaId={editing.mediaId}
           ownerId={albumsOwnerId}
           onClose={() => setEditingMediaId(null)}
-          onSaved={(saved) =>
+          onSaved={(saved) => {
+            onAltTextSaved?.()
             setAltTextById((current) => ({
               ...current,
               ...Object.fromEntries(
-                saved.map((item) => [item.mediaId, item.attachment.name ?? ''])
+                saved.map((item) => [
+                  item.mediaId,
+                  {
+                    name: item.attachment.name ?? '',
+                    // What the post itself says now, whatever an earlier save
+                    // of this viewer showed over it.
+                    base:
+                      medias?.find((media) => media.mediaId === item.mediaId)
+                        ?.name ?? ''
+                  }
+                ])
               )
             }))
-          }
+          }}
         />
       ) : null}
     </>

@@ -1265,8 +1265,7 @@ export const MediaDetailsDialog: FC<Props> = ({
 
         <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:overflow-hidden">
           <div className="min-w-0 space-y-3 bg-muted/40 p-5 md:overflow-y-auto">
-            {/* `relative`: room for a pill over the preview's corner. */}
-            <div className="relative flex items-center justify-center overflow-hidden rounded-lg bg-muted">
+            <div className="flex items-center justify-center overflow-hidden rounded-lg bg-muted">
               {video ? (
                 <video
                   key={item.id}

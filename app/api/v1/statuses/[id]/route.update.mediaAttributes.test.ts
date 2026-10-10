@@ -835,6 +835,154 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
       ).toHaveLength(1)
     })
 
+    it('leaves the alt text of the other photos alone when their media rows say something else', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-alt-diverged`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Three photos',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      // The media row's description and the alt text the post published are
+      // different things: the composer keeps the published text on the
+      // attachment, and a details save can leave the row ahead of a post edit
+      // that was cancelled.
+      const photos = [
+        { row: 'Old first', published: 'Old first' },
+        { row: '', published: 'Sibling alt on the post' },
+        { row: 'Abandoned draft', published: 'Published alt' }
+      ]
+      const medias = []
+      for (const [index, photo] of photos.entries()) {
+        const media = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/api-edit-diverged-${index}.webp`,
+            bytes: 1024,
+            mimeType: 'image/jpeg',
+            metaData: { width: 320, height: 240 },
+            fileName: `api-edit-diverged-${index}.jpg`
+          },
+          description: photo.row
+        })
+        await database.createAttachment({
+          actorId: ACTOR1_ID,
+          statusId,
+          mediaType: media!.original.mimeType,
+          url: `https://llun.test/api/v1/files/medias/api-edit-diverged-${index}.webp`,
+          width: 320,
+          height: 240,
+          name: photo.published,
+          mediaId: media!.id
+        })
+        medias.push(media!)
+      }
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [
+                { id: medias[0].id, description: 'First, fixed' }
+              ]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(
+        data.media_attachments.map(
+          (attachment: { description: string | null }) => attachment.description
+        )
+      ).toEqual(['First, fixed', 'Sibling alt on the post', 'Published alt'])
+
+      const status = await database.getStatus({ statusId })
+      if (!status || status.type !== StatusType.enum.Note) {
+        throw new Error('Expected note status')
+      }
+      // Stored, and so what the Update sent to followers carries.
+      expect(status.attachments.map((attachment) => attachment.name)).toEqual([
+        'First, fixed',
+        'Sibling alt on the post',
+        'Published alt'
+      ])
+      expect(status.edits).toHaveLength(1)
+      expect(
+        vi
+          .mocked(getQueue().publish)
+          .mock.calls.filter(
+            ([message]) => message.name === SEND_UPDATE_NOTE_JOB_NAME
+          )
+      ).toHaveLength(1)
+    })
+
+    it('keeps a photo`s alt text when media_attributes only sets its focus', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-focus-diverged`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Focus only',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/api-edit-focus-diverged.webp',
+          bytes: 1024,
+          mimeType: 'image/jpeg',
+          metaData: { width: 320, height: 240 },
+          fileName: 'api-edit-focus-diverged.jpg'
+        },
+        description: ''
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: media!.original.mimeType,
+        url: 'https://llun.test/api/v1/files/medias/api-edit-focus-diverged.webp',
+        width: 320,
+        height: 240,
+        name: 'Published only on the post',
+        mediaId: media!.id
+      })
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [{ id: media!.id, focus: '0.1,0.2' }]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(response.status).toBe(200)
+
+      const status = await database.getStatus({ statusId })
+      if (!status || status.type !== StatusType.enum.Note) {
+        throw new Error('Expected note status')
+      }
+      expect(status.attachments[0].name).toBe('Published only on the post')
+    })
+
     it('rejects alt text over the media description limit', async () => {
       const statusId = `${ACTOR1_ID}/statuses/api-edit-alt-too-long`
       await database.createNote({

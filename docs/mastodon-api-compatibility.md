@@ -453,8 +453,9 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `PUT /api/v1/statuses/:id` accepts `media_attributes[][description]` of up to
   1500 characters, as `PUT /api/v1/media/:id` does and as Mastodon does (it was
   255 here), and an edit that sends only `media_attributes` keeps the post's
-  text, spoiler, sensitivity, visibility and other attachments, records a
-  history entry and federates one Update.
+  text, spoiler, sensitivity, visibility and other attachments (with the alt
+  text they already publish: only the photos it describes change theirs),
+  records a history entry and federates one Update.
   The owner's `details` (camelCase on the way out) also reports what the
   lookups found: `subject.taxonKey`, `subject.taxonPath`,
   `subject.iucnCategory`, `subject.threatStatus` (`threatened`,
