@@ -3,6 +3,8 @@
 import {
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
+  Info,
   Loader2,
   MapPin,
   Play,
@@ -31,7 +33,8 @@ import {
   getMedia,
   retryMediaLookups,
   suggestMediaSubjects,
-  updateMediaDetails
+  updateMediaDetails,
+  updateNote
 } from '@/lib/client'
 import { MediaAlbumsControl } from '@/lib/components/gallery/MediaAlbumsControl'
 import { PhotoEditPreview } from '@/lib/components/photo-editor/PhotoEditPreview'
@@ -100,6 +103,17 @@ export interface MediaDetailsDialogItem {
   decorative: boolean
   /** Owner details from `GET /api/v1/media/:id`; null when not loaded. */
   details: MediaDetailsEntity | null
+  /**
+   * The post the media is already published in. Its alt text is then saved as
+   * an edit of that post (Mastodon's `media_attributes`), so it federates an
+   * Update, instead of silently changing the media row behind it.
+   */
+  post?: {
+    /** Client id of the status, as `PUT /api/v1/statuses/:id` takes it. */
+    statusId: string
+    /** The post's page, for the footer's "Open post" link; null when unknown. */
+    href: string | null
+  }
 }
 
 export interface MediaDetailsSavedItem {
@@ -146,6 +160,13 @@ interface Props {
     media: MediaStorageSaveFileOutput,
     posts: EditedPosts
   ) => void
+  /**
+   * Where the dialog is opened. `composer` (the default) is the post box's
+   * upload flow. `gallery` is Edit details from the viewer or Select mode: the
+   * title is "Edit details", a lone item has no "1 of 1" counter, and an item
+   * with a `post` explains and routes its alt text through that post.
+   */
+  context?: 'composer' | 'gallery'
 }
 
 const ADD_NEW_GEAR = '__add_new_gear__'
@@ -546,7 +567,8 @@ export const MediaDetailsDialog: FC<Props> = ({
   onDetailsRefreshed,
   suggestionsPending = {},
   ownerId,
-  onMediaEdited
+  onMediaEdited,
+  context = 'composer'
 }) => {
   const uid = useId()
   // Details the dialog fetched itself; each is only used while the details the
@@ -943,42 +965,111 @@ export const MediaDetailsDialog: FC<Props> = ({
   const onSave = async () => {
     setSaving(true)
     setSaveError(null)
-    const saved: MediaDetailsSavedItem[] = []
+    const savedById = new Map<string, MediaDetailsSavedItem>()
     const savedNow: Record<string, MediaDetailsDraft> = {}
-    let failure: string | null = null
+    const failures: string[] = []
+    const labelOf = (target: MediaDetailsDialogItem) =>
+      target.id === item.id ? 'this item' : `item ${items.indexOf(target) + 1}`
+    // A posted item's alt text is part of its post: it is saved as an edit of
+    // that post (Mastodon's `media_attributes`), which also federates an
+    // Update, and never through the media row alone. Everything else on the
+    // item stays local to the media row. Edits are sent once per post, after
+    // the media rows, so several photos of one post are one edit and one
+    // Update for followers, as in the composer.
+    interface PostEdit {
+      target: MediaDetailsDialogItem
+      effective: MediaDetailsDraft
+      original: MediaDetailsDraft
+      description: string
+      updated: Awaited<ReturnType<typeof updateMediaDetails>> | null
+    }
+    const postEdits = new Map<string, PostEdit[]>()
     for (const target of items) {
       const effective = applySharedSections(drafts[target.id], draft, shared)
       const original = originals[target.id]
       const fields = diffDraft(original, effective)
       const decorativeChanged = original.decorative !== effective.decorative
       if (Object.keys(fields).length === 0 && !decorativeChanged) continue
+      const postStatusId =
+        fields.description !== undefined ? target.post?.statusId : undefined
+      const { description: postedDescription, ...localFields } = fields
+      const mediaFields = postStatusId === undefined ? fields : localFields
+      let updated: Awaited<ReturnType<typeof updateMediaDetails>> | null = null
       try {
-        if (Object.keys(fields).length > 0) {
-          const updated = await updateMediaDetails(target.id, fields)
-          saved.push({
-            id: target.id,
-            // The row's description is only authoritative when this save sent
-            // one; otherwise keep what the composer already shows.
-            description:
-              fields.description !== undefined
-                ? (updated.description ?? '')
-                : (effectiveDescription(effective) ?? ''),
-            decorative: effective.decorative,
-            details: updated.details
-          })
-        } else {
-          saved.push({
-            id: target.id,
-            description: effectiveDescription(effective) ?? '',
-            decorative: effective.decorative
-          })
+        if (Object.keys(mediaFields).length > 0) {
+          updated = await updateMediaDetails(target.id, mediaFields)
         }
-        savedNow[target.id] = effective
       } catch (error) {
-        failure = `Could not save ${target.id === item.id ? 'this item' : `item ${items.indexOf(target) + 1}`}: ${errorMessage(error, 'Failed to save media details.')}`
+        failures.push(
+          `Could not save ${labelOf(target)}: ${errorMessage(error, 'Failed to save media details.')}`
+        )
         break
       }
+      if (postStatusId !== undefined) {
+        const group = postEdits.get(postStatusId) ?? []
+        group.push({
+          target,
+          effective,
+          original,
+          description: postedDescription ?? '',
+          updated
+        })
+        postEdits.set(postStatusId, group)
+        continue
+      }
+      savedById.set(target.id, {
+        id: target.id,
+        // The row's description is only authoritative when this save sent
+        // one to it; otherwise keep what the composer already shows.
+        description:
+          updated && fields.description !== undefined
+            ? (updated.description ?? '')
+            : (effectiveDescription(effective) ?? ''),
+        decorative: effective.decorative,
+        details: updated?.details
+      })
+      savedNow[target.id] = effective
     }
+    for (const [statusId, group] of postEdits) {
+      try {
+        await updateNote({
+          statusId,
+          mediaAttributes: group.map((edit) => ({
+            id: edit.target.id,
+            description: edit.description
+          }))
+        })
+        for (const edit of group) {
+          savedById.set(edit.target.id, {
+            id: edit.target.id,
+            description: effectiveDescription(edit.effective) ?? '',
+            decorative: edit.effective.decorative,
+            details: edit.updated?.details
+          })
+          savedNow[edit.target.id] = edit.effective
+        }
+      } catch (error) {
+        // The details went through but the post edit did not: the caller still
+        // learns of the details, with the alt text it had.
+        for (const edit of group) {
+          if (!edit.updated) continue
+          savedById.set(edit.target.id, {
+            id: edit.target.id,
+            description: effectiveDescription(edit.original) ?? '',
+            decorative: edit.original.decorative,
+            details: edit.updated.details
+          })
+        }
+        failures.push(
+          `Could not save ${group.map((edit) => labelOf(edit.target)).join(', ')}: ${errorMessage(error, 'Failed to save media details.')}`
+        )
+      }
+    }
+    const saved = items.flatMap((target) => {
+      const entry = savedById.get(target.id)
+      return entry ? [entry] : []
+    })
+    const failure = failures.length > 0 ? failures.join(' ') : null
     if (saved.length > 0) onSaved(saved)
     setSaving(false)
     if (failure) {
@@ -1175,11 +1266,17 @@ export const MediaDetailsDialog: FC<Props> = ({
         </DialogDescription>
         <header className="flex items-center gap-3 border-b px-5 py-3">
           <DialogTitle className="text-base">
-            {video ? 'Video details' : 'Media details'}
+            {context === 'gallery'
+              ? 'Edit details'
+              : video
+                ? 'Video details'
+                : 'Media details'}
           </DialogTitle>
-          <span className="text-sm text-muted-foreground">
-            {index + 1} of {total}
-          </span>
+          {context === 'gallery' && total === 1 ? null : (
+            <span className="text-sm text-muted-foreground">
+              {index + 1} of {total}
+            </span>
+          )}
           <div className="ml-auto flex items-center gap-1">
             <Button
               type="button"
@@ -1506,8 +1603,20 @@ export const MediaDetailsDialog: FC<Props> = ({
                 checked={draft.decorative}
                 onChange={(checked) => patchDraft({ decorative: checked })}
               >
-                Post without a description (decorative image)
+                {context === 'gallery'
+                  ? 'Decorative image, no description'
+                  : 'Post without a description (decorative image)'}
               </CheckRow>
+              {item.post ? (
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Info
+                    className="mt-0.5 size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  Changing alt text edits the post, like Mastodon. Followers see
+                  it as edited.
+                </p>
+              ) : null}
             </Section>
 
             <Section title="Gear">
@@ -1641,6 +1750,20 @@ export const MediaDetailsDialog: FC<Props> = ({
         </div>
 
         <footer className="flex items-center justify-end gap-2 border-t px-5 py-3">
+          {item.post?.href ? (
+            // A new tab: leaving would unmount the viewer this dialog sits on.
+            <Link
+              href={item.post.href}
+              target="_blank"
+              rel="noopener"
+              prefetch={false}
+              className="mr-auto inline-flex items-center gap-1 text-sm font-medium text-primary-text hover:underline"
+            >
+              Open post
+              <ExternalLink className="size-3.5" aria-hidden="true" />
+              <span className="sr-only">(opens in a new tab)</span>
+            </Link>
+          ) : null}
           {saveError ? (
             <Alert title={saveError} className="mr-auto flex-1 py-2" />
           ) : null}

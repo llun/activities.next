@@ -16,7 +16,7 @@ interface MediaStripScroll {
    * assigned after the first render re-runs no effect, so the observer would
    * never attach.
    */
-  ref: (element: HTMLDivElement | null) => void
+  ref: (element: HTMLElement | null) => void
   canScrollLeft: boolean
   canScrollRight: boolean
   /** Re-read the scroll position — wire to the container's `onScroll`. */
@@ -40,7 +40,7 @@ interface MediaStripScroll {
  * and an overflow affordance present for no reason.
  */
 export const useMediaStripScroll = (contentKey: string): MediaStripScroll => {
-  const [element, setElement] = useState<HTMLDivElement | null>(null)
+  const [element, setElement] = useState<HTMLElement | null>(null)
   const [edges, setEdges] = useState({ left: false, right: false })
 
   const measure = useCallback(() => {

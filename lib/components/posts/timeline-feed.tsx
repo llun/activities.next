@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { FC, useMemo, useState } from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
-import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
+import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
 import { PostLineLimit } from '@/lib/types/database/rows'
 import { ActorProfile } from '@/lib/types/domain/actor'
 import { Attachment } from '@/lib/types/domain/attachment'
@@ -402,7 +402,7 @@ export const TimelineFeed: FC<TimelineFeedProps> = ({
           return null
         })}
       </section>
-      <MediasModal
+      <OwnPostMediasModal
         medias={modalMedias?.medias ?? null}
         tags={modalMedias?.tags ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}

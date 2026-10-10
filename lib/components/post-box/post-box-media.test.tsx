@@ -109,6 +109,167 @@ describe('PostBox media details', () => {
     ).toBeInTheDocument()
   })
 
+  it('lays the attached tiles out as one row that scrolls sideways', async () => {
+    renderPostBox()
+
+    attach('heron.png', 'egret.png')
+
+    const row = await screen.findByRole('list', { name: 'Attached media' })
+    expect(row).toHaveClass('flex', 'overflow-x-auto', 'no-scrollbar')
+    expect(row).not.toHaveClass('grid')
+    expect(row).not.toHaveClass('flex-wrap')
+    // Room for the Remove button (and its focus outline) outside each tile's
+    // top-right corner, which the scroller would otherwise clip; the top
+    // padding is also the 12px gap above the row.
+    expect(row).toHaveClass('pt-3', 'pr-3', 'scroll-pr-3', 'scroll-pl-16')
+    expect(row).toHaveClass('snap-x', 'snap-proximity')
+    for (const tile of within(row).getAllByRole('listitem')) {
+      expect(tile).toHaveClass('flex-none', 'snap-start')
+    }
+    // Inset indicator: an outset ring would be clipped by the scroller.
+    const tileButtons = row.querySelectorAll('button[data-attachment-tile]')
+    expect(tileButtons).toHaveLength(2)
+    for (const tile of tileButtons) {
+      expect(tile).toHaveClass(
+        'focus-visible:outline-2',
+        'focus-visible:-outline-offset-2'
+      )
+    }
+  })
+
+  it('keeps one accessible name for the list however many tiles it holds', async () => {
+    renderPostBox()
+
+    attach('heron.png')
+    expect(
+      await screen.findByRole('list', { name: 'Attached media' })
+    ).toBeInTheDocument()
+
+    attach('egret.png')
+    await waitFor(() =>
+      expect(
+        within(
+          screen.getByRole('list', { name: 'Attached media' })
+        ).getAllByRole('listitem')
+      ).toHaveLength(2)
+    )
+  })
+
+  it('offers the status strip arrows once the row overflows', async () => {
+    renderPostBox()
+
+    attach('heron.png', 'egret.png', 'kite.png', 'owl.png')
+
+    const row = await screen.findByRole('list', { name: 'Attached media' })
+    // jsdom lays nothing out, so the row's geometry is stamped on and a scroll
+    // event fired to put it into a measured state.
+    const setScroll = (scrollLeft: number) => {
+      Object.defineProperty(row, 'scrollLeft', {
+        configurable: true,
+        value: scrollLeft
+      })
+      fireEvent.scroll(row)
+    }
+    Object.defineProperty(row, 'scrollWidth', {
+      configurable: true,
+      value: 1000
+    })
+    Object.defineProperty(row, 'clientWidth', {
+      configurable: true,
+      value: 500
+    })
+
+    expect(
+      screen.queryByRole('button', { name: 'Next media' })
+    ).not.toBeInTheDocument()
+
+    setScroll(0)
+    const next = await screen.findByRole('button', { name: 'Next media' })
+    const previous = screen.getByRole('button', { name: 'Previous media' })
+    expect(next).toHaveAttribute('aria-disabled', 'false')
+    expect(previous).toHaveAttribute('aria-disabled', 'true')
+    expect(previous).toHaveAttribute('tabindex', '-1')
+
+    setScroll(250)
+    await waitFor(() =>
+      expect(previous).toHaveAttribute('aria-disabled', 'false')
+    )
+    expect(next).toHaveAttribute('aria-disabled', 'false')
+
+    setScroll(500)
+    await waitFor(() => expect(next).toHaveAttribute('aria-disabled', 'true'))
+  })
+
+  it.each([
+    ['while it uploads', 'Uploading…', 'pending'],
+    ['when its upload fails', 'Upload failed', 'failed'],
+    ['when its upload finishes at once', 'Review', 'done']
+  ] as const)(
+    'scrolls the row to a new tile %s, without moving focus',
+    async (_case, tileText, upload) => {
+      const scrollTo = vi.fn()
+      Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+        configurable: true,
+        value: scrollTo
+      })
+      try {
+        renderPostBox()
+
+        attach('heron.png')
+        await screen.findByRole('list', { name: 'Attached media' })
+        await screen.findByText('Review')
+        scrollTo.mockClear()
+        const before = document.activeElement
+
+        if (upload === 'pending') {
+          uploadAttachmentMock.mockReturnValueOnce(
+            createDeferred<UploadedAttachment>().promise
+          )
+        } else if (upload === 'failed') {
+          uploadAttachmentMock.mockRejectedValueOnce(new Error('boom'))
+        }
+        attach('egret.png')
+
+        expect(await screen.findAllByText(tileText)).not.toHaveLength(0)
+        await waitFor(() =>
+          expect(scrollTo).toHaveBeenCalledWith(
+            expect.objectContaining({ behavior: expect.any(String) })
+          )
+        )
+        expect(document.activeElement).toBe(before)
+      } finally {
+        delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo
+      }
+    }
+  )
+
+  it('leaves the row where it is when a tile is removed', async () => {
+    const scrollTo = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      value: scrollTo
+    })
+    try {
+      renderPostBox()
+      attach('a.png', 'b.png')
+      await screen.findAllByText('Review')
+      scrollTo.mockClear()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove media a.png' })
+      )
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Remove media a.png' })
+        ).not.toBeInTheDocument()
+      )
+      expect(scrollTo).not.toHaveBeenCalled()
+    } finally {
+      delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo
+    }
+  })
+
   it('shows the description and detail icons once the server has read them', async () => {
     getMediaMock.mockResolvedValue(
       mediaEntity('media-heron.png', 'A heron', {

@@ -251,6 +251,8 @@ export const GalleryAlbumDetailView: FC<Props> = ({
 
   // After anything that changes the album: the facts, chips and cover come
   // from the server render, the grid from here.
+  // Set when an edit hid a photo, so the viewer's close reads the album again.
+  const hiddenByEdit = useRef(false)
   const refreshAll = async () => {
     router.refresh()
     await reload(sort, subject)
@@ -579,6 +581,17 @@ export const GalleryAlbumDetailView: FC<Props> = ({
               <GalleryGrid
                 items={items}
                 albumsOwnerId={ownerId}
+                // Edit details can switch Show in my gallery off, and an album
+                // holds only photos shown there: the list, facts and count are
+                // read again when the viewer closes, as for the pill below.
+                onItemEdited={(item) => {
+                  if (item.inGallery === false) hiddenByEdit.current = true
+                }}
+                onViewerClosed={() => {
+                  if (!hiddenByEdit.current) return
+                  hiddenByEdit.current = false
+                  void refreshAll()
+                }}
                 // The lightbox pill can take a photo out of this very album;
                 // the grid, facts and count behind it are read again when the
                 // viewer closes (not under it, which would swap the photo

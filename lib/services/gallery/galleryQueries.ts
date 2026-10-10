@@ -33,6 +33,7 @@ import {
 } from '@/lib/services/gallery/publicMediaDetails'
 import {
   GallerySettings,
+  GalleryShow,
   MEDIA_SUBJECT_CATEGORIES,
   MediaSubjectCategory
 } from '@/lib/types/database/gallery'
@@ -79,6 +80,10 @@ export interface GetGalleryMediaPageParams extends GalleryQueryBase {
   // Owner only. Anyone else asking gets an empty page; the routes answer 422
   // before it gets here.
   gearId?: string
+  // Owner only: which posted media to list (default `in_gallery`, the
+  // gallery). Ignored for every other audience, which only ever sees the
+  // gallery.
+  show?: GalleryShow
 }
 
 export const projectRows = async (
@@ -112,12 +117,16 @@ export const getGalleryMediaPage = async ({
   limit,
   subjectKey,
   category,
-  gearId
+  gearId,
+  show: requestedShow
 }: GetGalleryMediaPageParams): Promise<GalleryMediaPage> => {
   const empty: GalleryMediaPage = { items: [], nextMaxId: null }
   const pageSize = normalizePageLimit(limit)
   const viewer = toGalleryProjectionViewer(audience)
   if (gearId !== undefined && viewer !== 'owner') return empty
+  // The database layer ignores `show` for a viewer too; dropping it here keeps
+  // that a second line of defence rather than the only one.
+  const show = viewer === 'owner' ? requestedShow : undefined
 
   const settings = await database.getGallerySettings({ actorId: owner.id })
 
@@ -147,6 +156,7 @@ export const getGalleryMediaPage = async ({
         actorId: owner.id,
         audience,
         limit: GALLERY_INDEX_CAP,
+        show,
         ...(cursor === undefined ? null : { maxId: cursor })
       })
       windows += 1
@@ -166,7 +176,8 @@ export const getGalleryMediaPage = async ({
         let windowRows = await database.getGalleryMediaByIds({
           actorId: owner.id,
           audience,
-          mediaIds: slice
+          mediaIds: slice,
+          show
         })
         if (gearId !== undefined) {
           windowRows = windowRows.filter(
@@ -201,7 +212,8 @@ export const getGalleryMediaPage = async ({
         audience,
         maxId: cursor,
         limit: pageSize + 1 - rows.length,
-        gearId
+        gearId,
+        show
       })
       if (batch.length === 0) break
       rows.push(...batch)

@@ -824,6 +824,135 @@ describe('GalleryMediaDatabase', () => {
       })
     })
 
+    // The owner's All media list widens the scope to posted media outside the
+    // gallery. Nobody else may: for them `show` is read as `in_gallery`.
+    describe('show', () => {
+      const ownerShows: Record<string, string[]> = {
+        all: [
+          'both',
+          'not-in-gallery',
+          'direct',
+          'followers',
+          'unlisted',
+          'public'
+        ],
+        in_gallery: visibleTo.owner,
+        hidden: ['not-in-gallery']
+      }
+      const everyName = [
+        'public',
+        'unlisted',
+        'followers',
+        'direct',
+        'not-in-gallery',
+        'unposted',
+        'both',
+        'foreign',
+        'persona',
+        'deleted'
+      ]
+
+      describe.each(Object.entries(ownerShows))(
+        'for the owner, %s',
+        (show, expected) => {
+          const showParam = show as 'all' | 'in_gallery' | 'hidden'
+
+          it('lists the media', async () => {
+            const rows = await database.getGalleryMedia({
+              actorId: ownerId,
+              audience: OWNER_GALLERY_AUDIENCE,
+              limit: 50,
+              show: showParam
+            })
+            expect(namesOf(rows.map((row) => row.media.id))).toEqual(expected)
+          })
+
+          it('reads the same media back by id', async () => {
+            const rows = await database.getGalleryMediaByIds({
+              actorId: ownerId,
+              audience: OWNER_GALLERY_AUDIENCE,
+              mediaIds: everyName.map((name) => ids[name]),
+              show: showParam
+            })
+            expect(namesOf(rows.map((row) => row.media.id))).toEqual(expected)
+          })
+
+          it('indexes the same media', async () => {
+            const rows = await database.getGalleryMediaIndex({
+              actorId: ownerId,
+              audience: OWNER_GALLERY_AUDIENCE,
+              limit: 50,
+              show: showParam
+            })
+            expect(namesOf(rows.map((row) => row.id))).toEqual(expected)
+          })
+        }
+      )
+
+      it('never lists unposted media, whatever the owner asks for', async () => {
+        const rows = await database.getGalleryMedia({
+          actorId: ownerId,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 50,
+          show: 'all'
+        })
+        expect(namesOf(rows.map((row) => row.media.id))).not.toContain(
+          'unposted'
+        )
+      })
+
+      it('marks media in the gallery or not on the row', async () => {
+        const rows = await database.getGalleryMedia({
+          actorId: ownerId,
+          audience: OWNER_GALLERY_AUDIENCE,
+          limit: 50,
+          show: 'all'
+        })
+        const inGallery = Object.fromEntries(
+          rows.map((row) => [row.media.id, row.media.details?.inGallery])
+        )
+        expect(inGallery[ids['not-in-gallery']]).toBe(false)
+        expect(inGallery[ids.public]).toBe(true)
+      })
+
+      describe.each(
+        audienceNames.filter((name) => name !== 'owner').map((name) => [name])
+      )('for the %s', (name) => {
+        it.each(['all', 'hidden', 'in_gallery'] as const)(
+          'ignores show=%s and keeps the gallery',
+          async (show) => {
+            const audience = audiences[name]
+            const media = await database.getGalleryMedia({
+              actorId: ownerId,
+              audience,
+              limit: 50,
+              show
+            })
+            const byIds = await database.getGalleryMediaByIds({
+              actorId: ownerId,
+              audience,
+              mediaIds: everyName.map((media) => ids[media]),
+              show
+            })
+            const index = await database.getGalleryMediaIndex({
+              actorId: ownerId,
+              audience,
+              limit: 50,
+              show
+            })
+
+            expect(namesOf(media.map((row) => row.media.id))).toEqual(
+              visibleTo[name]
+            )
+            expect(namesOf(byIds.map((row) => row.media.id))).toEqual(
+              visibleTo[name]
+            )
+            expect(namesOf(index.map((row) => row.id))).toEqual(visibleTo[name])
+          }
+        )
+      })
+    })
+
     // Compile-time pin: the audience is required on every scoped method.
     it('requires an audience on every scoped method', () => {
       type ScopedParams = Parameters<

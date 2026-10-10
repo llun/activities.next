@@ -7,7 +7,10 @@ import {
   OptionalOAuthGuard,
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
-import { MEDIA_SUBJECT_CATEGORIES } from '@/lib/types/database/gallery'
+import {
+  GALLERY_SHOWS,
+  MEDIA_SUBJECT_CATEGORIES
+} from '@/lib/types/database/gallery'
 import { Scope } from '@/lib/types/database/operations'
 import { clampedLimit } from '@/lib/utils/clampedLimit'
 import { HttpMethod } from '@/lib/utils/http-headers'
@@ -33,13 +36,17 @@ const GalleryMediaQueryParams = z.object({
   limit: clampedLimit(60, 30),
   subject: z.string().trim().min(1).max(520).optional(),
   category: z.enum(MEDIA_SUBJECT_CATEGORIES).optional(),
-  gear_id: z.string().max(255).optional()
+  gear_id: z.string().max(255).optional(),
+  // Owner only: `in_gallery` (default), `all` posted media or the `hidden` ones.
+  // Anyone else is always shown the gallery, whatever they send.
+  show: z.enum(GALLERY_SHOWS).optional()
 })
 
 // GET /api/v1/accounts/:id/gallery/media — a page of the account's gallery
 // photos, newest upload first, as the requesting viewer may see them. Who the
 // viewer is decides both which posts the photos may come from and how much of
-// each photo (place, gear) is disclosed; the service owns both.
+// each photo (place, gear) is disclosed; the service owns both. `show` widens
+// the list to posted media outside the gallery for the owner alone.
 export const GET = traceApiRoute(
   'getAccountGalleryMedia',
   OptionalOAuthGuard<Params>(
@@ -89,7 +96,8 @@ export const GET = traceApiRoute(
         limit,
         subject,
         category,
-        gear_id: gearId
+        gear_id: gearId,
+        show
       } = parsed.data
 
       // Gear ids are the owner's own bookkeeping; no one else may filter by one.
@@ -113,7 +121,9 @@ export const GET = traceApiRoute(
           limit,
           subjectKey: subject,
           category,
-          gearId
+          gearId,
+          // The service reads it for the owner audience only.
+          show
         })
       })
     },

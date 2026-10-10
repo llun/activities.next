@@ -14,8 +14,8 @@ import GearDetailLoading from './gear/[id]/loading'
 import GearLoading from './gear/loading'
 import LifeListLoading from './life-list/loading'
 import MapLoading from './map/loading'
+import AllMediaLoading from './media/loading'
 import PrivacyLoading from './privacy/loading'
-import RecentLoading from './recent/loading'
 import SubjectLoading from './subjects/[key]/loading'
 
 // The section layouts wrap their pages in this provider, which makes a page's
@@ -27,7 +27,7 @@ const render = (ui: ReactElement) =>
 // header, the totals strip, the grid of tiles) and announces the wait once.
 describe.each([
   ['subjects', SubjectsLoading],
-  ['recent', RecentLoading],
+  ['all media', AllMediaLoading],
   ['albums', AlbumsLoading],
   ['an album', AlbumDetailLoading],
   ['map', MapLoading],

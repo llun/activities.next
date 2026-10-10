@@ -22,6 +22,7 @@ import {
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { deleteMediaFile } from '@/lib/services/medias'
+import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
 import { FocusSchema } from '@/lib/services/medias/types'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
 import { canActorReadStatus } from '@/lib/services/statusAccess'
@@ -117,16 +118,18 @@ export const GET = traceApiRoute(
   )
 )
 
-// Matches PUT /api/v1/media/:id's update rules: description capped at the
-// varchar(255) column with blank/explicit-null normalised to null (clears alt
-// text), focus parsed from Mastodon's "x,y" string form. `.optional()` stays
+// Matches PUT /api/v1/media/:id's update rules: description capped at
+// MAX_MEDIA_DESCRIPTION_LENGTH (the same cap the media details dialog and the
+// upload path use, so an alt text the dialog accepts can be saved as a status
+// edit) with blank/explicit-null normalised to null (clears alt text), focus
+// parsed from Mastodon's "x,y" string form. `.optional()` stays
 // OUTERMOST on description so an omitted field short-circuits to undefined
 // (leave untouched) instead of running the transform and clearing alt text.
 const EditMediaAttributeSchema = z.object({
   id: z.coerce.string(),
   description: z
     .string()
-    .max(255)
+    .max(MAX_MEDIA_DESCRIPTION_LENGTH)
     .nullable()
     .transform((value) => (value && value.trim() ? value : null))
     .optional(),
@@ -375,6 +378,8 @@ export const PUT = traceApiRoute(
         // before resolving attachments so the refreshed description/focus flow
         // into the status's attachment rows below. Reuses the same updateMedia
         // path as PUT /api/v1/media/:id, including its owner check.
+        // The media rows whose alt text this request sets, by media row id.
+        const describedMediaIds = new Set<string>()
         if (mediaAttributes !== undefined && mediaAttributes.length > 0) {
           const account = currentActor.account
           if (!account) {
@@ -390,6 +395,9 @@ export const PUT = traceApiRoute(
             mediaAttributes.map((attribute) => attribute.id)
           )
           for (const [index, attribute] of mediaAttributes.entries()) {
+            if (attribute.description !== undefined) {
+              describedMediaIds.add(String(resolvedAttributeIds[index]))
+            }
             const updatedMedia = await database.updateMedia({
               mediaId: resolvedAttributeIds[index],
               accountId: account.id,
@@ -426,7 +434,7 @@ export const PUT = traceApiRoute(
                 )
                 .map((attachment) => String(attachment.mediaId))
             : undefined)
-        const attachments =
+        const resolvedAttachments =
           attachmentMediaIds === undefined
             ? undefined
             : await getAttachmentsFromMediaIds(
@@ -434,6 +442,28 @@ export const PUT = traceApiRoute(
                 currentActor,
                 attachmentMediaIds
               )
+        // When only `media_attributes` came, the media set is re-read from the
+        // media rows, whose description is not always what the post publishes
+        // (the composer stores the alt text on the attachment, and a details
+        // save can run ahead of a post edit that was cancelled). So only the
+        // photos this request describes take their alt text from the row;
+        // every other photo keeps the alt text the post already has.
+        const attachments =
+          resolvedAttachments &&
+          resolvedMediaIds === undefined &&
+          attachmentMediaIds !== undefined
+            ? resolvedAttachments.map((attachment) => {
+                if (describedMediaIds.has(String(attachment.id)))
+                  return attachment
+                const existing = existingStatus.attachments.find(
+                  (candidate) => String(candidate.mediaId) === attachment.id
+                )
+                const { name: _rowName, ...withoutName } = attachment
+                return existing?.name
+                  ? { ...withoutName, name: existing.name }
+                  : withoutName
+              })
+            : resolvedAttachments
         if (attachments === null) {
           return apiResponse({
             req,

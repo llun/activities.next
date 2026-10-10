@@ -23,7 +23,7 @@ describe('describeAddResult', () => {
     expect(
       describeAddResult('Kruger', outcome(['1', '2'], ['3'], ['4', '5']))
     ).toBe(
-      'Added 2 photos to “Kruger”. 1 photo was already there. 2 photos couldn’t be added: they aren’t in your gallery any more.'
+      'Added 2 photos to “Kruger”. 1 photo was already there. 2 photos couldn’t be added: they are hidden from your gallery or no longer posted.'
     )
   })
 
@@ -38,7 +38,7 @@ describe('describeAddResult', () => {
 
   it('says nothing was added when everything was skipped', () => {
     expect(describeAddResult('Kruger', outcome([], [], ['1']))).toBe(
-      'Nothing was added to “Kruger”. 1 photo couldn’t be added: it isn’t in your gallery any more.'
+      'Nothing was added to “Kruger”. 1 photo couldn’t be added: it is hidden from your gallery or no longer posted.'
     )
   })
 })

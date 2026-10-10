@@ -1,4 +1,12 @@
-import { ChevronLeft, ChevronRight, Info, Pause, Play, X } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Pause,
+  Pencil,
+  Play,
+  X
+} from 'lucide-react'
 import {
   FC,
   useCallback,
@@ -52,6 +60,17 @@ interface Props {
   albumsOwnerId?: string | null
   /** Called with an album's id after the albums pill changed what it holds. */
   onAlbumsChange?: (albumId: string) => void
+  /**
+   * Owner editing. With it the top bar offers an Edit button beside Details,
+   * which calls this with the index (in `medias`) of the photo on screen. The
+   * caller opens its editor over the viewer; the viewer holds no editor itself.
+   */
+  onEdit?: (index: number) => void
+  /**
+   * Which photos Edit is offered for; the default is every photo that has a
+   * media id (a file without one has no details to edit).
+   */
+  canEdit?: (media: Attachment) => boolean
   onClosed: () => void
 }
 
@@ -62,6 +81,8 @@ export const MediasModal: FC<Props> = ({
   ownerName,
   albumsOwnerId,
   onAlbumsChange,
+  onEdit,
+  canEdit,
   onClosed
 }) => {
   const [modalGifPlaying, setModalGifPlaying] = useState<boolean | null>(null)
@@ -149,13 +170,19 @@ export const MediasModal: FC<Props> = ({
     }
   }, [overlayVisible, hasOverlayContent, currentMediaId])
 
+  // The photos the list held when it last changed: an edit hands the viewer the
+  // same photos with new alt text and details, which must not hide the info
+  // overlay the owner has open, while a different list always starts closed.
+  const mediaKeys = useRef<string | null>(null)
   useEffect(() => {
     detailsSession.current += 1
     requestedMediaIds.current = new Set()
     setDetailsByMediaId((current) =>
       Object.keys(current).length ? {} : current
     )
-    setDetailsOpen(false)
+    const keys = medias ? medias.map((media) => media.id).join('\n') : null
+    if (keys === null || keys !== mediaKeys.current) setDetailsOpen(false)
+    mediaKeys.current = keys
   }, [medias])
 
   useEffect(() => {
@@ -430,6 +457,22 @@ export const MediasModal: FC<Props> = ({
             <Info className="h-5 w-5" aria-hidden="true" />
             Details
           </Button>
+          {onEdit &&
+          currentMedia &&
+          currentMediaId &&
+          (canEdit ? canEdit(currentMedia) : true) ? (
+            <Button
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(currentIndex)
+              }}
+              className="text-white hover:bg-white/20 hover:text-white"
+            >
+              <Pencil className="h-5 w-5" aria-hidden="true" />
+              Edit
+            </Button>
+          ) : null}
           <Button
             ref={closeButtonRef}
             variant="ghost"

@@ -510,8 +510,9 @@
   }
 
   /* Hides the scrollbar on a strip that carries its OWN affordances — today
-     only the post media strip, whose partly-visible next item, edge fade and
-     chevrons all say "there is more here". The content stays reachable by
+     the post media strip and the composer's attached-media row (both through
+     `MediaStripEdges`), whose partly-visible next item, edge fade and chevrons
+     all say "there is more here". The content stays reachable by
      wheel, swipe, keyboard focus and those controls; only the bar is hidden.
 
      Do not apply it to a row that has none of that. This class was applied in

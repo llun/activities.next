@@ -41,11 +41,15 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
   GalleryGrid: ({
     items,
     albumsOwnerId,
-    onAlbumsChanged
+    onAlbumsChanged,
+    onItemEdited,
+    onViewerClosed
   }: {
     items: { mediaId: string }[]
     albumsOwnerId?: string | null
     onAlbumsChanged?: (albumIds: string[]) => void
+    onItemEdited?: (item: { inGallery?: boolean }) => void
+    onViewerClosed?: () => void
   }) => (
     <div>
       <ul data-testid="grid" data-albums-owner={albumsOwnerId ?? 'none'}>
@@ -60,6 +64,13 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
       <button onClick={() => onAlbumsChanged?.(['elsewhere'])}>
         viewer closed after changing another album
       </button>
+      <button onClick={() => onItemEdited?.({ inGallery: false })}>
+        hide a photo with Edit details
+      </button>
+      <button onClick={() => onItemEdited?.({ inGallery: true })}>
+        edit a photo, still shown
+      </button>
+      <button onClick={() => onViewerClosed?.()}>close the viewer</button>
     </div>
   )
 }))
@@ -311,6 +322,46 @@ describe('GalleryAlbumDetailView', () => {
           name: 'viewer closed after changing another album'
         })
       )
+      await act(async () => {})
+
+      expect(mockRefresh).not.toHaveBeenCalled()
+      expect(items).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Edit details in the lightbox', () => {
+    it('reads the album again when the viewer closes after a photo was hidden', async () => {
+      items.mockResolvedValue({
+        items: [buildGalleryItem('a1-1')],
+        nextMaxId: null
+      })
+      renderView()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'hide a photo with Edit details' })
+      )
+      // Not under the viewer: that would swap the photo being looked at.
+      await act(async () => {})
+      expect(mockRefresh).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'close the viewer' }))
+      await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(items).toHaveBeenCalled())
+
+      // Once: a later close with nothing hidden leaves the page alone.
+      mockRefresh.mockClear()
+      fireEvent.click(screen.getByRole('button', { name: 'close the viewer' }))
+      await act(async () => {})
+      expect(mockRefresh).not.toHaveBeenCalled()
+    })
+
+    it('leaves the page alone when the edit kept the photo in the gallery', async () => {
+      renderView()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'edit a photo, still shown' })
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'close the viewer' }))
       await act(async () => {})
 
       expect(mockRefresh).not.toHaveBeenCalled()

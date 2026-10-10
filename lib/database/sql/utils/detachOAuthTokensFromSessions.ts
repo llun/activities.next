@@ -1,11 +1,15 @@
 import { Knex } from 'knex'
 
-// Cap each `whereIn` list well under the smallest backend bind-parameter ceiling
-// (SQLite's historical 999) so a large bulk session cleanup — e.g. expired
-// sessions across every account flowing through the better-auth adapter — can't
-// blow the limit and crash. PostgreSQL's ceiling (65535) is far higher, so one
-// conservative size is safe for every backend.
-export const SESSION_ID_CHUNK_SIZE = 500
+import { SESSION_ID_CHUNK_SIZE } from '@/lib/database/domains/account/sessions'
+
+// The Knex side of the FK-safe session delete, kept for the better-auth adapter
+// (lib/services/auth/knexAdapter.ts), which still runs on Knex. Ported code uses
+// the Kysely twins in lib/database/domains/account/sessions.ts; both write the
+// same rows and share the chunk size: each `whereIn` list stays well under the
+// smallest backend bind-parameter ceiling, so a large bulk session cleanup
+// (e.g. expired sessions across every account flowing through the adapter)
+// can't blow the limit and crash.
+export { SESSION_ID_CHUNK_SIZE }
 
 const chunk = <T>(items: T[], size: number): T[][] => {
   const chunks: T[][] = []
