@@ -2281,12 +2281,6 @@ legacy shape left to copy.
   this for every surface that renders a post. A lone picture keeps its own
   aspect ratio and starts on the post text's left line, scaled by WIDTH;
   the branch this replaced cropped every portrait photo to a full-width 16:9.
-- The composer's attached-media tiles (`composer-attachment-tiles.tsx`) follow
-  the same rule: one `no-scrollbar` row that scrolls sideways, never a grid.
-  Tiles are fixed-width (`w-36`, `sm:w-40`) and `flex-none`. The scroller clips
-  both axes, so it pads its top and right by 8px for the Remove button that
-  sits outside each tile's corner (the 12px gap above the row is a 4px margin
-  plus that padding), and the tile's focus ring is inset.
 - The gallery uses 240px image boxes, 12px gaps, aspect-ratio-based card widths
   with a 160px minimum and 78% maximum, and `scroll-snap-type: x proximity`.
   Captions sit below their images, preserve line breaks and custom emoji, and
@@ -2361,6 +2355,22 @@ legacy shape left to copy.
 - `no-scrollbar` belongs only on a row that carries its own overflow affordance.
   It was applied in the emoji and reaction pickers while defined nowhere, so
   defining it would have removed their only cue.
+- The composer's attached-media tiles (`composer-attachment-tiles.tsx`) are
+  never a grid either: one horizontally scrolling row of fixed-width
+  (`w-36`/`sm:w-40`) `flex-none` tiles. The row carries the status strip's own
+  affordances, which is the only reason it is `no-scrollbar`: it uses
+  `useMediaStripScroll` and the shared `MediaStripEdges` (edge fades and the
+  Previous/Next media arrows, the same tab-order rules), and snaps like the
+  strip (`snap-x snap-proximity`, `snap-start`). Its `contentKey` is the tile
+  count, which is right only because the tiles are fixed width. The scroller
+  clips both axes, so it pads its top and right by 12px (`pt-3 pr-3`, with
+  `scroll-pr-3` so a focused tile leaves room): the Remove button sits 8px
+  outside its tile's top-right corner and its focus outline needs the other
+  4px. The top padding is also the 12px gap above the row (no margin). The
+  tile's focus indicator is an inset outline (`outline-2 -outline-offset-2
+outline-ring`), for the same clipping reason as `MEDIA_FOCUS_CLASS`. The
+  list is `role="list"` named `Attached media` however many tiles it holds, and
+  adding a tile scrolls the row to the end without moving focus.
 
 <a id="review-status-delete-unboost-federation"></a>
 

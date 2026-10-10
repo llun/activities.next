@@ -114,11 +114,116 @@ describe('PostBox media details', () => {
 
     attach('heron.png', 'egret.png')
 
-    const row = await screen.findByRole('list', { name: '2 attached media' })
+    const row = await screen.findByRole('list', { name: 'Attached media' })
     expect(row).toHaveClass('flex', 'overflow-x-auto', 'no-scrollbar')
-    expect(row).not.toHaveClass('grid', 'flex-wrap')
+    expect(row).not.toHaveClass('grid')
+    expect(row).not.toHaveClass('flex-wrap')
+    // Room for the Remove button (and its focus outline) outside each tile's
+    // top-right corner, which the scroller would otherwise clip; the top
+    // padding is also the 12px gap above the row.
+    expect(row).toHaveClass('pt-3', 'pr-3', 'scroll-pr-3')
+    expect(row).toHaveClass('snap-x', 'snap-proximity')
     for (const tile of within(row).getAllByRole('listitem')) {
-      expect(tile).toHaveClass('flex-none')
+      expect(tile).toHaveClass('flex-none', 'snap-start')
+    }
+    // Inset indicator: an outset ring would be clipped by the scroller.
+    const tileButtons = row.querySelectorAll('button[data-attachment-tile]')
+    expect(tileButtons).toHaveLength(2)
+    for (const tile of tileButtons) {
+      expect(tile).toHaveClass(
+        'focus-visible:outline-2',
+        'focus-visible:-outline-offset-2'
+      )
+    }
+  })
+
+  it('keeps one accessible name for the list however many tiles it holds', async () => {
+    renderPostBox()
+
+    attach('heron.png')
+    expect(
+      await screen.findByRole('list', { name: 'Attached media' })
+    ).toBeInTheDocument()
+
+    attach('egret.png')
+    await waitFor(() =>
+      expect(
+        within(
+          screen.getByRole('list', { name: 'Attached media' })
+        ).getAllByRole('listitem')
+      ).toHaveLength(2)
+    )
+  })
+
+  it('offers the status strip arrows once the row overflows', async () => {
+    renderPostBox()
+
+    attach('heron.png', 'egret.png', 'kite.png', 'owl.png')
+
+    const row = await screen.findByRole('list', { name: 'Attached media' })
+    // jsdom lays nothing out, so the row's geometry is stamped on and a scroll
+    // event fired to put it into a measured state.
+    const setScroll = (scrollLeft: number) => {
+      Object.defineProperty(row, 'scrollLeft', {
+        configurable: true,
+        value: scrollLeft
+      })
+      fireEvent.scroll(row)
+    }
+    Object.defineProperty(row, 'scrollWidth', {
+      configurable: true,
+      value: 1000
+    })
+    Object.defineProperty(row, 'clientWidth', {
+      configurable: true,
+      value: 500
+    })
+
+    expect(
+      screen.queryByRole('button', { name: 'Next media' })
+    ).not.toBeInTheDocument()
+
+    setScroll(0)
+    const next = await screen.findByRole('button', { name: 'Next media' })
+    const previous = screen.getByRole('button', { name: 'Previous media' })
+    expect(next).toHaveAttribute('aria-disabled', 'false')
+    expect(previous).toHaveAttribute('aria-disabled', 'true')
+    expect(previous).toHaveAttribute('tabindex', '-1')
+
+    setScroll(250)
+    await waitFor(() =>
+      expect(previous).toHaveAttribute('aria-disabled', 'false')
+    )
+    expect(next).toHaveAttribute('aria-disabled', 'false')
+
+    setScroll(500)
+    await waitFor(() => expect(next).toHaveAttribute('aria-disabled', 'true'))
+  })
+
+  it('scrolls the row to the new tile when one is added, without moving focus', async () => {
+    const scrollTo = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      value: scrollTo
+    })
+    try {
+      renderPostBox()
+
+      attach('heron.png')
+      await screen.findByRole('list', { name: 'Attached media' })
+      scrollTo.mockClear()
+      const before = document.activeElement
+
+      attach('egret.png')
+
+      await waitFor(() =>
+        expect(scrollTo).toHaveBeenCalledWith(
+          expect.objectContaining({ behavior: expect.any(String) })
+        )
+      )
+      expect(document.activeElement).toBe(before)
+    } finally {
+      delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo
     }
   })
 

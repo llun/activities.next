@@ -2,6 +2,8 @@ import { Camera, MapPin, RotateCw, X } from 'lucide-react'
 import { FC, useEffect, useId, useRef } from 'react'
 
 import { getSubjectChoices } from '@/lib/components/media-details/subjectChoices'
+import { MediaStripEdges } from '@/lib/components/posts/MediaStripEdges'
+import { useMediaStripScroll } from '@/lib/components/posts/useMediaStripScroll'
 import { SkeletonBar } from '@/lib/components/surface/Skeleton'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
@@ -158,6 +160,30 @@ export const ComposerAttachmentTiles: FC<Props> = ({
   const rootRef = useRef<HTMLDivElement>(null)
   // Where focus goes once a removed tile has left the DOM.
   const focusAfterRemoveRef = useRef<string | 'add' | null>(null)
+  // Tiles are a fixed width (`w-36`, `sm:w-40`), so how many there are is
+  // all that decides how wide the row's content is. The status strip keys on
+  // item widths because its cards differ; do the same if these ever do.
+  const strip = useMediaStripScroll(String(attachments.length))
+  const { canScrollLeft, canScrollRight } = strip
+  const previousCount = useRef(attachments.length)
+
+  // A new tile lands at the end of the row, which can be off-screen; bring it
+  // into view without moving focus (its "Uploading…" or "Upload failed" text
+  // and Retry button would otherwise be invisible to a sighted user).
+  useEffect(() => {
+    const grew = attachments.length > previousCount.current
+    previousCount.current = attachments.length
+    if (!grew) return
+    const row = rootRef.current?.querySelector('ul')
+    if (!row || typeof row.scrollTo !== 'function') return
+    const reducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    row.scrollTo({
+      left: row.scrollWidth,
+      behavior: reducedMotion ? 'auto' : 'smooth'
+    })
+  }, [attachments.length])
 
   useEffect(() => {
     const target = focusAfterRemoveRef.current
@@ -224,121 +250,135 @@ export const ComposerAttachmentTiles: FC<Props> = ({
       <p role="status" aria-live="polite" className="sr-only">
         {announcements.join('. ')}
       </p>
-      {/* One row that scrolls sideways, like a status's media strip. The
-          scroller clips on both axes, so the Remove button (which sits 8px
-          outside its tile's top-right corner) gets that much padding on the
-          top and right; the 12px gap above the row is the 4px margin plus the
-          8px padding. The focus ring is inset for the same reason. */}
-      <ul
-        aria-label={`${attachments.length} attached media`}
-        className="no-scrollbar mt-1 flex gap-3 overflow-x-auto pt-2 pr-2"
-      >
-        {attachments.map((item, index) => {
-          const label = getAttachmentLabel(item, fileNames, index)
-          const error = uploadErrors[item.id]
-          const decorative = Boolean(decorativeIds[item.id])
-          const readingDetails = Boolean(detailsPending[item.id])
-          // Suggestions arrive after the details; the tile can be opened
-          // meanwhile, so only the details read disables it.
-          const suggesting = Boolean(suggestionsPending[item.id])
-          const busy = Boolean(item.isLoading) || readingDetails
-          const details = detailsById[item.id]
-          const subjectLine = getSubjectLine(
-            details,
-            confidenceThreshold,
-            suggestionsEnabled
-          )
-          const needsReview =
-            !error &&
-            !busy &&
-            ((!decorative && (item.name ?? '').trim().length === 0) ||
-              // A suggestion waits for the author's say.
-              (subjectLine !== null && !subjectLine.confirmed))
-          return (
-            <li
-              key={clientKeys[item.id] ?? item.id}
-              className="relative w-36 flex-none sm:w-40"
-            >
-              <button
-                type="button"
-                data-attachment-tile={item.id}
-                disabled={disabled || busy || Boolean(error)}
-                onClick={() => onOpen(item.id)}
-                className={cn(
-                  'block w-full space-y-1.5 rounded-lg border p-1.5 text-left outline-none transition-colors',
-                  'focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset enabled:cursor-pointer enabled:hover:bg-accent/50',
-                  needsReview && 'border-primary',
-                  error && 'border-destructive/60'
-                )}
+      {/* One row that scrolls sideways, like a status's media strip, with the
+          same fades and arrows (the native scrollbar is hidden because of
+          them). The scroller clips on both axes, so it pads its top and right
+          by 12px: the Remove button sits 8px outside its tile's top-right
+          corner and its focus outline needs the rest. That padding is also the
+          12px gap above the row, so there is no margin. The tile's focus
+          indicator is an inset outline for the same reason. */}
+      <div className="relative">
+        <ul
+          ref={strip.ref}
+          role="list"
+          aria-label="Attached media"
+          onScroll={strip.measure}
+          className="no-scrollbar flex snap-x snap-proximity gap-3 overflow-x-auto scroll-pr-3 pt-3 pr-3"
+        >
+          {attachments.map((item, index) => {
+            const label = getAttachmentLabel(item, fileNames, index)
+            const error = uploadErrors[item.id]
+            const decorative = Boolean(decorativeIds[item.id])
+            const readingDetails = Boolean(detailsPending[item.id])
+            // Suggestions arrive after the details; the tile can be opened
+            // meanwhile, so only the details read disables it.
+            const suggesting = Boolean(suggestionsPending[item.id])
+            const busy = Boolean(item.isLoading) || readingDetails
+            const details = detailsById[item.id]
+            const subjectLine = getSubjectLine(
+              details,
+              confidenceThreshold,
+              suggestionsEnabled
+            )
+            const needsReview =
+              !error &&
+              !busy &&
+              ((!decorative && (item.name ?? '').trim().length === 0) ||
+                // A suggestion waits for the author's say.
+                (subjectLine !== null && !subjectLine.confirmed))
+            return (
+              <li
+                key={clientKeys[item.id] ?? item.id}
+                className="relative w-36 flex-none snap-start sm:w-40"
               >
-                <span
-                  className="relative block aspect-square w-full overflow-hidden rounded-md bg-border bg-cover bg-center"
-                  style={{
-                    backgroundImage: `url("${item.posterUrl || item.url}")`
-                  }}
+                <button
+                  type="button"
+                  data-attachment-tile={item.id}
+                  disabled={disabled || busy || Boolean(error)}
+                  onClick={() => onOpen(item.id)}
+                  className={cn(
+                    'block w-full space-y-1.5 rounded-lg border p-1.5 text-left transition-colors',
+                    'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring enabled:cursor-pointer enabled:hover:bg-accent/50',
+                    needsReview && 'border-primary',
+                    error && 'border-destructive/60'
+                  )}
                 >
-                  {busy ? (
-                    <span
-                      aria-hidden="true"
-                      className="absolute inset-0 opacity-70"
-                    >
-                      <SkeletonBar className="h-full rounded-none" />
-                    </span>
-                  ) : null}
-                </span>
-                {error || busy ? null : <TileSubject line={subjectLine} />}
-                <TileStatus
-                  attachment={item}
-                  details={details}
-                  decorative={decorative}
-                  error={error}
-                  reading={readingDetails || (suggesting && !subjectLine)}
-                  needsReview={needsReview}
-                />
-                {/* The accessible name is the visible status text followed by
-                    this (WCAG 2.5.3 Label in Name), e.g. "Edit details of a.png". */}
-                {error ? null : ' '}
-                <span className="sr-only">
-                  {error ? label : `details of ${label}`}
-                </span>
-              </button>
-              {error ? (
-                <div className="flex items-center justify-between gap-2 px-1.5 pt-1.5">
                   <span
-                    id={`${errorId}-${item.id}`}
-                    className="text-xs text-destructive-text"
-                    title={error}
+                    className="relative block aspect-square w-full overflow-hidden rounded-md bg-border bg-cover bg-center"
+                    style={{
+                      backgroundImage: `url("${item.posterUrl || item.url}")`
+                    }}
                   >
-                    Upload failed
-                    <span className="sr-only">: {error}</span>
+                    {busy ? (
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-0 opacity-70"
+                      >
+                        <SkeletonBar className="h-full rounded-none" />
+                      </span>
+                    ) : null}
                   </span>
-                  <button
-                    type="button"
-                    aria-label={`Retry upload of ${label}`}
-                    aria-describedby={`${errorId}-${item.id}`}
-                    disabled={disabled}
-                    onClick={() => handleRetry(item.id)}
-                    className="flex items-center gap-1 rounded-md border bg-background px-1.5 py-0.5 text-xs font-medium shadow-xs"
-                  >
-                    <RotateCw className="size-3" />
-                    Retry
-                  </button>
-                </div>
-              ) : null}
-              <button
-                type="button"
-                aria-label={`Remove media ${label}`}
-                data-attachment-remove={item.id}
-                disabled={disabled}
-                onClick={() => handleRemove(item.id, index)}
-                className="absolute top-0 right-0 flex size-6 translate-x-1/3 -translate-y-1/3 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs hover:text-foreground"
-              >
-                <X className="size-3.5" />
-              </button>
-            </li>
-          )
-        })}
-      </ul>
+                  {error || busy ? null : <TileSubject line={subjectLine} />}
+                  <TileStatus
+                    attachment={item}
+                    details={details}
+                    decorative={decorative}
+                    error={error}
+                    reading={readingDetails || (suggesting && !subjectLine)}
+                    needsReview={needsReview}
+                  />
+                  {/* The accessible name is the visible status text followed by
+                    this (WCAG 2.5.3 Label in Name), e.g. "Edit details of a.png". */}
+                  {error ? null : ' '}
+                  <span className="sr-only">
+                    {error ? label : `details of ${label}`}
+                  </span>
+                </button>
+                {error ? (
+                  <div className="flex items-center justify-between gap-2 px-1.5 pt-1.5">
+                    <span
+                      id={`${errorId}-${item.id}`}
+                      className="text-xs text-destructive-text"
+                      title={error}
+                    >
+                      Upload failed
+                      <span className="sr-only">: {error}</span>
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Retry upload of ${label}`}
+                      aria-describedby={`${errorId}-${item.id}`}
+                      disabled={disabled}
+                      onClick={() => handleRetry(item.id)}
+                      className="flex items-center gap-1 rounded-md border bg-background px-1.5 py-0.5 text-xs font-medium shadow-xs"
+                    >
+                      <RotateCw className="size-3" />
+                      Retry
+                    </button>
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  aria-label={`Remove media ${label}`}
+                  data-attachment-remove={item.id}
+                  disabled={disabled}
+                  onClick={() => handleRemove(item.id, index)}
+                  className="absolute top-0 right-0 flex size-6 translate-x-1/3 -translate-y-1/3 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-xs hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+        {canScrollLeft || canScrollRight ? (
+          <MediaStripEdges
+            canScrollLeft={canScrollLeft}
+            canScrollRight={canScrollRight}
+            onScrollByPage={strip.scrollByPage}
+          />
+        ) : null}
+      </div>
       <p className="mt-2 text-xs text-muted-foreground">
         Select an item to review its details.
       </p>
