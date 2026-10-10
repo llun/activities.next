@@ -52,7 +52,7 @@ import {
   withNetworkRetry
 } from './editErrors'
 import type { EditorControls } from './editorControls'
-import { recipesEqual, setAdjustment, withGeometry } from './editorRecipe'
+import { recipesRenderEqual, setAdjustment, withGeometry } from './editorRecipe'
 import { AUTO_KEYS, computeAuto } from './engine/auto'
 import { exportRecipe } from './engine/exportImage'
 import { loadSource } from './engine/loadSource'
@@ -148,7 +148,8 @@ export const PhotoEditorDialog = ({
         }
         const decoded = await loadSource(
           getMediaEditSourceUrl(mediaId),
-          controller.signal
+          controller.signal,
+          { width, height }
         )
         if (cancelled) {
           decoded.close?.()
@@ -186,7 +187,7 @@ export const PhotoEditorDialog = ({
   )
 
   const edited = Boolean(editState?.edit.editedAt || editState?.edit.recipe)
-  const dirty = ready && !recipesEqual(present, baseline)
+  const dirty = ready && !recipesRenderEqual(present, baseline)
   const revertsToOriginal = isNeutralRecipe(present) && edited
   const canSave = dirty && (!isNeutralRecipe(present) || edited)
   const statusCount = editState?.usage.statusCount ?? 0
@@ -335,7 +336,8 @@ export const PhotoEditorDialog = ({
   }, [])
 
   const dialogsOpen = promptOpen || discardOpen || reloadOpen
-  useEditorShortcuts(ready && !dialogsOpen, {
+  useEditorShortcuts(true, {
+    active: ready && !dialogsOpen,
     undo: onUndo,
     redo: onRedo,
     save: onSave,

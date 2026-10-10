@@ -35,6 +35,7 @@ import {
 } from '@/lib/client'
 import { MediaAlbumsControl } from '@/lib/components/gallery/MediaAlbumsControl'
 import { PhotoEditPreview } from '@/lib/components/photo-editor/PhotoEditPreview'
+import type { EditedPosts } from '@/lib/components/photo-editor/PhotoEditorDialog'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
@@ -140,7 +141,11 @@ interface Props {
    * The photo editor saved (or reverted) an item: `media` is the fresh owner
    * entity, with the new url and size. The composer takes them over.
    */
-  onMediaEdited?: (id: string, media: MediaStorageSaveFileOutput) => void
+  onMediaEdited?: (
+    id: string,
+    media: MediaStorageSaveFileOutput,
+    posts: EditedPosts
+  ) => void
 }
 
 const ADD_NEW_GEAR = '__add_new_gear__'
@@ -658,7 +663,11 @@ export const MediaDetailsDialog: FC<Props> = ({
     }
   }, [])
 
-  const handleMediaEdited = (id: string, media: MediaStorageSaveFileOutput) => {
+  const handleMediaEdited = (
+    id: string,
+    media: MediaStorageSaveFileOutput,
+    posts: EditedPosts
+  ) => {
     setEditedFiles((current) => ({
       ...current,
       [id]: {
@@ -675,7 +684,7 @@ export const MediaDetailsDialog: FC<Props> = ({
         [id]: { base: base?.details ?? null, value: fresh }
       }))
     }
-    onMediaEdited?.(id, media)
+    onMediaEdited?.(id, media, posts)
   }
 
   const patchDraft = useCallback(
@@ -1221,6 +1230,7 @@ export const MediaDetailsDialog: FC<Props> = ({
                 />
               ) : (
                 <PhotoEditPreview
+                  key={item.id}
                   item={{ ...item, details }}
                   onEdited={handleMediaEdited}
                 >

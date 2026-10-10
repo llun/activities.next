@@ -1,4 +1,3 @@
-import { formatDistanceToNowStrict } from 'date-fns/formatDistanceToNowStrict'
 import { Camera, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { FC } from 'react'
@@ -8,6 +7,7 @@ import {
   getHashtagHref,
   toScientificHashtag
 } from '@/lib/components/gallery/galleryTaxonomy'
+import { EditedTime } from '@/lib/components/photo-editor/EditedTime'
 import type { MediaPublicDetails } from '@/lib/services/gallery/galleryEntities'
 import { cn } from '@/lib/utils'
 
@@ -201,10 +201,7 @@ export const MediaDetailsPanel: FC<Props> = ({
       {takenAt && <p>{takenAt}</p>}
       {editedAt && (
         <p>
-          Edited{' '}
-          <time dateTime={editedAt.toISOString()}>
-            {formatDistanceToNowStrict(editedAt, { addSuffix: true })}
-          </time>
+          Edited <EditedTime date={editedAt} />
         </p>
       )}
     </div>

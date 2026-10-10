@@ -1,8 +1,8 @@
 'use client'
 
 import { FlipHorizontal2, RotateCcw } from 'lucide-react'
+import { useRef } from 'react'
 
-import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Button } from '@/lib/components/ui/button'
 import { Slider } from '@/lib/components/ui/slider'
 import {
@@ -15,10 +15,12 @@ import {
 } from '@/lib/services/medias/edit/geometry'
 import {
   type Aspect,
+  type CropRect,
   type Geometry,
   NEUTRAL_RECIPE
 } from '@/lib/services/medias/edit/recipe'
 
+import { PillGroup } from './PillGroup'
 import { getAspectRatio } from './cropMath'
 import type { EditorControls } from './editorControls'
 import { formatStraighten, formatStraightenSpoken } from './editorFormat'
@@ -36,6 +38,9 @@ const ASPECTS: ReadonlyArray<{ value: Aspect; label: string }> = [
 /** Aspects with a portrait and a landscape form. */
 const hasOrientation = (aspect: Aspect) =>
   aspect === '4:5' || aspect === '3:2' || aspect === '16:9'
+
+const sameCrop = (a: CropRect, b: CropRect) =>
+  a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
 
 const withPortrait = (geometry: Geometry, portrait: boolean): Geometry => {
   const { aspectPortrait: _previous, ...rest } = geometry
@@ -86,15 +91,26 @@ export const CropPanel = ({
     applyAspect(next, false)
   }
 
-  const straighten = (value: number) =>
+  // Straightening shrinks the crop to stay inside the rotated image. The crop
+  // the user chose is kept, so turning back toward 0° grows it back instead of
+  // leaving it shrunk. A crop changed any other way (drag, undo) is the new
+  // base.
+  const straightenBase = useRef<{ chosen: CropRect; clamped: CropRect } | null>(
+    null
+  )
+  const straighten = (value: number) => {
+    const memo = straightenBase.current
+    const base =
+      memo && sameCrop(memo.clamped, geometry.crop)
+        ? memo.chosen
+        : geometry.crop
+    const clamped = clampCropToImage(base, value, oriented)
+    straightenBase.current = { chosen: base, clamped }
     controls.onGeometryChange(
-      {
-        ...geometry,
-        straighten: value,
-        crop: clampCropToImage(geometry.crop, value, oriented)
-      },
+      { ...geometry, straighten: value, crop: clamped },
       'straighten'
     )
+  }
 
   const straightenRow = (
     <div
@@ -129,24 +145,20 @@ export const CropPanel = ({
   )
 
   const aspectRow = (
-    <div className="flex items-center gap-2">
-      <SegmentedControl
+    <div className="space-y-2">
+      <PillGroup
         aria-label="Aspect ratio"
-        size="sm"
-        items={ASPECTS.map((aspect) => ({
-          ...aspect,
-          disabled
-        }))}
+        items={ASPECTS}
         value={geometry.aspect}
         onValueChange={chooseAspect}
-        className="min-w-0 flex-1"
+        disabled={disabled}
       />
       {hasOrientation(geometry.aspect) ? (
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 shrink-0 px-2 text-xs"
+          className="px-2 text-xs max-md:min-h-10"
           disabled={disabled}
           onClick={() => applyAspect(geometry.aspect, !portrait)}
         >
@@ -162,6 +174,7 @@ export const CropPanel = ({
         type="button"
         variant="outline"
         size="sm"
+        className="max-md:min-h-10"
         disabled={disabled}
         onClick={() => controls.onGeometryChange(rotateGeometry90(geometry))}
       >
@@ -172,6 +185,7 @@ export const CropPanel = ({
         type="button"
         variant="outline"
         size="sm"
+        className="max-md:min-h-10"
         disabled={disabled}
         onClick={() =>
           controls.onGeometryChange(flipGeometryHorizontal(geometry))
@@ -185,6 +199,7 @@ export const CropPanel = ({
           type="button"
           variant="ghost"
           size="sm"
+          className="max-md:min-h-10"
           disabled={disabled}
           onClick={() => controls.onGeometryChange(NEUTRAL_RECIPE.geometry)}
         >

@@ -71,7 +71,7 @@ function Slider({
     >
       <RadixSlider.Track
         data-slot="slider-track"
-        className="relative h-1 w-full grow overflow-hidden rounded-full bg-muted"
+        className="relative h-1.5 w-full grow rounded-full bg-muted"
       >
         <RadixSlider.Range
           data-slot="slider-range"
@@ -79,19 +79,24 @@ function Slider({
         />
         {bipolar ? (
           <>
-            <span
-              data-slot="slider-fill"
-              aria-hidden="true"
-              className="absolute h-full bg-primary"
-              style={{
-                left: `${Math.min(zero, position)}%`,
-                width: `${Math.abs(position - zero)}%`
-              }}
-            />
+            {/* The bipolar thumb is a hollow ring, so a small fill stays
+                visible through it instead of hiding under a solid disc. */}
+            {position === zero ? null : (
+              <span
+                data-slot="slider-fill"
+                aria-hidden="true"
+                className="absolute h-full rounded-full bg-primary"
+                style={
+                  position > zero
+                    ? { left: `${zero}%`, width: `${position - zero}%` }
+                    : { right: `${100 - zero}%`, width: `${zero - position}%` }
+                }
+              />
+            )}
             <span
               data-slot="slider-tick"
               aria-hidden="true"
-              className="absolute top-0 h-full w-px bg-border"
+              className="absolute -top-1.5 h-[18px] w-0.5 -translate-x-1/2 rounded-full bg-foreground/40"
               style={{ left: `${zero}%` }}
             />
           </>
@@ -107,7 +112,10 @@ function Slider({
             reset()
           }
         }}
-        className="block size-6 shrink-0 rounded-full border-2 border-primary bg-background shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none md:size-4"
+        className={cn(
+          'block size-6 shrink-0 rounded-full border-2 border-primary shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none md:size-4',
+          bipolar ? 'bg-transparent' : 'bg-background'
+        )}
       />
     </RadixSlider.Root>
   )

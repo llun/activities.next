@@ -22,23 +22,33 @@ interface Props {
   count: number
   /** When the newest of them was written (ISO 8601). */
   latestStatusAt: string | null
+  /** `revert` words the prompt for reverting to the original. */
+  mode?: 'save' | 'revert'
+  /** Cancel (revert) or keep editing (save). */
   onKeepEditing: () => void
   onSave: (choice: ApplyToPosts) => void
 }
 
-const describePosts = (count: number, latestStatusAt: string | null) => {
+const describePosts = (
+  count: number,
+  latestStatusAt: string | null,
+  mode: 'save' | 'revert'
+) => {
   const latest = latestStatusAt ? new Date(latestStatusAt) : null
   const dated = latest && !Number.isNaN(latest.getTime())
   const where =
     count === 1
       ? `This photo is in 1 post${dated ? ` from ${format(latest, 'd MMM')}` : ''}.`
       : `This photo is in ${count} posts.`
-  return `${where} Your original stays on your account, and you can revert later.`
+  return mode === 'revert'
+    ? `${where} Reverting puts the original photo back.`
+    : `${where} Your original stays on your account, and you can revert later.`
 }
 
 const Body = ({
   count,
   latestStatusAt,
+  mode = 'save',
   onKeepEditing,
   onSave
 }: Omit<Props, 'open'>) => {
@@ -51,7 +61,7 @@ const Body = ({
           {plural ? 'Update the posts too?' : 'Update the post too?'}
         </DialogTitle>
         <DialogDescription>
-          {describePosts(count, latestStatusAt)}
+          {describePosts(count, latestStatusAt, mode)}
         </DialogDescription>
       </DialogHeader>
       <RadioGroup
@@ -71,7 +81,9 @@ const Body = ({
               {plural ? 'Update the posts' : 'Update the post'}
             </Label>
             <p className="text-sm text-muted-foreground">
-              Followers&apos; servers get an edit with the new photo.
+              {mode === 'revert'
+                ? `Followers' servers get an edit with the original photo.`
+                : `Followers' servers get an edit with the new photo.`}
             </p>
           </div>
         </div>
@@ -86,19 +98,23 @@ const Body = ({
               Gallery only
             </Label>
             <p className="text-sm text-muted-foreground">
-              {plural
-                ? 'The posts keep the photo as it was.'
-                : 'The post keeps the photo as it was.'}
+              {mode === 'revert'
+                ? plural
+                  ? 'The posts keep the edited photo.'
+                  : 'The post keeps the edited photo.'
+                : plural
+                  ? 'The posts keep the photo as it was.'
+                  : 'The post keeps the photo as it was.'}
             </p>
           </div>
         </div>
       </RadioGroup>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onKeepEditing}>
-          Keep editing
+          {mode === 'revert' ? 'Cancel' : 'Keep editing'}
         </Button>
         <Button type="button" onClick={() => onSave(choice)}>
-          Save
+          {mode === 'revert' ? 'Revert' : 'Save'}
         </Button>
       </DialogFooter>
     </>
