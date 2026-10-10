@@ -3,6 +3,12 @@ import { Knex } from 'knex'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { incrementLocalStatusBucket } from '@/lib/database/domains/instanceActivity/queries'
 import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
+import { searchQueries } from '@/lib/database/domains/search/queries'
+import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
+import {
+  type StatusSearchRow,
+  deleteStatusSearchDocumentsByStatusIds
+} from '@/lib/database/domains/search/statuses'
 import { kyselyFor } from '@/lib/database/kysely'
 import { parseElevationSeries } from '@/lib/database/sql/fitnessFile'
 import { coercePollEndAt } from '@/lib/database/sql/utils/coercePollEndAt'
@@ -132,16 +138,6 @@ import {
 } from '@/lib/utils/publicId'
 import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 
-import {
-  indexHashtagSearchDocument,
-  indexHashtagSearchDocuments,
-  normalizeHashtagSearchName
-} from './search/hashtag'
-import {
-  deleteStatusSearchDocumentsByStatusIds,
-  indexStatusSearchDocument
-} from './search/status'
-import type { SQLStatusSearchRow } from './search/status'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
 const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
@@ -603,7 +599,7 @@ export const StatusSQLDatabaseMixin = (
       ...(quoteApprovalPolicy ? { quoteApprovalPolicy } : {})
     }
     const statusContent = JSON.stringify(content)
-    const searchStatus: SQLStatusSearchRow = {
+    const searchStatus: StatusSearchRow = {
       id,
       actorId,
       type: StatusType.enum.Note,
@@ -676,7 +672,9 @@ export const StatusSQLDatabaseMixin = (
       return { status: outcome.existing, isNew: false }
     }
 
-    await indexStatusSearchDocument(database, { status: searchStatus })
+    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
+      status: searchStatus
+    })
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     const status = StatusNote.parse({
@@ -756,7 +754,7 @@ export const StatusSQLDatabaseMixin = (
       language: language === undefined ? status.language : language
     }
     const statusContent = JSON.stringify(content)
-    const searchStatus: SQLStatusSearchRow = {
+    const searchStatus: StatusSearchRow = {
       id: status.id,
       actorId: status.actorId,
       type: status.type,
@@ -908,7 +906,9 @@ export const StatusSQLDatabaseMixin = (
         )
       }
     })
-    await indexStatusSearchDocument(database, { status: searchStatus })
+    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
+      status: searchStatus
+    })
     return getStatus({ statusId })
   }
 
@@ -923,7 +923,7 @@ export const StatusSQLDatabaseMixin = (
 
     let affectedHashtags: string[] = []
     const currentTime = new Date()
-    const searchStatus: SQLStatusSearchRow = {
+    const searchStatus: StatusSearchRow = {
       id: status.id,
       actorId: status.actorId,
       type: status.type,
@@ -997,11 +997,13 @@ export const StatusSQLDatabaseMixin = (
       }
     })
     if (affectedHashtags.length > 0) {
-      await indexHashtagSearchDocuments(database, {
+      await searchQueries.indexHashtagSearchDocuments(kyselyFor(database), {
         hashtags: affectedHashtags
       })
     }
-    await indexStatusSearchDocument(database, { status: searchStatus })
+    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
+      status: searchStatus
+    })
     return getStatus({ statusId })
   }
 
@@ -1147,7 +1149,7 @@ export const StatusSQLDatabaseMixin = (
       hideTotals
     }
     const statusContent = JSON.stringify(content)
-    const searchStatus: SQLStatusSearchRow = {
+    const searchStatus: StatusSearchRow = {
       id,
       actorId,
       type: StatusType.enum.Poll,
@@ -1234,7 +1236,9 @@ export const StatusSQLDatabaseMixin = (
       return { status: outcome.existing, isNew: false }
     }
 
-    await indexStatusSearchDocument(database, { status: searchStatus })
+    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
+      status: searchStatus
+    })
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     const status = StatusPoll.parse({
@@ -1322,7 +1326,7 @@ export const StatusSQLDatabaseMixin = (
         hideTotals === undefined ? (data.hideTotals ?? false) : hideTotals
     }
     const statusContent = JSON.stringify(content)
-    const searchStatus: SQLStatusSearchRow = {
+    const searchStatus: StatusSearchRow = {
       id: existingStatus.id,
       actorId: existingStatus.actorId,
       type: existingStatus.type,
@@ -1403,7 +1407,9 @@ export const StatusSQLDatabaseMixin = (
           })
       }
     })
-    await indexStatusSearchDocument(database, { status: searchStatus })
+    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
+      status: searchStatus
+    })
     return getStatus({ statusId })
   }
 
@@ -2550,7 +2556,7 @@ export const StatusSQLDatabaseMixin = (
     // reindexSearchHashtags run can reconcile this if the process exits
     // after commit and before this best-effort refresh completes.
     try {
-      await indexHashtagSearchDocuments(database, {
+      await searchQueries.indexHashtagSearchDocuments(kyselyFor(database), {
         hashtags: [...new Set(collectedHashtags)]
       })
     } catch (err) {
@@ -2785,7 +2791,10 @@ export const StatusSQLDatabaseMixin = (
       actorIds: statusesToDelete.map((status) => status.actorId),
       trx
     })
-    await deleteStatusSearchDocumentsByStatusIds(trx, statusIdsToDelete)
+    await deleteStatusSearchDocumentsByStatusIds(
+      kyselyFor(trx),
+      statusIdsToDelete
+    )
     await deleteCounterValues(
       trx,
       statusIdsToDelete.flatMap((statusId) => [
@@ -3120,7 +3129,9 @@ export const StatusSQLDatabaseMixin = (
     if (type === 'hashtag' && !skipSearchIndex) {
       // Hashtag search stores an aggregate across all public statuses for the
       // tag, so the inserted row alone is not enough to update the document.
-      await indexHashtagSearchDocument(database, { hashtag: name })
+      await searchQueries.indexHashtagSearchDocument(kyselyFor(database), {
+        hashtag: name
+      })
     }
     return data
   }

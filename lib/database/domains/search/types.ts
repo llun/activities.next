@@ -1,7 +1,6 @@
-// Parameter and result types of the search domain: search documents, account
-// search, and the hashtag and status search whose queries have yet to move
-// here. lib/types/database/operations.ts re-exports them, so existing imports
-// keep working.
+// Parameter and result types of the search domain: search documents and
+// account, hashtag and status search. lib/types/database/operations.ts
+// re-exports them, so existing imports keep working.
 import { z } from 'zod'
 
 export const SearchDocumentEntityType = z.enum(['account', 'status', 'hashtag'])

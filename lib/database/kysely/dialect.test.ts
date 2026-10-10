@@ -6,6 +6,7 @@ import {
   fullTextMatch,
   getDialectName,
   jsonText,
+  normalizedHashtagName,
   timestampValue
 } from '@/lib/database/kysely/dialect'
 
@@ -116,5 +117,30 @@ describe('fullTextMatch', () => {
       `select "search_documents"."id" from "search_documents" where to_tsvector('simple', "documentText") @@ to_tsquery('simple', $1)`
     )
     expect(compiled.parameters).toEqual(['trail:* & run_1:*'])
+  })
+})
+
+describe('normalizedHashtagName', () => {
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: 'select lower(ltrim("tags"."nameNormalized", ?)) as "name" from "tags"',
+      parameters: ['#']
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: `select lower(trim(leading '#' from "tags"."nameNormalized")) as "name" from "tags"`,
+      parameters: []
+    }
+  ])('strips the leading hashes and lowercases ($name)', (item) => {
+    const db = kyselyFor(item.instance)
+    const compiled = db
+      .selectFrom('tags')
+      .select(normalizedHashtagName(db, 'tags.nameNormalized').as('name'))
+      .compile()
+    expect(compiled.sql).toBe(item.sql)
+    expect(compiled.parameters).toEqual(item.parameters)
   })
 })

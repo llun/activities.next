@@ -32,6 +32,8 @@ import { Knex } from 'knex'
 // anyway so the predicate reads as its intent rather than as a trick, and so
 // PostgreSQL can match it against the partial `actors_local_idx`, whose own
 // predicate is the `IS NOT NULL` half.
+//
+// The Kysely twin is isLocalActor (lib/database/kysely/visibility/localActor.ts).
 export const whereLocalActor = (
   query: Knex.QueryBuilder,
   column: string = 'privateKey'

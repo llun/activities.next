@@ -681,14 +681,16 @@ describe('StatusDatabase deletion', () => {
                 sql.includes('`statusid` in')
             )
           ).toBe(true)
+          // The search document delete runs through Kysely, which quotes
+          // identifiers with double quotes.
           const searchDocumentDeletes = queries.filter(
             ({ bindings, sql }) =>
               sql.startsWith('delete') &&
-              sql.includes('`search_documents`') &&
+              sql.includes('"search_documents"') &&
               bindings.includes('status')
           )
           expect(searchDocumentDeletes).toHaveLength(1)
-          expect(searchDocumentDeletes[0].sql).toContain('`entityid` in')
+          expect(searchDocumentDeletes[0].sql).toContain('"entityid" in')
         } finally {
           knexDatabase.off('query', handleQuery)
           await knexDatabase.destroy()

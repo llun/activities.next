@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -8,7 +8,9 @@ const OTHER_ACTOR_ID = 'https://llun.test/users/other'
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
+  const testDb = createTestDatabase()
+  const { database } = testDb
+  await testDb.prepare()
   await database.migrate()
   try {
     await test(database)
