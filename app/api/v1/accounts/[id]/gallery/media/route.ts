@@ -37,8 +37,9 @@ const GalleryMediaQueryParams = z.object({
   subject: z.string().trim().min(1).max(520).optional(),
   category: z.enum(MEDIA_SUBJECT_CATEGORIES).optional(),
   gear_id: z.string().max(255).optional(),
-  // Owner only: `in_gallery` (default), `all` posted media or the `hidden` ones.
-  // Anyone else is always shown the gallery, whatever they send.
+  // Owner only: `in_gallery` (default), `all` (posted or added in Gallery),
+  // `hidden` (switched off in the gallery) or `not_posted` (added, no post
+  // yet). Anyone else is always shown the gallery, whatever they send.
   show: z.enum(GALLERY_SHOWS).optional()
 })
 
@@ -46,7 +47,8 @@ const GalleryMediaQueryParams = z.object({
 // photos, newest upload first, as the requesting viewer may see them. Who the
 // viewer is decides both which posts the photos may come from and how much of
 // each photo (place, gear) is disclosed; the service owns both. `show` widens
-// the list to posted media outside the gallery for the owner alone.
+// the list to media outside the gallery, and to photos added without a post,
+// for the owner alone.
 export const GET = traceApiRoute(
   'getAccountGalleryMedia',
   OptionalOAuthGuard<Params>(

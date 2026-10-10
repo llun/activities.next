@@ -114,13 +114,19 @@ export const renderDialog = (
     settings: GallerySettingsEntity | null
     suggestionsPending: Record<string, true>
     ownerId: string
-    context: 'composer' | 'gallery'
+    context: 'composer' | 'gallery' | 'add'
+    onAdd: (mediaIds: string[]) => Promise<void>
+    withDiscard: boolean
+    onRemoveItem: (id: string) => void
+    onPostItem: (id: string) => void
+    onDeleteItem: (id: string) => void
   }> = {}
 ) => {
   const onClose = vi.fn()
+  const onDiscard = vi.fn()
   const onSaved = vi.fn()
   const onDetailsRefreshed = vi.fn()
-  render(
+  const { unmount } = render(
     <MediaDetailsDialog
       items={items}
       initialId={props.initialId ?? items[0].id}
@@ -131,9 +137,14 @@ export const renderDialog = (
       suggestionsPending={props.suggestionsPending}
       ownerId={props.ownerId}
       context={props.context}
+      onAdd={props.onAdd}
+      onDiscard={props.withDiscard ? onDiscard : undefined}
+      onRemoveItem={props.onRemoveItem}
+      onPostItem={props.onPostItem}
+      onDeleteItem={props.onDeleteItem}
     />
   )
-  return { onClose, onSaved, onDetailsRefreshed }
+  return { onClose, onSaved, onDetailsRefreshed, onDiscard, unmount }
 }
 
 export const SUGGESTIONS: NonNullable<

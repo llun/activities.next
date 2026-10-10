@@ -1,7 +1,7 @@
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
-  getTestSQLDatabase
+  getTestDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { EXTERNAL_ACTORS, TEST_DOMAIN, testUserId } from '@/lib/stub/const'
@@ -10,7 +10,9 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
+  // Isolated: the suite-level database stays open beside this one.
+  const { database, prepare } = getTestDatabaseWithInstance(true)
+  await prepare()
   await database.migrate()
   try {
     await test(database)

@@ -4,6 +4,9 @@ import { accountQueries } from '@/lib/database/domains/account/queries'
 import type { AccountDatabase } from '@/lib/database/domains/account/types'
 import { accountNoteQueries } from '@/lib/database/domains/accountNote/queries'
 import type { AccountNoteDatabase } from '@/lib/database/domains/accountNote/types'
+import { actorQueries } from '@/lib/database/domains/actor/queries'
+import { getActor } from '@/lib/database/domains/actor/rows'
+import type { SQLActorDatabase } from '@/lib/database/domains/actor/types'
 import { actorDomainBlockQueries } from '@/lib/database/domains/actorDomainBlock/queries'
 import type { ActorDomainBlockDatabase } from '@/lib/database/domains/actorDomainBlock/types'
 import { adminQueries } from '@/lib/database/domains/admin/queries'
@@ -98,7 +101,7 @@ import {
   installKnexKyselyGuard,
   kyselyFor
 } from '@/lib/database/kysely'
-import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
+import { deleteActorData } from '@/lib/database/sql/actor'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFileRoute'
@@ -128,7 +131,13 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     accountNoteQueries
   )
-  const actorDatabase = ActorSQLDatabaseMixin(database)
+  // deleteActorData is the actor domain's last Knex method; getActor is the
+  // pure row mapper the follow mixin uses inside its own transaction.
+  const actorDatabase: SQLActorDatabase = {
+    ...bindDb(kysely, actorQueries),
+    getActor,
+    deleteActorData: (params) => deleteActorData(database, params)
+  }
   const actorDomainBlockDatabase: ActorDomainBlockDatabase = bindDb(
     kysely,
     actorDomainBlockQueries

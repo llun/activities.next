@@ -21,9 +21,9 @@ export interface GetGalleryMediaOptions {
   /** Owner only; anyone else gets a 422. */
   gearId?: string
   /**
-   * Owner only: `all` posted media or just the `hidden` ones. Without it the
-   * server answers with the gallery (`in_gallery`); for anyone but the owner it
-   * is ignored.
+   * Owner only: `all` posted or added media, just the `hidden` ones, or the
+   * ones `not_posted` yet. Without it the server answers with the gallery
+   * (`in_gallery`); for anyone but the owner it is ignored.
    */
   show?: GalleryShow
 }
@@ -119,4 +119,27 @@ export const getGalleryMap = async (
     galleryUrl(actorId, 'map', query),
     'Failed to load the map.'
   )
+}
+
+/**
+ * Keeps uploaded media in the owner's gallery without a post (`media_ids` are
+ * the ids `uploadAttachment` answered with). Resolves to the ids that were
+ * added; one that is not the caller's, is already in a post, or is gone is left
+ * out. Rejects when none could be added.
+ */
+export const addMediaToGallery = async (
+  mediaIds: string[]
+): Promise<string[]> => {
+  const response = await fetch('/api/v1/gallery/media', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ media_ids: mediaIds })
+  })
+  if (!response.ok) {
+    throw new Error(
+      await parseApiError(response, 'Failed to add to your gallery.')
+    )
+  }
+  const data = (await response.json()) as { media_ids: string[] }
+  return data.media_ids
 }

@@ -403,6 +403,8 @@ export type MediaRow = {
   placeLookupAt?: number | string | Date | null
   editVersion?: number | string | null
   editedAt?: number | string | Date | null
+  // When the owner added it in Gallery; null for an upload nobody kept.
+  galleryAddedAt?: number | string | Date | null
 }
 
 type MediaMetaData = Media['original']['metaData']
@@ -799,7 +801,8 @@ export const MEDIA_COLUMNS = [
   'placeLookupStatus',
   'placeLookupAt',
   'editVersion',
-  'editedAt'
+  'editedAt',
+  'galleryAddedAt'
 ] as const
 
 // `column = value`, or `column IS NULL` for a null value: SQL's `= NULL` is

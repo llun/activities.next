@@ -31,6 +31,7 @@ import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimi
 import {
   getAttachmentsFromMediaIds,
   resolveStatusAttachmentMediaIds,
+  toCanonicalMediaId,
   withStatusAttachmentFile
 } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
@@ -415,7 +416,11 @@ export const PUT = traceApiRoute(
                 })
               : []
           for (const [index, attribute] of mediaAttributes.entries()) {
-            const mediaId = String(resolvedAttributeIds[index])
+            // Canonical (so "007" and "7" are one media), as the attachment
+            // ids compared against below are.
+            const mediaId = toCanonicalMediaId(
+              String(resolvedAttributeIds[index])
+            )
             if (attribute.description !== undefined) {
               describedMediaIds.add(mediaId)
             }
@@ -423,7 +428,9 @@ export const PUT = traceApiRoute(
               (item) => String(item.id) === mediaId
             )
             const shown = existingStatus.attachments.find(
-              (item) => item.mediaId != null && String(item.mediaId) === mediaId
+              (item) =>
+                item.mediaId != null &&
+                toCanonicalMediaId(String(item.mediaId)) === mediaId
             )
             const focusOnEarlierFile =
               attribute.focus !== undefined &&
@@ -498,16 +505,18 @@ export const PUT = traceApiRoute(
           resolvedAttachments === undefined || resolvedAttachments === null
             ? resolvedAttachments
             : resolvedAttachments.map((attachment) => {
+                const attachmentMediaId = toCanonicalMediaId(attachment.id)
                 const existing = existingStatus.attachments.find(
                   (candidate) =>
                     candidate.mediaId != null &&
-                    String(candidate.mediaId) === attachment.id
+                    toCanonicalMediaId(String(candidate.mediaId)) ===
+                      attachmentMediaId
                 )
                 if (!existing) return attachment
                 const kept = withStatusAttachmentFile(attachment, existing)
                 if (resolvedMediaIds !== undefined) return kept
                 const { name: rowName, ...rest } = kept
-                const name = describedMediaIds.has(attachment.id)
+                const name = describedMediaIds.has(attachmentMediaId)
                   ? rowName
                   : existing.name || undefined
                 return { ...rest, ...(name ? { name } : {}) }
@@ -595,7 +604,9 @@ export const PUT = traceApiRoute(
                       (attachment) => {
                         const focus =
                           attachment.mediaId != null
-                            ? earlierFileFocus.get(String(attachment.mediaId))
+                            ? earlierFileFocus.get(
+                                toCanonicalMediaId(String(attachment.mediaId))
+                              )
                             : undefined
                         return focus ? { ...attachment, focus } : attachment
                       }

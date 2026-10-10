@@ -866,7 +866,8 @@ CREATE TABLE public.medias (
     "editRecipe" text,
     "editVersion" integer DEFAULT 0 NOT NULL,
     "editedAt" timestamp with time zone,
-    "editSaveId" character varying(36)
+    "editSaveId" character varying(36),
+    "galleryAddedAt" timestamp with time zone
 );
 
 CREATE SEQUENCE public.medias_id_seq

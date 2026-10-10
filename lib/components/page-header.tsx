@@ -124,7 +124,15 @@ export const PageHeader = ({
               : 'items-start justify-between'
           )}
         >
-          <div className="min-w-0">
+          <div
+            className={cn(
+              'min-w-0',
+              // Without a description the title shares the action's centre
+              // line, as in the sticky header.
+              !description &&
+                (stackActionsOnMobile ? 'sm:self-center' : 'self-center')
+            )}
+          >
             {/* The section layout's PageHeader is the page's one h1; this is
                 the child page's own title, so it is an h2 that looks the same. */}
             <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
@@ -235,7 +243,17 @@ export const PageHeader = ({
                 : 'items-start justify-between'
             )}
           >
-            <div className="flex min-w-0 items-center gap-3">
+            <div
+              className={cn(
+                'flex min-w-0 items-center gap-3',
+                // A title with no description sits on the action's centre line
+                // instead of the top of the (taller) row, so the space is even
+                // above and below it. A stacked row is a column below `sm`,
+                // where centring would move the title sideways.
+                !description &&
+                  (stackActionsOnMobile ? 'sm:self-center' : 'self-center')
+              )}
+            >
               <div className="min-w-0">
                 {back ? (
                   <div className="flex items-center gap-2 max-md:flex-col max-md:items-start max-md:gap-1">

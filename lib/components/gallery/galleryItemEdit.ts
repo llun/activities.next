@@ -37,7 +37,10 @@ export const getGalleryPostHref = (
   return `/${getActorMentionPathSegment({ username, domain })}/${segment}`
 }
 
-/** The dialog's view of a gallery photo (always one that is posted). */
+/**
+ * The dialog's view of a gallery photo. A photo added in Gallery and not posted
+ * yet has no post to link to or to carry its alt text.
+ */
 export const toMediaDetailsDialogItem = (
   item: GalleryItemEntity,
   details: MediaDetailsEntity | null,
@@ -52,10 +55,14 @@ export const toMediaDetailsDialogItem = (
   description: item.attachment.name ?? '',
   decorative: false,
   details,
-  post: {
-    statusId: item.statusId,
-    href: getGalleryPostHref(ownerActorId, item.statusId)
-  }
+  unposted: item.posted === false || undefined,
+  post:
+    item.statusId === null
+      ? undefined
+      : {
+          statusId: item.statusId,
+          href: getGalleryPostHref(ownerActorId, item.statusId)
+        }
 })
 
 /**

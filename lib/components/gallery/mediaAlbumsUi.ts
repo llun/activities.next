@@ -39,7 +39,7 @@ export const getAlbumsPillLabel = (count: number): string =>
     : `In ${count} ${count === 1 ? 'album' : 'albums'}`
 
 export const NOT_ADDABLE_HINT =
-  'This photo can’t be added to an album until it’s posted and shown in your gallery.'
+  'This photo can’t be added to an album until it’s in your gallery and shown there.'
 
 export const albumAddedMessage = (title: string) => `Added to “${title}”`
 export const albumRemovedMessage = (title: string) => `Removed from “${title}”`

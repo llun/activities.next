@@ -120,6 +120,14 @@ interface Props {
   editStatus?: EditableStatus
   quotedStatus?: Status
   isMediaUploadEnabled?: boolean
+  /**
+   * Photos to open the composer with: the owner's media added in Gallery that
+   * no post uses yet ("Post" in Gallery). Taken once, by a new post's composer
+   * (not a reply, quote or edit), up to the instance's attachment limit. They
+   * are the owner's gallery photos, so abandoning the composer never deletes
+   * them.
+   */
+  initialMedia?: PostBoxAttachment[]
   onDiscardReply: () => void
   onDiscardQuote?: () => void
   onPostCreated: (status: Status, attachments: Attachment[]) => void
@@ -134,6 +142,7 @@ export const PostBox: FC<Props> = ({
   editStatus,
   quotedStatus,
   isMediaUploadEnabled,
+  initialMedia,
   onPostCreated,
   onPostUpdated,
   onDiscardReply,
@@ -174,6 +183,13 @@ export const PostBox: FC<Props> = ({
   // Media ids that belong to the status being edited. They are the status's own
   // media, so abandoning the composer must never delete them.
   const originalMediaIdsRef = useRef<Set<string>>(new Set())
+  // Media the composer opened with (`initialMedia`): the owner's gallery
+  // photos, which abandoning the composer must not delete either.
+  const keptMediaIdsRef = useRef<Set<string>>(new Set())
+  const initialMediaTakenRef = useRef(false)
+  // The photos seeded from `initialMedia`, and whether they have been drawn.
+  const seededMediaRef = useRef<PostBoxAttachment[]>([])
+  const seededMediaShownRef = useRef(false)
   const isMountedRef = useRef(true)
   // Media details live beside the attachments, keyed by media id, rather than
   // on PostBoxAttachment: that type is what goes to the outbox, and the details
@@ -219,6 +235,13 @@ export const PostBox: FC<Props> = ({
 
   useEffect(() => {
     postExtensionRef.current = postExtension
+    if (
+      postExtension.attachments.some((attachment) =>
+        keptMediaIdsRef.current.has(attachment.id)
+      )
+    ) {
+      seededMediaShownRef.current = true
+    }
   }, [postExtension])
 
   useEffect(() => {
@@ -362,6 +385,7 @@ export const PostBox: FC<Props> = ({
     attachments.forEach((attachment) => {
       if (attachment.file || attachment.isLoading) return
       if (originalMediaIdsRef.current.has(attachment.id)) return
+      if (keptMediaIdsRef.current.has(attachment.id)) return
       if (postedMediaIdsRef.current.has(attachment.id)) return
       deleteAccountMedia({ mediaId: attachment.id }).catch(() => undefined)
     })
@@ -1248,6 +1272,24 @@ export const PostBox: FC<Props> = ({
   }, [replyStatus, postExtension.fitnessFile, onRemoveFitnessFile])
 
   useEffect(() => {
+    // The photos a "Post" action in Gallery handed over. They seed the first
+    // time through. React StrictMode re-runs effects in development before the
+    // seeded photos have been drawn, and the profile can change identity
+    // later: while those photos are still the whole draft, seed them again
+    // rather than lose them.
+    const keptIds = keptMediaIdsRef.current
+    const currentAttachments = postExtensionRef.current.attachments
+    const seedStillWhole = seededMediaShownRef.current
+      ? keptIds.size > 0 &&
+        currentAttachments.length === keptIds.size &&
+        currentAttachments.every((attachment) => keptIds.has(attachment.id))
+      : currentAttachments.length === 0
+    const seedAttachments = !initialMediaTakenRef.current
+      ? (initialMedia ?? []).slice(0, maxMediaAttachments)
+      : seedStillWhole
+        ? seededMediaRef.current
+        : []
+
     // The composer is being re-targeted: media uploaded for the previous draft
     // and never posted is abandoned (unless a submit is still using it).
     if (!submitInFlightRef.current) {
@@ -1282,6 +1324,21 @@ export const PostBox: FC<Props> = ({
       dispatch(resetExtension())
       resetMediaState()
       setAllowPost(false)
+    }
+
+    const seeded = !replyStatus && !quotedStatus ? seedAttachments : []
+    initialMediaTakenRef.current = true
+    seededMediaRef.current = seeded
+    if (seeded.length === 0) seededMediaShownRef.current = false
+    keptMediaIdsRef.current = new Set(seeded.map((attachment) => attachment.id))
+    if (seeded.length > 0) {
+      postExtensionRef.current = {
+        ...postExtensionRef.current,
+        attachments: seeded
+      }
+      dispatch(setAttachments(seeded))
+      setAllowPost(true)
+      seeded.forEach((attachment) => void loadDetails(attachment.id))
     }
 
     if (!replyStatus) {

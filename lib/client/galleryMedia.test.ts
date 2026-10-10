@@ -2,6 +2,7 @@ import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  addMediaToGallery,
   getGalleryLifeList,
   getGalleryMap,
   getGalleryMedia,
@@ -137,5 +138,34 @@ describe('gallery media client module', () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       `/api/v1/accounts/${SEGMENT}/gallery/subjects`
     )
+  })
+  describe('addMediaToGallery', () => {
+    it('posts the media ids and resolves to the ones added', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ media_ids: ['9', '8'] }))
+
+      expect(await addMediaToGallery(['8', '9', 'gone'])).toEqual(['9', '8'])
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/v1/gallery/media', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ media_ids: ['8', '9', 'gone'] })
+      })
+    })
+
+    it('rejects with the server message when none could be added', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Not found' }), {
+        status: 404
+      })
+
+      await expect(addMediaToGallery(['1'])).rejects.toThrow('Not found')
+    })
+
+    it('falls back to a generic message', async () => {
+      fetchMock.mockResponseOnce('', { status: 500 })
+
+      await expect(addMediaToGallery(['1'])).rejects.toThrow(
+        'Failed to add to your gallery.'
+      )
+    })
   })
 })

@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 
+import { getConfig } from '@/lib/config'
 import { getDatabase } from '@/lib/database'
 import { getServerAuthSession } from '@/lib/services/auth/getSession'
 import { OWNER_GALLERY_AUDIENCE } from '@/lib/services/gallery/galleryAudience'
@@ -70,6 +71,7 @@ const Page = async ({ searchParams }: PageProps) => {
       initialCategory={(category ?? null) as MediaSubjectCategory | null}
       initialShow={show}
       initialPage={page}
+      isMediaUploadEnabled={Boolean(getConfig().mediaStorage)}
     />
   )
 }

@@ -196,18 +196,41 @@ describe('GET /api/v1/accounts/:id/gallery/media', () => {
         height: 100,
         mediaId: media!.id
       })
+
+      // Added in Gallery with no post: only the owner's list has it.
+      const added = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: '/test/route-added.jpg',
+          bytes: 1000,
+          mimeType: 'image/jpeg',
+          metaData: { width: 100, height: 100 }
+        },
+        details: { inGallery: false, subjectName: 'Added Egret' }
+      })
+      await database.addMediaToGallery({
+        actorId: ACTOR1_ID,
+        mediaIds: [added!.id]
+      })
     })
 
     it.each([
       {
         description: 'is the gallery when the owner sends nothing',
         query: '',
-        expected: ['Grey Heron', 'Lakes', 'Red Fox', 'Kingfisher']
+        expected: [
+          'Added Egret',
+          'Grey Heron',
+          'Lakes',
+          'Red Fox',
+          'Kingfisher'
+        ]
       },
       {
-        description: 'lists every posted photo with show=all',
+        description: 'lists every posted or added photo with show=all',
         query: '?show=all',
         expected: [
+          'Added Egret',
           'Hidden Wren',
           'Grey Heron',
           'Lakes',
@@ -218,12 +241,23 @@ describe('GET /api/v1/accounts/:id/gallery/media', () => {
       {
         description: 'lists the gallery with show=in_gallery',
         query: '?show=in_gallery',
-        expected: ['Grey Heron', 'Lakes', 'Red Fox', 'Kingfisher']
+        expected: [
+          'Added Egret',
+          'Grey Heron',
+          'Lakes',
+          'Red Fox',
+          'Kingfisher'
+        ]
       },
       {
         description: 'lists only hidden photos with show=hidden',
         query: '?show=hidden',
         expected: ['Hidden Wren']
+      },
+      {
+        description: 'lists only photos added in Gallery with show=not_posted',
+        query: '?show=not_posted',
+        expected: ['Added Egret']
       }
     ])('for the owner $description', async ({ query, expected }) => {
       signIn(seedActor1.email)
@@ -241,7 +275,31 @@ describe('GET /api/v1/accounts/:id/gallery/media', () => {
 
       expect(
         items.map((item: { inGallery: boolean }) => item.inGallery)
-      ).toEqual([false, true, true, true, true])
+      ).toEqual([true, false, true, true, true, true])
+    })
+
+    it('marks the owner photos no post uses, without a status', async () => {
+      signIn(seedActor1.email)
+
+      const { items } = await (await call(ACTOR1_ID, '?show=all')).json()
+
+      expect(
+        items.map((item: { posted: boolean; statusId: string | null }) => [
+          item.posted,
+          item.statusId === null
+        ])
+      ).toEqual([
+        [false, true],
+        [true, false],
+        [true, false],
+        [true, false],
+        [true, false],
+        [true, false]
+      ])
+      expect(items[0].attachment).toMatchObject({
+        mediaType: 'image/jpeg',
+        url: expect.stringContaining('/api/v1/files//test/route-added.jpg')
+      })
     })
 
     it.each([
@@ -252,16 +310,17 @@ describe('GET /api/v1/accounts/:id/gallery/media', () => {
       signIn(email)
       const baseline = await (await call(ACTOR1_ID)).json()
 
-      for (const show of ['all', 'hidden', 'in_gallery']) {
+      for (const show of ['all', 'hidden', 'in_gallery', 'not_posted']) {
         const body = await (await call(ACTOR1_ID, `?show=${show}`)).json()
         expect(body).toEqual(baseline)
-        expect(
-          body.items.map(
-            (item: { subject: { name: string } | null }) => item.subject?.name
-          )
-        ).not.toContain('Hidden Wren')
+        const shown = body.items.map(
+          (item: { subject: { name: string } | null }) => item.subject?.name
+        )
+        expect(shown).not.toContain('Hidden Wren')
+        expect(shown).not.toContain('Added Egret')
         for (const item of body.items) {
           expect(item).not.toHaveProperty('inGallery')
+          expect(item).not.toHaveProperty('posted')
         }
       }
     })

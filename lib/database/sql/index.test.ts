@@ -1,6 +1,5 @@
 import { Knex } from 'knex'
 
-import { ActorSQLDatabaseMixin } from './actor'
 import { FollowerSQLDatabaseMixin } from './follow'
 import { getSQLDatabase } from './index'
 import { MediaSQLDatabaseMixin } from './media'
@@ -21,10 +20,6 @@ vi.mock('@/lib/database/domains/like/queries', () => ({
   likeQueries: { createLike: createLikeMock, isActorLikedStatus: vi.fn() }
 }))
 
-vi.mock('@/lib/database/sql/actor', () => ({
-  ActorSQLDatabaseMixin: vi.fn()
-}))
-
 vi.mock('@/lib/database/sql/follow', () => ({
   FollowerSQLDatabaseMixin: vi.fn()
 }))
@@ -42,7 +37,6 @@ vi.mock('@/lib/database/sql/timeline', () => ({
 }))
 
 describe('getSQLDatabase', () => {
-  const actorMixinMock = ActorSQLDatabaseMixin as unknown as jest.Mock
   const followerMixinMock = FollowerSQLDatabaseMixin as unknown as jest.Mock
   const mediaMixinMock = MediaSQLDatabaseMixin as unknown as jest.Mock
   const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
@@ -62,10 +56,6 @@ describe('getSQLDatabase', () => {
       destroy: vi.fn().mockResolvedValue(undefined)
     } as unknown as Knex
 
-    const actorDatabase = {
-      getActorFromId: vi.fn(),
-      testPriority: 'actor'
-    }
     const followerDatabase = {
       getFollowers: vi.fn()
     }
@@ -81,7 +71,6 @@ describe('getSQLDatabase', () => {
     }
 
     _knexMock = knexDatabase
-    actorMixinMock.mockReturnValue(actorDatabase)
     followerMixinMock.mockReturnValue(followerDatabase)
     mediaMixinMock.mockReturnValue(mediaDatabase)
     statusMixinMock.mockReturnValue(statusDatabase)
@@ -90,7 +79,6 @@ describe('getSQLDatabase', () => {
     const database = getSQLDatabase(knexDatabase)
 
     return {
-      actorDatabase,
       database,
       followerDatabase,
       knexDatabase,
@@ -101,10 +89,17 @@ describe('getSQLDatabase', () => {
   }
 
   it('wires mixin dependencies correctly', () => {
-    const { actorDatabase, knexDatabase, mediaDatabase, statusDatabase } =
+    const { knexDatabase, mediaDatabase, statusDatabase } =
       createComposedDatabase()
+    // Actors are Kysely queries bound lazily to this Knex instance, plus the
+    // row mapper and the Knex deleteActorData.
+    const actorDatabase = expect.objectContaining({
+      getActorFromId: expect.any(Function),
+      getMastodonActors: expect.any(Function),
+      getActor: expect.any(Function),
+      deleteActorData: expect.any(Function)
+    })
 
-    expect(actorMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(followerMixinMock).toHaveBeenCalledWith(knexDatabase, actorDatabase)
     expect(mediaMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(statusMixinMock).toHaveBeenCalledWith(
