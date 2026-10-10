@@ -1,5 +1,13 @@
-import { ChevronLeft, ChevronRight, Pause, Play, X } from 'lucide-react'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, Info, Pause, Play, X } from 'lucide-react'
+import {
+  FC,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState
+} from 'react'
 import { createPortal } from 'react-dom'
 
 import { getMediaPublicDetails } from '@/lib/client'
@@ -65,6 +73,10 @@ export const MediasModal: FC<Props> = ({
     -1 | 0 | 1
   >(0)
   const [mounted, setMounted] = useState(false)
+  // The info overlay (alt text, public details, albums) is hidden whenever the
+  // viewer opens and stays at the owner's choice while moving between photos.
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const detailsOverlayId = useId()
   const touchStartX = useRef<number | null>(null)
   const touchEndX = useRef<number | null>(null)
   const isSwipeGesture = useRef(false)
@@ -73,6 +85,12 @@ export const MediasModal: FC<Props> = ({
   // menu.
   const swallowBackdropClick = useRef(false)
   const swipeTrackRef = useRef<HTMLDivElement>(null)
+  const detailsButtonRef = useRef<HTMLButtonElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  // True while focus sits inside the overlay, so it can be put back when the
+  // element holding it is removed (the albums pill remounts per photo).
+  const focusInOverlay = useRef(false)
   // Public details, keyed by media id, so going back to a photo reuses the
   // answer. The cache belongs to one viewing session: it is dropped whenever
   // the attachment list changes (which includes closing the modal, since the
@@ -86,7 +104,47 @@ export const MediasModal: FC<Props> = ({
   >({})
   const requestedMediaIds = useRef<Set<string>>(new Set())
   const detailsSession = useRef(0)
-  const currentMediaId = medias?.[currentIndex]?.mediaId ?? null
+  const currentMedia = medias?.[currentIndex] ?? null
+  const currentMediaId = currentMedia?.mediaId ?? null
+  const loadedDetails = currentMediaId
+    ? (detailsByMediaId[currentMediaId] ?? null)
+    : null
+  // Only details the panel will actually show: an all-null payload must not
+  // count as something to show.
+  const currentDetails = hasPublicDetailsContent(loadedDetails)
+    ? loadedDetails
+    : null
+  const currentAltText = currentMedia?.name?.trim() ?? ''
+  const hasOverlayContent = Boolean(
+    currentAltText || currentDetails || (albumsOwnerId && currentMediaId)
+  )
+  // The overlay renders only for a photo with something to show; the toggle
+  // keeps its state across photos that have nothing.
+  const overlayVisible = detailsOpen && hasOverlayContent
+
+  // Keeps focus off <body> when the overlay closes or hides, or the photo
+  // changes, while focus was inside it: it moves to the Details button; when
+  // that button turns invisible while focused, to the close button.
+  useLayoutEffect(() => {
+    const active = document.activeElement
+    const lostFocus = !active || active === document.body
+    const inOverlay =
+      Boolean(active && overlayRef.current?.contains(active)) ||
+      (focusInOverlay.current && lostFocus)
+    const onDetails = active === detailsButtonRef.current
+    if (!hasOverlayContent && onDetails) {
+      closeButtonRef.current?.focus()
+      focusInOverlay.current = false
+      return
+    }
+    if (inOverlay && (!overlayVisible || lostFocus)) {
+      const target = hasOverlayContent
+        ? detailsButtonRef.current
+        : closeButtonRef.current
+      target?.focus()
+      focusInOverlay.current = false
+    }
+  }, [overlayVisible, hasOverlayContent, currentMediaId])
 
   useEffect(() => {
     detailsSession.current += 1
@@ -94,6 +152,7 @@ export const MediasModal: FC<Props> = ({
     setDetailsByMediaId((current) =>
       Object.keys(current).length ? {} : current
     )
+    setDetailsOpen(false)
   }, [medias])
 
   useEffect(() => {
@@ -173,14 +232,17 @@ export const MediasModal: FC<Props> = ({
       ) {
         return
       }
-      if (e.key === 'Escape') handleClose()
+      if (e.key === 'Escape') {
+        if (overlayVisible) setDetailsOpen(false)
+        else handleClose()
+      }
       if (e.key === 'ArrowLeft') handlePrevious()
       if (e.key === 'ArrowRight') handleNext()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [medias, handleClose, handlePrevious, handleNext])
+  }, [medias, overlayVisible, handleClose, handlePrevious, handleNext])
 
   useEffect(() => {
     if (medias) {
@@ -303,21 +365,19 @@ export const MediasModal: FC<Props> = ({
   const visibleIndices = [previousIndex, currentIndex, nextIndex]
   const hasDuplicateVisibleIndices =
     new Set(visibleIndices).size !== visibleIndices.length
-  const loadedDetails = currentMediaId
-    ? (detailsByMediaId[currentMediaId] ?? null)
-    : null
-  // Only details the panel will actually show: an all-null payload must not
-  // shrink the photo and leave empty space under it.
-  const currentDetails = hasPublicDetailsContent(loadedDetails)
-    ? loadedDetails
-    : null
+  // The same cap for every photo, whatever it carries: the stage between the
+  // header (4.25rem) and the thumbnail strip (~5.5rem, 6.5rem from md) with a
+  // little room to spare.
+  const photoMaxHeight = shouldShowNavigation
+    ? 'max-h-[calc(100dvh-11rem)] md:max-h-[calc(100dvh-12rem)]'
+    : 'max-h-[calc(100dvh-6rem)]'
 
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Media viewer"
-      className="fixed inset-0 z-50 flex flex-col bg-black/90"
+      className="fixed inset-0 z-50 flex flex-col bg-black"
       onPointerDownCapture={() => {
         // A press that starts while the albums menu is open never closes the
         // viewer: outside the menu it only closes the menu, and inside it
@@ -332,6 +392,10 @@ export const MediasModal: FC<Props> = ({
           swallowBackdropClick.current = false
           return
         }
+        if (overlayVisible) {
+          setDetailsOpen(false)
+          return
+        }
         handleClose()
       }}
     >
@@ -343,19 +407,91 @@ export const MediasModal: FC<Props> = ({
         <span className="text-sm text-white">
           {shouldShowNavigation && `${currentIndex + 1} / ${medias.length}`}
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleClose}
-          aria-label="Close media dialog"
-          className="text-white hover:bg-white/20"
-        >
-          <X className="h-6 w-6" aria-hidden="true" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            ref={detailsButtonRef}
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation()
+              setDetailsOpen((open) => !open)
+            }}
+            aria-expanded={detailsOpen}
+            aria-controls={detailsOverlayId}
+            aria-hidden={hasOverlayContent ? undefined : true}
+            tabIndex={hasOverlayContent ? undefined : -1}
+            className={cn(
+              'text-white hover:bg-white/20 hover:text-white',
+              !hasOverlayContent && 'invisible'
+            )}
+          >
+            <Info className="h-5 w-5" aria-hidden="true" />
+            Details
+          </Button>
+          <Button
+            ref={closeButtonRef}
+            variant="ghost"
+            size="icon"
+            onClick={handleClose}
+            aria-label="Close media dialog"
+            className="text-white hover:bg-white/20 hover:text-white"
+          >
+            <X className="h-6 w-6" aria-hidden="true" />
+          </Button>
+        </div>
       </div>
 
       {/* Main content */}
       <div className="relative flex flex-1 items-center justify-center px-4 md:px-16">
+        {currentMedia ? (
+          <div
+            ref={overlayRef}
+            id={detailsOverlayId}
+            role="region"
+            aria-label="Photo details"
+            tabIndex={0}
+            hidden={!overlayVisible}
+            onClick={(e) => e.stopPropagation()}
+            onFocus={() => {
+              focusInOverlay.current = true
+            }}
+            onBlur={(e) => {
+              const target = e.target
+              queueMicrotask(() => {
+                if (target.isConnected) focusInOverlay.current = false
+              })
+            }}
+            className={cn(
+              'absolute bottom-3 z-20 mx-auto max-w-2xl space-y-3 divide-y divide-white/10 overflow-y-auto rounded-2xl bg-black/70 p-4 text-left text-white ring-1 ring-white/10 outline-none backdrop-blur-md empty:hidden focus-visible:ring-2 focus-visible:ring-white/60',
+              shouldShowNavigation
+                ? 'inset-x-3 max-h-[calc(50%-2.5rem)]'
+                : 'inset-x-3 max-h-[40%] md:max-h-[50%]'
+            )}
+          >
+            {currentAltText ? (
+              <p className="text-sm leading-relaxed text-white/90 select-text">
+                <CustomEmojiText text={currentAltText} tags={tags} />
+              </p>
+            ) : null}
+            {currentDetails ? (
+              <MediaDetailsPanel
+                details={currentDetails}
+                ownerName={ownerName}
+                className="pt-3 first:pt-0"
+              />
+            ) : null}
+            {albumsOwnerId && currentMediaId ? (
+              <MediaAlbumsControl
+                // Its own load and state for each photo.
+                key={currentMediaId}
+                mediaId={currentMediaId}
+                ownerId={albumsOwnerId}
+                variant="pill"
+                onChange={onAlbumsChange}
+                className="items-start pt-3 first:pt-0"
+              />
+            ) : null}
+          </div>
+        ) : null}
         {shouldShowNavigation && (
           <>
             <Button
@@ -366,7 +502,7 @@ export const MediasModal: FC<Props> = ({
                 handlePrevious()
               }}
               aria-label="Previous media"
-              className="absolute left-2 z-10 h-12 w-12 text-white hover:bg-white/20 md:left-4"
+              className="absolute left-2 z-10 h-12 w-12 text-white hover:bg-white/20 hover:text-white md:left-4"
             >
               <ChevronLeft className="h-8 w-8" aria-hidden="true" />
             </Button>
@@ -378,7 +514,7 @@ export const MediasModal: FC<Props> = ({
                 handleNext()
               }}
               aria-label="Next media"
-              className="absolute right-2 z-10 h-12 w-12 text-white hover:bg-white/20 md:right-4"
+              className="absolute right-2 z-10 h-12 w-12 text-white hover:bg-white/20 hover:text-white md:right-4"
             >
               <ChevronRight className="h-8 w-8" aria-hidden="true" />
             </Button>
@@ -406,18 +542,6 @@ export const MediasModal: FC<Props> = ({
             >
               {visibleIndices.map((index, panelIndex) => {
                 const isGif = medias[index].mediaType === 'image/gif'
-                // The details panel is shown under the active photo only. It
-                // needs room beneath the image, so the image cap shrinks and
-                // the caption-plus-panel region scrolls instead of being
-                // clipped by the swipe track's overflow-hidden.
-                const showsDetails = panelIndex === 1 && Boolean(currentDetails)
-                // The owner's albums pill sits under the active photo, so the
-                // photo gives up a little height for it.
-                const albumsMediaId =
-                  panelIndex === 1 && albumsOwnerId
-                    ? medias[index].mediaId
-                    : null
-
                 return (
                   <div
                     key={
@@ -430,7 +554,7 @@ export const MediasModal: FC<Props> = ({
                   >
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className="relative flex max-h-[80vh] max-w-full flex-col items-center justify-center cursor-default"
+                      className="relative flex max-w-full flex-col items-center justify-center cursor-default"
                     >
                       <div className="relative flex items-center justify-center">
                         <Media
@@ -446,16 +570,7 @@ export const MediasModal: FC<Props> = ({
                           }
                           className={cn(
                             'max-w-full object-contain',
-                            showsDetails
-                              ? 'max-h-[45vh]'
-                              : medias[index].name?.trim()
-                                ? 'max-h-[72vh]'
-                                : 'max-h-[80vh]',
-                            albumsMediaId &&
-                              !showsDetails &&
-                              (medias[index].name?.trim()
-                                ? 'max-h-[calc(72vh-3.5rem)]'
-                                : 'max-h-[calc(80vh-3.5rem)]')
+                            photoMaxHeight
                           )}
                           attachment={medias[index]}
                         />
@@ -470,7 +585,7 @@ export const MediasModal: FC<Props> = ({
                                 ? 'Pause animation'
                                 : 'Play animation'
                             }
-                            className="absolute bottom-2 left-2 z-10 flex size-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 backdrop-blur-xs"
+                            className="absolute top-2 left-2 z-10 flex size-9 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 backdrop-blur-xs"
                           >
                             {activeGifPlaying ? (
                               <Pause
@@ -485,52 +600,6 @@ export const MediasModal: FC<Props> = ({
                             )}
                           </button>
                         )}
-                      </div>
-                      {albumsMediaId && albumsOwnerId ? (
-                        <MediaAlbumsControl
-                          // Its own load and state for each photo.
-                          key={albumsMediaId}
-                          mediaId={albumsMediaId}
-                          ownerId={albumsOwnerId}
-                          variant="pill"
-                          onChange={onAlbumsChange}
-                          className="mt-2 w-full px-4"
-                        />
-                      ) : null}
-                      <div
-                        onTouchStart={
-                          showsDetails ? (e) => e.stopPropagation() : undefined
-                        }
-                        {...(showsDetails
-                          ? {
-                              tabIndex: 0,
-                              role: 'region',
-                              'aria-label': 'Photo details'
-                            }
-                          : {})}
-                        className={cn(
-                          'flex min-h-0 w-full flex-col items-center',
-                          showsDetails &&
-                            'max-h-[25vh] overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-white/60'
-                        )}
-                      >
-                        {medias[index].name?.trim() ? (
-                          <p
-                            onTouchStart={(e) => e.stopPropagation()}
-                            className="mt-2 max-h-24 max-w-2xl overflow-y-auto px-4 text-center text-sm leading-relaxed text-white/85 select-text"
-                          >
-                            <CustomEmojiText
-                              text={medias[index].name.trim()}
-                              tags={tags}
-                            />
-                          </p>
-                        ) : null}
-                        {panelIndex === 1 && currentDetails ? (
-                          <MediaDetailsPanel
-                            details={currentDetails}
-                            ownerName={ownerName}
-                          />
-                        ) : null}
                       </div>
                     </div>
                   </div>

@@ -752,11 +752,13 @@ describe('MediaAlbumsControl', () => {
       ).toBeVisible()
     })
 
-    it('shows nothing while loading, and nothing for a photo that is not the caller’s', async () => {
+    it('shows a skeleton while loading, and nothing for a photo that is not the caller’s', async () => {
       getMediaAlbumsMock.mockResolvedValue(null)
       const { container } = renderControl('pill')
 
-      expect(container).toBeEmptyDOMElement()
+      expect(
+        container.querySelector('[data-slot="skeleton-bar"]')
+      ).toBeInTheDocument()
       await act(async () => {})
       expect(container).toBeEmptyDOMElement()
     })

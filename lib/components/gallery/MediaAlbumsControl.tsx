@@ -142,16 +142,23 @@ export const MediaAlbumsControl: FC<Props> = ({
 
   if (status === 'hidden') return null
   if (status === 'loading') {
-    return variant === 'row'
-      ? frame(
-          <div className={className}>
-            <p role="status">
-              <span className="sr-only">Loading albums</span>
-              <SkeletonBar className="h-6 w-40" />
-            </p>
-          </div>
-        )
-      : null
+    return variant === 'row' ? (
+      frame(
+        <div className={className}>
+          <p role="status">
+            <span className="sr-only">Loading albums</span>
+            <SkeletonBar className="h-6 w-40" />
+          </p>
+        </div>
+      )
+    ) : (
+      <div className={cn('flex flex-col items-center', className)}>
+        <p role="status">
+          <span className="sr-only">Loading albums</span>
+          <SkeletonBar className="h-9 w-32 rounded-full bg-white/10 pointer-coarse:h-10" />
+        </p>
+      </div>
+    )
   }
   if (status === 'error') {
     // The lightbox pill sits on its always-dark backdrop and is centred; the
