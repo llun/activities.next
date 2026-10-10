@@ -44,7 +44,7 @@ export const LandingHero: FC<LandingHeroProps> = ({ serviceName }) => {
           aria-hidden="true"
           width={44}
           height={44}
-          className="h-11 w-11 rounded-full object-contain ring-2 ring-white/70"
+          className="h-11 w-11 rounded-[22.5%] object-contain ring-2 ring-white/70"
         />
         <span className="text-xl font-semibold tracking-tight">
           {serviceName}
