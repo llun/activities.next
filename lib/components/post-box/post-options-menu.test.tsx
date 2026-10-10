@@ -191,20 +191,44 @@ describe('PostOptionsMenu', () => {
   })
 
   it.each([
-    { quotePolicy: 'public', value: 'Public' },
-    { quotePolicy: 'followers', value: 'Public · Followers quote' },
-    { quotePolicy: 'nobody', value: 'Public · No quotes' }
+    { quotePolicy: 'public', words: null, icon: null },
+    { quotePolicy: 'followers', words: 'Followers can quote', icon: 'users' },
+    { quotePolicy: 'nobody', words: 'No one can quote', icon: 'ban' }
   ] as const)(
-    'shows "$value" on the Visibility row for quote policy $quotePolicy',
-    async ({ quotePolicy, value }) => {
+    'shows the visibility, plus the quote policy icon only when restricted ($quotePolicy)',
+    async ({ quotePolicy, words, icon }) => {
       renderMenu({ quotePolicy })
       await openMenu()
 
-      expect(
-        screen.getByRole('menuitem', { name: /^Visibility/ })
-      ).toHaveTextContent(`Visibility ${value}`)
+      const row = screen.getByRole('menuitem', { name: /^Visibility/ })
+      expect(row).toHaveTextContent(/^Visibility Public/)
+      if (!words || !icon) {
+        expect(row).not.toHaveTextContent(/can quote/)
+        expect(row.querySelector('svg.lucide-users, svg.lucide-ban')).toBeNull()
+        return
+      }
+      expect(row).toHaveTextContent(words)
+      expect(row.querySelector(`svg.lucide-${icon}`)).not.toBeNull()
+      // The words are for assistive technology only; the icon is the visual.
+      expect(row.querySelector('.sr-only')).toHaveTextContent(words)
     }
   )
+
+  it('marks the current quote policy row as checked in the submenu', async () => {
+    renderMenu({ quotePolicy: 'followers' })
+    await openMenu()
+
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: /^Visibility/ }), {
+      key: 'ArrowRight'
+    })
+    const quoteGroup = await screen.findByRole('group', {
+      name: /who can quote/i
+    })
+
+    expect(
+      within(quoteGroup).getByRole('menuitemradio', { name: /^Followers$/i })
+    ).toHaveAttribute('aria-checked', 'true')
+  })
 
   it('changes the visibility from the Visibility submenu', async () => {
     const onVisibilityChange = vi.fn()

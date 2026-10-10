@@ -1433,7 +1433,7 @@ export const PostBox: FC<Props> = ({
           onPollTypeChange={(pollType) => dispatch(setPollType(pollType))}
           onRemove={() => dispatch(setPollVisibility(false))}
         />
-        <div className="mt-3 flex items-center gap-2 border-t pt-3">
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2 border-t pt-3">
           <div className="flex min-w-0 items-center gap-1">
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
@@ -1566,7 +1566,8 @@ export const PostBox: FC<Props> = ({
                 onClick={onDiscardEdit}
                 // Below md only an icon: with the three 40px buttons on the
                 // left the toolbar must stay on one line at 320px.
-                className="max-md:w-8 max-md:has-[>svg]:px-0 md:has-[>svg]:px-3"
+                title="Cancel Edit"
+                className="max-md:size-10 max-md:has-[>svg]:px-0 md:has-[>svg]:px-3"
               >
                 <X className="size-4 md:hidden" aria-hidden="true" />
                 <span className="max-md:sr-only">Cancel Edit</span>

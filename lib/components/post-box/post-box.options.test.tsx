@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 
 import { Status, StatusType } from '@/lib/types/domain/status'
 
@@ -269,9 +275,7 @@ describe('PostBox options menu', () => {
       name: /who can quote/i
     })
     fireEvent.click(
-      Array.from(quoteGroup.querySelectorAll('[role="menuitemradio"]')).find(
-        (item) => item.textContent === 'No one'
-      ) as HTMLElement
+      within(quoteGroup).getByRole('menuitemradio', { name: /^no one$/i })
     )
     await waitFor(() =>
       expect(screen.queryByRole('menu')).not.toBeInTheDocument()

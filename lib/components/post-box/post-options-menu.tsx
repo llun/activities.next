@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 import { MastodonVisibility } from '@/lib/utils/getVisibility'
 
 import {
+  QUOTE_POLICY_OPTIONS,
   VISIBILITY_OPTIONS,
   VisibilityMenuOptions
 } from './visibility-selector'
@@ -91,7 +92,7 @@ const SwitchIndicator: FC<{ checked: boolean }> = ({ checked }) => (
   <span
     aria-hidden="true"
     data-state={checked ? 'checked' : 'unchecked'}
-    className="ml-auto inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full bg-control-off transition-colors data-[state=checked]:bg-primary"
+    className="ml-auto inline-flex h-[1.15rem] w-8 shrink-0 border border-transparent items-center rounded-full bg-control-off transition-colors data-[state=checked]:bg-primary"
   >
     <span
       className={cn(
@@ -153,15 +154,13 @@ export const PostOptionsMenu: FC<Props> = ({
     VISIBILITY_OPTIONS.find((option) => option.value === visibility) ??
     VISIBILITY_OPTIONS[0]
   const VisibilityIcon = currentVisibility.Icon
-  // A restricted "who can quote" shows next to the visibility, as the old
-  // toolbar pill did with its icon.
-  const quoteSuffix =
-    quotePolicy === 'followers'
-      ? ' · Followers quote'
-      : quotePolicy === 'nobody'
-        ? ' · No quotes'
-        : ''
-  const visibilityValue = `${currentVisibility.label}${quoteSuffix}`
+  // A restricted "who can quote" shows after the visibility as its own icon,
+  // as the old toolbar pill did; the words are for assistive technology.
+  const restrictedQuote =
+    quotePolicy === 'public'
+      ? undefined
+      : QUOTE_POLICY_OPTIONS.find((option) => option.value === quotePolicy)
+  const RestrictedQuoteIcon = restrictedQuote?.Icon
 
   return (
     <DropdownMenu>
@@ -244,9 +243,23 @@ export const PostOptionsMenu: FC<Props> = ({
             className="min-h-10 cursor-pointer gap-3 md:min-h-9"
           >
             <VisibilityIcon />
-            <span className="min-w-0 flex-1">Visibility</span>{' '}
-            <span className="min-w-0 truncate text-xs text-muted-foreground">
-              {visibilityValue}
+            <span className="shrink-0">Visibility</span>{' '}
+            <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+              <span className="min-w-0 truncate">
+                {currentVisibility.label}
+              </span>
+              {RestrictedQuoteIcon ? (
+                <>
+                  <RestrictedQuoteIcon
+                    aria-hidden="true"
+                    className="size-3.5 shrink-0 text-primary"
+                  />
+                  <span className="sr-only">
+                    {' '}
+                    {restrictedQuote?.label} can quote
+                  </span>
+                </>
+              ) : null}
             </span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
