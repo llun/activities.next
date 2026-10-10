@@ -10,7 +10,6 @@ import {
   FONT_STACK,
   PAGE_BACKGROUND,
   RADIUS_CARD,
-  RADIUS_FULL,
   TEXT_CHROME,
   TEXT_STRONG
 } from './theme'
@@ -59,7 +58,7 @@ const renderHeader = (baseUrl: string, host: string): string => {
     // alt is empty on purpose: the wordmark beside it says "Activities" in real
     // text, so alt text here would make a client with images off read
     // "Activities Activities example.com".
-    `<td width="28" style="width:28px;"><img src="${escapeHtml(logoUrl)}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;border-radius:${RADIUS_FULL};border:0;"></td>` +
+    `<td width="28" style="width:28px;"><img src="${escapeHtml(logoUrl)}" width="28" height="28" alt="" style="display:block;width:28px;height:28px;border-radius:6px;border:0;"></td>` +
     `<td style="padding-left:8px;font-family:${FONT_STACK};font-size:20px;font-weight:600;letter-spacing:-0.01em;color:${TEXT_STRONG};">Activities</td>` +
     `<td align="right" style="font-family:${FONT_STACK};font-size:13px;color:${TEXT_CHROME};">${escapeHtml(host)}</td>` +
     `</tr></table>`
