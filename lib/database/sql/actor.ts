@@ -1602,13 +1602,23 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       const medias = await trx('medias')
         .where('actorId', actorId)
         .select('originalBytes', 'thumbnailBytes')
-      const totalMediaBytes = medias.reduce(
-        (sum, media) =>
-          sum +
-          parseCounterValue(media.originalBytes) +
-          parseCounterValue(media.thumbnailBytes),
-        0
-      )
+      // A photo edit keeps the uploaded file and earlier renders beside the
+      // live one; they count toward the usage too.
+      const editFiles = await trx('media_edit_files')
+        .whereIn(
+          'mediaId',
+          trx('medias').where('actorId', actorId).select('id')
+        )
+        .select('bytes')
+      const totalMediaBytes =
+        medias.reduce(
+          (sum, media) =>
+            sum +
+            parseCounterValue(media.originalBytes) +
+            parseCounterValue(media.thumbnailBytes),
+          0
+        ) +
+        editFiles.reduce((sum, file) => sum + parseCounterValue(file.bytes), 0)
       if (persistedActor?.accountId && totalMediaBytes > 0) {
         await decreaseCounterValue(
           trx,
@@ -1911,6 +1921,15 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // without the foreign keys that cascade these on PostgreSQL).
       await trx('gallery_album_items').where('actorId', actorId).delete()
       await trx('gallery_albums').where('actorId', actorId).delete()
+
+      // Delete the photo edit files of the actor's media before the media
+      // (SQLite may run without the foreign key that cascades them).
+      await trx('media_edit_files')
+        .whereIn(
+          'mediaId',
+          trx('medias').where('actorId', actorId).select('id')
+        )
+        .delete()
 
       // Delete medias created by this actor
       await trx('medias').where('actorId', actorId).delete()

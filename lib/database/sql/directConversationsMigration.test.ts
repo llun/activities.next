@@ -1,23 +1,28 @@
-import knex from 'knex'
+import type { Knex } from 'knex'
 
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 import * as migration from '@/migrations/20260517002000_add_direct_conversations'
 import * as replyHashMigration from '@/migrations/20260519000000_add_status_reply_hash'
 import * as recipientlessReplyMigration from '@/migrations/20260520000000_backfill_recipientless_direct_reply_conversations'
 
 describe('direct conversations migration', () => {
-  let database: knex.Knex
+  let testDb: TestDatabase
+  let database: Knex
 
   const localActorId = 'https://local.test/users/alice'
   const remoteActorId = 'https://remote.test/users/bob'
   const statusId = 'https://remote.test/users/bob/statuses/direct-1'
 
   beforeEach(async () => {
-    database = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: { filename: ':memory:' }
-    })
+    // An empty database (no schema): the tests build the tables the
+    // migrations start from.
+    testDb = createTestDatabase()
+    await testDb.prepare()
+    database = testDb.knex
 
     await database.schema.createTable('actors', (table) => {
       table.string('id').primary()
@@ -96,7 +101,7 @@ describe('direct conversations migration', () => {
   })
 
   afterEach(async () => {
-    await database.destroy()
+    await testDb.destroy()
   })
 
   test('backfills direct timeline rows before removing legacy timeline rows', async () => {

@@ -1,13 +1,20 @@
 import { createHash, randomBytes } from 'crypto'
-import knex, { Knex } from 'knex'
+import type { Knex } from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
-import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
+import {
+  type ConversationStatusSource,
+  createConversationQueries
+} from '@/lib/database/domains/conversation/queries'
+import { bindDb, kyselyFor } from '@/lib/database/kysely'
 import {
   TestDatabaseTable,
   databaseBeforeAll,
   getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import {
+  type TestDatabase,
+  createTestDatabase
+} from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -23,86 +30,24 @@ import {
 import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
 
-const createMemoryKnex = () =>
-  knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: {
-      filename: ':memory:'
-    }
-  })
-
-const createDirectConversationTables = async (database: Knex) => {
-  await database.schema.createTable('actors', (table) => {
-    table.string('id').primary()
-    table.text('privateKey')
-  })
-  await database.schema.createTable('direct_conversations', (table) => {
-    table.string('id').primary()
-    table.string('rootStatusId').notNullable()
-    table.timestamp('createdAt', { useTz: true })
-    table.timestamp('updatedAt', { useTz: true })
-  })
-  await database.schema.createTable(
-    'direct_conversation_participants',
-    (table) => {
-      table.string('id').primary()
-      table.string('conversationId').notNullable()
-      table.string('actorId').notNullable()
-      table.timestamp('createdAt', { useTz: true })
-      table.timestamp('updatedAt', { useTz: true })
-      table.unique(['conversationId', 'actorId'])
-    }
+// The conversation facade over `knexDatabase`, with status hydration from
+// `statusDatabase` instead of the status domain.
+const conversationDatabase = (
+  knexDatabase: Knex,
+  statusDatabase: ConversationStatusSource
+) =>
+  bindDb(
+    () => kyselyFor(knexDatabase),
+    createConversationQueries(statusDatabase)
   )
-  await database.schema.createTable('direct_conversation_statuses', (table) => {
-    table.string('conversationId').notNullable()
-    table.string('statusId').notNullable()
-    table.timestamp('createdAt', { useTz: true }).notNullable()
-    table.timestamp('updatedAt', { useTz: true })
-    table.primary(['conversationId', 'statusId'])
-  })
-  await database.schema.createTable(
-    'direct_conversation_memberships',
-    (table) => {
-      table.bigIncrements('id').primary()
-      table.string('actorId').notNullable()
-      table.string('conversationId').notNullable()
-      table.string('lastStatusId').notNullable()
-      table.timestamp('lastStatusCreatedAt', { useTz: true }).notNullable()
-      table.boolean('unread').notNullable().defaultTo(false)
-      table.timestamp('readAt', { useTz: true }).nullable()
-      table.timestamp('hiddenAt', { useTz: true }).nullable()
-      table.timestamp('createdAt', { useTz: true })
-      table.timestamp('updatedAt', { useTz: true })
-      table.unique(['actorId', 'conversationId'])
-    }
-  )
-  // Read by syncDirectConversationForStatus to drop blocked participants.
-  await database.schema.createTable('blocks', (table) => {
-    table.string('id').primary()
-    table.string('actorId').notNullable()
-    table.string('targetActorId').notNullable()
-  })
-}
 
-const createStatusLookupTables = async (database: Knex) => {
-  await database.schema.createTable('statuses', (table) => {
-    table.string('id').primary()
-    table.text('url')
-    table.string('urlHash', 64)
-    table.string('actorId').notNullable()
-    table.string('type').notNullable()
-    table.string('reply').notNullable().defaultTo('')
-    table.timestamp('createdAt', { useTz: true })
-    table.timestamp('updatedAt', { useTz: true })
-    table.index('urlHash')
-  })
-  await database.schema.createTable('recipients', (table) => {
-    table.string('id').primary()
-    table.string('statusId').notNullable()
-    table.string('actorId').notNullable()
-    table.string('type').notNullable()
-  })
+// A fresh database per test, next to the suite-level one, so the membership
+// ids these tests address start at 1.
+const createIsolatedDatabase = async () => {
+  const testDb = createTestDatabase({ isolated: true })
+  await testDb.prepare()
+  await testDb.database.migrate()
+  return testDb
 }
 
 const statusForId = (id: string): Status =>
@@ -520,19 +465,20 @@ describe('ConversationDatabase', () => {
     })
   })
 
-  describe('sqlite implementation details', () => {
+  describe('implementation details', () => {
+    let testDb: TestDatabase
     let knexDatabase: Knex
     let database: Database
 
     beforeEach(async () => {
-      knexDatabase = createMemoryKnex()
-      database = getSQLDatabase(knexDatabase)
-      await database.migrate()
+      testDb = await createIsolatedDatabase()
+      knexDatabase = testDb.knex
+      database = testDb.database
       await seedDatabase(database)
     })
 
     afterEach(async () => {
-      await database.destroy()
+      await testDb.destroy()
     })
 
     test('falls back to the latest hydratable conversation status when membership last status is stale', async () => {
@@ -638,7 +584,7 @@ describe('ConversationDatabase', () => {
           .filter((statusId: string) => statusId === 'status-60')
           .map(statusForId)
       )
-      const database = DirectConversationSQLDatabaseMixin(knexDatabase, {
+      const database = conversationDatabase(knexDatabase, {
         getStatusesByIds
       } as unknown as StatusDatabase)
       const now = new Date()
@@ -708,7 +654,7 @@ describe('ConversationDatabase', () => {
           )
           .map(statusForId)
       )
-      const database = DirectConversationSQLDatabaseMixin(knexDatabase, {
+      const database = conversationDatabase(knexDatabase, {
         getStatusesByIds
       } as unknown as StatusDatabase)
       const now = new Date()
@@ -862,16 +808,17 @@ describe('ConversationDatabase', () => {
     })
   })
 
-  describe('direct conversation mixin', () => {
+  describe('direct conversation queries', () => {
+    let testDb: TestDatabase
     let knexDatabase: Knex
 
     beforeEach(async () => {
-      knexDatabase = createMemoryKnex()
-      await createDirectConversationTables(knexDatabase)
+      testDb = await createIsolatedDatabase()
+      knexDatabase = testDb.knex
     })
 
     afterEach(async () => {
-      await knexDatabase.destroy()
+      await testDb.destroy()
     })
 
     test('preserves database row order when status hydration returns unordered results', async () => {
@@ -880,10 +827,7 @@ describe('ConversationDatabase', () => {
           statusIds.map(statusForId).reverse()
         )
       } as unknown as StatusDatabase
-      const database = DirectConversationSQLDatabaseMixin(
-        knexDatabase,
-        statusDatabase
-      )
+      const database = conversationDatabase(knexDatabase, statusDatabase)
       const now = new Date()
 
       await knexDatabase('direct_conversations').insert({
@@ -951,10 +895,7 @@ describe('ConversationDatabase', () => {
             .map(statusForId)
         )
       } as unknown as StatusDatabase
-      const database = DirectConversationSQLDatabaseMixin(
-        knexDatabase,
-        statusDatabase
-      )
+      const database = conversationDatabase(knexDatabase, statusDatabase)
       const now = new Date()
 
       await knexDatabase('direct_conversations').insert([
@@ -1055,10 +996,7 @@ describe('ConversationDatabase', () => {
             .map(statusForId)
         )
       } as unknown as StatusDatabase
-      const database = DirectConversationSQLDatabaseMixin(
-        knexDatabase,
-        statusDatabase
-      )
+      const database = conversationDatabase(knexDatabase, statusDatabase)
       const now = new Date()
       const visibleConversations = Array.from({ length: 18 }, (_, index) => ({
         conversationId: `conversation-visible-${index}`,
@@ -1159,10 +1097,7 @@ describe('ConversationDatabase', () => {
             .map(statusForId)
         )
       } as unknown as StatusDatabase
-      const database = DirectConversationSQLDatabaseMixin(
-        knexDatabase,
-        statusDatabase
-      )
+      const database = conversationDatabase(knexDatabase, statusDatabase)
       const now = new Date()
 
       await knexDatabase('direct_conversations').insert({
@@ -1242,7 +1177,6 @@ describe('ConversationDatabase', () => {
     })
 
     test('resolves reply roots from lightweight status rows without full hydration', async () => {
-      await createStatusLookupTables(knexDatabase)
       const parentUrl = 'https://remote.test/statuses/lightweight-parent'
       const getStatus = vi.fn(async () => null)
       const getStatusFromUrl = vi.fn(async () => null)
@@ -1253,10 +1187,7 @@ describe('ConversationDatabase', () => {
           statusIds.map(statusForId)
         )
       } as unknown as StatusDatabase
-      const database = DirectConversationSQLDatabaseMixin(
-        knexDatabase,
-        statusDatabase
-      )
+      const database = conversationDatabase(knexDatabase, statusDatabase)
       const now = new Date()
 
       await knexDatabase('actors').insert([
@@ -1284,7 +1215,7 @@ describe('ConversationDatabase', () => {
       const trackStatusLookupQuery = (query: { sql: string }) => {
         if (
           query.sql.toLowerCase().startsWith('select') &&
-          query.sql.includes('from `statuses`')
+          query.sql.includes('from "statuses"')
         ) {
           statusLookupQueries.push(query.sql)
         }
@@ -1323,10 +1254,7 @@ describe('ConversationDatabase', () => {
           statusIds.map(statusForId)
         )
       } as unknown as StatusDatabase
-      const database = DirectConversationSQLDatabaseMixin(
-        knexDatabase,
-        statusDatabase
-      )
+      const database = conversationDatabase(knexDatabase, statusDatabase)
       const now = new Date()
       const conversationId = conversationIdForRoot('root-status')
 

@@ -1,5 +1,7 @@
 import { Knex } from 'knex'
 
+import { accountQueries } from '@/lib/database/domains/account/queries'
+import type { AccountDatabase } from '@/lib/database/domains/account/types'
 import { accountNoteQueries } from '@/lib/database/domains/accountNote/queries'
 import type { AccountNoteDatabase } from '@/lib/database/domains/accountNote/types'
 import { actorDomainBlockQueries } from '@/lib/database/domains/actorDomainBlock/queries'
@@ -12,6 +14,8 @@ import { blockQueries } from '@/lib/database/domains/block/queries'
 import type { BlockDatabase } from '@/lib/database/domains/block/types'
 import { bookmarkQueries } from '@/lib/database/domains/bookmark/queries'
 import type { BookmarkDatabase } from '@/lib/database/domains/bookmark/types'
+import { createConversationQueries } from '@/lib/database/domains/conversation/queries'
+import type { DirectConversationDatabase } from '@/lib/database/domains/conversation/types'
 import { customEmojiQueries } from '@/lib/database/domains/customEmoji/queries'
 import type { CustomEmojiDatabase } from '@/lib/database/domains/customEmoji/types'
 import { deadLetterJobQueries } from '@/lib/database/domains/deadLetterJob/queries'
@@ -22,6 +26,8 @@ import { featuredTagQueries } from '@/lib/database/domains/featuredTag/queries'
 import type { FeaturedTagDatabase } from '@/lib/database/domains/featuredTag/types'
 import { filterQueries } from '@/lib/database/domains/filter/queries'
 import type { FilterDatabase } from '@/lib/database/domains/filter/types'
+import { fitnessSettingsQueries } from '@/lib/database/domains/fitnessSettings/queries'
+import type { FitnessSettingsDatabase } from '@/lib/database/domains/fitnessSettings/types'
 import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
 import type { FollowedTagDatabase } from '@/lib/database/domains/followedTag/types'
 import { idempotencyQueries } from '@/lib/database/domains/idempotency/queries'
@@ -38,6 +44,13 @@ import { linkPreviewQueries } from '@/lib/database/domains/linkPreview/queries'
 import type { LinkPreviewDatabase } from '@/lib/database/domains/linkPreview/types'
 import { markerQueries } from '@/lib/database/domains/marker/queries'
 import type { MarkerDatabase } from '@/lib/database/domains/marker/types'
+import { mediaEditQueries } from '@/lib/database/domains/mediaEdit/queries'
+import type { MediaEditDatabase } from '@/lib/database/domains/mediaEdit/types'
+import { moderationQueries } from '@/lib/database/domains/moderation/queries'
+import type {
+  AdminAccountDatabase,
+  ModerationDatabase
+} from '@/lib/database/domains/moderation/types'
 import { muteQueries } from '@/lib/database/domains/mute/queries'
 import type { MuteDatabase } from '@/lib/database/domains/mute/types'
 import { notificationQueries } from '@/lib/database/domains/notification/queries'
@@ -68,27 +81,28 @@ import { statusQuoteQueries } from '@/lib/database/domains/statusQuote/queries'
 import type { StatusQuoteDatabase } from '@/lib/database/domains/statusQuote/types'
 import { statusReactionQueries } from '@/lib/database/domains/statusReaction/queries'
 import type { StatusReactionDatabase } from '@/lib/database/domains/statusReaction/types'
+import { stravaArchiveImportQueries } from '@/lib/database/domains/stravaArchiveImport/queries'
+import type { StravaArchiveImportDatabase } from '@/lib/database/domains/stravaArchiveImport/types'
 import { suggestionQueries } from '@/lib/database/domains/suggestion/queries'
 import type { SuggestionDatabase } from '@/lib/database/domains/suggestion/types'
 import { translationCacheQueries } from '@/lib/database/domains/translationCache/queries'
 import type { TranslationCacheDatabase } from '@/lib/database/domains/translationCache/types'
 import { trendsQueries } from '@/lib/database/domains/trends/queries'
 import type { TrendsDatabase } from '@/lib/database/domains/trends/types'
+import { wahooImportQueries } from '@/lib/database/domains/wahooImport/queries'
+import type { WahooImportDatabase } from '@/lib/database/domains/wahooImport/types'
 import {
   bindDb,
   installKnexKyselyGuard,
   kyselyFor
 } from '@/lib/database/kysely'
-import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
-import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessGearSQLDatabaseMixin } from '@/lib/database/sql/fitnessGear'
 import { FitnessRouteHeatmapSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmap'
 import { FitnessRouteHeatmapTileSQLDatabaseMixin } from '@/lib/database/sql/fitnessRouteHeatmapTile'
-import { FitnessSettingsSQLDatabaseMixin } from '@/lib/database/sql/fitnessSettings'
 import { FollowerSQLDatabaseMixin } from '@/lib/database/sql/follow'
 import { GallerySQLDatabaseMixin } from '@/lib/database/sql/gallery'
 import { GalleryAlbumSuggestionSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbumSuggestions'
@@ -97,11 +111,8 @@ import { GalleryLookupCacheSQLDatabaseMixin } from '@/lib/database/sql/galleryLo
 import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
-import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
-import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
-import { WahooImportSQLDatabaseMixin } from '@/lib/database/sql/wahooImport'
 import { Database } from '@/lib/database/types'
 
 export const getSQLDatabase = (database: Knex): Database => {
@@ -111,7 +122,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   // Domains that have moved to Kysely. `kyselyFor` runs on first use, so a
   // mocked Knex without a client still builds the facade.
   const kysely = () => kyselyFor(database)
-  const accountDatabase = AccountSQLDatabaseMixin(database)
+  const accountDatabase: AccountDatabase = bindDb(kysely, accountQueries)
   const accountNoteDatabase: AccountNoteDatabase = bindDb(
     kysely,
     accountNoteQueries
@@ -133,7 +144,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     FitnessRouteHeatmapSQLDatabaseMixin(database)
   const fitnessRouteHeatmapTileDatabase =
     FitnessRouteHeatmapTileSQLDatabaseMixin(database)
-  const fitnessSettingsDatabase = FitnessSettingsSQLDatabaseMixin(database)
+  const fitnessSettingsDatabase: FitnessSettingsDatabase = bindDb(
+    kysely,
+    fitnessSettingsQueries
+  )
   const galleryDatabase = GallerySQLDatabaseMixin(database)
   const galleryAlbumDatabase = GalleryAlbumSQLDatabaseMixin(database)
   const galleryAlbumSuggestionDatabase =
@@ -217,7 +231,11 @@ export const getSQLDatabase = (database: Knex): Database => {
     linkPreviewQueries
   )
   const mediaDatabase = MediaSQLDatabaseMixin(database)
-  const moderationDatabase = ModerationSQLDatabaseMixin(database)
+  const mediaEditDatabase: MediaEditDatabase = bindDb(kysely, mediaEditQueries)
+  const moderationDatabase: ModerationDatabase & AdminAccountDatabase = bindDb(
+    kysely,
+    moderationQueries
+  )
   const notificationDatabase: NotificationDatabase = bindDb(
     kysely,
     notificationQueries
@@ -235,9 +253,14 @@ export const getSQLDatabase = (database: Knex): Database => {
   )
   const oauthDatabase: OAuthDatabase = bindDb(kysely, oauthQueries)
   const searchDatabase: SearchDatabase = bindDb(kysely, searchQueries)
-  const stravaArchiveImportDatabase =
-    StravaArchiveImportSQLDatabaseMixin(database)
-  const wahooImportDatabase = WahooImportSQLDatabaseMixin(database)
+  const stravaArchiveImportDatabase: StravaArchiveImportDatabase = bindDb(
+    kysely,
+    stravaArchiveImportQueries
+  )
+  const wahooImportDatabase: WahooImportDatabase = bindDb(
+    kysely,
+    wahooImportQueries
+  )
   const suggestionDatabase: SuggestionDatabase = bindDb(
     kysely,
     suggestionQueries
@@ -271,9 +294,11 @@ export const getSQLDatabase = (database: Knex): Database => {
     (statusIds, currentActorId) =>
       statusDatabase.getStatusesByIds({ statusIds, currentActorId })
   )
-  const directConversationDatabase = DirectConversationSQLDatabaseMixin(
-    database,
-    statusDatabase
+  // The reads hydrate through the Knex status facade, outside this domain's
+  // transactions, until status is ported.
+  const directConversationDatabase: DirectConversationDatabase = bindDb(
+    kysely,
+    createConversationQueries(statusDatabase)
   )
   const timelineDatabase = TimelineSQLDatabaseMixin(database, statusDatabase)
 
@@ -330,6 +355,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...followedTagDatabase,
     ...likeDatabase,
     ...mediaDatabase,
+    ...mediaEditDatabase,
     ...moderationDatabase,
     ...notificationDatabase,
     ...pushSubscriptionDatabase,

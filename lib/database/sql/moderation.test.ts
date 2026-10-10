@@ -1,19 +1,28 @@
+import type { Knex } from 'knex'
+
 import {
   databaseBeforeAll,
   getTestDatabaseTable,
-  getTestSQLDatabase,
-  getTestSQLDatabaseWithInstance
+  getTestDatabaseWithInstance
 } from '@/lib/database/testUtils'
 import { Database } from '@/lib/database/types'
 import { seedActor1 } from '@/lib/stub/seed/actor1'
 import { seedActor2 } from '@/lib/stub/seed/actor2'
 import { EXTERNAL_ACTOR1, seedExternal1 } from '@/lib/stub/seed/external1'
 
+// Each test gets its own database. On PostgreSQL it is this worker's
+// `_isolated` database, recreated per test, so the suite runs on both backends.
+const getFreshDatabaseWithInstance = async () => {
+  const { database, instance, prepare } = getTestDatabaseWithInstance(true)
+  await prepare()
+  await database.migrate()
+  return { database, instance }
+}
+
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
-  await database.migrate()
+  const { database } = await getFreshDatabaseWithInstance()
   try {
     await test(database)
   } finally {
@@ -36,6 +45,10 @@ describe('ModerationDatabase', () => {
 
   beforeAll(async () => {
     await databaseBeforeAll(table)
+  })
+
+  afterAll(async () => {
+    await Promise.all(table.map(([, database]) => database.destroy()))
   })
 
   describe('setActorSuspended', () => {
@@ -164,8 +177,7 @@ describe('ModerationDatabase', () => {
 
   describe('approveAccount', () => {
     it('sets approvedAt when null and is idempotent', async () => {
-      const { database, instance } = getTestSQLDatabaseWithInstance()
-      await database.migrate()
+      const { database, instance } = await getFreshDatabaseWithInstance()
       try {
         const { accountId } = await seedLocalActor(database, seedActor1)
         // createAccount approves on insert; make it pending for this test.
@@ -191,8 +203,7 @@ describe('ModerationDatabase', () => {
 
   describe('rejectPendingAccount', () => {
     it('deletes a pending account and its actors and returns true', async () => {
-      const { database, instance } = getTestSQLDatabaseWithInstance()
-      await database.migrate()
+      const { database, instance } = await getFreshDatabaseWithInstance()
       try {
         const { accountId, actorId } = await seedLocalActor(
           database,
@@ -447,10 +458,7 @@ describe('ModerationDatabase', () => {
   describe('getAdminAccounts filters', () => {
     // A rich fixture: one local account per moderation state, a staff account,
     // and a remote actor — so every v1/v2 filter can be exercised.
-    const seedRichFixture = async (
-      database: Database,
-      instance: ReturnType<typeof getTestSQLDatabaseWithInstance>['instance']
-    ) => {
+    const seedRichFixture = async (database: Database, instance: Knex) => {
       const make = async (username: string) => {
         const accountId = await database.createAccount({
           email: `${username}@test.llun.dev`,
@@ -569,8 +577,7 @@ describe('ModerationDatabase', () => {
         absent: 'suspended'
       }
     ])('filters by $description', async ({ filter, present, absent }) => {
-      const { database, instance } = getTestSQLDatabaseWithInstance()
-      await database.migrate()
+      const { database, instance } = await getFreshDatabaseWithInstance()
       try {
         const ids = await seedRichFixture(database, instance)
         const records = await database.getAdminAccounts({
@@ -633,8 +640,7 @@ describe('ModerationDatabase', () => {
 
   describe('getSessionIpsForAccounts', () => {
     it('returns latest-first distinct ips per account', async () => {
-      const { database, instance } = getTestSQLDatabaseWithInstance()
-      await database.migrate()
+      const { database, instance } = await getFreshDatabaseWithInstance()
       try {
         const { accountId, actorId } = await seedLocalActor(
           database,
@@ -663,8 +669,7 @@ describe('ModerationDatabase', () => {
 
   describe('setReportResolution', () => {
     it('stamps and clears the action-taken workflow columns', async () => {
-      const { database, instance } = getTestSQLDatabaseWithInstance()
-      await database.migrate()
+      const { database, instance } = await getFreshDatabaseWithInstance()
       try {
         const report = await database.createReport({
           actorId: 'https://test.llun.dev/users/reporter',

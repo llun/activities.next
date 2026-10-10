@@ -49,6 +49,25 @@ describe('getAttachmentMediaMetadata', () => {
     })
   })
 
+  it('snapshots no thumbnail for an edited photo, whose thumbnail is stale', () => {
+    expect(
+      getAttachmentMediaMetadata(
+        {
+          blurhash: 'LEHV6nWB2yk8pyo0adR*',
+          focus: undefined,
+          thumbnail: {
+            path: 'medias/2026-08-25/thumb.webp',
+            bytes: 1000,
+            mimeType: 'image/webp',
+            metaData: { width: 200, height: 150 }
+          },
+          edit: { version: 1, editedAt: Date.now() }
+        },
+        'llun.test'
+      ).thumbnailUrl
+    ).toBeNull()
+  })
+
   it.each([
     ['a media row with none of them', {}],
     ['no media row at all', null],

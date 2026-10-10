@@ -65,39 +65,39 @@ export const removeRouteMapAttachmentsAndMedia = async ({
       accountId
     })
 
-    if (media) {
-      const filePaths = [
-        media.original.path,
-        ...(media.thumbnail ? [media.thumbnail.path] : [])
-      ]
-
-      const deletionResults = await Promise.allSettled(
-        filePaths.map((path) => deleteMediaFile(database, path))
-      )
-
-      deletionResults.forEach((result, index) => {
-        if (result.status === 'rejected' || !result.value) {
-          logger.warn({
-            message: 'Failed to delete replaced map media file from storage',
-            statusId,
-            mediaId,
-            path: filePaths[index],
-            ...(result.status === 'rejected'
-              ? { err: toLoggableError(result.reason) }
-              : {})
-          })
-        }
-      })
-    }
-
-    const deletedMedia = await database.deleteMedia({ mediaId })
-    if (!deletedMedia) {
+    // The row goes first and reports every file it kept (the map, its
+    // thumbnail, and the uploaded original and earlier renders if the owner
+    // edited the map in the photo editor), read under its row lock so a save
+    // committing meanwhile cannot leave one behind.
+    const deleted = await database.deleteMediaWithFiles({ mediaId })
+    if (deleted.status !== 'deleted') {
       logger.warn({
         message: 'Failed to delete replaced map media database record',
         statusId,
         mediaId
       })
+      continue
     }
+    if (!media) continue
+
+    const filePaths = deleted.files
+    const deletionResults = await Promise.allSettled(
+      filePaths.map((path) => deleteMediaFile(database, path))
+    )
+
+    deletionResults.forEach((result, index) => {
+      if (result.status === 'rejected' || !result.value) {
+        logger.warn({
+          message: 'Failed to delete replaced map media file from storage',
+          statusId,
+          mediaId,
+          path: filePaths[index],
+          ...(result.status === 'rejected'
+            ? { err: toLoggableError(result.reason) }
+            : {})
+        })
+      }
+    })
   }
 }
 

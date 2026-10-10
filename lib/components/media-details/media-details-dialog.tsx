@@ -41,6 +41,8 @@ import {
   updateNote
 } from '@/lib/client'
 import { MediaAlbumsControl } from '@/lib/components/gallery/MediaAlbumsControl'
+import { PhotoEditPreview } from '@/lib/components/photo-editor/PhotoEditPreview'
+import type { EditedPosts } from '@/lib/components/photo-editor/PhotoEditorDialog'
 import { Alert } from '@/lib/components/surface/Alert'
 import { Badge } from '@/lib/components/ui/badge'
 import { Button } from '@/lib/components/ui/button'
@@ -66,7 +68,10 @@ import {
   STALE_PLACE_LOOKUP_MS,
   STALE_SUBJECT_LOOKUP_MS
 } from '@/lib/services/medias/lookupStaleness'
-import type { MediaDetailsEntity } from '@/lib/services/medias/types'
+import type {
+  MediaDetailsEntity,
+  MediaStorageSaveFileOutput
+} from '@/lib/services/medias/types'
 import {
   IucnCategory,
   MEDIA_PLACE_PRECISIONS,
@@ -165,6 +170,15 @@ interface Props {
    * made, separately from Save details.
    */
   ownerId?: string
+  /**
+   * The photo editor saved (or reverted) an item: `media` is the fresh owner
+   * entity, with the new url and size. The composer takes them over.
+   */
+  onMediaEdited?: (
+    id: string,
+    media: MediaStorageSaveFileOutput,
+    posts: EditedPosts
+  ) => void
   /**
    * Where the dialog is opened. `composer` (the default) is the post box's
    * upload flow. `gallery` is Edit details from the viewer or Select mode: the
@@ -602,6 +616,7 @@ export const MediaDetailsDialog: FC<Props> = ({
   onDetailsRefreshed,
   suggestionsPending = {},
   ownerId,
+  onMediaEdited,
   context = 'composer',
   onAdd,
   onDiscard,
@@ -696,7 +711,19 @@ export const MediaDetailsDialog: FC<Props> = ({
   // The selected item can disappear (removed or failed upload); clamp.
   const foundIndex = items.findIndex((entry) => entry.id === selectedId)
   const index = Math.max(0, foundIndex)
-  const item: MediaDetailsDialogItem | undefined = items[index]
+  // Photos saved from the editor show their new file at once, even before the
+  // parent hands over updated items.
+  const [editedFiles, setEditedFiles] = useState<
+    Record<string, Pick<MediaDetailsDialogItem, 'url' | 'width' | 'height'>>
+  >({})
+  const listedItem: MediaDetailsDialogItem | undefined = items[index]
+  const item = useMemo(
+    () =>
+      listedItem && editedFiles[listedItem.id]
+        ? { ...listedItem, ...editedFiles[listedItem.id] }
+        : listedItem,
+    [listedItem, editedFiles]
+  )
   const total = items.length
   // Add to gallery: a file's id changes when its upload finishes (a temporary
   // id gives way to the media id). The dialog stays on the same position.
@@ -725,6 +752,30 @@ export const MediaDetailsDialog: FC<Props> = ({
       active = false
     }
   }, [])
+
+  const handleMediaEdited = (
+    id: string,
+    media: MediaStorageSaveFileOutput,
+    posts: EditedPosts
+  ) => {
+    setEditedFiles((current) => ({
+      ...current,
+      [id]: {
+        url: media.url,
+        width: media.meta.original.width,
+        height: media.meta.original.height
+      }
+    }))
+    if (media.details) {
+      const fresh = media.details
+      const base = itemsRef.current.find((entry) => entry.id === id)
+      setFetched((current) => ({
+        ...current,
+        [id]: { base: base?.details ?? null, value: fresh }
+      }))
+    }
+    onMediaEdited?.(id, media, posts)
+  }
 
   const patchDraft = useCallback(
     (patch: Partial<MediaDetailsDraft>) => {
@@ -1417,7 +1468,8 @@ export const MediaDetailsDialog: FC<Props> = ({
                   poster={item.posterUrl}
                   className="max-h-[50dvh] w-full object-contain"
                 />
-              ) : (
+              ) : item.upload ? (
+                // Still uploading (or failed): there is no media to edit yet.
                 <img
                   src={item.url}
                   alt={
@@ -1426,6 +1478,21 @@ export const MediaDetailsDialog: FC<Props> = ({
                   }
                   className="max-h-[50dvh] w-full object-contain"
                 />
+              ) : (
+                <PhotoEditPreview
+                  key={item.id}
+                  item={{ ...item, details }}
+                  onEdited={handleMediaEdited}
+                >
+                  <img
+                    src={item.url}
+                    alt={
+                      effectiveDescription(draft) ??
+                      `Preview of item ${index + 1}`
+                    }
+                    className="max-h-[50dvh] w-full object-contain"
+                  />
+                </PhotoEditPreview>
               )}
             </div>
             {total > 1 ? (

@@ -93,6 +93,9 @@ export interface MediaPublicDetails {
     // name does not.
     countryCode: string | null
   } | null
+  // When the owner last edited the photo (ISO 8601); null when it shows the
+  // file it was uploaded as.
+  editedAt: string | null
 }
 
 // ---------------------------------------------------------------------------

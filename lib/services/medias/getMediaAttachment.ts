@@ -28,6 +28,16 @@ const mediaType = (mimeType: string): MediaType => {
   return MediaType.enum.unknown
 }
 
+/**
+ * The thumbnail that stands for the media's live file. A photo edit replaces
+ * the image but not a thumbnail a client uploaded for it, which still shows
+ * the photo as it was, so an edited photo has none: `preview_url` falls back
+ * to the edited image itself. Reverting the edit brings the thumbnail back.
+ */
+export const getLiveThumbnail = (
+  media: Pick<Media, 'thumbnail' | 'edit'>
+): Media['thumbnail'] => (media.edit?.editedAt ? undefined : media.thumbnail)
+
 // Builds the Mastodon MediaAttachment entity for an already-stored media row.
 // The public URL is reconstructed from the stored path with `getMediaFileUrl`,
 // without going back through the storage driver. This is the single source of
@@ -45,8 +55,9 @@ export const getMediaAttachment = (
   options: { details?: MediaDetailsEntity } = {}
 ): MediaStorageSaveFileOutput => {
   const url = getMediaFileUrl(host, media.original.path)
-  const previewUrl = media.thumbnail
-    ? getMediaFileUrl(host, media.thumbnail.path)
+  const thumbnail = getLiveThumbnail(media)
+  const previewUrl = thumbnail
+    ? getMediaFileUrl(host, thumbnail.path)
     : media.original.mimeType.startsWith('image')
       ? url
       : null
@@ -62,9 +73,7 @@ export const getMediaAttachment = (
     preview_remote_url: null,
     meta: {
       original: mediaMeta(media.original.metaData),
-      ...(media.thumbnail
-        ? { small: mediaMeta(media.thumbnail.metaData) }
-        : {}),
+      ...(thumbnail ? { small: mediaMeta(thumbnail.metaData) } : {}),
       ...(media.focus ? { focus: media.focus } : {})
     },
     // Mastodon emits null (not '') when no alt text is set. Empty and
