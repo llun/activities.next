@@ -246,7 +246,9 @@ export function FitnessImport({ actorHandle }: FitnessImportProps) {
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span>{getFitnessImportFileIcon(fileState)}</span>
-                      <span className="font-medium">{file.fileName}</span>
+                      <span className="min-w-0 break-all font-medium">
+                        {file.fileName}
+                      </span>
                       <span className="text-xs uppercase text-muted-foreground">
                         {file.fileType}
                       </span>
