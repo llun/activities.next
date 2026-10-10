@@ -1,9 +1,11 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 describe('CustomEmojiSQLDatabaseMixin', () => {
-  const database = getTestSQLDatabase()
+  const testDb = createTestDatabase()
+  const { database } = testDb
 
   beforeAll(async () => {
+    await testDb.prepare()
     await database.migrate()
   })
 

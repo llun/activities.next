@@ -1,8 +1,4 @@
-import {
-  databaseBeforeAll,
-  getTestDatabaseTable,
-  getTestSQLDatabase
-} from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 
 const ACTOR_ID = 'https://test.llun.dev/users/owner'
@@ -10,22 +6,18 @@ const ACTOR_ID = 'https://test.llun.dev/users/owner'
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
-  await database.migrate()
+  // Each test starts from an empty, migrated database.
+  const testDb = createTestDatabase()
+  await testDb.prepare()
+  await testDb.database.migrate()
   try {
-    await test(database)
+    await test(testDb.database)
   } finally {
-    await database.destroy()
+    await testDb.destroy()
   }
 }
 
 describe('FollowedTagDatabase', () => {
-  const table = getTestDatabaseTable()
-
-  beforeAll(async () => {
-    await databaseBeforeAll(table)
-  })
-
   it('follows a tag idempotently and normalizes the name', async () => {
     await withFreshDatabase(async (database) => {
       const first = await database.followTag({
