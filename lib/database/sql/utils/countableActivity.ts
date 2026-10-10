@@ -7,6 +7,12 @@ import { Knex } from 'knex'
  * rollup needed it first, because a second copy is how two surfaces start
  * reporting different numbers for the same activities.
  *
+ * The Kysely gear rollups and activity list use its twin, `countableActivity`
+ * (lib/database/kysely/countableActivity.ts); this Knex version still serves
+ * the unported fitness file and route queries. The two must stay equivalent, so
+ * change both together: lib/database/kysely/countableActivity.test.ts runs them
+ * over the same rows and fails when they pick different ones.
+ *
  * Not quite identical to that query, deliberately: the summary additionally
  * requires a non-null `activityStartTime` because it buckets by it, but it does
  * NOT require an `activityType`: an untyped activity is counted as its own
