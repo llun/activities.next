@@ -145,7 +145,8 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
     allowMediaDomains,
     allowRemoteMediaDomains,
     mediaStorage,
-    fitnessStorage
+    fitnessStorage,
+    photoEditorModelOrigins
   } = getSecurityHeaderConfig()
   const mediaStorageSource = getCspSource(getStorageHostname(mediaStorage))
   const fitnessStorageSource = getCspSource(getStorageHostname(fitnessStorage))
@@ -165,6 +166,14 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
   // Without a browser-usable Mapbox/Apple provider the maps fall back to the
   // keyless MapLibre + OpenFreeMap stack, so allow those origins instead.
   const allowFreeMapSources = mapProvider === 'osm'
+  // The photo editor's subject model (SlimSAM on onnxruntime-web): the
+  // browser downloads the model files from these origins and compiles the
+  // runtime's WebAssembly, which needs `'wasm-unsafe-eval'` like MapKit. Both
+  // are added only while the model is on (ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL
+  // is not `off`). The origins come from the validated config, already in CSP
+  // source form (the default includes the `*.hf.co` wildcard).
+  const allowPhotoEditorModel = photoEditorModelOrigins !== null
+  const photoEditorModelSources = photoEditorModelOrigins ?? []
   const serviceMediaSources = getConfiguredCspSources(allowMediaDomains)
   const remoteMediaSources = getRemoteMediaCspSources(allowRemoteMediaDomains)
   // The canonical app origin (ACTIVITIES_HOST). Server-rendered pages load the
@@ -189,6 +198,7 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
       ...(fitnessStorageEndpointSource ? [fitnessStorageEndpointSource] : []),
       ...getDefaultS3CspSources(mediaStorage),
       ...getDefaultS3CspSources(fitnessStorage),
+      ...photoEditorModelSources,
       ...(isDevelopment() ? ['ws:', 'wss:'] : [])
     ])
   ).join(' ')
@@ -220,16 +230,19 @@ const buildContentSecurityPolicy = (frameAncestors: string): string => {
       'blob:'
     ])
   ).join(' ')
-  const scriptSources = [
-    "'self'",
-    "'unsafe-inline'",
-    ...(isDevelopment() ? ["'unsafe-eval'"] : []),
-    ...(allowMapboxSources ? ['https://api.mapbox.com'] : []),
-    ...(allowFreeMapSources ? MAPLIBRE_CDN_CSP_SOURCES : []),
-    ...(allowAppleMapSources
-      ? [...APPLE_MAPKIT_CDN_CSP_SOURCES, "'wasm-unsafe-eval'"]
-      : [])
-  ].join(' ')
+  const scriptSources = Array.from(
+    new Set([
+      "'self'",
+      "'unsafe-inline'",
+      ...(isDevelopment() ? ["'unsafe-eval'"] : []),
+      ...(allowMapboxSources ? ['https://api.mapbox.com'] : []),
+      ...(allowFreeMapSources ? MAPLIBRE_CDN_CSP_SOURCES : []),
+      ...(allowAppleMapSources
+        ? [...APPLE_MAPKIT_CDN_CSP_SOURCES, "'wasm-unsafe-eval'"]
+        : []),
+      ...(allowPhotoEditorModel ? ["'wasm-unsafe-eval'"] : [])
+    ])
+  ).join(' ')
   const styleSources = [
     "'self'",
     "'unsafe-inline'",

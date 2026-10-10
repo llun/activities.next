@@ -1,3 +1,6 @@
+// Sub-path import, not the barrel: this module is part of proxy.ts's Edge
+// import graph, and the barrel's wrapper pulls in the logger.
+import { getPhotoEditorConfig } from './photoEditor'
 import { getEnvironmentList } from './utils'
 
 export type SecurityHeaderStorageConfig = {
@@ -14,6 +17,9 @@ export type SecurityHeaderConfig = {
   allowRemoteMediaDomains: string[] | null
   mediaStorage: SecurityHeaderStorageConfig
   fitnessStorage: SecurityHeaderStorageConfig
+  // The origins the photo editor downloads its subject model from; null when
+  // the model is off (it then needs neither these nor `'wasm-unsafe-eval'`).
+  photoEditorModelOrigins: string[] | null
 }
 
 const getOptionalEnvironmentList = (key: string): string[] | null => {
@@ -39,6 +45,11 @@ const stripUndefinedStorageConfig = (
   return nextConfig
 }
 
+const getPhotoEditorModelOrigins = (): string[] | null => {
+  const { subjectModel, connectOrigins } = getPhotoEditorConfig()
+  return subjectModel ? connectOrigins : null
+}
+
 export const getSecurityHeaderConfig = (): SecurityHeaderConfig => ({
   allowMediaDomains: getEnvironmentList('ACTIVITIES_ALLOW_MEDIA_DOMAINS'),
   allowRemoteMediaDomains: getOptionalEnvironmentList(
@@ -58,5 +69,6 @@ export const getSecurityHeaderConfig = (): SecurityHeaderConfig => ({
     hostname: process.env.ACTIVITIES_FITNESS_STORAGE_HOSTNAME,
     endpoint: process.env.ACTIVITIES_FITNESS_STORAGE_ENDPOINT,
     mapboxAccessToken: process.env.ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN
-  })
+  }),
+  photoEditorModelOrigins: getPhotoEditorModelOrigins()
 })

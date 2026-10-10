@@ -21,6 +21,10 @@ import { GalleryLookupConfig, getGalleryConfig } from './gallery'
 import { getHostConfigFromEnvironment } from './host'
 import { MediaStorageConfig, getMediaStorageConfig } from './mediaStorage'
 import { OpenTelemetryConfig, getOtelConfig } from './opentelemetry'
+import {
+  type PhotoEditorConfig,
+  getPhotoEditorConfig as readPhotoEditorConfig
+} from './photoEditor'
 import { PushConfig, getPushConfig } from './push'
 import { QueueConfig, getQueueConfig } from './queue'
 import { RequestConfig, getRequestConfig } from './request'
@@ -202,3 +206,28 @@ export const buildBaseURL = (host: string): string => {
 }
 
 export const getBaseURL = (): string => buildBaseURL(getConfig().host)
+
+export type {
+  PhotoEditorConfig,
+  PhotoEditorModelFile,
+  PhotoEditorSubjectModel
+} from './photoEditor'
+
+let didWarnAboutPhotoEditorConfig = false
+
+// The photo editor's subject model settings (see lib/config/photoEditor.ts),
+// read at runtime on every call. An invalid value turns Select subject off and
+// logs one warning per process; it never fails a request or the build.
+export const getPhotoEditorConfig = (): PhotoEditorConfig =>
+  readPhotoEditorConfig({
+    onInvalid: (message) => {
+      if (
+        didWarnAboutPhotoEditorConfig ||
+        process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD
+      ) {
+        return
+      }
+      didWarnAboutPhotoEditorConfig = true
+      logger.warn({ message })
+    }
+  })

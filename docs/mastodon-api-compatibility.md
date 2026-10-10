@@ -490,9 +490,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `/api/v1/media/:id/edit` (`write` or `write:media`, or the web session):
   `GET` answers `{ media, edit, usage, capabilities }`, `GET …/edit/source`
   streams the uploaded original from this origin, `POST` (multipart: `file`,
-  `recipe`, `base_version`, `save_id`, `apply_to_posts`, `focus`) stores the
-  browser's render as the live file, and `POST …/edit/revert` (JSON) restores
-  the original. Errors are `{ error }`; a stale `base_version` is
+  `recipe`, `base_version`, `save_id`, `apply_to_posts`, `focus`, plus a
+  `mask_<id>` PNG per new or changed subject or brush mask) stores the
+  browser's render as the live file, `GET …/edit/masks/:maskId` streams one
+  stored mask PNG (owner-only, `Cache-Control: private`; never federated nor
+  in any public entity), and `POST …/edit/revert` (JSON) restores
+  the original and removes the masks. `GET` lists the stored masks as
+  `edit.masks: [{ id, url }]` and offers the browser's subject model as
+  `capabilities.subjectModel` (`null` when the server turned it off). Errors are `{ error }`; a stale `base_version` is
   `409 { error: 'stale', edit: { version, saveId } }`. The owner's `details`
   gains `edit: { version, editedAt }` and the public media details gain
   `editedAt` (ISO 8601, null when unedited). The Mastodon `MediaAttachment`
@@ -572,6 +577,21 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   returns `items`, the owner's gallery photos in the order asked, leaving out
   any that are not. Reads are limited to 20 (suggestions) and 120 (photos) per
   actor per minute (429, in process).
+- **Backdated statuses** — `POST /api/v1/statuses` accepts an optional
+  `created_at` (JSON or form field): an ISO 8601 date-time with `Z` or an
+  offset, for example to post a photo album dated at the end of the event it
+  records. The status, its poll and its attachments are stored with that time,
+  the status's UUIDv7 `id` is minted from it (so id order still matches
+  `created_at` order on every timeline), and the federated `Create`/`Note`
+  carries it as `published`. A blank value means now. It is answered with a
+  422 `{ error }` when it is not a date-time with a zone, is at or before 1970-01-01T00:00:00Z,
+  is more than one minute in the future, or is combined with `scheduled_at`. A
+  poll's `expires_in` still counts from the time of the request. A backdated
+  status lands at its backdated position on timelines, not at the top as a new
+  post, so clients polling with `since_id`/`min_id` will not pick it up, and a
+  backdated direct message older than a conversation's latest message does not
+  mark the conversation unread or move it up the conversations list (its mention
+  notification still arrives). Mastodon clients never send it.
 - **`?format=activities_next`** — timeline endpoints and
   `GET /api/v1/trends/statuses` accept this query flag to return the raw internal
   status JSON instead of the Mastodon status shape (the web `/explore` Posts tab

@@ -75,6 +75,19 @@ export const getMediaEdit = async (id: string): Promise<MediaEditState> => {
  */
 export const getMediaEditSourceUrl = (id: string) => `${editPath(id)}/source`
 
+/**
+ * One stored mask image, from the `url` the edit state lists for it (the
+ * owner-only mask route). Throws a `MediaEditError` when it cannot be read.
+ */
+export const getMediaEditMaskBlob = async (
+  url: string,
+  signal?: AbortSignal
+): Promise<Blob> => {
+  const response = await fetch(url, { credentials: 'include', signal })
+  if (!response.ok) throw await toError(response, 'Failed to load a mask.')
+  return response.blob()
+}
+
 export interface SaveMediaEditParams {
   blob: Blob
   recipe: Recipe
@@ -84,6 +97,8 @@ export interface SaveMediaEditParams {
   /** Required by the server when the media is in posts. */
   applyToPosts?: ApplyToPosts
   focus?: { x: number; y: number }
+  /** PNG of each new or changed mask by mask id, sent as `mask_<id>` parts. */
+  masks?: Record<string, Blob>
 }
 
 /** Uploads the rendered photo and the recipe that produced it. */
@@ -95,7 +110,8 @@ export const saveMediaEdit = async (
     baseVersion,
     saveId,
     applyToPosts,
-    focus
+    focus,
+    masks
   }: SaveMediaEditParams
 ): Promise<MediaEditSaveResult> => {
   const form = new FormData()
@@ -105,6 +121,9 @@ export const saveMediaEdit = async (
   form.append('save_id', saveId)
   if (applyToPosts) form.append('apply_to_posts', applyToPosts)
   if (focus) form.append('focus', `${focus.x},${focus.y}`)
+  for (const [maskId, png] of Object.entries(masks ?? {})) {
+    form.append(`mask_${maskId}`, png, `mask_${maskId}.png`)
+  }
   const response = await fetch(editPath(id), { method: 'POST', body: form })
   if (!response.ok) throw await toError(response, 'Failed to save the photo.')
   return response.json()

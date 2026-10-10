@@ -523,7 +523,18 @@ The files an edit keeps sit in `media_edit_files`, one row per slot:
   points each post at the new file (an ordinary edit of the post, sent as
   `Update(Note)`) and then prunes the superseded renders; "Gallery only" keeps
   them, because those posts still reference them.
-- `mask:<id>`: reserved for phase 2.
+- `mask:<id>`: the raster of a subject or brush mask of the recipe (a
+  background mask is the inverse of its subject and has none). The browser
+  makes it (the subject model or the brush) and uploads it as a `mask_<id>`
+  PNG part of the save, only when it is new or its pixels changed; the server
+  checks it is a PNG in the source's shape, at most 1024 px on its long edge,
+  and stores its first channel through `saveMaskImage` (PNG, compression 9).
+  A save upserts the slots of the recipe's masks and removes the others,
+  deleting the released files after the commit; a revert removes them all.
+  The editor reads a mask through the owner-only
+  `GET /api/v1/media/:id/edit/masks/:maskId` (`Cache-Control: private`; the
+  URL `GET …/edit` lists carries `?v=<row id>`, so a replaced mask is a new
+  URL). Masks are never federated and are in no public entity.
 
 The prune belongs to the latest write only. Updating the posts can take
 seconds (each one federates), and a save or revert from another tab can
@@ -571,7 +582,8 @@ history. A thumbnail a client uploaded for a photo stands for the image as it
 was, so an edited photo has none (`getLiveThumbnail`): its `preview_url` and
 the attachment's thumbnail are the edited file, until a revert.
 
-Every kept file counts toward the account's storage usage. The editor reads the
+Every kept file counts toward the account's storage usage, masks included (a
+save checks the quota for the render and its mask parts together). The editor reads the
 uploaded original through `GET /api/v1/media/:id/edit/source`, served from this
 origin with `Cache-Control: private` so the canvas is never tainted by a CDN or
 S3 origin. Deleting a media removes these rows and their files too. Deleting
@@ -967,6 +979,7 @@ The editor is `lib/components/photo-editor/`, opened from `PhotoEditPreview` (th
 - **Engine** (`engine/`): geometry (crop, rotate, flip, straighten) is drawn with Canvas2D from `getGeometryTransform`; colour adjustments run in a WebGL2 shader that mirrors the CPU reference `applyAdjustments` (`adjustments.ts`, shared constants in `colour.ts`). Shadows, highlights, texture and clarity read low-resolution blurred copies of the image. Export renders in tiles with an 8 px halo (`tiles.ts`) and encodes JPEG at quality 0.95. WebGL is not available in jsdom, so tests cover the CPU reference and mock the GL layer; change the shader and the CPU reference together.
 - **Editing state** is a recipe (the server's `normalizeRecipe` shape) plus `useEditorHistory` (past/present/future, 100 entries, slider drags and 500 ms of keyboard nudges coalesce into one step).
 - **Saving** sends a fresh `save_id` per click and retries a network failure once with the same id; a 409 whose `edit.saveId` is ours counts as success. The "Update the post / Gallery only" choice appears when the photo is attached to statuses. A neutral recipe on an edited photo saves as a revert.
+- **Masks** (`masks/`, the third tab, Adjust · Crop · Masks): up to four masks (subject, background, brush), each with its own adjustments (the global set without vignette) and a feather. Pixels live in source space at a long edge of at most 1024 (`maskRaster.ts`, carried through undo/redo on a Symbol key of the recipe object, so `snapshotsEqual` compares them by identity). The renderer takes one packed RGBA mask frame (channel i = mask i), each plane drawn through the recipe's geometry with the photo's own matrix (`maskFrame.ts`); the shader and `applyAdjustments` blend `mix(out, adjust(out, mask), m)` per mask after the global pass, feathered in GL by `feather/100 × 0.02 × long edge`. Select subject runs SlimSAM (`sam.worker.ts`, onnxruntime-web WASM in a module worker; `samPre.ts`/`samPost.ts` are the pure steps) with the model files that `capabilities.subjectModel` names: `modelCache.ts` downloads them once, checks size and sha256, keeps them in Cache Storage and drives the progress bar; a null `subjectModel` hides Select subject while the brush keeps working (a stored subject is then refined with the brush too). Closing the editor aborts the download and ends the worker at whatever step it is on (`useMasks.ts` checks a disposed flag after every await); `modelCache.ts` stops reading a body that passes the pinned size. A saved mask whose image cannot be read is left out of the edit with a notice (`loadMasks.ts` reports it, the owner can still adjust or revert), and a mask with no adjustment is not a render change on the client or the server (`getEffectiveMaskIds`). The onnxruntime WebAssembly is bundled by Next (`_next/static/media`, loaded by the module worker from this origin), so no `wasmPaths` override or `public/` copy is needed. The photo's focus point is the first positive point (`focusPoint.ts`); taps add green + / red − points and re-run the decoder. A save uploads a greyscale `mask_<id>` PNG (`pngCodec.ts`) only for a mask that is new or whose pixels changed; background masks have none; a mask with no adjustments is a neutral recipe. Change `shaders.ts`, `adjustments.ts` and `maskUniforms.ts` together.
 - **Slider** (`lib/components/ui/slider.tsx`) wraps `@radix-ui/react-slider`; `bipolar` draws the fill from the centre, double-click or Delete resets. The stage colour is the `--photo-stage` token.
 
 <a id="agents-settings-forms-client-components"></a>
@@ -1670,6 +1683,19 @@ legacy shape left to copy.
 - Runtime config that affects browser-visible behavior (CSP, security headers,
   host redirects, upload origins) lives in request-time server code, not static
   Next config.
+- CSP sources that follow runtime config are computed per process in
+  `lib/utils/http-headers/csp.ts` from `getSecurityHeaderConfig()` and added only
+  while the feature is on. The photo editor's subject model
+  (`ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL`, `lib/config/photoEditor.ts`) adds its
+  download origins to `connect-src` (by default `https://huggingface.co` and
+  `https://*.hf.co`, the CDN its `resolve` URLs redirect to; a self-hosted base
+  adds its own origin only) and `'wasm-unsafe-eval'` to `script-src` for the
+  onnxruntime WebAssembly, the same keyword Apple MapKit needs (listed once when
+  both are on); `off` adds neither. `proxy.ts` builds the CSP in the Edge
+  runtime, so these config modules are imported by sub-path and must not import
+  Node APIs or the logger: `lib/config/photoEditor.ts` reports an invalid value
+  through a callback, and only the `@/lib/config` barrel's
+  `getPhotoEditorConfig` logs it.
 - A build must succeed with `ACTIVITIES_*` missing or set to placeholder values.
   Changes to runtime-config handling should ship a regression test asserting the
   build config does not consume those values.

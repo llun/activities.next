@@ -170,7 +170,7 @@ export const resolveGalleryGear = async ({
     // `(actorId, deviceKey)` is UNIQUE and the index covers soft-deleted rows
     // too, while the lookup ignores them. That is coherent only because
     // deleting a gear row MUST null its `deviceKey` in the same update that
-    // sets `deletedAt` (as `fitnessGear.ts` does); a deleted camera then
+    // sets `deletedAt` (as `deleteFitnessGear` does); a deleted camera then
     // releases its key and the next upload creates a fresh row. Otherwise the
     // insert would hit the unique violation, the re-read below would miss the
     // deleted row, and the photo would silently lose its gear for good.

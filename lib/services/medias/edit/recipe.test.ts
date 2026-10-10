@@ -6,6 +6,7 @@ import {
   RecipeSchema,
   countChangedAdjustments,
   isNeutralRecipe,
+  isSameMasks,
   isSameRender,
   normalizeRecipe,
   parseRecipe,
@@ -375,6 +376,32 @@ describe('isSameRender', () => {
     ).toBe(true)
   })
 
+  it('ignores masks that have no adjustment', () => {
+    expect(
+      isSameRender(
+        edited,
+        recipe({
+          adjustments: { exposure: 0.5 },
+          masks: [
+            subject('abcd1234', { feather: 80 }),
+            subject('efgh5678', { adjustments: { tint: 0 } })
+          ]
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('keeps the subject of a background that has adjustments', () => {
+    const withBackground = (feather: number) =>
+      recipe({
+        masks: [
+          subject('abcd1234', { feather }),
+          { ...background(), adjustments: { exposure: -1 } }
+        ]
+      })
+    expect(isSameRender(withBackground(10), withBackground(20))).toBe(false)
+  })
+
   it.each([
     ['an adjustment', recipe({ adjustments: { exposure: 0.6 } })],
     ['another adjustment', recipe({ adjustments: { exposure: 0.5, tint: 2 } })],
@@ -397,5 +424,32 @@ describe('isSameRender', () => {
     ]
   ])('is false when %s differs', (_, other) => {
     expect(isSameRender(edited, other)).toBe(false)
+  })
+})
+
+describe('isSameMasks', () => {
+  it("ignores the order of a mask's adjustment keys", () => {
+    const a = recipe({
+      masks: [subject('abcd1234', { adjustments: { contrast: 1, tint: 10 } })]
+    })
+    const b = recipe({
+      masks: [subject('abcd1234', { adjustments: { tint: 10, contrast: 1 } })]
+    })
+    expect(isSameMasks(a, b)).toBe(true)
+  })
+
+  it('sees a changed value or a mask that is added', () => {
+    const a = recipe({
+      masks: [subject('abcd1234', { adjustments: { tint: 10 } })]
+    })
+    expect(
+      isSameMasks(
+        a,
+        recipe({
+          masks: [subject('abcd1234', { adjustments: { tint: 11 } })]
+        })
+      )
+    ).toBe(false)
+    expect(isSameMasks(a, recipe())).toBe(false)
   })
 })

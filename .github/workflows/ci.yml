@@ -199,10 +199,14 @@ jobs:
   # actor predicate, the two heaviest users of the actor facade (follow edges
   # and requests with their cursors, follower and following counters,
   # remote actors stored with an empty key kept out of the local timelines,
-  # followers collections and fan-out), the Kysely status visibility filter
-  # checked against its Knex original, and the Knex-backed Kysely driver
-  # (result normalisation, the mixed-transaction guard, counters, bucket
-  # counters, chunked IN lists, savepoints).
+  # followers collections and fan-out), the fitness gear domain (bikes, shoes
+  # and recording devices, their components and install periods,
+  # default-sport auto-assign, distance, device and component rollups, service
+  # reminders, the gear a processed file is given and the gear and device
+  # names a status returns), the Kysely status visibility and
+  # countable-activity filters checked against their Knex originals, and the
+  # Knex-backed Kysely driver (result normalisation, the mixed-transaction
+  # guard, counters, bucket counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -266,6 +270,10 @@ jobs:
             lib/database/sql/fitnessGearComponents.test.ts \
             lib/database/sql/fitnessGearDevice.test.ts \
             lib/database/sql/fitnessGearComponentPeriods.test.ts \
+            lib/database/sql/fitnessGearQueries.test.ts \
+            lib/services/fitness-gears/serviceReminders.test.ts \
+            lib/jobs/processFitnessFileJob.gearDevice.test.ts \
+            lib/database/sql/status.test.ts \
             lib/database/sql/fitnessRouteHeatmapTile.test.ts \
             lib/database/sql/fitnessRouteHeatmapTileClaim.test.ts \
             lib/database/sql/fitnessRouteHeatmapTileClaimRace.test.ts \
@@ -328,6 +336,7 @@ jobs:
             lib/database/sql/trends.test.ts \
             lib/database/sql/trendsQueries.test.ts \
             lib/database/kysely/visibility/visibilityEquivalence.test.ts \
+            lib/database/kysely/countableActivity.test.ts \
             lib/database/sql/admin.test.ts \
             lib/database/sql/adminDomainRules.test.ts \
             lib/database/sql/accountQueries.test.ts \

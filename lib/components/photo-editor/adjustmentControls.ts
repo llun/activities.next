@@ -97,3 +97,17 @@ export const PHONE_CATEGORIES: ReadonlyArray<ControlGroup> = [
   'detail',
   'effects'
 ]
+
+/** The sliders a mask has: the global ones minus vignette. */
+export const MASK_CONTROLS: ReadonlyArray<AdjustmentControl> =
+  ADJUSTMENT_CONTROLS.filter((control) => control.key !== 'vignette')
+
+export const maskControlsIn = (...groups: ControlGroup[]) =>
+  MASK_CONTROLS.filter((control) => groups.includes(control.group))
+
+/** The groups a mask's panel and phone category row show (no Effects). */
+export const MASK_PHONE_CATEGORIES: ReadonlyArray<ControlGroup> = [
+  'light',
+  'colour',
+  'detail'
+]

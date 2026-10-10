@@ -1,4 +1,5 @@
-import { FitnessGearComponentsSQLDatabaseMixin } from '@/lib/database/sql/fitnessGearComponents'
+import { fitnessGearComponentQueries } from '@/lib/database/domains/fitnessGear/components'
+import { bindDb, kyselyFor } from '@/lib/database/kysely'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 
 /**
@@ -92,7 +93,7 @@ describe('fitness gear component periods', () => {
     return gear
   }
 
-  // Nothing in `lib/database/sql/fitnessGearComponents.ts` can produce a component with
+  // Nothing in `lib/database/domains/fitnessGear/components.ts` can produce a component with
   // no period — the pair is inserted in one transaction. The guard matters
   // anyway, because without `p.id IS NOT NULL` in the join BOTH window tests
   // read as TRUE against the missing row's NULLs, and the component silently
@@ -209,8 +210,11 @@ describe('fitness gear component periods', () => {
     })
   })
 
-  it('exposes component operations through FitnessGearComponentsSQLDatabaseMixin', async () => {
-    const componentDatabase = FitnessGearComponentsSQLDatabaseMixin(instance)
+  it('exposes component operations through fitnessGearComponentQueries', async () => {
+    const componentDatabase = bindDb(
+      () => kyselyFor(instance),
+      fitnessGearComponentQueries
+    )
     const gear = await database.createFitnessGear({
       actorId,
       kind: 'bike',

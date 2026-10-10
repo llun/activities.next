@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-import { FitnessGearActivity } from '@/lib/database/sql/fitnessGear'
+import { FitnessGearActivity } from '@/lib/database/domains/fitnessGear/types'
 import { Database } from '@/lib/database/types'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { FitnessGear } from '@/lib/types/database/fitnessGear'

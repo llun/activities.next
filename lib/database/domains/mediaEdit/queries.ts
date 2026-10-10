@@ -9,6 +9,7 @@ import {
   MEDIA_EDIT_SUPERSEDED_PREFIX,
   type MediaEditFile,
   type MediaEditFileMeta,
+  type MediaEditMaskInput,
   type MediaEditState,
   type PruneSupersededMediaEditFilesParams,
   type RevertMediaEditParams
@@ -308,6 +309,73 @@ const supersedeLiveFile = (
 }
 
 /**
+ * Brings the media's `mask:<id>` slots in line with the saved recipe: a mask
+ * with a new image replaces (or creates) its slot, and a slot whose mask is no
+ * longer in the recipe is removed. A replaced row gets a new id, so the URL the
+ * editor reads the mask from changes with it. Returns the bytes added and
+ * freed and the stored paths the write released, minus any path a remaining
+ * slot still points at.
+ */
+const syncMaskSlots = async (
+  trx: Db,
+  mediaRowId: number,
+  actorId: string,
+  masks: MediaEditMaskInput[],
+  createdAt: Date
+) => {
+  const existing = (await selectFiles(trx, mediaRowId))
+    .map(toMediaEditFile)
+    .filter((file) => file.slot.startsWith(MEDIA_EDIT_MASK_PREFIX))
+  const wanted = new Map(masks.map((mask) => [mask.id, mask]))
+
+  const released = existing.filter((file) => {
+    const mask = wanted.get(file.slot.slice(MEDIA_EDIT_MASK_PREFIX.length))
+    return !mask || mask.image !== null
+  })
+  if (released.length > 0) {
+    await trx
+      .deleteFrom('media_edit_files')
+      .where('mediaId', '=', mediaRowId)
+      .where(
+        'id',
+        'in',
+        released.map((file) => file.id)
+      )
+      .execute()
+  }
+
+  let addedBytes = 0
+  for (const mask of masks) {
+    if (!mask.image) continue
+    await insertFile(
+      trx,
+      {
+        mediaId: mediaRowId,
+        actorId,
+        slot: `${MEDIA_EDIT_MASK_PREFIX}${mask.id}`,
+        path: mask.image.path,
+        bytes: mask.image.bytes,
+        mimeType: mask.image.mimeType,
+        metaData: { width: mask.image.width, height: mask.image.height }
+      },
+      createdAt
+    )
+    addedBytes += mask.image.bytes
+  }
+
+  const kept = new Set(
+    (await selectFiles(trx, mediaRowId)).map((row) => row.path)
+  )
+  return {
+    addedBytes,
+    freedBytes: released.reduce((sum, file) => sum + file.bytes, 0),
+    releasedPaths: getMediaEditFilePathsFromFiles(released).filter(
+      (path) => !kept.has(path)
+    )
+  }
+}
+
+/**
  * Saves a render of a recipe as the media's live file, in one transaction:
  * the first save moves the uploaded file into the `original` slot, a later one
  * keeps the previous render as a `superseded:*` slot. The account's media
@@ -321,7 +389,8 @@ export const applyMediaEdit = async (
     baseVersion,
     saveId,
     recipe,
-    render
+    render,
+    masks = []
   }: ApplyMediaEditParams
 ): Promise<ApplyMediaEditResult> => {
   const mediaRowId = toMediaRowId(mediaId)
@@ -386,21 +455,42 @@ export const applyMediaEdit = async (
       )
     }
 
-    if (render.bytes > 0) {
+    const maskChanges = await syncMaskSlots(
+      trx,
+      mediaRowId,
+      row.actorId,
+      masks,
+      now
+    )
+
+    // Usage grows by everything stored and shrinks by the masks released.
+    // The hourly bucket only counts bytes stored, like every other bucket.
+    const storedBytes = render.bytes + maskChanges.addedBytes
+    if (storedBytes > 0) {
+      await incrementBucket(trx, 'media-bytes', storedBytes, now)
+    }
+    const usageDelta = storedBytes - maskChanges.freedBytes
+    if (usageDelta > 0) {
       await increaseCounterValue(
         trx,
         CounterKey.mediaUsage(accountId),
-        render.bytes,
+        usageDelta,
         now
       )
-      await incrementBucket(trx, 'media-bytes', render.bytes, now)
+    } else if (usageDelta < 0) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.mediaUsage(accountId),
+        -usageDelta,
+        now
+      )
     }
 
     return {
       status: 'ok',
       media: await readMedia(trx, mediaRowId),
       version: baseVersion + 1,
-      removedPaths: []
+      removedPaths: maskChanges.releasedPaths
     }
   })
 }

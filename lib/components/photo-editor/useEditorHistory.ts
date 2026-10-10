@@ -4,9 +4,16 @@ import { useCallback, useMemo, useReducer } from 'react'
 
 import type { Recipe } from '@/lib/services/medias/edit/recipe'
 
-import { recipesEqual } from './editorRecipe'
+import { snapshotsEqual } from './editorRecipe'
+import { type MaskRaster, getRasters } from './masks/maskRaster'
 
 export const MAX_HISTORY = 100
+/**
+ * The most mask pixels the undo steps may hold. Each brush stroke keeps a new
+ * raster (up to 1 MiB), so a long session would otherwise hold hundreds; the
+ * oldest steps are dropped first.
+ */
+export const MAX_HISTORY_RASTER_BYTES = 48 * 1024 * 1024
 /** Keyboard steps on one control within this long make a single undo step. */
 export const COALESCE_MS = 500
 
@@ -29,6 +36,31 @@ export type HistoryAction =
   | { type: 'beginGesture'; key: string }
   | { type: 'endGesture' }
 
+/**
+ * Keeps the newest of `past` (at most MAX_HISTORY steps) whose distinct
+ * rasters, with those of the present and the redo steps, fit the budget.
+ * Snapshots share the rasters they did not change, so each is counted once.
+ */
+const trimPast = (past: Recipe[], others: Recipe[]): Recipe[] => {
+  const seen = new Set<MaskRaster>()
+  let bytes = 0
+  const count = (recipe: Recipe) => {
+    for (const raster of Object.values(getRasters(recipe))) {
+      if (seen.has(raster)) continue
+      seen.add(raster)
+      bytes += raster.data.byteLength
+    }
+  }
+  others.forEach(count)
+  let kept = 0
+  for (let i = past.length - 1; i >= 0 && kept < MAX_HISTORY; i -= 1) {
+    count(past[i])
+    if (bytes > MAX_HISTORY_RASTER_BYTES && kept > 0) break
+    kept += 1
+  }
+  return past.slice(past.length - kept)
+}
+
 export const createHistory = (present: Recipe): HistoryState => ({
   past: [],
   present,
@@ -44,7 +76,7 @@ export const historyReducer = (
 ): HistoryState => {
   switch (action.type) {
     case 'set': {
-      if (recipesEqual(action.recipe, state.present)) return state
+      if (snapshotsEqual(action.recipe, state.present)) return state
       const { key, now } = action
       const coalesce =
         key !== undefined &&
@@ -55,7 +87,7 @@ export const historyReducer = (
       }
       return {
         ...state,
-        past: [...state.past, state.present].slice(-MAX_HISTORY),
+        past: trimPast([...state.past, state.present], [action.recipe]),
         present: action.recipe,
         future: [],
         lastKey: key ?? null,
@@ -79,7 +111,7 @@ export const historyReducer = (
       const [next, ...rest] = state.future
       return {
         ...state,
-        past: [...state.past, state.present].slice(-MAX_HISTORY),
+        past: trimPast([...state.past, state.present], [next, ...rest]),
         present: next,
         future: rest,
         lastKey: null,

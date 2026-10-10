@@ -6,9 +6,12 @@ import { act, renderHook } from '@testing-library/react'
 import { NEUTRAL_RECIPE } from '@/lib/services/medias/edit/recipe'
 
 import { setAdjustment } from './editorRecipe'
+import { createRaster, withRaster } from './masks/maskRaster'
+import { addBrushMask } from './masks/maskRecipe'
 import {
   COALESCE_MS,
   MAX_HISTORY,
+  MAX_HISTORY_RASTER_BYTES,
   createHistory,
   historyReducer,
   useEditorHistory
@@ -35,6 +38,30 @@ describe('historyReducer', () => {
     expect(
       historyReducer(state, { type: 'set', recipe: exposure(0), now: 0 })
     ).toBe(state)
+  })
+
+  it('records a change of mask pixels alone, and undoes it', () => {
+    const base = withRaster(
+      addBrushMask(NEUTRAL_RECIPE, 'aaaaaaaa'),
+      'aaaaaaaa',
+      createRaster({ width: 4, height: 4 })
+    )
+    const painted = withRaster(
+      base,
+      'aaaaaaaa',
+      createRaster({ width: 4, height: 4 }, 255)
+    )
+    let state = createHistory(base)
+    // The same recipe JSON, different pixels: still a step.
+    state = historyReducer(state, { type: 'set', recipe: painted, now: 0 })
+    expect(state.past).toHaveLength(1)
+    expect(state.present).toBe(painted)
+    // The same pixels again is not.
+    expect(
+      historyReducer(state, { type: 'set', recipe: { ...painted }, now: 1 })
+    ).toBe(state)
+    state = historyReducer(state, { type: 'undo' })
+    expect(state.present).toBe(base)
   })
 
   it('merges changes of one gesture into one step', () => {
@@ -113,6 +140,44 @@ describe('historyReducer', () => {
     }
     expect(state.past).toHaveLength(MAX_HISTORY)
     expect(state.past[0]).toEqual(exposure(0.2))
+  })
+
+  it('drops the oldest steps once their mask pixels pass the budget', () => {
+    const size = { width: 1024, height: 1024 }
+    const base = addBrushMask(NEUTRAL_RECIPE, 'aaaaaaaa')
+    let state = createHistory(withRaster(base, 'aaaaaaaa', createRaster(size)))
+    const strokes = Math.ceil(
+      MAX_HISTORY_RASTER_BYTES / (size.width * size.height)
+    )
+    for (let i = 1; i <= strokes + 10; i += 1) {
+      state = historyReducer(state, {
+        type: 'set',
+        recipe: withRaster(base, 'aaaaaaaa', createRaster(size, i % 256)),
+        now: i
+      })
+    }
+    // One raster per step, 1 MiB each: the budget keeps strokes - 1 steps.
+    expect(state.past.length).toBeLessThan(strokes)
+    expect(state.past.length).toBeGreaterThan(strokes - 5)
+    state = historyReducer(state, { type: 'undo' })
+    expect(state.past.length).toBeGreaterThan(0)
+  })
+
+  it('counts a raster shared by many steps once', () => {
+    const base = withRaster(
+      addBrushMask(NEUTRAL_RECIPE, 'aaaaaaaa'),
+      'aaaaaaaa',
+      createRaster({ width: 1024, height: 1024 })
+    )
+    let state = createHistory(base)
+    for (let i = 1; i <= 40; i += 1) {
+      state = historyReducer(state, {
+        type: 'set',
+        recipe: setAdjustment(base, 'exposure', i / 100),
+        now: i
+      })
+    }
+    expect(state.past).toHaveLength(40)
   })
 
   it('undo and redo at the ends do nothing', () => {

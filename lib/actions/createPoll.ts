@@ -36,6 +36,9 @@ interface CreatePollFromUserInputParams {
   // The registered OAuth client (Mastodon "application") that authored the
   // status, when created via an app token. Omitted for web-session creates.
   application?: { name: string; website: string | null }
+  // Backdate the status (ms since epoch); omitted means now. The publicId is
+  // minted from this time so id order keeps matching createdAt order.
+  createdAt?: number
 }
 export const createPollFromUserInput = async ({
   text,
@@ -50,7 +53,8 @@ export const createPollFromUserInput = async ({
   visibility,
   sensitive = false,
   language = null,
-  application
+  application,
+  createdAt
 }: CreatePollFromUserInputParams) =>
   withSpan('actions', 'createPollFromUser', { replyStatusId }, async () => {
     const config = getConfig()
@@ -73,7 +77,7 @@ export const createPollFromUserInput = async ({
       return null
     }
 
-    const postId = generatePublicId()
+    const postId = generatePublicId(createdAt)
     const statusId = getLocalStatusId({
       actorId: currentActor.id,
       statusId: postId
@@ -143,7 +147,8 @@ export const createPollFromUserInput = async ({
       sensitive: sensitive || Boolean(currentActor.sensitizedAt),
       language,
       applicationName: application?.name ?? null,
-      applicationWebsite: application?.website ?? null
+      applicationWebsite: application?.website ?? null,
+      createdAt
     })
 
     // Content-detected language, stored separately from the declared `language`

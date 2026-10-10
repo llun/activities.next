@@ -1,14 +1,21 @@
-import { Knex } from 'knex'
+import type { Selectable } from 'kysely'
 
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
-import {
+import type { Db } from '@/lib/database/kysely'
+import type {
+  FitnessGearComponentPeriods,
+  FitnessGearComponents,
+  FitnessGears
+} from '@/lib/database/kysely/db'
+import type {
   FitnessGear,
   FitnessGearComponent,
   FitnessGearComponentPeriod,
-  SQLFitnessGear,
-  SQLFitnessGearComponent,
-  SQLFitnessGearComponentPeriod
+  FitnessGearKind
 } from '@/lib/types/database/fitnessGear'
+
+export type GearRow = Selectable<FitnessGears>
+export type ComponentRow = Selectable<FitnessGearComponents>
+export type PeriodRow = Selectable<FitnessGearComponentPeriods>
 
 export const normalizeOptionalNumber = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -42,10 +49,12 @@ export const parseDefaultSports = (value?: string | null): string[] => {
   }
 }
 
-export const parseSQLFitnessGear = (row: SQLFitnessGear): FitnessGear => ({
+// Timestamps arrive as epoch milliseconds from the driver, on both backends.
+export const toFitnessGear = (row: GearRow): FitnessGear => ({
   id: row.id,
   actorId: row.actorId,
-  kind: row.kind,
+  // Written only from FitnessGearKind; the column is a plain varchar.
+  kind: row.kind as FitnessGearKind,
   name: row.name,
   brand: row.brand ?? undefined,
   model: row.model ?? undefined,
@@ -59,24 +68,22 @@ export const parseSQLFitnessGear = (row: SQLFitnessGear): FitnessGear => ({
   notes: row.notes ?? undefined,
   deviceKey: row.deviceKey ?? undefined,
   productUrl: row.productUrl ?? undefined,
-  retiredAt: row.retiredAt ? getCompatibleTime(row.retiredAt) : undefined,
-  createdAt: getCompatibleTime(row.createdAt),
-  updatedAt: getCompatibleTime(row.updatedAt),
-  deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined
+  retiredAt: row.retiredAt ?? undefined,
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt,
+  deletedAt: row.deletedAt ?? undefined
 })
 
-export const parseSQLFitnessGearComponentPeriod = (
-  row: SQLFitnessGearComponentPeriod
+export const toFitnessGearComponentPeriod = (
+  row: PeriodRow
 ): FitnessGearComponentPeriod => ({
   id: row.id,
   componentId: row.componentId,
-  // SQLite can hand an integer column back as a string; the sequence is used
-  // for ordering and for computing the next one, so it has to be a number.
   installSequence: normalizeOptionalNumber(row.installSequence) ?? 0,
-  addedAt: row.addedAt ? getCompatibleTime(row.addedAt) : undefined,
-  removedAt: row.removedAt ? getCompatibleTime(row.removedAt) : undefined,
-  createdAt: getCompatibleTime(row.createdAt),
-  updatedAt: getCompatibleTime(row.updatedAt)
+  addedAt: row.addedAt ?? undefined,
+  removedAt: row.removedAt ?? undefined,
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt
 })
 
 /**
@@ -88,8 +95,8 @@ export const parseSQLFitnessGearComponentPeriod = (
  *
  * `periods` arrives already ordered by `installSequence`.
  */
-export const parseSQLFitnessGearComponent = (
-  row: SQLFitnessGearComponent,
+export const toFitnessGearComponent = (
+  row: ComponentRow,
   periods: FitnessGearComponentPeriod[]
 ): FitnessGearComponent => ({
   id: row.id,
@@ -104,33 +111,38 @@ export const parseSQLFitnessGearComponent = (
   lastAlertedDistanceMeters: normalizeOptionalNumber(
     row.lastAlertedDistanceMeters
   ),
-  createdAt: getCompatibleTime(row.createdAt),
-  updatedAt: getCompatibleTime(row.updatedAt),
-  deletedAt: row.deletedAt ? getCompatibleTime(row.deletedAt) : undefined,
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt,
+  deletedAt: row.deletedAt ?? undefined,
   productUrl: row.productUrl ?? undefined
 })
 
-export const getOwnedGearRow = async (
-  connection: Knex | Knex.Transaction,
+export const getOwnedGearRow = (
+  db: Db,
   id: string,
   actorId: string
-) =>
-  connection<SQLFitnessGear>('fitness_gears')
-    .where('id', id)
-    .where('actorId', actorId)
-    .whereNull('deletedAt')
-    .first()
+): Promise<GearRow | undefined> =>
+  db
+    .selectFrom('fitness_gears')
+    .selectAll()
+    .where('id', '=', id)
+    .where('actorId', '=', actorId)
+    .where('deletedAt', 'is', null)
+    .limit(1)
+    .executeTakeFirst()
 
-export const getOwnedComponentRow = async (
-  connection: Knex | Knex.Transaction,
+export const getOwnedComponentRow = (
+  db: Db,
   { id, gearId, actorId }: { id: string; gearId: string; actorId: string }
-) =>
-  connection<SQLFitnessGearComponent>('fitness_gear_components as c')
+): Promise<ComponentRow | undefined> =>
+  db
+    .selectFrom('fitness_gear_components as c')
     .innerJoin('fitness_gears as g', 'g.id', 'c.gearId')
-    .where('c.id', id)
-    .where('c.gearId', gearId)
-    .where('g.actorId', actorId)
-    .whereNull('c.deletedAt')
-    .whereNull('g.deletedAt')
-    .select('c.*')
-    .first()
+    .selectAll('c')
+    .where('c.id', '=', id)
+    .where('c.gearId', '=', gearId)
+    .where('g.actorId', '=', actorId)
+    .where('c.deletedAt', 'is', null)
+    .where('g.deletedAt', 'is', null)
+    .limit(1)
+    .executeTakeFirst()

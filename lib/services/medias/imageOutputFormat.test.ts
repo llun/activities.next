@@ -44,6 +44,12 @@ describe('getImageOutputFormatDetail', () => {
       format: 'jpeg' as ImageOutputFormat,
       extension: 'jpg',
       contentType: 'image/jpeg'
+    },
+    {
+      description: 'png writes .png as image/png',
+      format: 'png' as ImageOutputFormat,
+      extension: 'png',
+      contentType: 'image/png'
     }
   ])('$description', ({ format, extension, contentType }) => {
     expect(getImageOutputFormatDetail(format)).toEqual({
@@ -60,7 +66,8 @@ describe('encodeImageOutput', () => {
 
   it.each([
     { description: 'encodes webp output', format: 'webp' as ImageOutputFormat },
-    { description: 'encodes jpeg output', format: 'jpeg' as ImageOutputFormat }
+    { description: 'encodes jpeg output', format: 'jpeg' as ImageOutputFormat },
+    { description: 'encodes png output', format: 'png' as ImageOutputFormat }
   ])('$description', async ({ format }) => {
     const buffer = await encodeImageOutput(createImage(), format).toBuffer()
 
@@ -82,6 +89,15 @@ describe('encodeImageOutput', () => {
     // exactly what chroma subsampling smears.
     const metadata = await sharp(buffer).metadata()
     expect(metadata.chromaSubsampling).toBe('4:4:4')
+  })
+
+  it('encodes png at the highest compression level, losslessly', async () => {
+    const [encoded, expected] = await Promise.all([
+      encodeImageOutput(createImage(), 'png').toBuffer(),
+      createImage().png({ compressionLevel: 9 }).toBuffer()
+    ])
+
+    expect(encoded.equals(expected)).toBe(true)
   })
 
   // Every image the storages wrote before the format option existed was encoded
