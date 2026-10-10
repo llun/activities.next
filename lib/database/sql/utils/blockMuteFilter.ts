@@ -24,6 +24,11 @@ const REBLOG_ORIGINAL_ALIAS = 'block_mute_reblog_original'
 // by its booster AND its original author, so boosting a blocked/muted account
 // is hidden too. The original author is resolved via a left join on
 // statuses.originalStatusId (NULL for non-boosts, so it never matches).
+//
+// The collection timeline still uses this form; the list timeline uses the
+// Kysely twin, withoutBlockedOrMutedAuthors
+// (lib/database/kysely/visibility/blockMute.ts), which
+// visibilityEquivalence.test.ts checks against it: change both together.
 export const applyBlockMuteFilter = ({
   database,
   query,

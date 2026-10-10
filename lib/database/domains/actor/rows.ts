@@ -1,9 +1,9 @@
 // Pure, synchronous mappers from an `actors` row (and its account) to the
 // domain Actor and to the Mastodon Account entity. No database access, so a
-// caller inside a transaction can use them directly: the Knex follow mixin
-// still calls getActor inside its own transaction, with Knex rows, which is
-// why the mappers accept both Knex and Kysely row shapes (a timestamp as
-// epoch ms, a Date or SQLite text; `settings` as JSON text or parsed).
+// caller inside a transaction can use them directly, as the follow queries'
+// getLocalActorsFromFollowerUrl does. They accept both Knex and Kysely row
+// shapes (a timestamp as epoch ms, a Date or SQLite text; `settings` as JSON
+// text or parsed).
 import { getConfig } from '@/lib/config'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
