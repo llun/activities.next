@@ -512,8 +512,60 @@ describe('GalleryDatabase', () => {
         expect(saved).toMatchObject({
           hideThreatenedPlaces: true,
           subjectSuggestionMode: 'model',
-          subjectConfidenceThreshold: 70
+          subjectConfidenceThreshold: 70,
+          photoEnhance: true
         })
+      })
+
+      it('starts with AI enhance on, and keeps the switch it was given', async () => {
+        const actorId = actors.pollAuthor.id
+        expect(DEFAULT_GALLERY_SETTINGS.photoEnhance).toBeTrue()
+        expect(
+          (await database.getGallerySettings({ actorId })).photoEnhance
+        ).toBeTrue()
+
+        const off = await database.updateGallerySettings({
+          actorId,
+          photoEnhance: false
+        })
+        expect(off).toEqual({
+          ...DEFAULT_GALLERY_SETTINGS,
+          photoEnhance: false
+        })
+        expect(
+          (await database.getGallerySettings({ actorId })).photoEnhance
+        ).toBeFalse()
+
+        // Another setting does not touch it.
+        const other = await database.updateGallerySettings({
+          actorId,
+          showGear: false
+        })
+        expect(other.photoEnhance).toBeFalse()
+
+        const on = await database.updateGallerySettings({
+          actorId,
+          photoEnhance: true
+        })
+        expect(on.photoEnhance).toBeTrue()
+        expect(
+          (await database.getGallerySettings({ actorId })).photoEnhance
+        ).toBeTrue()
+      })
+
+      it('keeps the AI enhance switch per actor', async () => {
+        await database.updateGallerySettings({
+          actorId: actors.primary.id,
+          photoEnhance: false
+        })
+        expect(
+          (await database.getGallerySettings({ actorId: actors.primary.id }))
+            .photoEnhance
+        ).toBeFalse()
+        expect(
+          (await database.getGallerySettings({ actorId: actors.empty.id }))
+            .photoEnhance
+        ).toBeTrue()
       })
 
       it('round-trips the subject and threatened-species settings', async () => {

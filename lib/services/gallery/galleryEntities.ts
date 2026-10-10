@@ -49,6 +49,11 @@ export type GallerySettingsEntity = GallerySettings & {
   // `hideThreatenedPlaces` is on.
   speciesLookupsAvailable: boolean
   placeLookupsAvailable: boolean
+  // Whether the photo editor can suggest an enhance at all (a vision model is
+  // configured and the operator has not turned it off), and the model that
+  // answers. The owner's own `photoEnhance` switch is separate.
+  photoEnhanceAvailable: boolean
+  photoEnhanceModel: string | null
 }
 
 /**

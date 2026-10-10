@@ -71,6 +71,8 @@ export const settings = (
   subjectModel: 'test-vision-model',
   speciesLookupsAvailable: true,
   placeLookupsAvailable: true,
+  photoEnhanceAvailable: true,
+  photoEnhanceModel: 'test-vision-model',
   ...overrides
 })
 

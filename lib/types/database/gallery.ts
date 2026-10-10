@@ -276,6 +276,9 @@ export interface GallerySettings {
   subjectSuggestionMode: SubjectSuggestionMode
   // Percent; below it the composer offers only the group ("Bird?").
   subjectConfidenceThreshold: number
+  // The photo editor's AI tab may send a small preview of a photo to the
+  // instance's vision model for a suggested edit. Needs a model on the server.
+  photoEnhance: boolean
 }
 
 export const DEFAULT_GALLERY_SETTINGS: GallerySettings = {
@@ -290,7 +293,8 @@ export const DEFAULT_GALLERY_SETTINGS: GallerySettings = {
   hiddenLocations: [],
   hideThreatenedPlaces: true,
   subjectSuggestionMode: 'model',
-  subjectConfidenceThreshold: 70
+  subjectConfidenceThreshold: 70,
+  photoEnhance: true
 }
 
 export interface SQLGallerySettings {
@@ -307,6 +311,7 @@ export interface SQLGallerySettings {
   hideThreatenedPlaces?: boolean | number | null
   subjectSuggestionMode?: string | null
   subjectConfidenceThreshold?: number | string | null
+  photoEnhance?: boolean | number | null
   createdAt: number | Date
   updatedAt: number | Date
 }

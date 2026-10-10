@@ -41,11 +41,14 @@ const baseSettings: GallerySettingsEntity = {
   hideThreatenedPlaces: true,
   subjectSuggestionMode: 'model',
   subjectConfidenceThreshold: 70,
+  photoEnhance: true,
   altTextAvailable: true,
   subjectSuggestionsAvailable: true,
   subjectModel: 'test-vision-model',
   speciesLookupsAvailable: true,
-  placeLookupsAvailable: true
+  placeLookupsAvailable: true,
+  photoEnhanceAvailable: true,
+  photoEnhanceModel: 'test-vision-model'
 }
 
 const SHOW_GEAR = 'Show gear and exposure on my media'

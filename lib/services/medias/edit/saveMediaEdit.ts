@@ -106,6 +106,8 @@ export interface MediaEditResponse {
   usage: MediaEditUsage
   capabilities: {
     subjectModel: PhotoEditorSubjectModel | null
+    // AI enhance: the server has a model for it and the owner has not turned
+    // it off. `model` is shown as "Suggested by {model}".
     enhance: { available: boolean; model: string | null }
   }
 }
@@ -288,9 +290,26 @@ const buildEditEntity = (
   }
 }
 
+const getCapabilities = async (
+  database: Database,
+  actorId: string
+): Promise<MediaEditResponse['capabilities']> => {
+  const { subjectModel, enhance } = getPhotoEditorConfig()
+  const { photoEnhance } = await database.getGallerySettings({ actorId })
+  const enhanceAvailable = enhance !== null && photoEnhance
+  return {
+    subjectModel,
+    enhance: {
+      available: enhanceAvailable,
+      model: enhanceAvailable ? enhance.model : null
+    }
+  }
+}
+
 const buildResponse = async ({
   database,
   media,
+  actorId,
   state,
   source,
   usage,
@@ -298,6 +317,8 @@ const buildResponse = async ({
 }: {
   database: Database
   media: Media
+  /** The actor the person is acting as; its AI enhance switch applies. */
+  actorId: string
   state: MediaEditState | null
   source: Pick<EditSource, 'size' | 'mimeType'> | null
   usage: MediaEditUsage
@@ -309,10 +330,7 @@ const buildResponse = async ({
     statusCount: usage.statusCount,
     latestStatusAt: usage.latestStatusAt
   },
-  capabilities: {
-    subjectModel: getPhotoEditorConfig().subjectModel,
-    enhance: { available: false, model: null }
-  }
+  capabilities: await getCapabilities(database, actorId)
 })
 
 // Deletes stored files after the commit. A failure leaves an orphan for the
@@ -341,11 +359,13 @@ export const getMediaEdit = async ({
   database,
   mediaId,
   accountId,
+  actorId,
   host
 }: {
   database: Database
   mediaId: string
   accountId: string
+  actorId: string
   host: string
 }): Promise<MediaEditResult<MediaEditResponse>> => {
   const media = await database.getMediaByIdForAccount({ mediaId, accountId })
@@ -366,6 +386,7 @@ export const getMediaEdit = async ({
     body: await buildResponse({
       database,
       media,
+      actorId,
       state,
       source,
       usage,
@@ -500,6 +521,7 @@ const finishWrite = async ({
   database,
   result,
   accountId,
+  actorId,
   source,
   usage,
   applyToPosts,
@@ -508,6 +530,7 @@ const finishWrite = async ({
   database: Database
   result: Extract<ApplyMediaEditResult, { status: 'ok' }>
   accountId: string
+  actorId: string
   source: Pick<EditSource, 'size' | 'mimeType'> | null
   usage: MediaEditUsage & { statusIds: string[] }
   applyToPosts: ApplyToPosts | undefined
@@ -526,6 +549,7 @@ const finishWrite = async ({
   const response = await buildResponse({
     database,
     media: result.media,
+    actorId,
     state,
     source,
     // The refresh does not change which posts use the media or when they
@@ -692,6 +716,7 @@ export const saveMediaEdit = async ({
     const body = await buildResponse({
       database,
       media,
+      actorId: actor.id,
       state,
       source,
       usage,
@@ -800,6 +825,7 @@ export const saveMediaEdit = async ({
       database,
       result,
       accountId,
+      actorId: actor.id,
       source,
       usage,
       applyToPosts: choice,
@@ -811,6 +837,8 @@ export const saveMediaEdit = async ({
 export interface RevertMediaEditInput {
   database: Database
   accountId: string
+  /** The actor the person is acting as (its AI enhance switch applies). */
+  actorId: string
   mediaId: string
   host: string
   baseVersion: number
@@ -822,6 +850,7 @@ export interface RevertMediaEditInput {
 export const revertMediaEdit = async ({
   database,
   accountId,
+  actorId,
   mediaId,
   host,
   baseVersion,
@@ -872,6 +901,7 @@ export const revertMediaEdit = async ({
       database,
       result,
       accountId,
+      actorId,
       source,
       usage,
       applyToPosts: usage.statusCount > 0 ? applyToPosts : undefined,

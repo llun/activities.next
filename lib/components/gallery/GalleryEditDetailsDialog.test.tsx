@@ -107,7 +107,9 @@ describe('GalleryEditDetailsDialog', () => {
       subjectSuggestionsAvailable: false,
       subjectModel: null,
       speciesLookupsAvailable: false,
-      placeLookupsAvailable: false
+      placeLookupsAvailable: false,
+      photoEnhanceAvailable: false,
+      photoEnhanceModel: null
     })
     getMediaMock.mockImplementation(
       async (id: string) =>

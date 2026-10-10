@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import {
   MediaEditError,
+  enhanceMediaEdit,
   getMediaEdit,
   revertMediaEdit,
   saveMediaEdit
@@ -14,6 +15,7 @@ import { NEUTRAL_RECIPE, type Recipe } from '@/lib/services/medias/edit/recipe'
 import type { MediaStorageSaveFileOutput } from '@/lib/services/medias/types'
 
 import { PhotoEditorDialog } from './PhotoEditorDialog'
+import { renderEnhancePreview } from './engine/enhancePreview'
 import { exportRecipe } from './engine/exportImage'
 import { drawGeometry } from './engine/geometryCanvas'
 import { createRenderer } from './engine/glRenderer'
@@ -25,11 +27,13 @@ import { createRaster } from './masks/maskRaster'
 vi.mock('@/lib/client/mediaEdit', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/client/mediaEdit')>()),
   getMediaEdit: vi.fn(),
+  enhanceMediaEdit: vi.fn(),
   saveMediaEdit: vi.fn(),
   revertMediaEdit: vi.fn()
 }))
 vi.mock('./engine/glRenderer', () => ({ createRenderer: vi.fn() }))
 vi.mock('./engine/exportImage', () => ({ exportRecipe: vi.fn() }))
+vi.mock('./engine/enhancePreview', () => ({ renderEnhancePreview: vi.fn() }))
 vi.mock('./engine/loadSource', () => ({ loadSource: vi.fn() }))
 vi.mock('./engine/geometryCanvas', () => ({ drawGeometry: vi.fn() }))
 vi.mock('./masks/loadMasks', () => ({ loadMaskRasters: vi.fn() }))
@@ -63,6 +67,7 @@ interface StateOptions {
   version?: number
   masks?: Array<{ id: string; url: string }>
   subjectModel?: object | null
+  enhance?: { available: boolean; model: string | null }
 }
 
 const editState = ({
@@ -72,7 +77,8 @@ const editState = ({
   source = SOURCE,
   version = 2,
   masks = [],
-  subjectModel = null
+  subjectModel = null,
+  enhance = { available: false, model: null }
 }: StateOptions = {}) =>
   ({
     media: saved,
@@ -87,7 +93,7 @@ const editState = ({
     usage: { statusCount, latestStatusAt: '2026-10-08T10:00:00.000Z' },
     capabilities: {
       subjectModel,
-      enhance: { available: false, model: null }
+      enhance
     }
   }) as Awaited<ReturnType<typeof getMediaEdit>>
 
@@ -193,7 +199,7 @@ describe('PhotoEditorDialog', () => {
     expect(createRenderer).toHaveBeenCalled()
     expect(renderer.setPreviewFrame).toHaveBeenCalled()
     expect(saveButton()).toBeDisabled()
-    // Phase 2 has Adjust, Crop and Masks (the AI tab is phase 3).
+    // Without enhance on the server there is no AI tab, and nothing else.
     expect(screen.getByRole('tab', { name: 'Adjust' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Crop' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Masks' })).toBeInTheDocument()
@@ -986,6 +992,227 @@ describe('PhotoEditorDialog', () => {
 
       expect(onClose).not.toHaveBeenCalled()
       expect(await screen.findByText('Discard your edits?')).toBeInTheDocument()
+    })
+  })
+
+  describe('ai tab', () => {
+    const SUGGESTION = {
+      natural: {
+        global: { exposure: 0.5, contrast: 20 },
+        subject: { exposure: 0.3 },
+        background: null
+      },
+      vivid: { global: { contrast: 50 }, subject: null, background: null },
+      dramatic: { global: { contrast: 70 }, subject: null, background: null },
+      model: 'vision-1'
+    }
+    const AVAILABLE = { available: true, model: 'vision-1' }
+
+    const openAi = () =>
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'AI' }), {
+        button: 0,
+        ctrlKey: false
+      })
+    const contrast = () => screen.getByRole('slider', { name: 'Contrast' })
+    const tabNames = () =>
+      screen.getAllByRole('tab').map((tab) => tab.textContent)
+
+    beforeEach(() => {
+      vi.mocked(renderEnhancePreview).mockResolvedValue(
+        new Blob(['jpeg'], { type: 'image/jpeg' })
+      )
+      vi.mocked(enhanceMediaEdit).mockResolvedValue(SUGGESTION)
+    })
+
+    it.each([
+      ['off', { available: false, model: null }],
+      ['off with a model name', { available: false, model: 'vision-1' }]
+    ])('is not rendered when enhance is %s', async (_, enhance) => {
+      await setup({ enhance })
+      expect(screen.queryByRole('tab', { name: 'AI' })).not.toBeInTheDocument()
+      expect(tabNames()).toEqual(['Adjust', 'Crop', 'Masks'])
+      expect(screen.queryByText('Enhance')).not.toBeInTheDocument()
+      expect(enhanceMediaEdit).not.toHaveBeenCalled()
+    })
+
+    it('is the fourth tab when enhance is available, with nothing generative beside it', async () => {
+      await setup({ enhance: AVAILABLE })
+      expect(tabNames()).toEqual(['Adjust', 'Crop', 'Masks', 'AI'])
+      openAi()
+      expect(
+        await screen.findByRole('button', { name: 'Enhance' })
+      ).toBeInTheDocument()
+      expect(document.body.textContent).not.toMatch(
+        /generat|not set up|erase|expand/i
+      )
+    })
+
+    it('enhances, changes the sliders in one undo step, and saves the recipe', async () => {
+      const { onSaved } = await setup({ enhance: AVAILABLE })
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      await screen.findByText('Suggested by vision-1')
+      expect(enhanceMediaEdit).toHaveBeenCalledWith(
+        '12',
+        expect.any(Blob),
+        expect.any(AbortSignal)
+      )
+      expect(saveButton()).toBeEnabled()
+
+      // Back on Adjust the sliders hold the Natural style at Strength 80.
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Adjust' }), {
+        button: 0,
+        ctrlKey: false
+      })
+      expect(exposure()).toHaveAttribute('aria-valuetext', '+0.40 EV')
+      expect(contrast()).toHaveAttribute('aria-valuetext', '+16')
+
+      // One Ctrl+Z puts everything back.
+      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+      expect(exposure()).toHaveAttribute('aria-valuetext', '0.00 EV')
+      expect(contrast()).toHaveAttribute('aria-valuetext', '0')
+      expect(saveButton()).toBeDisabled()
+      fireEvent.keyDown(document.body, { key: 'y', ctrlKey: true })
+      expect(contrast()).toHaveAttribute('aria-valuetext', '+16')
+
+      fireEvent.click(saveButton())
+      await waitFor(() => expect(onSaved).toHaveBeenCalled())
+      expect(mockSaveMediaEdit.mock.calls[0][1].recipe.adjustments).toEqual({
+        exposure: 0.4,
+        contrast: 16
+      })
+      // The server was asked for the suggestion, not to store anything.
+      expect(mockSaveMediaEdit).toHaveBeenCalledTimes(1)
+    })
+
+    it('changes style and Strength, each a step that undo reverts', async () => {
+      await setup({ enhance: AVAILABLE })
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      await screen.findByText('Suggested by vision-1')
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+      fireEvent.keyDown(screen.getByRole('slider', { name: 'Strength' }), {
+        key: 'End'
+      })
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Adjust' }), {
+        button: 0,
+        ctrlKey: false
+      })
+      expect(contrast()).toHaveAttribute('aria-valuetext', '+70')
+
+      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+      expect(contrast()).toHaveAttribute('aria-valuetext', '+56')
+      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+      expect(contrast()).toHaveAttribute('aria-valuetext', '+16')
+    })
+
+    const strengthSlider = () =>
+      screen.getByRole('slider', { name: 'Strength' })
+
+    it('follows undo: the panel says not applied and a style applies it again', async () => {
+      await setup({ enhance: AVAILABLE })
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      await screen.findByText('Suggested by vision-1')
+      expect(screen.getByRole('radio', { name: 'Natural' })).toBeChecked()
+
+      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+
+      expect(screen.queryAllByRole('radio', { checked: true })).toEqual([])
+      expect(screen.getByText(/Not applied/)).toBeInTheDocument()
+      expect(strengthSlider()).toHaveAttribute(
+        'aria-valuetext',
+        '80, not applied'
+      )
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
+      expect(screen.getByRole('radio', { name: 'Vivid' })).toBeChecked()
+      expect(screen.queryByText(/Not applied/)).not.toBeInTheDocument()
+    })
+
+    it('announces the suggestion and each style in the live region', async () => {
+      await setup({ enhance: AVAILABLE })
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      await screen.findByText('Suggested by vision-1')
+      expect(screen.getByText('Natural suggestion applied')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+
+      expect(
+        screen.getByText('Dramatic suggestion applied')
+      ).toBeInTheDocument()
+    })
+
+    it('leaves an answer that arrives during a save out of the photo', async () => {
+      let answer: (value: typeof SUGGESTION) => void = () => {}
+      vi.mocked(enhanceMediaEdit).mockReturnValue(
+        new Promise((resolve) => (answer = resolve))
+      )
+      let finish: (
+        value: Awaited<ReturnType<typeof saveMediaEdit>>
+      ) => void = () => {}
+      mockSaveMediaEdit.mockImplementation(
+        () => new Promise((resolve) => (finish = resolve))
+      )
+      const { onSaved } = await setup({ enhance: AVAILABLE })
+      nudgeExposure()
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      await screen.findByRole('button', { name: 'Enhancing…' })
+
+      fireEvent.click(saveButton())
+      await screen.findByText('Saving…')
+      await act(async () => answer(SUGGESTION))
+
+      // The photo being stored is the one that was saved: no suggestion lands
+      // on it, and the panel is not left waiting.
+      expect(screen.queryByText('Suggested by vision-1')).toBeNull()
+      expect(
+        screen.queryByText('Natural suggestion applied')
+      ).not.toBeInTheDocument()
+      expect(mockSaveMediaEdit.mock.calls[0][1].recipe.adjustments).toEqual({
+        exposure: 0.01
+      })
+      await act(async () =>
+        finish({ ...editState(), posts: { updated: [], skipped: [] } })
+      )
+      expect(onSaved).toHaveBeenCalled()
+    })
+
+    it('forgets the suggestion when the editor reloads', async () => {
+      mockSaveMediaEdit.mockRejectedValue(
+        new MediaEditError(409, 'stale', { version: 9, saveId: 'other' })
+      )
+      await setup({ enhance: AVAILABLE })
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      await screen.findByText('Suggested by vision-1')
+      fireEvent.click(saveButton())
+      fireEvent.click(await screen.findByRole('button', { name: 'Reload' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Discard' }))
+      await waitFor(() => expect(mockGetMediaEdit).toHaveBeenCalledTimes(2))
+
+      // The AI tab stays selected through the reload, but starts over.
+      expect(
+        await screen.findByRole('button', { name: 'Enhance' })
+      ).toBeInTheDocument()
+      expect(screen.queryByText('Suggested by vision-1')).toBeNull()
+      expect(screen.queryByRole('radiogroup')).toBeNull()
+    })
+
+    it('shows a failed suggestion and leaves the photo alone', async () => {
+      vi.mocked(enhanceMediaEdit).mockRejectedValue(
+        new MediaEditError(502, "Couldn't get a suggestion")
+      )
+      await setup({ enhance: AVAILABLE })
+      openAi()
+      fireEvent.click(await screen.findByRole('button', { name: 'Enhance' }))
+      expect(
+        await screen.findByText("Couldn't get a suggestion.")
+      ).toBeInTheDocument()
+      expect(saveButton()).toBeDisabled()
     })
   })
 })

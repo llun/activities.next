@@ -36,6 +36,12 @@ export interface VisionCompletionOptions {
   systemPrompt: string
   prompt: string
   maxTokens?: number
+  /**
+   * Whether a 307/308 may re-send the request (with the image) to another
+   * host. Defaults to the fetch helper's default (true) so alt text and
+   * subject suggestions behave as before; AI enhance passes false.
+   */
+  allowCrossHostRedirects?: boolean
 }
 
 const DEFAULT_MAX_TOKENS = 300
@@ -55,7 +61,8 @@ export const requestVisionCompletion = async (
   {
     systemPrompt,
     prompt,
-    maxTokens = DEFAULT_MAX_TOKENS
+    maxTokens = DEFAULT_MAX_TOKENS,
+    allowCrossHostRedirects
   }: VisionCompletionOptions
 ): Promise<string | null> => {
   let processedBuffer = imageBuffer
@@ -103,7 +110,10 @@ export const requestVisionCompletion = async (
       ]
     }),
     timeoutInMilliseconds: REQUEST_TIMEOUT_MS,
-    maxBodyBytes: MAX_RESPONSE_BYTES
+    maxBodyBytes: MAX_RESPONSE_BYTES,
+    ...(allowCrossHostRedirects === undefined
+      ? {}
+      : { allowCrossHostRedirects })
   })
 
   if (response.statusCode !== 200) {

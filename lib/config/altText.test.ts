@@ -1,3 +1,5 @@
+import { logger } from '@/lib/utils/logger'
+
 import { getAltTextConfig } from './altText'
 
 describe('getAltTextConfig', () => {
@@ -43,5 +45,31 @@ describe('getAltTextConfig', () => {
     delete process.env[missingKey]
 
     expect(getAltTextConfig()).toBeNull()
+  })
+
+  describe('a partial configuration', () => {
+    it('warns on every normal call', () => {
+      const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
+      process.env.ACTIVITIES_ALT_TEXT_ENDPOINT = 'https://x.example/v1'
+
+      expect(getAltTextConfig()).toBeNull()
+
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn).toHaveBeenCalledWith({
+        message: expect.stringContaining('Alt text generation requires')
+      })
+      warn.mockRestore()
+    })
+
+    it('stays silent when quiet, and still returns null', () => {
+      const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
+      process.env.ACTIVITIES_ALT_TEXT_ENDPOINT = 'https://x.example/v1'
+
+      expect(getAltTextConfig({ quiet: true })).toBeNull()
+      expect(getAltTextConfig({ quiet: true })).toBeNull()
+
+      expect(warn).not.toHaveBeenCalled()
+      warn.mockRestore()
+    })
   })
 })
