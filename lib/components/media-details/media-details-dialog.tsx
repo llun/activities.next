@@ -914,19 +914,31 @@ export const MediaDetailsDialog: FC<Props> = ({
   const onSave = async () => {
     setSaving(true)
     setSaveError(null)
-    const saved: MediaDetailsSavedItem[] = []
+    const savedById = new Map<string, MediaDetailsSavedItem>()
     const savedNow: Record<string, MediaDetailsDraft> = {}
-    let failure: string | null = null
+    const failures: string[] = []
+    const labelOf = (target: MediaDetailsDialogItem) =>
+      target.id === item.id ? 'this item' : `item ${items.indexOf(target) + 1}`
+    // A posted item's alt text is part of its post: it is saved as an edit of
+    // that post (Mastodon's `media_attributes`), which also federates an
+    // Update, and never through the media row alone. Everything else on the
+    // item stays local to the media row. Edits are sent once per post, after
+    // the media rows, so several photos of one post are one edit and one
+    // Update for followers, as in the composer.
+    interface PostEdit {
+      target: MediaDetailsDialogItem
+      effective: MediaDetailsDraft
+      original: MediaDetailsDraft
+      description: string
+      updated: Awaited<ReturnType<typeof updateMediaDetails>> | null
+    }
+    const postEdits = new Map<string, PostEdit[]>()
     for (const target of items) {
       const effective = applySharedSections(drafts[target.id], draft, shared)
       const original = originals[target.id]
       const fields = diffDraft(original, effective)
       const decorativeChanged = original.decorative !== effective.decorative
       if (Object.keys(fields).length === 0 && !decorativeChanged) continue
-      // A posted item's alt text is part of its post: it is saved as an edit of
-      // that post (Mastodon's `media_attributes`), which also federates an
-      // Update, and never through the media row alone. Everything else on the
-      // item stays local to the media row.
       const postStatusId =
         fields.description !== undefined ? target.post?.statusId : undefined
       const { description: postedDescription, ...localFields } = fields
@@ -936,41 +948,77 @@ export const MediaDetailsDialog: FC<Props> = ({
         if (Object.keys(mediaFields).length > 0) {
           updated = await updateMediaDetails(target.id, mediaFields)
         }
-        if (postStatusId !== undefined) {
-          await updateNote({
-            statusId: postStatusId,
-            mediaAttributes: [
-              { id: target.id, description: postedDescription ?? '' }
-            ]
-          })
-        }
-        saved.push({
-          id: target.id,
-          // The row's description is only authoritative when this save sent
-          // one to it; otherwise keep what the composer already shows.
-          description:
-            updated && fields.description !== undefined && !postStatusId
-              ? (updated.description ?? '')
-              : (effectiveDescription(effective) ?? ''),
-          decorative: effective.decorative,
-          details: updated?.details
+      } catch (error) {
+        failures.push(
+          `Could not save ${labelOf(target)}: ${errorMessage(error, 'Failed to save media details.')}`
+        )
+        break
+      }
+      if (postStatusId !== undefined) {
+        const group = postEdits.get(postStatusId) ?? []
+        group.push({
+          target,
+          effective,
+          original,
+          description: postedDescription ?? '',
+          updated
         })
-        savedNow[target.id] = effective
+        postEdits.set(postStatusId, group)
+        continue
+      }
+      savedById.set(target.id, {
+        id: target.id,
+        // The row's description is only authoritative when this save sent
+        // one to it; otherwise keep what the composer already shows.
+        description:
+          updated && fields.description !== undefined
+            ? (updated.description ?? '')
+            : (effectiveDescription(effective) ?? ''),
+        decorative: effective.decorative,
+        details: updated?.details
+      })
+      savedNow[target.id] = effective
+    }
+    for (const [statusId, group] of postEdits) {
+      try {
+        await updateNote({
+          statusId,
+          mediaAttributes: group.map((edit) => ({
+            id: edit.target.id,
+            description: edit.description
+          }))
+        })
+        for (const edit of group) {
+          savedById.set(edit.target.id, {
+            id: edit.target.id,
+            description: effectiveDescription(edit.effective) ?? '',
+            decorative: edit.effective.decorative,
+            details: edit.updated?.details
+          })
+          savedNow[edit.target.id] = edit.effective
+        }
       } catch (error) {
         // The details went through but the post edit did not: the caller still
         // learns of the details, with the alt text it had.
-        if (updated) {
-          saved.push({
-            id: target.id,
-            description: effectiveDescription(original) ?? '',
-            decorative: original.decorative,
-            details: updated.details
+        for (const edit of group) {
+          if (!edit.updated) continue
+          savedById.set(edit.target.id, {
+            id: edit.target.id,
+            description: effectiveDescription(edit.original) ?? '',
+            decorative: edit.original.decorative,
+            details: edit.updated.details
           })
         }
-        failure = `Could not save ${target.id === item.id ? 'this item' : `item ${items.indexOf(target) + 1}`}: ${errorMessage(error, 'Failed to save media details.')}`
-        break
+        failures.push(
+          `Could not save ${group.map((edit) => labelOf(edit.target)).join(', ')}: ${errorMessage(error, 'Failed to save media details.')}`
+        )
       }
     }
+    const saved = items.flatMap((target) => {
+      const entry = savedById.get(target.id)
+      return entry ? [entry] : []
+    })
+    const failure = failures.length > 0 ? failures.join(' ') : null
     if (saved.length > 0) onSaved(saved)
     setSaving(false)
     if (failure) {
@@ -1499,7 +1547,9 @@ export const MediaDetailsDialog: FC<Props> = ({
                 checked={draft.decorative}
                 onChange={(checked) => patchDraft({ decorative: checked })}
               >
-                Post without a description (decorative image)
+                {context === 'gallery'
+                  ? 'Decorative image, no description'
+                  : 'Post without a description (decorative image)'}
               </CheckRow>
               {item.post ? (
                 <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
@@ -1507,8 +1557,8 @@ export const MediaDetailsDialog: FC<Props> = ({
                     className="mt-0.5 size-3.5 shrink-0"
                     aria-hidden="true"
                   />
-                  Changing alt text edits the post, like on Mastodon. Followers
-                  see it as edited.
+                  Changing alt text edits the post, like Mastodon. Followers see
+                  it as edited.
                 </p>
               ) : null}
             </Section>

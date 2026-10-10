@@ -38,6 +38,7 @@ const renderModal = (
   props: {
     initialSelection?: number
     onEdit?: (index: number) => void
+    canEdit?: (media: Attachment) => boolean
   } = {}
 ) => {
   const ui = (list: Attachment[]) => (
@@ -47,6 +48,7 @@ const renderModal = (
         initialSelection={props.initialSelection ?? 0}
         onClosed={vi.fn()}
         onEdit={props.onEdit}
+        canEdit={props.canEdit}
       />
     </PlaybackPreferencesProvider>
   )
@@ -90,6 +92,30 @@ describe('MediasModal edit', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(onEdit).toHaveBeenCalledTimes(1)
     expect(onEdit).toHaveBeenCalledWith(1)
+  })
+
+  it('offers Edit only for the photos the caller allows, and never for a file without a media id', () => {
+    const { rerenderWith } = renderModal(
+      [buildAttachment('1'), buildAttachment('2', { mediaId: null })],
+      { onEdit: vi.fn() }
+    )
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+
+    rerenderWith([buildAttachment('2', { mediaId: null })])
+    expect(
+      screen.queryByRole('button', { name: 'Edit' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('hides Edit for a photo the caller does not allow', () => {
+    renderModal([buildAttachment('1')], {
+      onEdit: vi.fn(),
+      canEdit: () => false
+    })
+
+    expect(
+      screen.queryByRole('button', { name: 'Edit' })
+    ).not.toBeInTheDocument()
   })
 
   it('keeps the info overlay open when an edit hands it the same photos', () => {

@@ -5,7 +5,8 @@ import { urlToId } from '@/lib/utils/urlToId'
 import {
   applySavedToItem,
   getGalleryPostHref,
-  toMediaDetailsDialogItem
+  toMediaDetailsDialogItem,
+  toPostEditItem
 } from './galleryItemEdit'
 
 const OWNER = 'https://activities.local/users/llun'
@@ -159,5 +160,27 @@ describe('applySavedToItem', () => {
     expect(next.camera).toBeNull()
     expect(next.lens).toBeNull()
     expect(next.place).toBeNull()
+  })
+})
+
+describe('toPostEditItem', () => {
+  const attachment = buildGalleryItem('m1').attachment
+
+  it('builds the editor item from a post attachment, with the client status id', () => {
+    const item = toPostEditItem(attachment)
+
+    expect(item).toEqual(
+      expect.objectContaining({
+        mediaId: 'm1',
+        statusId: urlToId(attachment.statusId),
+        attachment,
+        subject: null
+      })
+    )
+  })
+
+  it('has none for a file without a media id', () => {
+    expect(toPostEditItem({ ...attachment, mediaId: null })).toBeNull()
+    expect(toPostEditItem({ ...attachment, mediaId: undefined })).toBeNull()
   })
 })

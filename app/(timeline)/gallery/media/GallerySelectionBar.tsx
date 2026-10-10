@@ -15,6 +15,9 @@ export const GALLERY_SELECTION_BAR_ID = 'gallery-selection-bar'
 const DISABLED_CLASS =
   'aria-disabled:pointer-events-none aria-disabled:opacity-50'
 
+/** Edit details opens one dialog and reads every photo's details, so it is capped. */
+export const MAX_EDIT_DETAILS_PHOTOS = 40
+
 interface Props {
   count: number
   /** How many photos are loaded to choose from. */
@@ -23,12 +26,16 @@ interface Props {
   onClear: () => void
   onAddToAlbum: () => void
   onEditDetails: () => void
+  /** How many of the selected photos are hidden from the gallery (never in an album). */
+  hiddenCount?: number
 }
 
 /**
  * The bar that rides the bottom of the page while photos are selected:
- * "N selected" with the Edit details and Add to album actions. It is a toolbar region, so a screen
- * reader can find it, and the count is a polite live region so every tick of a
+ * "N selected" with the Edit details and Add to album actions. Albums hold only
+ * photos shown in the gallery, so Add to album is off while only hidden photos
+ * are selected, and says so. It is a toolbar region, so a screen reader can find
+ * it, and the count is a polite live region so every tick of a
  * tile is spoken.
  */
 export const GallerySelectionBar: FC<Props> = ({
@@ -37,9 +44,21 @@ export const GallerySelectionBar: FC<Props> = ({
   onSelectAllLoaded,
   onClear,
   onAddToAlbum,
-  onEditDetails
+  onEditDetails,
+  hiddenCount = 0
 }) => {
   const allSelected = loadedCount === 0 || count >= loadedCount
+  const canAdd = count > hiddenCount
+  const canEdit = count <= MAX_EDIT_DETAILS_PHOTOS
+  const addHint =
+    count > 0 && hiddenCount > 0
+      ? canAdd
+        ? `${hiddenCount.toLocaleString('en-US')} hidden ${hiddenCount === 1 ? 'photo' : 'photos'} will be skipped: albums hold only photos shown in your gallery.`
+        : 'Hidden photos can’t be added to albums. Turn on Show in my gallery first.'
+      : null
+  const editHint = canEdit
+    ? null
+    : `Edit up to ${MAX_EDIT_DETAILS_PHOTOS} at a time`
   return (
     <div
       id={GALLERY_SELECTION_BAR_ID}
@@ -54,6 +73,14 @@ export const GallerySelectionBar: FC<Props> = ({
         className="min-w-0 flex-1 text-sm font-medium tabular-nums"
       >
         {count.toLocaleString('en-US')} selected
+        {addHint || editHint ? (
+          <span
+            id={`${GALLERY_SELECTION_BAR_ID}-hint`}
+            className="text-muted-foreground block text-xs font-normal"
+          >
+            {[editHint, addHint].filter(Boolean).join(' ')}
+          </span>
+        ) : null}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -87,9 +114,12 @@ export const GallerySelectionBar: FC<Props> = ({
           variant="outline"
           className={cn('pointer-coarse:h-10', DISABLED_CLASS)}
           onClick={() => {
-            if (count > 0) onEditDetails()
+            if (count > 0 && canEdit) onEditDetails()
           }}
-          aria-disabled={count === 0 || undefined}
+          aria-disabled={count === 0 || !canEdit || undefined}
+          aria-describedby={
+            editHint ? `${GALLERY_SELECTION_BAR_ID}-hint` : undefined
+          }
         >
           <Pencil aria-hidden="true" />
           Edit details
@@ -99,9 +129,12 @@ export const GallerySelectionBar: FC<Props> = ({
           size="sm"
           className={cn('pointer-coarse:h-10', DISABLED_CLASS)}
           onClick={() => {
-            if (count > 0) onAddToAlbum()
+            if (count > 0 && canAdd) onAddToAlbum()
           }}
-          aria-disabled={count === 0 || undefined}
+          aria-disabled={count === 0 || !canAdd || undefined}
+          aria-describedby={
+            addHint ? `${GALLERY_SELECTION_BAR_ID}-hint` : undefined
+          }
         >
           <FolderPlus aria-hidden="true" />
           Add to album

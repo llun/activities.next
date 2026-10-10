@@ -66,6 +66,11 @@ interface Props {
    * caller opens its editor over the viewer; the viewer holds no editor itself.
    */
   onEdit?: (index: number) => void
+  /**
+   * Which photos Edit is offered for; the default is every photo that has a
+   * media id (a file without one has no details to edit).
+   */
+  canEdit?: (media: Attachment) => boolean
   onClosed: () => void
 }
 
@@ -77,6 +82,7 @@ export const MediasModal: FC<Props> = ({
   albumsOwnerId,
   onAlbumsChange,
   onEdit,
+  canEdit,
   onClosed
 }) => {
   const [modalGifPlaying, setModalGifPlaying] = useState<boolean | null>(null)
@@ -448,7 +454,10 @@ export const MediasModal: FC<Props> = ({
             <Info className="h-5 w-5" aria-hidden="true" />
             Details
           </Button>
-          {onEdit ? (
+          {onEdit &&
+          currentMedia &&
+          currentMediaId &&
+          (canEdit ? canEdit(currentMedia) : true) ? (
             <Button
               variant="ghost"
               onClick={(e) => {

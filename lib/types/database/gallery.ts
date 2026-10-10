@@ -29,8 +29,6 @@ export const MEDIA_PLACE_PRECISIONS = [
 ] as const
 export type MediaPlacePrecision = (typeof MEDIA_PLACE_PRECISIONS)[number]
 
-// Whether a new upload lands in the owner's gallery: `always` and `never` are
-// unconditional, `subject` waits until a subject is set on the media.
 /**
  * Which of the owner's posted media a gallery list shows: `all` is every posted
  * photo or video, `in_gallery` the ones shown in the gallery, `hidden` the
@@ -40,6 +38,8 @@ export type MediaPlacePrecision = (typeof MEDIA_PLACE_PRECISIONS)[number]
 export const GALLERY_SHOWS = ['all', 'in_gallery', 'hidden'] as const
 export type GalleryShow = (typeof GALLERY_SHOWS)[number]
 
+// Whether a new upload lands in the owner's gallery: `always` and `never` are
+// unconditional, `subject` waits until a subject is set on the media.
 export const GALLERY_DEFAULTS = ['subject', 'always', 'never'] as const
 export type GalleryDefault = (typeof GALLERY_DEFAULTS)[number]
 

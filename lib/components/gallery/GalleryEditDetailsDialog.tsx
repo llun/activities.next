@@ -50,6 +50,10 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
   const [details, setDetails] = useState<Record<string, MediaDetailsEntity>>({})
   // The tiles as the dialog last saw them, so a save maps onto them.
   const itemsRef = useRef(items)
+  // The tile each save produced. The next save is applied on top of it: a retry
+  // after a partial failure sends only what is still unsaved, and its answer
+  // must not put the tile back to how it was when the dialog opened.
+  const producedRef = useRef(new Map<string, GalleryItemEntity>())
   useEffect(() => {
     itemsRef.current = items
   }, [items])
@@ -125,7 +129,13 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
       onSaved(
         itemsRef.current.flatMap((item) => {
           const entry = byId.get(item.mediaId)
-          return entry ? [applySavedToItem(item, entry)] : []
+          if (!entry) return []
+          const next = applySavedToItem(
+            producedRef.current.get(item.mediaId) ?? item,
+            entry
+          )
+          producedRef.current.set(item.mediaId, next)
+          return [next]
         })
       )
     },

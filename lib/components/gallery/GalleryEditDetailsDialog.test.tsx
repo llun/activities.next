@@ -188,6 +188,51 @@ describe('GalleryEditDetailsDialog', () => {
     await waitFor(() => expect(latest().items[1].details?.inGallery).toBe(true))
   })
 
+  it('applies a retried save on top of the tile the first save produced', async () => {
+    const onSaved = vi.fn()
+    renderDialog({ onSaved })
+    await waitFor(() => expect(getMediaMock).toHaveBeenCalledTimes(3))
+    const withSubject: MediaDetailsEntity = {
+      ...details(true),
+      subject: {
+        name: 'Grey Heron',
+        scientificName: 'Ardea cinerea',
+        category: 'bird',
+        taxonKey: null,
+        taxonPath: null,
+        iucnCategory: null,
+        threatStatus: 'unchecked',
+        lookupStatus: null,
+        lookupAt: null,
+        lookupStale: false
+      }
+    }
+
+    // The first save went through for the details and failed for the alt text.
+    act(() =>
+      latest().onSaved([
+        {
+          id: '1',
+          description: '',
+          decorative: false,
+          details: withSubject
+        }
+      ])
+    )
+    // The retry sends the alt text alone, so it comes back without details.
+    act(() =>
+      latest().onSaved([
+        { id: '1', description: 'Heron at dawn', decorative: false }
+      ])
+    )
+
+    const [retried] = onSaved.mock.calls[1][0]
+    expect(retried.attachment.name).toBe('Heron at dawn')
+    expect(retried.subject).toEqual(
+      expect.objectContaining({ name: 'Grey Heron' })
+    )
+  })
+
   it('merges details the dialog refreshed on its own', async () => {
     renderDialog()
     await waitFor(() =>

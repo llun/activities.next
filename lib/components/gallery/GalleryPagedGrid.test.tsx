@@ -286,6 +286,16 @@ describe('GalleryPagedGrid', () => {
       expect(screen.getByTestId('grid')).not.toHaveTextContent('2')
     })
 
+    it('treats no show filter as the gallery list, like the server', () => {
+      render(page())
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit first' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+
+      expect(screen.getByTestId('grid')).not.toHaveTextContent('2')
+      expect(screen.getByTestId('grid')).toHaveTextContent('1')
+    })
+
     it('keeps an edited tile that still belongs under Everything', () => {
       render(page('all'))
 

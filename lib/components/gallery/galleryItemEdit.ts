@@ -4,9 +4,10 @@ import type {
 } from '@/lib/components/media-details/media-details-dialog'
 import type { GalleryItemEntity } from '@/lib/services/gallery/galleryEntities'
 import type { MediaDetailsEntity } from '@/lib/services/medias/types'
+import type { Attachment } from '@/lib/types/domain/attachment'
 import { getActorMentionPathSegment } from '@/lib/utils/getActorMentionPathSegment'
 import { isPublicId } from '@/lib/utils/publicId'
-import { idToUrl } from '@/lib/utils/urlToId'
+import { idToUrl, urlToId } from '@/lib/utils/urlToId'
 
 /**
  * The page of the post a gallery photo is shown through, for the owner's
@@ -102,3 +103,27 @@ export const applySavedToItem = (
       : null
   }
 }
+
+/**
+ * A photo of one of the owner's own posts, as the editor takes it. A post's
+ * attachment has the post's url as its status id, which the editor wants in the
+ * client form (the same one gallery items carry). The details a gallery tile
+ * shows are not known here; the editor reads them itself. Null for a file
+ * without a media id.
+ */
+export const toPostEditItem = (
+  attachment: Attachment
+): GalleryItemEntity | null =>
+  attachment.mediaId
+    ? {
+        mediaId: attachment.mediaId,
+        statusId: urlToId(attachment.statusId),
+        attachment,
+        subject: null,
+        takenAt: null,
+        camera: null,
+        lens: null,
+        exposure: null,
+        place: null
+      }
+    : null

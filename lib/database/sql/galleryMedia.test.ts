@@ -734,7 +734,6 @@ describe('GalleryMediaDatabase', () => {
       })
     })
 
-    // Compile-time pin: the audience is required on every scoped method.
     // The owner's All media list widens the scope to posted media outside the
     // gallery. Nobody else may: for them `show` is read as `in_gallery`.
     describe('show', () => {
@@ -864,6 +863,7 @@ describe('GalleryMediaDatabase', () => {
       })
     })
 
+    // Compile-time pin: the audience is required on every scoped method.
     it('requires an audience on every scoped method', () => {
       type ScopedParams = Parameters<
         GalleryMediaDatabase[

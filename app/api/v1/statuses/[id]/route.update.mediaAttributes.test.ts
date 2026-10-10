@@ -6,7 +6,11 @@ import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
 import { getQueue } from '@/lib/services/queue'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
-import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
+import {
+  ACTOR1_FOLLOWER_URL,
+  ACTOR1_ID,
+  seedActor1
+} from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
@@ -644,6 +648,191 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
           data: { actorId: ACTOR1_ID, statusId }
         })
       )
+    })
+
+    it('edits one photo of a followers-only content-warning post with a route without touching the rest', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-alt-realistic`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'A morning at the lake',
+        summary: 'Birds, long post',
+        sensitive: true,
+        to: [ACTOR1_FOLLOWER_URL],
+        cc: []
+      })
+      const names = ['First light', 'Middle photo', 'Last photo']
+      const medias = []
+      for (const [index, name] of names.entries()) {
+        const media = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/api-edit-realistic-${index}.webp`,
+            bytes: 1024,
+            mimeType: 'image/jpeg',
+            metaData: { width: 320, height: 240 },
+            fileName: `api-edit-realistic-${index}.jpg`
+          },
+          description: name
+        })
+        await database.createAttachment({
+          actorId: ACTOR1_ID,
+          statusId,
+          mediaType: media!.original.mimeType,
+          url: `https://llun.test/api/v1/files/medias/api-edit-realistic-${index}.webp`,
+          width: 320,
+          height: 240,
+          name,
+          mediaId: media!.id
+        })
+        medias.push(media!)
+      }
+      // The route map of an activity post: a file, not a photo.
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'application/gpx+xml',
+        url: 'https://llun.test/api/v1/fitness-files/realistic-route',
+        width: 0,
+        height: 0,
+        name: 'route.gpx'
+      })
+      const before = await database.getStatus({ statusId })
+      if (!before || before.type !== StatusType.enum.Note) {
+        throw new Error('Expected note status')
+      }
+      const attachmentsBefore = before.attachments.map(
+        (attachment) => attachment.url
+      )
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [
+                { id: medias[1].id, description: 'Heron lifting off' }
+              ]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(response.status).toBe(200)
+
+      const after = await database.getStatus({ statusId })
+      if (!after || after.type !== StatusType.enum.Note) {
+        throw new Error('Expected note status')
+      }
+      expect(after.text).toBe('A morning at the lake')
+      expect(after.summary).toBe('Birds, long post')
+      expect(after.sensitive).toBe(true)
+      expect(after.to).toEqual([ACTOR1_FOLLOWER_URL])
+      expect(after.cc).toEqual([])
+      // Same files in the same order; only the middle photo's alt changed.
+      expect(after.attachments.map((attachment) => attachment.url)).toEqual(
+        attachmentsBefore
+      )
+      expect(
+        after.attachments
+          .filter((attachment) => attachment.mediaType === 'image/jpeg')
+          .map((attachment) => attachment.name)
+      ).toEqual(['First light', 'Heron lifting off', 'Last photo'])
+      expect(
+        after.attachments.find((attachment) =>
+          attachment.url.includes('/fitness-files/')
+        )
+      ).toBeDefined()
+      // One edit on the record, one Update to followers.
+      expect(after.edits).toHaveLength(1)
+      expect(after.edits[0].text).toBe('A morning at the lake')
+      const updates = vi
+        .mocked(getQueue().publish)
+        .mock.calls.filter(
+          ([message]) => message.name === SEND_UPDATE_NOTE_JOB_NAME
+        )
+      expect(updates).toHaveLength(1)
+    })
+
+    it('sends one edit for the alt text of several photos of a post', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-alt-several`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Two photos',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const medias = []
+      for (const index of [0, 1]) {
+        const media = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/api-edit-several-${index}.webp`,
+            bytes: 1024,
+            mimeType: 'image/jpeg',
+            metaData: { width: 320, height: 240 },
+            fileName: `api-edit-several-${index}.jpg`
+          },
+          description: ''
+        })
+        await database.createAttachment({
+          actorId: ACTOR1_ID,
+          statusId,
+          mediaType: media!.original.mimeType,
+          url: `https://llun.test/api/v1/files/medias/api-edit-several-${index}.webp`,
+          width: 320,
+          height: 240,
+          name: '',
+          mediaId: media!.id
+        })
+        medias.push(media!)
+      }
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [
+                { id: medias[0].id, description: 'First' },
+                { id: medias[1].id, description: 'Second' }
+              ]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(response.status).toBe(200)
+
+      const status = await database.getStatus({ statusId })
+      if (!status || status.type !== StatusType.enum.Note) {
+        throw new Error('Expected note status')
+      }
+      expect(status.attachments.map((attachment) => attachment.name)).toEqual([
+        'First',
+        'Second'
+      ])
+      expect(status.edits).toHaveLength(1)
+      expect(
+        vi
+          .mocked(getQueue().publish)
+          .mock.calls.filter(
+            ([message]) => message.name === SEND_UPDATE_NOTE_JOB_NAME
+          )
+      ).toHaveLength(1)
     })
 
     it('rejects alt text over the media description limit', async () => {

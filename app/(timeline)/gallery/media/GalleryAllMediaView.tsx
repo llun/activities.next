@@ -36,6 +36,7 @@ import {
   GALLERY_SELECTION_BAR_ID,
   GallerySelectionBar
 } from './GallerySelectionBar'
+import { describeHiddenSkipped } from './galleryAddToAlbumUi'
 
 interface Props {
   actorId: string
@@ -85,6 +86,10 @@ export const GalleryAllMediaView: FC<Props> = ({
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [outcome, setOutcome] = useState<Outcome | null>(null)
+  // The page the server rendered is only the first list this view shows: once
+  // the owner has switched filters (or edited anything) it is stale, so a later
+  // return to the starting filter loads its own.
+  const [reuseInitialPage, setReuseInitialPage] = useState(true)
 
   const selectButton = useRef<HTMLButtonElement>(null)
   // Set when an add or create finished, so the dialog that closes hands focus
@@ -104,13 +109,51 @@ export const GalleryAllMediaView: FC<Props> = ({
   const setFilter = (next: Filter) => {
     // A different filter is a different list: a selection does not carry over.
     setSelected([])
+    setReuseInitialPage(false)
     setFilterState(next)
   }
 
   const setShow = (next: GalleryShow) => {
     setSelected([])
+    setReuseInitialPage(false)
     setShowState(next)
   }
+
+  // The grid reports its photos whenever they change (a page loads, an edit
+  // moves one out of the list). A pick of a photo that is gone is dropped, so
+  // the count and what Add to album sends match what the owner can see.
+  const handleItemsChange = useCallback((items: GalleryItemEntity[]) => {
+    setLoaded(items)
+    setSelected((current) => {
+      const present = new Set(items.map((item) => item.mediaId))
+      const next = current.filter((id) => present.has(id))
+      return next.length === current.length ? current : next
+    })
+  }, [])
+
+  // Albums hold only photos shown in the gallery. A hidden one in a selection is
+  // left out of an add or a new album, and the owner is told so.
+  const hiddenIds = useMemo(
+    () =>
+      new Set(
+        selectedItems
+          .filter((item) => item.inGallery === false)
+          .map((item) => item.mediaId)
+      ),
+    [selectedItems]
+  )
+  const addableIds = useMemo(
+    () => selected.filter((id) => !hiddenIds.has(id)),
+    [selected, hiddenIds]
+  )
+  const addableItems = useMemo(
+    () => selectedItems.filter((item) => item.inGallery !== false),
+    [selectedItems]
+  )
+  const withHiddenNote = (message: string) =>
+    hiddenIds.size > 0
+      ? `${message} ${describeHiddenSkipped(hiddenIds.size)}`
+      : message
 
   const toggle = useCallback((item: GalleryItemEntity) => {
     setSelected((current) =>
@@ -155,7 +198,7 @@ export const GalleryAllMediaView: FC<Props> = ({
     <div className="space-y-6">
       <PageHeader
         title="All media"
-        description="Every photo and video you've posted or added, newest first"
+        description="Every photo and video you've posted, newest first"
         actions={
           <Button
             ref={selectButton}
@@ -240,7 +283,7 @@ export const GalleryAllMediaView: FC<Props> = ({
         category={filter === 'all' ? undefined : filter}
         show={show}
         initialPage={
-          filter === startFilter && show === initialShow
+          reuseInitialPage && filter === startFilter && show === initialShow
             ? initialPage
             : undefined
         }
@@ -252,7 +295,7 @@ export const GalleryAllMediaView: FC<Props> = ({
         }
         selection={selection}
         albumsOwnerId={actorId}
-        onItemsChange={setLoaded}
+        onItemsChange={handleItemsChange}
       />
       {isSelecting ? (
         <GallerySelectionBar
@@ -260,6 +303,7 @@ export const GalleryAllMediaView: FC<Props> = ({
           loadedCount={loaded.length}
           onSelectAllLoaded={selectAllLoaded}
           onClear={() => setSelected([])}
+          hiddenCount={hiddenIds.size}
           onAddToAlbum={() => setIsAddOpen(true)}
           onEditDetails={() => {
             setEditItems(selectedItems)
@@ -288,27 +332,29 @@ export const GalleryAllMediaView: FC<Props> = ({
 
       <GalleryAddToAlbumDialog
         open={isAddOpen}
-        mediaIds={selected}
+        mediaIds={addableIds}
         onOpenChange={setIsAddOpen}
         onNewAlbum={() => {
           setIsAddOpen(false)
           setIsCreateOpen(true)
         }}
-        onAdded={finish}
+        onAdded={(result) =>
+          finish({ ...result, message: withHiddenNote(result.message) })
+        }
         onCloseAutoFocus={restoreFocus}
       />
       <GalleryAlbumFormDialog
         open={isCreateOpen}
         ownerId={actorId}
         intent="create"
-        initialMediaIds={selected}
-        initialItems={selectedItems}
+        initialMediaIds={addableIds}
+        initialItems={addableItems}
         onOpenChange={setIsCreateOpen}
         onCloseAutoFocus={restoreFocus}
         onSaved={(albumId) =>
           finish({
             albumId,
-            message: 'Album created.'
+            message: withHiddenNote('Album created.')
           })
         }
       />

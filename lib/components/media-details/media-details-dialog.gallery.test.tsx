@@ -106,7 +106,7 @@ describe('MediaDetailsDialog in the gallery', () => {
 
     expect(
       screen.getByText(
-        'Changing alt text edits the post, like on Mastodon. Followers see it as edited.'
+        'Changing alt text edits the post, like Mastodon. Followers see it as edited.'
       )
     ).toBeInTheDocument()
     const link = screen.getByRole('link', { name: /Open post/ })
@@ -233,6 +233,95 @@ describe('MediaDetailsDialog in the gallery', () => {
     expect(onClose).not.toHaveBeenCalled()
     expect(onSaved).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'a', description: 'Old alt' })
+    ])
+  })
+  it('labels the decorative option for the post it clears', () => {
+    renderDialog([makeItem('a', { post: POST })], { context: 'gallery' })
+
+    expect(
+      screen.getByLabelText('Decorative image, no description')
+    ).toBeInTheDocument()
+  })
+
+  it('sends one post edit for several photos of the same post', async () => {
+    const { onSaved, onClose } = renderDialog(
+      [
+        makeItem('a', { post: POST }),
+        makeItem('b', { post: POST }),
+        makeItem('c', { post: { statusId: 'status-2', href: null } })
+      ],
+      { context: 'gallery' }
+    )
+
+    const edit = (alt: string) =>
+      fireEvent.change(screen.getByLabelText('Description (alt text)'), {
+        target: { value: alt }
+      })
+    const goTo = (name: string) =>
+      fireEvent.click(screen.getByRole('button', { name }))
+    edit('First')
+    goTo('Next item')
+    edit('Second')
+    goTo('Next item')
+    edit('Third')
+    save()
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(updateMediaDetailsMock).not.toHaveBeenCalled()
+    expect(updateNoteMock).toHaveBeenCalledTimes(2)
+    expect(updateNoteMock).toHaveBeenCalledWith({
+      statusId: 'status-1',
+      mediaAttributes: [
+        { id: 'a', description: 'First' },
+        { id: 'b', description: 'Second' }
+      ]
+    })
+    expect(updateNoteMock).toHaveBeenCalledWith({
+      statusId: 'status-2',
+      mediaAttributes: [{ id: 'c', description: 'Third' }]
+    })
+    expect(onSaved).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'a', description: 'First' }),
+      expect.objectContaining({ id: 'b', description: 'Second' }),
+      expect.objectContaining({ id: 'c', description: 'Third' })
+    ])
+  })
+
+  it('names every photo of a post whose edit failed and still saves the others', async () => {
+    updateNoteMock.mockImplementation(async ({ statusId }) => {
+      if (statusId === 'status-1') throw new Error('Post could not be edited')
+      return {} as Awaited<ReturnType<typeof updateNote>>
+    })
+    const { onSaved, onClose } = renderDialog(
+      [
+        makeItem('a', { post: POST }),
+        makeItem('b', { post: POST }),
+        makeItem('c', { post: { statusId: 'status-2', href: null } })
+      ],
+      { context: 'gallery' }
+    )
+
+    const edit = (alt: string) =>
+      fireEvent.change(screen.getByLabelText('Description (alt text)'), {
+        target: { value: alt }
+      })
+    const goTo = (name: string) =>
+      fireEvent.click(screen.getByRole('button', { name }))
+    edit('First')
+    goTo('Next item')
+    edit('Second')
+    goTo('Next item')
+    edit('Third')
+    save()
+
+    expect(
+      await screen.findByText(
+        /Could not save item 1, item 2: Post could not be edited/
+      )
+    ).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onSaved).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'c', description: 'Third' })
     ])
   })
 })

@@ -46,7 +46,10 @@ interface Props {
   category?: MediaSubjectCategory
   /** Owner only: one camera or lens. */
   gearId?: string
-  /** Owner only: `all` posted media, or just the `hidden` ones. */
+  /**
+   * Owner only: `all` posted media, just the `hidden` ones or the `in_gallery`
+   * ones. Left out, the server lists the gallery's photos.
+   */
   show?: GalleryShow
   /** A page the server already loaded; without it the grid loads its own. */
   initialPage?: GalleryMediaPage
@@ -156,12 +159,16 @@ export const GalleryPagedGrid: FC<Props> = ({
   // dropped from the list only once told to, so the viewer a tile was edited
   // from keeps the photos it is paging through.
   const belongsHere = useCallback(
-    (item: GalleryItemEntity) =>
-      show === 'in_gallery'
+    (item: GalleryItemEntity) => {
+      // Without a `show` the server lists the gallery's photos (the subject and
+      // gear pages), so that is what an edited tile must still be.
+      const list = show ?? 'in_gallery'
+      return list === 'in_gallery'
         ? item.inGallery !== false
-        : show === 'hidden'
+        : list === 'hidden'
           ? item.inGallery !== true
-          : true,
+          : true
+    },
     [show]
   )
   const replaceItems = useCallback((edited: GalleryItemEntity[]) => {

@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation'
 import { FC, ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
-import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
+import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
 import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { ReplyToast } from '@/lib/components/posts/reply-toast'
@@ -611,7 +611,7 @@ export const StatusThread: FC<StatusThreadProps> = ({
         </div>
       )}
 
-      <MediasModal
+      <OwnPostMediasModal
         medias={modalMedias?.medias ?? null}
         tags={modalMedias?.tags ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}

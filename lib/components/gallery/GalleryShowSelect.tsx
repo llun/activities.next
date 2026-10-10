@@ -24,7 +24,7 @@ export const GALLERY_SHOW_OPTIONS: ShowOption[] = [
   {
     id: 'all',
     label: 'Everything',
-    hint: 'Photos and videos you’ve posted or added'
+    hint: 'Photos and videos you’ve posted'
   },
   {
     id: 'in_gallery',
@@ -61,7 +61,11 @@ export const GalleryShowSelect: FC<Props> = ({
     GALLERY_SHOW_OPTIONS[0]
 
   return (
-    <nav aria-label="Show" className={cn('w-full sm:max-w-[260px]', className)}>
+    <div
+      role="group"
+      aria-label="Show"
+      className={cn('w-full sm:max-w-[260px]', className)}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -118,6 +122,6 @@ export const GalleryShowSelect: FC<Props> = ({
           })}
         </DropdownMenuContent>
       </DropdownMenu>
-    </nav>
+    </div>
   )
 }

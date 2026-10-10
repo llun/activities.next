@@ -5,7 +5,7 @@ import { FC, useState } from 'react'
 
 import type { StatusFitnessFileItem } from '@/lib/client'
 import { getAlbumsOwnerId } from '@/lib/components/gallery/mediaAlbumsUi'
-import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
+import { OwnPostMediasModal } from '@/lib/components/medias-modal/own-post-medias-modal'
 import { InlineStatusComposer } from '@/lib/components/posts/inline-status-composer'
 import { Post } from '@/lib/components/posts/post'
 import { useInlineComposer } from '@/lib/components/posts/useInlineComposer'
@@ -88,7 +88,7 @@ export const StatusBox: FC<Props> = ({
             })
           }}
         />
-        <MediasModal
+        <OwnPostMediasModal
           medias={modalMedias?.medias ?? null}
           tags={modalMedias?.tags ?? null}
           initialSelection={modalMedias?.initialSelection ?? 0}
@@ -167,7 +167,7 @@ export const StatusBox: FC<Props> = ({
           />
         ) : null}
       </article>
-      <MediasModal
+      <OwnPostMediasModal
         medias={modalMedias?.medias ?? null}
         tags={modalMedias?.tags ?? null}
         initialSelection={modalMedias?.initialSelection ?? 0}
