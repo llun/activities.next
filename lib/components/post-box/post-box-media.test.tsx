@@ -121,7 +121,7 @@ describe('PostBox media details', () => {
     // Room for the Remove button (and its focus outline) outside each tile's
     // top-right corner, which the scroller would otherwise clip; the top
     // padding is also the 12px gap above the row.
-    expect(row).toHaveClass('pt-3', 'pr-3', 'scroll-pr-3')
+    expect(row).toHaveClass('pt-3', 'pr-3', 'scroll-pr-3', 'scroll-pl-16')
     expect(row).toHaveClass('snap-x', 'snap-proximity')
     for (const tile of within(row).getAllByRole('listitem')) {
       expect(tile).toHaveClass('flex-none', 'snap-start')
@@ -222,6 +222,33 @@ describe('PostBox media details', () => {
         )
       )
       expect(document.activeElement).toBe(before)
+    } finally {
+      delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo
+    }
+  })
+
+  it('leaves the row where it is when a tile is removed', async () => {
+    const scrollTo = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      value: scrollTo
+    })
+    try {
+      renderPostBox()
+      attach('a.png', 'b.png')
+      await screen.findAllByText('Review')
+      scrollTo.mockClear()
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove media a.png' })
+      )
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Remove media a.png' })
+        ).not.toBeInTheDocument()
+      )
+      expect(scrollTo).not.toHaveBeenCalled()
     } finally {
       delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo
     }

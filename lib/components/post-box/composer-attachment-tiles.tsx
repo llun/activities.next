@@ -167,13 +167,22 @@ export const ComposerAttachmentTiles: FC<Props> = ({
   const { canScrollLeft, canScrollRight } = strip
   const previousCount = useRef(attachments.length)
 
-  // A new tile lands at the end of the row, which can be off-screen; bring it
-  // into view without moving focus (its "Uploading…" or "Upload failed" text
-  // and Retry button would otherwise be invisible to a sighted user).
+  // A new upload lands at the end of the row, which can be off-screen; bring
+  // it into view without moving focus (its "Uploading…" or "Upload failed"
+  // text and Retry button would otherwise be invisible to a sighted user).
+  // Only a fresh upload counts (still uploading, uploaded with a client key,
+  // or failed): an edit's media arrive after the first render with none of
+  // those, and that row should open at its first tile.
   useEffect(() => {
     const grew = attachments.length > previousCount.current
     previousCount.current = attachments.length
-    if (!grew) return
+    const last = attachments[attachments.length - 1]
+    const freshUpload =
+      last &&
+      (last.isLoading ||
+        last.id in clientKeys ||
+        Boolean(uploadErrors[last.id]))
+    if (!grew || !freshUpload) return
     const row = rootRef.current?.querySelector('ul')
     if (!row || typeof row.scrollTo !== 'function') return
     const reducedMotion =
@@ -183,7 +192,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
       left: row.scrollWidth,
       behavior: reducedMotion ? 'auto' : 'smooth'
     })
-  }, [attachments.length])
+  }, [attachments, clientKeys, uploadErrors])
 
   useEffect(() => {
     const target = focusAfterRemoveRef.current
@@ -263,7 +272,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
           role="list"
           aria-label="Attached media"
           onScroll={strip.measure}
-          className="no-scrollbar flex snap-x snap-proximity gap-3 overflow-x-auto scroll-pr-3 pt-3 pr-3"
+          className="no-scrollbar flex snap-x snap-proximity gap-3 overflow-x-auto scroll-pr-3 scroll-pl-16 pt-3 pr-3"
         >
           {attachments.map((item, index) => {
             const label = getAttachmentLabel(item, fileNames, index)
