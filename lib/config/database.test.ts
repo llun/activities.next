@@ -78,6 +78,26 @@ describe('Database config', () => {
       expect(conn.user).toBe('user')
     })
 
+    it('defaults the pg pool to min 1 and max 5', () => {
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
+      delete process.env.ACTIVITIES_DATABASE_PG_POOL_MIN
+      delete process.env.ACTIVITIES_DATABASE_PG_POOL_MAX
+
+      const config = getDatabaseConfig()
+
+      expect(config?.database.pool).toEqual({ min: 1, max: 5 })
+    })
+
+    it('reads the pg pool size from env vars', () => {
+      process.env.ACTIVITIES_DATABASE_CLIENT = 'pg'
+      process.env.ACTIVITIES_DATABASE_PG_POOL_MIN = '2'
+      process.env.ACTIVITIES_DATABASE_PG_POOL_MAX = '20'
+
+      const config = getDatabaseConfig()
+
+      expect(config?.database.pool).toEqual({ min: 2, max: 20 })
+    })
+
     it('builds pg-native config with ssl require', () => {
       process.env.ACTIVITIES_DATABASE_CLIENT = 'pg-native'
       process.env.ACTIVITIES_DATABASE_PG_SSL_MODE = 'require'

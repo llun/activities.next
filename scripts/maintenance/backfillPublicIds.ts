@@ -169,12 +169,12 @@ interface PublicIdUpdate {
 // This used to be a per-row UPDATE fanned out with Promise.all over the whole
 // --batch-size (500 by default). The pool this script runs on is the APP's
 // (`getDatabaseConfig()`), which caps at ACTIVITIES_DATABASE_PG_POOL_MAX — 5 in
-// production and 1 if unset — so the other 495 queries sat in tarn's acquire
-// queue and the whole batch had to drain inside a single 60s
-// acquireConnectionTimeout. That is the same failure that killed the migration
-// mid-backfill ("Timeout acquiring a connection. The pool is probably full."),
-// only on a tighter pool; see the matching bulkUpdatePublicIds() in
-// migrations/20260808000000_add_public_ids.js.
+// production and by default (set it lower and the queue only gets worse) — so
+// the other 495 queries sat in tarn's acquire queue and the whole batch had to
+// drain inside a single 60s acquireConnectionTimeout. That is the same failure
+// that killed the migration mid-backfill ("Timeout acquiring a connection. The
+// pool is probably full."), only on a tighter pool; see the matching
+// bulkUpdatePublicIds() in migrations/20260808000000_add_public_ids.js.
 //
 // Awaiting sequentially means the backfill holds exactly ONE pooled connection
 // at any moment: it cannot starve its own pool, and it leaves the rest of the

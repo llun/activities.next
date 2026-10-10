@@ -7,9 +7,10 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 // transaction's own connection, so ported and unported code can share one
 // transaction. What cannot work is the ROOT instance of either library inside
 // a transaction the other one opened: it needs a second pooled connection
-// (SQLite has exactly one, and PostgreSQL defaults to one in
-// lib/config/database.ts, so it deadlocks), and even when the pool has room
-// its work runs outside the transaction, so a rollback silently keeps it.
+// (SQLite has exactly one, so it deadlocks there; on PostgreSQL it deadlocks
+// when the pool max is 1, i.e. ACTIVITIES_DATABASE_PG_POOL_MAX=1), and even
+// when the pool has room its work runs outside the transaction, so a rollback
+// silently keeps it.
 //
 // Both directions now throw `MixedDatabaseTransactionError` before touching
 // the pool. Each library's open transaction is recorded in an
