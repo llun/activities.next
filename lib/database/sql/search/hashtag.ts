@@ -1,6 +1,12 @@
 import { Knex } from 'knex'
 
 import { getConfig } from '@/lib/config'
+import { searchQueries } from '@/lib/database/domains/search/queries'
+import {
+  getSearchDocumentId,
+  normalizeSearchText
+} from '@/lib/database/domains/search/rows'
+import { kyselyFor } from '@/lib/database/kysely'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   KnexConnection,
@@ -26,11 +32,8 @@ import {
   SEARCH_DOCUMENTS_TABLE,
   applySearchDocumentFilter,
   applySearchDocumentOrdering,
-  deleteSearchDocument,
-  getSearchDocumentId,
-  normalizeSearchText,
   toSearchDocument
-} from './documents'
+} from './knexDocuments'
 
 type SQLSearchDocumentRow = Parameters<typeof toSearchDocument>[0]
 type HashtagSearchAggregate = {
@@ -390,7 +393,7 @@ export const deleteHashtagSearchDocument = async (
   database: Knex,
   { hashtag }: { hashtag: string }
 ): Promise<void> => {
-  await deleteSearchDocument(database, {
+  await searchQueries.deleteSearchDocument(kyselyFor(database), {
     entityType: 'hashtag',
     entityId: getHashtagEntityId(hashtag)
   })
@@ -404,7 +407,7 @@ export const searchHashtags = async (
     .select('search_documents.*')
     .where('search_documents.entityType', 'hashtag')
 
-  await applySearchDocumentFilter({ database, query, q })
+  applySearchDocumentFilter({ database, query, q })
   applySearchDocumentOrdering({ database, query, entityType: 'hashtag', q })
 
   const rows = await query.limit(limit).offset(offset)

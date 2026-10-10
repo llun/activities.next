@@ -3,7 +3,9 @@ import knex from 'knex'
 import { kyselyFor } from '@/lib/database/kysely'
 import {
   forUpdate,
+  fullTextMatch,
   getDialectName,
+  jsonText,
   timestampValue
 } from '@/lib/database/kysely/dialect'
 
@@ -64,5 +66,55 @@ describe('timestamp column types', () => {
       // @ts-expect-error a plain number is not an EpochMs
       .where('createdAt', '<', 123)
       .compile()
+  })
+})
+
+describe('jsonText', () => {
+  it.each([
+    {
+      name: 'sqlite',
+      instance: sqlite,
+      sql: `select json_extract("actors"."settings", '$.followersUrl') as "url" from "actors"`
+    },
+    {
+      name: 'postgres',
+      instance: postgres,
+      sql: `select "actors"."settings"::jsonb ->> 'followersUrl' as "url" from "actors"`
+    }
+  ])('reads a property of a JSON column ($name)', (item) => {
+    const db = kyselyFor(item.instance)
+    const query = db
+      .selectFrom('actors')
+      .select(jsonText(db, 'actors.settings', 'followersUrl').as('url'))
+    expect(query.compile().sql).toBe(item.sql)
+    expect(query.compile().parameters).toEqual([])
+  })
+})
+
+describe('fullTextMatch', () => {
+  it('joins the FTS5 table and matches each token as a prefix (sqlite)', () => {
+    const db = kyselyFor(sqlite)
+    const compiled = fullTextMatch(
+      db,
+      db.selectFrom('search_documents').select('search_documents.id'),
+      ['trail', 'run_1']
+    ).compile()
+    expect(compiled.sql).toBe(
+      'select "search_documents"."id" from "search_documents" inner join "search_documents_fts" on search_documents_fts.rowid = search_documents.rowid where search_documents_fts match ?'
+    )
+    expect(compiled.parameters).toEqual(['trail* run_1*'])
+  })
+
+  it('matches the to_tsvector index expression, ANDing the prefixes (postgres)', () => {
+    const db = kyselyFor(postgres)
+    const compiled = fullTextMatch(
+      db,
+      db.selectFrom('search_documents').select('search_documents.id'),
+      ['trail', 'run_1']
+    ).compile()
+    expect(compiled.sql).toBe(
+      `select "search_documents"."id" from "search_documents" where to_tsvector('simple', "documentText") @@ to_tsquery('simple', $1)`
+    )
+    expect(compiled.parameters).toEqual(['trail:* & run_1:*'])
   })
 })

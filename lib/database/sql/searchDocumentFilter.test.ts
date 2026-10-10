@@ -1,15 +1,9 @@
-import knex, { Knex } from 'knex'
+import type { Knex } from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
-import {
-  getSearchTokens,
-  indexStatusSearchDocument,
-  normalizeHashtagSearchName
-} from '@/lib/database/sql/search'
-import {
-  applySearchDocumentFilter,
-  applySearchDocumentOrdering
-} from '@/lib/database/sql/search/documents'
+import { getSearchTokens } from '@/lib/database/domains/search/rows'
+import { normalizeHashtagSearchName } from '@/lib/database/sql/search/hashtag'
+import { indexStatusSearchDocument } from '@/lib/database/sql/search/status'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { StatusType } from '@/lib/types/domain/status'
 
@@ -37,16 +31,11 @@ describe('SearchDatabase document filtering', () => {
   })
 
   it('creates SQLite FTS search documents and returns full-text matches', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await database.upsertSearchDocument({
         entityType: 'account',
@@ -56,13 +45,15 @@ describe('SearchDatabase document filtering', () => {
         discoverable: true
       })
 
-      const ftsRows = await knexDatabase.raw(
-        'select id from search_documents_fts where search_documents_fts match ?',
-        ['runner']
-      )
-      expect(ftsRows).toEqual([
-        { id: 'account:https://remote.test/users/alice' }
-      ])
+      if (testDb.backend === 'sqlite') {
+        const ftsRows = await knexDatabase.raw(
+          'select id from search_documents_fts where search_documents_fts match ?',
+          ['runner']
+        )
+        expect(ftsRows).toEqual([
+          { id: 'account:https://remote.test/users/alice' }
+        ])
+      }
 
       await expect(
         database.searchDocuments({
@@ -83,16 +74,11 @@ describe('SearchDatabase document filtering', () => {
   })
 
   it('preserves zero-valued search document timestamps', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await database.upsertSearchDocument({
         entityType: 'hashtag',
@@ -120,17 +106,12 @@ describe('SearchDatabase document filtering', () => {
   })
 
   it('indexes a preloaded status row without reading the statuses table', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const statusId = 'https://remote.test/users/alice/statuses/preloaded'
 
     try {
+      await testDb.prepare()
       await database.migrate()
 
       await indexStatusSearchDocument(knexDatabase, {
@@ -164,18 +145,11 @@ describe('SearchDatabase document filtering', () => {
   })
 
   describe('generic search document filtering by discoverability and status visibility', () => {
-    let knexDatabase: Knex
-    let database: ReturnType<typeof getSQLDatabase>
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
 
     beforeAll(async () => {
-      knexDatabase = knex({
-        client: 'better-sqlite3',
-        useNullAsDefault: true,
-        connection: {
-          filename: ':memory:'
-        }
-      })
-      database = getSQLDatabase(knexDatabase)
+      await testDb.prepare()
       await database.migrate()
       await database.upsertSearchDocument({
         entityType: 'account',
@@ -454,265 +428,104 @@ describe('SearchDatabase document filtering', () => {
     })
   })
 
-  it('uses the MySQL LIKE fallback for tokens below the active full-text minimum', async () => {
-    const mysqlDatabase = knex({ client: 'mysql2' })
-    const raw = vi.fn().mockResolvedValue([
-      [
-        {
-          innodbFtMinTokenSize: 4,
-          ftMinWordLen: 4
-        }
-      ]
-    ])
-    const mysqlConfigDatabase = {
-      client: mysqlDatabase.client,
-      raw
-    } as unknown as typeof mysqlDatabase
+  describe('executed search statements', () => {
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
 
-    try {
-      const query = mysqlDatabase('search_documents').select('*')
-      await applySearchDocumentFilter({
-        database: mysqlConfigDatabase,
-        query,
-        q: 'al runner'
-      })
-
-      const sql = query.toSQL()
-      expect(sql.sql).toContain('LOWER(`search_documents`.`documentText`) LIKE')
-      expect(sql.bindings).toEqual(['%al%', '%runner%'])
-      expect(raw).toHaveBeenCalledWith(
-        'select @@innodb_ft_min_token_size as innodbFtMinTokenSize, @@ft_min_word_len as ftMinWordLen'
-      )
-    } finally {
-      await mysqlDatabase.destroy()
-    }
-  })
-
-  it('retries MySQL full-text minimum lookup after a transient failure', async () => {
-    const mysqlDatabase = knex({ client: 'mysql2' })
-    const raw = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('temporary variables unavailable'))
-      .mockResolvedValueOnce([
-        [
-          {
-            innodbFtMinTokenSize: 3,
-            ftMinWordLen: 4
-          }
-        ]
-      ])
-    const mysqlConfigDatabase = {
-      client: mysqlDatabase.client,
-      raw
-    } as unknown as typeof mysqlDatabase
-
-    try {
-      const fallbackQuery = mysqlDatabase('search_documents').select('*')
-      await applySearchDocumentFilter({
-        database: mysqlConfigDatabase,
-        query: fallbackQuery,
-        q: 'run'
-      })
-      expect(fallbackQuery.toSQL().sql).toContain(
-        'LOWER(`search_documents`.`documentText`) LIKE'
-      )
-
-      const retryQuery = mysqlDatabase('search_documents').select('*')
-      await applySearchDocumentFilter({
-        database: mysqlConfigDatabase,
-        query: retryQuery,
-        q: 'run'
-      })
-      expect(raw).toHaveBeenCalledTimes(2)
-      expect(retryQuery.toSQL().sql).toContain(
-        'MATCH(`search_documents`.`documentText`)'
-      )
-    } finally {
-      await mysqlDatabase.destroy()
-    }
-  })
-
-  it('cools down repeated MySQL full-text minimum lookup failures', async () => {
-    const mysqlDatabase = knex({ client: 'mysql2' })
-    const raw = vi.fn().mockRejectedValue(new Error('variables unavailable'))
-    const mysqlConfigDatabase = {
-      client: mysqlDatabase.client,
-      raw
-    } as unknown as typeof mysqlDatabase
-
-    try {
-      for (const q of ['run', 'jog', 'row']) {
-        const query = mysqlDatabase('search_documents').select('*')
-        await applySearchDocumentFilter({
-          database: mysqlConfigDatabase,
-          query,
-          q
-        })
-        expect(query.toSQL().sql).toContain(
-          'LOWER(`search_documents`.`documentText`) LIKE'
-        )
+    // The text and bindings of the SELECTs over search_documents that `run`
+    // sends, as the driver reports them to Knex's query event.
+    const captureSearches = async (run: () => Promise<unknown>) => {
+      const searches: { sql: string; bindings: unknown[] }[] = []
+      const capture = ({
+        sql,
+        bindings
+      }: {
+        sql: string
+        bindings: unknown[]
+      }) => {
+        if (sql.startsWith('select') && sql.includes('from "search_documents"'))
+          searches.push({ sql, bindings })
       }
-
-      expect(raw).toHaveBeenCalledTimes(2)
-    } finally {
-      await mysqlDatabase.destroy()
-    }
-  })
-
-  it('only applies entityId ranking boosts to hashtag searches', async () => {
-    const postgresDatabase = knex({ client: 'pg' })
-    const sqliteDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
+      knexDatabase.on('query', capture)
+      try {
+        await run()
+      } finally {
+        knexDatabase.off('query', capture)
       }
+      return searches
+    }
+    const orderBy = (sql: string) => sql.slice(sql.indexOf(' order by '))
+
+    beforeAll(async () => {
+      await testDb.prepare()
+      await database.migrate()
     })
 
-    try {
-      const query = postgresDatabase('search_documents').select('*')
-      applySearchDocumentOrdering({
-        database: postgresDatabase,
-        query,
-        q: 'runner'
+    afterAll(async () => {
+      await database.destroy()
+    })
+
+    it('only applies entityId ranking boosts to hashtag searches', async () => {
+      const [plain, hashtag] = await captureSearches(async () => {
+        await database.searchDocuments({
+          entityType: 'account',
+          q: 'runner',
+          limit: 10
+        })
+        await database.searchDocuments({
+          entityType: 'hashtag',
+          q: '#runner',
+          limit: 10
+        })
       })
 
-      const sql = query.toSQL()
-      expect(sql.sql).not.toContain('documentText')
-      expect(sql.sql).not.toContain('lower("search_documents"."entityId")')
-      expect(sql.sql).toContain(
-        '"search_documents"."postCount" desc nulls last'
+      expect(plain.sql).not.toContain('"entityId") =')
+      expect(plain.sql).not.toContain('lower("search_documents"."entityId")')
+      expect(plain.bindings).not.toContain('runner%')
+      expect(orderBy(plain.sql)).toContain(
+        '"search_documents"."postCount" desc nulls last, "search_documents"."lastPostAt" desc nulls last, "search_documents"."entityCreatedAt" desc nulls last, "search_documents"."entityId" desc'
       )
-      expect(sql.sql).toContain(
-        '"search_documents"."lastPostAt" desc nulls last'
+      expect(orderBy(plain.sql)).not.toContain('is null')
+
+      expect(orderBy(hashtag.sql)).toContain(
+        'lower("search_documents"."entityId")'
       )
-      expect(sql.sql).toContain(
-        '"search_documents"."entityCreatedAt" desc nulls last'
+      expect(hashtag.bindings).toEqual(
+        expect.arrayContaining(['runner', 'runner%'])
       )
-      expect(sql.sql).not.toContain('"search_documents"."postCount" is null')
-      expect(sql.bindings).toEqual([])
+    })
 
-      const hashtagQuery = postgresDatabase('search_documents').select('*')
-      applySearchDocumentOrdering({
-        database: postgresDatabase,
-        query: hashtagQuery,
-        q: '#runner',
-        entityType: 'hashtag'
-      })
-      const hashtagSql = hashtagQuery.toSQL()
-      expect(hashtagSql.sql).toContain('lower("search_documents"."entityId")')
-      expect(hashtagSql.bindings).toEqual(['runner', 'runner%'])
+    it.runIf(testDb.backend === 'sqlite')(
+      'joins the SQLite FTS table and matches every token as a prefix',
+      async () => {
+        const [search] = await captureSearches(() =>
+          database.searchDocuments({ q: 'trail run', limit: 10 })
+        )
 
-      const sqliteQuery = sqliteDatabase('search_documents').select('*')
-      applySearchDocumentOrdering({
-        database: sqliteDatabase,
-        query: sqliteQuery,
-        q: 'runner'
-      })
-      const sqliteSql = sqliteQuery.toSQL()
-      expect(sqliteSql.sql).toContain('`search_documents`.`postCount` is null')
-      expect(sqliteSql.sql).toContain('`search_documents`.`lastPostAt` is null')
-      expect(sqliteSql.sql).toContain(
-        '`search_documents`.`entityCreatedAt` is null'
-      )
-    } finally {
-      await postgresDatabase.destroy()
-      await sqliteDatabase.destroy()
-    }
-  })
+        expect(search.sql).toContain(
+          'inner join "search_documents_fts" on search_documents_fts.rowid = search_documents.rowid'
+        )
+        expect(search.sql).toContain('search_documents_fts match ?')
+        expect(search.bindings).toContain('trail* run*')
+      }
+    )
 
-  it('skips one-character MySQL LIKE fallback tokens', async () => {
-    const mysqlDatabase = knex({ client: 'mysql2' })
-    const raw = vi.fn().mockResolvedValue([
-      [
-        {
-          innodbFtMinTokenSize: 4,
-          ftMinWordLen: 4
-        }
-      ]
-    ])
-    const mysqlConfigDatabase = {
-      client: mysqlDatabase.client,
-      raw
-    } as unknown as typeof mysqlDatabase
+    it.runIf(testDb.backend === 'pg')(
+      'matches the PostgreSQL full-text query expression to the index',
+      async () => {
+        const [search] = await captureSearches(() =>
+          database.searchDocuments({ q: 'trail run', limit: 10 })
+        )
 
-    try {
-      const query = mysqlDatabase('search_documents').select('*')
-      await applySearchDocumentFilter({
-        database: mysqlConfigDatabase,
-        query,
-        q: 'a runner'
-      })
-
-      const sql = query.toSQL()
-      expect(sql.sql).toContain('LOWER(`search_documents`.`documentText`) LIKE')
-      expect(sql.bindings).toEqual(['%runner%'])
-
-      const oneCharacterQuery = mysqlDatabase('search_documents').select('*')
-      await applySearchDocumentFilter({
-        database: mysqlConfigDatabase,
-        query: oneCharacterQuery,
-        q: 'a'
-      })
-      expect(oneCharacterQuery.toSQL().sql).toContain('1 = 0')
-    } finally {
-      await mysqlDatabase.destroy()
-    }
-  })
-
-  it('uses the InnoDB MySQL full-text minimum when it differs from MyISAM', async () => {
-    const mysqlDatabase = knex({ client: 'mysql2' })
-    const raw = vi.fn().mockResolvedValue([
-      [
-        {
-          innodbFtMinTokenSize: 3,
-          ftMinWordLen: 4
-        }
-      ]
-    ])
-    const mysqlConfigDatabase = {
-      client: mysqlDatabase.client,
-      raw
-    } as unknown as typeof mysqlDatabase
-
-    try {
-      const query = mysqlDatabase('search_documents').select('*')
-      await applySearchDocumentFilter({
-        database: mysqlConfigDatabase,
-        query,
-        q: 'run trail'
-      })
-
-      const sql = query.toSQL()
-      expect(sql.sql).toContain('MATCH(`search_documents`.`documentText`)')
-      expect(sql.sql).not.toContain(
-        'LOWER(`search_documents`.`documentText`) LIKE'
-      )
-      expect(sql.bindings).toEqual(['+run* +trail*'])
-    } finally {
-      await mysqlDatabase.destroy()
-    }
-  })
-
-  it('matches the PostgreSQL full-text query expression to the index', async () => {
-    const postgresDatabase = knex({ client: 'pg' })
-
-    try {
-      const query = postgresDatabase('search_documents').select('*')
-      await applySearchDocumentFilter({
-        database: postgresDatabase,
-        query,
-        q: 'trail'
-      })
-
-      const sql = query.toSQL()
-      expect(sql.sql).toContain(`to_tsvector('simple', "documentText")`)
-      expect(sql.sql).not.toContain(
-        `to_tsvector('simple', "search_documents"."documentText")`
-      )
-    } finally {
-      await postgresDatabase.destroy()
-    }
+        expect(search.sql).toContain(
+          `to_tsvector('simple', "documentText") @@ to_tsquery('simple', $`
+        )
+        expect(search.sql).not.toContain(
+          `to_tsvector('simple', "search_documents"."documentText")`
+        )
+        expect(search.bindings).toContain('trail:* & run:*')
+      }
+    )
   })
 
   it('matches database clients by exact supported names', async () => {

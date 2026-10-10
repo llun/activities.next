@@ -40,7 +40,7 @@ import { SQLActor } from '@/lib/types/database/rows'
  * `app/(timeline)/[actor]/[status]/resolveStatusFromPath.ts` splits the segment
  * inline with no normalization at all. `getWebFingerResponse` carries its own
  * exact-then-lowercased domain fallback precisely because that is not a
- * guarantee. Note `getExactAccountIds` in `lib/database/sql/search/` DOES fold
+ * guarantee. Note `getExactAccountIds` in `lib/database/domains/search/` DOES fold
  * domain, so search and lookup disagree on `alice@Example.COM` — pre-existing,
  * and not something this helper can fix on its own.
  *

@@ -12,7 +12,7 @@ import { CreateQueueJobParams } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
-import * as searchModule from './search'
+import * as searchModule from './search/hashtag'
 
 const table = getTestDatabaseTable()
 
