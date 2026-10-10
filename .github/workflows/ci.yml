@@ -208,7 +208,13 @@ jobs:
   # against its Knex original, the account's media listing with its counter
   # total and paging, media by id and the statuses its owner's account
   # attached it to, storage usage) with the media routes and the upload and
-  # attach services over them, the Kysely status visibility and
+  # attach services over them, the media writes (uploads and their
+  # verification with the account usage counters and hour buckets, attachment
+  # inserts, playback and remote-attachment swaps, media edits, the media
+  # deletes with their edit files and album items and covers behind the
+  # gallery album lock the Knex album writes share, the subject and place
+  # lookups and subject suggestions) with the lookup, suggestion, quota and
+  # map-attachment code over them, the Kysely status visibility and
   # countable-activity filters checked against their Knex originals, and the
   # Knex-backed Kysely driver (result normalisation, the mixed-transaction
   # guard, counters, bucket counters, chunked IN lists, savepoints).
@@ -256,12 +262,17 @@ jobs:
             lib/database/sql/mediaMutations.test.ts \
             lib/database/sql/mediaDetails.test.ts \
             lib/database/sql/mediaQueries.test.ts \
+            lib/database/sql/mediaWrites.test.ts \
             lib/database/sql/attachmentVisibility.test.ts \
             lib/database/kysely/visibility/actorVisibleEquivalence.test.ts \
             app/api/v1/media/route.test.ts \
             app/api/v1/media/[id]/route.test.ts \
             lib/services/medias/saveMediaFileDetails.test.ts \
             lib/services/statuses/mediaIds.test.ts \
+            app/api/v1/media/[id]/lookups/route.test.ts \
+            app/api/v1/media/[id]/subject-suggestions/route.test.ts \
+            lib/services/medias/quota.test.ts \
+            lib/services/fitness-files/mapAttachments.test.ts \
             lib/database/sql/gallery.test.ts \
             lib/database/sql/galleryMedia.test.ts \
             lib/database/sql/galleryAlbums.test.ts \
