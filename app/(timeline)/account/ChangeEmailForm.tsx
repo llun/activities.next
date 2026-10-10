@@ -13,7 +13,7 @@ interface Props {
 }
 
 /**
- * The rows that change the account email, to sit in the same `Frame divided`
+ * The rows that change the account email, to sit in the same `Frame form`
  * as the current email: a button to start, then the new address with the
  * button that sends the verification link. The link is a request rather than a
  * save, so it keeps its own verb instead of the `SaveBar`'s "Save".
@@ -78,7 +78,7 @@ export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
     // `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but a
     // method-less <form> defaults to GET — POST keeps the email out of the URL if
     // a `name` attribute is added later.
-    <form onSubmit={handleSubmit} method="post" className="divide-y">
+    <form onSubmit={handleSubmit} method="post">
       <FormRow
         label="New email address"
         htmlFor="newEmail"
@@ -99,7 +99,7 @@ export const ChangeEmailForm: FC<Props> = ({ currentEmail: _currentEmail }) => {
 
       {error && <Alert flush title={error} />}
 
-      <div className="flex justify-end gap-2 px-4 py-3">
+      <div className="mt-1.5 flex justify-end gap-2 border-t px-4 pt-3 pb-1.5">
         <Button
           type="button"
           variant="outline"

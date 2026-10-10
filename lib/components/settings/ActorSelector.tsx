@@ -23,7 +23,7 @@ export const ActorSelector: FC<ActorSelectorProps> = ({
   if (actors.length <= 1) return null
 
   return (
-    <Frame>
+    <Frame form>
       <FormRow
         label="Actor"
         htmlFor="actorSelect"

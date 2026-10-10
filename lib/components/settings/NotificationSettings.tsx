@@ -285,7 +285,7 @@ export const NotificationSettings: FC<Props> = ({
         title="Channels"
         description="Enable or disable notification delivery channels."
       >
-        <Frame divided className="overflow-hidden">
+        <Frame form className="overflow-hidden">
           {/* Email master toggle */}
           <FormRow
             label={`Email (${accountEmail})`}
@@ -310,7 +310,7 @@ export const NotificationSettings: FC<Props> = ({
 
           {/* Push master toggle */}
           {pushState === 'loading' && (
-            <div className="px-4 py-4">
+            <div className="px-4 py-2.5">
               <SkeletonRows
                 rows={1}
                 rowClassName="h-10"

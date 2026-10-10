@@ -227,7 +227,7 @@ export const EnvBlockBuilder: FC = () => {
           the database.
         </Alert>
 
-        <Frame>
+        <Frame form>
           <SettingsField
             label="Environment area"
             htmlFor="env-area"
@@ -255,7 +255,6 @@ export const EnvBlockBuilder: FC = () => {
               role="group"
               aria-label={candidate.label}
               hidden={candidate.value !== area.value}
-              className="divide-y border-t"
             >
               <EnvAreaBuilder area={candidate} />
             </div>

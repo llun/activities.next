@@ -64,7 +64,7 @@ export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
         description="Fetch a preview card for the first link in a post, so timelines show its title, description and thumbnail."
       >
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty(LINK_PREVIEW_KEYS)}
@@ -99,7 +99,7 @@ export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
         description="Check the subject of a gallery photo against the GBIF taxonomy. On by default; the server it asks can be changed in the environment."
       >
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty(SPECIES_LOOKUP_KEYS)}
@@ -134,7 +134,7 @@ export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
         description="Name the place a gallery photo was taken from its coordinates. On by default; the server it asks can be changed in the environment."
       >
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty(PLACE_LOOKUP_KEYS)}
@@ -169,7 +169,7 @@ export const NetworkSettingsForm: FC<NetworkSettingsFormProps> = ({
         description="How this server talks to other servers. Defaults are fine for almost everyone."
       >
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty(NETWORK_KEYS)}

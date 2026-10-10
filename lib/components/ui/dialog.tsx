@@ -90,12 +90,26 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-function DialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
+function DialogFooter({
+  className,
+  separated = false,
+  ...props
+}: React.ComponentProps<'div'> & {
+  /**
+   * The footer of a dialog that holds form fields: a top border running edge
+   * to edge of the `p-6` content, with the buttons in the band below it. It
+   * adds no margin of its own: the space above the rule is the 16px of the
+   * content's `gap-4` (or a form's `space-y-4`), so keep the wrapper above it
+   * free of extra bottom padding.
+   */
+  separated?: boolean
+}) {
   return (
     <div
       data-slot="dialog-footer"
       className={cn(
         'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
+        separated && '-mx-6 -mb-6 border-t px-6 py-4',
         className
       )}
       {...props}

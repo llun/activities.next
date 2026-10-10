@@ -124,4 +124,19 @@ describe('/settings', () => {
       new FormData(select.form as HTMLFormElement).get('postLineLimit')
     ).toBe('0')
   })
+
+  it('puts the post line limit in the form box under a Timeline group, and the theme outside the form', async () => {
+    getActorSettings.mockResolvedValue(null)
+
+    render(await Page())
+
+    const timeline = screen.getByRole('group', { name: 'Timeline' })
+    expect(timeline).toHaveTextContent('How posts appear on your timeline.')
+    expect(timeline).toContainElement(screen.getByLabelText('Post line limit'))
+    const form = (screen.getByLabelText('Post line limit') as HTMLSelectElement)
+      .form as HTMLFormElement
+    expect(form).not.toContainElement(
+      screen.getByRole('heading', { name: 'Appearance' })
+    )
+  })
 })

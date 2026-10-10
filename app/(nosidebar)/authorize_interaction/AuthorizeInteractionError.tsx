@@ -1,6 +1,6 @@
 import { FC } from 'react'
 
-import { AuthCard } from '@/app/(nosidebar)/AuthCard'
+import { AuthCard, AuthCardBody } from '@/app/(nosidebar)/AuthCard'
 
 interface AuthorizeInteractionErrorProps {
   title: string
@@ -17,11 +17,13 @@ export const AuthorizeInteractionError: FC<AuthorizeInteractionErrorProps> = ({
 }) => (
   <AuthCard logoSrc={logoSrc} title={title} description={description}>
     {uri ? (
-      // The value is whatever a remote server put in the query string, so it
-      // is rendered as inert text — never as a link.
-      <code className="block wrap-anywhere rounded-md bg-muted p-3 text-sm">
-        {uri}
-      </code>
+      <AuthCardBody>
+        {/* The value is whatever a remote server put in the query string, so
+            it is rendered as inert text — never as a link. */}
+        <code className="block wrap-anywhere rounded-md bg-muted p-3 text-sm">
+          {uri}
+        </code>
+      </AuthCardBody>
     ) : null}
   </AuthCard>
 )

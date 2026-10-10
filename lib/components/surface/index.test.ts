@@ -14,6 +14,7 @@ describe('surface kit index', () => {
     'formRowHintId',
     'formRowLabelId',
     'Frame',
+    'FormGroup',
     'FramedList',
     'FramedListItem',
     'SaveBar',

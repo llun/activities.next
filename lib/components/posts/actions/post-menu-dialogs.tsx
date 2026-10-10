@@ -317,7 +317,7 @@ export const ReportDialog: FC<ReportDialogProps> = ({
           rows={3}
         />
         {errorAlert(error)}
-        <DialogFooter>
+        <DialogFooter separated>
           <Button
             type="button"
             variant="outline"

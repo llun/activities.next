@@ -84,7 +84,7 @@ export const MediaDetailsSettings: FC = () => {
           />
         }
       >
-        <Frame divided>
+        <Frame form>
           <ToggleRow
             id="media-auto-describe"
             label="Describe new photos and videos automatically"
@@ -128,7 +128,7 @@ export const MediaDetailsSettings: FC = () => {
           />
         }
       >
-        <Frame divided>
+        <Frame form>
           <FormRow label="Suggest subjects with">
             {({ labelledBy }) => (
               <fieldset

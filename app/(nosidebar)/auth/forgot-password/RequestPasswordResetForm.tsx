@@ -1,15 +1,20 @@
 'use client'
 
-import { FC, useState } from 'react'
+import { FC, ReactNode, useState } from 'react'
 
+import { AuthCardActions, AuthCardBody } from '@/app/(nosidebar)/AuthCard'
 import { requestPasswordReset } from '@/lib/client'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
-import { Frame } from '@/lib/components/surface/Frame'
 import { Button } from '@/lib/components/ui/button'
 import { Input } from '@/lib/components/ui/input'
 
-export const RequestPasswordResetForm: FC = () => {
+interface Props {
+  /** The "Remembered your password?" line, in the card's action band. */
+  footer?: ReactNode
+}
+
+export const RequestPasswordResetForm: FC<Props> = ({ footer }) => {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -47,9 +52,9 @@ export const RequestPasswordResetForm: FC = () => {
     // no `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but
     // a method-less <form> defaults to GET — POST guards against the email
     // reaching the URL if a `name` attribute is added later.
-    <form onSubmit={handleSubmit} method="post" className="space-y-4">
-      <Frame divided>
-        <FormRow stacked label="Email" htmlFor="email">
+    <form onSubmit={handleSubmit} method="post">
+      <AuthCardBody>
+        <FormRow stacked className="p-0" label="Email" htmlFor="email">
           <Input
             id="email"
             type="email"
@@ -58,18 +63,21 @@ export const RequestPasswordResetForm: FC = () => {
             required
           />
         </FormRow>
-      </Frame>
 
-      {error && <Alert title={error} />}
-      {message && (
-        <Alert tone="success" title="Check your email">
-          {message}
-        </Alert>
-      )}
+        {error && <Alert title={error} />}
+        {message && (
+          <Alert tone="success" title="Check your email">
+            {message}
+          </Alert>
+        )}
+      </AuthCardBody>
 
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? 'Sending…' : 'Send reset link'}
-      </Button>
+      <AuthCardActions>
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? 'Sending…' : 'Send reset link'}
+        </Button>
+        {footer}
+      </AuthCardActions>
     </form>
   )
 }

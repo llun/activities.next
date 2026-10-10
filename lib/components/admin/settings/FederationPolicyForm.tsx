@@ -44,7 +44,7 @@ export const FederationPolicyForm: FC<FederationPolicyFormProps> = ({
       description="Who this instance federates with by default. Per-domain blocks below still apply."
     >
       <Frame
-        divided
+        form
         footer={
           <SaveBar
             dirty={isDirty(FEDERATION_KEYS)}

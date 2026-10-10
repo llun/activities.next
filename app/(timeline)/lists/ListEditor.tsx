@@ -282,7 +282,7 @@ export const ListEditor: FC<ListEditorProps> = ({
 
       <Section title="Details">
         <Frame
-          divided
+          form
           footer={
             <SaveBar
               dirty={isDirty}

@@ -44,6 +44,13 @@ describe('WahooSettingsForm', () => {
     vi.mocked(client.saveWahooSettings).mockResolvedValue({ success: true })
   })
 
+  it('does not nest a panel of its own (the page supplies the one box)', async () => {
+    const { container } = render(<WahooSettingsForm />)
+
+    await screen.findByDisplayValue('client-example')
+    expect(container.querySelector('[data-slot="panel"]')).toBeNull()
+  })
+
   it('draws the environment select with the shared closed-select chevron', async () => {
     render(<WahooSettingsForm />)
 

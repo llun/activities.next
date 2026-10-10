@@ -29,19 +29,20 @@ const Page: FC = async () => {
       logoSrc={getAuthLogoSrc()}
       title="Forgot your password?"
       description="Enter your email and we'll send you a link to reset it."
-      footer={
-        <AuthCardFooter>
-          Remembered your password?{' '}
-          <Link
-            href="/auth/signin"
-            className="text-primary-text hover:underline"
-          >
-            Sign in
-          </Link>
-        </AuthCardFooter>
-      }
     >
-      <RequestPasswordResetForm />
+      <RequestPasswordResetForm
+        footer={
+          <AuthCardFooter>
+            Remembered your password?{' '}
+            <Link
+              href="/auth/signin"
+              className="text-primary-text hover:underline"
+            >
+              Sign in
+            </Link>
+          </AuthCardFooter>
+        }
+      />
     </AuthCard>
   )
 }

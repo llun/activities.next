@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { FC } from 'react'
 
-import { AuthCard } from '@/app/(nosidebar)/AuthCard'
+import { AuthCard, AuthCardBody } from '@/app/(nosidebar)/AuthCard'
 import { ActorDisplayName } from '@/lib/components/actors/ActorDisplayName'
 import { FollowAction } from '@/lib/components/follow-action/follow-action'
 import { Avatar, AvatarFallback, AvatarImage } from '@/lib/components/ui/avatar'
@@ -64,60 +64,62 @@ export const AuthorizeInteractionCard: FC<AuthorizeInteractionCardProps> = ({
           : 'You are about to follow this account from your account on this server.'
       }
     >
-      <div className="flex flex-col items-center gap-3">
-        {profileUrl ? (
-          <Link
-            href={profileUrl}
-            prefetch={false}
-            aria-label={`View profile for ${actor.name || handle}`}
-            className="transition-opacity hover:opacity-80"
-          >
-            {avatar}
-          </Link>
-        ) : (
-          avatar
-        )}
-        <div className="text-center">
-          {actor.name ? (
-            <p className="text-lg font-semibold">
-              {profileUrl ? (
+      <AuthCardBody>
+        <div className="flex flex-col items-center gap-3">
+          {profileUrl ? (
+            <Link
+              href={profileUrl}
+              prefetch={false}
+              aria-label={`View profile for ${actor.name || handle}`}
+              className="transition-opacity hover:opacity-80"
+            >
+              {avatar}
+            </Link>
+          ) : (
+            avatar
+          )}
+          <div className="text-center">
+            {actor.name ? (
+              <p className="text-lg font-semibold">
+                {profileUrl ? (
+                  <Link
+                    href={profileUrl}
+                    prefetch={false}
+                    className="hover:underline"
+                  >
+                    <ActorDisplayName name={actor.name} tags={actor.tags} />
+                  </Link>
+                ) : (
+                  <ActorDisplayName name={actor.name} tags={actor.tags} />
+                )}
+              </p>
+            ) : null}
+            {profileUrl ? (
+              <p className="text-muted-foreground">
                 <Link
                   href={profileUrl}
                   prefetch={false}
                   className="hover:underline"
                 >
-                  <ActorDisplayName name={actor.name} tags={actor.tags} />
+                  {handle}
                 </Link>
-              ) : (
-                <ActorDisplayName name={actor.name} tags={actor.tags} />
-              )}
-            </p>
-          ) : null}
-          {profileUrl ? (
-            <p className="text-muted-foreground">
-              <Link
-                href={profileUrl}
-                prefetch={false}
-                className="hover:underline"
-              >
-                {handle}
-              </Link>
-            </p>
-          ) : (
-            <p className="text-muted-foreground">{handle}</p>
-          )}
+              </p>
+            ) : (
+              <p className="text-muted-foreground">{handle}</p>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="flex justify-center gap-2">
-        {isSelf ? null : <FollowAction targetActorId={actor.id} isLoggedIn />}
-        {profileUrl ? (
-          <Button variant="outline" asChild>
-            <Link href={profileUrl} prefetch={false}>
-              View profile
-            </Link>
-          </Button>
-        ) : null}
-      </div>
+        <div className="flex justify-center gap-2">
+          {isSelf ? null : <FollowAction targetActorId={actor.id} isLoggedIn />}
+          {profileUrl ? (
+            <Button variant="outline" asChild>
+              <Link href={profileUrl} prefetch={false}>
+                View profile
+              </Link>
+            </Button>
+          ) : null}
+        </div>
+      </AuthCardBody>
     </AuthCard>
   )
 }

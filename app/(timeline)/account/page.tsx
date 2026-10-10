@@ -100,7 +100,7 @@ const Page = async ({
       >
         {error && <Alert title={error} />}
         <form action="/api/v1/accounts/image" method="post">
-          <Frame footer={<NativeFormSaveBar />}>
+          <Frame form footer={<NativeFormSaveBar />}>
             <ImageUploadField
               fieldName="iconUrl"
               currentUrl={account.iconUrl || null}
@@ -115,7 +115,7 @@ const Page = async ({
         title="Email address"
         description="Used for sign-in and account notifications."
       >
-        <Frame divided className="overflow-hidden">
+        <Frame form className="overflow-hidden">
           <FormRow label="Current email" htmlFor="currentEmail">
             <div className="flex items-center gap-2">
               <Input

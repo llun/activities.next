@@ -2,6 +2,6 @@ import { FC } from 'react'
 
 import { SectionSkeleton } from '@/lib/components/surface/SectionSkeleton'
 
-const Loading: FC = () => <SectionSkeleton sections={[2, 5, 1, 1]} />
+const Loading: FC = () => <SectionSkeleton sections={[1, [1, 5, 1], 1]} form />
 
 export default Loading

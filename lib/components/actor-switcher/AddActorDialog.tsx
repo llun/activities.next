@@ -202,7 +202,7 @@ export function AddActorDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 pb-4">
             {availableDomains.length > 1 && (
               <div className="space-y-2">
                 <Label>Domain</Label>
@@ -257,7 +257,7 @@ export function AddActorDialog({
               {error && <Alert title={error} />}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter separated>
             <Button
               type="button"
               variant="outline"

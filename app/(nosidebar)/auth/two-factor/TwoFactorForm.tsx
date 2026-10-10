@@ -4,9 +4,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FC, FormEvent, useRef, useState } from 'react'
 
+import {
+  AuthCardActions,
+  AuthCardBody,
+  AuthCardFooter
+} from '@/app/(nosidebar)/AuthCard'
 import { Alert } from '@/lib/components/surface/Alert'
 import { FormRow } from '@/lib/components/surface/FormRow'
-import { Frame } from '@/lib/components/surface/Frame'
 import { SegmentedControl } from '@/lib/components/surface/SegmentedControl'
 import { Button } from '@/lib/components/ui/button'
 import { Checkbox } from '@/lib/components/ui/checkbox'
@@ -76,23 +80,24 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
     // `name`, so a native (pre-hydration/no-JS) submit sends nothing today, but a
     // method-less <form> defaults to GET — POST keeps the verification/backup code
     // out of the URL if a `name` attribute is added later.
-    <form onSubmit={handleSubmit} method="post" className="space-y-4">
-      <SegmentedControl
-        aria-label="Verification method"
-        className="mx-auto"
-        items={[
-          { value: 'totp', label: 'Authenticator app' },
-          { value: 'backup', label: 'Backup code' }
-        ]}
-        value={mode}
-        onValueChange={(value) =>
-          setMode(value === 'backup' ? 'backup' : 'totp')
-        }
-      />
+    <form onSubmit={handleSubmit} method="post">
+      <AuthCardBody>
+        <SegmentedControl
+          aria-label="Verification method"
+          className="mx-auto"
+          items={[
+            { value: 'totp', label: 'Authenticator app' },
+            { value: 'backup', label: 'Backup code' }
+          ]}
+          value={mode}
+          onValueChange={(value) =>
+            setMode(value === 'backup' ? 'backup' : 'totp')
+          }
+        />
 
-      <Frame divided>
         <FormRow
           stacked
+          className="p-0"
           label={mode === 'totp' ? 'Verification code' : 'Backup code'}
           htmlFor="twoFactorCode"
         >
@@ -118,7 +123,7 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
             </p>
           )}
         </FormRow>
-        <div className="flex items-center gap-2 px-4 py-4">
+        <div className="flex items-center gap-2">
           <Checkbox
             id="trustDevice"
             checked={trustDevice}
@@ -131,19 +136,23 @@ export const TwoFactorForm: FC<Props> = ({ redirectBack }) => {
             Trust this device for 30 days
           </Label>
         </div>
-      </Frame>
 
-      {error && <Alert title={error} />}
+        {error && <Alert title={error} />}
+      </AuthCardBody>
 
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? 'Verifying…' : 'Verify and sign in'}
-      </Button>
-
-      <p className="text-center text-sm text-muted-foreground">
-        <Link href="/auth/signin" className="text-primary-text hover:underline">
-          Back to sign in
-        </Link>
-      </p>
+      <AuthCardActions>
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? 'Verifying…' : 'Verify and sign in'}
+        </Button>
+        <AuthCardFooter>
+          <Link
+            href="/auth/signin"
+            className="text-primary-text hover:underline"
+          >
+            Back to sign in
+          </Link>
+        </AuthCardFooter>
+      </AuthCardActions>
     </form>
   )
 }
