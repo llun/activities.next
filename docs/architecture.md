@@ -537,8 +537,12 @@ post just after a later save committed; the prune therefore also keeps any
 superseded render an attachment of the photo still shows. For an edited
 photo, the file a post shows is never taken from the client as sent:
 `resolveOwnedAttachments` accepts the live file or, on an edit, the file that
-post already shows for the photo, and replaces anything else (a stale
-composer, an outbox client) with the live file.
+post already shows for the photo. Anything else (a stale composer, an outbox
+client, a refresh that lost a race with a later save) falls back to the file
+the post already shows for the photo, so a refresh racing a later "Gallery
+only" save or revert leaves the post as it was rather than writing that save's
+file into it. Only a photo new to the post (a new attachment, or a new post)
+takes the live file.
 
 A "Gallery only" post keeps the file it was published with, and later edits of
 that post keep it too: `withAttachmentMediaMetadata` re-reads the BlurHash,
@@ -546,13 +550,18 @@ focal point and thumbnail from the media row only for an attachment showing the
 live file, and an attachment still on an earlier file of an edited photo keeps
 what its row recorded for that file (so an "Update posts" save of another photo
 in the post, or a text edit in the composer, does not federate the new
-render's placeholder and focal point with the old image). An alt-text or
-focal-point edit (`media_attributes` without `media_ids`, from the composer,
-the Gallery's Edit details or a Mastodon client) keeps each photo's file too:
-the route rebuilds the attachments from the post's own rows. Three things do move
-such a post to the live file: an "Update posts" save of that photo, a revert
-with "Update posts", and an edit from a Mastodon client, which sends
-`media_ids` and so rebuilds each attachment from its media row. A superseded
+render's placeholder and focal point with the old image). Every edit through
+`PUT /api/v1/statuses/:id` keeps each photo's file too: an alt-text or
+focal-point edit (`media_attributes`, from the composer, the Gallery's Edit
+details or a Mastodon client), a text edit from a Mastodon client (which
+resends `media_ids`), and the composer adding, removing or reordering photos
+(`media_ids`). The route rebuilds each photo the post already shows on the
+file its own row shows (`withStatusAttachmentFile`); only a photo new to the
+post takes the live file. A focal point set on a photo the post still shows on
+an earlier file was drawn on that file, so it is written to the post's
+attachment row and the media row (the render's) keeps its own. Only two
+things move such a post to the live file: an "Update posts" save of that
+photo, and a revert with "Update posts". A superseded
 render is pruned once no post shows it, but the post's edit history
 (`status_history`, `GET /api/v1/statuses/:id/history`) still names it, so an
 earlier revision's media then points at a missing file (it keeps its BlurHash,

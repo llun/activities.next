@@ -385,6 +385,71 @@ describe('refreshPostsForEditedMedia', () => {
       expect(await editFilePaths(photo)).toContain(first.original.path)
     })
 
+    // Save A ("Update posts") passed its version check for the post, then
+    // save B committed "Gallery only" before A wrote the post. A's render is
+    // no longer live, and B's render must not reach the post: it stays on the
+    // file it showed.
+    it('leaves the post on its file when a later Gallery-only save lands mid-refresh', async () => {
+      const photo = await createPhoto()
+      counter += 1
+      const statusId = `${ACTOR1_ID}/statuses/refresh-${counter}`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: [],
+        text: '<p>Kept text</p>'
+      })
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: photo.original.mimeType,
+        url: fileUrl(photo.original.path),
+        width: 400,
+        height: 300,
+        name: photo.description ?? '',
+        mediaId: photo.id,
+        blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH',
+        focus: { x: 0.1, y: 0.2 }
+      })
+      const [before] = await attachmentsOf(statusId)
+      const first = await editTo(photo, `gallery-race-a-${photo.id}`)
+      let second: Media | null = null
+      const original = database.getStatus
+      const getStatus = vi
+        .spyOn(database, 'getStatus')
+        .mockImplementation(async (params) => {
+          const result = await original(params)
+          // Another tab saves "Gallery only" after A's version check, while
+          // A reads the post it is about to write.
+          if (!second && params.statusId === statusId) {
+            second = await editTo(first, `gallery-race-b-${photo.id}`)
+          }
+          return result
+        })
+
+      await refreshPostsForEditedMedia({
+        database,
+        media: first,
+        version: first.edit!.version,
+        accountId
+      })
+      getStatus.mockRestore()
+
+      expect(second).not.toBeNull()
+      const [after] = await attachmentsOf(statusId)
+      expect(after).toMatchObject({
+        url: fileUrl(photo.original.path),
+        mediaType: 'image/jpeg',
+        width: 400,
+        height: 300,
+        blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH',
+        focus: { x: 0.1, y: 0.2 }
+      })
+      expect(after.url).toBe(before.url)
+    })
+
     // A composer opened before another tab's "Update posts" save still holds
     // the render that save superseded and pruned.
     it('takes the live file over a stale render sent for a kept photo', async () => {

@@ -49,10 +49,11 @@ vi.mock('@/lib/config', async () => ({
   })
 }))
 
-// An alt-text or focal-point edit (`media_attributes` without `media_ids`)
-// must leave every photo on the file the post shows: a photo edited "Gallery
-// only" keeps its earlier file in the post until an "Update posts" save.
-describe('PUT /api/v1/statuses/[id] media_attributes after a Gallery-only edit', () => {
+// An edit of the post (alt text, focal point, text, or adding, removing or
+// reordering photos) must leave every photo it already shows on the file the
+// post shows: a photo edited "Gallery only" keeps its earlier file in the post
+// until an "Update posts" save.
+describe('PUT /api/v1/statuses/[id] after a Gallery-only edit', () => {
   const { database, prepare } = getTestDatabaseWithInstance()
   let accountId = ''
 
@@ -128,6 +129,57 @@ describe('PUT /api/v1/statuses/[id] media_attributes after a Gallery-only edit',
       { params: Promise.resolve({ id: urlToId(statusId) }) }
     )
 
+  const createPost = async (slug: string, medias: Media[]) => {
+    const statusId = `${ACTOR1_ID}/statuses/${slug}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      text: 'Photos',
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: []
+    })
+    for (const [index, media] of medias.entries()) {
+      await database.createAttachment({
+        actorId: ACTOR1_ID,
+        statusId,
+        mediaType: 'image/jpeg',
+        url: fileUrl(media.original.path),
+        width: 400,
+        height: 300,
+        name: media.description ?? '',
+        mediaId: media.id,
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+        focus: { x: 0.1, y: 0.2 },
+        createdAt: Date.now() + index
+      })
+    }
+    return statusId
+  }
+
+  const attachmentOf = async (statusId: string, media: Media) =>
+    (await database.getAttachments({ statusId })).find(
+      (item) => item.mediaId === media.id
+    )
+
+  // What the post published for a photo, without the row's timestamp.
+  const publishedFile = async (statusId: string, media: Media) => {
+    const attachment = await attachmentOf(statusId, media)
+    if (!attachment) return undefined
+    const { updatedAt: _updatedAt, ...rest } = attachment
+    return rest
+  }
+
+  const expectOriginalFile = async (statusId: string, media: Media) =>
+    expect(await attachmentOf(statusId, media)).toMatchObject({
+      url: fileUrl(media.original.path),
+      mediaType: 'image/jpeg',
+      width: 400,
+      height: 300,
+      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+      focus: { x: 0.1, y: 0.2 }
+    })
+
   it('keeps each photo on the file the post shows', async () => {
     const x = await createPhoto('gallery-only-x')
     const y = await createPhoto('gallery-only-y')
@@ -186,5 +238,133 @@ describe('PUT /api/v1/statuses/[id] media_attributes after a Gallery-only edit',
     }
     expect(pick(after, x).name).toBe('Fixed alt for X')
     expect(pick(after, y).name).toBe('Fixed alt for Y')
+  })
+
+  // The composer sends `media_ids` whenever the photo list changes, and a
+  // Mastodon client sends them on every edit.
+  it('keeps a kept photo on the file the post shows when the composer removes another photo', async () => {
+    const x = await createPhoto('remove-x')
+    const y = await createPhoto('remove-y')
+    const statusId = await createPost('gallery-only-remove', [x, y])
+    await editGalleryOnly(x, 'remove-x')
+    const before = await publishedFile(statusId, x)
+
+    const response = await put(statusId, { media_ids: [x.id] })
+    expect(response.status).toBe(200)
+
+    expect(await publishedFile(statusId, x)).toEqual(before)
+    await expectOriginalFile(statusId, x)
+    expect(await attachmentOf(statusId, y)).toBeUndefined()
+    const json = await response.json()
+    expect(json.media_attachments).toHaveLength(1)
+    expect(json.media_attachments[0].url).toBe(fileUrl(x.original.path))
+  })
+
+  it('keeps each photo on the file the post shows when the photos are reordered', async () => {
+    const x = await createPhoto('reorder-x')
+    const y = await createPhoto('reorder-y')
+    const statusId = await createPost('gallery-only-reorder', [x, y])
+    await editGalleryOnly(x, 'reorder-x')
+    const before = await publishedFile(statusId, x)
+
+    const response = await put(statusId, { media_ids: [y.id, x.id] })
+    expect(response.status).toBe(200)
+
+    expect(await publishedFile(statusId, x)).toEqual(before)
+    await expectOriginalFile(statusId, x)
+    await expectOriginalFile(statusId, y)
+  })
+
+  it('keeps each photo on the file the post shows through a Mastodon client text edit', async () => {
+    const x = await createPhoto('client-x')
+    const y = await createPhoto('client-y')
+    const statusId = await createPost('gallery-only-client', [x, y])
+    await editGalleryOnly(x, 'client-x')
+    await editGalleryOnly(y, 'client-y')
+
+    const response = await put(statusId, {
+      status: 'Fixed a typo',
+      media_ids: [x.id, y.id]
+    })
+    expect(response.status).toBe(200)
+
+    await expectOriginalFile(statusId, x)
+    await expectOriginalFile(statusId, y)
+  })
+
+  it('gives a photo new to the post its live file and keeps the others', async () => {
+    const x = await createPhoto('add-x')
+    const z = await createPhoto('add-z')
+    const statusId = await createPost('gallery-only-add', [x])
+    await editGalleryOnly(x, 'add-x')
+    await editGalleryOnly(z, 'add-z')
+
+    const response = await put(statusId, { media_ids: [x.id, z.id] })
+    expect(response.status).toBe(200)
+
+    await expectOriginalFile(statusId, x)
+    expect(await attachmentOf(statusId, z)).toMatchObject({
+      url: fileUrl('medias/add-z-render.webp'),
+      mediaType: 'image/webp',
+      width: 300,
+      height: 300,
+      blurhash: 'L00000fQfQfQfQfQfQfQfQfQfQfQ',
+      focus: { x: -0.9, y: 0.9 }
+    })
+  })
+
+  // The client drew the point on the image the post shows, the earlier file,
+  // so it belongs to that attachment and not to the render's media row.
+  it('sets a focal point on the post`s earlier file and leaves the render`s alone', async () => {
+    const x = await createPhoto('focus-x')
+    const y = await createPhoto('focus-y')
+    const statusId = await createPost('gallery-only-focus', [x, y])
+    await editGalleryOnly(x, 'focus-x')
+    const attachmentId = (await attachmentOf(statusId, x))!.id
+
+    const response = await put(statusId, {
+      media_attributes: [{ id: attachmentId, focus: '0.5,-0.25' }]
+    })
+    expect(response.status).toBe(200)
+
+    expect(await attachmentOf(statusId, x)).toMatchObject({
+      url: fileUrl(x.original.path),
+      mediaType: 'image/jpeg',
+      width: 400,
+      height: 300,
+      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+      focus: { x: 0.5, y: -0.25 }
+    })
+    await expectOriginalFile(statusId, y)
+    const media = await database.getMediaByIdForAccount({
+      mediaId: x.id,
+      accountId
+    })
+    expect(media?.focus).toEqual({ x: -0.9, y: 0.9 })
+    const json = await response.json()
+    const published = json.media_attachments.find(
+      (item: { id: string }) => item.id === attachmentId
+    )
+    expect(published.meta.focus).toEqual({ x: 0.5, y: -0.25 })
+  })
+
+  it('still sets the focal point on the media row of a photo the post shows live', async () => {
+    const x = await createPhoto('focus-live-x')
+    const statusId = await createPost('gallery-only-focus-live', [x])
+
+    const response = await put(statusId, {
+      media_attributes: [{ id: x.id, focus: '0.3,0.4' }]
+    })
+    expect(response.status).toBe(200)
+
+    expect((await attachmentOf(statusId, x))?.focus).toEqual({
+      x: 0.3,
+      y: 0.4
+    })
+    const media = await database.getMediaByIdForAccount({
+      mediaId: x.id,
+      accountId
+    })
+    expect(media?.focus).toEqual({ x: 0.3, y: 0.4 })
   })
 })

@@ -58,9 +58,26 @@ export const getSavedMediaAttachmentMetadata = (
 const showsLiveFile = (url: string, media: Pick<Media, 'original'>) =>
   url.endsWith(`${MEDIA_FILE_URL_PATH}${media.original.path}`)
 
+/**
+ * Whether `url` is an earlier file of an edited photo: the photo has been
+ * edited and `url` is not its live file. A post saved "Gallery only" keeps
+ * showing such a file until an "Update posts" save.
+ */
+export const showsEarlierFile = (
+  url: string,
+  media: Pick<Media, 'original' | 'edit'>
+) => Boolean(media.edit?.version) && !showsLiveFile(url, media)
+
 type ExistingAttachment = Pick<
   Attachment,
-  'mediaId' | 'url' | 'blurhash' | 'focus' | 'thumbnailUrl'
+  | 'mediaId'
+  | 'url'
+  | 'mediaType'
+  | 'width'
+  | 'height'
+  | 'blurhash'
+  | 'focus'
+  | 'thumbnailUrl'
 >
 
 /**
@@ -100,23 +117,36 @@ const getEarlierFileSnapshot = (
  * point the post at an earlier render that has been, or is about to be,
  * pruned. Only two files are taken as sent: the media's live file, and on an
  * edit the file this status already shows for that media (a "Gallery only"
- * post keeps its render). Anything else is replaced by the live file. A photo
- * never edited has no other file to point at, so it is left as sent.
+ * post keeps its render). Anything else falls back to the file the status
+ * already shows for that media, so a stale url leaves the post as it is: a
+ * refresh that lost a race with a later "Gallery only" save or revert must not
+ * write that save's file into the post. Only a media new to the status (a new
+ * attachment, or a new post) takes the live file. A photo never edited has no
+ * other file to point at, so it is left as sent.
  */
 const withTrustedFile = (
   attachment: PostBoxAttachment,
   media: Pick<Media, 'id' | 'original' | 'edit'>,
-  existingAttachments: Pick<Attachment, 'mediaId' | 'url'>[]
+  existingAttachments: ExistingAttachment[]
 ): PostBoxAttachment => {
   if (!media.edit?.version) return attachment
   if (showsLiveFile(attachment.url, media)) return attachment
-  const kept = existingAttachments.some(
-    (item) =>
-      item.mediaId != null &&
-      String(item.mediaId) === String(media.id) &&
-      item.url === attachment.url
+  const rows = existingAttachments.filter(
+    (item) => item.mediaId != null && String(item.mediaId) === String(media.id)
   )
-  if (kept) return attachment
+  if (rows.some((item) => item.url === attachment.url)) return attachment
+  const [existing] = rows
+  if (existing) {
+    const { posterUrl: _posterUrl, ...rest } = attachment
+    return {
+      ...rest,
+      url: existing.url,
+      mediaType: existing.mediaType,
+      width: existing.width ?? attachment.width,
+      height: existing.height ?? attachment.height,
+      ...(existing.thumbnailUrl ? { posterUrl: existing.thumbnailUrl } : {})
+    }
+  }
   const { width, height } = media.original.metaData
   return {
     ...attachment,

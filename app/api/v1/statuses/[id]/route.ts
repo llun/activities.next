@@ -22,6 +22,7 @@ import {
 import { getMastodonStatus } from '@/lib/services/mastodon/getMastodonStatus'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
 import { deleteMediaFile } from '@/lib/services/medias'
+import { showsEarlierFile } from '@/lib/services/medias/attachmentMediaMetadata'
 import { MAX_MEDIA_DESCRIPTION_LENGTH } from '@/lib/services/medias/constants'
 import { FocusSchema } from '@/lib/services/medias/types'
 import { getResolvedServerSettings } from '@/lib/services/serverSettings'
@@ -29,7 +30,8 @@ import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import {
   getAttachmentsFromMediaIds,
-  resolveStatusAttachmentMediaIds
+  resolveStatusAttachmentMediaIds,
+  withStatusAttachmentFile
 } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import { Scope } from '@/lib/types/database/operations'
@@ -380,6 +382,12 @@ export const PUT = traceApiRoute(
         // path as PUT /api/v1/media/:id, including its owner check.
         // The media rows whose alt text this request sets, by media row id.
         const describedMediaIds = new Set<string>()
+        // Focal points set on a photo the post still shows on an earlier file
+        // (edited "Gallery only"), by media row id. The client measured the
+        // point on the post's image, so it goes onto the post's attachment row
+        // (the snapshot of that file) and not onto the media row, whose file
+        // is the render.
+        const earlierFileFocus = new Map<string, { x: number; y: number }>()
         if (mediaAttributes !== undefined && mediaAttributes.length > 0) {
           const account = currentActor.account
           if (!account) {
@@ -394,10 +402,40 @@ export const PUT = traceApiRoute(
             existingStatus,
             mediaAttributes.map((attribute) => attribute.id)
           )
+          const focusedMediaIds = mediaAttributes.flatMap((attribute, index) =>
+            attribute.focus !== undefined
+              ? [String(resolvedAttributeIds[index])]
+              : []
+          )
+          const focusedMedias =
+            focusedMediaIds.length > 0
+              ? await database.getMediaByIdsForAccount({
+                  mediaIds: focusedMediaIds,
+                  accountId: account.id
+                })
+              : []
           for (const [index, attribute] of mediaAttributes.entries()) {
+            const mediaId = String(resolvedAttributeIds[index])
             if (attribute.description !== undefined) {
-              describedMediaIds.add(String(resolvedAttributeIds[index]))
+              describedMediaIds.add(mediaId)
             }
+            const media = focusedMedias.find(
+              (item) => String(item.id) === mediaId
+            )
+            const shown = existingStatus.attachments.find(
+              (item) => item.mediaId != null && String(item.mediaId) === mediaId
+            )
+            const focusOnEarlierFile =
+              attribute.focus !== undefined &&
+              media !== undefined &&
+              shown !== undefined &&
+              media.actorId === currentActor.id &&
+              showsEarlierFile(shown.url, media)
+            if (focusOnEarlierFile && attribute.focus) {
+              earlierFileFocus.set(mediaId, attribute.focus)
+            }
+            // Without a description or a focus to write, this still checks
+            // that the actor owns the media.
             const updatedMedia = await database.updateMedia({
               mediaId: resolvedAttributeIds[index],
               accountId: account.id,
@@ -405,7 +443,7 @@ export const PUT = traceApiRoute(
               ...(attribute.description !== undefined
                 ? { description: attribute.description }
                 : {}),
-              ...(attribute.focus !== undefined
+              ...(attribute.focus !== undefined && !focusOnEarlierFile
                 ? { focus: attribute.focus }
                 : {})
             })
@@ -442,45 +480,38 @@ export const PUT = traceApiRoute(
                 currentActor,
                 attachmentMediaIds
               )
-        // When only `media_attributes` came, the media set is re-read from the
-        // media rows to check them, but each photo keeps the file the post
-        // already shows: the media row's file is the live one, and a photo
-        // edited "Gallery only" must not reach the post through an alt-text
-        // or focal-point edit. Its alt text is not always what the post
-        // publishes either (the composer stores the alt text on the
+        // The media set is re-read from the media rows to check them, but each
+        // photo the post already shows keeps the file the post shows for it
+        // (`withStatusAttachmentFile`): the media row's file is the live one,
+        // and a photo edited "Gallery only" must not reach the post through an
+        // edit of the post, whether an alt-text or focal-point edit, a text
+        // edit from a Mastodon client (which resends `media_ids`) or the
+        // composer adding, removing or reordering photos. Only a photo new to
+        // the post takes the live file.
+        //
+        // When only `media_attributes` came, the alt text is not always what
+        // the post publishes either (the composer stores the alt text on the
         // attachment, and a details save can run ahead of a post edit that
         // was cancelled), so only the photos this request describes take
         // their alt text from the row; every other photo keeps the post's.
         const attachments =
-          resolvedAttachments &&
-          resolvedMediaIds === undefined &&
-          attachmentMediaIds !== undefined
-            ? resolvedAttachments.map((attachment) => {
+          resolvedAttachments === undefined || resolvedAttachments === null
+            ? resolvedAttachments
+            : resolvedAttachments.map((attachment) => {
                 const existing = existingStatus.attachments.find(
-                  (candidate) => String(candidate.mediaId) === attachment.id
+                  (candidate) =>
+                    candidate.mediaId != null &&
+                    String(candidate.mediaId) === attachment.id
                 )
                 if (!existing) return attachment
-                const {
-                  name: rowName,
-                  posterUrl: _rowPosterUrl,
-                  ...rest
-                } = attachment
+                const kept = withStatusAttachmentFile(attachment, existing)
+                if (resolvedMediaIds !== undefined) return kept
+                const { name: rowName, ...rest } = kept
                 const name = describedMediaIds.has(attachment.id)
                   ? rowName
                   : existing.name || undefined
-                return {
-                  ...rest,
-                  mediaType: existing.mediaType,
-                  url: existing.url,
-                  width: existing.width ?? rest.width,
-                  height: existing.height ?? rest.height,
-                  ...(existing.thumbnailUrl
-                    ? { posterUrl: existing.thumbnailUrl }
-                    : {}),
-                  ...(name ? { name } : {})
-                }
+                return { ...rest, ...(name ? { name } : {}) }
               })
-            : resolvedAttachments
         if (attachments === null) {
           return apiResponse({
             req,
@@ -540,6 +571,10 @@ export const PUT = traceApiRoute(
         }
 
         if (shouldUpdateContent) {
+          const statusBeforeEdit =
+            updatedNote?.type === StatusType.enum.Note
+              ? updatedNote
+              : existingStatus
           updatedNote = await updateNoteFromUserInput({
             statusId,
             currentActor,
@@ -549,10 +584,23 @@ export const PUT = traceApiRoute(
             sensitive: changes.sensitive,
             language: changes.language,
             publish: true,
+            // A focal point set on a photo kept on an earlier file becomes
+            // that attachment's stored snapshot, which the edit then keeps.
             status:
-              updatedNote?.type === StatusType.enum.Note
-                ? updatedNote
-                : existingStatus,
+              earlierFileFocus.size === 0
+                ? statusBeforeEdit
+                : {
+                    ...statusBeforeEdit,
+                    attachments: statusBeforeEdit.attachments.map(
+                      (attachment) => {
+                        const focus =
+                          attachment.mediaId != null
+                            ? earlierFileFocus.get(String(attachment.mediaId))
+                            : undefined
+                        return focus ? { ...attachment, focus } : attachment
+                      }
+                    )
+                  },
             database
           })
           if (!updatedNote)
