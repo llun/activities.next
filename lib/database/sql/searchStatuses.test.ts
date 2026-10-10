@@ -1,7 +1,7 @@
 import knex from 'knex'
 
+import { getSearchDocumentId } from '@/lib/database/domains/search/rows'
 import { getSQLDatabase } from '@/lib/database/sql'
-import { getSearchDocumentId } from '@/lib/database/sql/search/documents'
 import {
   createSearchActor,
   insertRowsInChunks

@@ -949,121 +949,20 @@ export type {
 // Search Database
 // ============================================================================
 
-export const SearchDocumentEntityType = z.enum(['account', 'status', 'hashtag'])
-export type SearchDocumentEntityType = z.infer<typeof SearchDocumentEntityType>
-
-export type SearchDocument = {
-  id: string
-  entityType: SearchDocumentEntityType
-  entityId: string
-  documentText: string
-  actorId: string | null
-  visibility: string | null
-  entityCreatedAt: number | null
-  discoverable: boolean | null
-  postCount: number | null
-  lastPostAt: number | null
-  createdAt: number
-  updatedAt: number
-}
-
-export type UpsertSearchDocumentParams = {
-  entityType: SearchDocumentEntityType
-  entityId: string
-  documentText: string
-  actorId?: string | null
-  visibility?: string | null
-  entityCreatedAt?: number | null
-  discoverable?: boolean | null
-  postCount?: number | null
-  lastPostAt?: number | null
-}
-
-export type DeleteSearchDocumentParams = {
-  entityType: SearchDocumentEntityType
-  entityId: string
-}
-
-export type SearchDocumentsParams = {
-  entityType?: SearchDocumentEntityType
-  q: string
-  limit: number
-  offset?: number
-  includeNonDiscoverable?: boolean
-  visibleToActorId?: string | null
-}
-
-export type SearchAccountsParams = {
-  q: string
-  limit: number
-  offset?: number
-  localDomain?: string | null
-  followingActorId?: string | null
-  exactActorIds?: string[]
-}
-
-export type SearchHashtagsParams = {
-  q: string
-  limit: number
-  offset?: number
-  excludeUnreviewed?: boolean
-}
-
-export type SearchHashtag = {
-  name: string
-  url: string
-  history: { day: string; uses: string; accounts: string }[]
-  following?: boolean
-  postCount: number
-  lastPostAt: number | null
-}
-
-export type SearchStatusesParams = {
-  q: string
-  limit: number
-  offset?: number
-  currentActorId: string
-  currentActorUsername?: string | null
-  currentActorDomain?: string | null
-  accountId?: string | null
-  minId?: string | null
-  maxId?: string | null
-}
-
-export type ReindexSearchDocumentsParams = {
-  afterId?: string | null
-  limit?: number
-}
-
-export type ReindexSearchDocumentsResult = {
-  indexed: number
-  nextCursor: string | null
-}
-
-export interface SearchDatabase {
-  upsertSearchDocument(params: UpsertSearchDocumentParams): Promise<void>
-  deleteSearchDocument(params: DeleteSearchDocumentParams): Promise<void>
-  searchDocuments(params: SearchDocumentsParams): Promise<SearchDocument[]>
-  searchAccountIds(params: SearchAccountsParams): Promise<string[]>
-  indexActorSearchDocument(params: GetActorFromIdParams): Promise<void>
-  deleteActorSearchDocument(params: GetActorFromIdParams): Promise<void>
-  reindexSearchAccounts(
-    params?: ReindexSearchDocumentsParams
-  ): Promise<ReindexSearchDocumentsResult>
-  searchHashtags(params: SearchHashtagsParams): Promise<SearchHashtag[]>
-  indexHashtagSearchDocument(params: { hashtag: string }): Promise<void>
-  indexHashtagSearchDocuments(params: { hashtags: string[] }): Promise<void>
-  deleteHashtagSearchDocument(params: { hashtag: string }): Promise<void>
-  reindexSearchHashtags(
-    params?: ReindexSearchDocumentsParams
-  ): Promise<ReindexSearchDocumentsResult>
-  searchStatusIds(params: SearchStatusesParams): Promise<string[]>
-  indexStatusSearchDocument(params: BaseStatusParams): Promise<void>
-  deleteStatusSearchDocument(params: BaseStatusParams): Promise<void>
-  reindexSearchStatuses(
-    params?: ReindexSearchDocumentsParams
-  ): Promise<ReindexSearchDocumentsResult>
-}
+export { SearchDocumentEntityType } from '@/lib/database/domains/search/types'
+export type {
+  DeleteSearchDocumentParams,
+  ReindexSearchDocumentsParams,
+  ReindexSearchDocumentsResult,
+  SearchAccountsParams,
+  SearchDatabase,
+  SearchDocument,
+  SearchDocumentsParams,
+  SearchHashtag,
+  SearchHashtagsParams,
+  SearchStatusesParams,
+  UpsertSearchDocumentParams
+} from '@/lib/database/domains/search/types'
 
 // ============================================================================
 // Direct Conversation Database

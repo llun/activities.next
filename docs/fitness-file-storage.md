@@ -361,7 +361,7 @@ Reprocessing a file (a retry, a recovery script, a re-import) attaches its new r
 
 ## User-Facing Features
 
-- Fitness upload button in the post box
+- **Fitness file** item in the post box's **Post options** menu (new posts only; hidden when replying or editing). It opens the file picker of a hidden `.fit`/`.gpx`/`.tcx` input (`FitnessFileInput`), which keeps the extension check and its error message
 - Fitness activity status detail with route map, stats, device info, media, and analysis graphs
 - Settings pages for storage usage, file management, default visibility, Strava, privacy locations, and route map regeneration
 - Fitness overview with a viewer-local training calendar, date range picker and per-day activity details, and the route heatmap view

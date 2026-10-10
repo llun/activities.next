@@ -1,8 +1,8 @@
 import { Knex } from 'knex'
 
 import { recordWeeklyLoginSafely } from '@/lib/database/domains/instanceActivity/queries'
+import { searchQueries } from '@/lib/database/domains/search/queries'
 import { kyselyFor } from '@/lib/database/kysely'
-import { indexActorSearchDocument } from '@/lib/database/sql/search'
 import {
   CounterKey,
   getCounterValues,
@@ -179,7 +179,10 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
       )
       await incrementBucket(trx, 'accounts', 1, currentTime)
       await incrementBucket(trx, 'actors', 1, currentTime)
-      await indexActorSearchDocument(trx, { id: actorId, actor })
+      await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
+        id: actorId,
+        actor
+      })
     })
 
     return accountId
@@ -338,7 +341,10 @@ export const AccountSQLDatabaseMixin = (database: Knex): AccountDatabase => ({
         currentTime
       )
       await incrementBucket(trx, 'actors', 1, currentTime)
-      await indexActorSearchDocument(trx, { id: actorId, actor })
+      await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
+        id: actorId,
+        actor
+      })
     })
 
     return actorId

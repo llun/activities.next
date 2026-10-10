@@ -1,22 +1,15 @@
-import knex from 'knex'
-
-import { getSQLDatabase } from '@/lib/database/sql'
 import { createSearchActor } from '@/lib/database/sql/searchTestHelpers'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { FollowStatus } from '@/lib/types/domain/follow'
 import { getLocalActorId } from '@/lib/utils/activitypubId'
 
 describe('SearchDatabase accounts', () => {
   it('indexes actors and searches accounts by profile text', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: 'https://remote.test/users/alice',
@@ -43,18 +36,13 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('filters account search to followed actors when requested', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const aliceId = 'https://remote.test/users/alice'
     const bobId = 'https://remote.test/users/bob'
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: 'https://remote.test/users/viewer',
@@ -108,19 +96,14 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('counts the searcher among the accounts they follow', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const viewerId = 'https://remote.test/users/runner-viewer'
     const followedId = 'https://remote.test/users/followed-runner'
     const strangerId = 'https://remote.test/users/stranger-runner'
 
     try {
+      await testDb.prepare()
       await database.migrate()
       for (const [id, username] of [
         [viewerId, 'runner-viewer'],
@@ -161,17 +144,12 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('only returns non-discoverable accounts for exact handle matches', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorId = 'https://remote.test/users/secret'
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: actorId,
@@ -245,18 +223,13 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('escapes account ordering prefix wildcards', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const alphaId = 'https://remote.test/users/alpha'
     const xunnerId = 'https://remote.test/users/xunner'
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: xunnerId,
@@ -281,14 +254,8 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('indexes local account creation without reloading the inserted actor', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorSelectQueries: string[] = []
     const handleQuery = ({ sql }: { sql: string }) => {
       if (
@@ -300,6 +267,7 @@ describe('SearchDatabase accounts', () => {
     }
 
     try {
+      await testDb.prepare()
       await database.migrate()
       knexDatabase.on('query', handleQuery)
       await database.createAccount({
@@ -325,14 +293,8 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('indexes account actors without reloading the inserted actor', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const actorSelectQueries: string[] = []
     const handleQuery = ({ sql }: { sql: string }) => {
       if (
@@ -344,6 +306,7 @@ describe('SearchDatabase accounts', () => {
     }
 
     try {
+      await testDb.prepare()
       await database.migrate()
       const accountId = await database.createAccount({
         email: 'local-runner@remote.test',
@@ -375,17 +338,12 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('paginates exact account matches with indexed results without skipping', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const exactActorId = 'https://remote.test/users/runner'
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: exactActorId,
@@ -436,17 +394,12 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('returns exact account matches without existing search documents', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const exactActorId = 'https://remote.test/users/legacy-runner'
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: exactActorId,
@@ -487,18 +440,13 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('updates account search discoverability during deletion transitions', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const actorId = 'https://remote.test/users/deleting-runner'
     const viewerId = 'https://remote.test/users/deletion-viewer'
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: viewerId,
@@ -565,14 +513,8 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('reindexes account search documents with a batched upsert', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const insertQueries: string[] = []
     const actorSelectQueries: string[] = []
     const handleQuery = ({ sql }: { sql: string }) => {
@@ -591,6 +533,7 @@ describe('SearchDatabase accounts', () => {
     }
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await createSearchActor(database, {
         id: 'https://remote.test/users/alice',
@@ -623,14 +566,8 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('sizes SQLite account reindex batches from the search document column count', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database, knex: knexDatabase } = testDb
     const insertQueries: string[] = []
     const handleQuery = ({ sql }: { sql: string }) => {
       if (
@@ -642,6 +579,7 @@ describe('SearchDatabase accounts', () => {
     }
 
     try {
+      await testDb.prepare()
       await database.migrate()
       for (let index = 0; index < 83; index += 1) {
         const actorId = `https://remote.test/users/batch-runner-${index}`
@@ -682,17 +620,12 @@ describe('SearchDatabase accounts', () => {
   })
 
   it('excludes internal federation signing actors from account search', async () => {
-    const knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    const database = getSQLDatabase(knexDatabase)
+    const testDb = createTestDatabase()
+    const { database } = testDb
     const actorId = 'https://remote.test/users/__instance__'
 
     try {
+      await testDb.prepare()
       await database.migrate()
       await database.createActor({
         actorId,

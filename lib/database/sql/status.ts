@@ -133,13 +133,15 @@ import {
 import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 
 import {
-  deleteStatusSearchDocumentsByStatusIds,
   indexHashtagSearchDocument,
   indexHashtagSearchDocuments,
-  indexStatusSearchDocument,
   normalizeHashtagSearchName
-} from './search'
-import type { SQLStatusSearchRow } from './search'
+} from './search/hashtag'
+import {
+  deleteStatusSearchDocumentsByStatusIds,
+  indexStatusSearchDocument
+} from './search/status'
+import type { SQLStatusSearchRow } from './search/status'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
 const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
