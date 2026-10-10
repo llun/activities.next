@@ -11,6 +11,8 @@ interface Props {
   /** The heading's level, as `Section`'s: `2` by default. */
   headingLevel?: HeadingLevel
   className?: string
+  /** Id for the heading, so a control inside can name itself with `aria-labelledby`. */
+  headingId?: string
   /** The group's `FormRow`s. */
   children: ReactNode
 }
@@ -27,9 +29,11 @@ export const FormGroup: FC<Props> = ({
   description,
   headingLevel = 2,
   className,
+  headingId: headingIdProp,
   children
 }) => {
-  const headingId = useId()
+  const generatedId = useId()
+  const headingId = headingIdProp ?? generatedId
   const Heading = `h${headingLevel}` as const
   return (
     <div
@@ -39,11 +43,11 @@ export const FormGroup: FC<Props> = ({
       className={cn('group/form-group', className)}
     >
       <div className="px-4 pt-5 pb-0.5 group-first/form-group:pt-2.5">
-        <Heading id={headingId} className="text-sm font-semibold">
+        <Heading id={headingId} className="text-base font-semibold">
           {title}
         </Heading>
         {description ? (
-          <p className="text-muted-foreground mt-0.5 text-xs">{description}</p>
+          <p className="text-muted-foreground mt-0.5 text-sm">{description}</p>
         ) : null}
       </div>
       {children}

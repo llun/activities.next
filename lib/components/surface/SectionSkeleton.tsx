@@ -89,14 +89,15 @@ export const SectionSkeleton: FC<Props> = ({
             <div key={group}>
               {/* `FormGroup`'s heading block: `px-4 pt-5 pb-0.5`, `pt-2.5` first. */}
               <div
-                className={cn(
-                  'space-y-1 px-4 pb-0.5',
-                  group === 0 ? 'pt-2.5' : 'pt-5'
-                )}
+                className={cn('px-4 pb-0.5', group === 0 ? 'pt-2.5' : 'pt-5')}
               >
-                <SkeletonBar className="h-4 w-28" />
+                <div className="flex h-6 items-center">
+                  <SkeletonBar className="h-5 w-28" />
+                </div>
                 {descriptions ? (
-                  <SkeletonBar className="h-3 w-56 max-w-full" />
+                  <div className="mt-0.5 flex h-5 items-center">
+                    <SkeletonBar className="h-4 w-56 max-w-full" />
+                  </div>
                 ) : null}
               </div>
               {Array.from({ length: groupRows }, (_, row) => (

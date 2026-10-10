@@ -16,8 +16,9 @@ interface Props {
   logoSrc?: string
   /**
    * For a page with no form (only `auth/error` today): the "other" link, in an
-   * `AuthCardActions` band under the content. A form page puts its own `AuthCardActions` inside its
-   * `<form>` instead, so the submit button stays in the form.
+   * `AuthCardActions` band under the content. A form page puts its own
+   * `AuthCardActions` inside its `<form>` instead, so the submit button stays
+   * in the form.
    */
   footer?: ReactNode
   children?: ReactNode
@@ -85,8 +86,9 @@ export const AuthCardBody: FC<{ children: ReactNode }> = ({ children }) => (
  * `AuthCardFooter`). The band keeps the normal text colour and alignment so an
  * `Alert` in it reads like everywhere else; only `AuthCardFooter` is centred and
  * muted. It hides itself while it has no content (the passkey button renders
- * nothing until support is detected). `afterHeader` is for a band that follows
- * the header directly, with no body in between.
+ * nothing until support is detected). `afterHeader` is for a band that
+ * follows the header directly, with no body in between; while empty it shrinks
+ * to a 24px spacer instead of hiding, so the header keeps its bottom spacing.
  */
 export const AuthCardActions: FC<{
   children: ReactNode
@@ -95,8 +97,12 @@ export const AuthCardActions: FC<{
   <div
     data-slot="auth-card-actions"
     className={cn(
-      'grid gap-3 border-t px-6 py-5 empty:hidden',
-      afterHeader && 'mt-6'
+      'grid gap-3 border-t px-6 py-5',
+      // An empty band hides itself; one right under the header keeps a 24px
+      // spacer instead, so the header's bottom spacing does not collapse.
+      afterHeader
+        ? 'mt-6 empty:mt-0 empty:h-6 empty:border-0 empty:p-0'
+        : 'empty:hidden'
     )}
   >
     {children}

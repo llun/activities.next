@@ -317,9 +317,14 @@ export const FilterEditor: FC<FilterEditorProps> = ({
 
         <FormGroup
           title="Filter action"
+          headingId="filter-action-heading"
           description="What happens when a post matches."
         >
-          <div className="space-y-0.5 px-2 pt-2" role="radiogroup">
+          <div
+            className="space-y-0.5 px-2 pt-2"
+            role="radiogroup"
+            aria-labelledby="filter-action-heading"
+          >
             {ACTION_CARDS.map((card, index) => {
               const selected = action === card.id
               return (

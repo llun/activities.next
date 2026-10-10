@@ -17,7 +17,7 @@ describe('FormGroup', () => {
     expect(group).toContainElement(screen.getByText('Row'))
     expect(
       screen.getByRole('heading', { level: 2, name: 'Privacy' })
-    ).toHaveClass('text-sm', 'font-semibold')
+    ).toHaveClass('text-base', 'font-semibold')
   })
 
   it('sets the heading block off from the rows above', () => {
@@ -41,7 +41,7 @@ describe('FormGroup', () => {
       </FormGroup>
     )
     expect(screen.getByText('Shown on your profile.')).toHaveClass(
-      'text-xs',
+      'text-sm',
       'text-muted-foreground'
     )
   })
