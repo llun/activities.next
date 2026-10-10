@@ -14,6 +14,8 @@ import { blockQueries } from '@/lib/database/domains/block/queries'
 import type { BlockDatabase } from '@/lib/database/domains/block/types'
 import { bookmarkQueries } from '@/lib/database/domains/bookmark/queries'
 import type { BookmarkDatabase } from '@/lib/database/domains/bookmark/types'
+import { createConversationQueries } from '@/lib/database/domains/conversation/queries'
+import type { DirectConversationDatabase } from '@/lib/database/domains/conversation/types'
 import { customEmojiQueries } from '@/lib/database/domains/customEmoji/queries'
 import type { CustomEmojiDatabase } from '@/lib/database/domains/customEmoji/types'
 import { deadLetterJobQueries } from '@/lib/database/domains/deadLetterJob/queries'
@@ -94,7 +96,6 @@ import {
 } from '@/lib/database/kysely'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
-import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessGearSQLDatabaseMixin } from '@/lib/database/sql/fitnessGear'
@@ -290,9 +291,11 @@ export const getSQLDatabase = (database: Knex): Database => {
     (statusIds, currentActorId) =>
       statusDatabase.getStatusesByIds({ statusIds, currentActorId })
   )
-  const directConversationDatabase = DirectConversationSQLDatabaseMixin(
-    database,
-    statusDatabase
+  // The reads hydrate through the Knex status facade, outside this domain's
+  // transactions, until status is ported.
+  const directConversationDatabase: DirectConversationDatabase = bindDb(
+    kysely,
+    createConversationQueries(statusDatabase)
   )
   const timelineDatabase = TimelineSQLDatabaseMixin(database, statusDatabase)
 
