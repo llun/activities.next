@@ -13,14 +13,23 @@ import {
 } from '@/lib/services/mastodon/constants'
 import { getQueue } from '@/lib/services/queue'
 import { invalidateServerSettingsCache } from '@/lib/services/serverSettings'
+import {
+  CREATED_AT_INVALID_ERROR,
+  CREATED_AT_WITH_SCHEDULED_AT_ERROR
+} from '@/lib/services/statuses/backdatedCreatedAt'
 import { seedDatabase } from '@/lib/stub/database'
 import { statusPublicId } from '@/lib/stub/publicIds'
 import { ACTOR1_ID, seedActor1 } from '@/lib/stub/seed/actor1'
 import { ACTOR2_ID } from '@/lib/stub/seed/actor2'
 import { ACTOR3_ID } from '@/lib/stub/seed/actor3'
-import { Status, StatusPoll, StatusType } from '@/lib/types/domain/status'
+import {
+  Status,
+  StatusNote,
+  StatusPoll,
+  StatusType
+} from '@/lib/types/domain/status'
 import { getNoteFromStatus } from '@/lib/utils/getNoteFromStatus'
-import { generatePublicId } from '@/lib/utils/publicId'
+import { generatePublicId, getPublicIdTimestamp } from '@/lib/utils/publicId'
 import { urlToId } from '@/lib/utils/urlToId'
 
 import { GET, MAX_BATCH_STATUSES, POST } from './route'
@@ -933,6 +942,130 @@ describe('POST /api/v1/statuses', () => {
     expect(response.status).toBe(200)
     const mastodonStatus = await response.json()
     expect(mastodonStatus.application).toBeNull()
+  })
+
+  describe('created_at backdating', () => {
+    const postStatus = (body: Record<string, unknown>) =>
+      POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+    it('backdates the status, its publicId, its attachments and the federated note', async () => {
+      const media = await database.createMedia({
+        actorId: ACTOR1_ID,
+        original: {
+          path: 'medias/backdated-album-photo.webp',
+          bytes: 2048,
+          mimeType: 'image/jpeg',
+          metaData: { width: 640, height: 480 },
+          fileName: 'backdated-album-photo.jpg'
+        }
+      })
+      expect(media).not.toBeNull()
+
+      const response = await postStatus({
+        status: 'Photos from the weekend ride',
+        media_ids: [media!.id],
+        // Same instant as 2026-06-14T18:30:00.000Z, given with an offset.
+        created_at: '2026-06-14T20:30:00+02:00'
+      })
+
+      expect(response.status).toBe(200)
+      const mastodonStatus = await response.json()
+      const backdatedAt = Date.parse('2026-06-14T18:30:00.000Z')
+      expect(mastodonStatus.created_at).toBe('2026-06-14T18:30:00.000Z')
+      // updatedAt is the real write time, but a backdated status is not an edit.
+      expect(mastodonStatus.edited_at).toBeNull()
+
+      const status = (await database.getStatus({
+        statusId: mastodonStatus.uri,
+        withReplies: false
+      })) as StatusNote
+      expect(status.createdAt).toBe(backdatedAt)
+      // The UUIDv7 publicId embeds the backdated time, so id order and
+      // createdAt order agree on every timeline.
+      expect(mastodonStatus.id).toBe(status.publicId)
+      expect(getPublicIdTimestamp(mastodonStatus.id)).toBe(backdatedAt)
+      expect(status.attachments.map((item) => item.createdAt)).toEqual([
+        backdatedAt
+      ])
+      expect(getNoteFromStatus(status)?.published).toBe(
+        '2026-06-14T18:30:00.000Z'
+      )
+    })
+
+    it('backdates a poll', async () => {
+      const response = await postStatus({
+        status: 'Which route next year?',
+        poll: { options: ['Coast', 'Mountains'], expires_in: 3600 },
+        created_at: '2026-06-14T18:30:00Z'
+      })
+
+      expect(response.status).toBe(200)
+      const mastodonStatus = await response.json()
+      expect(mastodonStatus.created_at).toBe('2026-06-14T18:30:00.000Z')
+      expect(getPublicIdTimestamp(mastodonStatus.id)).toBe(
+        Date.parse('2026-06-14T18:30:00Z')
+      )
+      expect(mastodonStatus.poll).not.toBeNull()
+    })
+
+    it('accepts created_at from a form-encoded body', async () => {
+      const body = new URLSearchParams()
+      body.set('status', 'Backdated from a form client')
+      body.set('created_at', '2026-06-14T18:30:00Z')
+
+      const response = await POST(
+        new NextRequest('https://llun.test/api/v1/statuses', {
+          method: 'POST',
+          body,
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Origin: 'https://llun.test'
+          }
+        }),
+        { params: Promise.resolve({}) }
+      )
+
+      expect(response.status).toBe(200)
+      const mastodonStatus = await response.json()
+      expect(mastodonStatus.created_at).toBe('2026-06-14T18:30:00.000Z')
+    })
+
+    it('rejects an invalid created_at', async () => {
+      const response = await postStatus({
+        status: 'Rejected backdated status',
+        created_at: 'last saturday'
+      })
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: CREATED_AT_INVALID_ERROR
+      })
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    })
+
+    it('rejects created_at combined with scheduled_at', async () => {
+      const response = await postStatus({
+        status: 'Both backdated and scheduled',
+        created_at: '2026-06-14T18:30:00Z',
+        scheduled_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      })
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: CREATED_AT_WITH_SCHEDULED_AT_ERROR
+      })
+      expect(getQueue().publish).not.toHaveBeenCalled()
+    })
   })
 })
 
