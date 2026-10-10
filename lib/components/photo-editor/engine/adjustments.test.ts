@@ -1,4 +1,11 @@
-import { type PixelContext, applyAdjustments } from './adjustments'
+import {
+  type MaskLayer,
+  type PixelContext,
+  applyAdjustments,
+  applyAdjustmentsWithMasks,
+  applyAdjustmentsWithTerms,
+  applyMaskAdjustments
+} from './adjustments'
 import { type Rgb, linearToSrgb, luma, srgbToLinear } from './colour'
 
 const context = (
@@ -151,6 +158,179 @@ describe('applyAdjustments', () => {
         expect(value).toBeGreaterThanOrEqual(0)
         expect(value).toBeLessThanOrEqual(1)
       })
+    }
+  })
+})
+
+describe('masked adjustments', () => {
+  const sample: Rgb = [0.35, 0.5, 0.2]
+  const ctx = context(sample, { uv: [0.3, 0.6] })
+  const global = { exposure: 0.3, contrast: 20, vignette: -30 }
+  const withMasks = (masks: MaskLayer[], adjustments = global, rgb = sample) =>
+    applyAdjustmentsWithMasks(
+      rgb,
+      adjustments,
+      masks,
+      context(rgb, { uv: [0.3, 0.6] })
+    )
+  const near = (a: Rgb, b: Rgb, digits = 6) =>
+    a.forEach((v, i) => expect(v).toBeCloseTo(b[i], digits))
+
+  it('is the global result when there are no masks, or a mask is outside', () => {
+    const plain = applyAdjustments(sample, global, ctx)
+    near(withMasks([]), plain)
+    near(withMasks([{ adjustments: { exposure: 2 }, alpha: 0 }]), plain)
+  })
+
+  it.each(grid.slice(0, 40).map((rgb) => [rgb.join(','), rgb] as const))(
+    'a mask with no sliders is the identity for %s',
+    (_name, rgb) => {
+      const plain = applyAdjustments(
+        rgb,
+        global,
+        context(rgb, { uv: [0.3, 0.6] })
+      )
+      const masked = withMasks([{ adjustments: {}, alpha: 1 }], global, rgb)
+      masked.forEach((value, i) => {
+        expect(Math.abs(value - plain[i])).toBeLessThan(1 / 255)
+      })
+    }
+  )
+
+  it('adjusts the global result fully where the mask is 1', () => {
+    const { out, terms } = applyAdjustmentsWithTerms(sample, global, ctx)
+    const local = { exposure: 1, saturation: 30 }
+    near(
+      withMasks([{ adjustments: local, alpha: 1 }]),
+      applyMaskAdjustments(out, local, terms)
+    )
+  })
+
+  it('brightens with positive exposure and darkens with negative', () => {
+    const base = applyAdjustments(sample, global, ctx)
+    const lighter = withMasks([{ adjustments: { exposure: 1 }, alpha: 1 }])
+    const darker = withMasks([{ adjustments: { exposure: -1 }, alpha: 1 }])
+    expect(luma(...lighter)).toBeGreaterThan(luma(...base))
+    expect(luma(...darker)).toBeLessThan(luma(...base))
+  })
+
+  it('mixes linearly in the mask alpha', () => {
+    const local = { exposure: 1, tint: 40 }
+    const none = withMasks([{ adjustments: local, alpha: 0 }])
+    const all = withMasks([{ adjustments: local, alpha: 1 }])
+    const half = withMasks([{ adjustments: local, alpha: 0.5 }])
+    near(half, none.map((v, i) => (v + all[i]) / 2) as Rgb)
+    const quarter = withMasks([{ adjustments: local, alpha: 0.25 }])
+    near(quarter, none.map((v, i) => v + (all[i] - v) * 0.25) as Rgb)
+  })
+
+  it('runs masks in recipe order, each on the result of the one before', () => {
+    const first = { adjustments: { exposure: 1 }, alpha: 0.6 }
+    const second = {
+      adjustments: { saturation: -80, contrast: 30 },
+      alpha: 0.7
+    }
+    const { out, terms } = applyAdjustmentsWithTerms(sample, global, ctx)
+    const afterFirst = out.map(
+      (v, i) =>
+        v + (applyMaskAdjustments(out, first.adjustments, terms)[i] - v) * 0.6
+    ) as Rgb
+    const expected = afterFirst.map(
+      (v, i) =>
+        v +
+        (applyMaskAdjustments(afterFirst, second.adjustments, terms)[i] - v) *
+          0.7
+    ) as Rgb
+    near(withMasks([first, second]), expected)
+    // And the order matters: the other way round is not the same colour.
+    const swapped = withMasks([second, first])
+    expect(
+      Math.abs(swapped[0] - expected[0]) + Math.abs(swapped[1] - expected[1])
+    ).toBeGreaterThan(1e-3)
+  })
+
+  it('adjusts on top of the global adjustments, not instead of them', () => {
+    const local = { exposure: 0.5 }
+    const withGlobal = withMasks([{ adjustments: local, alpha: 1 }])
+    const withoutGlobal = withMasks([{ adjustments: local, alpha: 1 }], {
+      exposure: 0,
+      contrast: 0,
+      vignette: 0
+    })
+    expect(withGlobal[0]).not.toBeCloseTo(withoutGlobal[0], 3)
+    // Same total exposure either way for a flat grey, up to the contrast curve.
+    const flat: Rgb = [0.3, 0.3, 0.3]
+    const combined = applyAdjustments(flat, { exposure: 0.8 }, context(flat))
+    const stacked = applyAdjustmentsWithMasks(
+      flat,
+      { exposure: 0.3 },
+      [{ adjustments: { exposure: 0.5 }, alpha: 1 }],
+      context(flat)
+    )
+    near(stacked, combined, 4)
+  })
+
+  it('does not vignette: a mask has no vignette slider and adds none', () => {
+    const corner = context(sample, { uv: [0, 0] })
+    const centre = context(sample, { uv: [0.5, 0.5] })
+    const local = { adjustments: { saturation: 20 }, alpha: 1 }
+    const atCorner = applyAdjustmentsWithMasks(sample, {}, [local], corner)
+    const atCentre = applyAdjustmentsWithMasks(sample, {}, [local], centre)
+    near(atCorner, atCentre)
+  })
+
+  it('lifts shadows where the global tone value is dark, not where it is bright', () => {
+    const dark: Rgb = [0.1, 0.1, 0.1]
+    const lifted = { adjustments: { shadows: 100 }, alpha: 1 }
+    // Same pixel, but the wide blur around it is dark (shadows apply) or bright.
+    const inShadow = applyAdjustmentsWithMasks(
+      dark,
+      {},
+      [lifted],
+      context(dark, { tone: 0.05 })
+    )
+    const inLight = applyAdjustmentsWithMasks(
+      dark,
+      {},
+      [lifted],
+      context(dark, { tone: 0.95 })
+    )
+    expect(luma(...inShadow)).toBeGreaterThan(luma(...inLight))
+    expect(luma(...inShadow)).toBeGreaterThan(luma(...dark) + 0.02)
+  })
+
+  it('reuses the global detail terms for texture', () => {
+    // A pixel brighter than its neighbourhood has positive detail.
+    const edge: Rgb = [0.6, 0.6, 0.6]
+    const detailCtx = context(edge, { fine: [0.4, 0.4, 0.4] })
+    const flatCtx = context(edge)
+    const textured = { adjustments: { texture: 100 }, alpha: 1 }
+    const withDetail = applyAdjustmentsWithMasks(
+      edge,
+      {},
+      [textured],
+      detailCtx
+    )
+    const withoutDetail = applyAdjustmentsWithMasks(
+      edge,
+      {},
+      [textured],
+      flatCtx
+    )
+    expect(luma(...withDetail)).toBeGreaterThan(luma(...withoutDetail) + 0.01)
+  })
+
+  it('stays inside 0..1', () => {
+    const out = withMasks([
+      {
+        adjustments: { exposure: 5, contrast: 100, saturation: 100 },
+        alpha: 1
+      },
+      { adjustments: { exposure: -5 }, alpha: 0.5 }
+    ])
+    for (const value of out) {
+      expect(value).toBeGreaterThanOrEqual(0)
+      expect(value).toBeLessThanOrEqual(1)
     }
   })
 })

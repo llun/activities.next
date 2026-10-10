@@ -3,6 +3,8 @@ import { z } from 'zod'
 export const RECIPE_VERSION = 1
 export const MAX_MASKS = 4
 export const MAX_MASK_POINTS = 32
+/** Long edge, in pixels, of a stored mask: the server's cap and the size the browser renders. */
+export const MASK_LONG_EDGE = 1024
 export const MAX_OUTPUT_LONG_EDGE = 4000
 export const MAX_SOURCE_PIXELS = 50_000_000
 export const MAX_RECIPE_BYTES = 16 * 1024
@@ -233,11 +235,32 @@ export const isNeutralRecipe = (recipe: Recipe): boolean => {
   )
 }
 
-// The recipe without its UI-only aspect state, in canonical form.
+/**
+ * The ids of the masks that change a pixel: one with a non-zero slider, and
+ * a subject whose background mask has one (the background is its inverse and
+ * is drawn from the subject's raster and points).
+ */
+export const getEffectiveMaskIds = (recipe: Recipe): Set<string> => {
+  const ids = new Set<string>()
+  for (const mask of recipe.masks) {
+    if (countChangedAdjustments(mask.adjustments) === 0) continue
+    ids.add(mask.id)
+    if (mask.kind === 'background' && mask.of) ids.add(mask.of)
+  }
+  return ids
+}
+
+// The recipe without its UI-only aspect state and without the masks that
+// change nothing, in canonical form.
 const getPixelRecipe = (recipe: Recipe) => {
-  const { geometry, ...rest } = normalizeRecipe(recipe)
+  const { geometry, masks, ...rest } = normalizeRecipe(recipe)
   const { aspect: _aspect, aspectPortrait: _portrait, ...pixels } = geometry
-  return { ...rest, geometry: pixels }
+  const effective = getEffectiveMaskIds(recipe)
+  return {
+    ...rest,
+    geometry: pixels,
+    masks: masks.filter((mask) => effective.has(mask.id))
+  }
 }
 
 const isSameValue = (left: unknown, right: unknown): boolean => {
@@ -268,10 +291,19 @@ const isSameValue = (left: unknown, right: unknown): boolean => {
  * True when two recipes render the same pixels from the same source: they
  * are equal once normalized, ignoring `aspect` and `aspectPortrait`, which
  * only say which preset the crop box follows (choosing 1:1 and then Original
- * again, or a preset whose crop is the full frame, changes no pixel).
+ * again, or a preset whose crop is the full frame, changes no pixel) and the
+ * masks that have no adjustment (a mask with all sliders at zero, and its
+ * points, feather and pixels, changes no pixel).
  */
 export const isSameRender = (left: Recipe, right: Recipe): boolean =>
   isSameValue(getPixelRecipe(left), getPixelRecipe(right))
+
+/**
+ * True when both recipes have the same masks once normalized, whatever the
+ * order of their keys (a slider moved to 0 and back is the same mask).
+ */
+export const isSameMasks = (left: Recipe, right: Recipe): boolean =>
+  isSameValue(normalizeRecipe(left).masks, normalizeRecipe(right).masks)
 
 export type ParseRecipeResult =
   { ok: true; recipe: Recipe } | { ok: false; error: string }
@@ -281,7 +313,8 @@ export type ParseRecipeResult =
  * result is `{ ok: true, recipe }` or `{ ok: false, error }`, so a route can
  * answer 422 with the reason (the 16 KiB cap is checked before parsing).
  *
- * `allowMasks` defaults to false (phase 1): a recipe with masks is rejected.
+ * `allowMasks` defaults to false: a recipe with masks is rejected. The save
+ * route and `parseStoredRecipe` pass true.
  * To read a stored recipe use `parseStoredRecipe`, which yields `null`.
  */
 export const parseRecipe = (

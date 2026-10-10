@@ -282,6 +282,16 @@ Optional. Smart subjects and place names for photos in the media gallery. Every 
 
 An endpoint must be an `https:` URL without credentials. An invalid value logs one warning and falls back to the default; it never stops the server or the build. The vision API key is never sent to GBIF or Nominatim.
 
+## Photo Editor
+
+Optional. The photo editor's **Select subject** tool runs a small segmentation model (SlimSAM, `Xenova/slimsam-77-uniform`) in the owner's browser. The browser downloads two model files once (about 14 MB together), checks each file's size and SHA-256 against constants built into the app (`lib/config/photoEditor.ts`), and keeps them in its Cache Storage. The server never downloads or runs the model, and no photo leaves the browser for it. The brush and the other mask tools work without it.
+
+| Variable                               | Description                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL` | Where the browser downloads the model files from. Default: `https://huggingface.co/Xenova/slimsam-77-uniform/resolve/5850ab45f587c112167512ffef949107115e26a0/` (a pinned revision). Set an `https:` URL without credentials that ends with `/` to self-host the same files (`onnx/vision_encoder_quantized.onnx` and `onnx/prompt_encoder_mask_decoder_quantized.onnx` under it), or `off` to turn Select subject off. |
+
+The value is read at request time and changes the Content Security Policy. While the model is on, `connect-src` allows its origins (for the default, `https://huggingface.co` and `https://*.hf.co`, the CDN Hugging Face redirects to; for a custom URL, its origin only) and `script-src` gains `'wasm-unsafe-eval'` for the WebAssembly runtime. With `off`, neither is added. A self-hosted server must answer the browser's cross-origin `fetch` with CORS headers. An invalid value logs one warning and is treated as `off`; it never stops the server or the build.
+
 ## Media Storage
 
 Required for media uploads (images and video in posts). If no media storage is configured, media uploads are disabled.

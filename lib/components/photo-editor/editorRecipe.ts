@@ -7,6 +7,8 @@ import {
   normalizeRecipe
 } from '@/lib/services/medias/edit/recipe'
 
+import { getRasters, sameRasters } from './masks/maskRaster'
+
 /** Key order independent JSON, so two equal recipes compare equal. */
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`
@@ -22,6 +24,13 @@ const stable = (value: unknown): string => {
 
 export const recipesEqual = (a: Recipe, b: Recipe): boolean =>
   stable(normalizeRecipe(a)) === stable(normalizeRecipe(b))
+
+/**
+ * Equal as history entries: the same recipe and the same mask pixels (a brush
+ * stroke changes pixels only, so the recipe alone cannot tell).
+ */
+export const snapshotsEqual = (a: Recipe, b: Recipe): boolean =>
+  recipesEqual(a, b) && sameRasters(getRasters(a), getRasters(b))
 
 export const withAdjustments = (
   recipe: Recipe,

@@ -1,4 +1,7 @@
-import type { Adjustments } from '@/lib/services/medias/edit/recipe'
+import type {
+  Adjustments,
+  MaskAdjustments
+} from '@/lib/services/medias/edit/recipe'
 
 import {
   BLACKS_RANGE,
@@ -150,15 +153,50 @@ const toStep7 = (rgb: Rgb, n: Normalized, T: number): Rgb => {
   return [mixed(p[0]), mixed(p[1]), mixed(p[2])]
 }
 
+/** Step 9: saturation, then vibrance. */
+const saturate = (rgb: Rgb, n: Normalized): Rgb => {
+  const Ys = lumaOf(rgb)
+  let p: Rgb = [
+    Ys + (rgb[0] - Ys) * (1 + n.saturation),
+    Ys + (rgb[1] - Ys) * (1 + n.saturation),
+    Ys + (rgb[2] - Ys) * (1 + n.saturation)
+  ]
+  const chroma = Math.max(...p) - Math.min(...p)
+  const amount = n.vibrance > 0 ? n.vibrance * (1 - chroma) : n.vibrance
+  const Yv = lumaOf(p)
+  p = [
+    Yv + (p[0] - Yv) * (1 + amount),
+    Yv + (p[1] - Yv) * (1 + amount),
+    Yv + (p[2] - Yv) * (1 + amount)
+  ]
+  return p
+}
+
 /**
- * CPU reference of the shader (§2.3) for one pixel. `rgb` is sRGB in 0..1;
- * the result is sRGB clamped to 0..1.
+ * What a mask reuses from the global pass (§2.3, Masks): the tone value `T`
+ * and the two detail terms of the pixel. A mask never re-samples the blurs.
  */
-export const applyAdjustments = (
+export interface MaskTerms {
+  tone: number
+  detailFine: number
+  detailMid: number
+}
+
+/** The global result of a pixel and the terms its masks reuse. */
+export interface PixelResult {
+  out: Rgb
+  terms: MaskTerms
+}
+
+/**
+ * CPU reference of the shader (§2.3, steps 1-11) for one pixel, with the
+ * terms the masks reuse. `rgb` is sRGB in 0..1; `out` is sRGB clamped to 0..1.
+ */
+export const applyAdjustmentsWithTerms = (
   rgb: Rgb,
   adjustments: Adjustments,
   context: PixelContext
-): Rgb => {
+): PixelResult => {
   const n = normalize(adjustments)
   const T = toneSample(context.tone, adjustments)
 
@@ -177,20 +215,7 @@ export const applyAdjustments = (
   p = scaleLuma(p, Y + d)
 
   // 9. Saturation, then vibrance.
-  const Ys = lumaOf(p)
-  p = [
-    Ys + (p[0] - Ys) * (1 + n.saturation),
-    Ys + (p[1] - Ys) * (1 + n.saturation),
-    Ys + (p[2] - Ys) * (1 + n.saturation)
-  ]
-  const chroma = Math.max(...p) - Math.min(...p)
-  const amount = n.vibrance > 0 ? n.vibrance * (1 - chroma) : n.vibrance
-  const Yv = lumaOf(p)
-  p = [
-    Yv + (p[0] - Yv) * (1 + amount),
-    Yv + (p[1] - Yv) * (1 + amount),
-    Yv + (p[2] - Yv) * (1 + amount)
-  ]
+  p = saturate(p, n)
 
   // 10. Vignette, in linear light.
   const dx = (context.uv[0] - 0.5) / 0.5
@@ -207,5 +232,70 @@ export const applyAdjustments = (
   }
 
   // 11. Clamp.
+  return {
+    out: [clamp(p[0], 0, 1), clamp(p[1], 0, 1), clamp(p[2], 0, 1)],
+    terms: { tone: T, detailFine, detailMid }
+  }
+}
+
+/**
+ * CPU reference of the shader (§2.3) for one pixel. `rgb` is sRGB in 0..1;
+ * the result is sRGB clamped to 0..1.
+ */
+export const applyAdjustments = (
+  rgb: Rgb,
+  adjustments: Adjustments,
+  context: PixelContext
+): Rgb => applyAdjustmentsWithTerms(rgb, adjustments, context).out
+
+/**
+ * One mask's local adjustment: steps 1-9 with the mask's sliders on `rgb`,
+ * which is the result of step 11 (or of the mask before it). There is no
+ * vignette and no blur sampling: the tone value and the detail terms are the
+ * global pass's own. The result is clamped to 0..1.
+ */
+export const applyMaskAdjustments = (
+  rgb: Rgb,
+  adjustments: MaskAdjustments,
+  terms: MaskTerms
+): Rgb => {
+  const n = normalize(adjustments)
+  let p = toStep7(rgb, n, terms.tone)
+  const Y = lumaOf(p)
+  const d =
+    TEXTURE_GAIN * n.texture * terms.detailFine +
+    CLARITY_GAIN * n.clarity * terms.detailMid * (1 - (2 * Y - 1) * (2 * Y - 1))
+  p = scaleLuma(p, Y + d)
+  p = saturate(p, n)
   return [clamp(p[0], 0, 1), clamp(p[1], 0, 1), clamp(p[2], 0, 1)]
+}
+
+/** A mask as the colour pass sees it: its sliders and its alpha, 0..1. */
+export interface MaskLayer {
+  adjustments: MaskAdjustments
+  alpha: number
+}
+
+/**
+ * Global adjustments, then each mask in recipe order:
+ * `out = mix(out, adjust(out, mask.adjustments), m)` (§2.3, Masks).
+ */
+export const applyAdjustmentsWithMasks = (
+  rgb: Rgb,
+  adjustments: Adjustments,
+  masks: ReadonlyArray<MaskLayer>,
+  context: PixelContext
+): Rgb => {
+  const { out, terms } = applyAdjustmentsWithTerms(rgb, adjustments, context)
+  let result = out
+  for (const mask of masks) {
+    if (mask.alpha <= 0) continue
+    const adjusted = applyMaskAdjustments(result, mask.adjustments, terms)
+    result = [
+      result[0] + (adjusted[0] - result[0]) * mask.alpha,
+      result[1] + (adjusted[1] - result[1]) * mask.alpha,
+      result[2] + (adjusted[2] - result[2]) * mask.alpha
+    ]
+  }
+  return result
 }

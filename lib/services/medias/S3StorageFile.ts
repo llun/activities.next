@@ -55,11 +55,15 @@ import {
   isObjectStorageMediaKey
 } from '@/lib/services/medias/reservedPaths'
 import { saveMediaFile } from '@/lib/services/medias/saveMediaFile'
-import { createStoredImagePipeline } from '@/lib/services/medias/storedImagePipeline'
+import {
+  createStoredImagePipeline,
+  createStoredMaskPipeline
+} from '@/lib/services/medias/storedImagePipeline'
 import { readValidThumbnail } from '@/lib/services/medias/thumbnailInput'
 import {
   EditedImageStorageOutput,
   ImageRenditionOutput,
+  MaskImageStorageOutput,
   MediaSchema,
   MediaStorage,
   MediaStorageGetFileOutput,
@@ -70,6 +74,7 @@ import {
   PresignedUrlOutput,
   SaveEditedImageParams,
   SaveFileOptions,
+  SaveMaskImageParams,
   ThumbnailStorageOutput
 } from '@/lib/services/medias/types'
 import { getMaxMediaUploadSize } from '@/lib/services/medias/uploadSizeLimit'
@@ -1000,6 +1005,36 @@ export class S3FileStorage implements MediaStorage {
       height: outputInfo.height,
       blurhash,
       focus
+    }
+  }
+
+  async saveMaskImage({
+    buffer
+  }: SaveMaskImageParams): Promise<MaskImageStorageOutput> {
+    // One channel, fitted inside 1024 px, PNG at compression 9, at
+    // `medias/<yyyy-MM-dd>/<hex>.png`.
+    const { extension, contentType } = getImageOutputFormatDetail('png')
+    const { data, info } = await encodeImageOutput(
+      createStoredMaskPipeline(buffer),
+      'png'
+    ).toBuffer({ resolveWithObject: true })
+    const timeDirectory = format(Date.now(), 'yyyy-MM-dd')
+    const randomPrefix = crypto.randomBytes(8).toString('hex')
+    const path = `${MEDIA_OBJECT_KEY_PREFIX}${timeDirectory}/${randomPrefix}.${extension}`
+    await this._client.send(
+      new PutObjectCommand({
+        Bucket: this._config.bucket,
+        Key: path,
+        ContentType: contentType,
+        Body: data
+      })
+    )
+    return {
+      path,
+      bytes: info.size,
+      mimeType: contentType,
+      width: info.width,
+      height: info.height
     }
   }
 

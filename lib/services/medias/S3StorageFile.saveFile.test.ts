@@ -1033,6 +1033,54 @@ describe('S3FileStorage image output format', () => {
     expect(uploadedBodies[0].includes('LeakyCam')).toBe(false)
     expect(database.createMedia).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['fits a large mask inside 1024 px', 2048, 1536, 1024, 768],
+    ['keeps a small mask at its size', 400, 300, 400, 300]
+  ])(
+    'stores a photo edit mask as a one-channel PNG: %s',
+    async (_, width, height, storedWidth, storedHeight) => {
+      const rgba = await sharp({
+        create: {
+          width,
+          height,
+          channels: 4,
+          background: { r: 255, g: 0, b: 0, alpha: 0.5 }
+        }
+      })
+        .png()
+        .toBuffer()
+      const storage = new S3FileStorage(storageConfig, 'llun.test', database)
+
+      const mask = await storage.saveMaskImage({ actor, buffer: rgba })
+
+      expect(putObjectInput()).toMatchObject({ ContentType: 'image/png' })
+      expect(putObjectInput().Key).toMatch(
+        /^medias\/\d{4}-\d{2}-\d{2}\/[0-9a-f]{16}\.png$/
+      )
+      // The same shape the local driver answers.
+      expect(mask).toEqual({
+        path: putObjectInput().Key,
+        bytes: uploadedBodies[0].length,
+        mimeType: 'image/png',
+        width: storedWidth,
+        height: storedHeight
+      })
+      const stored = await sharp(uploadedBodies[0]).metadata()
+      expect(stored).toMatchObject({
+        format: 'png',
+        width: storedWidth,
+        height: storedHeight,
+        channels: 1
+      })
+      // The first channel: red at full strength.
+      const { data } = await sharp(uploadedBodies[0])
+        .raw()
+        .toBuffer({ resolveWithObject: true })
+      expect(data[0]).toBe(255)
+      expect(database.createMedia).not.toHaveBeenCalled()
+    }
+  )
 })
 
 describe('S3FileStorage saveFile image sizing', () => {

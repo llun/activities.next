@@ -105,6 +105,49 @@ describe('Config', () => {
     }
   })
 
+  describe('getPhotoEditorConfig', () => {
+    it('logs one warning for an invalid model base URL and turns it off', async () => {
+      const { logger } = await import('@/lib/utils/logger')
+      const { getPhotoEditorConfig } = await import('./index')
+      delete process.env.NEXT_PHASE
+      process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL =
+        'http://insecure.example'
+
+      expect(getPhotoEditorConfig()).toEqual({
+        subjectModel: null,
+        connectOrigins: []
+      })
+      getPhotoEditorConfig()
+
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith({
+        message: expect.stringContaining('ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL')
+      })
+    })
+
+    it('stays quiet during the production build', async () => {
+      const { logger } = await import('@/lib/utils/logger')
+      const { getPhotoEditorConfig } = await import('./index')
+      process.env.NEXT_PHASE = 'phase-production-build'
+      process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL = 'not a url'
+
+      expect(getPhotoEditorConfig().subjectModel).toBeNull()
+      expect(logger.warn).not.toHaveBeenCalled()
+    })
+
+    it('stays quiet for off and for the default', async () => {
+      const { logger } = await import('@/lib/utils/logger')
+      const { getPhotoEditorConfig } = await import('./index')
+      delete process.env.NEXT_PHASE
+      process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL = 'off'
+      expect(getPhotoEditorConfig().subjectModel).toBeNull()
+      delete process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL
+      expect(getPhotoEditorConfig().subjectModel).not.toBeNull()
+
+      expect(logger.warn).not.toHaveBeenCalled()
+    })
+  })
+
   describe('registrationOpen', () => {
     const loadConfig = async () => {
       process.env.ACTIVITIES_HOST = 'example.com'

@@ -490,9 +490,14 @@ are not part of the Mastodon API and are safe for Mastodon clients to ignore.
   `/api/v1/media/:id/edit` (`write` or `write:media`, or the web session):
   `GET` answers `{ media, edit, usage, capabilities }`, `GET …/edit/source`
   streams the uploaded original from this origin, `POST` (multipart: `file`,
-  `recipe`, `base_version`, `save_id`, `apply_to_posts`, `focus`) stores the
-  browser's render as the live file, and `POST …/edit/revert` (JSON) restores
-  the original. Errors are `{ error }`; a stale `base_version` is
+  `recipe`, `base_version`, `save_id`, `apply_to_posts`, `focus`, plus a
+  `mask_<id>` PNG per new or changed subject or brush mask) stores the
+  browser's render as the live file, `GET …/edit/masks/:maskId` streams one
+  stored mask PNG (owner-only, `Cache-Control: private`; never federated nor
+  in any public entity), and `POST …/edit/revert` (JSON) restores
+  the original and removes the masks. `GET` lists the stored masks as
+  `edit.masks: [{ id, url }]` and offers the browser's subject model as
+  `capabilities.subjectModel` (`null` when the server turned it off). Errors are `{ error }`; a stale `base_version` is
   `409 { error: 'stale', edit: { version, saveId } }`. The owner's `details`
   gains `edit: { version, editedAt }` and the public media details gain
   `editedAt` (ISO 8601, null when unedited). The Mastodon `MediaAttachment`

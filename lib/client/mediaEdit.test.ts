@@ -5,6 +5,7 @@ import { NEUTRAL_RECIPE } from '@/lib/services/medias/edit/recipe'
 import {
   MediaEditError,
   getMediaEdit,
+  getMediaEditMaskBlob,
   getMediaEditSourceUrl,
   revertMediaEdit,
   saveMediaEdit
@@ -73,6 +74,34 @@ describe('mediaEdit client', () => {
     })
   })
 
+  describe('getMediaEditMaskBlob', () => {
+    it('reads the mask with the session and the abort signal', async () => {
+      fetchMock.mockResponseOnce('png-bytes')
+      const signal = new AbortController().signal
+
+      const blob = await getMediaEditMaskBlob('/m/1?v=2', signal)
+
+      expect(await blob.text()).toBe('png-bytes')
+      expect(lastCall().url).toBe('/m/1?v=2')
+      expect(lastCall().init).toMatchObject({
+        credentials: 'include',
+        signal
+      })
+    })
+
+    it('throws a typed error when the mask is gone', async () => {
+      fetchMock.mockResponseOnce(
+        JSON.stringify({ error: 'Record not found' }),
+        {
+          status: 404
+        }
+      )
+      const error = await getMediaEditMaskBlob('/m/1').catch((e) => e)
+      expect(error).toBeInstanceOf(MediaEditError)
+      expect(error).toMatchObject({ status: 404, error: 'Record not found' })
+    })
+  })
+
   it('builds the same-origin source path', () => {
     expect(getMediaEditSourceUrl('12')).toBe('/api/v1/media/12/edit/source')
   })
@@ -116,6 +145,31 @@ describe('mediaEdit client', () => {
       const form = lastCall().init.body as FormData
       expect(form.has('apply_to_posts')).toBe(false)
       expect(form.has('focus')).toBe(false)
+    })
+
+    it('sends each new mask as a mask_<id> PNG part', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify(state))
+      await saveMediaEdit('12', {
+        ...params,
+        masks: {
+          aaaaaaaa: new Blob(['png'], { type: 'image/png' }),
+          bbbbbbbb: new Blob(['png2'], { type: 'image/png' })
+        }
+      })
+      const form = lastCall().init.body as FormData
+      const first = form.get('mask_aaaaaaaa') as File
+      expect(first.type).toBe('image/png')
+      expect(first.name).toBe('mask_aaaaaaaa.png')
+      expect(form.has('mask_bbbbbbbb')).toBe(true)
+    })
+
+    it('sends no mask parts without masks', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify(state))
+      await saveMediaEdit('12', { ...params, masks: {} })
+      const form = lastCall().init.body as FormData
+      expect(Array.from(form.keys()).some((k) => k.startsWith('mask_'))).toBe(
+        false
+      )
     })
 
     it('carries the stale answer so the caller can match its save id', async () => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { type RefObject, useEffect, useRef } from 'react'
+import { type ReactNode, type RefObject, useEffect, useRef } from 'react'
 
 import { Alert } from '@/lib/components/surface/Alert'
 import type { Size } from '@/lib/services/medias/edit/geometry'
@@ -27,6 +27,8 @@ interface Props {
   disabled: boolean
   /** Spoken by the polite live region (compare, Auto). */
   announcement: string
+  /** Drawn over the preview (the Masks tab's touch layer). */
+  maskLayer?: ReactNode
   onCropChange: (crop: CropRect) => void
   onGestureStart: (key: string) => void
   onGestureEnd: () => void
@@ -52,6 +54,7 @@ export const EditorStage = ({
   orientedSize,
   disabled,
   announcement,
+  maskLayer,
   onCropChange,
   onGestureStart,
   onGestureEnd,
@@ -116,6 +119,7 @@ export const EditorStage = ({
               onGestureEnd={onGestureEnd}
             />
           ) : null}
+          {tab === 'masks' && !failed ? maskLayer : null}
         </div>
         <canvas
           ref={compareRef}

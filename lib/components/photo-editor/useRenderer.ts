@@ -18,17 +18,27 @@ import type { Geometry, Recipe } from '@/lib/services/medias/edit/recipe'
 
 import { BLUR_MAX_EDGE } from './engine/colour'
 import { drawGeometry } from './engine/geometryCanvas'
-import { type Renderer, createRenderer } from './engine/glRenderer'
+import {
+  type MaskOverlay,
+  type Renderer,
+  createRenderer
+} from './engine/glRenderer'
 import {
   type Histogram,
   type ImageStats,
   computeHistogram,
   computeStats
 } from './engine/histogram'
+import { getMaskSliders } from './engine/maskUniforms'
 import { fitLongEdge, getPreviewSizes } from './engine/previewSize'
+import { resolveCssColour } from './masks/cssColour'
+import { featherSigma } from './masks/feather'
+import { createMaskFrameBuilder, getMaskFrameSize } from './masks/maskFrame'
+import type { MaskRasters } from './masks/maskRaster'
+import { useThemeVersion } from './masks/useThemeVersion'
 import { useElementSize } from './useElementSize'
 
-export type EditorTab = 'adjust' | 'crop'
+export type EditorTab = 'adjust' | 'crop' | 'masks'
 export type RendererStatus = 'idle' | 'ready' | 'lost' | 'error'
 
 const HISTOGRAM_INTERVAL_MS = 150
@@ -40,7 +50,11 @@ interface Args {
   canvasRef: RefObject<HTMLCanvasElement | null>
   bitmap: ImageBitmap | null
   recipe: Recipe
+  /** The pixels of the recipe's masks (including a stroke being painted). */
+  rasters: MaskRasters
   tab: EditorTab
+  /** The mask to tint over the picture, if any. */
+  overlay: { maskId: string; remove: boolean } | null
 }
 
 /**
@@ -54,17 +68,23 @@ export const useRenderer = ({
   canvasRef,
   bitmap,
   recipe,
-  tab
+  rasters,
+  tab,
+  overlay
 }: Args) => {
   const box = useElementSize(containerRef, bitmap !== null)
   const [status, setStatus] = useState<RendererStatus>('idle')
   const [generation, setGeneration] = useState(0)
   const [frameVersion, setFrameVersion] = useState(0)
+  const [maskVersion, setMaskVersion] = useState(0)
+  const [overlayTint, setOverlayTint] = useState<MaskOverlay | null>(null)
   const [histogram, setHistogram] = useState<Histogram | null>(null)
 
   const rendererRef = useRef<Renderer | null>(null)
   const adjustmentsRef = useRef(recipe.adjustments)
   const recipeRef = useRef(recipe)
+  const overlayRef = useRef<MaskOverlay | null>(null)
+  const maskBuilder = useRef(createMaskFrameBuilder())
   const frameRequest = useRef(0)
   const histogramTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const histogramAt = useRef(0)
@@ -72,6 +92,7 @@ export const useRenderer = ({
   useEffect(() => {
     adjustmentsRef.current = recipe.adjustments
     recipeRef.current = recipe
+    overlayRef.current = overlayTint
   })
 
   const source = useMemo<Size | null>(
@@ -127,7 +148,10 @@ export const useRenderer = ({
       frameRequest.current = 0
       const renderer = rendererRef.current
       if (!renderer || renderer.isContextLost()) return
-      renderer.renderPreview(adjustmentsRef.current)
+      renderer.renderPreview(adjustmentsRef.current, {
+        masks: getMaskSliders(recipeRef.current.masks),
+        overlay: overlayRef.current
+      })
       if (histogramTimer.current) return
       const wait = Math.max(
         0,
@@ -194,10 +218,69 @@ export const useRenderer = ({
     }
   }, [bitmap, previewGeometry, sizes, status])
 
-  // New adjustments, or a new frame, schedule one colour pass.
+  // The masks go through the same geometry as the photo, into a frame of at
+  // most 1024 px. Only what changes the pixels is a dependency: a slider
+  // moving on a mask does not rebuild the frame.
+  const maskKey = JSON.stringify(
+    recipe.masks.map((mask) => [mask.id, mask.kind, mask.of, mask.feather])
+  )
+  useEffect(() => {
+    const renderer = rendererRef.current
+    if (!renderer || status !== 'ready' || !source || !sizes) return
+    const masks = recipeRef.current.masks
+    try {
+      const frameSize = getMaskFrameSize(sizes.pixels)
+      const frame = maskBuilder.current.build(
+        masks,
+        rasters,
+        source,
+        previewGeometry,
+        frameSize
+      )
+      const longEdge = Math.max(frameSize.width, frameSize.height)
+      renderer.setPreviewMasks(
+        frame,
+        masks.map((mask) => featherSigma(mask.feather, longEdge))
+      )
+      setMaskVersion((version) => version + 1)
+    } catch {
+      setStatus('error')
+    }
+  }, [maskKey, previewGeometry, rasters, sizes, source, status])
+
+  // The tint is a theme colour: info, or destructive while removing.
+  const overlayIndex = overlay
+    ? recipe.masks.findIndex((mask) => mask.id === overlay.maskId)
+    : -1
+  const overlayRemove = Boolean(overlay?.remove)
+  // Resolved again when the theme changes while the editor is open.
+  const themeVersion = useThemeVersion()
+  useEffect(() => {
+    if (overlayIndex < 0) {
+      setOverlayTint(null)
+      return
+    }
+    setOverlayTint({
+      channel: overlayIndex,
+      colour: overlayRemove
+        ? resolveCssColour('var(--destructive)', [0.94, 0.27, 0.27])
+        : resolveCssColour('var(--info)', [0.15, 0.39, 0.92]),
+      alpha: 0.45
+    })
+  }, [overlayIndex, overlayRemove, themeVersion])
+
+  // New adjustments, masks, overlay or frame schedule one colour pass.
   useEffect(() => {
     if (status === 'ready') schedule()
-  }, [recipe.adjustments, frameVersion, status, schedule])
+  }, [
+    recipe.adjustments,
+    recipe.masks,
+    overlayTint,
+    frameVersion,
+    maskVersion,
+    status,
+    schedule
+  ])
 
   const getAutoStats = useCallback((): ImageStats | null => {
     if (!bitmap) return null

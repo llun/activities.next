@@ -1,6 +1,6 @@
 'use client'
 
-import { Crop as CropIcon, SlidersHorizontal } from 'lucide-react'
+import { CircleDashed, Crop as CropIcon, SlidersHorizontal } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { TabsContent, TabsList, TabsTrigger } from '@/lib/components/ui/tabs'
@@ -11,6 +11,7 @@ import { CropPanel } from './CropPanel'
 import { Histogram } from './Histogram'
 import type { EditorControls } from './editorControls'
 import type { Histogram as HistogramData } from './engine/histogram'
+import { MasksPanel } from './masks/MasksPanel'
 
 /** "Fujifilm X-T5 · 23 mm · f/2 · 1/250 s · ISO 400"; null with no data. */
 export const formatCameraLine = (
@@ -58,13 +59,17 @@ export const EditorPanel = ({
       </div>
       <div className="px-4 pt-3">
         <TabsList className="w-full">
-          <TabsTrigger value="adjust">
+          <TabsTrigger value="adjust" className="px-2">
             <SlidersHorizontal aria-hidden="true" />
             Adjust
           </TabsTrigger>
-          <TabsTrigger value="crop">
+          <TabsTrigger value="crop" className="px-2">
             <CropIcon aria-hidden="true" />
             Crop
+          </TabsTrigger>
+          <TabsTrigger value="masks" className="px-2">
+            <CircleDashed aria-hidden="true" />
+            Masks
           </TabsTrigger>
         </TabsList>
       </div>
@@ -73,6 +78,15 @@ export const EditorPanel = ({
       </TabsContent>
       <TabsContent value="crop">
         <CropPanel controls={controls} />
+      </TabsContent>
+      <TabsContent value="masks">
+        <MasksPanel
+          recipe={controls.recipe}
+          tools={controls.masks}
+          disabled={controls.disabled}
+          onGestureStart={controls.onGestureStart}
+          onGestureEnd={controls.onGestureEnd}
+        />
       </TabsContent>
     </aside>
   )
