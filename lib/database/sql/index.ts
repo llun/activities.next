@@ -116,7 +116,6 @@ import { GalleryAlbumSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbums'
 import { GalleryLookupCacheSQLDatabaseMixin } from '@/lib/database/sql/galleryLookupCache'
 import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
-import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
@@ -245,11 +244,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     linkPreviewQueries
   )
-  // The media reads are Kysely queries; the writes are still the Knex mixin.
-  const mediaDatabase: MediaDatabase = {
-    ...MediaSQLDatabaseMixin(database),
-    ...bindDb(kysely, mediaQueries)
-  }
+  const mediaDatabase: MediaDatabase = bindDb(kysely, mediaQueries)
   const mediaEditDatabase: MediaEditDatabase = bindDb(kysely, mediaEditQueries)
   const moderationDatabase: ModerationDatabase & AdminAccountDatabase = bindDb(
     kysely,

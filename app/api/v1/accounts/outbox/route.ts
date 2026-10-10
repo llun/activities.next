@@ -6,7 +6,7 @@
 import { createNoteFromUserInput } from '@/lib/actions/createNote'
 import { createPollFromUserInput } from '@/lib/actions/createPoll'
 import { deleteStatusFromUserInput } from '@/lib/actions/deleteStatus'
-import { toMediaRowId } from '@/lib/database/sql/media'
+import { toMediaRowId } from '@/lib/database/domains/media/rows'
 import { AuthenticatedGuard } from '@/lib/services/guards/AuthenticatedGuard'
 import { MAX_STORED_MEDIA_ATTACHMENTS } from '@/lib/services/mastodon/constants'
 import { resolveStatusIdParam } from '@/lib/services/mastodon/resolveClientId'
