@@ -35,6 +35,7 @@ const buildAttachment = (overrides: Partial<Attachment> = {}): Attachment => ({
 const takenAt = '2026-04-20T08:30:00.000Z'
 
 const kingfisherDetails: MediaPublicDetails = {
+  editedAt: null,
   subject: {
     name: 'Common Kingfisher',
     scientificName: 'Alcedo atthis',
@@ -313,7 +314,7 @@ describe('MediasModal media details', () => {
     mockGetMediaPublicDetails.mockResolvedValue({
       ...kingfisherDetails,
       editedAt
-    } as MediaPublicDetails)
+    })
     renderModal([buildAttachment({ mediaId: 'media-1', updatedAt })])
 
     await openDetailsWhenReady()

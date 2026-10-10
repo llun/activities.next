@@ -37,7 +37,7 @@ const PhotoEditorDialog = dynamic(() => import('./PhotoEditorDialog'), {
 interface PreviewItem {
   id: string
   mediaType: string
-  details?: object | null
+  details?: MediaDetailsEntity | null
 }
 
 interface Props {
@@ -53,13 +53,10 @@ const EDITABLE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 export const isEditableItem = (item: Pick<PreviewItem, 'mediaType'>) =>
   EDITABLE_TYPES.includes(item.mediaType.toLowerCase())
 
-// `details.edit` is the server's `{ version, editedAt }`. It is read through a
-// narrow type so this file compiles with or without the field on the entity.
 const getEditedAt = (item: PreviewItem): Date | null => {
-  const edit = (item.details as { edit?: { editedAt?: string | null } } | null)
-    ?.edit
-  if (!edit?.editedAt) return null
-  const date = new Date(edit.editedAt)
+  const editedAt = item.details?.edit?.editedAt
+  if (!editedAt) return null
+  const date = new Date(editedAt)
   return Number.isNaN(date.getTime()) ? null : date
 }
 
@@ -79,7 +76,7 @@ export const PhotoEditPreview: FC<Props> = ({ item, children, onEdited }) => {
 
   const editable = isEditableItem(item)
   const editedAt = getEditedAt(item)
-  const details = (item.details ?? null) as MediaDetailsEntity | null
+  const details = item.details ?? null
 
   const finish = (media: MediaStorageSaveFileOutput, posts: EditedPosts) => {
     setSkipped(posts.skipped.length)

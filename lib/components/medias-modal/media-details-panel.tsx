@@ -58,10 +58,6 @@ interface Props {
   className?: string
 }
 
-// `editedAt` arrives with the photo editor's server half; read it through a
-// narrow type so this file compiles with or without that field on the entity.
-type WithEditedAt = { editedAt?: string | null }
-
 /**
  * When the photo was edited, if THIS attachment shows the edit. A post that
  * chose "Gallery only" keeps the old file, so its attachment is older than the
@@ -71,7 +67,7 @@ const getShownEditedAt = (
   details: MediaPublicDetails,
   attachmentUpdatedAt?: number | null
 ): Date | null => {
-  const editedAt = (details as WithEditedAt).editedAt
+  const editedAt = details.editedAt
   if (!editedAt) return null
   const time = Date.parse(editedAt)
   if (Number.isNaN(time)) return null

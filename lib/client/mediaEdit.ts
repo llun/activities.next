@@ -1,39 +1,21 @@
 import type { Recipe } from '@/lib/services/medias/edit/recipe'
-import type { MediaStorageSaveFileOutput } from '@/lib/services/medias/types'
+import type {
+  ApplyToPosts,
+  MediaEditEntity,
+  MediaEditResponse,
+  MediaEditUsage,
+  MediaEditWriteResponse
+} from '@/lib/services/medias/edit/saveMediaEdit'
 
-/** What `GET /api/v1/media/:id/edit` says about the media's saved edit. */
-export interface MediaEditInfo {
-  version: number
-  recipe: Recipe | null
-  editedAt: string | null
-  saveId: string | null
-  source: { width: number; height: number; mimeType: string }
-  /** Phase 2; always empty in phase 1. */
-  masks: { id: string; url: string }[]
-}
+// The response shapes are the server's own, so a route change breaks the build
+// here instead of at runtime. These are type-only imports.
+export type { ApplyToPosts, MediaEditEntity as MediaEditInfo, MediaEditUsage }
 
-export interface MediaEditUsage {
-  statusCount: number
-  latestStatusAt: string | null
-}
+/** What `GET /api/v1/media/:id/edit` answers. */
+export type MediaEditState = MediaEditResponse
 
-export interface MediaEditCapabilities {
-  subjectModel: unknown | null
-  enhance: { available: boolean; model: string | null }
-}
-
-export interface MediaEditState {
-  media: MediaStorageSaveFileOutput
-  edit: MediaEditInfo
-  usage: MediaEditUsage
-  capabilities?: MediaEditCapabilities
-}
-
-export type ApplyToPosts = 'update' | 'gallery'
-
-export interface MediaEditSaveResult extends MediaEditState {
-  posts: { updated: string[]; skipped: string[] }
-}
+/** What a save or revert answers: the state plus the posts it touched. */
+export type MediaEditSaveResult = MediaEditWriteResponse
 
 /**
  * A failed edit request. `status` is the HTTP status, `error` the server's

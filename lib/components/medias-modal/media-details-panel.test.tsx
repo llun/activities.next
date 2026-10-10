@@ -14,6 +14,7 @@ import {
 const details = (
   overrides: Partial<MediaPublicDetails> = {}
 ): MediaPublicDetails => ({
+  editedAt: null,
   subject: {
     name: 'Common Kingfisher',
     scientificName: 'Alcedo atthis',
@@ -104,10 +105,13 @@ describe('MediaDetailsPanel taxonomy', () => {
 describe('MediaDetailsPanel Edited row', () => {
   const EDITED_AT = '2026-10-08T10:00:00.000Z'
   const editedMs = Date.parse(EDITED_AT)
-  // `editedAt` comes from the server's public details; cast so the fixture
-  // does not depend on whether the entity type has it yet.
-  const edited = (editedAt: string | null, overrides = {}) =>
-    ({ ...details(overrides), editedAt }) as MediaPublicDetails
+  const edited = (
+    editedAt: string | null,
+    overrides = {}
+  ): MediaPublicDetails => ({
+    ...details(overrides),
+    editedAt
+  })
 
   it.each([
     ['the attachment has no updatedAt', undefined],

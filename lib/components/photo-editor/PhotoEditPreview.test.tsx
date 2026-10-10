@@ -69,7 +69,11 @@ const editState = (statusCount = 0) =>
       source: { width: 10, height: 10, mimeType: 'image/jpeg' },
       masks: []
     },
-    usage: { statusCount, latestStatusAt: '2026-10-08T10:00:00.000Z' }
+    usage: { statusCount, latestStatusAt: '2026-10-08T10:00:00.000Z' },
+    capabilities: {
+      subjectModel: null,
+      enhance: { available: false, model: null }
+    }
   }) as Awaited<ReturnType<typeof getMediaEdit>>
 
 const item = (overrides: Record<string, unknown> = {}) => ({
