@@ -1814,118 +1814,20 @@ export type {
 // Announcement Database
 // ============================================================================
 
-// An instance-wide announcement (Mastodon's "announcement"). `text` is the raw
-// source; the HTML `content` is rendered at serialization time. `published`
-// gates visibility to actors and `publishedAt` records when it first went live.
-// `allDay`/`startsAt`/`endsAt` describe an optional active window.
-// `startsAt`/`endsAt`/`publishedAt` are epoch milliseconds (or null) in the
-// domain shape regardless of the backend's timestamp storage; `createdAt` and
-// `updatedAt` are always epoch milliseconds.
-export type AnnouncementData = {
-  id: string
-  text: string
-  published: boolean
-  allDay: boolean
-  startsAt: number | null
-  endsAt: number | null
-  publishedAt: number | null
-  createdAt: number
-  updatedAt: number
-}
-
-export type CreateAnnouncementParams = {
-  text: string
-  startsAt?: number | null
-  endsAt?: number | null
-  allDay?: boolean
-  published?: boolean
-}
-export type UpdateAnnouncementParams = {
-  id: string
-  text?: string
-  startsAt?: number | null
-  endsAt?: number | null
-  allDay?: boolean
-  published?: boolean
-}
-export type DeleteAnnouncementParams = { id: string }
-export type GetAnnouncementParams = { id: string }
-export type GetActiveAnnouncementsParams = {
-  // Epoch milliseconds used to evaluate the active window.
-  now: number
-}
-export type MarkAnnouncementReadParams = {
-  announcementId: string
-  actorId: string
-}
-export type AnnouncementReactionParams = {
-  announcementId: string
-  actorId: string
-  name: string
-}
-export type GetAnnouncementReadIdsParams = {
-  actorId: string
-  announcementIds: string[]
-}
-export type GetAnnouncementReactionsParams = {
-  announcementIds: string[]
-  actorId: string
-}
-
-// One (announcement, name) reaction rollup: `count` is the number of distinct
-// actors who reacted with `name`, and `me` is whether the querying `actorId` is
-// among them.
-export type AnnouncementReactionRollup = {
-  announcementId: string
-  name: string
-  count: number
-  me: boolean
-}
-
-export interface AnnouncementDatabase {
-  // Admin: create an announcement. Sets publishedAt to the creation time when
-  // `published` is true, otherwise leaves it null.
-  createAnnouncement(
-    params: CreateAnnouncementParams
-  ): Promise<AnnouncementData>
-  // Admin: partial update; bumps updatedAt. When `published` transitions from
-  // false to true and publishedAt is still null, sets publishedAt. Returns the
-  // updated row, or null when the announcement does not exist.
-  updateAnnouncement(
-    params: UpdateAnnouncementParams
-  ): Promise<AnnouncementData | null>
-  // Admin: delete an announcement and clean up its reads and reactions.
-  deleteAnnouncement(params: DeleteAnnouncementParams): Promise<void>
-  // Admin: all announcements, newest first by createdAt.
-  getAnnouncements(): Promise<AnnouncementData[]>
-  // Get a single announcement by id, or null when it does not exist.
-  getAnnouncement(
-    params: GetAnnouncementParams
-  ): Promise<AnnouncementData | null>
-  // Public: published announcements whose optional active window contains `now`
-  // (startsAt is null or <= now, and endsAt is null or >= now), newest first.
-  getActiveAnnouncements(
-    params: GetActiveAnnouncementsParams
-  ): Promise<AnnouncementData[]>
-  // Per-actor: idempotently record that the actor read the announcement.
-  markAnnouncementRead(params: MarkAnnouncementReadParams): Promise<void>
-  // Per-actor: idempotently add a reaction on the (announcement, actor, name)
-  // composite key.
-  // Resolves false, storing nothing, when the reaction would add a distinct name
-  // beyond MAX_ANNOUNCEMENT_REACTION_NAMES.
-  addAnnouncementReaction(params: AnnouncementReactionParams): Promise<boolean>
-  // Per-actor: remove a reaction.
-  removeAnnouncementReaction(params: AnnouncementReactionParams): Promise<void>
-  // Per-actor: which of `announcementIds` the actor has read.
-  getAnnouncementReadIds(
-    params: GetAnnouncementReadIdsParams
-  ): Promise<string[]>
-  // Reaction rollups grouped by (announcementId, name) for the given
-  // announcements, with `me` flagged for the querying actor.
-  getAnnouncementReactions(
-    params: GetAnnouncementReactionsParams
-  ): Promise<AnnouncementReactionRollup[]>
-}
+export type {
+  AnnouncementData,
+  AnnouncementDatabase,
+  AnnouncementReactionParams,
+  AnnouncementReactionRollup,
+  CreateAnnouncementParams,
+  DeleteAnnouncementParams,
+  GetActiveAnnouncementsParams,
+  GetAnnouncementParams,
+  GetAnnouncementReactionsParams,
+  GetAnnouncementReadIdsParams,
+  MarkAnnouncementReadParams,
+  UpdateAnnouncementParams
+} from '@/lib/database/domains/announcement/types'
 
 // ============================================================================
 // Trends Database
@@ -2630,105 +2532,20 @@ export interface MediaDatabase {
 // Notification Database
 // ============================================================================
 
-export const NotificationType = z.enum([
-  'follow_request',
-  'follow',
-  'like',
-  'mention',
-  'reply',
-  'reblog',
-  // Mastodon 4.5 quote posts: someone quoted the recipient's status.
-  'quote',
-  // A status the recipient quoted (an accepted quote edge) was edited by its
-  // author. Mirrors the Mastodon push alert key of the same name.
-  'quoted_update',
-  // Someone reacted to the recipient's status with an emoji. Serialized as the
-  // Pleroma dialect's `pleroma:emoji_reaction` (there is no core Mastodon type).
-  'emoji_reaction',
-  'activity_import',
-  // A piece of fitness gear (or one of a bike's components) has passed the
-  // distance the owner asked to be reminded at. Self-addressed: the recipient
-  // is also the source actor, and it carries no status.
-  'gear_service_due',
-  // Mastodon 4.6 Collections: a member was added to a collection
-  // (`added_to_collection`) or a collection they're in had its metadata changed
-  // (`collection_update`).
-  'added_to_collection',
-  'collection_update'
-])
-
-export type NotificationType = z.infer<typeof NotificationType>
-
-export interface Notification {
-  id: string
-  actorId: string
-  type: NotificationType
-  sourceActorId: string
-  statusId?: string
-  followId?: string
-  isRead: boolean
-  readAt?: number
-  groupKey?: string
-  // The emoji of an `emoji_reaction` notification (unicode, a local shortcode,
-  // or `shortcode@domain`). Undefined for every other notification type.
-  reactionName?: string
-  // When true, the recipient's notification policy routed this notification to
-  // the per-sender requests queue instead of the main timeline.
-  filtered: boolean
-  createdAt: number
-  updatedAt: number
-}
-
-export type CreateNotificationParams = {
-  actorId: string
-  type: NotificationType
-  sourceActorId: string
-  statusId?: string
-  followId?: string
-  groupKey?: string
-  // Only meaningful for `emoji_reaction`: the emoji that was used.
-  reactionName?: string
-  // Set true to route this notification to the per-sender requests queue
-  // (computed by the notification policy). Defaults to false.
-  filtered?: boolean
-}
-
-export type GetNotificationsParams = {
-  actorId: string
-  limit: number
-  offset?: number
-  // Restrict to notifications generated by this source actor (full actor
-  // URL) — backs the Mastodon `account_id` query parameter.
-  sourceActorId?: string
-  types?: NotificationType[]
-  excludeTypes?: NotificationType[]
-  onlyUnread?: boolean
-  ids?: string[]
-  maxNotificationId?: string
-  minNotificationId?: string
-  sinceNotificationId?: string
-  // When omitted/false, policy-filtered notifications (filtered = true) are
-  // excluded. Pass true to include them (Mastodon `include_filtered`).
-  includeFiltered?: boolean
-}
-
-export type GetNotificationsCountParams = {
-  actorId: string
-  onlyUnread?: boolean
-  types?: NotificationType[]
-  excludeTypes?: NotificationType[]
-  // Cap the count at this many notifications (Mastodon `unread_count` caps at
-  // 100 by default, max 1000). When omitted, counts all matching rows.
-  limit?: number
-  includeFiltered?: boolean
-  // Count only policy-filtered notifications (overrides includeFiltered). Used
-  // for the notification policy summary's pending_notifications_count.
-  filteredOnly?: boolean
-}
-
-export type MarkNotificationsReadParams = {
-  notificationIds: string[]
-}
+export { NotificationType } from '@/lib/database/domains/notification/types'
+export type {
+  CreateNotificationParams,
+  GetNotificationRequestParams,
+  GetNotificationRequestsParams,
+  GetNotificationsCountParams,
+  GetNotificationsParams,
+  MarkNotificationsReadParams,
+  Notification,
+  NotificationDatabase,
+  NotificationGroupKeyParams,
+  NotificationRequest,
+  ResolveNotificationRequestsParams
+} from '@/lib/database/domains/notification/types'
 
 // ============================================================================
 // Push Subscription Database
@@ -2745,78 +2562,6 @@ export type {
   PushSubscriptionDatabase,
   UpdatePushSubscriptionParams
 } from '@/lib/database/domains/pushSubscription/types'
-
-// A grouped, per-source-actor view of policy-filtered notifications — the
-// backing data for Mastodon's NotificationRequest entity.
-export interface NotificationRequest {
-  // The source actor id (full URL) the filtered notifications came from.
-  sourceActorId: string
-  notificationsCount: number
-  // The most recent filtered notification from this source actor.
-  lastNotification: Notification
-  createdAt: number
-  updatedAt: number
-}
-
-export type GetNotificationRequestsParams = {
-  actorId: string
-  limit: number
-  offset?: number
-  maxCursor?: { updatedAt: number; sourceActorId: string }
-  sinceCursor?: { updatedAt: number; sourceActorId: string }
-}
-
-export type GetNotificationRequestParams = {
-  actorId: string
-  sourceActorId: string
-}
-
-export type ResolveNotificationRequestsParams = {
-  actorId: string
-  sourceActorIds: string[]
-}
-
-export type NotificationGroupKeyParams = {
-  actorId: string
-  // A shared groupKey, or (for ungrouped notifications) a notification id.
-  groupKey: string
-  includeFiltered?: boolean
-  // Newest-first row cap for getNotificationsForGroupKey, clamped to the
-  // database's hard maximum (1000); ignored by dismissNotificationGroup.
-  limit?: number
-}
-
-export interface NotificationDatabase {
-  createNotification(params: CreateNotificationParams): Promise<Notification>
-  getNotifications(params: GetNotificationsParams): Promise<Notification[]>
-  getNotificationsCount(params: GetNotificationsCountParams): Promise<number>
-  markNotificationsRead(params: MarkNotificationsReadParams): Promise<void>
-  deleteNotification(notificationId: string): Promise<void>
-
-  // Notification requests: grouped views over filtered = true notifications.
-  getNotificationRequests(
-    params: GetNotificationRequestsParams
-  ): Promise<NotificationRequest[]>
-  getNotificationRequest(
-    params: GetNotificationRequestParams
-  ): Promise<NotificationRequest | null>
-  getNotificationRequestsCount(params: { actorId: string }): Promise<number>
-  // Accept = clear the filtered flag so the notifications surface in the main
-  // timeline. Dismiss = delete the filtered notifications.
-  acceptNotificationRequests(
-    params: ResolveNotificationRequestsParams
-  ): Promise<void>
-  dismissNotificationRequests(
-    params: ResolveNotificationRequestsParams
-  ): Promise<void>
-
-  // Grouped notifications (v2): resolve and dismiss by group key (or, for
-  // ungrouped notifications, by notification id).
-  getNotificationsForGroupKey(
-    params: NotificationGroupKeyParams
-  ): Promise<Notification[]>
-  dismissNotificationGroup(params: NotificationGroupKeyParams): Promise<void>
-}
 
 // ============================================================================
 // Notification Policy (stored on actor settings)
@@ -3027,17 +2772,6 @@ export interface ServiceStatsBucket {
   value: number
 }
 
-export interface InstanceActivityWeek {
-  week: string
-  statuses: string
-  logins: string
-  registrations: string
-}
-
-export interface GetInstanceActivityParams {
-  now?: Date
-}
-
 export type ServiceStatCounterType =
   | 'accounts'
   | 'actors'
@@ -3209,20 +2943,12 @@ export interface AdminDatabase {
   }): Promise<{ created: number; updated: number; skipped: number }>
 }
 
-export interface InstanceActivityDatabase {
-  getInstanceActivity(
-    params?: GetInstanceActivityParams
-  ): Promise<InstanceActivityWeek[]>
-  getInstancePeers(params?: GetInstancePeersParams): Promise<string[]>
-  // Earliest-created local actor owned by an account with the admin role,
-  // used as the Mastodon instance contact account; null when the instance
-  // has no admin.
-  getInstanceAdminActorId(): Promise<string | null>
-}
-
-export type GetInstancePeersParams = {
-  localDomain: string
-}
+export type {
+  GetInstanceActivityParams,
+  GetInstancePeersParams,
+  InstanceActivityDatabase,
+  InstanceActivityWeek
+} from '@/lib/database/domains/instanceActivity/types'
 
 // ============================================================================
 // Custom Emoji Database
