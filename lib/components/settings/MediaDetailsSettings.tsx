@@ -227,7 +227,7 @@ export const MediaDetailsSettings: FC = () => {
         description="Edit a photo from its details, before or after you post it."
         actions={<SavedIndicator saved={savedKey === 'photoEnhance'} />}
       >
-        <Frame divided>
+        <Frame form>
           <ToggleRow
             id="media-photo-enhance"
             label="AI enhance"
