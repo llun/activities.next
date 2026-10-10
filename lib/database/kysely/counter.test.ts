@@ -5,10 +5,14 @@ import {
   adjustCounterValue,
   decreaseCounterValue,
   getCounterValue,
+  getCounterValues,
   increaseCounterValue
 } from '@/lib/database/kysely/counter'
 import { timestampValue } from '@/lib/database/kysely/dialect'
-import { increaseCounterValue as increaseKnexCounterValue } from '@/lib/database/sql/utils/counter'
+import {
+  getCounterValues as getKnexCounterValues,
+  increaseCounterValue as increaseKnexCounterValue
+} from '@/lib/database/sql/utils/counter'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import type { Database } from '@/lib/database/types'
 
@@ -124,6 +128,50 @@ describe('Kysely counter helpers', () => {
       .where('id', 'counter-interop')
       .first('value')
     expect(Number(row?.value)).toBe(8)
+  })
+
+  it('reads the values of the requested counters only', async () => {
+    const db = kyselyFor(instance)
+    await increaseCounterValue(db, 'counters-a', 2)
+    await increaseCounterValue(db, 'counters-b', 5)
+    // Neighbours that must not come back: another id, and ids that merely
+    // start or end like a requested one.
+    await increaseCounterValue(db, 'counters-c', 9)
+    await increaseCounterValue(db, 'counters-a-suffix', 11)
+    await increaseCounterValue(db, 'x-counters-b', 13)
+
+    expect(await getCounterValues(db, ['counters-a', 'counters-b'])).toEqual({
+      'counters-a': 2,
+      'counters-b': 5
+    })
+  })
+
+  it('leaves a missing counter out of the values', async () => {
+    const db = kyselyFor(instance)
+    await increaseCounterValue(db, 'counters-present', 4)
+
+    expect(
+      await getCounterValues(db, ['counters-present', 'counters-missing'])
+    ).toEqual({ 'counters-present': 4 })
+    expect(await getCounterValues(db, ['counters-missing'])).toEqual({})
+  })
+
+  it('reads no values for an empty list', async () => {
+    const db = kyselyFor(instance)
+    await increaseCounterValue(db, 'counters-unlisted', 1)
+
+    expect(await getCounterValues(db, [])).toEqual({})
+  })
+
+  it('reads the same values as the Knex helper', async () => {
+    const db = kyselyFor(instance)
+    const ids = ['counters-same-a', 'counters-same-b', 'counters-same-none']
+    await increaseKnexCounterValue(instance, ids[0], 3)
+    await increaseCounterValue(db, ids[1], 8)
+
+    const values = await getCounterValues(db, ids)
+    expect(values).toEqual({ [ids[0]]: 3, [ids[1]]: 8 })
+    expect(await getKnexCounterValues(instance, ids)).toEqual(values)
   })
 
   it('reads 0 for a missing counter', async () => {

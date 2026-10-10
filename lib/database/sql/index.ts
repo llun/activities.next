@@ -4,6 +4,8 @@ import { accountNoteQueries } from '@/lib/database/domains/accountNote/queries'
 import type { AccountNoteDatabase } from '@/lib/database/domains/accountNote/types'
 import { actorDomainBlockQueries } from '@/lib/database/domains/actorDomainBlock/queries'
 import type { ActorDomainBlockDatabase } from '@/lib/database/domains/actorDomainBlock/types'
+import { adminQueries } from '@/lib/database/domains/admin/queries'
+import type { AdminDatabase } from '@/lib/database/domains/admin/types'
 import { announcementQueries } from '@/lib/database/domains/announcement/queries'
 import type { AnnouncementDatabase } from '@/lib/database/domains/announcement/types'
 import { blockQueries } from '@/lib/database/domains/block/queries'
@@ -75,7 +77,6 @@ import {
 } from '@/lib/database/kysely'
 import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
-import { AdminSQLDatabaseMixin } from '@/lib/database/sql/admin'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
 import { FeaturedTagSQLDatabaseMixin } from '@/lib/database/sql/featuredTag'
@@ -131,7 +132,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     actorDomainBlockQueries
   )
-  const adminDatabase = AdminSQLDatabaseMixin(database)
+  const adminDatabase: AdminDatabase = bindDb(kysely, adminQueries)
   const announcementDatabase: AnnouncementDatabase = bindDb(
     kysely,
     announcementQueries

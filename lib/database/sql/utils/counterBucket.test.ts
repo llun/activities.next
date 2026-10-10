@@ -1,9 +1,7 @@
 import knex, { Knex } from 'knex'
 
 import {
-  BucketStatRow,
   formatBucketHour,
-  getBucketStats,
   incrementBucket,
   truncateToHour
 } from './counterBucket'
@@ -135,119 +133,6 @@ describe('counterBucket utils', () => {
 
       const rows = await database('counters').select('id')
       expect(rows).toHaveLength(2)
-    })
-  })
-
-  describe('getBucketStats', () => {
-    it('returns empty array when no buckets exist', async () => {
-      const start = new Date('2026-03-24T00:00:00Z')
-      const end = new Date('2026-03-24T23:59:59Z')
-      const result = await getBucketStats(database, 'accounts', start, end)
-      expect(result).toEqual([])
-    })
-
-    it('returns buckets within the date range sorted by bucketHour', async () => {
-      const times = [
-        new Date('2026-03-24T10:00:00Z'),
-        new Date('2026-03-24T12:00:00Z'),
-        new Date('2026-03-24T14:00:00Z')
-      ]
-      for (const t of times) {
-        await incrementBucket(database, 'accounts', 1, t)
-      }
-
-      const start = new Date('2026-03-24T00:00:00Z')
-      const end = new Date('2026-03-24T23:59:59Z')
-      const result = await getBucketStats(database, 'accounts', start, end)
-
-      expect(result).toHaveLength(3)
-      expect(result[0].value).toBe(1)
-      expect(result[1].value).toBe(1)
-      expect(result[2].value).toBe(1)
-      // Verify sorting
-      expect(result[0].bucketHour.getTime()).toBeLessThan(
-        result[1].bucketHour.getTime()
-      )
-      expect(result[1].bucketHour.getTime()).toBeLessThan(
-        result[2].bucketHour.getTime()
-      )
-    })
-
-    it('excludes buckets outside the date range', async () => {
-      await incrementBucket(
-        database,
-        'accounts',
-        1,
-        new Date('2026-03-23T10:00:00Z')
-      )
-      await incrementBucket(
-        database,
-        'accounts',
-        1,
-        new Date('2026-03-24T10:00:00Z')
-      )
-      await incrementBucket(
-        database,
-        'accounts',
-        1,
-        new Date('2026-03-25T10:00:00Z')
-      )
-
-      const start = new Date('2026-03-24T00:00:00Z')
-      const end = new Date('2026-03-24T23:59:59Z')
-      const result = await getBucketStats(database, 'accounts', start, end)
-
-      expect(result).toHaveLength(1)
-    })
-
-    it('filters by counter type', async () => {
-      const time = new Date('2026-03-24T10:00:00Z')
-      await incrementBucket(database, 'accounts', 5, time)
-      await incrementBucket(database, 'statuses', 3, time)
-
-      const start = new Date('2026-03-24T00:00:00Z')
-      const end = new Date('2026-03-24T23:59:59Z')
-
-      const accountResult = await getBucketStats(
-        database,
-        'accounts',
-        start,
-        end
-      )
-      const statusResult = await getBucketStats(
-        database,
-        'statuses',
-        start,
-        end
-      )
-
-      expect(accountResult).toHaveLength(1)
-      expect(accountResult[0].value).toBe(5)
-      expect(statusResult).toHaveLength(1)
-      expect(statusResult[0].value).toBe(3)
-    })
-
-    it('returns proper Date objects for bucketHour', async () => {
-      await incrementBucket(
-        database,
-        'accounts',
-        1,
-        new Date('2026-03-24T14:30:00Z')
-      )
-
-      const start = new Date('2026-03-24T00:00:00Z')
-      const end = new Date('2026-03-24T23:59:59Z')
-      const result: BucketStatRow[] = await getBucketStats(
-        database,
-        'accounts',
-        start,
-        end
-      )
-
-      expect(result[0].bucketHour).toBeInstanceOf(Date)
-      expect(result[0].bucketHour.toISOString()).toBe(
-        '2026-03-24T14:00:00.000Z'
-      )
     })
   })
 })

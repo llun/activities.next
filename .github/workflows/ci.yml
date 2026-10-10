@@ -178,9 +178,10 @@ jobs:
   # requests queue, weekly activity and login buckets), the search document and
   # account search domains (the full-text index, account search by profile text,
   # exact handle and followed accounts, and which indexed statuses a viewer can
-  # find), and the Knex-backed Kysely driver (result normalisation, the
-  # mixed-transaction guard, counters, bucket counters, chunked IN lists,
-  # savepoints).
+  # find), the admin domain (account and hashtag listings, service statistics,
+  # domain block and allow rules with their import), and the Knex-backed Kysely
+  # driver (result normalisation, the mixed-transaction guard, counters, bucket
+  # counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -290,6 +291,8 @@ jobs:
             lib/database/sql/searchAccountQueries.test.ts \
             lib/database/sql/searchDocuments.test.ts \
             lib/database/sql/searchDocumentFilter.test.ts \
+            lib/database/sql/admin.test.ts \
+            lib/database/sql/adminDomainRules.test.ts \
             lib/database/kysely/driver.test.ts \
             lib/database/kysely/guard.test.ts \
             lib/database/kysely/counter.test.ts \

@@ -1,16 +1,19 @@
 import crypto from 'crypto'
+import type { Insertable } from 'kysely'
 
+import { incrementBucket } from '@/lib/database/kysely/counterBucket'
+import type { Accounts, Actors } from '@/lib/database/kysely/db'
 import {
   databaseBeforeAll,
-  getTestDatabaseTable,
-  getTestSQLDatabase
+  getTestDatabaseTable
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { TEST_DOMAIN, TEST_PASSWORD_HASH } from '@/lib/stub/const'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
-import { isPublicId } from '@/lib/utils/publicId'
+import { generatePublicId, isPublicId } from '@/lib/utils/publicId'
 
 type HashtagRows = Awaited<ReturnType<Database['getAllHashtags']>>['hashtags']
 
@@ -564,11 +567,23 @@ describe('AdminDatabase', () => {
   })
 })
 
+// Each test starts from an empty, migrated database on the backend under test.
+const withFreshDatabase = async (
+  test: (database: Database) => Promise<void>
+) => {
+  const testDb = createTestDatabase()
+  await testDb.prepare()
+  await testDb.database.migrate()
+  try {
+    await test(testDb.database)
+  } finally {
+    await testDb.destroy()
+  }
+}
+
 describe('domain rule cursor pagination', () => {
   it('pages domain blocks forward with maxId and back with minId/sinceId', async () => {
-    const database = getTestSQLDatabase()
-    await database.migrate()
-    try {
+    await withFreshDatabase(async (database) => {
       const domains = ['a.cursor.test', 'b.cursor.test', 'c.cursor.test']
       for (const domain of domains) {
         await database.createDomainBlock({ domain })
@@ -600,15 +615,11 @@ describe('domain rule cursor pagination', () => {
         sinceId: nextPage[0].id
       })
       expect(sincePage.map((block) => block.domain)).toEqual(['a.cursor.test'])
-    } finally {
-      await database.destroy()
-    }
+    })
   })
 
   it('pages domain allows with maxId, minId, and sinceId cursors', async () => {
-    const database = getTestSQLDatabase()
-    await database.migrate()
-    try {
+    await withFreshDatabase(async (database) => {
       const domains = ['a.allow.test', 'b.allow.test', 'c.allow.test']
       for (const domain of domains) {
         await database.createDomainAllow({ domain })
@@ -641,8 +652,598 @@ describe('domain rule cursor pagination', () => {
         sinceId: nextPage[0].id
       })
       expect(sincePage.map((allow) => allow.domain)).toEqual(['a.allow.test'])
-    } finally {
-      await database.destroy()
+    })
+  })
+})
+
+// The queries below run on a database holding only the rows each test seeds, so
+// every expectation is exact and a neighbouring row the query must leave out
+// would show up in it.
+describe('AdminDatabase queries over seeded rows', () => {
+  const testDb = createTestDatabase()
+  const at = (seconds: number) =>
+    new Date(Date.UTC(2024, 5, 1) + seconds * 1000)
+
+  const insertAccount = (
+    id: string,
+    overrides: Partial<Insertable<Accounts>> = {}
+  ) =>
+    testDb.db
+      .insertInto('accounts')
+      .values({
+        id,
+        email: `${id}@${TEST_DOMAIN}`,
+        passwordHash: TEST_PASSWORD_HASH,
+        role: 'user',
+        createdAt: at(0),
+        updatedAt: at(0),
+        ...overrides
+      })
+      .execute()
+
+  const insertActor = (
+    username: string,
+    accountId: string | null,
+    createdAt: Date,
+    overrides: Partial<Insertable<Actors>> = {}
+  ) =>
+    testDb.db
+      .insertInto('actors')
+      .values({
+        id: `https://${TEST_DOMAIN}/users/${username}`,
+        username,
+        domain: TEST_DOMAIN,
+        accountId,
+        publicKey: `public-${username}`,
+        privateKey: `private-${username}`,
+        publicId: generatePublicId(createdAt.getTime()),
+        type: 'Person',
+        createdAt,
+        updatedAt: createdAt,
+        ...overrides
+      })
+      .execute()
+
+  const insertCounter = (id: string, value: number, bucketHour?: Date) =>
+    testDb.db
+      .insertInto('counters')
+      .values({
+        id,
+        value,
+        bucketHour: bucketHour ?? null,
+        createdAt: at(0),
+        updatedAt: at(0)
+      })
+      .execute()
+
+  beforeAll(async () => {
+    await testDb.prepare()
+    await testDb.database.migrate()
+  })
+
+  beforeEach(async () => {
+    for (const table of [
+      'tags',
+      'recipients',
+      'statuses',
+      'actors',
+      'accounts',
+      'counters'
+    ] as const) {
+      await testDb.db.deleteFrom(table).execute()
     }
+  })
+
+  afterAll(async () => {
+    await testDb.destroy()
+  })
+
+  describe('getAllAccounts', () => {
+    // createdAt order (c, a, d, b) differs from insertion order (a, b, c, d),
+    // id order and updatedAt order (b, d, c, a descending).
+    const seedAccounts = async () => {
+      await insertAccount('acct-a', { createdAt: at(3), updatedAt: at(1) })
+      await insertAccount('acct-b', { createdAt: at(1), updatedAt: at(4) })
+      await insertAccount('acct-c', { createdAt: at(4), updatedAt: at(2) })
+      await insertAccount('acct-d', { createdAt: at(2), updatedAt: at(3) })
+    }
+
+    it('returns no accounts and a zero total when there are none', async () => {
+      await expect(
+        testDb.database.getAllAccounts({ limit: 10, offset: 0 })
+      ).resolves.toEqual({ accounts: [], total: 0 })
+    })
+
+    it('lists the newest account first and counts every account', async () => {
+      await seedAccounts()
+
+      const { accounts, total } = await testDb.database.getAllAccounts({
+        limit: 10,
+        offset: 0
+      })
+
+      expect(accounts.map((account) => account.id)).toEqual([
+        'acct-c',
+        'acct-a',
+        'acct-d',
+        'acct-b'
+      ])
+      expect(total).toBe(4)
+    })
+
+    it.each([
+      { limit: 2, offset: 0, expected: ['acct-c', 'acct-a'] },
+      { limit: 2, offset: 1, expected: ['acct-a', 'acct-d'] },
+      { limit: 3, offset: 2, expected: ['acct-d', 'acct-b'] },
+      { limit: 2, offset: 4, expected: [] }
+    ])(
+      'pages with limit $limit and offset $offset',
+      async ({ limit, offset, expected }) => {
+        await seedAccounts()
+
+        const { accounts, total } = await testDb.database.getAllAccounts({
+          limit,
+          offset
+        })
+
+        expect(accounts.map((account) => account.id)).toEqual(expected)
+        // The total ignores the page.
+        expect(total).toBe(4)
+      }
+    )
+
+    it('maps the account columns the admin views show', async () => {
+      await insertAccount('acct-full', {
+        email: 'full@example.test',
+        name: 'Full Name',
+        iconUrl: 'https://example.test/icon.png',
+        role: 'admin',
+        createdAt: at(10),
+        updatedAt: at(20),
+        verifiedAt: at(30)
+      })
+      await insertAccount('acct-bare', {
+        email: 'bare@example.test',
+        name: null,
+        iconUrl: null,
+        role: null,
+        createdAt: at(5),
+        updatedAt: at(5),
+        verifiedAt: null
+      })
+
+      const { accounts } = await testDb.database.getAllAccounts({
+        limit: 10,
+        offset: 0
+      })
+
+      expect(accounts).toHaveLength(2)
+      expect(accounts[0]).toMatchObject({
+        id: 'acct-full',
+        email: 'full@example.test',
+        name: 'Full Name',
+        iconUrl: 'https://example.test/icon.png',
+        role: 'admin',
+        createdAt: at(10).getTime(),
+        updatedAt: at(20).getTime(),
+        verifiedAt: at(30).getTime()
+      })
+      expect(accounts[1]).toMatchObject({
+        id: 'acct-bare',
+        email: 'bare@example.test',
+        name: null,
+        iconUrl: null,
+        role: null,
+        verifiedAt: null
+      })
+      // Columns the listing does not select stay out of the result.
+      expect(accounts[0].passwordHash).toBeUndefined()
+    })
+  })
+
+  describe('getAccountWithActors', () => {
+    it('returns null for an account that does not exist', async () => {
+      await insertAccount('acct-known')
+
+      await expect(
+        testDb.database.getAccountWithActors({ accountId: 'acct-unknown' })
+      ).resolves.toBeNull()
+    })
+
+    it('returns the account and only its own actors, oldest first', async () => {
+      await insertAccount('acct-a', { name: 'Account A' })
+      await insertAccount('acct-b', { name: 'Account B' })
+      // Inserted newest first, so only the ordering puts them right.
+      await insertActor('a-second', 'acct-a', at(20))
+      await insertActor('a-first', 'acct-a', at(10))
+      await insertActor('a-third', 'acct-a', at(30))
+      // Actors the account must not pick up: another account's, and one
+      // without an account.
+      await insertActor('b-first', 'acct-b', at(5))
+      await insertActor('no-account', null, at(1))
+
+      const result = await testDb.database.getAccountWithActors({
+        accountId: 'acct-a'
+      })
+
+      expect(result?.account).toMatchObject({
+        id: 'acct-a',
+        name: 'Account A'
+      })
+      expect(result?.actors.map((actor) => actor.username)).toEqual([
+        'a-first',
+        'a-second',
+        'a-third'
+      ])
+
+      const other = await testDb.database.getAccountWithActors({
+        accountId: 'acct-b'
+      })
+      expect(other?.account.id).toBe('acct-b')
+      expect(other?.actors.map((actor) => actor.username)).toEqual(['b-first'])
+    })
+
+    it('returns an account that has no actors', async () => {
+      await insertAccount('acct-empty')
+
+      const result = await testDb.database.getAccountWithActors({
+        accountId: 'acct-empty'
+      })
+
+      expect(result?.account.id).toBe('acct-empty')
+      expect(result?.actors).toEqual([])
+    })
+
+    it('maps actor settings and falls back when they are missing', async () => {
+      await insertAccount('acct-a')
+      await insertActor('configured', 'acct-a', at(10), {
+        name: 'Configured',
+        summary: 'About me',
+        deletionStatus: 'scheduled',
+        deletionScheduledAt: at(99),
+        settings: JSON.stringify({
+          iconUrl: 'https://example.test/icon.png',
+          headerImageUrl: 'https://example.test/header.png',
+          manuallyApprovesFollowers: false,
+          followersUrl: 'https://example.test/followers',
+          inboxUrl: 'https://example.test/inbox',
+          sharedInboxUrl: 'https://example.test/shared'
+        })
+      })
+      await insertActor('plain', 'acct-a', at(20), {
+        name: null,
+        summary: null,
+        settings: null
+      })
+
+      const result = await testDb.database.getAccountWithActors({
+        accountId: 'acct-a'
+      })
+      const [configured, plain] = result?.actors ?? []
+
+      expect(configured).toMatchObject({
+        id: `https://${TEST_DOMAIN}/users/configured`,
+        username: 'configured',
+        domain: TEST_DOMAIN,
+        name: 'Configured',
+        summary: 'About me',
+        iconUrl: 'https://example.test/icon.png',
+        headerImageUrl: 'https://example.test/header.png',
+        manuallyApprovesFollowers: false,
+        followersUrl: 'https://example.test/followers',
+        inboxUrl: 'https://example.test/inbox',
+        sharedInboxUrl: 'https://example.test/shared',
+        publicKey: 'public-configured',
+        createdAt: at(10).getTime(),
+        updatedAt: at(10).getTime(),
+        deletionStatus: 'scheduled',
+        deletionScheduledAt: at(99).getTime(),
+        followingCount: 0,
+        followersCount: 0,
+        statusCount: 0,
+        lastStatusAt: null
+      })
+      expect(plain).toMatchObject({
+        username: 'plain',
+        manuallyApprovesFollowers: true,
+        followersUrl: '',
+        inboxUrl: '',
+        sharedInboxUrl: '',
+        deletionStatus: null
+      })
+      expect(plain.name).toBeUndefined()
+      expect(plain.summary).toBeUndefined()
+      expect(plain.iconUrl).toBeUndefined()
+      expect(plain.deletionScheduledAt).toBeNull()
+      // The private key stays out of the admin view.
+      expect(configured.privateKey).toBeUndefined()
+    })
+  })
+
+  describe('getServiceStats', () => {
+    it('is all zeros without counters', async () => {
+      await expect(testDb.database.getServiceStats()).resolves.toEqual({
+        totalAccounts: 0,
+        totalActors: 0,
+        totalStatuses: 0,
+        totalMediaFiles: 0,
+        totalMediaBytes: 0,
+        totalFitnessFiles: 0,
+        totalFitnessBytes: 0
+      })
+    })
+
+    it('reads the service totals and sums the per-account counters', async () => {
+      await insertCounter('servicestat:total-accounts', 7)
+      await insertCounter('servicestat:total-actors', 9)
+      await insertCounter('servicestat:total-statuses', 13)
+
+      await insertCounter('media-usage:acct-a', 100)
+      await insertCounter('media-usage:acct-b', 20)
+      await insertCounter('total-media:acct-a', 3)
+      await insertCounter('total-media:acct-b', 4)
+      await insertCounter('fitness-usage:acct-a', 40)
+      await insertCounter('fitness-usage:acct-b', 2)
+      await insertCounter('total-fitness:acct-a', 5)
+      await insertCounter('total-fitness:acct-b', 6)
+
+      // Rows the sums must leave out: hourly buckets, even under a matching
+      // prefix, ids that only contain a prefix, and other counters.
+      await insertCounter('media-usage:acct-bucket', 1000, at(0))
+      await insertCounter('total-media:acct-bucket', 2000, at(0))
+      await insertCounter('fitness-usage:acct-bucket', 3000, at(0))
+      await insertCounter('total-fitness:acct-bucket', 4000, at(0))
+      await insertCounter('bucket:media-bytes:2024060100', 5000, at(0))
+      await insertCounter('x-media-usage:acct-a', 6000)
+      await insertCounter('x-total-media:acct-a', 7000)
+      await insertCounter('x-fitness-usage:acct-a', 8000)
+      await insertCounter('x-total-fitness:acct-a', 9000)
+      // Ids that start with a prefix but not with its colon.
+      await insertCounter('media-usage-old:acct-a', 12_000)
+      await insertCounter('total-media-old:acct-a', 13_000)
+      await insertCounter('fitness-usage-old:acct-a', 14_000)
+      await insertCounter('total-fitness-old:acct-a', 15_000)
+      await insertCounter('total-status:acct-a', 10_000)
+      await insertCounter('servicestat:other', 11_000)
+
+      await expect(testDb.database.getServiceStats()).resolves.toEqual({
+        totalAccounts: 7,
+        totalActors: 9,
+        totalStatuses: 13,
+        totalMediaBytes: 120,
+        totalMediaFiles: 7,
+        totalFitnessBytes: 42,
+        totalFitnessFiles: 11
+      })
+    })
+  })
+
+  describe('getServiceStatsBuckets', () => {
+    it('returns the hours of one counter type inside the window', async () => {
+      const hour = (value: number) => Date.UTC(2024, 5, 1, value)
+      await incrementBucket(testDb.db, 'accounts', 2, new Date(hour(10) + 900))
+      await incrementBucket(testDb.db, 'accounts', 1, new Date(hour(11) + 1))
+      await incrementBucket(testDb.db, 'accounts', 3, new Date(hour(12) + 59))
+      await incrementBucket(testDb.db, 'accounts', 4, new Date(hour(13)))
+      await incrementBucket(testDb.db, 'actors', 5, new Date(hour(11)))
+
+      await expect(
+        testDb.database.getServiceStatsBuckets({
+          counterType: 'accounts',
+          startTime: hour(11),
+          endTime: hour(12)
+        })
+      ).resolves.toEqual([
+        { bucketHour: hour(11), value: 1 },
+        { bucketHour: hour(12), value: 3 }
+      ])
+    })
+  })
+
+  describe('getAllHashtags', () => {
+    const PUBLIC = ACTIVITY_STREAM_PUBLIC
+    const FOLLOWERS = `https://${TEST_DOMAIN}/users/someone/followers`
+
+    const insertStatus = async ({
+      id,
+      type = 'Note',
+      seconds,
+      recipients,
+      tags
+    }: {
+      id: string
+      type?: string
+      seconds: number
+      recipients: string[]
+      tags: { name: string; type?: string }[]
+    }) => {
+      const statusId = `https://${TEST_DOMAIN}/users/someone/statuses/${id}`
+      await testDb.db
+        .insertInto('statuses')
+        .values({
+          id: statusId,
+          actorId: `https://${TEST_DOMAIN}/users/someone`,
+          type,
+          url: statusId,
+          content: id,
+          createdAt: at(seconds),
+          updatedAt: at(seconds)
+        })
+        .execute()
+      for (const [index, actorId] of recipients.entries()) {
+        await testDb.db
+          .insertInto('recipients')
+          .values({
+            id: `${id}-recipient-${index}`,
+            statusId,
+            actorId,
+            type: index === 0 ? 'to' : 'cc'
+          })
+          .execute()
+      }
+      for (const [index, tag] of tags.entries()) {
+        await testDb.db
+          .insertInto('tags')
+          .values({
+            id: `${id}-tag-${index}`,
+            statusId,
+            type: tag.type ?? 'hashtag',
+            name: tag.name,
+            nameNormalized: tag.name.toLowerCase(),
+            value: `https://${TEST_DOMAIN}/tags/${tag.name}`
+          })
+          .execute()
+      }
+    }
+
+    // Public notes and polls: apple 1 post (latest 50s), banana 3 (30s),
+    // cherry 2 (40s), date 3 (30s), elder 1 (10s), jam 1 (1s). Counting by
+    // name, by posts and by recency give three different orders.
+    const seedHashtags = async () => {
+      await insertStatus({
+        id: 'p1',
+        seconds: 50,
+        recipients: [PUBLIC],
+        tags: [{ name: '#Apple' }]
+      })
+      await insertStatus({
+        id: 'p2',
+        seconds: 40,
+        recipients: [PUBLIC],
+        tags: [{ name: '#Cherry' }]
+      })
+      // A poll, with a second public recipient row that doubles its joins.
+      await insertStatus({
+        id: 'p3',
+        type: 'Poll',
+        seconds: 30,
+        recipients: [PUBLIC, PUBLIC],
+        tags: [{ name: '#Banana' }, { name: '#Date' }]
+      })
+      // The same tag twice on one post still counts the post once.
+      await insertStatus({
+        id: 'p4',
+        seconds: 20,
+        recipients: [PUBLIC],
+        tags: [
+          { name: '#Banana' },
+          { name: '#Banana' },
+          { name: '#Date' },
+          { name: '#Cherry' }
+        ]
+      })
+      await insertStatus({
+        id: 'p5',
+        seconds: 10,
+        recipients: [PUBLIC],
+        tags: [{ name: '#Banana' }, { name: '#Date' }, { name: '#Elder' }]
+      })
+      // Public among its recipients, so it counts.
+      await insertStatus({
+        id: 'p6',
+        seconds: 1,
+        recipients: [FOLLOWERS, PUBLIC],
+        tags: [{ name: '#Jam' }]
+      })
+
+      // Posts that must not count, all newer than every public post: not
+      // public, a boost, and tags that are not hashtags.
+      await insertStatus({
+        id: 'x1',
+        seconds: 900,
+        recipients: [FOLLOWERS],
+        tags: [{ name: '#Apple' }, { name: '#Banana' }, { name: '#Fig' }]
+      })
+      await insertStatus({
+        id: 'x2',
+        type: 'Announce',
+        seconds: 800,
+        recipients: [PUBLIC],
+        tags: [{ name: '#Cherry' }, { name: '#Grape' }]
+      })
+      await insertStatus({
+        id: 'x3',
+        seconds: 700,
+        recipients: [PUBLIC],
+        tags: [
+          { name: '@Honey@example.test', type: 'mention' },
+          { name: ':Ice:', type: 'emoji' }
+        ]
+      })
+    }
+
+    const expected = {
+      alphabetical: ['#apple', '#banana', '#cherry', '#date', '#elder', '#jam'],
+      count: ['#banana', '#date', '#cherry', '#apple', '#elder', '#jam'],
+      recent: ['#apple', '#cherry', '#banana', '#date', '#elder', '#jam']
+    }
+
+    it('is empty without hashtags', async () => {
+      await expect(
+        testDb.database.getAllHashtags({
+          limit: 10,
+          offset: 0,
+          sort: 'alphabetical'
+        })
+      ).resolves.toEqual({ hashtags: [], total: 0 })
+    })
+
+    it.each(['alphabetical', 'count', 'recent'] as const)(
+      'lists the hashtags of public notes and polls ordered by %s',
+      async (sort) => {
+        await seedHashtags()
+
+        const { hashtags, total } = await testDb.database.getAllHashtags({
+          limit: 10,
+          offset: 0,
+          sort
+        })
+
+        expect(hashtags.map((hashtag) => hashtag.name)).toEqual(expected[sort])
+        expect(total).toBe(6)
+      }
+    )
+
+    it('counts each post once and dates a hashtag by its latest public post', async () => {
+      await seedHashtags()
+
+      const { hashtags } = await testDb.database.getAllHashtags({
+        limit: 10,
+        offset: 0,
+        sort: 'alphabetical'
+      })
+
+      expect(hashtags).toEqual([
+        { name: '#apple', postCount: 1, latestPostAt: at(50).getTime() },
+        { name: '#banana', postCount: 3, latestPostAt: at(30).getTime() },
+        { name: '#cherry', postCount: 2, latestPostAt: at(40).getTime() },
+        { name: '#date', postCount: 3, latestPostAt: at(30).getTime() },
+        { name: '#elder', postCount: 1, latestPostAt: at(10).getTime() },
+        { name: '#jam', postCount: 1, latestPostAt: at(1).getTime() }
+      ])
+    })
+
+    it.each(['alphabetical', 'count', 'recent'] as const)(
+      'pages the %s order without changing the total',
+      async (sort) => {
+        await seedHashtags()
+        const names = async (limit: number, offset: number) => {
+          const { hashtags, total } = await testDb.database.getAllHashtags({
+            limit,
+            offset,
+            sort
+          })
+          expect(total).toBe(6)
+          return hashtags.map((hashtag) => hashtag.name)
+        }
+
+        const all = expected[sort]
+        expect(await names(2, 0)).toEqual(all.slice(0, 2))
+        expect(await names(2, 2)).toEqual(all.slice(2, 4))
+        expect(await names(3, 4)).toEqual(all.slice(4))
+        expect(await names(10, 5)).toEqual(all.slice(5))
+        expect(await names(10, 6)).toEqual([])
+      }
+    )
   })
 })
