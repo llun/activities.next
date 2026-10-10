@@ -1,13 +1,12 @@
 import {
-  databaseBeforeAll,
-  getTestDatabaseTable
-} from '@/lib/database/testUtils'
-
-import {
   ALL_PUSH_ALERTS_ENABLED,
   MAX_PUSH_SUBSCRIPTIONS_PER_ACTOR,
   parseStoredAlerts
-} from './pushSubscription'
+} from '@/lib/database/domains/pushSubscription/queries'
+import {
+  databaseBeforeAll,
+  getTestDatabaseTable
+} from '@/lib/database/testUtils'
 
 describe('parseStoredAlerts', () => {
   it('treats a missing alerts column as all-enabled (legacy/rolling-deploy rows)', () => {

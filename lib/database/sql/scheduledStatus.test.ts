@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { ScheduledStatusParams } from '@/lib/types/mastodon/scheduledStatus'
 
@@ -8,12 +8,14 @@ const OTHER_ACTOR_ID = 'https://llun.test/users/other'
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
-  await database.migrate()
+  // Each test starts from an empty, migrated database.
+  const testDb = createTestDatabase()
+  await testDb.prepare()
+  await testDb.database.migrate()
   try {
-    await test(database)
+    await test(testDb.database)
   } finally {
-    await database.destroy()
+    await testDb.destroy()
   }
 }
 

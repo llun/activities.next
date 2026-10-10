@@ -1,18 +1,15 @@
 import crypto from 'crypto'
-import knex from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Scope } from '@/lib/types/database/operations'
 
 describe('OAuthDatabase', () => {
-  const knexDatabase = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const database = getSQLDatabase(knexDatabase)
+  const testDb = createTestDatabase()
+  const knexDatabase = testDb.knex
+  const database = testDb.database
 
   beforeAll(async () => {
+    await testDb.prepare()
     await database.migrate()
 
     // Insert test clients directly into the oauthClient table
