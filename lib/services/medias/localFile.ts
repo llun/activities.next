@@ -27,16 +27,21 @@ import { getMediaFileUrl } from './mediaFileUrl'
 import { checkQuotaAvailable } from './quota'
 import { saveMediaFile } from './saveMediaFile'
 import { assertStorageFilePath, resolveStorageFilePath } from './storagePath'
-import { createStoredImagePipeline } from './storedImagePipeline'
+import {
+  createStoredImagePipeline,
+  createStoredMaskPipeline
+} from './storedImagePipeline'
 import { readValidThumbnail } from './thumbnailInput'
 import {
   EditedImageStorageOutput,
   ImageRenditionOutput,
+  MaskImageStorageOutput,
   MediaSchema,
   MediaStorage,
   MediaStorageGetFileOutput,
   SaveEditedImageParams,
   SaveFileOptions,
+  SaveMaskImageParams,
   ThumbnailStorageOutput
 } from './types'
 import { extractVideoPreviewFrame } from './videoPreview'
@@ -254,6 +259,27 @@ export class LocalFileStorage implements MediaStorage {
       height: outputInfo.height,
       blurhash,
       focus
+    }
+  }
+
+  async saveMaskImage({
+    buffer
+  }: SaveMaskImageParams): Promise<MaskImageStorageOutput> {
+    // One channel, fitted inside 1024 px, PNG at compression 9, under a random
+    // name inside the storage root.
+    const { extension, contentType } = getImageOutputFormatDetail('png')
+    const filename = `${crypto.randomBytes(8).toString('hex')}.${extension}`
+    const filePath = assertStorageFilePath(this._config.path, filename)
+    const outputInfo = await encodeImageOutput(
+      createStoredMaskPipeline(buffer),
+      'png'
+    ).toFile(filePath)
+    return {
+      path: filename,
+      bytes: outputInfo.size,
+      mimeType: contentType,
+      width: outputInfo.width,
+      height: outputInfo.height
     }
   }
 

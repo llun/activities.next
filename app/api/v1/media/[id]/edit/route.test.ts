@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import sharp from 'sharp'
 
+import { getPhotoEditorConfig } from '@/lib/config'
 import { getTestDatabaseWithInstance } from '@/lib/database/testUtils'
 import { deleteMediaFile, getMediaStorage } from '@/lib/services/medias'
-import { NEUTRAL_RECIPE, Recipe } from '@/lib/services/medias/edit/recipe'
+import { Mask, NEUTRAL_RECIPE, Recipe } from '@/lib/services/medias/edit/recipe'
 import { refreshPostsForEditedMedia } from '@/lib/services/medias/edit/refreshPostsForEditedMedia'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import { readStoredImage } from '@/lib/services/medias/readStoredMedia'
@@ -36,6 +37,7 @@ vi.mock('better-auth/oauth2', () => ({ verifyBearerToken: vi.fn() }))
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getPhotoEditorConfig: vi.fn(),
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
@@ -92,6 +94,54 @@ const jpeg = (width: number, height: number) =>
     .jpeg()
     .toBuffer()
 
+// A one-channel mask in the source's shape (400x300 → 1024x768).
+const maskPng = (width = 1024, height = 768) =>
+  sharp({
+    create: { width, height, channels: 3, background: '#ffffff' }
+  })
+    .extractChannel(0)
+    .png()
+    .toBuffer()
+
+const SUBJECT: Mask = {
+  id: 'subj0001',
+  kind: 'subject',
+  points: [{ x: 0.5, y: 0.5, label: 1 }],
+  feather: 10,
+  adjustments: { exposure: 0.3 }
+}
+const BACKGROUND: Mask = {
+  id: 'back0001',
+  kind: 'background',
+  of: SUBJECT.id,
+  points: [],
+  feather: 0,
+  adjustments: { saturation: -20 }
+}
+const BRUSH: Mask = {
+  id: 'brush001',
+  kind: 'brush',
+  points: [],
+  feather: 0,
+  adjustments: { contrast: 10 }
+}
+
+const SUBJECT_MODEL = {
+  baseUrl: 'https://models.example.com/slimsam/',
+  files: {
+    encoder: {
+      path: 'onnx/vision_encoder_quantized.onnx',
+      bytes: 8882165,
+      sha256: 'cce23c7b2e5d4f330932738fb67ba518e04b0d99ccdd1cccd22a7da4e01f2971'
+    },
+    decoder: {
+      path: 'onnx/prompt_encoder_mask_decoder_quantized.onnx',
+      bytes: 4903810,
+      sha256: 'cb90b279f549d2cab7fd6e20c38522438c65d84bdcca3d2a764cff7d857fdce2'
+    }
+  }
+}
+
 const RECIPE: Recipe = {
   ...NEUTRAL_RECIPE,
   adjustments: { exposure: 0.5 }
@@ -105,7 +155,9 @@ const NEXT_RECIPE: Recipe = {
 describe('/api/v1/media/[id]/edit', () => {
   const { database, prepare } = getTestDatabaseWithInstance()
   const saveEditedImage = vi.fn()
+  const saveMaskImage = vi.fn()
   let source: Buffer
+  let mask: Buffer
   let render: Buffer
 
   beforeAll(async () => {
@@ -115,6 +167,7 @@ describe('/api/v1/media/[id]/edit', () => {
     mockDatabase = database
     source = await jpeg(SOURCE_WIDTH, SOURCE_HEIGHT)
     render = await jpeg(SOURCE_WIDTH, SOURCE_HEIGHT)
+    mask = await maskPng()
   })
 
   afterAll(async () => {
@@ -123,8 +176,13 @@ describe('/api/v1/media/[id]/edit', () => {
   })
 
   let renders = 0
+  let masks = 0
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(getPhotoEditorConfig).mockReturnValue({
+      subjectModel: null,
+      connectOrigins: []
+    })
     mockGetServerSession.mockResolvedValue({
       user: { email: seedActor1.email }
     })
@@ -140,8 +198,19 @@ describe('/api/v1/media/[id]/edit', () => {
     })
     vi.mocked(deleteMediaFile).mockResolvedValue(true)
     vi.mocked(getMediaStorage).mockReturnValue({
-      saveEditedImage
+      saveEditedImage,
+      saveMaskImage
     } as unknown as ReturnType<typeof getMediaStorage>)
+    saveMaskImage.mockImplementation(async () => {
+      masks += 1
+      return {
+        path: `medias/mask-${masks}.png`,
+        bytes: 40,
+        mimeType: 'image/png',
+        width: 1024,
+        height: 768
+      }
+    })
     saveEditedImage.mockImplementation(async () => {
       renders += 1
       return {
@@ -222,6 +291,7 @@ describe('/api/v1/media/[id]/edit', () => {
       save_id?: string
       apply_to_posts?: string
       focus?: string
+      masks?: Record<string, Buffer | File>
     } = {}
   ) => {
     const form = new FormData()
@@ -239,6 +309,14 @@ describe('/api/v1/media/[id]/edit', () => {
     form.set('save_id', fields.save_id ?? crypto.randomUUID())
     if (fields.apply_to_posts) form.set('apply_to_posts', fields.apply_to_posts)
     if (fields.focus) form.set('focus', fields.focus)
+    for (const [id, part] of Object.entries(fields.masks ?? {})) {
+      form.set(
+        `mask_${id}`,
+        part instanceof File
+          ? part
+          : new File([new Uint8Array(part)], `${id}.png`, { type: 'image/png' })
+      )
+    }
     return POST(
       new NextRequest(`https://llun.test/api/v1/media/${id}/edit`, {
         method: 'POST',
@@ -672,6 +750,342 @@ describe('/api/v1/media/[id]/edit', () => {
         (file) => file.slot.split(':')[0]
       )
       expect(slots.sort()).toEqual(['original', 'superseded'])
+    })
+  })
+
+  describe('masks', () => {
+    const withMasks = (...items: Mask[]): Recipe => ({
+      ...RECIPE,
+      masks: items
+    })
+    const slotsOf = async (id: string) =>
+      (await database.listMediaEditFiles({ mediaIds: [id] }))
+        .filter((file) => file.slot.startsWith('mask:'))
+        .map((file) => [file.slot, file.path])
+    const maskUrl = (mediaId: string, maskId: string) =>
+      expect.stringMatching(
+        new RegExp(
+          `^/api/v1/media/${mediaId}/edit/masks/${maskId}\\?v=[0-9a-f-]{36}$`
+        )
+      )
+
+    it('answers the subject model the config offers', async () => {
+      vi.mocked(getPhotoEditorConfig).mockReturnValue({
+        subjectModel: SUBJECT_MODEL,
+        connectOrigins: ['https://models.example.com']
+      })
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const body = await (await get(id)).json()
+
+      expect(body.capabilities).toEqual({
+        subjectModel: SUBJECT_MODEL,
+        enhance: { available: false, model: null }
+      })
+    })
+
+    it('stores a new subject mask, counts it in the quota, and lists it', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+      const recipe = withMasks(SUBJECT, BACKGROUND)
+
+      const response = await save(id, {
+        recipe: JSON.stringify(recipe),
+        masks: { [SUBJECT.id]: mask }
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.edit.recipe).toEqual(recipe)
+      // The background mask is the subject's inverse and has no image.
+      expect(body.edit.masks).toEqual([
+        { id: SUBJECT.id, url: maskUrl(id, SUBJECT.id) }
+      ])
+      expect(checkQuotaAvailable).toHaveBeenCalledWith(
+        database,
+        expect.objectContaining({ id: ACTOR1_ID }),
+        render.length + mask.length
+      )
+      expect(saveMaskImage).toHaveBeenCalledTimes(1)
+      expect(saveMaskImage).toHaveBeenCalledWith({
+        actor: expect.objectContaining({ id: ACTOR1_ID }),
+        buffer: expect.any(Buffer)
+      })
+      expect(await slotsOf(id)).toEqual([
+        [`mask:${SUBJECT.id}`, `medias/mask-${masks}.png`]
+      ])
+      expect((await (await get(id)).json()).edit.masks).toEqual(body.edit.masks)
+    })
+
+    it.each([
+      ['a subject mask', SUBJECT],
+      ['a brush mask', BRUSH]
+    ])('answers 422 for %s without its image', async (_, item) => {
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const response = await save(id, {
+        recipe: JSON.stringify(withMasks(item))
+      })
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ error: 'Missing mask image' })
+      expect(saveEditedImage).not.toHaveBeenCalled()
+      expect(saveMaskImage).not.toHaveBeenCalled()
+    })
+
+    it('keeps a stored mask whose image did not change', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+      await save(id, {
+        recipe: JSON.stringify(withMasks(SUBJECT)),
+        masks: { [SUBJECT.id]: mask }
+      })
+      const stored = await slotsOf(id)
+      saveMaskImage.mockClear()
+
+      const response = await save(id, {
+        base_version: '1',
+        recipe: JSON.stringify(
+          withMasks({ ...SUBJECT, adjustments: { exposure: 0.6 } })
+        )
+      })
+
+      expect(response.status).toBe(200)
+      expect(saveMaskImage).not.toHaveBeenCalled()
+      expect(await slotsOf(id)).toEqual(stored)
+      expect(deleteMediaFile).not.toHaveBeenCalledWith(database, stored[0][1])
+    })
+
+    it('replaces a changed mask and deletes the old file after the commit', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+      const first = await save(id, {
+        recipe: JSON.stringify(withMasks(SUBJECT)),
+        masks: { [SUBJECT.id]: mask }
+      })
+      const firstUrl = (await first.json()).edit.masks[0].url
+      const oldPath = `medias/mask-${masks}.png`
+
+      // Same recipe, new pixels: a brush refinement of the subject.
+      const response = await save(id, {
+        base_version: '1',
+        recipe: JSON.stringify(withMasks(SUBJECT)),
+        masks: { [SUBJECT.id]: mask }
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.edit.version).toBe(2)
+      expect(body.edit.masks[0].url).not.toBe(firstUrl)
+      expect(await slotsOf(id)).toEqual([
+        [`mask:${SUBJECT.id}`, `medias/mask-${masks}.png`]
+      ])
+      expect(deleteMediaFile).toHaveBeenCalledWith(database, oldPath)
+    })
+
+    it('removes the mask a recipe dropped and deletes its file', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+      await save(id, {
+        recipe: JSON.stringify(withMasks(SUBJECT, BRUSH)),
+        masks: { [SUBJECT.id]: mask, [BRUSH.id]: mask }
+      })
+      const [subjectSlot, brushSlot] = await slotsOf(id)
+      const usageBefore = await database.getStorageUsageForAccount({
+        accountId: await accountId()
+      })
+
+      const response = await save(id, {
+        base_version: '1',
+        recipe: JSON.stringify(withMasks(SUBJECT))
+      })
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).edit.masks).toEqual([
+        { id: SUBJECT.id, url: maskUrl(id, SUBJECT.id) }
+      ])
+      expect(await slotsOf(id)).toEqual([subjectSlot])
+      expect(deleteMediaFile).toHaveBeenCalledWith(database, brushSlot[1])
+      expect(deleteMediaFile).not.toHaveBeenCalledWith(database, subjectSlot[1])
+      // The new 500-byte render is counted, the 40-byte mask is freed, and
+      // the superseded render (no post shows it) is pruned.
+      expect(
+        await database.getStorageUsageForAccount({
+          accountId: await accountId()
+        })
+      ).toBe(usageBefore + 500 - 40 - 500)
+    })
+
+    it.each([
+      ['a background mask', BACKGROUND.id, withMasks(SUBJECT, BACKGROUND)],
+      ['a mask the recipe does not have', 'zzzz9999', withMasks(SUBJECT)]
+    ])('answers 422 for an image of %s', async (_, maskId, recipe) => {
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const response = await save(id, {
+        recipe: JSON.stringify(recipe),
+        masks: { [SUBJECT.id]: mask, [maskId]: mask }
+      })
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: 'Unexpected mask image'
+      })
+      expect(saveEditedImage).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['a JPEG part', async () => ({ type: 'image/jpeg' })],
+      ['a mask id that is not 8 characters', async () => ({ id: 'ABC' })],
+      ['bytes that are not a PNG', async () => ({ bytes: render })],
+      [
+        'a mask over 1024 px',
+        async () => ({ bytes: await maskPng(2048, 1536) })
+      ],
+      [
+        'a mask of another shape',
+        async () => ({ bytes: await maskPng(1024, 1024) })
+      ]
+    ])('answers 422 for %s', async (_, make) => {
+      const options: { type?: string; id?: string; bytes?: Buffer } =
+        await make()
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const response = await save(id, {
+        recipe: JSON.stringify(withMasks(SUBJECT)),
+        masks: {
+          [options.id ?? SUBJECT.id]: new File(
+            [new Uint8Array(options.bytes ?? mask)],
+            'mask.png',
+            { type: options.type ?? 'image/png' }
+          )
+        }
+      })
+
+      expect(response.status).toBe(422)
+      expect(saveEditedImage).not.toHaveBeenCalled()
+      expect(saveMaskImage).not.toHaveBeenCalled()
+    })
+
+    it('accepts a smaller mask in the source shape', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const response = await save(id, {
+        recipe: JSON.stringify(withMasks(SUBJECT)),
+        masks: { [SUBJECT.id]: await maskPng(400, 300) }
+      })
+
+      expect(response.status).toBe(200)
+    })
+
+    it('answers 413 for a mask part over 2 MiB', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const response = await save(id, {
+        recipe: JSON.stringify(withMasks(SUBJECT)),
+        masks: {
+          [SUBJECT.id]: new File(
+            [new Uint8Array(2 * 1024 * 1024 + 1)],
+            'mask.png',
+            { type: 'image/png' }
+          )
+        }
+      })
+
+      expect(response.status).toBe(413)
+      expect(saveEditedImage).not.toHaveBeenCalled()
+    })
+
+    it('answers 413 when the render and the masks together do not fit the quota', async () => {
+      vi.mocked(checkQuotaAvailable).mockImplementation(
+        async (_database, _actor, bytes) => ({
+          // Room for the render, not for the render and its mask.
+          available: bytes <= render.length,
+          used: 0,
+          limit: render.length
+        })
+      )
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const response = await save(id, {
+        recipe: JSON.stringify(withMasks(SUBJECT)),
+        masks: { [SUBJECT.id]: mask }
+      })
+
+      expect(response.status).toBe(413)
+      expect(saveEditedImage).not.toHaveBeenCalled()
+      expect(saveMaskImage).not.toHaveBeenCalled()
+    })
+
+    it('deletes the masks it stored when another save lands first, and keeps the stored ones', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+      await save(id, {
+        recipe: JSON.stringify(withMasks(SUBJECT)),
+        masks: { [SUBJECT.id]: mask }
+      })
+      const stored = await slotsOf(id)
+      vi.mocked(deleteMediaFile).mockClear()
+      saveEditedImage.mockImplementationOnce(async () => {
+        await database.applyMediaEdit({
+          mediaId: id,
+          accountId: await accountId(),
+          baseVersion: 1,
+          saveId: 'other-tab',
+          recipe: JSON.stringify(withMasks(SUBJECT)),
+          render: {
+            path: 'medias/other-tab-render.webp',
+            bytes: 10,
+            mimeType: 'image/webp',
+            width: SOURCE_WIDTH,
+            height: SOURCE_HEIGHT,
+            blurhash: null,
+            focus: null
+          },
+          masks: [{ id: SUBJECT.id, image: null }]
+        })
+        return {
+          path: 'medias/lost-render.webp',
+          bytes: 500,
+          mimeType: 'image/webp',
+          width: SOURCE_WIDTH,
+          height: SOURCE_HEIGHT,
+          blurhash: null,
+          focus: null
+        }
+      })
+
+      const response = await save(id, {
+        base_version: '1',
+        recipe: JSON.stringify(withMasks(SUBJECT, BRUSH)),
+        masks: { [BRUSH.id]: mask }
+      })
+
+      expect(response.status).toBe(409)
+      expect(deleteMediaFile).toHaveBeenCalledWith(
+        database,
+        'medias/lost-render.webp'
+      )
+      expect(deleteMediaFile).toHaveBeenCalledWith(
+        database,
+        `medias/mask-${masks}.png`
+      )
+      expect(deleteMediaFile).not.toHaveBeenCalledWith(database, stored[0][1])
+      expect(await slotsOf(id)).toEqual(stored)
+    })
+
+    it('stores a new mask image even when the recipe is unchanged', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+      await save(id, {
+        recipe: JSON.stringify(withMasks(BRUSH)),
+        masks: { [BRUSH.id]: mask }
+      })
+      saveEditedImage.mockClear()
+
+      const response = await save(id, {
+        base_version: '1',
+        recipe: JSON.stringify(withMasks(BRUSH)),
+        masks: { [BRUSH.id]: mask }
+      })
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).edit.version).toBe(2)
+      expect(saveEditedImage).toHaveBeenCalledTimes(1)
     })
   })
 })

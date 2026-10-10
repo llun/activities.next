@@ -25,3 +25,20 @@ export const createStoredImagePipeline = (input: Buffer) =>
   sharp(input)
     .resize(MAX_WIDTH, MAX_HEIGHT, STORED_IMAGE_RESIZE_OPTIONS)
     .rotate()
+
+// A photo edit mask is stored at most this long on its long edge, in the
+// source photo's shape (spec §6.1). The client renders it at exactly 1024.
+export const STORED_MASK_MAX_LONG_EDGE = 1024
+
+// The input half of a stored mask's encode: the first channel of the decoded
+// image (a mask is one 8-bit alpha, 0 outside, 255 inside), fitted inside the
+// mask box without enlarging. No `.rotate()`: a mask is in the source's pixel
+// space, which the client reads with EXIF orientation ignored.
+export const createStoredMaskPipeline = (input: Buffer) =>
+  sharp(input)
+    .extractChannel(0)
+    .resize(
+      STORED_MASK_MAX_LONG_EDGE,
+      STORED_MASK_MAX_LONG_EDGE,
+      STORED_IMAGE_RESIZE_OPTIONS
+    )

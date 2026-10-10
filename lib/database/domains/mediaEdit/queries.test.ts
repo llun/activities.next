@@ -293,6 +293,168 @@ describe('MediaEditDatabase', () => {
     expect(await usage()).toBe(before - 50)
   })
 
+  describe('masks', () => {
+    const maskImage = (name: string, bytes = 40) => ({
+      path: `medias/${name}.png`,
+      bytes,
+      mimeType: 'image/png',
+      width: 1024,
+      height: 768
+    })
+    const maskSlots = async (mediaId: string) =>
+      (await database.listMediaEditFiles({ mediaIds: [mediaId] }))
+        .filter((file) => file.slot.startsWith('mask:'))
+        .map((file) => [file.slot, file.path, file.bytes, file.metaData])
+        .sort()
+
+    it('stores, keeps, replaces and removes mask slots with the usage', async () => {
+      const media = await createPhoto('masks')
+      const before = await usage()
+
+      const first = await database.applyMediaEdit({
+        mediaId: media.id,
+        accountId,
+        baseVersion: 0,
+        saveId: 'mask-1',
+        recipe: RECIPE,
+        render: render('masks-render-1', 600),
+        masks: [
+          { id: 'subj0001', image: maskImage('masks-subject-1', 40) },
+          { id: 'brush001', image: maskImage('masks-brush-1', 30) }
+        ]
+      })
+      expect(first).toMatchObject({ status: 'ok', removedPaths: [] })
+      expect(await maskSlots(media.id)).toEqual([
+        [
+          'mask:brush001',
+          'medias/masks-brush-1.png',
+          30,
+          { width: 1024, height: 768 }
+        ],
+        [
+          'mask:subj0001',
+          'medias/masks-subject-1.png',
+          40,
+          { width: 1024, height: 768 }
+        ]
+      ])
+      expect(await usage()).toBe(before + 600 + 40 + 30)
+      const state = await database.getMediaEditState({ mediaId: media.id })
+      expect(state?.masks.map((file) => file.slot).sort()).toEqual([
+        'mask:brush001',
+        'mask:subj0001'
+      ])
+
+      // The subject gets a new image, the brush mask is dropped, and a new
+      // subject listed without an image (impossible past the service's
+      // check) is skipped rather than invented.
+      const second = await database.applyMediaEdit({
+        mediaId: media.id,
+        accountId,
+        baseVersion: 1,
+        saveId: 'mask-2',
+        recipe: RECIPE,
+        render: render('masks-render-2', 500),
+        masks: [
+          { id: 'subj0001', image: maskImage('masks-subject-2', 45) },
+          { id: 'subj0002', image: null }
+        ]
+      })
+      expect(second).toMatchObject({ status: 'ok' })
+      if (second.status !== 'ok') return
+      expect(second.removedPaths.sort()).toEqual([
+        'medias/masks-brush-1.png',
+        'medias/masks-subject-1.png'
+      ])
+      expect(await maskSlots(media.id)).toEqual([
+        [
+          'mask:subj0001',
+          'medias/masks-subject-2.png',
+          45,
+          { width: 1024, height: 768 }
+        ]
+      ])
+      expect(await usage()).toBe(before + 600 + 40 + 30 + 500 + 45 - 40 - 30)
+
+      // Kept as stored when listed without an image.
+      const third = await database.applyMediaEdit({
+        mediaId: media.id,
+        accountId,
+        baseVersion: 2,
+        saveId: 'mask-3',
+        recipe: RECIPE,
+        render: render('masks-render-3', 400),
+        masks: [{ id: 'subj0001', image: null }]
+      })
+      expect(third).toMatchObject({ status: 'ok', removedPaths: [] })
+      expect((await maskSlots(media.id)).map((slot) => slot[1])).toEqual([
+        'medias/masks-subject-2.png'
+      ])
+
+      // Media delete reports the mask files with every other edit file.
+      expect(
+        await database.getMediaEditFilePaths({ mediaIds: [media.id] })
+      ).toContain('medias/masks-subject-2.png')
+    })
+
+    it('leaves the stored masks alone on a stale save', async () => {
+      const media = await createPhoto('masks-stale')
+      await database.applyMediaEdit({
+        mediaId: media.id,
+        accountId,
+        baseVersion: 0,
+        saveId: 'mask-stale-1',
+        recipe: RECIPE,
+        render: render('masks-stale-render-1'),
+        masks: [{ id: 'subj0001', image: maskImage('masks-stale-subject') }]
+      })
+      const before = await usage()
+
+      const result = await database.applyMediaEdit({
+        mediaId: media.id,
+        accountId,
+        baseVersion: 0,
+        saveId: 'mask-stale-2',
+        recipe: RECIPE,
+        render: render('masks-stale-render-2'),
+        masks: []
+      })
+
+      expect(result).toMatchObject({ status: 'stale', version: 1 })
+      expect((await maskSlots(media.id)).map((slot) => slot[1])).toEqual([
+        'medias/masks-stale-subject.png'
+      ])
+      expect(await usage()).toBe(before)
+    })
+
+    it('frees the mask bytes when the media is deleted', async () => {
+      const media = await createPhoto('masks-delete')
+      await database.applyMediaEdit({
+        mediaId: media.id,
+        accountId,
+        baseVersion: 0,
+        saveId: 'mask-delete',
+        recipe: RECIPE,
+        render: render('masks-delete-render', 600),
+        masks: [
+          { id: 'subj0001', image: maskImage('masks-delete-subject', 40) }
+        ]
+      })
+      const before = await usage()
+
+      const deleted = await database.deleteMediaForAccount({
+        mediaId: media.id,
+        accountId
+      })
+
+      expect(deleted).toEqual({
+        status: 'deleted',
+        files: expect.arrayContaining(['medias/masks-delete-subject.png'])
+      })
+      expect(await usage()).toBe(before - 600 - 1000 - 40)
+    })
+  })
+
   it('answers not-edited for a photo with no original slot', async () => {
     const media = await createPhoto('not-edited')
     await expect(

@@ -1,8 +1,16 @@
 import sharp from 'sharp'
 
-import type {
-  ApplyMediaEditResult,
-  MediaEditState
+import {
+  type PhotoEditorSubjectModel,
+  getPhotoEditorConfig
+} from '@/lib/config'
+import {
+  type ApplyMediaEditResult,
+  MEDIA_EDIT_MASK_PREFIX,
+  type MediaEditFile,
+  type MediaEditMaskImage,
+  type MediaEditMaskInput,
+  type MediaEditState
 } from '@/lib/database/domains/mediaEdit/types'
 import { Database } from '@/lib/database/types'
 import { createWindowCounter } from '@/lib/services/gallery/lookups/rateLimit'
@@ -28,6 +36,7 @@ import {
 import { getOwnerMediaAttachment } from '@/lib/services/medias/mediaDetails'
 import { checkQuotaAvailable } from '@/lib/services/medias/quota'
 import { readStoredImage } from '@/lib/services/medias/readStoredMedia'
+import { STORED_MASK_MAX_LONG_EDGE } from '@/lib/services/medias/storedImagePipeline'
 import { MediaStorageSaveFileOutput } from '@/lib/services/medias/types'
 import { Media } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
@@ -46,6 +55,12 @@ export const EDIT_RENDER_MIME_TYPES: readonly string[] = [
 ]
 // The client rounds the output size; allow it to be off by a pixel or two.
 const SIZE_TOLERANCE_PX = 2
+// A mask PNG is one 8-bit channel at most 1024 px on its long edge, so a few
+// hundred KiB at most; the cap bounds what one part can make us decode.
+export const EDIT_MASK_MAX_BYTES = 2 * 1024 * 1024
+export const EDIT_MASK_MIME_TYPE = 'image/png'
+// A stored mask is small and is never served to anyone but its owner.
+const EDIT_MASK_READ_MAX_BYTES = 8 * 1024 * 1024
 
 const EDITS_PER_HOUR = 60
 const editSaves = createWindowCounter({
@@ -63,6 +78,10 @@ export const ERROR_APPLY_TO_POSTS_REQUIRED =
 export const ERROR_NEUTRAL_RECIPE =
   'The recipe changes nothing; revert the photo instead'
 export const ERROR_RENDER_TYPE = 'The edited image must be a JPEG or PNG'
+export const ERROR_MISSING_MASK = 'Missing mask image'
+export const ERROR_UNEXPECTED_MASK = 'Unexpected mask image'
+export const ERROR_INVALID_MASK =
+  'A mask image must be a PNG in the shape of the photo, at most 1024 px on its long edge'
 
 export type ApplyToPosts = 'update' | 'gallery'
 
@@ -85,7 +104,7 @@ export interface MediaEditResponse {
   edit: MediaEditEntity
   usage: MediaEditUsage
   capabilities: {
-    subjectModel: null
+    subjectModel: PhotoEditorSubjectModel | null
     enhance: { available: boolean; model: string | null }
   }
 }
@@ -119,6 +138,20 @@ const stale = (version: number, saveId: string | null) => ({
   status: 409 as const,
   body: { error: 'stale', edit: { version, saveId } }
 })
+
+const maskIdOf = (file: Pick<MediaEditFile, 'slot'>) =>
+  file.slot.slice(MEDIA_EDIT_MASK_PREFIX.length)
+
+/**
+ * Where the editor reads a stored mask from: the owner-only mask route. The
+ * query names the stored file, so a mask saved again under the same id is a
+ * new URL and the browser's private cache never serves the old one.
+ */
+export const getMediaEditMaskUrl = (
+  mediaId: string,
+  file: Pick<MediaEditFile, 'id' | 'slot'>
+) =>
+  `/api/v1/media/${encodeURIComponent(mediaId)}/edit/masks/${maskIdOf(file)}?v=${file.id}`
 
 const toIso = (value: number | null) =>
   value === null ? null : new Date(value).toISOString()
@@ -244,8 +277,13 @@ const buildEditEntity = (
           height: fallbackHeight,
           mimeType: original?.mimeType ?? media.original.mimeType
         },
-    // Phase 2 fills these in.
-    masks: []
+    // The stored masks of the recipe's raster masks, in recipe order.
+    masks: (recipe?.masks ?? []).flatMap((mask) => {
+      const file = state?.masks.find((item) => maskIdOf(item) === mask.id)
+      return file
+        ? [{ id: mask.id, url: getMediaEditMaskUrl(media.id, file) }]
+        : []
+    })
   }
 }
 
@@ -271,7 +309,7 @@ const buildResponse = async ({
     latestStatusAt: usage.latestStatusAt
   },
   capabilities: {
-    subjectModel: null,
+    subjectModel: getPhotoEditorConfig().subjectModel,
     enhance: { available: false, model: null }
   }
 })
@@ -364,6 +402,45 @@ export const getMediaEditSource = async ({
       path
     })
     return notEditable()
+  }
+}
+
+/**
+ * The bytes of one stored mask, for GET /api/v1/media/:id/edit/masks/:maskId.
+ * Owner only; a mask that is not stored answers 404.
+ */
+export const getMediaEditMask = async ({
+  database,
+  mediaId,
+  accountId,
+  maskId
+}: {
+  database: Database
+  mediaId: string
+  accountId: string
+  maskId: string
+}): Promise<MediaEditResult<{ buffer: Buffer; mimeType: string }>> => {
+  const media = await database.getMediaByIdForAccount({ mediaId, accountId })
+  if (!media) return notFound()
+
+  const state = await database.getMediaEditState({ mediaId: media.id })
+  const file = state?.masks.find((item) => maskIdOf(item) === maskId)
+  if (!file) return notFound()
+  try {
+    const stored = await readStoredImage(
+      database,
+      file.path,
+      EDIT_MASK_READ_MAX_BYTES
+    )
+    if (!stored) return notFound()
+    return { ok: true, body: stored }
+  } catch (e) {
+    logger.warn({
+      message: 'Failed to read a photo edit mask',
+      err: toLoggableError(e),
+      path: file.path
+    })
+    return notFound()
   }
 }
 
@@ -470,11 +547,38 @@ export interface SaveMediaEditInput {
   saveId: string
   applyToPosts?: ApplyToPosts
   focus?: { x: number; y: number }
+  /** The `mask_<id>` parts: the PNG of each new or changed raster mask. */
+  masks?: { id: string; buffer: Buffer; size: number }[]
 }
 
 const matchesSize = (actual: Size, expected: Size) =>
   Math.abs(actual.width - expected.width) <= SIZE_TOLERANCE_PX &&
   Math.abs(actual.height - expected.height) <= SIZE_TOLERANCE_PX
+
+/**
+ * Whether a mask part is a PNG in the source's shape: at most 1024 px on its
+ * long edge, and its other edge what the source's aspect gives (±2 px for the
+ * client's rounding). The source is matched as stored and, for a file that
+ * still carries EXIF orientation, as displayed, like the render.
+ */
+const isValidMaskImage = async (buffer: Buffer, sources: Size[]) => {
+  try {
+    const { format, width, height } = await sharp(buffer).metadata()
+    if (format !== 'png' || !width || !height) return false
+    if (Math.max(width, height) > STORED_MASK_MAX_LONG_EDGE) return false
+    // Derive the short edge from the long one: the other way round, the
+    // rounding of a thin panorama's short edge would be multiplied up.
+    return sources.some((source) =>
+      source.width >= source.height
+        ? Math.abs((width * source.height) / source.width - height) <=
+          SIZE_TOLERANCE_PX
+        : Math.abs((height * source.width) / source.height - width) <=
+          SIZE_TOLERANCE_PX
+    )
+  } catch {
+    return false
+  }
+}
 
 const isIdentityGeometry = (recipe: Recipe) => {
   const { geometry } = recipe
@@ -524,7 +628,8 @@ export const saveMediaEdit = async ({
   baseVersion,
   saveId,
   applyToPosts,
-  focus
+  focus,
+  masks: maskParts = []
 }: SaveMediaEditInput): Promise<MediaEditResult<MediaEditWriteResponse>> => {
   if (!editSaves.tryHit(actor.id)) return fail(429, ERROR_TOO_MANY_EDITS)
 
@@ -532,14 +637,35 @@ export const saveMediaEdit = async ({
   if (!media) return notFound()
   if (!isEditableMedia(media)) return notEditable()
 
-  const parsed = parseRecipe(rawRecipe)
+  const parsed = parseRecipe(rawRecipe, { allowMasks: true })
   if (!parsed.ok) return fail(422, parsed.error)
   const recipe = normalizeRecipe(parsed.recipe)
   if (isNeutralRecipe(recipe)) return fail(422, ERROR_NEUTRAL_RECIPE)
 
+  // Subject and brush masks carry a raster; a background mask is the inverse
+  // of its subject and has none, so it never takes a part.
+  const rasterMaskIds = recipe.masks
+    .filter((mask) => mask.kind !== 'background')
+    .map((mask) => mask.id)
+  if (maskParts.some((part) => !rasterMaskIds.includes(part.id))) {
+    return fail(422, ERROR_UNEXPECTED_MASK)
+  }
+
   const state = await database.getMediaEditState({ mediaId: media.id })
   if (!state) return notFound()
   if (state.version !== baseVersion) return stale(state.version, state.saveId)
+
+  // A new mask needs its image; a stored one keeps its image unless a part
+  // replaces it. The write's version check keeps the stored slots as read here.
+  const storedMaskIds = new Set(state.masks.map(maskIdOf))
+  if (
+    rasterMaskIds.some(
+      (id) =>
+        !storedMaskIds.has(id) && !maskParts.some((part) => part.id === id)
+    )
+  ) {
+    return fail(422, ERROR_MISSING_MASK)
+  }
 
   const usage = await getMediaEditUsage({
     database,
@@ -553,8 +679,13 @@ export const saveMediaEdit = async ({
   // preset changed, or nothing did) is answered as saved without storing
   // anything: a new render would be the same picture, and updating the posts
   // would send every follower an edit that changes nothing.
+  // A new mask image changes the picture even when the recipe does not.
   const storedRecipe = parseStoredRecipe(state.recipe)
-  if (storedRecipe && isSameRender(storedRecipe, recipe)) {
+  if (
+    maskParts.length === 0 &&
+    storedRecipe &&
+    isSameRender(storedRecipe, recipe)
+  ) {
     const body = await buildResponse({
       database,
       media,
@@ -592,35 +723,63 @@ export const saveMediaEdit = async ({
     return fail(422, ERROR_SIZE_MISMATCH)
   }
 
-  const quota = await checkQuotaAvailable(database, actor, file.size)
+  const maskSources = [source.size, source.orientedSize].filter(
+    (size): size is Size => size !== null
+  )
+  for (const part of maskParts) {
+    if (!(await isValidMaskImage(part.buffer, maskSources))) {
+      return fail(422, ERROR_INVALID_MASK)
+    }
+  }
+
+  // The quota covers everything this save stores: the render and the masks.
+  const uploadBytes = maskParts.reduce(
+    (sum, part) => sum + part.size,
+    file.size
+  )
+  const quota = await checkQuotaAvailable(database, actor, uploadBytes)
   if (!quota.available) return fail(413, ERROR_NO_STORAGE)
 
   const storage = getMediaStorage(database)
   if (!storage) throw new Error('Media storage is not configured')
-  const render = await storage.saveEditedImage({
-    actor,
-    buffer: file.buffer,
-    manualFocus: getRenderFocus(media, state, recipe, focus)
-  })
-
+  const storedPaths: string[] = []
   let result: ApplyMediaEditResult
   try {
+    const render = await storage.saveEditedImage({
+      actor,
+      buffer: file.buffer,
+      manualFocus: getRenderFocus(media, state, recipe, focus)
+    })
+    storedPaths.push(render.path)
+    const maskImages = new Map<string, MediaEditMaskImage>()
+    for (const part of maskParts) {
+      const image = await storage.saveMaskImage({ actor, buffer: part.buffer })
+      storedPaths.push(image.path)
+      maskImages.set(part.id, image)
+    }
+    const masks: MediaEditMaskInput[] = rasterMaskIds.map((id) => ({
+      id,
+      image: maskImages.get(id) ?? null
+    }))
+
     result = await database.applyMediaEdit({
       mediaId: media.id,
       accountId,
       baseVersion,
       saveId,
       recipe: JSON.stringify(recipe),
-      render
+      render,
+      masks
     })
   } catch (e) {
-    await deleteFilesBestEffort(database, [render.path])
+    await deleteFilesBestEffort(database, storedPaths)
     throw e
   }
 
   if (result.status !== 'ok') {
-    // Nothing references the render: delete it right away.
-    await deleteFilesBestEffort(database, [render.path])
+    // Nothing references what this save stored: delete it right away. The
+    // stored masks of the media are untouched.
+    await deleteFilesBestEffort(database, storedPaths)
     if (result.status === 'stale') return stale(result.version, result.saveId)
     return notFound()
   }

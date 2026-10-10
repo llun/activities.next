@@ -522,7 +522,18 @@ The files an edit keeps sit in `media_edit_files`, one row per slot:
   points each post at the new file (an ordinary edit of the post, sent as
   `Update(Note)`) and then prunes the superseded renders; "Gallery only" keeps
   them, because those posts still reference them.
-- `mask:<id>`: reserved for phase 2.
+- `mask:<id>`: the raster of a subject or brush mask of the recipe (a
+  background mask is the inverse of its subject and has none). The browser
+  makes it (the subject model or the brush) and uploads it as a `mask_<id>`
+  PNG part of the save, only when it is new or its pixels changed; the server
+  checks it is a PNG in the source's shape, at most 1024 px on its long edge,
+  and stores its first channel through `saveMaskImage` (PNG, compression 9).
+  A save upserts the slots of the recipe's masks and removes the others,
+  deleting the released files after the commit; a revert removes them all.
+  The editor reads a mask through the owner-only
+  `GET /api/v1/media/:id/edit/masks/:maskId` (`Cache-Control: private`; the
+  URL `GET …/edit` lists carries `?v=<row id>`, so a replaced mask is a new
+  URL). Masks are never federated and are in no public entity.
 
 The prune belongs to the latest write only. Updating the posts can take
 seconds (each one federates), and a save or revert from another tab can
@@ -570,7 +581,8 @@ history. A thumbnail a client uploaded for a photo stands for the image as it
 was, so an edited photo has none (`getLiveThumbnail`): its `preview_url` and
 the attachment's thumbnail are the edited file, until a revert.
 
-Every kept file counts toward the account's storage usage. The editor reads the
+Every kept file counts toward the account's storage usage, masks included (a
+save checks the quota for the render and its mask parts together). The editor reads the
 uploaded original through `GET /api/v1/media/:id/edit/source`, served from this
 origin with `Cache-Control: private` so the canvas is never tainted by a CDN or
 S3 origin. Deleting a media removes these rows and their files too. Deleting
@@ -1668,6 +1680,19 @@ legacy shape left to copy.
 - Runtime config that affects browser-visible behavior (CSP, security headers,
   host redirects, upload origins) lives in request-time server code, not static
   Next config.
+- CSP sources that follow runtime config are computed per process in
+  `lib/utils/http-headers/csp.ts` from `getSecurityHeaderConfig()` and added only
+  while the feature is on. The photo editor's subject model
+  (`ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL`, `lib/config/photoEditor.ts`) adds its
+  download origins to `connect-src` (by default `https://huggingface.co` and
+  `https://*.hf.co`, the CDN its `resolve` URLs redirect to; a self-hosted base
+  adds its own origin only) and `'wasm-unsafe-eval'` to `script-src` for the
+  onnxruntime WebAssembly, the same keyword Apple MapKit needs (listed once when
+  both are on); `off` adds neither. `proxy.ts` builds the CSP in the Edge
+  runtime, so these config modules are imported by sub-path and must not import
+  Node APIs or the logger: `lib/config/photoEditor.ts` reports an invalid value
+  through a callback, and only the `@/lib/config` barrel's
+  `getPhotoEditorConfig` logs it.
 - A build must succeed with `ACTIVITIES_*` missing or set to placeholder values.
   Changes to runtime-config handling should ship a regression test asserting the
   build config does not consume those values.

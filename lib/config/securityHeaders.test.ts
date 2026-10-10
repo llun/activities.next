@@ -17,8 +17,12 @@ const SECURITY_HEADER_ENV_KEYS = [
   'ACTIVITIES_FITNESS_STORAGE_REGION',
   'ACTIVITIES_FITNESS_STORAGE_HOSTNAME',
   'ACTIVITIES_FITNESS_STORAGE_ENDPOINT',
-  'ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN'
+  'ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN',
+  'ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL'
 ]
+
+// The photo editor's subject model is on by default, from Hugging Face.
+const DEFAULT_MODEL_ORIGINS = ['https://huggingface.co', 'https://*.hf.co']
 
 describe('getSecurityHeaderConfig', () => {
   const originalCwd = process.cwd()
@@ -93,7 +97,8 @@ describe('getSecurityHeaderConfig', () => {
         hostname: 'env-fitness.example.com',
         endpoint: 'https://env-fitness-storage.example.com',
         mapboxAccessToken: 'pk.env-mapbox'
-      }
+      },
+      photoEditorModelOrigins: DEFAULT_MODEL_ORIGINS
     })
   })
 
@@ -102,7 +107,8 @@ describe('getSecurityHeaderConfig', () => {
       allowMediaDomains: [],
       allowRemoteMediaDomains: null,
       mediaStorage: {},
-      fitnessStorage: {}
+      fitnessStorage: {},
+      photoEditorModelOrigins: DEFAULT_MODEL_ORIGINS
     })
   })
 
@@ -114,7 +120,8 @@ describe('getSecurityHeaderConfig', () => {
         allowMediaDomains: [],
         allowRemoteMediaDomains: null,
         mediaStorage: {},
-        fitnessStorage: {}
+        fitnessStorage: {},
+        photoEditorModelOrigins: DEFAULT_MODEL_ORIGINS
       })
     }
   })
@@ -126,7 +133,8 @@ describe('getSecurityHeaderConfig', () => {
       allowMediaDomains: [],
       allowRemoteMediaDomains: null,
       mediaStorage: {},
-      fitnessStorage: {}
+      fitnessStorage: {},
+      photoEditorModelOrigins: DEFAULT_MODEL_ORIGINS
     })
   })
 
@@ -137,7 +145,8 @@ describe('getSecurityHeaderConfig', () => {
       allowMediaDomains: [],
       allowRemoteMediaDomains: [],
       mediaStorage: {},
-      fitnessStorage: {}
+      fitnessStorage: {},
+      photoEditorModelOrigins: DEFAULT_MODEL_ORIGINS
     })
   })
 
@@ -156,7 +165,22 @@ describe('getSecurityHeaderConfig', () => {
       mediaStorage: {
         hostname: 'env-media.example.com'
       },
-      fitnessStorage: {}
+      fitnessStorage: {},
+      photoEditorModelOrigins: DEFAULT_MODEL_ORIGINS
     })
+  })
+
+  it.each([
+    ['off', 'off', null],
+    ['an invalid value', 'http://models.example.com/', null],
+    [
+      'a self-hosted base',
+      'https://models.example.com/slimsam/',
+      ['https://models.example.com']
+    ]
+  ])('reads the photo editor model origins for %s', (_, value, origins) => {
+    process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL = value
+
+    expect(getSecurityHeaderConfig().photoEditorModelOrigins).toEqual(origins)
   })
 })

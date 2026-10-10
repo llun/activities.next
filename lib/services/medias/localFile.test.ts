@@ -362,6 +362,48 @@ describe('LocalFileStorage image output format', () => {
     expect(database.createMedia).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['fits a large mask inside 1024 px', 2048, 1536, 1024, 768],
+    ['keeps a small mask at its size', 400, 300, 400, 300]
+  ])(
+    'stores a photo edit mask as a one-channel PNG: %s',
+    async (_, width, height, storedWidth, storedHeight) => {
+      const rgba = await sharp({
+        create: {
+          width,
+          height,
+          channels: 4,
+          background: { r: 255, g: 0, b: 0, alpha: 0.5 }
+        }
+      })
+        .png()
+        .toBuffer()
+
+      const mask = await createStorage().saveMaskImage({ actor, buffer: rgba })
+
+      expect(mask).toEqual({
+        path: expect.stringMatching(/^[0-9a-f]{16}\.png$/),
+        bytes: (await fs.stat(path.join(mediaRoot, mask.path))).size,
+        mimeType: 'image/png',
+        width: storedWidth,
+        height: storedHeight
+      })
+      const storedBytes = await fs.readFile(path.join(mediaRoot, mask.path))
+      expect(await sharp(storedBytes).metadata()).toMatchObject({
+        format: 'png',
+        width: storedWidth,
+        height: storedHeight,
+        channels: 1
+      })
+      // The first channel: red at full strength.
+      const { data } = await sharp(storedBytes)
+        .raw()
+        .toBuffer({ resolveWithObject: true })
+      expect(data[0]).toBe(255)
+      expect(database.createMedia).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects a rendition that would exceed the account quota', async () => {
     database.getStorageUsageForAccount.mockResolvedValue(
       Number.MAX_SAFE_INTEGER

@@ -293,6 +293,22 @@ export interface SaveEditedImageParams {
   manualFocus?: { x: number; y: number }
 }
 
+/** A stored photo edit mask (spec §3.4): one 8-bit channel, as PNG. */
+export interface MaskImageStorageOutput {
+  path: string
+  /** Bytes of the stored file. */
+  bytes: number
+  /** The type actually written: `image/png`. */
+  mimeType: string
+  width: number
+  height: number
+}
+
+export interface SaveMaskImageParams {
+  actor: Actor
+  buffer: Buffer
+}
+
 export interface SaveFileOptions {
   // Build gallery details (EXIF, gear, place, inGallery). Only the user media
   // upload path sets this.
@@ -332,6 +348,9 @@ export interface MediaStorage {
   saveEditedImage(
     params: SaveEditedImageParams
   ): Promise<EditedImageStorageOutput>
+  // Stores a photo edit mask: the first channel of the decoded image, fitted
+  // inside 1024 px, as PNG. Like saveEditedImage it does NOT check the quota.
+  saveMaskImage(params: SaveMaskImageParams): Promise<MaskImageStorageOutput>
   getPresigedForSaveFileUrl(
     actor: Actor,
     media: PresigedMediaInput

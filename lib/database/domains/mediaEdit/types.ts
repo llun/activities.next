@@ -61,6 +61,25 @@ export type MediaEditRender = {
   focus: { x: number; y: number } | null
 }
 
+/** A stored mask PNG, as `saveMaskImage` returns it. */
+export type MediaEditMaskImage = {
+  path: string
+  bytes: number
+  mimeType: string
+  width: number
+  height: number
+}
+
+/**
+ * A mask of the saved recipe that has a raster of its own (a `subject` or a
+ * `brush` mask; a `background` mask is the inverse of its subject and has
+ * none). `image` is the newly stored PNG, or null to keep the stored one.
+ */
+export type MediaEditMaskInput = {
+  id: string
+  image: MediaEditMaskImage | null
+}
+
 export type ApplyMediaEditParams = {
   mediaId: string
   accountId: string
@@ -69,6 +88,12 @@ export type ApplyMediaEditParams = {
   /** The validated recipe JSON. */
   recipe: string
   render: MediaEditRender
+  /**
+   * Every raster mask of the recipe. A `mask:<id>` slot whose id is not listed
+   * is removed; a listed mask with an image replaces (or creates) its slot.
+   * Omitted means the recipe has no raster masks.
+   */
+  masks?: MediaEditMaskInput[]
 }
 
 export type RevertMediaEditParams = {
@@ -83,7 +108,10 @@ export type ApplyMediaEditResult =
       status: 'ok'
       media: Media
       version: number
-      /** Stored files the write released; delete them after the commit. */
+      /**
+       * Stored files the write released (replaced and removed masks); delete
+       * them after the commit. No remaining slot of the media references them.
+       */
       removedPaths: string[]
     }
   | { status: 'not-found' }

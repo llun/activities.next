@@ -34,6 +34,9 @@ vi.mock('better-auth/oauth2', () => ({ verifyBearerToken: vi.fn() }))
 
 vi.mock('@/lib/config', () => ({
   getBaseURL: vi.fn().mockReturnValue('https://llun.test'),
+  getPhotoEditorConfig: vi
+    .fn()
+    .mockReturnValue({ subjectModel: null, connectOrigins: [] }),
   getConfig: vi.fn().mockReturnValue({
     allowEmails: [],
     host: 'llun.test',
@@ -114,13 +117,18 @@ describe('POST /api/v1/media/[id]/edit/revert', () => {
     return media!
   }
 
-  const edit = async (mediaId: string, baseVersion = 0) =>
+  const edit = async (
+    mediaId: string,
+    baseVersion = 0,
+    masks: Parameters<typeof database.applyMediaEdit>[0]['masks'] = []
+  ) =>
     database.applyMediaEdit({
       mediaId,
       accountId,
       baseVersion,
       saveId: `edit-${baseVersion}`,
       recipe: JSON.stringify({ v: 1 }),
+      masks,
       render: {
         path: `medias/revert-render-${mediaId}-${baseVersion}.webp`,
         bytes: 200,
@@ -240,6 +248,40 @@ describe('POST /api/v1/media/[id]/edit/revert', () => {
     await expect(
       database.listMediaEditFiles({ mediaIds: [media.id] })
     ).resolves.toEqual([])
+  })
+
+  it('removes the stored masks and deletes their files after the commit', async () => {
+    const media = await createMediaFor(ACTOR1_ID)
+    const maskPath = `medias/revert-mask-${media.id}.png`
+    await edit(media.id, 0, [
+      {
+        id: 'mask0001',
+        image: {
+          path: maskPath,
+          bytes: 50,
+          mimeType: 'image/png',
+          width: 1024,
+          height: 768
+        }
+      }
+    ])
+    const usageBefore = await database.getStorageUsageForAccount({ accountId })
+
+    const response = await revert(media.id, {
+      base_version: 1,
+      save_id: crypto.randomUUID()
+    })
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).edit.masks).toEqual([])
+    expect(deleteMediaFile).toHaveBeenCalledWith(database, maskPath)
+    await expect(
+      database.listMediaEditFiles({ mediaIds: [media.id] })
+    ).resolves.toEqual([])
+    // The mask's 50 bytes and the pruned 200-byte render left the usage.
+    expect(await database.getStorageUsageForAccount({ accountId })).toBe(
+      usageBefore - 250
+    )
   })
 
   it('requires apply_to_posts when the photo is in a post, then updates them', async () => {

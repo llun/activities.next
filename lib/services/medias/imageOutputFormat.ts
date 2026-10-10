@@ -7,9 +7,10 @@ import type { Sharp } from 'sharp'
  * quality, and every browser decodes it. `jpeg` exists for the consumers that
  * cannot — Outlook desktop (which renders mail with the Word engine) and
  * Windows Mail have no WebP decoder, so an email pointing at stored WebP bytes
- * shows its alt text instead of the image.
+ * shows its alt text instead of the image. `png` stores the photo editor's
+ * masks: one 8-bit channel each, losslessly.
  */
-export type ImageOutputFormat = 'webp' | 'jpeg'
+export type ImageOutputFormat = 'webp' | 'jpeg' | 'png'
 
 export const DEFAULT_IMAGE_OUTPUT_FORMAT: ImageOutputFormat = 'webp'
 
@@ -25,7 +26,8 @@ const IMAGE_OUTPUT_FORMAT_DETAILS: Record<
   ImageOutputFormatDetail
 > = {
   webp: { extension: 'webp', contentType: 'image/webp' },
-  jpeg: { extension: 'jpg', contentType: 'image/jpeg' }
+  jpeg: { extension: 'jpg', contentType: 'image/jpeg' },
+  png: { extension: 'png', contentType: 'image/png' }
 }
 
 export const getImageOutputFormatDetail = (
@@ -42,6 +44,8 @@ export const encodeImageOutput = (
   image: Sharp,
   format: ImageOutputFormat
 ): Sharp => {
+  if (format === 'png') return image.png({ compressionLevel: 9 })
+
   if (format === 'jpeg') {
     return image.jpeg({
       quality: 90,

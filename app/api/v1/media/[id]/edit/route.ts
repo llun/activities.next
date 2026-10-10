@@ -6,9 +6,13 @@ import {
   corsErrorResponse
 } from '@/lib/services/guards/OAuthGuard'
 import { headerHost } from '@/lib/services/guards/headerHost'
+import { MAX_MASKS } from '@/lib/services/medias/edit/recipe'
 import {
+  EDIT_MASK_MAX_BYTES,
+  EDIT_MASK_MIME_TYPE,
   EDIT_RENDER_MAX_BYTES,
   EDIT_RENDER_MIME_TYPES,
+  ERROR_INVALID_MASK,
   ERROR_RECORD_NOT_FOUND,
   MediaEditResult,
   getMediaEdit,
@@ -49,6 +53,48 @@ const SaveEditRequest = z.object({
   apply_to_posts: z.enum(['update', 'gallery']).optional(),
   focus: FocusSchema.optional()
 })
+
+// `mask_<id>`: the PNG of one new or changed mask, keyed by its recipe id.
+const MASK_PART_PATTERN = /^mask_(.*)$/
+const MASK_ID_PATTERN = /^[a-z0-9]{8}$/
+
+type MaskPart = { id: string; file: File }
+
+/**
+ * The form's `mask_<id>` parts, or the error to answer: each must name a valid
+ * mask id once, be an `image/png` file and fit the 2 MiB cap. That the id is a
+ * mask of the recipe, and that the PNG has the photo's shape, the service
+ * checks.
+ */
+const readMaskParts = (
+  form: FormData
+):
+  | { ok: true; parts: MaskPart[] }
+  | { ok: false; status: 413 | 422; error: string } => {
+  const parts: MaskPart[] = []
+  for (const key of new Set(form.keys())) {
+    const id = MASK_PART_PATTERN.exec(key)?.[1]
+    if (id === undefined) continue
+    const values = form.getAll(key)
+    const value = values[0]
+    if (
+      !MASK_ID_PATTERN.test(id) ||
+      values.length !== 1 ||
+      !(value instanceof File) ||
+      value.type !== EDIT_MASK_MIME_TYPE
+    ) {
+      return { ok: false, status: 422, error: ERROR_INVALID_MASK }
+    }
+    if (value.size > EDIT_MASK_MAX_BYTES) {
+      return { ok: false, status: 413, error: 'The mask image is too large' }
+    }
+    parts.push({ id, file: value })
+  }
+  if (parts.length > MAX_MASKS) {
+    return { ok: false, status: 422, error: ERROR_INVALID_MASK }
+  }
+  return { ok: true, parts }
+}
 
 const toResponse = <T>(req: NextRequest, result: MediaEditResult<T>) =>
   result.ok
@@ -115,8 +161,9 @@ export const GET = traceApiRoute(
 
 // POST /api/v1/media/:id/edit — saves the client's render of a recipe as the
 // photo's live file. Multipart: `file` (JPEG or PNG), `recipe` (JSON),
-// `base_version`, `save_id`, `apply_to_posts` (when the photo is in posts) and
-// an optional `focus`. The service does the rest (see saveMediaEdit).
+// `base_version`, `save_id`, `apply_to_posts` (when the photo is in posts), an
+// optional `focus`, and a `mask_<id>` PNG for each new or changed subject or
+// brush mask. The service does the rest (see saveMediaEdit).
 export const POST = traceApiRoute(
   'saveMediaEdit',
   OAuthGuardAnyScope<Params>(
@@ -178,6 +225,11 @@ export const POST = traceApiRoute(
         return invalid(req, 'The edited image is too large', 413)
       }
 
+      const maskParts = readMaskParts(form)
+      if (!maskParts.ok) {
+        return invalid(req, maskParts.error, maskParts.status)
+      }
+
       return toResponse(
         req,
         await saveMediaEdit({
@@ -194,7 +246,14 @@ export const POST = traceApiRoute(
           baseVersion: parsed.data.base_version,
           saveId: parsed.data.save_id,
           applyToPosts: parsed.data.apply_to_posts,
-          focus: parsed.data.focus
+          focus: parsed.data.focus,
+          masks: await Promise.all(
+            maskParts.parts.map(async ({ id, file: part }) => ({
+              id,
+              buffer: Buffer.from(await part.arrayBuffer()),
+              size: part.size
+            }))
+          )
         })
       )
     },

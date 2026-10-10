@@ -81,10 +81,14 @@ describe('next config security hardening', () => {
         // No Mapbox token → the keyless MapLibre + OpenFreeMap map provider is
         // allowed instead (jsDelivr for the script/style, OpenFreeMap for the
         // tiles), so the region picker still shows a real interactive map.
+        // The photo editor's subject model is on by default: its WebAssembly
+        // runtime needs 'wasm-unsafe-eval', and the model downloads from
+        // Hugging Face and its CDN.
         expect(scriptSources).toEqual([
           "'self'",
           "'unsafe-inline'",
-          'https://cdn.jsdelivr.net'
+          'https://cdn.jsdelivr.net',
+          "'wasm-unsafe-eval'"
         ])
         expect(styleSources).toEqual([
           "'self'",
@@ -93,7 +97,9 @@ describe('next config security hardening', () => {
         ])
         expect(connectSources).toEqual([
           "'self'",
-          'https://tiles.openfreemap.org'
+          'https://tiles.openfreemap.org',
+          'https://huggingface.co',
+          'https://*.hf.co'
         ])
         expect(imageSources).toEqual([
           "'self'",
@@ -160,7 +166,8 @@ describe('next config security hardening', () => {
           "'self'",
           "'unsafe-inline'",
           "'unsafe-eval'",
-          'https://cdn.jsdelivr.net'
+          'https://cdn.jsdelivr.net',
+          "'wasm-unsafe-eval'"
         ])
         expect(connectSources).toEqual(expect.arrayContaining(['ws:', 'wss:']))
       }
@@ -211,6 +218,8 @@ describe('next config security hardening', () => {
           (header) => header.key === 'Content-Security-Policy'
         )
 
+        // MapKit and the photo editor's subject model both need
+        // 'wasm-unsafe-eval'; it is listed once.
         expect(getCspDirectiveSources('script-src')).toEqual([
           "'self'",
           "'unsafe-inline'",
@@ -224,7 +233,9 @@ describe('next config security hardening', () => {
         ])
         expect(getCspDirectiveSources('connect-src')).toEqual([
           "'self'",
-          'https://*.apple-mapkit.com'
+          'https://*.apple-mapkit.com',
+          'https://huggingface.co',
+          'https://*.hf.co'
         ])
         expect(getCspDirectiveSources('img-src')).toEqual([
           "'self'",
@@ -246,6 +257,65 @@ describe('next config security hardening', () => {
         expect(csp?.value).not.toContain('child-src')
         expect(getCspDirectiveSources('frame-src')).toEqual([
           'https://www.youtube-nocookie.com'
+        ])
+      }
+    )
+  })
+
+  it.each([
+    ['off', 'off'],
+    ['an invalid value (treated as off)', 'http://models.example.com/']
+  ])(
+    'drops the photo editor model sources when the model is %s',
+    (_, value) => {
+      withEnv(
+        {
+          NODE_ENV: 'production',
+          ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN: undefined,
+          ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL: value
+        },
+        () => {
+          expect(getCspDirectiveSources('script-src')).toEqual([
+            "'self'",
+            "'unsafe-inline'",
+            'https://cdn.jsdelivr.net'
+          ])
+          expect(getCspDirectiveSources('connect-src')).toEqual([
+            "'self'",
+            'https://tiles.openfreemap.org'
+          ])
+          expect(getContentSecurityPolicy()).not.toContain('hf.co')
+          expect(getContentSecurityPolicy()).not.toContain('models.example.com')
+        }
+      )
+    }
+  )
+
+  it('allows only the origin of a self-hosted photo editor model', () => {
+    withEnv(
+      {
+        NODE_ENV: 'production',
+        ACTIVITIES_FITNESS_MAPBOX_ACCESS_TOKEN: undefined,
+        ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL:
+          'https://models.example.com/slimsam/'
+      },
+      () => {
+        expect(getCspDirectiveSources('script-src')).toContain(
+          "'wasm-unsafe-eval'"
+        )
+        expect(getCspDirectiveSources('connect-src')).toEqual([
+          "'self'",
+          'https://tiles.openfreemap.org',
+          'https://models.example.com'
+        ])
+        expect(getContentSecurityPolicy()).not.toContain('huggingface.co')
+        // Model downloads are fetches only: no image, media or worker source.
+        expect(getCspDirectiveSources('img-src')).not.toContain(
+          'https://models.example.com'
+        )
+        expect(getCspDirectiveSources('worker-src')).toEqual([
+          "'self'",
+          'blob:'
         ])
       }
     )

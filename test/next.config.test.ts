@@ -26,6 +26,8 @@ describe('next config runtime isolation', () => {
     ACTIVITIES_GALLERY_SUBJECTS_MODEL:
       process.env.ACTIVITIES_GALLERY_SUBJECTS_MODEL,
     ACTIVITIES_HOST: process.env.ACTIVITIES_HOST,
+    ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL:
+      process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL,
     NODE_ENV: process.env.NODE_ENV
   }
 
@@ -44,6 +46,9 @@ describe('next config runtime isolation', () => {
     process.env.ACTIVITIES_GALLERY_NOMINATIM_ENDPOINT = 'http://10.0.0.1'
     process.env.ACTIVITIES_GALLERY_SUBJECTS_MODEL = 'x'
     process.env.ACTIVITIES_HOST = 'build-host-should-not-be-used.example.com'
+    // The photo editor's model origins reach the CSP at request time only.
+    process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL =
+      'https://build-model-should-not-be-used.example.com/'
     setNodeEnv('production')
     fs.writeFileSync(
       path.join(tempDirectory, 'config.json'),
@@ -80,6 +85,32 @@ describe('next config runtime isolation', () => {
       }
     ])
   })
+
+  it.each([
+    ['missing', undefined],
+    ['invalid', 'http://not-https.example.com/models'],
+    ['set to a custom origin', 'https://build-model.example.com/models/']
+  ])(
+    'does not consume the photo editor model config when it is %s',
+    async (_, value) => {
+      if (value === undefined) {
+        delete process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL
+      } else {
+        process.env.ACTIVITIES_PHOTO_MASK_MODEL_BASE_URL = value
+      }
+
+      const { default: loadedNextConfig } = await loadNextConfig()
+      const staticHeaders = JSON.stringify(
+        (await loadedNextConfig.headers?.()) ?? []
+      )
+
+      expect(loadedNextConfig.env).toBeUndefined()
+      expect(staticHeaders).not.toContain('Content-Security-Policy')
+      expect(staticHeaders).not.toContain('wasm-unsafe-eval')
+      expect(staticHeaders).not.toContain('hf.co')
+      expect(staticHeaders).not.toContain('build-model')
+    }
+  )
 
   it('lets proxy handle trailing slashes per route', async () => {
     const { default: loadedNextConfig } = await loadNextConfig()
