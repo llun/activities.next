@@ -545,6 +545,34 @@ describe('getDirectConversations and getDirectConversation', () => {
     ).toEqual([`${p}-v0-s`, `${p}-v5-s`, `${p}-v4-s`])
   })
 
+  it('reaches a tied membership past a whole scan batch of invisible ones', async () => {
+    const p = nextPrefix()
+    const a = actorIdOf(`${p}-a`)
+    // All 31 memberships share one timestamp. The visible one is seeded first,
+    // so it has the lowest id, and the 30 hidden ones (with no fallback
+    // statuses) fill the first scan batch. Only the tie arm of the cursor
+    // (same timestamp, smaller id) reaches the visible one in the second.
+    const hiddenNames = Array.from({ length: 30 }, (_, index) => `h${index}`)
+    for (const name of ['visible', ...hiddenNames]) {
+      await seedConversation({ id: `${p}-${name}`, participants: [a] })
+      await seedMembership({
+        actorId: a,
+        conversationId: `${p}-${name}`,
+        lastStatusId: `${p}-${name}-s`,
+        lastStatusCreatedAt: 5000
+      })
+    }
+    const { source } = fakeStatuses(hiddenNames.map((name) => `${p}-${name}-s`))
+
+    const conversations = await createConversationQueries(
+      source
+    ).getDirectConversations(db, { actorId: a })
+
+    expect(
+      conversations.map((conversation) => conversation.conversationId)
+    ).toEqual([`${p}-visible`])
+  })
+
   it("falls back to the newest visible status of the membership's own conversation", async () => {
     const p = nextPrefix()
     const [a, b] = ['a', 'b'].map((name) => actorIdOf(`${p}-${name}`))
@@ -635,6 +663,88 @@ describe('getDirectConversations and getDirectConversation', () => {
       [`${p}-newer`, `${p}-newer-0`],
       [`${p}-older`, `${p}-older-0`]
     ])
+  })
+
+  it("does not let one conversation's fallback cursor feed rows to another", async () => {
+    const p = nextPrefix()
+    const a = actorIdOf(`${p}-a`)
+    // A has 200 statuses of which only the oldest is visible, so it needs all
+    // four fallback batches. B has 51 statuses, all older than A's, of which
+    // only the oldest is visible, so it needs two. A's cursor must not apply
+    // to B's rows: unbounded, it would keep handing B its first 50 statuses
+    // again and B would not get past them within the four batches.
+    const seeded = [
+      { name: 'A', count: 200, start: 10_000 },
+      { name: 'B', count: 51, start: 1_000 }
+    ]
+    const hidden: string[] = []
+    for (const { name, count, start } of seeded) {
+      const statuses: [string, number][] = Array.from(
+        { length: count },
+        (_, index) => [
+          `${p}-${name}-${String(index).padStart(3, '0')}`,
+          start + index
+        ]
+      )
+      hidden.push(...statuses.slice(1).map(([statusId]) => statusId))
+      await seedConversation({
+        id: `${p}-${name}`,
+        participants: [a],
+        statuses
+      })
+      await seedMembership({
+        actorId: a,
+        conversationId: `${p}-${name}`,
+        lastStatusId: statuses[count - 1][0],
+        lastStatusCreatedAt: start + count - 1
+      })
+    }
+    const { source } = fakeStatuses(hidden)
+
+    const conversations = await createConversationQueries(
+      source
+    ).getDirectConversations(db, { actorId: a })
+
+    expect(
+      conversations.map((conversation) => [
+        conversation.conversationId,
+        conversation.lastStatusId
+      ])
+    ).toEqual([
+      [`${p}-A`, `${p}-A-000`],
+      [`${p}-B`, `${p}-B-000`]
+    ])
+  })
+
+  it('breaks ties between fallback statuses by status id, newest first', async () => {
+    const p = nextPrefix()
+    const a = actorIdOf(`${p}-a`)
+    // 51 statuses share one timestamp and only the one with the lowest id is
+    // visible. The first fallback batch is the 50 highest ids in descending
+    // order, and the second is the one left.
+    const ids = Array.from(
+      { length: 51 },
+      (_, index) => `${p}-t${String(index).padStart(2, '0')}`
+    )
+    await seedConversation({
+      id: `${p}-c1`,
+      participants: [a],
+      statuses: ids.map((id): [string, number] => [id, 3000])
+    })
+    await seedMembership({
+      actorId: a,
+      conversationId: `${p}-c1`,
+      lastStatusId: ids[50],
+      lastStatusCreatedAt: 3000
+    })
+    const { source, calls } = fakeStatuses(ids.slice(1))
+
+    const [conversation] = await createConversationQueries(
+      source
+    ).getDirectConversations(db, { actorId: a })
+
+    expect(conversation.lastStatusId).toBe(ids[0])
+    expect(calls.slice(1)).toEqual([ids.slice(1).reverse(), [ids[0]]])
   })
 })
 
@@ -867,6 +977,42 @@ describe('getDirectConversationStatuses', () => {
       `${p}-v5`,
       `${p}-v4`
     ])
+  })
+
+  it('lists tied statuses by status id, newest first, whatever order they were stored in', async () => {
+    const p = nextPrefix()
+    const a = actorIdOf(`${p}-a`)
+    // 40 statuses share one timestamp and are stored from the highest id down,
+    // the reverse of the order they are listed in. A page of 35 scans exactly
+    // 35 of them.
+    const ids = Array.from(
+      { length: 40 },
+      (_, index) => `${p}-u${String(index).padStart(2, '0')}`
+    )
+    await seedConversation({
+      id: `${p}-c1`,
+      participants: [a],
+      statuses: [...ids].reverse().map((id): [string, number] => [id, 4000])
+    })
+    const membership = await seedMembership({
+      actorId: a,
+      conversationId: `${p}-c1`,
+      lastStatusId: ids[39],
+      lastStatusCreatedAt: 4000
+    })
+    const { source, calls } = fakeStatuses()
+
+    const statuses = await createConversationQueries(
+      source
+    ).getDirectConversationStatuses(db, {
+      actorId: a,
+      conversationId: membership,
+      limit: 35
+    })
+
+    const expected = [...ids].reverse().slice(0, 35)
+    expect(calls.slice(1)).toEqual([expected])
+    expect(statuses.map((status) => status.id)).toEqual(expected)
   })
 })
 
@@ -1259,6 +1405,7 @@ describe('syncDirectConversationForStatus', () => {
     const conversationId = getConversationIdForRootStatusId(status.id)
     expect(await conversationIdOfStatus(status.id)).toEqual([])
     expect(await participantsOf(conversationId)).toEqual([])
+    expect(await membershipsOf(conversationId)).toEqual([])
     expect(
       await db
         .selectFrom('direct_conversations')
@@ -1331,14 +1478,17 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
       await other.destroy()
     })
 
-    const waitForLockWait = async () => {
-      for (let attempt = 0; attempt < 250; attempt += 1) {
+    // True once some statement of this database waits on a lock; false when
+    // `stopped` turns true or the wait runs out first.
+    const waitForLockWait = async (stopped: () => boolean) => {
+      for (let attempt = 0; attempt < 250 && !stopped(); attempt += 1) {
         const { rows } = await other.raw(
           "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'"
         )
-        if (rows[0].waiting > 0) return
+        if (rows[0].waiting > 0) return true
         await new Promise((resolve) => setTimeout(resolve, 20))
       }
+      return false
     }
 
     const selectsFrom = (node: RootOperationNode, table: string) =>
@@ -1360,6 +1510,7 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
       })
 
       let concurrent: Promise<unknown> | undefined
+      let lockWaitSeen = false
       const watched = new Set<object>()
       const syncAfterRead: KyselyPlugin = {
         transformQuery: ({ node, queryId }) => {
@@ -1383,7 +1534,14 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
                   updatedAt: new Date()
                 })
             )
-            await Promise.race([concurrent, waitForLockWait()])
+            let updated = false
+            const settled = concurrent.then(() => {
+              updated = true
+            })
+            lockWaitSeen = await Promise.race([
+              settled.then(() => false),
+              waitForLockWait(() => updated)
+            ])
           }
           return result
         }
@@ -1396,6 +1554,8 @@ describe.runIf(process.env.TEST_DATABASE_TYPE === 'pg')(
       await concurrent
 
       expect(concurrent).toBeDefined()
+      // The update was blocked on the row lock, not merely finished last.
+      expect(lockWaitSeen).toBe(true)
       expect(await readMembership(id)).toMatchObject({
         lastStatusId: `${p}-s2`,
         unread: true
