@@ -1,8 +1,4 @@
-import {
-  databaseBeforeAll,
-  getTestDatabaseTable,
-  getTestSQLDatabase
-} from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 
 const REPORTER = 'https://test.llun.dev/users/reporter'
@@ -11,22 +7,18 @@ const TARGET = 'https://remote.example/users/spammer'
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
-  await database.migrate()
+  // Each test starts from an empty, migrated database.
+  const testDb = createTestDatabase()
+  await testDb.prepare()
+  await testDb.database.migrate()
   try {
-    await test(database)
+    await test(testDb.database)
   } finally {
-    await database.destroy()
+    await testDb.destroy()
   }
 }
 
 describe('ReportDatabase', () => {
-  const table = getTestDatabaseTable()
-
-  beforeAll(async () => {
-    await databaseBeforeAll(table)
-  })
-
   it('persists a report with category, comment and status ids', async () => {
     await withFreshDatabase(async (database) => {
       const report = await database.createReport({
@@ -181,6 +173,113 @@ describe('ReportDatabase', () => {
         }
       })
     })
+
+    it('matches the target actor domain case-insensitively', async () => {
+      await withFreshDatabase(async (database) => {
+        await database.createActor({
+          actorId: 'https://Mixed.Example/users/troll',
+          username: 'troll',
+          domain: 'Mixed.Example',
+          inboxUrl: 'https://Mixed.Example/users/troll/inbox',
+          sharedInboxUrl: 'https://Mixed.Example/inbox',
+          followersUrl: 'https://Mixed.Example/users/troll/followers',
+          publicKey: 'key',
+          createdAt: Date.now()
+        })
+        const onDomain = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: 'https://Mixed.Example/users/troll'
+        })
+        await database.createReport({
+          actorId: REPORTER,
+          targetActorId: TARGET
+        })
+
+        const result = await database.getAdminReports({
+          byTargetDomain: 'mixed.example'
+        })
+        expect(result.map((r) => r.id)).toEqual([onDomain.id])
+      })
+    })
+
+    describe('with a frozen clock', () => {
+      // createdAt decides the page order, so Date is frozen and stepped by
+      // hand: one tick per report, or no tick for a same-millisecond batch.
+      const T0 = Date.UTC(2026, 0, 1)
+      let tick = 0
+      const advance = () => vi.setSystemTime(T0 + ++tick * 1000)
+
+      beforeEach(() => {
+        tick = 0
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(T0)
+      })
+
+      afterEach(() => {
+        vi.useRealTimers()
+      })
+
+      it('limit; min_id returns the page nearest the cursor, newest first, and wins over since_id', async () => {
+        await withFreshDatabase(async (database) => {
+          const createNext = () => {
+            advance()
+            return database.createReport({
+              actorId: REPORTER,
+              targetActorId: TARGET
+            })
+          }
+          const [r1, r2, r3] = [
+            await createNext(),
+            await createNext(),
+            await createNext()
+          ]
+          await createNext()
+
+          expect(await database.getAdminReports({ limit: 2 })).toHaveLength(2)
+          const page = await database.getAdminReports({
+            minId: r1.id,
+            limit: 2
+          })
+          expect(page.map((r) => r.id)).toEqual([r3.id, r2.id])
+          // min_id wins over since_id when both are given.
+          const both = await database.getAdminReports({
+            minId: r1.id,
+            sinceId: r2.id,
+            limit: 2
+          })
+          expect(both.map((r) => r.id)).toEqual([r3.id, r2.id])
+        })
+      })
+
+      it('max_id paginates through reports created in the same millisecond', async () => {
+        await withFreshDatabase(async (database) => {
+          advance()
+          const created = []
+          for (let i = 0; i < 3; i++) {
+            created.push(
+              await database.createReport({
+                actorId: REPORTER,
+                targetActorId: TARGET
+              })
+            )
+          }
+
+          const seen: string[] = []
+          let maxId: string | undefined
+          for (let i = 0; i < 4; i++) {
+            const page = await database.getAdminReports({
+              accountId: REPORTER,
+              limit: 1,
+              maxId
+            })
+            if (page.length === 0) break
+            seen.push(page[0].id)
+            maxId = page[0].id
+          }
+          expect(seen.sort()).toEqual(created.map((r) => r.id).sort())
+        })
+      })
+    })
   })
 
   describe('getReportById / updateReportCategory / assignReport', () => {
@@ -216,6 +315,36 @@ describe('ReportDatabase', () => {
           assignedActorId: null
         })
         expect(unassigned?.assignedActorId).toBeNull()
+      })
+    })
+
+    it('updateReportCategory and assignReport touch only the targeted report', async () => {
+      await withFreshDatabase(async (database) => {
+        const target = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: TARGET
+        })
+        const other = await database.createReport({
+          actorId: REPORTER,
+          targetActorId: TARGET
+        })
+
+        await database.updateReportCategory({
+          reportId: target.id,
+          category: 'spam',
+          ruleIds: ['r1']
+        })
+        await database.assignReport({
+          reportId: target.id,
+          assignedActorId: REPORTER
+        })
+
+        const untouched = (await database.getReportById({
+          reportId: other.id
+        }))!
+        expect(untouched.category).toBe('other')
+        expect(untouched.ruleIds).toEqual([])
+        expect(untouched.assignedActorId).toBeNull()
       })
     })
   })

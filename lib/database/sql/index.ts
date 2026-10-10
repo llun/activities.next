@@ -10,6 +10,8 @@ import { deadLetterJobQueries } from '@/lib/database/domains/deadLetterJob/queri
 import type { DeadLetterJobDatabase } from '@/lib/database/domains/deadLetterJob/types'
 import { endorsementQueries } from '@/lib/database/domains/endorsement/queries'
 import type { EndorsementDatabase } from '@/lib/database/domains/endorsement/types'
+import { filterQueries } from '@/lib/database/domains/filter/queries'
+import type { FilterDatabase } from '@/lib/database/domains/filter/types'
 import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
 import type { FollowedTagDatabase } from '@/lib/database/domains/followedTag/types'
 import { idempotencyQueries } from '@/lib/database/domains/idempotency/queries'
@@ -30,10 +32,20 @@ import { queueJobQueries } from '@/lib/database/domains/queueJob/queries'
 import type { QueueJobDatabase } from '@/lib/database/domains/queueJob/types'
 import { relayQueries } from '@/lib/database/domains/relay/queries'
 import type { RelayDatabase } from '@/lib/database/domains/relay/types'
+import { reportQueries } from '@/lib/database/domains/report/queries'
+import type { ReportDatabase } from '@/lib/database/domains/report/types'
 import { scheduledStatusQueries } from '@/lib/database/domains/scheduledStatus/queries'
 import type { ScheduledStatusDatabase } from '@/lib/database/domains/scheduledStatus/types'
+import { serverFilterQueries } from '@/lib/database/domains/serverFilter/queries'
+import type { ServerFilterDatabase } from '@/lib/database/domains/serverFilter/types'
 import { serverSettingQueries } from '@/lib/database/domains/serverSetting/queries'
 import type { ServerSettingDatabase } from '@/lib/database/domains/serverSetting/types'
+import { statusDetectedLanguageQueries } from '@/lib/database/domains/statusDetectedLanguage/queries'
+import type { StatusDetectedLanguageDatabase } from '@/lib/database/domains/statusDetectedLanguage/types'
+import { statusMuteQueries } from '@/lib/database/domains/statusMute/queries'
+import type { StatusMuteDatabase } from '@/lib/database/domains/statusMute/types'
+import { suggestionQueries } from '@/lib/database/domains/suggestion/queries'
+import type { SuggestionDatabase } from '@/lib/database/domains/suggestion/types'
 import { translationCacheQueries } from '@/lib/database/domains/translationCache/queries'
 import type { TranslationCacheDatabase } from '@/lib/database/domains/translationCache/types'
 import {
@@ -50,7 +62,6 @@ import { BookmarkSQLDatabaseMixin } from '@/lib/database/sql/bookmark'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
 import { FeaturedTagSQLDatabaseMixin } from '@/lib/database/sql/featuredTag'
-import { FilterSQLDatabaseMixin } from '@/lib/database/sql/filter'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessGearSQLDatabaseMixin } from '@/lib/database/sql/fitnessGear'
@@ -70,16 +81,11 @@ import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
 import { MuteSQLDatabaseMixin } from '@/lib/database/sql/mute'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
-import { ReportSQLDatabaseMixin } from '@/lib/database/sql/report'
 import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
-import { ServerFilterSQLDatabaseMixin } from '@/lib/database/sql/serverFilter'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
-import { StatusDetectedLanguageSQLDatabaseMixin } from '@/lib/database/sql/statusDetectedLanguage'
-import { StatusMuteSQLDatabaseMixin } from '@/lib/database/sql/statusMute'
 import { StatusQuoteSQLDatabaseMixin } from '@/lib/database/sql/statusQuote'
 import { StatusReactionSQLDatabaseMixin } from '@/lib/database/sql/statusReaction'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
-import { SuggestionSQLDatabaseMixin } from '@/lib/database/sql/suggestion'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { TrendsSQLDatabaseMixin } from '@/lib/database/sql/trends'
 import { WahooImportSQLDatabaseMixin } from '@/lib/database/sql/wahooImport'
@@ -140,7 +146,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     endorsementQueries
   )
   const featuredTagDatabase = FeaturedTagSQLDatabaseMixin(database)
-  const statusMuteDatabase = StatusMuteSQLDatabaseMixin(database)
+  const statusMuteDatabase: StatusMuteDatabase = bindDb(
+    kysely,
+    statusMuteQueries
+  )
   const statusQuoteDatabase = StatusQuoteSQLDatabaseMixin(database)
   const statusReactionDatabase = StatusReactionSQLDatabaseMixin(database)
   const idempotencyDatabase: IdempotencyDatabase = bindDb(
@@ -151,10 +160,15 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     translationCacheQueries
   )
-  const statusDetectedLanguageDatabase =
-    StatusDetectedLanguageSQLDatabaseMixin(database)
-  const filterDatabase = FilterSQLDatabaseMixin(database)
-  const serverFilterDatabase = ServerFilterSQLDatabaseMixin(database)
+  const statusDetectedLanguageDatabase: StatusDetectedLanguageDatabase = bindDb(
+    kysely,
+    statusDetectedLanguageQueries
+  )
+  const filterDatabase: FilterDatabase = bindDb(kysely, filterQueries)
+  const serverFilterDatabase: ServerFilterDatabase = bindDb(
+    kysely,
+    serverFilterQueries
+  )
   const serverSettingDatabase: ServerSettingDatabase = bindDb(
     kysely,
     serverSettingQueries
@@ -180,7 +194,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   )
   const queueJobDatabase: QueueJobDatabase = bindDb(kysely, queueJobQueries)
   const relayDatabase: RelayDatabase = bindDb(kysely, relayQueries)
-  const reportDatabase = ReportSQLDatabaseMixin(database)
+  const reportDatabase: ReportDatabase = bindDb(kysely, reportQueries)
   const scheduledStatusDatabase: ScheduledStatusDatabase = bindDb(
     kysely,
     scheduledStatusQueries
@@ -190,7 +204,10 @@ export const getSQLDatabase = (database: Knex): Database => {
   const stravaArchiveImportDatabase =
     StravaArchiveImportSQLDatabaseMixin(database)
   const wahooImportDatabase = WahooImportSQLDatabaseMixin(database)
-  const suggestionDatabase = SuggestionSQLDatabaseMixin(database)
+  const suggestionDatabase: SuggestionDatabase = bindDb(
+    kysely,
+    suggestionQueries
+  )
   const trendsDatabase = TrendsSQLDatabaseMixin(database)
   const statusDatabase = StatusSQLDatabaseMixin(
     database,

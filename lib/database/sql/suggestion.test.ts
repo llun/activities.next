@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { FollowStatus } from '@/lib/types/domain/follow'
 
@@ -13,12 +13,14 @@ const ACTOR_F_ID = 'https://suggestions.test/users/actorF'
 const withFreshDatabase = async (
   test: (database: Database) => Promise<void>
 ) => {
-  const database = getTestSQLDatabase()
-  await database.migrate()
+  // Each test starts from an empty, migrated database.
+  const testDb = createTestDatabase()
+  await testDb.prepare()
+  await testDb.database.migrate()
   try {
-    await test(database)
+    await test(testDb.database)
   } finally {
-    await database.destroy()
+    await testDb.destroy()
   }
 }
 
@@ -190,6 +192,75 @@ describe('getFriendsOfFriendsSuggestions', () => {
           limit: 10
         })
       ).toEqual([{ targetActorId: ACTOR_D_ID, mutuals: 1 }])
+    })
+  })
+
+  describe('with a frozen clock', () => {
+    // A mute ending exactly now is still active, which needs Date.now() to be
+    // the same in the test and in the query.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(Date.UTC(2026, 0, 1))
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it("ignores other actors' graph, dismissals, blocks and mutes; ties by id; a mute ending now still hides", async () => {
+      await withFreshDatabase(async (database) => {
+        const user = (name: string) => `https://suggestions.test/users/${name}`
+        const me = user('me')
+        await createFollow(database, me, user('friend'))
+        for (const candidate of ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7']) {
+          await createFollow(database, user('friend'), user(candidate))
+        }
+        // An unrelated chain x -> y -> z must not surface z.
+        await createFollow(database, user('x'), user('y'))
+        await createFollow(database, user('y'), user('z'))
+        // A rejected follow from me does not count as "already following".
+        await createFollow(database, me, user('c1'), FollowStatus.enum.Rejected)
+        // Other actors' dismissals, blocks (either direction) and mutes.
+        await database.dismissSuggestion({
+          actorId: user('x'),
+          targetActorId: user('c2')
+        })
+        await database.createBlock({
+          actorId: user('x'),
+          targetActorId: user('c3'),
+          uri: `${user('x')}#blocks/1`
+        })
+        await database.createBlock({
+          actorId: user('c4'),
+          targetActorId: user('x'),
+          uri: `${user('c4')}#blocks/1`
+        })
+        await database.createMute({
+          actorId: user('x'),
+          targetActorId: user('c5'),
+          notifications: false,
+          endsAt: null
+        })
+        // My mute on c7 ends exactly now: still active.
+        await database.createMute({
+          actorId: me,
+          targetActorId: user('c7'),
+          notifications: false,
+          endsAt: Date.now()
+        })
+
+        expect(
+          await database.getFriendsOfFriendsSuggestions({
+            actorId: me,
+            limit: 10
+          })
+        ).toEqual(
+          ['c1', 'c2', 'c3', 'c4', 'c5', 'c6'].map((candidate) => ({
+            targetActorId: user(candidate),
+            mutuals: 1
+          }))
+        )
+      })
     })
   })
 

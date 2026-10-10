@@ -30,14 +30,6 @@ import {
   CollectionFeatureState,
   CollectionVisibility
 } from '@/lib/types/domain/collection'
-import {
-  Filter,
-  FilterAction,
-  FilterContext,
-  FilterKeyword,
-  FilterStatus,
-  ServerFilter
-} from '@/lib/types/domain/filter'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
 import { Mute } from '@/lib/types/domain/mute'
@@ -953,26 +945,13 @@ export interface StatusDatabase {
 // Status Detected Language Database
 // ============================================================================
 
-export type SetDetectedLanguageParams = {
-  statusId: string
-  language: string
-  confidence?: number | null
-}
-export type GetDetectedLanguageParams = { statusId: string }
-export type GetDetectedLanguagesParams = { statusIds: string[] }
-export type ClearDetectedLanguageParams = { statusId: string }
-
-export interface StatusDetectedLanguageDatabase {
-  setDetectedLanguage(params: SetDetectedLanguageParams): Promise<void>
-  getDetectedLanguage(params: GetDetectedLanguageParams): Promise<string | null>
-  getDetectedLanguages(
-    params: GetDetectedLanguagesParams
-  ): Promise<Record<string, string>>
-  // Removes a previously detected language, e.g. when re-detection on an edit
-  // no longer yields a confident result — leaving the old row in place would
-  // surface a stale language for the post's new content.
-  clearDetectedLanguage(params: ClearDetectedLanguageParams): Promise<void>
-}
+export type {
+  ClearDetectedLanguageParams,
+  GetDetectedLanguageParams,
+  GetDetectedLanguagesParams,
+  SetDetectedLanguageParams,
+  StatusDetectedLanguageDatabase
+} from '@/lib/database/domains/statusDetectedLanguage/types'
 
 // ============================================================================
 // Search Database
@@ -1403,21 +1382,13 @@ export interface MuteDatabase {
 // Status (conversation) Mute Database
 // ============================================================================
 
-// `statusId` is the thread-root status id that identifies the muted
-// conversation (see resolveConversationRootId).
-export type CreateStatusMuteParams = { actorId: string; statusId: string }
-export type DeleteStatusMuteParams = { actorId: string; statusId: string }
-export type IsConversationMutedParams = { actorId: string; statusId: string }
-export type GetActorMutedConversationRootIdsParams = { actorId: string }
-
-export interface StatusMuteDatabase {
-  createStatusMute(params: CreateStatusMuteParams): Promise<void>
-  deleteStatusMute(params: DeleteStatusMuteParams): Promise<void>
-  isConversationMuted(params: IsConversationMutedParams): Promise<boolean>
-  getActorMutedConversationRootIds(
-    params: GetActorMutedConversationRootIdsParams
-  ): Promise<string[]>
-}
+export type {
+  CreateStatusMuteParams,
+  DeleteStatusMuteParams,
+  GetActorMutedConversationRootIdsParams,
+  IsConversationMutedParams,
+  StatusMuteDatabase
+} from '@/lib/database/domains/statusMute/types'
 
 // ============================================================================
 // Idempotency Key Database
@@ -1907,37 +1878,12 @@ export type {
 // Suggestion Database
 // ============================================================================
 
-// A friends-of-friends follow suggestion candidate: an account followed by
-// the accounts `actorId` follows. `mutuals` is the number of accepted
-// follow edges from those followed accounts to the candidate, used for
-// ranking (descending).
-export type FriendsOfFriendsSuggestion = {
-  targetActorId: string
-  mutuals: number
-}
-
-export type GetFriendsOfFriendsSuggestionsParams = {
-  actorId: string
-  limit: number
-}
-export type DismissSuggestionParams = {
-  actorId: string
-  targetActorId: string
-}
-
-export interface SuggestionDatabase {
-  // Accounts followed by the accounts `actorId` follows, ranked by mutual
-  // count descending (targetActorId ascending as a stable tiebreaker).
-  // Excludes `actorId` itself, anyone `actorId` already follows (Accepted) or
-  // has a pending request to, anyone `actorId` has dismissed, anyone in a block
-  // with `actorId` (either direction), and anyone `actorId` actively mutes.
-  // Only Accepted follow edges count on both hops.
-  getFriendsOfFriendsSuggestions(
-    params: GetFriendsOfFriendsSuggestionsParams
-  ): Promise<FriendsOfFriendsSuggestion[]>
-  // Idempotent: dismissing an already-dismissed pair is a no-op.
-  dismissSuggestion(params: DismissSuggestionParams): Promise<void>
-}
+export type {
+  DismissSuggestionParams,
+  FriendsOfFriendsSuggestion,
+  GetFriendsOfFriendsSuggestionsParams,
+  SuggestionDatabase
+} from '@/lib/database/domains/suggestion/types'
 
 // ============================================================================
 // Announcement Database
@@ -2119,74 +2065,16 @@ export interface TrendsDatabase {
 // Report Database
 // ============================================================================
 
-export const ReportCategory = z.enum(['spam', 'legal', 'violation', 'other'])
-export type ReportCategory = z.infer<typeof ReportCategory>
-
-export type Report = {
-  id: string
-  actorId: string
-  targetActorId: string
-  category: ReportCategory
-  comment: string
-  forward: boolean
-  statusIds: string[]
-  ruleIds: string[]
-  collectionIds: string[]
-  actionTaken: boolean
-  // Workflow columns (Admin moderation API). Actor ids in URL form.
-  assignedActorId: string | null
-  actionTakenAt: number | null
-  actionTakenByActorId: string | null
-  createdAt: number
-  updatedAt: number
-}
-export type CreateReportParams = {
-  actorId: string
-  targetActorId: string
-  category?: ReportCategory
-  comment?: string
-  forward?: boolean
-  statusIds?: string[]
-  ruleIds?: string[]
-  collectionIds?: string[]
-}
-
-export type GetAdminReportsParams = {
-  // `resolved` maps to the action_taken flag.
-  resolved?: boolean
-  // Reporter / target actor ids in URL form.
-  accountId?: string
-  targetActorId?: string
-  byTargetDomain?: string
-  limit?: number
-  maxId?: string | null
-  minId?: string | null
-  sinceId?: string | null
-}
-export type GetReportByIdParams = { reportId: string }
-export type UpdateReportCategoryParams = {
-  reportId: string
-  category?: ReportCategory
-  ruleIds?: string[]
-}
-export type AssignReportParams = {
-  reportId: string
-  // null unassigns.
-  assignedActorId: string | null
-}
-
-export interface ReportDatabase {
-  createReport(params: CreateReportParams): Promise<Report>
-  // Filter/keyset-paginated admin report listing (newest first).
-  getAdminReports(params: GetAdminReportsParams): Promise<Report[]>
-  getReportById(params: GetReportByIdParams): Promise<Report | null>
-  // Update the report category and/or rule ids; returns the updated report.
-  updateReportCategory(
-    params: UpdateReportCategoryParams
-  ): Promise<Report | null>
-  // Assign (or, with null, unassign) the report to a moderator actor.
-  assignReport(params: AssignReportParams): Promise<Report | null>
-}
+export { ReportCategory } from '@/lib/database/domains/report/types'
+export type {
+  AssignReportParams,
+  CreateReportParams,
+  GetAdminReportsParams,
+  GetReportByIdParams,
+  Report,
+  ReportDatabase,
+  UpdateReportCategoryParams
+} from '@/lib/database/domains/report/types'
 
 // ============================================================================
 // Moderation Database
@@ -2378,214 +2266,41 @@ export type {
 // Filter Database
 // ============================================================================
 
-export type CreateFilterKeywordInput = {
-  keyword: string
-  wholeWord?: boolean
-}
-
-export type UpdateFilterKeywordInput = {
-  id?: string
-  keyword?: string
-  wholeWord?: boolean
-  _destroy?: boolean
-}
-
-export type CreateFilterParams = {
-  actorId: string
-  title: string
-  context: FilterContext[]
-  filterAction: FilterAction
-  expiresAt: number | null
-  keywords?: CreateFilterKeywordInput[]
-}
-
-export type GetFilterParams = {
-  actorId: string
-  id: string
-}
-
-export type UpdateFilterParams = {
-  actorId: string
-  id: string
-  title?: string
-  context?: FilterContext[]
-  filterAction?: FilterAction
-  expiresAt?: number | null
-  keywords?: UpdateFilterKeywordInput[]
-}
-
-export type DeleteFilterParams = {
-  actorId: string
-  id: string
-}
-
-export type GetActiveFiltersForActorParams = {
-  actorId: string
-  context?: FilterContext
-}
-
-export type GetFilterRecordsForActorParams = {
-  actorId: string
-}
-
-export type ActiveFilterRecord = {
-  filter: Filter
-  keywords: FilterKeyword[]
-  statuses: FilterStatus[]
-}
-
-export type AddFilterKeywordParams = {
-  actorId: string
-  filterId: string
-  keyword: string
-  wholeWord?: boolean
-}
-
-export type GetFilterKeywordsParams = {
-  actorId: string
-  filterId: string
-}
-
-export type GetFilterKeywordParams = {
-  actorId: string
-  id: string
-}
-
-export type UpdateFilterKeywordParams = {
-  actorId: string
-  id: string
-  keyword?: string
-  wholeWord?: boolean
-}
-
-export type DeleteFilterKeywordParams = {
-  actorId: string
-  id: string
-}
-
-export type AddFilterStatusParams = {
-  actorId: string
-  filterId: string
-  statusId: string
-}
-
-export type GetFilterStatusesParams = {
-  actorId: string
-  filterId: string
-}
-
-export type GetFilterStatusParams = {
-  actorId: string
-  id: string
-}
-
-export type DeleteFilterStatusParams = {
-  actorId: string
-  id: string
-}
-
-export interface FilterDatabase {
-  createFilter(params: CreateFilterParams): Promise<Filter>
-  getFilter(params: GetFilterParams): Promise<Filter | null>
-  updateFilter(params: UpdateFilterParams): Promise<Filter | null>
-  deleteFilter(params: DeleteFilterParams): Promise<Filter | null>
-  getActiveFiltersForActor(
-    params: GetActiveFiltersForActorParams
-  ): Promise<ActiveFilterRecord[]>
-  // Like getActiveFiltersForActor but returns ALL of the actor's filters,
-  // including expired ones, so the management UI can list expired filters with
-  // an "Expired" badge and let the user reactivate them.
-  getFilterRecordsForActor(
-    params: GetFilterRecordsForActorParams
-  ): Promise<ActiveFilterRecord[]>
-  addFilterKeyword(
-    params: AddFilterKeywordParams
-  ): Promise<FilterKeyword | null>
-  getFilterKeywords(
-    params: GetFilterKeywordsParams
-  ): Promise<FilterKeyword[] | null>
-  getFilterKeyword(
-    params: GetFilterKeywordParams
-  ): Promise<FilterKeyword | null>
-  updateFilterKeyword(
-    params: UpdateFilterKeywordParams
-  ): Promise<FilterKeyword | null | 'duplicate'>
-  deleteFilterKeyword(
-    params: DeleteFilterKeywordParams
-  ): Promise<FilterKeyword | null>
-  addFilterStatus(params: AddFilterStatusParams): Promise<FilterStatus | null>
-  getFilterStatuses(
-    params: GetFilterStatusesParams
-  ): Promise<FilterStatus[] | null>
-  getFilterStatus(params: GetFilterStatusParams): Promise<FilterStatus | null>
-  deleteFilterStatus(
-    params: DeleteFilterStatusParams
-  ): Promise<FilterStatus | null>
-}
+export type {
+  ActiveFilterRecord,
+  AddFilterKeywordParams,
+  AddFilterStatusParams,
+  CreateFilterKeywordInput,
+  CreateFilterParams,
+  DeleteFilterKeywordParams,
+  DeleteFilterParams,
+  DeleteFilterStatusParams,
+  FilterDatabase,
+  GetActiveFiltersForActorParams,
+  GetFilterKeywordParams,
+  GetFilterKeywordsParams,
+  GetFilterParams,
+  GetFilterRecordsForActorParams,
+  GetFilterStatusParams,
+  GetFilterStatusesParams,
+  UpdateFilterKeywordInput,
+  UpdateFilterKeywordParams,
+  UpdateFilterParams
+} from '@/lib/database/domains/filter/types'
 
 // ============================================================================
 // Server Filter Database (instance-wide, admin-authored)
 // ============================================================================
 
-export type CreateServerFilterParams = {
-  title: string
-  context: FilterContext[]
-  filterAction: FilterAction
-  expiresAt: number | null
-  keywords?: CreateFilterKeywordInput[]
-}
-
-export type GetServerFilterParams = {
-  id: string
-}
-
-export type UpdateServerFilterParams = {
-  id: string
-  title?: string
-  context?: FilterContext[]
-  filterAction?: FilterAction
-  expiresAt?: number | null
-  keywords?: UpdateFilterKeywordInput[]
-}
-
-export type DeleteServerFilterParams = {
-  id: string
-}
-
-export type GetActiveServerFiltersParams = {
-  context?: FilterContext
-}
-
-export type ActiveServerFilterRecord = {
-  filter: ServerFilter
-  keywords: FilterKeyword[]
-}
-
-export interface ServerFilterDatabase {
-  createServerFilter(params: CreateServerFilterParams): Promise<ServerFilter>
-  // All server filters (including expired), hydrated with keywords, for the
-  // admin management UI.
-  getServerFilterRecords(): Promise<ActiveServerFilterRecord[]>
-  // A single server filter (including expired) hydrated with keywords, for the
-  // admin detail endpoint.
-  getServerFilterRecord(
-    params: GetServerFilterParams
-  ): Promise<ActiveServerFilterRecord | null>
-  getServerFilterKeywords(
-    params: GetServerFilterParams
-  ): Promise<FilterKeyword[] | null>
-  updateServerFilter(
-    params: UpdateServerFilterParams
-  ): Promise<ServerFilter | null>
-  deleteServerFilter(
-    params: DeleteServerFilterParams
-  ): Promise<ServerFilter | null>
-  // Only active (non-expired) server filters, hydrated with keywords, for
-  // merging into clients' filter lists and applying to timelines.
-  getActiveServerFilters(
-    params?: GetActiveServerFiltersParams
-  ): Promise<ActiveServerFilterRecord[]>
-}
+export type {
+  ActiveServerFilterRecord,
+  CreateServerFilterParams,
+  DeleteServerFilterParams,
+  GetActiveServerFiltersParams,
+  GetServerFilterParams,
+  ServerFilterDatabase,
+  UpdateServerFilterParams
+} from '@/lib/database/domains/serverFilter/types'
 
 // ============================================================================
 // Like Database

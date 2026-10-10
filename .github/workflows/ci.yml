@@ -168,9 +168,11 @@ jobs:
   # settings, the translation cache, keyset pagination), actor deletion, the
   # job, OAuth, push and scheduled-status domains (dead letter jobs, queue job
   # claim and replay, OAuth clients and connected apps, push subscriptions,
-  # scheduled statuses), and
-  # the Knex-backed Kysely driver (result normalisation, the mixed-transaction
-  # guard, counters).
+  # scheduled statuses), the filter, report, mute and suggestion domains
+  # (filters, server filters, reports, conversation mutes, detected languages,
+  # friends-of-friends suggestions), and the Knex-backed Kysely driver (result
+  # normalisation, the mixed-transaction guard, counters, chunked IN lists,
+  # savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -260,10 +262,19 @@ jobs:
             lib/database/sql/oauth.test.ts \
             lib/database/sql/pushSubscription.test.ts \
             lib/database/sql/scheduledStatus.test.ts \
+            lib/database/sql/filter.test.ts \
+            lib/database/sql/serverFilter.test.ts \
+            lib/database/sql/report.test.ts \
+            lib/database/sql/statusDetectedLanguage.test.ts \
+            lib/database/sql/statusMute.test.ts \
+            lib/database/sql/suggestion.test.ts \
+            lib/services/notifications/createConversationMuteSuppression.test.ts \
             lib/database/kysely/driver.test.ts \
             lib/database/kysely/guard.test.ts \
             lib/database/kysely/counter.test.ts \
             lib/database/kysely/keyset.test.ts \
+            lib/database/kysely/inList.test.ts \
+            lib/database/kysely/savepoint.test.ts \
             lib/services/translation/translationCache.integration.test.ts \
             lib/database/testing/createTestDatabase.test.ts \
             lib/database/testing/fixtures.test.ts

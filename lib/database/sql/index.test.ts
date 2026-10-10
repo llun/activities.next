@@ -11,7 +11,6 @@ import { MediaSQLDatabaseMixin } from './media'
 import { NotificationSQLDatabaseMixin } from './notification'
 import { SearchSQLDatabaseMixin } from './search'
 import { StatusSQLDatabaseMixin } from './status'
-import { StatusDetectedLanguageSQLDatabaseMixin } from './statusDetectedLanguage'
 import { TimelineSQLDatabaseMixin } from './timeline'
 
 const { kyselyForMock, createLikeMock } = vi.hoisted(() => ({
@@ -68,10 +67,6 @@ vi.mock('@/lib/database/sql/status', () => ({
   StatusSQLDatabaseMixin: vi.fn()
 }))
 
-vi.mock('@/lib/database/sql/statusDetectedLanguage', () => ({
-  StatusDetectedLanguageSQLDatabaseMixin: vi.fn()
-}))
-
 vi.mock('@/lib/database/sql/timeline', () => ({
   TimelineSQLDatabaseMixin: vi.fn()
 }))
@@ -89,8 +84,6 @@ describe('getSQLDatabase', () => {
     NotificationSQLDatabaseMixin as unknown as jest.Mock
   const searchMixinMock = SearchSQLDatabaseMixin as unknown as jest.Mock
   const statusMixinMock = StatusSQLDatabaseMixin as unknown as jest.Mock
-  const statusDetectedLanguageMixinMock =
-    StatusDetectedLanguageSQLDatabaseMixin as unknown as jest.Mock
   const timelineMixinMock = TimelineSQLDatabaseMixin as unknown as jest.Mock
 
   let _knexMock: Knex
@@ -139,9 +132,6 @@ describe('getSQLDatabase', () => {
     const statusDatabase = {
       getStatus: vi.fn()
     }
-    const statusDetectedLanguageDatabase = {
-      getDetectedLanguage: vi.fn()
-    }
     const timelineDatabase = {
       getTimeline: vi.fn(),
       testPriority: 'timeline'
@@ -158,9 +148,6 @@ describe('getSQLDatabase', () => {
     notificationMixinMock.mockReturnValue(notificationDatabase)
     searchMixinMock.mockReturnValue(searchDatabase)
     statusMixinMock.mockReturnValue(statusDatabase)
-    statusDetectedLanguageMixinMock.mockReturnValue(
-      statusDetectedLanguageDatabase
-    )
     timelineMixinMock.mockReturnValue(timelineDatabase)
 
     const database = getSQLDatabase(knexDatabase)
@@ -178,7 +165,6 @@ describe('getSQLDatabase', () => {
       notificationDatabase,
       searchDatabase,
       statusDatabase,
-      statusDetectedLanguageDatabase,
       timelineDatabase
     }
   }
@@ -189,8 +175,7 @@ describe('getSQLDatabase', () => {
       bookmarkDatabase,
       knexDatabase,
       mediaDatabase,
-      statusDatabase,
-      statusDetectedLanguageDatabase
+      statusDatabase
     } = createComposedDatabase()
 
     expect(accountMixinMock).toHaveBeenCalledWith(knexDatabase)
@@ -202,7 +187,6 @@ describe('getSQLDatabase', () => {
     expect(mediaMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(notificationMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(searchMixinMock).toHaveBeenCalledWith(knexDatabase)
-    expect(statusDetectedLanguageMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(statusMixinMock).toHaveBeenCalledWith(
       knexDatabase,
       actorDatabase,
@@ -214,7 +198,11 @@ describe('getSQLDatabase', () => {
       }),
       bookmarkDatabase,
       mediaDatabase,
-      statusDetectedLanguageDatabase,
+      // Detected languages are Kysely queries bound lazily to this Knex instance.
+      expect.objectContaining({
+        getDetectedLanguage: expect.any(Function),
+        getDetectedLanguages: expect.any(Function)
+      }),
       expect.objectContaining({
         getStatusReactionRollups: expect.any(Function)
       }),
