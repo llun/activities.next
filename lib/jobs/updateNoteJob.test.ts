@@ -305,6 +305,116 @@ describe('updateNoteJob', () => {
     expect(status.type).toEqual(StatusType.enum.Note)
   })
 
+  describe('attachments of a remote note', () => {
+    const photo = (name: string) => ({
+      type: 'Document',
+      mediaType: 'image/jpeg',
+      url: `https://llun.dev/media/${name}.jpg`,
+      width: 1200,
+      height: 800,
+      name: `alt ${name}`
+    })
+    const track = {
+      type: 'Document',
+      mediaType: 'application/gpx+xml',
+      url: 'https://llun.dev/media/ride.gpx',
+      name: 'ride.gpx'
+    }
+
+    let counter = 0
+    const createRemoteNote = async (attachment: unknown[]) => {
+      counter += 1
+      const note = {
+        ...MockMastodonActivityPubNote({
+          id: `${EXTERNAL_ACTOR1}/statuses/attachment-sync-${counter}`,
+          from: EXTERNAL_ACTOR1,
+          content: '<p>Photos</p>'
+        }),
+        attachment
+      }
+      await createNoteJob(database, {
+        id: note.id,
+        name: CREATE_NOTE_JOB_NAME,
+        data: note
+      })
+      return note
+    }
+
+    const update = (note: { id: string }, data: unknown) =>
+      updateNoteJob(database, {
+        id: note.id,
+        name: UPDATE_NOTE_JOB_NAME,
+        data
+      })
+
+    it('replaces the attachments when the Update carries different files', async () => {
+      const note = await createRemoteNote([photo('a'), photo('b')])
+
+      await update(note, {
+        ...note,
+        attachment: [photo('a-edited'), photo('b')]
+      })
+
+      const attachments = await database.getAttachments({ statusId: note.id })
+      expect(attachments.map((item) => [item.url, item.name])).toEqual([
+        ['https://llun.dev/media/a-edited.jpg', 'alt a-edited'],
+        ['https://llun.dev/media/b.jpg', 'alt b']
+      ])
+    })
+
+    it('keeps the stored rows when the files are the same', async () => {
+      const note = await createRemoteNote([photo('c'), photo('d')])
+      const before = await database.getAttachments({ statusId: note.id })
+
+      await update(note, { ...note, content: '<p>Only text changed</p>' })
+
+      expect(await database.getAttachments({ statusId: note.id })).toEqual(
+        before
+      )
+    })
+
+    it('never touches a fitness file or a local media attachment', async () => {
+      const note = await createRemoteNote([photo('e'), track])
+      // A row pointing at a local media (as a migration could have left one).
+      const local = await database.createAttachment({
+        actorId: EXTERNAL_ACTOR1,
+        statusId: note.id,
+        mediaType: 'image/webp',
+        url: 'https://llun.test/api/v1/files/medias/local.webp',
+        mediaId: '424242'
+      })
+      const fitness = (
+        await database.getAttachments({ statusId: note.id })
+      ).find((item) => item.url === track.url)
+      expect(fitness).toBeDefined()
+
+      await update(note, { ...note, attachment: [photo('e-edited'), track] })
+
+      const attachments = await database.getAttachments({ statusId: note.id })
+      expect(attachments.map((item) => item.url).sort()).toEqual(
+        [
+          'https://llun.dev/media/e-edited.jpg',
+          track.url,
+          'https://llun.test/api/v1/files/medias/local.webp'
+        ].sort()
+      )
+      expect(attachments.find((item) => item.url === track.url)?.id).toBe(
+        fitness?.id
+      )
+      expect(attachments.find((item) => item.mediaId === '424242')?.id).toBe(
+        local.id
+      )
+    })
+
+    it('removes the attachments the Update no longer carries', async () => {
+      const note = await createRemoteNote([photo('f')])
+
+      await update(note, { ...note, attachment: [] })
+
+      expect(await database.getAttachments({ statusId: note.id })).toEqual([])
+    })
+  })
+
   it('notifies local authors of accepted quotes when an inbound edit updates the quoted status', async () => {
     // A remote status our user quoted is edited elsewhere and arrives as an
     // inbound Update; the local quoting author should get a quoted_update.

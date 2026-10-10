@@ -278,6 +278,10 @@ export const buildPublicMediaDetails = async ({
     place: getPublicPlace(details, {
       hiddenLocations: settings.hiddenLocations,
       hideThreatenedPlaces: settings.hideThreatenedPlaces
-    })
+    }),
+    editedAt:
+      media.edit?.editedAt != null
+        ? new Date(media.edit.editedAt).toISOString()
+        : null
   }
 }

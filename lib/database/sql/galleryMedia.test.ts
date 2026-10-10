@@ -734,6 +734,96 @@ describe('GalleryMediaDatabase', () => {
       })
     })
 
+    describe('a photo edited for the gallery only', () => {
+      // Another actor than the fixture owner, so the rows above keep their
+      // counts.
+      const editorId = actors.primary.id
+      const fileUrl = (path: string) => `https://llun.test/api/v1/files/${path}`
+
+      it('shows the live file in the gallery while the post keeps its own', async () => {
+        const accountId = (await database.getActorFromId({ id: editorId }))!
+          .account!.id
+        const media = (await database.createMedia({
+          actorId: editorId,
+          original: {
+            path: 'medias/gallery-edit-uploaded.jpg',
+            bytes: 1000,
+            mimeType: 'image/jpeg',
+            metaData: { width: 400, height: 300 }
+          },
+          blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+          details: {
+            inGallery: true,
+            placeLatitude: 51.5,
+            placeLongitude: -0.1,
+            placePrecision: 'exact'
+          }
+        }))!
+        const statusId = `${editorId}/statuses/gallery-edit`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: editorId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: [],
+          text: 'Edited photo'
+        })
+        await database.createAttachment({
+          actorId: editorId,
+          statusId,
+          mediaType: 'image/jpeg',
+          url: fileUrl(media.original.path),
+          width: 400,
+          height: 300,
+          mediaId: media.id,
+          blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+        })
+        await database.applyMediaEdit({
+          mediaId: media.id,
+          accountId,
+          baseVersion: 0,
+          saveId: 'gallery-only',
+          recipe: '{"v":1}',
+          render: {
+            path: 'medias/gallery-edit-render.webp',
+            bytes: 100,
+            mimeType: 'image/webp',
+            width: 300,
+            height: 300,
+            blurhash: 'L00000fQfQfQfQfQfQfQfQfQfQfQ',
+            focus: { x: 0.5, y: 0 }
+          }
+        })
+
+        const [row] = await database.getGalleryMediaByIds({
+          actorId: editorId,
+          audience: PUBLIC_GALLERY_AUDIENCE,
+          mediaIds: [media.id]
+        })
+        expect(row.statusId).toBe(statusId)
+        expect(row.attachment).toMatchObject({
+          url: fileUrl('medias/gallery-edit-render.webp'),
+          width: 300,
+          height: 300,
+          blurhash: 'L00000fQfQfQfQfQfQfQfQfQfQfQ',
+          focus: { x: 0.5, y: 0 }
+        })
+
+        const [point] = await database.getGalleryMapRows({
+          actorId: editorId,
+          audience: PUBLIC_GALLERY_AUDIENCE,
+          limit: 10
+        })
+        expect(point.thumbnailUrl).toBe(
+          fileUrl('medias/gallery-edit-render.webp')
+        )
+
+        // The post still shows the file it was published with.
+        const [attachment] = await database.getAttachments({ statusId })
+        expect(attachment.url).toBe(fileUrl('medias/gallery-edit-uploaded.jpg'))
+      })
+    })
+
     // Compile-time pin: the audience is required on every scoped method.
     it('requires an audience on every scoped method', () => {
       type ScopedParams = Parameters<

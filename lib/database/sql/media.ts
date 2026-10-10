@@ -39,6 +39,7 @@ import {
   DeleteMediaForAccountParams,
   DeleteMediaForAccountResult,
   DeleteMediaParams,
+  DeleteRemoteAttachmentsForStatusParams,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
   GetAttachmentsWithMediaParams,
@@ -61,7 +62,7 @@ import {
   UpdateMediaParams,
   UpdateMediaResult
 } from '@/lib/types/database/operations'
-import { Attachment } from '@/lib/types/domain/attachment'
+import { Attachment, isFitnessAttachment } from '@/lib/types/domain/attachment'
 
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 import { getCompatibleTime } from './utils/getCompatibleTime'
@@ -158,6 +159,7 @@ const deleteMediaByConditions = async (
     // the same order every album write takes.
     await lockGalleryAlbumActor(trx, media.actorId)
     await removeMediaFromGalleryAlbums(trx, Number(media.id))
+    const editFileBytes = await deleteMediaEditFiles(trx, media.id)
     const deleted = await trx('medias')
       .where({ ...conditions, id: media.id })
       .del()
@@ -165,7 +167,8 @@ const deleteMediaByConditions = async (
 
     const usageDelta =
       parseCounterValue(media.originalBytes) +
-      parseCounterValue(media.thumbnailBytes)
+      parseCounterValue(media.thumbnailBytes) +
+      editFileBytes
 
     if (actor?.accountId) {
       if (usageDelta > 0) {
@@ -179,6 +182,45 @@ const deleteMediaByConditions = async (
     }
     return true
   })
+}
+
+// Removes the photo edit files a media row keeps (its uploaded original,
+// superseded renders and masks) and returns their total bytes, so the usage
+// counter drops by everything the row stored. The foreign key cascades these
+// on PostgreSQL, but SQLite may run without foreign keys.
+const deleteMediaEditFiles = async (
+  trx: Knex.Transaction,
+  mediaId: string | number
+): Promise<number> => {
+  const rows = await trx('media_edit_files')
+    .where('mediaId', mediaId)
+    .select<{ bytes: number | string | bigint | null }[]>('bytes')
+  if (rows.length === 0) return 0
+  await trx('media_edit_files').where('mediaId', mediaId).del()
+  return rows.reduce((sum, row) => sum + parseCounterValue(row.bytes), 0)
+}
+
+// The stored paths of a media's edit files: each file, and the original
+// slot's presigned `upload.clientPath` when it differs from its path.
+const getMediaEditFilePathsForMedia = async (
+  trx: Knex.Transaction,
+  mediaId: string | number
+): Promise<string[]> => {
+  const rows = await trx('media_edit_files')
+    .where('mediaId', mediaId)
+    .select<{ slot: string; path: string; metaData: string | null }[]>(
+      'slot',
+      'path',
+      'metaData'
+    )
+  const paths = new Set<string>()
+  for (const row of rows) {
+    paths.add(row.path)
+    if (row.slot !== 'original') continue
+    const clientPath = parseMediaMetaData(row.metaData).upload?.clientPath
+    if (clientPath && clientPath !== row.path) paths.add(clientPath)
+  }
+  return [...paths]
 }
 
 const deleteMediaById = async (
@@ -228,6 +270,8 @@ export type MediaRow = {
   placeNameSource?: string | null
   placeLookupStatus?: string | null
   placeLookupAt?: number | string | Date | null
+  editVersion?: number | string | null
+  editedAt?: number | string | Date | null
 }
 
 type MediaMetaData = Media['original']['metaData']
@@ -440,7 +484,15 @@ export const parseMediaRow = (data: MediaRow): Media => ({
     ? { focus: { x: Number(data.focusX), y: Number(data.focusY) } }
     : {}),
   ...(data.blurhash ? { blurhash: data.blurhash } : {}),
-  details: parseMediaDetails(data)
+  details: parseMediaDetails(data),
+  ...(data.editVersion !== undefined
+    ? {
+        edit: {
+          version: Number(data.editVersion ?? 0),
+          editedAt: data.editedAt ? getCompatibleTime(data.editedAt) : null
+        }
+      }
+    : {})
 })
 
 // Maps the details an update or create may write to `medias` columns. Presence
@@ -614,7 +666,9 @@ export const MEDIA_COLUMNS = [
   'placeCountryCode',
   'placeNameSource',
   'placeLookupStatus',
-  'placeLookupAt'
+  'placeLookupAt',
+  'editVersion',
+  'editedAt'
 ] as const
 
 // `column = value`, or `column IS NULL` for a null value: SQL's `= NULL` is
@@ -917,6 +971,34 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     }
     const updated = await query.update(updates)
     return updated > 0
+  },
+
+  // Removes the attachments a remote note brought along (no media row of
+  // their own), so an inbound Update can store its new list. A local media
+  // attachment and a fitness file are never touched.
+  async deleteRemoteAttachmentsForStatus({
+    statusId
+  }: DeleteRemoteAttachmentsForStatusParams): Promise<number> {
+    const rows = await database('attachments')
+      .where('statusId', statusId)
+      .whereNull('mediaId')
+      .select('id', 'mediaType', 'url', 'name')
+    const ids = rows
+      .filter(
+        (row) =>
+          !isFitnessAttachment({
+            mediaType: String(row.mediaType ?? ''),
+            url: String(row.url ?? ''),
+            name: String(row.name ?? '')
+          })
+      )
+      .map((row) => row.id)
+    if (ids.length === 0) return 0
+    return database('attachments')
+      .where('statusId', statusId)
+      .whereNull('mediaId')
+      .whereIn('id', ids)
+      .delete()
   },
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
@@ -1433,12 +1515,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       // The owner's album lock first, then the album rows, then the media row.
       await lockGalleryAlbumActor(trx, media.actorId)
       await removeMediaFromGalleryAlbums(trx, Number(media.id))
+      const editFilePaths = await getMediaEditFilePathsForMedia(trx, media.id)
+      const editFileBytes = await deleteMediaEditFiles(trx, media.id)
       const deleted = await trx('medias').where('id', media.id).del()
       if (!deleted) return { status: 'not-found' }
 
       const usageDelta =
         parseCounterValue(media.originalBytes) +
-        parseCounterValue(media.thumbnailBytes)
+        parseCounterValue(media.thumbnailBytes) +
+        editFileBytes
       if (usageDelta > 0) {
         await decreaseCounterValue(
           trx,
@@ -1454,10 +1539,15 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       // recreated an object at the client's original key: delete it as well.
       const clientPath = parseMediaMetaData(media.originalMetaData).upload
         ?.clientPath
+      // A photo edit keeps the uploaded file and earlier renders beside the
+      // live one; they go with the row.
       const files = [
-        media.original,
-        ...(clientPath && clientPath !== media.original ? [clientPath] : []),
-        ...(media.thumbnail ? [media.thumbnail] : [])
+        ...new Set([
+          media.original,
+          ...(clientPath && clientPath !== media.original ? [clientPath] : []),
+          ...(media.thumbnail ? [media.thumbnail] : []),
+          ...editFilePaths
+        ])
       ]
       return { status: 'deleted', files }
     })

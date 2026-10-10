@@ -159,7 +159,17 @@ export const MediaDetailsEntity = z.object({
       ),
       group: z.enum(MEDIA_SUBJECT_CATEGORIES).nullable()
     })
-    .nullable()
+    .nullable(),
+  // The photo edit state: `version` is the optimistic version the edit routes
+  // take as `base_version`; `editedAt` (ISO 8601) is null when the photo shows
+  // the file it was uploaded as. Optional so older clients and fixtures stay
+  // valid.
+  edit: z
+    .object({
+      version: z.number(),
+      editedAt: z.string().nullable()
+    })
+    .optional()
 })
 export type MediaDetailsEntity = z.infer<typeof MediaDetailsEntity>
 
@@ -261,6 +271,28 @@ export interface ImageRenditionOutput {
   metaData: { width: number; height: number }
 }
 
+// A render of a photo edit, stored under the storage root as WebP with no
+// EXIF and no `medias` row of its own: the edit records the path. Both drivers
+// answer the same shape.
+export interface EditedImageStorageOutput {
+  path: string
+  /** Bytes of the stored file. */
+  bytes: number
+  /** The type actually written: `image/webp`. */
+  mimeType: string
+  width: number
+  height: number
+  blurhash: string | null
+  focus: { x: number; y: number } | null
+}
+
+export interface SaveEditedImageParams {
+  actor: Actor
+  buffer: Buffer
+  // Kept as the focal point instead of computing one from the render.
+  manualFocus?: { x: number; y: number }
+}
+
 export interface SaveFileOptions {
   // Build gallery details (EXIF, gear, place, inGallery). Only the user media
   // upload path sets this.
@@ -295,6 +327,11 @@ export interface MediaStorage {
     file: File,
     format: ImageOutputFormat
   ): Promise<ImageRenditionOutput | null>
+  // Stores the client's render of a photo edit (see EditedImageStorageOutput).
+  // It does NOT check the quota: the edit service does, before calling it.
+  saveEditedImage(
+    params: SaveEditedImageParams
+  ): Promise<EditedImageStorageOutput>
   getPresigedForSaveFileUrl(
     actor: Actor,
     media: PresigedMediaInput

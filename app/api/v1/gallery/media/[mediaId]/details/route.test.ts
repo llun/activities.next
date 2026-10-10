@@ -201,7 +201,8 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
         latitude: 51.55,
         longitude: -0.05,
         countryCode: null
-      }
+      },
+      editedAt: null
     })
   })
 

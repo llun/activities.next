@@ -12,6 +12,7 @@ import {
   toMediaRowId
 } from '@/lib/database/sql/media'
 import { buildActorVisibleStatusIdsQuery } from '@/lib/database/sql/status'
+import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
 import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   chunkArray,
@@ -19,6 +20,7 @@ import {
   isSQLiteClient
 } from '@/lib/database/sql/utils/knex'
 import type { GalleryAudience } from '@/lib/services/gallery/galleryAudience'
+import { MEDIA_FILE_URL_PATH } from '@/lib/services/medias/mediaFileUrl'
 import {
   IucnCategory,
   MEDIA_PLACE_PRECISIONS,
@@ -421,6 +423,63 @@ const parseAttachmentRow = (row: AttachmentRow): Attachment | null => {
   return parsed.success ? parsed.data : null
 }
 
+// The live file of the media, read with the attachment it is shown through.
+const LIVE_FILE_COLUMNS = [
+  'medias.original as galleryLivePath',
+  'medias.originalMetaData as galleryLiveMetaData',
+  'medias.blurhash as galleryLiveBlurhash',
+  'medias.focusX as galleryLiveFocusX',
+  'medias.focusY as galleryLiveFocusY'
+]
+
+const parseLiveNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+/**
+ * A photo is shown in the gallery as it is NOW: the url, size, BlurHash and
+ * focal point come from its `medias` row, not from the snapshot the post took
+ * when it was published. A photo edited "Gallery only" changes in the gallery
+ * while its post keeps showing the file it was posted with. The attachment
+ * still decides who may see the photo and which post it links to. Only a
+ * still image stored here is switched: the url keeps the attachment's own
+ * origin and swaps the stored path after `/api/v1/files/`.
+ */
+const withLiveFile = (
+  attachment: Attachment,
+  row: AttachmentRow
+): Attachment => {
+  const livePath = row.galleryLivePath
+  if (typeof livePath !== 'string' || !livePath) return attachment
+  if (!attachment.mediaType.startsWith('image/')) return attachment
+  if (attachment.mediaType === 'image/gif') return attachment
+  const pathIndex = attachment.url.indexOf(MEDIA_FILE_URL_PATH)
+  if (pathIndex < 0) return attachment
+
+  let metaData: Record<string, unknown> | null = null
+  try {
+    metaData = getCompatibleJSON<Record<string, unknown>>(
+      (row.galleryLiveMetaData as string | Record<string, unknown> | null) ?? {}
+    )
+  } catch {
+    // A corrupt row keeps the size the post recorded.
+  }
+  const width = parseLiveNumber(metaData?.width)
+  const height = parseLiveNumber(metaData?.height)
+  const focusX = parseLiveNumber(row.galleryLiveFocusX)
+  const focusY = parseLiveNumber(row.galleryLiveFocusY)
+  const blurhash = row.galleryLiveBlurhash
+  return {
+    ...attachment,
+    url: `${attachment.url.slice(0, pathIndex)}${MEDIA_FILE_URL_PATH}${livePath}`,
+    ...(width !== null && height !== null ? { width, height } : {}),
+    blurhash: typeof blurhash === 'string' && blurhash ? blurhash : null,
+    focus: focusX !== null && focusY !== null ? { x: focusX, y: focusY } : null
+  }
+}
+
 interface PickedAttachment {
   attachment: Attachment
   statusId: string
@@ -468,12 +527,14 @@ export const GalleryMediaSQLDatabaseMixin = (
       const rows: AttachmentRow[] = await query.select(
         `${ATTACHMENTS}.*`,
         `${STATUSES}.publicId as galleryStatusPublicId`,
-        'medias.id as galleryMediaId'
+        'medias.id as galleryMediaId',
+        ...LIVE_FILE_COLUMNS
       )
 
       for (const row of rows) {
-        const attachment = parseAttachmentRow(row)
-        if (!attachment) continue
+        const parsed = parseAttachmentRow(row)
+        if (!parsed) continue
+        const attachment = withLiveFile(parsed, row)
         const mediaId = String(row.galleryMediaId)
         const current = picked.get(mediaId)
         if (

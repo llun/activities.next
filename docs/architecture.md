@@ -501,6 +501,35 @@ not produce a CSP-less, year-cacheable file response. `test/proxy.test.ts` check
 the matcher with Next's own config parser and runtime matcher. Do not fold the
 `/api` entries back into the catch-all.
 
+**Photo edits are non-destructive.** The photo editor renders the edit in the
+browser and uploads the result (`POST /api/v1/media/:id/edit`); the server never
+applies a recipe itself. It checks the render's pixel size against the recipe
+(`getRecipeOutputSize` in `lib/services/medias/edit/geometry.ts`, within 2 px),
+stores it through the same pipeline as any image (`saveEditedImage` on both
+drivers: WebP, no EXIF, inside the 4000 px box) and makes it the live file:
+`medias.original` points at the render, so every reader (the Mastodon entity,
+the gallery, new posts) serves it with no special case. The recipe, an
+optimistic `editVersion`, `editedAt` and the client's `editSaveId` live on the
+`medias` row.
+
+The files an edit keeps sit in `media_edit_files`, one row per slot:
+
+- `original`: the file the photo was uploaded as, moved there by the first save
+  together with its `originalMetaData` (including `upload.clientPath`), BlurHash
+  and focus, so a revert (`POST /api/v1/media/:id/edit/revert`) restores every
+  field exactly.
+- `superseded:<id>`: an earlier render a post may still show. "Update posts"
+  points each post at the new file (an ordinary edit of the post, sent as
+  `Update(Note)`) and then prunes the superseded renders; "Gallery only" keeps
+  them, because those posts still reference them.
+- `mask:<id>`: reserved for phase 2.
+
+Every kept file counts toward the account's storage usage. The editor reads the
+uploaded original through `GET /api/v1/media/:id/edit/source`, served from this
+origin with `Cache-Control: private` so the canvas is never tainted by a CDN or
+S3 origin. Deleting a media, an account or an actor removes these rows and their
+files too, and the storage cleanup and both archives treat them as referenced.
+
 ## Database Schema (Simplified)
 
 ```

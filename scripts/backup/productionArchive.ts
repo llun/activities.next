@@ -1143,6 +1143,19 @@ export const getReferencedStoragePaths = async (
     })
   }
 
+  // A photo edit keeps the uploaded file and earlier renders beside the live
+  // one; a restored edit needs them to revert.
+  if (await tableExists(database, 'media_edit_files')) {
+    await forEachKeysetRow<{ id: string; path?: unknown }>({
+      columns: ['path'],
+      database,
+      onRow: (row) => {
+        if (typeof row.path === 'string') mediaFilePaths.push(row.path)
+      },
+      tableName: 'media_edit_files'
+    })
+  }
+
   if (await tableExists(database, 'fitness_files')) {
     await forEachKeysetRow<{
       id: string

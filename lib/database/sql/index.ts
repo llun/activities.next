@@ -36,6 +36,8 @@ import { linkPreviewQueries } from '@/lib/database/domains/linkPreview/queries'
 import type { LinkPreviewDatabase } from '@/lib/database/domains/linkPreview/types'
 import { markerQueries } from '@/lib/database/domains/marker/queries'
 import type { MarkerDatabase } from '@/lib/database/domains/marker/types'
+import { mediaEditQueries } from '@/lib/database/domains/mediaEdit/queries'
+import type { MediaEditDatabase } from '@/lib/database/domains/mediaEdit/types'
 import { muteQueries } from '@/lib/database/domains/mute/queries'
 import type { MuteDatabase } from '@/lib/database/domains/mute/types'
 import { notificationQueries } from '@/lib/database/domains/notification/queries'
@@ -225,6 +227,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     linkPreviewQueries
   )
   const mediaDatabase = MediaSQLDatabaseMixin(database)
+  const mediaEditDatabase: MediaEditDatabase = bindDb(kysely, mediaEditQueries)
   const moderationDatabase = ModerationSQLDatabaseMixin(database)
   const notificationDatabase: NotificationDatabase = bindDb(
     kysely,
@@ -356,6 +359,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     ...followedTagDatabase,
     ...likeDatabase,
     ...mediaDatabase,
+    ...mediaEditDatabase,
     ...moderationDatabase,
     ...notificationDatabase,
     ...pushSubscriptionDatabase,

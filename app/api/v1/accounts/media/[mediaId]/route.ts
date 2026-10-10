@@ -67,7 +67,7 @@ export const DELETE = traceApiRoute(
       })
     }
 
-    // Delete the storage files (original and thumbnail if present)
+    // Delete the storage files (original, thumbnail and edit files)
     const filesToDelete: string[] = [media.original.path]
     // A re-PUT through the still-valid presigned URL can recreate the client's
     // original key after the stripped copy was swapped in.
@@ -77,6 +77,13 @@ export const DELETE = traceApiRoute(
     }
     if (media.thumbnail) {
       filesToDelete.push(media.thumbnail.path)
+    }
+    // A photo edit keeps the uploaded file and earlier renders beside the
+    // live one.
+    for (const path of await database.getMediaEditFilePaths({
+      mediaIds: [mediaId]
+    })) {
+      if (!filesToDelete.includes(path)) filesToDelete.push(path)
     }
 
     // Delete files from storage

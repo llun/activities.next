@@ -42,6 +42,7 @@ const mockCurrentActor: {
 
 const mockDatabase = {
   getMediaByIdForAccount: vi.fn(),
+  getMediaEditFilePaths: vi.fn(),
   deleteMedia: vi.fn()
 }
 
@@ -112,6 +113,7 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
     vi.clearAllMocks()
     mockCurrentActor.account = { id: 'account-1' }
     mockDatabase.getMediaByIdForAccount.mockResolvedValue(sampleMedia)
+    mockDatabase.getMediaEditFilePaths.mockResolvedValue([])
     mockDatabase.deleteMedia.mockResolvedValue(true)
     mockDeleteMediaFile.mockResolvedValue(true)
   })
@@ -244,6 +246,34 @@ describe('DELETE /api/v1/accounts/media/[mediaId]', () => {
       mockDatabase,
       'uploads/client.jpg'
     )
+  })
+
+  it('also deletes the files a photo edit keeps', async () => {
+    mockDatabase.getMediaEditFilePaths.mockResolvedValue([
+      'uploads/edit-original.jpg',
+      'uploads/superseded.webp',
+      'uploads/original.jpg'
+    ])
+
+    const req = new NextRequest(
+      'https://llun.test/api/v1/accounts/media/media-123',
+      { method: 'DELETE' }
+    )
+    const res = await DELETE(req, {
+      params: Promise.resolve({ mediaId: 'media-123' })
+    })
+
+    expect(res.status).toBe(200)
+    expect(mockDatabase.getMediaEditFilePaths).toHaveBeenCalledWith({
+      mediaIds: ['media-123']
+    })
+    const deleted = mockDeleteMediaFile.mock.calls.map((call) => call[1])
+    expect(deleted).toEqual([
+      'uploads/original.jpg',
+      'uploads/thumbnail.jpg',
+      'uploads/edit-original.jpg',
+      'uploads/superseded.webp'
+    ])
   })
 
   it('handles media without thumbnail', async () => {

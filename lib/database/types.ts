@@ -1,4 +1,5 @@
 import { ImportLockDatabase } from '@/lib/database/domains/importLock/types'
+import { MediaEditDatabase } from '@/lib/database/domains/mediaEdit/types'
 import { FitnessFileDatabase } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteDatabase } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessGearDatabase } from '@/lib/database/sql/fitnessGear'
@@ -104,6 +105,7 @@ export type Database = AccountDatabase &
   LinkPreviewDatabase &
   MarkerDatabase &
   MediaDatabase &
+  MediaEditDatabase &
   NotificationDatabase &
   OAuthDatabase &
   PushSubscriptionDatabase &

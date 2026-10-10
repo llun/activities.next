@@ -854,14 +854,15 @@ export const StatusSQLDatabaseMixin = (
         )
 
         // Attachments kept across the edit refresh every field they copied
-        // from the media row — alt text, BlurHash, focal point and thumbnail:
-        // the attachment row snapshots all four at attach time, so a
-        // media_attributes edit must re-copy them or the status keeps serving
-        // the stale value. Focus is the one a client can actually change on a
-        // posted status (Mastodon's focal-point editor), and it was silently
-        // dropped while only the description was refreshed. Only rows that
-        // actually differ are rewritten, so an edit that leaves the media
-        // untouched preserves the existing row (createdAt/updatedAt) unchanged.
+        // from the media row — alt text, BlurHash, focal point, thumbnail and
+        // the file itself (url, size, type): the attachment row snapshots them
+        // at attach time, so a media_attributes edit must re-copy them or the
+        // status keeps serving the stale value. Focus is the one a client can
+        // change on a posted status (Mastodon's focal-point editor); the file
+        // changes when a photo edit is applied to the posts that use it. Only
+        // rows that actually differ are rewritten, so an edit that leaves the
+        // media untouched preserves the existing row (createdAt/updatedAt)
+        // unchanged.
         const existingSnapshotByMediaId = new Map(
           existingReplaceableAttachments.map((attachment) => [
             attachment.mediaId,
@@ -879,6 +880,10 @@ export const StatusSQLDatabaseMixin = (
           const existing = existingSnapshotByMediaId.get(attachment.id)
           if (!existing) return false
           return (
+            attachment.url !== existing.url ||
+            attachment.mediaType !== existing.mediaType ||
+            attachment.width !== (existing.width ?? null) ||
+            attachment.height !== (existing.height ?? null) ||
             (attachment.name ?? '') !== (existing.name ?? '') ||
             (attachment.blurhash ?? null) !== (existing.blurhash ?? null) ||
             (attachment.thumbnailUrl ?? null) !==
@@ -897,6 +902,10 @@ export const StatusSQLDatabaseMixin = (
               .where('statusId', status.id)
               .where('mediaId', attachment.id)
               .update({
+                url: attachment.url,
+                mediaType: attachment.mediaType,
+                width: attachment.width,
+                height: attachment.height,
                 name: attachment.name ?? '',
                 blurhash: attachment.blurhash,
                 focusX: attachment.focus?.x ?? null,

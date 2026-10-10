@@ -1053,6 +1053,12 @@ export const exportActorArchive = async (
           mediaPaths.add(media.original.path)
           if (media.thumbnail?.path) mediaPaths.add(media.thumbnail.path)
         }
+        // A photo edit keeps the uploaded file and earlier renders beside the
+        // live one (only the account's own media, as resolved above).
+        const editFiles = await database.listMediaEditFiles({
+          mediaIds: medias.map((media) => media.id)
+        })
+        for (const file of editFiles) mediaPaths.add(file.path)
       }
     }
 

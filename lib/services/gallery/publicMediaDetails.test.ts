@@ -259,8 +259,30 @@ describe('buildPublicMediaDetails', () => {
         latitude: 51.55,
         longitude: 0,
         countryCode: null
+      },
+      editedAt: null
+    })
+  })
+
+  it.each([
+    ['an unedited photo', undefined, null],
+    ['a photo with no edit yet', { version: 0, editedAt: null }, null],
+    [
+      'an edited photo',
+      { version: 3, editedAt: Date.UTC(2026, 9, 10, 12) },
+      '2026-10-10T12:00:00.000Z'
+    ]
+  ])('sends editedAt for %s', async (_, edit, expected) => {
+    const result = await buildPublicMediaDetails({
+      database: database(),
+      media: { ...mediaWith({}), ...(edit ? { edit } : {}) },
+      settings: {
+        showGear: true,
+        hiddenLocations: [],
+        hideThreatenedPlaces: true
       }
     })
+    expect(result.editedAt).toBe(expected)
   })
 
   it('withholds gear and exposure, and does not even look gear up, when the owner hides gear', async () => {
@@ -333,7 +355,8 @@ describe('buildPublicMediaDetails', () => {
       camera: null,
       lens: null,
       exposure: null,
-      place: null
+      place: null,
+      editedAt: null
     })
   })
 

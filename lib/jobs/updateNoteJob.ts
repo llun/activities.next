@@ -7,6 +7,7 @@ import {
   getSummary
 } from '@/lib/activities/note'
 import { NOTE_ACTIVITY_CONTEXT } from '@/lib/activities/noteContext'
+import { Database } from '@/lib/database/types'
 import {
   getForwardActivityJobMessages,
   getForwardingTargetLocalActorIds,
@@ -29,7 +30,8 @@ import {
   VideoContent
 } from '@/lib/types/activitypub'
 import { UpdateAction } from '@/lib/types/activitypub/activities'
-import { StatusType } from '@/lib/types/domain/status'
+import { isFitnessAttachment } from '@/lib/types/domain/attachment'
+import { Status, StatusType } from '@/lib/types/domain/status'
 import {
   normalizeActivityPubContent,
   normalizeActorId
@@ -45,6 +47,53 @@ import {
   CREATE_POLL_JOB_NAME,
   UPDATE_NOTE_JOB_NAME
 } from './names'
+import {
+  createRemoteAttachments,
+  getRemoteAttachmentDocuments
+} from './noteAttachments'
+
+/**
+ * Replaces the stored attachments of a remote note when the Update carries a
+ * different list (an edited photo, one added or removed), compared by URL and
+ * order. Mastodon replaces media on Update the same way. Only the rows the
+ * note brought along are replaced: an attachment of a local media row and a
+ * fitness file are never touched, and a local status is left alone.
+ */
+const syncRemoteAttachments = async ({
+  database,
+  note,
+  status
+}: {
+  database: Database
+  note: BaseNote
+  status: Status
+}) => {
+  if (status.isLocalActor || status.type !== StatusType.enum.Note) return
+
+  const incoming = getRemoteAttachmentDocuments(note, {
+    withoutFitness: true
+  }).map((attachment) => attachment.url)
+  const stored = status.attachments
+    .filter(
+      (attachment) =>
+        attachment.mediaId == null && !isFitnessAttachment(attachment)
+    )
+    .map((attachment) => attachment.url)
+  if (
+    incoming.length === stored.length &&
+    incoming.every((url, index) => url === stored[index])
+  ) {
+    return
+  }
+
+  await database.deleteRemoteAttachmentsForStatus({ statusId: status.id })
+  await createRemoteAttachments({
+    database,
+    statusId: status.id,
+    note,
+    withoutFitness: true
+  })
+}
 
 export const updateNoteJob = createJobHandle(
   UPDATE_NOTE_JOB_NAME,
@@ -140,6 +189,8 @@ export const updateNoteJob = createJobHandle(
         typeof note.sensitive === 'boolean' ? note.sensitive : undefined,
       language
     })
+
+    await syncRemoteAttachments({ database, note, status: existingStatus })
 
     // A quoter re-federates its note as an Update once the quoted author's
     // Accept hands it a `quoteAuthorization` stamp, so an Update is the second

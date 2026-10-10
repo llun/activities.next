@@ -25,7 +25,7 @@ The `cleanupMediaStorage.ts` script helps you clean up orphaned media files that
 
 The script:
 
-1. Connects to your database and retrieves all media file paths — both the `medias` rows (`original` and `thumbnail`) and `fitness_files.mapImageEmailPath`, the JPEG copy of a route map kept for the activity-import email, which lives in media storage without a `medias` row of its own
+1. Connects to your database and retrieves all media file paths — the `medias` rows (`original` and `thumbnail`), the files photo edits keep in `media_edit_files` (the uploaded original, earlier renders a post may still show, and the original's presigned `upload.clientPath`; see `scripts/maintenance/mediaEditReferences.ts`), and `fitness_files.mapImageEmailPath`, the JPEG copy of a route map kept for the activity-import email, which lives in media storage without a `medias` row of its own
 2. Lists all files in your configured storage (local filesystem or S3)
 3. Identifies files that exist in storage but are not referenced in the database
 4. Optionally deletes these orphaned files
@@ -136,7 +136,7 @@ Activity.next provides scripts to create a full, standalone archive of a product
 
 ### Downloading a Production Archive
 
-The `downloadProductionArchive.ts` script connects to your production database, exports all table data (chunked in pages), and packages referenced media/fitness files into a gzip-compressed tar archive (`.tar.gz`):
+The `downloadProductionArchive.ts` script connects to your production database, exports all table data (chunked in pages), and packages referenced media/fitness files into a gzip-compressed tar archive (`.tar.gz`). The referenced files include every `media_edit_files.path` (the original and the earlier renders a photo edit keeps, so a restored photo can still be reverted), and the table itself is exported with the rest:
 
 ```bash
 # Download production archive with referenced media/fitness files (default)
@@ -1020,6 +1020,11 @@ An uploaded image carries optional owner-edited details on its `medias` row: `su
 - **Gear is resolved by `resolveGalleryGear` (`lib/services/gallery/galleryGear.ts`)** from a normalised `camera:<make>|<model>` / `lens:<lensModel>` key; it is race-safe, reuses an existing row and never edits one. Because the key comes from client-controlled EXIF strings, creation goes through `createGalleryGearWithinLimit` with the same 500-row cap as the manual route: at the cap an upload gets no gear link (logged at `info`) rather than a new row, while gear the actor already holds still resolves. `gallery_gears` is soft-deleted but its `(actorId, deviceKey)` unique index covers deleted rows while the device-key lookup skips them, so **any delete path must null `deviceKey` in the same update that sets `deletedAt`** (as `fitnessGear.ts` does), or the next upload from that camera could neither find nor re-create its gear. `POST /api/v1/gallery/gears` returns the existing row (200) for the same kind and case-insensitive, whitespace-collapsed name, and answers 422 `{ "error": "Too many gear items" }` past 500 non-deleted rows per actor. Both checks and the insert run in `createGalleryGearWithinLimit`, one transaction serialised on the actor row (`FOR UPDATE` on PostgreSQL, as `createCollection` does; SQLite's single writer already serialises), so concurrent submits of one name add one row and concurrent creates cannot overshoot the cap — there is no name index to enforce it, since manual gear has no `deviceKey`. A client-supplied `camera_gear_id` / `lens_gear_id` must belong to the media's actor and be of the right kind, else 422.
 - **Public details never leak more than the owner chose.** `GET /api/v1/gallery/media/:mediaId/details` answers only for media attached to a status the viewer may read (404 otherwise), and only an attachment written by an actor on the media owner's account counts (`getMediaWithAttachedStatusIds`): `attachments.mediaId` is a bare pointer any actor can write, so another account's public post pointing at the id must not unlock the details. `createNote` likewise writes `mediaId` only for an id `resolveAttachmentMediaMetadata` resolved to a row on the author's account; the outbox takes attachment ids from the client, and an unowned one is stored without a media link. `placePrecision` `exact` returns coordinates, `area` snaps them to a 0.05° grid, `country` returns the country's name from `placeCountryCode` (the owner's own name only when there is no usable code, and never a geocoded name), unset returns the owner's own name only (a geocoded name with no precision is not shown at all: the owner never chose to publish anything), `hidden` returns nothing, and a threatened or not-yet-cleared species overrides every precision with no place at all (see "Smart subjects" below); gear and exposure are returned only when `showGear` is on (`lib/services/gallery/publicMediaDetails.ts`).
 - **Owner routes**: `GET`/`PUT`/`PATCH /api/v1/media/:id` return and accept the details (snake_case); `POST /api/v1/media/:id/describe` returns generated alt text without saving it; `POST /api/v1/media/:id/subject-suggestions` returns (or, with `refresh`, re-runs) the vision model's subject candidates, 30 runs per actor per hour, and answers `409 { error }` without reading the image when the owner's `subjectSuggestionMode` is `off` (enforced on the server, so a stale tab or another client never sends the photo to the model); a candidate named only by a common name gets a GBIF key only when the job itself would confirm that name (a complete, exhaustive search with exactly one exact hit at species rank in the candidate's kingdom), and a match from another kingdom never replaces the model's category; `POST /api/v1/media/:id/lookups` re-queues the place and subject lookups that have not finished (the dialog's Retry), 20 per actor per hour, or only one of them with `{ "kind": "subject" }` or `{ "kind": "place" }` (the dialog sends the kind of the Retry pressed); `GET /api/v1/gallery/taxa?q=` searches GBIF for the species picker, 60 per actor per minute; `GET`/`POST /api/v1/gallery/gears`, `GET /api/v1/gallery/taxa` and `GET`/`PUT /api/v1/gallery/settings` are session-authenticated, the media routes take OAuth or the session.
+- **Photo edit routes** (owner-only, `write`/`write:media`, 404 `{ error: 'Record not found' }` for anyone else; spec in `plans/photo-editor/build-spec.md` §4):
+  - `GET /api/v1/media/:id/edit` answers `{ media, edit, usage, capabilities }`: the owner media entity, the stored recipe with its `version`/`saveId`/`editedAt`, the pixel size and type of the source decoded from the stored file (not `original.metaData`, which describes the uploaded file before the 4000 px cap), how many of the account's posts use the photo, and phase 2/3 capabilities (always off for now). A media that is not a JPEG/PNG/WebP still image, is a pending upload, is over 50 MP or whose source cannot be read is 422.
+  - `GET /api/v1/media/:id/edit/source` streams the uploaded original from this origin (`Cache-Control: private, max-age=300`), so the editor's canvas is never tainted.
+  - `POST /api/v1/media/:id/edit` (multipart: `file`, `recipe`, `base_version`, `save_id`, `apply_to_posts`, `focus`) stores the browser's render. 60 saves per actor per hour (429); the render must match the recipe's output size within 2 px (422) and fit the quota (413). A stale `base_version` is `409 { error: 'stale', edit: { version, saveId } }`; a client whose `save_id` matches treats its lost answer as saved. `apply_to_posts` is required when posts use the photo: `update` edits each post (history, `edited_at`, `Update(Note)`, quoter notice) and prunes earlier renders; `gallery` leaves the posts on their file.
+  - `POST /api/v1/media/:id/edit/revert` (JSON `{ base_version, save_id, apply_to_posts? }`) puts the original back with its BlurHash, focus and metadata; `409 { error: 'Nothing to revert' }` when the photo is unedited.
 - **Settings** (`gallery_settings`, `GET`/`PUT /api/v1/gallery/settings`): `autoDescribe`, `allowEmptyDescription`, `subjectHashtags`, `galleryDefault`, `defaultPlacePrecision`, `showGear`, `mapPublic`, `lifeListPublic`, `hiddenLocations`, `hideThreatenedPlaces` (default on), `subjectSuggestionMode` (`model` or `off`; `classifier` is reserved and refused) and `subjectConfidenceThreshold` (50 to 95 in steps of 5, default 70). The response also reports what this server can do (`subjectSuggestionsAvailable`, `subjectModel`, `speciesLookupsAvailable`, `placeLookupsAvailable`). Settings → Media exposes `autoDescribe`, `allowEmptyDescription`, `subjectHashtags` and the subject suggestion settings, with links to Gallery → Privacy and Gallery → Gear; `defaultPlacePrecision`, `hideThreatenedPlaces`, `showGear`, `mapPublic`, `lifeListPublic` and `hiddenLocations` live on Gallery → Privacy (`/gallery/privacy`). `defaultPlacePrecision` defaults to `hidden` (the privacy-safe default, closest to Mastodon stripping EXIF): a GPS upload stores its coordinates for the owner but publishes no place until the owner picks a precision on the photo or changes the default.
   - **Subject hashtags** (`appendSubjectHashtags`, called from `createNote`) append a de-duplicated PascalCase tag per attached subject before hashtags are extracted, when `subjectHashtags` is on.
   - **`autoDescribe`** gates automatic alt text on upload in both the synchronous (`handleSyncMediaUpload`) and the presigned paths, even when the instance has an alt text service configured.
@@ -1091,6 +1096,14 @@ preserving legacy and fitness attachments` pins the surviving-null behaviour.
   set a moment earlier outlive its photo. `galleryAlbums.test.ts` pins the
   media and actor-delete cleanup on both backends (the actor delete with
   SQLite's foreign keys switched off) and the races on PostgreSQL.
+
+- **Deleting a media deletes the files its photo edits keep.** The uploaded
+  original and every superseded render live in `media_edit_files`; both media
+  DELETE routes, `deleteMedia` and the actor delete remove those rows (the
+  foreign key cascades them on PostgreSQL only) and their bytes from the
+  account's usage, and the routes delete the files after the commit. A post
+  still showing a superseded render then shows the placeholder like any other
+  deleted media.
 
 <a id="agents-security-configuration-tips"></a>
 
@@ -1383,6 +1396,15 @@ The database layer is moving from Knex to Kysely one domain at a time. Knex stil
 <a id="review-stored-media"></a>
 
 ### Review: Stored media
+
+- **A photo edit keeps files beside the live one, and the quota counts them.**
+  `medias.original` is the live file (an edit's render after a save); the
+  uploaded original and earlier renders sit in `media_edit_files` and are
+  metered in the account's `mediaUsage` until a revert, a prune or a delete
+  frees them. Any new code that lists, archives, cleans up or deletes a media's
+  files must read `getMediaEditFilePaths` too, or it orphans or loses them.
+  The hourly `media-bytes` bucket only ever grows; pruning frees usage, not
+  bucket bytes.
 
 - Stored-image pipelines are built with `createStoredImagePipeline`
   (`lib/services/medias/storedImagePipeline.ts`), never an inline

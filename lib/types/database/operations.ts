@@ -2160,6 +2160,10 @@ export interface Media extends Omit<BaseMedia, 'details'> {
   // Always present on a row read from the database; may be absent on a Media
   // built by hand (tests, in-memory fixtures).
   details?: MediaDetailsRecord
+  // The photo edit state: `version` moves on every save and revert, and
+  // `editedAt` (epoch milliseconds) is null while the photo is unedited.
+  // Present on a row read through MEDIA_COLUMNS.
+  edit?: { version: number; editedAt: number | null }
 }
 
 export interface MediaWithStatus extends Media {
@@ -2199,6 +2203,9 @@ export type UpdateAttachmentPlaybackParams = {
   onlyIfUnset?: boolean
 }
 export type GetAttachmentsParams = {
+  statusId: string
+}
+export type DeleteRemoteAttachmentsForStatusParams = {
   statusId: string
 }
 export type AttachmentWithMedia = Attachment & {
@@ -2400,6 +2407,11 @@ export interface MediaDatabase {
     params: UpdateAttachmentPlaybackParams
   ): Promise<boolean>
   getAttachments(params: GetAttachmentsParams): Promise<Attachment[]>
+  // Deletes the status's remote attachments (no media row, not a fitness
+  // file) and returns how many went.
+  deleteRemoteAttachmentsForStatus(
+    params: DeleteRemoteAttachmentsForStatusParams
+  ): Promise<number>
   getAttachmentsWithMedia(
     params: GetAttachmentsWithMediaParams
   ): Promise<AttachmentWithMedia[]>
