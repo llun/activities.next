@@ -57,6 +57,13 @@ import { setAdjustment, withGeometry } from './editorRecipe'
 import { AUTO_KEYS, computeAuto } from './engine/auto'
 import { exportRecipe } from './engine/exportImage'
 import { loadSource } from './engine/loadSource'
+import { MaskStageLayer } from './masks/MaskStageLayer'
+import { loadMaskRasters } from './masks/loadMasks'
+import { MASK_COPY } from './masks/maskCopy'
+import { getRasters, sameRasters, withRasters } from './masks/maskRaster'
+import { getMaskName } from './masks/maskRecipe'
+import { buildMaskParts } from './masks/maskUpload'
+import { useMasks } from './masks/useMasks'
 import { useEditorHistory } from './useEditorHistory'
 import { useEditorShortcuts } from './useEditorShortcuts'
 import { useIsDesktop } from './useIsDesktop'
@@ -108,6 +115,7 @@ export const PhotoEditorDialog = ({
   const [phoneCategory, setPhoneCategory] = useState<ControlGroup>('light')
   const [selectedControl, setSelectedControl] =
     useState<AdjustmentKey>('exposure')
+  const [maskControl, setMaskControl] = useState('exposure')
   const [comparing, setComparingState] = useState(false)
   const [announcement, setAnnouncement] = useState('')
   const [autoStatus, setAutoStatus] = useState<string | null>(null)
@@ -126,12 +134,65 @@ export const PhotoEditorDialog = ({
   const ready = phase === 'ready'
   const saving = phase === 'saving'
 
+  // ---- Changes -----------------------------------------------------------
+
+  const change = useCallback(
+    (next: Recipe, coalesceKey?: string) => {
+      setAutoStatus(null)
+      history.set(next, { coalesceKey })
+    },
+    [history]
+  )
+
+  const sourceSize = useMemo(
+    () => ({
+      width: editState?.edit.source.width ?? 1,
+      height: editState?.edit.source.height ?? 1
+    }),
+    [editState]
+  )
+  const edited = Boolean(editState?.edit.editedAt || editState?.edit.recipe)
+
+  const maskTools = useMasks({
+    recipe: present,
+    onChange: change,
+    source: sourceSize,
+    bitmap,
+    focus: editState?.media.meta?.focus ?? null,
+    storedGeometry: edited ? baseline.geometry : null,
+    model: editState?.capabilities.subjectModel ?? null,
+    disabled: !ready,
+    announce: setAnnouncement
+  })
+
+  // The mask pixels the preview draws: the recipe's, with a stroke in progress.
+  const { live: liveRaster } = maskTools
+  const presentRasters = getRasters(present)
+  const previewRasters = useMemo(
+    () =>
+      liveRaster
+        ? { ...presentRasters, [liveRaster.id]: liveRaster.raster }
+        : presentRasters,
+    [liveRaster, presentRasters]
+  )
+  const overlay =
+    tab === 'masks' && maskTools.overlayVisible && maskTools.selectedId
+      ? {
+          maskId: maskTools.selectedId,
+          remove:
+            maskTools.mode === 'remove' ||
+            (maskTools.mode === 'brush' && maskTools.brushErase)
+        }
+      : null
+
   const renderer = useRenderer({
     containerRef,
     canvasRef,
     bitmap,
     recipe: present,
-    tab
+    rasters: previewRasters,
+    tab,
+    overlay
   })
 
   // Load the saved recipe and the unedited original.
@@ -160,7 +221,16 @@ export const PhotoEditorDialog = ({
         const stored = state.edit.recipe
           ? parseStoredRecipe(JSON.stringify(state.edit.recipe))
           : null
-        const start = stored ?? NEUTRAL_RECIPE
+        const rasters = await loadMaskRasters(
+          stored,
+          state.edit.masks ?? [],
+          controller.signal
+        )
+        if (cancelled) {
+          decoded.close?.()
+          return
+        }
+        const start = withRasters(stored ?? NEUTRAL_RECIPE, rasters)
         bitmapRef.current?.close?.()
         bitmapRef.current = decoded
         setBitmap(decoded)
@@ -188,21 +258,13 @@ export const PhotoEditorDialog = ({
     []
   )
 
-  const edited = Boolean(editState?.edit.editedAt || editState?.edit.recipe)
-  const dirty = ready && !isSameRender(present, baseline)
+  const dirty =
+    ready &&
+    (!isSameRender(present, baseline) ||
+      !sameRasters(getRasters(present), getRasters(baseline)))
   const revertsToOriginal = isNeutralRecipe(present) && edited
   const canSave = dirty && (!isNeutralRecipe(present) || edited)
   const statusCount = editState?.usage.statusCount ?? 0
-
-  // ---- Changes -----------------------------------------------------------
-
-  const change = useCallback(
-    (next: Recipe, coalesceKey?: string) => {
-      setAutoStatus(null)
-      history.set(next, { coalesceKey })
-    },
-    [history]
-  )
 
   const onAdjust = useCallback(
     (key: AdjustmentKey, value: number) =>
@@ -286,14 +348,20 @@ export const PhotoEditorDialog = ({
           )
         } else {
           const recipe = normalizeRecipe(present)
-          const blob = await exportRecipe(bitmapRef.current, recipe)
+          // The render reads the mask pixels off the recipe it is given.
+          const blob = await exportRecipe(
+            bitmapRef.current,
+            withRasters(recipe, getRasters(present))
+          )
+          const masks = await buildMaskParts(present, baseline)
           result = await withNetworkRetry(() =>
             saveMediaEdit(mediaId, {
               blob,
               recipe,
               baseVersion,
               saveId,
-              applyToPosts
+              applyToPosts,
+              masks
             })
           )
         }
@@ -315,7 +383,7 @@ export const PhotoEditorDialog = ({
         setPhase('ready')
       }
     },
-    [editState, mediaId, onSaved, present, revertsToOriginal]
+    [baseline, editState, mediaId, onSaved, present, revertsToOriginal]
   )
 
   const onSave = useCallback(() => {
@@ -364,7 +432,8 @@ export const PhotoEditorDialog = ({
             onResetGroups,
             onAuto,
             autoStatus,
-            onGeometryChange
+            onGeometryChange,
+            masks: maskTools
           }
         : null,
     [
@@ -377,7 +446,8 @@ export const PhotoEditorDialog = ({
       onResetGroups,
       onAuto,
       autoStatus,
-      onGeometryChange
+      onGeometryChange,
+      maskTools
     ]
   )
 
@@ -403,6 +473,41 @@ export const PhotoEditorDialog = ({
     setPhoneCategory(category)
     setSelectedControl(controlsIn(category)[0].key)
   }
+
+  const maskHint = (() => {
+    const selectedMask = maskTools.selected
+    if (maskTools.working) return MASK_COPY.working
+    if (!selectedMask) return null
+    if (selectedMask.kind === 'background') return MASK_COPY.stageHintBackground
+    if (maskTools.mode === 'brush') return MASK_COPY.stageHintBrush
+    return `${getMaskName(present, selectedMask.id)} · tap to refine`
+  })()
+
+  const maskLayer =
+    tab === 'masks' && renderer.css && !comparing ? (
+      <MaskStageLayer
+        css={renderer.css}
+        source={sourceSize}
+        geometry={present.geometry}
+        points={
+          maskTools.selected?.kind === 'subject'
+            ? maskTools.selected.points
+            : []
+        }
+        mode={maskTools.mode}
+        canRefine={maskTools.canRefine && maskTools.hasRaster}
+        disabled={!ready}
+        hint={maskHint}
+        busy={maskTools.working}
+        brushSize={maskTools.brushSize}
+        overlayVisible={maskTools.overlayVisible}
+        onOverlayVisibleChange={maskTools.setOverlayVisible}
+        onTap={(point) => void maskTools.tap(point)}
+        onStrokeStart={maskTools.strokeStart}
+        onStrokeMove={maskTools.strokeMove}
+        onStrokeEnd={maskTools.strokeEnd}
+      />
+    ) : null
 
   const body = (() => {
     if (phase === 'loading') {
@@ -447,6 +552,7 @@ export const PhotoEditorDialog = ({
           orientedSize={renderer.orientedSize}
           disabled={saving}
           announcement={announcement}
+          maskLayer={maskLayer}
           onCropChange={onCropChange}
           onGestureStart={history.beginGesture}
           onGestureEnd={history.endGesture}
@@ -470,6 +576,8 @@ export const PhotoEditorDialog = ({
             }
             onCategoryChange={onCategoryChange}
             onSelect={setSelectedControl}
+            maskSelected={maskControl}
+            onMaskSelect={setMaskControl}
             alerts={alerts}
           />
         )}

@@ -2,9 +2,11 @@ import type { Size } from '@/lib/services/medias/edit/geometry'
 import type { Adjustments } from '@/lib/services/medias/edit/recipe'
 
 import { CLARITY_BLUR_SIGMA, TONE_BLUR_SIGMA } from './colour'
+import { type MaskSliders, packMaskUniforms } from './maskUniforms'
 import {
   BLUR_FRAGMENT_SHADER,
   MAIN_FRAGMENT_SHADER,
+  MASK_BLUR_FRAGMENT_SHADER,
   VERTEX_SHADER
 } from './shaders'
 import { type TileRect, planTiles } from './tiles'
@@ -14,6 +16,40 @@ export interface RgbaPixels {
   data: Uint8ClampedArray
   width: number
   height: number
+}
+
+/**
+ * The masks of a recipe after the geometry: one RGBA pixel per frame pixel,
+ * the R, G, B and A channels holding masks 0 to 3 (0 = outside, 255 = inside),
+ * rows from the top. The frame covers the whole output at a lower resolution
+ * (at most 1024 on the long edge) and is sampled bilinearly.
+ */
+export interface MaskFrame {
+  size: Size
+  data: Uint8ClampedArray | Uint8Array
+}
+
+/** The mask frame and the feather of each channel. */
+export interface MaskSet {
+  frame: MaskFrame
+  /** Gaussian sigma of each channel's feather, in frame pixels. */
+  sigmas: ReadonlyArray<number>
+  /** The sliders of each channel; null when the mask changes nothing. */
+  adjustments: ReadonlyArray<MaskSliders>
+}
+
+/** Tints one mask channel over the picture (the Masks tab overlay). */
+export interface MaskOverlay {
+  channel: number
+  /** sRGB, 0..1. */
+  colour: [number, number, number]
+  alpha: number
+}
+
+export interface PreviewExtras {
+  /** The sliders of each mask channel; null when it changes nothing. */
+  masks?: ReadonlyArray<MaskSliders>
+  overlay?: MaskOverlay | null
 }
 
 export interface PreviewFrame {
@@ -30,6 +66,7 @@ export interface RenderJob {
   blur: TexImageSource
   blurSize: Size
   adjustments: Adjustments
+  masks?: MaskSet
   /**
    * The geometry result for `rect` of the output. With `wholeImage` it is
    * called once for the whole output; otherwise once per tile with its halo.
@@ -42,7 +79,15 @@ export interface Renderer {
   readonly maxTextureSize: number
   isContextLost: () => boolean
   setPreviewFrame: (frame: PreviewFrame) => void
-  renderPreview: (adjustments: Adjustments) => void
+  renderPreview: (adjustments: Adjustments, extras?: PreviewExtras) => void
+  /**
+   * Sets the mask frame of the preview (null clears it) and its feather.
+   * Call it again when the geometry or a mask's pixels change.
+   */
+  setPreviewMasks: (
+    frame: MaskFrame | null,
+    sigmas: ReadonlyArray<number>
+  ) => void
   /** The rendered preview, downsampled so its long edge is at most `maxEdge`. */
   readPreview: (maxEdge: number) => RgbaPixels | null
   /** Renders the whole output, tile by tile, and returns its pixels. */
@@ -64,6 +109,7 @@ const HALO = 8
 const UNIFORMS_MAIN = [
   'uImage',
   'uBlur',
+  'uMask',
   'uTileOrigin',
   'uTileSize',
   'uOutputSize',
@@ -82,8 +128,15 @@ const UNIFORMS_MAIN = [
   'uClarity',
   'uSaturation',
   'uVibrance',
-  'uVignette'
+  'uVignette',
+  'uMaskOn',
+  'uMaskAdj',
+  'uOverlayChannel',
+  'uOverlayColour',
+  'uOverlayAlpha'
 ] as const
+
+const UNIFORMS_MASK_BLUR = ['uSrc', 'uStep', 'uSigma'] as const
 
 const UNIFORMS_BLUR = [
   'uSrc',
@@ -170,6 +223,7 @@ export const createRenderer = (
 
   const main = link(gl, MAIN_FRAGMENT_SHADER, UNIFORMS_MAIN)
   const blur = link(gl, BLUR_FRAGMENT_SHADER, UNIFORMS_BLUR)
+  const maskBlur = link(gl, MASK_BLUR_FRAGMENT_SHADER, UNIFORMS_MASK_BLUR)
   const vao = gl.createVertexArray()
   gl.bindVertexArray(vao)
   gl.disable(gl.DEPTH_TEST)
@@ -201,6 +255,24 @@ export const createRenderer = (
   const blurTextureA = createTexture(gl.LINEAR)
   const blurTextureB = createTexture(gl.LINEAR)
   const tileTexture = createTexture(gl.NEAREST)
+  // The packed mask frame, its two blur targets, and a 1x1 "no masks" frame.
+  const maskRawTexture = createTexture(gl.LINEAR)
+  const maskBlurTextureA = createTexture(gl.LINEAR)
+  const maskBlurTextureB = createTexture(gl.LINEAR)
+  const maskEmptyTexture = createTexture(gl.NEAREST)
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    1,
+    1,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    new Uint8Array(4)
+  )
+  let maskCurrent: WebGLTexture | null = maskEmptyTexture
+  let maskFrameSize: Size | null = null
   const framebuffer = gl.createFramebuffer()
   let blurFloat = floatTargets
   let tileCapacity: Size = { width: 0, height: 0 }
@@ -302,6 +374,82 @@ export const createRenderer = (
     runBlur(size)
   }
 
+  /** Blurs the raw mask frame into `maskBlurTextureB`, a sigma per channel. */
+  const runMaskBlur = (size: Size, sigmas: ReadonlyArray<number>) => {
+    allocate(maskBlurTextureA, size, blurFloat)
+    allocate(maskBlurTextureB, size, blurFloat)
+    bindTarget(maskBlurTextureA, size)
+    if (
+      blurFloat &&
+      gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE
+    ) {
+      blurFloat = false
+      allocate(maskBlurTextureA, size, false)
+      allocate(maskBlurTextureB, size, false)
+    }
+    gl.useProgram(maskBlur.program)
+    gl.uniform1i(maskBlur.uniforms.uSrc, 0)
+    gl.uniform4f(
+      maskBlur.uniforms.uSigma,
+      sigmas[0] ?? 0,
+      sigmas[1] ?? 0,
+      sigmas[2] ?? 0,
+      sigmas[3] ?? 0
+    )
+    bindTarget(maskBlurTextureA, size)
+    bindUnit(0, maskRawTexture)
+    gl.uniform2f(maskBlur.uniforms.uStep, 1 / size.width, 0)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+    bindTarget(maskBlurTextureB, size)
+    bindUnit(0, maskBlurTextureA)
+    gl.uniform2f(maskBlur.uniforms.uStep, 0, 1 / size.height)
+    gl.drawArrays(gl.TRIANGLES, 0, 3)
+  }
+
+  const setMaskFeather = (sigmas: ReadonlyArray<number>) => {
+    if (!maskFrameSize) return
+    if (sigmas.every((sigma) => !(sigma > 0))) {
+      maskCurrent = maskRawTexture
+      return
+    }
+    runMaskBlur(maskFrameSize, sigmas)
+    maskCurrent = maskBlurTextureB
+  }
+
+  const setMaskFrame = (
+    frame: MaskFrame | null,
+    sigmas: ReadonlyArray<number>
+  ) => {
+    if (!frame) {
+      maskFrameSize = null
+      maskCurrent = maskEmptyTexture
+      return
+    }
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, maskRawTexture)
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      frame.size.width,
+      frame.size.height,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      frame.data instanceof Uint8Array
+        ? frame.data
+        : new Uint8Array(
+            frame.data.buffer,
+            frame.data.byteOffset,
+            frame.data.byteLength
+          )
+    )
+    maskFrameSize = frame.size
+    setMaskFeather(sigmas)
+  }
+
   const setAdjustmentUniforms = (adjustments: Adjustments) => {
     const u = main.uniforms
     gl.uniform1f(u.uExposure, adjustments.exposure ?? 0)
@@ -321,6 +469,8 @@ export const createRenderer = (
 
   interface MainPass {
     adjustments: Adjustments
+    masks: ReadonlyArray<MaskSliders>
+    overlay: MaskOverlay | null
     output: Size
     tileOrigin: { x: number; y: number }
     tileSize: Size
@@ -334,6 +484,8 @@ export const createRenderer = (
     gl.useProgram(main.program)
     gl.uniform1i(u.uImage, 0)
     gl.uniform1i(u.uBlur, 1)
+    gl.uniform1i(u.uMask, 2)
+    bindUnit(2, maskCurrent)
     bindUnit(1, blurTextureB)
     gl.uniform2f(u.uTileOrigin, pass.tileOrigin.x, pass.tileOrigin.y)
     gl.uniform2f(u.uTileSize, pass.tileSize.width, pass.tileSize.height)
@@ -342,6 +494,18 @@ export const createRenderer = (
     gl.uniform2f(u.uImageSize, pass.imageSize.width, pass.imageSize.height)
     gl.uniform1f(u.uFlipY, pass.flipY ? 1 : 0)
     setAdjustmentUniforms(pass.adjustments)
+    const packed = packMaskUniforms(pass.masks)
+    gl.uniform4f(u.uMaskOn, ...packed.on)
+    gl.uniform4fv(u.uMaskAdj, packed.values)
+    const overlay = pass.overlay
+    gl.uniform1f(u.uOverlayChannel, overlay ? overlay.channel : -1)
+    gl.uniform3f(
+      u.uOverlayColour,
+      overlay?.colour[0] ?? 0,
+      overlay?.colour[1] ?? 0,
+      overlay?.colour[2] ?? 0
+    )
+    gl.uniform1f(u.uOverlayAlpha, overlay?.alpha ?? 0)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
   }
 
@@ -353,13 +517,24 @@ export const createRenderer = (
     setBlurSource(frame.blur, frame.blurSize)
   }
 
-  const renderPreview = (adjustments: Adjustments) => {
+  let lastPreview: {
+    adjustments: Adjustments
+    extras: PreviewExtras
+  } | null = null
+
+  const renderPreview = (
+    adjustments: Adjustments,
+    extras: PreviewExtras = {}
+  ) => {
     if (!preview || lost) return
+    lastPreview = { adjustments, extras }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     gl.viewport(0, 0, preview.size.width, preview.size.height)
     bindUnit(0, imageTexture)
     drawMain({
       adjustments,
+      masks: extras.masks ?? [],
+      overlay: extras.overlay ?? null,
       output: preview.size,
       tileOrigin: { x: 0, y: 0 },
       tileSize: preview.size,
@@ -372,9 +547,15 @@ export const createRenderer = (
   const readPreview = (maxEdge: number): RgbaPixels | null => {
     if (!preview || lost) return null
     const { width, height } = preview.size
+    // The histogram describes the photo, not the tint of the overlay.
+    const shown = lastPreview
+    if (shown?.extras.overlay) {
+      renderPreview(shown.adjustments, { ...shown.extras, overlay: null })
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
     const full = new Uint8Array(width * height * 4)
     gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, full)
+    if (shown?.extras.overlay) renderPreview(shown.adjustments, shown.extras)
     const scale = Math.min(1, maxEdge / Math.max(width, height))
     const outWidth = Math.max(1, Math.round(width * scale))
     const outHeight = Math.max(1, Math.round(height * scale))
@@ -398,6 +579,8 @@ export const createRenderer = (
   const renderToPixels = (job: RenderJob): RgbaPixels => {
     const { output } = job
     setBlurSource(job.blur, job.blurSize)
+    setMaskFrame(job.masks?.frame ?? null, job.masks?.sigmas ?? [])
+    const maskSliders = job.masks?.adjustments ?? []
     const tiles = planTiles(output.width, output.height, maxTile, HALO)
     const data = new Uint8ClampedArray(output.width * output.height * 4)
 
@@ -438,6 +621,8 @@ export const createRenderer = (
       bindUnit(0, imageTexture)
       drawMain({
         adjustments: job.adjustments,
+        masks: maskSliders,
+        overlay: null,
         output,
         tileOrigin: { x: halo.x, y: halo.y },
         tileSize: { width: halo.w, height: halo.h },
@@ -473,13 +658,18 @@ export const createRenderer = (
       blurSourceTexture,
       blurTextureA,
       blurTextureB,
-      tileTexture
+      tileTexture,
+      maskRawTexture,
+      maskBlurTextureA,
+      maskBlurTextureB,
+      maskEmptyTexture
     ]) {
       gl.deleteTexture(texture)
     }
     gl.deleteFramebuffer(framebuffer)
     gl.deleteProgram(main.program)
     gl.deleteProgram(blur.program)
+    gl.deleteProgram(maskBlur.program)
     gl.deleteVertexArray(vao)
     if (releaseContext) gl.getExtension('WEBGL_lose_context')?.loseContext()
   }
@@ -489,6 +679,7 @@ export const createRenderer = (
     isContextLost: () => lost || gl.isContextLost(),
     setPreviewFrame,
     renderPreview,
+    setPreviewMasks: setMaskFrame,
     readPreview,
     renderToPixels,
     dispose

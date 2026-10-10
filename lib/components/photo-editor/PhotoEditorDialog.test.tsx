@@ -18,6 +18,9 @@ import { exportRecipe } from './engine/exportImage'
 import { drawGeometry } from './engine/geometryCanvas'
 import { createRenderer } from './engine/glRenderer'
 import { loadSource } from './engine/loadSource'
+import { loadMaskRasters } from './masks/loadMasks'
+import { createMaskFrameBuilder } from './masks/maskFrame'
+import { createRaster } from './masks/maskRaster'
 
 vi.mock('@/lib/client/mediaEdit', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/client/mediaEdit')>()),
@@ -29,6 +32,12 @@ vi.mock('./engine/glRenderer', () => ({ createRenderer: vi.fn() }))
 vi.mock('./engine/exportImage', () => ({ exportRecipe: vi.fn() }))
 vi.mock('./engine/loadSource', () => ({ loadSource: vi.fn() }))
 vi.mock('./engine/geometryCanvas', () => ({ drawGeometry: vi.fn() }))
+vi.mock('./masks/loadMasks', () => ({ loadMaskRasters: vi.fn() }))
+vi.mock('./masks/maskFrame', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./masks/maskFrame')>()),
+  // The real builder draws on a canvas, which jsdom does not have.
+  createMaskFrameBuilder: vi.fn()
+}))
 
 class ResizeObserverStub {
   observe() {}
@@ -52,6 +61,8 @@ interface StateOptions {
   editedAt?: string | null
   source?: { width: number; height: number }
   version?: number
+  masks?: Array<{ id: string; url: string }>
+  subjectModel?: object | null
 }
 
 const editState = ({
@@ -59,7 +70,9 @@ const editState = ({
   recipe = null,
   editedAt = null,
   source = SOURCE,
-  version = 2
+  version = 2,
+  masks = [],
+  subjectModel = null
 }: StateOptions = {}) =>
   ({
     media: saved,
@@ -69,11 +82,11 @@ const editState = ({
       editedAt,
       saveId: null,
       source: { ...source, mimeType: 'image/jpeg' },
-      masks: []
+      masks
     },
     usage: { statusCount, latestStatusAt: '2026-10-08T10:00:00.000Z' },
     capabilities: {
-      subjectModel: null,
+      subjectModel,
       enhance: { available: false, model: null }
     }
   }) as Awaited<ReturnType<typeof getMediaEdit>>
@@ -115,6 +128,7 @@ describe('PhotoEditorDialog', () => {
     isContextLost: () => false,
     setPreviewFrame: vi.fn(),
     renderPreview: vi.fn(),
+    setPreviewMasks: vi.fn(),
     readPreview: vi.fn(() => null),
     renderToPixels: vi.fn(),
     dispose: vi.fn()
@@ -152,6 +166,11 @@ describe('PhotoEditorDialog', () => {
     vi.mocked(exportRecipe).mockResolvedValue(
       new Blob(['jpeg'], { type: 'image/jpeg' })
     )
+    vi.mocked(loadMaskRasters).mockResolvedValue({})
+    vi.mocked(createMaskFrameBuilder).mockReturnValue({
+      build: vi.fn(() => null),
+      clear: vi.fn()
+    })
     mockSaveMediaEdit.mockResolvedValue({
       ...editState(),
       posts: { updated: [], skipped: [] }
@@ -174,10 +193,10 @@ describe('PhotoEditorDialog', () => {
     expect(createRenderer).toHaveBeenCalled()
     expect(renderer.setPreviewFrame).toHaveBeenCalled()
     expect(saveButton()).toBeDisabled()
-    // Phase 1 has Adjust and Crop only.
+    // Phase 2 has Adjust, Crop and Masks (the AI tab is phase 3).
     expect(screen.getByRole('tab', { name: 'Adjust' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Crop' })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Masks' })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Masks' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'AI' })).not.toBeInTheDocument()
   })
 
@@ -661,6 +680,152 @@ describe('PhotoEditorDialog', () => {
       nudgeExposure()
       fireEvent.keyDown(exposure(), { key: 'Delete' })
       expect(saveButton()).toBeDisabled()
+    })
+  })
+  describe('masks tab', () => {
+    const MODEL = {
+      baseUrl: 'https://models.test/',
+      files: {
+        encoder: { path: 'enc.onnx', bytes: 8, sha256: 'a'.repeat(64) },
+        decoder: { path: 'dec.onnx', bytes: 8, sha256: 'b'.repeat(64) }
+      }
+    }
+    const savedMasks = {
+      ...NEUTRAL_RECIPE,
+      masks: [
+        {
+          id: 'aaaaaaaa',
+          kind: 'brush' as const,
+          points: [],
+          feather: 8,
+          adjustments: { exposure: 0.5 }
+        }
+      ]
+    } as Recipe
+
+    const openMasks = () =>
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Masks' }), {
+        button: 0,
+        ctrlKey: false
+      })
+
+    beforeAll(() => {
+      // The mask thumbnails draw on a canvas jsdom does not implement.
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    })
+
+    it('offers Select subject only when the server has a model', async () => {
+      await setup({ subjectModel: MODEL })
+      openMasks()
+      expect(
+        await screen.findByRole('button', { name: 'Select subject' })
+      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Brush' })).toBeInTheDocument()
+    })
+
+    it('hides Select subject without a model, and the brush still works', async () => {
+      await setup({ subjectModel: null })
+      openMasks()
+      expect(
+        await screen.findByRole('button', { name: 'Brush' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Select subject' })
+      ).toBeNull()
+    })
+
+    it('a new brush mask needs an adjustment to save, undoes, and uploads its PNG', async () => {
+      const { onSaved } = await setup()
+      openMasks()
+      fireEvent.click(await screen.findByRole('button', { name: 'Brush' }))
+      // A mask that changes nothing is a neutral recipe.
+      expect(saveButton()).toBeDisabled()
+
+      const exposureSlider = screen.getByRole('slider', { name: 'Exposure' })
+      fireEvent.keyDown(exposureSlider, { key: 'ArrowRight' })
+      expect(saveButton()).toBeEnabled()
+
+      // Undo takes the adjustment, then the mask itself.
+      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+      expect(screen.getByRole('radiogroup', { name: 'Masks' })).toBeVisible()
+      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+      expect(screen.queryByRole('radiogroup', { name: 'Masks' })).toBeNull()
+      fireEvent.keyDown(document.body, {
+        key: 'z',
+        ctrlKey: true,
+        shiftKey: true
+      })
+      fireEvent.keyDown(document.body, {
+        key: 'z',
+        ctrlKey: true,
+        shiftKey: true
+      })
+      fireEvent.click(saveButton())
+      await waitFor(() => expect(onSaved).toHaveBeenCalled())
+
+      const params = mockSaveMediaEdit.mock.calls[0][1]
+      expect(params.recipe.masks).toHaveLength(1)
+      const [mask] = params.recipe.masks
+      expect(mask).toMatchObject({
+        kind: 'brush',
+        adjustments: { exposure: 0.01 }
+      })
+      expect(Object.keys(params.masks ?? {})).toEqual([mask.id])
+      expect(params.masks?.[mask.id]).toBeInstanceOf(Blob)
+      expect(exportRecipe).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          masks: [expect.objectContaining({ id: mask.id })]
+        })
+      )
+    })
+
+    it('loads the saved masks into the renderer and does not upload them again', async () => {
+      const raster = createRaster({ width: 8, height: 6 }, 255)
+      vi.mocked(loadMaskRasters).mockResolvedValue({ aaaaaaaa: raster })
+      const { onSaved } = await setup({
+        recipe: savedMasks,
+        editedAt: '2026-10-09T10:00:00.000Z',
+        masks: [{ id: 'aaaaaaaa', url: '/api/v1/media/12/edit/masks/aaaaaaaa' }]
+      })
+      expect(loadMaskRasters).toHaveBeenCalledWith(
+        expect.objectContaining({ masks: [expect.anything()] }),
+        [{ id: 'aaaaaaaa', url: '/api/v1/media/12/edit/masks/aaaaaaaa' }],
+        expect.anything()
+      )
+      await waitFor(() => expect(renderer.setPreviewMasks).toHaveBeenCalled())
+      expect(saveButton()).toBeDisabled()
+
+      // Only the mask's slider moves; its pixels are the ones on the server.
+      openMasks()
+      fireEvent.keyDown(
+        await screen.findByRole('slider', { name: 'Feather' }),
+        {
+          key: 'ArrowRight'
+        }
+      )
+      fireEvent.click(saveButton())
+      await waitFor(() => expect(onSaved).toHaveBeenCalled())
+      const params = mockSaveMediaEdit.mock.calls[0][1]
+      expect(params.recipe.masks[0].feather).toBe(9)
+      expect(params.masks ?? {}).toEqual({})
+    })
+
+    it('shows a load failure when a saved mask cannot be read', async () => {
+      vi.mocked(loadMaskRasters).mockRejectedValue(new Error('gone'))
+      mockGetMediaEdit.mockResolvedValue(
+        editState({
+          recipe: savedMasks,
+          editedAt: '2026-10-09T10:00:00.000Z',
+          masks: [{ id: 'aaaaaaaa', url: '/x' }]
+        })
+      )
+      render(
+        <PhotoEditorDialog mediaId="12" onClose={vi.fn()} onSaved={vi.fn()} />
+      )
+      expect(
+        await screen.findByText("Couldn't load the photo.")
+      ).toBeInTheDocument()
     })
   })
 })

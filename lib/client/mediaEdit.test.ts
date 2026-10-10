@@ -118,6 +118,31 @@ describe('mediaEdit client', () => {
       expect(form.has('focus')).toBe(false)
     })
 
+    it('sends each new mask as a mask_<id> PNG part', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify(state))
+      await saveMediaEdit('12', {
+        ...params,
+        masks: {
+          aaaaaaaa: new Blob(['png'], { type: 'image/png' }),
+          bbbbbbbb: new Blob(['png2'], { type: 'image/png' })
+        }
+      })
+      const form = lastCall().init.body as FormData
+      const first = form.get('mask_aaaaaaaa') as File
+      expect(first.type).toBe('image/png')
+      expect(first.name).toBe('mask_aaaaaaaa.png')
+      expect(form.has('mask_bbbbbbbb')).toBe(true)
+    })
+
+    it('sends no mask parts without masks', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify(state))
+      await saveMediaEdit('12', { ...params, masks: {} })
+      const form = lastCall().init.body as FormData
+      expect(Array.from(form.keys()).some((k) => k.startsWith('mask_'))).toBe(
+        false
+      )
+    })
+
     it('carries the stale answer so the caller can match its save id', async () => {
       fetchMock.mockResponseOnce(
         JSON.stringify({

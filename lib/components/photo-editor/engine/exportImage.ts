@@ -1,3 +1,9 @@
+import { featherSigma } from '@/lib/components/photo-editor/masks/feather'
+import {
+  createMaskFrameBuilder,
+  getMaskFrameSize
+} from '@/lib/components/photo-editor/masks/maskFrame'
+import { getRasters } from '@/lib/components/photo-editor/masks/maskRaster'
 import { getRecipeOutputSize } from '@/lib/services/medias/edit/geometry'
 import type { Recipe } from '@/lib/services/medias/edit/recipe'
 
@@ -8,6 +14,7 @@ import {
   drawGeometry
 } from './geometryCanvas'
 import { createRenderer } from './glRenderer'
+import { getMaskSliders, hasMaskChanges } from './maskUniforms'
 import { fitLongEdge } from './previewSize'
 
 export const EXPORT_QUALITY = 0.95
@@ -45,6 +52,22 @@ export const exportRecipe = async (
       blurSize.width,
       blurSize.height
     )
+    // The masks, at the frame the preview uses (at most 1024 px), through the
+    // same geometry. A recipe whose masks change nothing skips them.
+    const sourceSize = { width: source.width, height: source.height }
+    const frameSize = getMaskFrameSize(output)
+    const maskFrame = recipe.masks.some((mask) =>
+      hasMaskChanges(mask.adjustments)
+    )
+      ? createMaskFrameBuilder().build(
+          recipe.masks,
+          getRasters(recipe),
+          sourceSize,
+          recipe.geometry,
+          frameSize
+        )
+      : null
+    const longEdge = Math.max(frameSize.width, frameSize.height)
     const wholeImage =
       output.width <= renderer.maxTextureSize &&
       output.height <= renderer.maxTextureSize
@@ -53,6 +76,15 @@ export const exportRecipe = async (
       blur,
       blurSize,
       adjustments: recipe.adjustments,
+      masks: maskFrame
+        ? {
+            frame: maskFrame,
+            sigmas: recipe.masks.map((mask) =>
+              featherSigma(mask.feather, longEdge)
+            ),
+            adjustments: getMaskSliders(recipe.masks)
+          }
+        : undefined,
       wholeImage,
       getImage: (rect) =>
         drawGeometry(

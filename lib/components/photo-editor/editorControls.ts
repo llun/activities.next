@@ -6,6 +6,7 @@ import type {
 } from '@/lib/services/medias/edit/recipe'
 
 import type { ControlGroup } from './adjustmentControls'
+import type { MaskTools } from './masks/useMasks'
 
 /** What the Adjust and Crop panels (desktop and phone) read and change. */
 export interface EditorControls {
@@ -22,4 +23,6 @@ export interface EditorControls {
   /** "5 changes", "Looks good already", or null. */
   autoStatus: string | null
   onGeometryChange: (geometry: Geometry, coalesceKey?: string) => void
+  /** The Masks tab's state and actions. */
+  masks: MaskTools
 }

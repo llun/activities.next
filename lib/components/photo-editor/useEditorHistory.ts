@@ -4,7 +4,7 @@ import { useCallback, useMemo, useReducer } from 'react'
 
 import type { Recipe } from '@/lib/services/medias/edit/recipe'
 
-import { recipesEqual } from './editorRecipe'
+import { snapshotsEqual } from './editorRecipe'
 
 export const MAX_HISTORY = 100
 /** Keyboard steps on one control within this long make a single undo step. */
@@ -44,7 +44,7 @@ export const historyReducer = (
 ): HistoryState => {
   switch (action.type) {
     case 'set': {
-      if (recipesEqual(action.recipe, state.present)) return state
+      if (snapshotsEqual(action.recipe, state.present)) return state
       const { key, now } = action
       const coalesce =
         key !== undefined &&

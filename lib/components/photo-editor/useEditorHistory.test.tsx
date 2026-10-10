@@ -6,6 +6,8 @@ import { act, renderHook } from '@testing-library/react'
 import { NEUTRAL_RECIPE } from '@/lib/services/medias/edit/recipe'
 
 import { setAdjustment } from './editorRecipe'
+import { createRaster, withRaster } from './masks/maskRaster'
+import { addBrushMask } from './masks/maskRecipe'
 import {
   COALESCE_MS,
   MAX_HISTORY,
@@ -35,6 +37,30 @@ describe('historyReducer', () => {
     expect(
       historyReducer(state, { type: 'set', recipe: exposure(0), now: 0 })
     ).toBe(state)
+  })
+
+  it('records a change of mask pixels alone, and undoes it', () => {
+    const base = withRaster(
+      addBrushMask(NEUTRAL_RECIPE, 'aaaaaaaa'),
+      'aaaaaaaa',
+      createRaster({ width: 4, height: 4 })
+    )
+    const painted = withRaster(
+      base,
+      'aaaaaaaa',
+      createRaster({ width: 4, height: 4 }, 255)
+    )
+    let state = createHistory(base)
+    // The same recipe JSON, different pixels: still a step.
+    state = historyReducer(state, { type: 'set', recipe: painted, now: 0 })
+    expect(state.past).toHaveLength(1)
+    expect(state.present).toBe(painted)
+    // The same pixels again is not.
+    expect(
+      historyReducer(state, { type: 'set', recipe: { ...painted }, now: 1 })
+    ).toBe(state)
+    state = historyReducer(state, { type: 'undo' })
+    expect(state.present).toBe(base)
   })
 
   it('merges changes of one gesture into one step', () => {

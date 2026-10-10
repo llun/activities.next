@@ -11,11 +11,34 @@ import type {
 // here instead of at runtime. These are type-only imports.
 export type { ApplyToPosts, MediaEditEntity as MediaEditInfo, MediaEditUsage }
 
+/**
+ * The subject model the server offers (`capabilities.subjectModel`): where to
+ * fetch the two ONNX files and the size and sha256 each must have. Null when
+ * the instance turned Select subject off.
+ */
+export interface SubjectModelCapability {
+  /** Ends with "/". */
+  baseUrl: string
+  files: {
+    encoder: { path: string; bytes: number; sha256: string }
+    decoder: { path: string; bytes: number; sha256: string }
+  }
+}
+
+type WithSubjectModel<T extends { capabilities: object }> = Omit<
+  T,
+  'capabilities'
+> & {
+  capabilities: Omit<T['capabilities'], 'subjectModel'> & {
+    subjectModel: SubjectModelCapability | null
+  }
+}
+
 /** What `GET /api/v1/media/:id/edit` answers. */
-export type MediaEditState = MediaEditResponse
+export type MediaEditState = WithSubjectModel<MediaEditResponse>
 
 /** What a save or revert answers: the state plus the posts it touched. */
-export type MediaEditSaveResult = MediaEditWriteResponse
+export type MediaEditSaveResult = WithSubjectModel<MediaEditWriteResponse>
 
 /**
  * A failed edit request. `status` is the HTTP status, `error` the server's
@@ -84,6 +107,8 @@ export interface SaveMediaEditParams {
   /** Required by the server when the media is in posts. */
   applyToPosts?: ApplyToPosts
   focus?: { x: number; y: number }
+  /** PNG of each new or changed mask by mask id, sent as `mask_<id>` parts. */
+  masks?: Record<string, Blob>
 }
 
 /** Uploads the rendered photo and the recipe that produced it. */
@@ -95,7 +120,8 @@ export const saveMediaEdit = async (
     baseVersion,
     saveId,
     applyToPosts,
-    focus
+    focus,
+    masks
   }: SaveMediaEditParams
 ): Promise<MediaEditSaveResult> => {
   const form = new FormData()
@@ -105,6 +131,9 @@ export const saveMediaEdit = async (
   form.append('save_id', saveId)
   if (applyToPosts) form.append('apply_to_posts', applyToPosts)
   if (focus) form.append('focus', `${focus.x},${focus.y}`)
+  for (const [maskId, png] of Object.entries(masks ?? {})) {
+    form.append(`mask_${maskId}`, png, `mask_${maskId}.png`)
+  }
   const response = await fetch(editPath(id), { method: 'POST', body: form })
   if (!response.ok) throw await toError(response, 'Failed to save the photo.')
   return response.json()
