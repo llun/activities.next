@@ -164,6 +164,106 @@ describe('MediaDatabase', () => {
       })
     })
 
+    describe('deleteMediaWithFiles', () => {
+      it('returns every stored path the row kept, photo edit files included', async () => {
+        const { media, accountId } = await createEditedMedia('del-files')
+        const thumbnail = '/test/del-files-thumbnail.webp'
+        await database.updateMedia({
+          mediaId: media.id,
+          accountId,
+          thumbnail: {
+            path: thumbnail,
+            bytes: 50,
+            mimeType: 'image/webp',
+            metaData: { width: 10, height: 10 }
+          }
+        })
+
+        const result = await database.deleteMediaWithFiles({
+          mediaId: media.id
+        })
+
+        expect(result.status).toBe('deleted')
+        expect(
+          result.status === 'deleted' ? [...result.files].sort() : []
+        ).toEqual(
+          [
+            '/test/del-files-b.webp',
+            thumbnail,
+            '/test/del-files.webp',
+            '/test/del-files-client.jpg',
+            '/test/del-files-a.webp'
+          ].sort()
+        )
+        expect(
+          await database.listMediaEditFiles({ mediaIds: [media.id] })
+        ).toEqual([])
+      })
+
+      it('answers not-found for a missing or malformed id', async () => {
+        expect(
+          await database.deleteMediaWithFiles({ mediaId: '999999' })
+        ).toEqual({ status: 'not-found' })
+        expect(await database.deleteMediaWithFiles({ mediaId: 'abc' })).toEqual(
+          { status: 'not-found' }
+        )
+      })
+    })
+
+    describe('replaceRemoteAttachmentsForStatus', () => {
+      const statusId = 'https://remote.test/statuses/replace-attachments'
+      const remote = (name: string, createdAt: number) => ({
+        actorId: 'https://remote.test/users/someone',
+        statusId,
+        mediaType: 'image/jpeg',
+        url: `https://remote.test/media/${name}.jpg`,
+        name,
+        createdAt
+      })
+
+      it('swaps the remote rows and keeps a fitness file and a local media row', async () => {
+        await database.createAttachment(remote('old', 1000))
+        await database.createAttachment({
+          ...remote('ride', 1001),
+          mediaType: 'application/gpx+xml',
+          url: 'https://remote.test/media/ride.gpx',
+          name: 'ride.gpx'
+        })
+        await database.createAttachment({
+          ...remote('local', 1002),
+          mediaId: '424242'
+        })
+
+        await database.replaceRemoteAttachmentsForStatus({
+          statusId,
+          attachments: [remote('new', 1000)]
+        })
+
+        const urls = (await database.getAttachments({ statusId })).map(
+          (item) => item.url
+        )
+        expect(urls).toEqual([
+          'https://remote.test/media/new.jpg',
+          'https://remote.test/media/ride.gpx',
+          'https://remote.test/media/local.jpg'
+        ])
+      })
+
+      // A failure part-way must not leave the post without its media.
+      it('keeps the stored rows when storing the new ones fails', async () => {
+        const before = await database.getAttachments({ statusId })
+
+        await expect(
+          database.replaceRemoteAttachmentsForStatus({
+            statusId,
+            attachments: [remote('first', 1000), remote('broken', Number.NaN)]
+          })
+        ).rejects.toThrow()
+
+        expect(await database.getAttachments({ statusId })).toEqual(before)
+      })
+    })
+
     describe('createMedia - fileName field', () => {
       it('stores and retrieves original fileName', async () => {
         const actor = await database.getActorFromId({

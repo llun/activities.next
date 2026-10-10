@@ -105,19 +105,42 @@ export const getRefreshedAttachments = (
       }
     })
 
+// Whether the media is still at the edit version a refresh was started for.
+const isStillLatestEdit = async (
+  database: Database,
+  media: Media,
+  version: number,
+  accountId: string
+) => {
+  const current = await database.getMediaByIdForAccount({
+    mediaId: media.id,
+    accountId
+  })
+  return (current?.edit?.version ?? 0) === version
+}
+
 /**
- * Points every post of the owner that shows the media at its live file, as an
- * ordinary edit of each post: a `status_history` revision, `edited_at`, an
- * `Update(Note)` to followers and a notice to quoters. A post that cannot be
- * updated is logged and reported in `skipped`, and never fails the others.
+ * Points every post of the owner that shows the media at the file `media`
+ * names (the render the save at `version` stored), as an ordinary edit of
+ * each post: a `status_history` revision, `edited_at`, an `Update(Note)` to
+ * followers and a notice to quoters. A post that cannot be updated is logged
+ * and reported in `skipped`, and never fails the others.
+ *
+ * Once another save or revert of the media commits, the posts not reached
+ * yet are left alone and reported in `skipped`: that write decides what they
+ * show (it refreshes them itself, or keeps them as they are for "Gallery
+ * only"), and writing this render into them afterwards would point them at a
+ * file that write is free to prune.
  */
 export const refreshPostsForEditedMedia = async ({
   database,
   media,
+  version,
   accountId
 }: {
   database: Database
   media: Media
+  version: number
   accountId: string
 }): Promise<{ updated: string[]; skipped: string[] }> => {
   const found = await database.getMediaWithAttachedStatusIds({
@@ -127,8 +150,12 @@ export const refreshPostsForEditedMedia = async ({
   const updated: string[] = []
   const skipped: string[] = []
 
-  for (const statusId of statusIds) {
+  for (const [index, statusId] of statusIds.entries()) {
     try {
+      if (!(await isStillLatestEdit(database, media, version, accountId))) {
+        skipped.push(...statusIds.slice(index))
+        break
+      }
       const { posts } = await getOwnedMediaPosts({
         database,
         statusIds: [statusId],

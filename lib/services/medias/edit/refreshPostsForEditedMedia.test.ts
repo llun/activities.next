@@ -122,6 +122,7 @@ describe('refreshPostsForEditedMedia', () => {
     const result = await refreshPostsForEditedMedia({
       database,
       media: edited,
+      version: edited.edit!.version,
       accountId
     })
 
@@ -157,6 +158,106 @@ describe('refreshPostsForEditedMedia', () => {
     )
   })
 
+  // A later save owns the posts this refresh has not reached: it updates them
+  // itself, or keeps them for "Gallery only", and may prune this render.
+  it('leaves the posts it has not reached once a later save lands', async () => {
+    const photo = await createPhoto()
+    const first = await createPost(photo)
+    const second = await createPost(photo)
+    const edited = await edit(photo)
+    const original = database.updateNote
+    const updateNote = vi
+      .spyOn(database, 'updateNote')
+      .mockImplementation(async (params) => {
+        const result = await original(params)
+        // Another tab saves while this refresh federates the first post.
+        if (params.statusId === first) await edit(edited)
+        return result
+      })
+
+    const result = await refreshPostsForEditedMedia({
+      database,
+      media: edited,
+      version: edited.edit!.version,
+      accountId
+    })
+    updateNote.mockRestore()
+
+    expect(result).toEqual({ updated: [first], skipped: [second] })
+    expect((await attachmentsOf(first))[0]?.url).toBe(
+      fileUrl(edited.original.path)
+    )
+    expect((await attachmentsOf(second))[0]?.url).toBe(
+      fileUrl(photo.original.path)
+    )
+  })
+
+  // Photo X was edited "Gallery only", so the post keeps X's earlier file.
+  // Updating the post for photo Y must not copy the BlurHash and focal point
+  // of X's new render onto X's attachment, which still shows the old image.
+  it('keeps what the post recorded for a photo left on an earlier file', async () => {
+    const photo = await createPhoto()
+    const other = await createPhoto()
+    counter += 1
+    const statusId = `${ACTOR1_ID}/statuses/refresh-${counter}`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      to: [ACTIVITY_STREAM_PUBLIC],
+      cc: [],
+      text: '<p>Two photos</p>'
+    })
+    await attach(statusId, photo)
+    await database.createAttachment({
+      actorId: ACTOR1_ID,
+      statusId,
+      mediaType: other.original.mimeType,
+      url: fileUrl(other.original.path),
+      width: 400,
+      height: 300,
+      name: other.description ?? '',
+      mediaId: other.id,
+      blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH',
+      focus: { x: 0.1, y: 0.2 }
+    })
+    const before = (await attachmentsOf(statusId)).find(
+      (item) => item.mediaId === other.id
+    )
+    // "Gallery only": the render has its own placeholder and focus.
+    const otherEdit = await database.applyMediaEdit({
+      mediaId: other.id,
+      accountId,
+      baseVersion: 0,
+      saveId: `gallery-${other.id}`,
+      recipe: JSON.stringify({ v: 1 }),
+      render: {
+        path: `medias/refresh-render-${other.id}.webp`,
+        bytes: 200,
+        mimeType: 'image/webp',
+        width: 200,
+        height: 150,
+        blurhash: 'L00000fQfQfQfQfQfQfQfQfQfQfQ',
+        focus: { x: -0.9, y: 0.9 }
+      }
+    })
+    expect(otherEdit.status).toBe('ok')
+    const edited = await edit(photo)
+
+    const result = await refreshPostsForEditedMedia({
+      database,
+      media: edited,
+      version: edited.edit!.version,
+      accountId
+    })
+
+    expect(result).toEqual({ updated: [statusId], skipped: [] })
+    const after = (await attachmentsOf(statusId)).find(
+      (item) => item.mediaId === other.id
+    )
+    expect(after).toEqual(before)
+  })
+
   it('skips a post it cannot update and still updates the others', async () => {
     const photo = await createPhoto()
     const failing = await createPost(photo)
@@ -173,6 +274,7 @@ describe('refreshPostsForEditedMedia', () => {
     const result = await refreshPostsForEditedMedia({
       database,
       media: edited,
+      version: edited.edit!.version,
       accountId
     })
     updateNote.mockRestore()
@@ -201,6 +303,7 @@ describe('refreshPostsForEditedMedia', () => {
     const result = await refreshPostsForEditedMedia({
       database,
       media: edited,
+      version: edited.edit!.version,
       accountId
     })
 

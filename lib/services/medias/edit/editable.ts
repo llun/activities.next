@@ -12,8 +12,10 @@ export const MEDIA_NOT_EDITABLE_ERROR = "This media can't be edited"
 /**
  * Whether the photo editor may edit this media: a still image the instance
  * stored itself (JPEG, PNG or WebP — never a GIF, video or audio), whose
- * upload has finished, and small enough for the browser to render. The size
- * is checked again against the decoded source when a route reads it.
+ * upload has finished, and small enough for the browser to render, going by
+ * the size its row records. The routes check the size again against the
+ * decoded source (`readEditSource`), since the recorded one may describe the
+ * uploaded file rather than the stored one.
  */
 export const isEditableMedia = (media: Pick<Media, 'original'>): boolean => {
   const { mimeType, metaData } = media.original

@@ -96,6 +96,11 @@ const RECIPE: Recipe = {
   ...NEUTRAL_RECIPE,
   adjustments: { exposure: 0.5 }
 }
+// A second save must change the picture, or it is answered as a no-op.
+const NEXT_RECIPE: Recipe = {
+  ...NEUTRAL_RECIPE,
+  adjustments: { exposure: 0.75 }
+}
 
 describe('/api/v1/media/[id]/edit', () => {
   const { database, prepare } = getTestDatabaseWithInstance()
@@ -275,6 +280,28 @@ describe('/api/v1/media/[id]/edit', () => {
       vi.mocked(readStoredImage).mockResolvedValue(null)
       const id = await createMediaFor(ACTOR1_ID)
       expect((await get(id)).status).toBe(422)
+    })
+
+    // The row records the uploaded size; a presigned upload's stored file is
+    // the client's own bytes and may be larger than the row says.
+    it('answers 422 when the decoded source is over 50 MP', async () => {
+      const huge = await sharp({
+        create: { width: 8000, height: 7000, channels: 3, background: '#000' }
+      })
+        .jpeg({ quality: 10 })
+        .toBuffer()
+      vi.mocked(readStoredImage).mockResolvedValue({
+        buffer: huge,
+        mimeType: 'image/jpeg'
+      })
+      const id = await createMediaFor(ACTOR1_ID)
+
+      const response = await get(id)
+
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({
+        error: "This media can't be edited"
+      })
     })
 
     it('returns the edit state of an unedited photo', async () => {
@@ -512,7 +539,8 @@ describe('/api/v1/media/[id]/edit', () => {
       const firstRender = `medias/render-${renders}.webp`
       const second = await save(id, {
         apply_to_posts: 'update',
-        base_version: '1'
+        base_version: '1',
+        recipe: JSON.stringify(NEXT_RECIPE)
       })
 
       expect(second.status).toBe(200)
@@ -524,9 +552,80 @@ describe('/api/v1/media/[id]/edit', () => {
       expect(refreshPostsForEditedMedia).toHaveBeenLastCalledWith({
         database,
         media: expect.objectContaining({ id }),
+        version: 2,
         accountId: await accountId()
       })
       expect(deleteMediaFile).toHaveBeenCalledWith(database, firstRender)
+      const slots = (await database.listMediaEditFiles({ mediaIds: [id] })).map(
+        (file) => file.slot
+      )
+      expect(slots).toEqual(['original'])
+    })
+
+    // The prune runs once the posts are updated, which can take seconds. A
+    // "Gallery only" save that commits meanwhile supersedes this save's render
+    // precisely so that the posts this save just updated keep showing it.
+    it('keeps its render when a "gallery" save lands while the posts update', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+      const statusId = await postWithMedia(id)
+      vi.mocked(refreshPostsForEditedMedia).mockImplementationOnce(async () => {
+        await database.applyMediaEdit({
+          mediaId: id,
+          accountId: await accountId(),
+          baseVersion: 1,
+          saveId: 'other-tab',
+          recipe: JSON.stringify(RECIPE),
+          render: {
+            path: 'medias/other-tab.webp',
+            bytes: 10,
+            mimeType: 'image/webp',
+            width: SOURCE_WIDTH,
+            height: SOURCE_HEIGHT,
+            blurhash: null,
+            focus: null
+          }
+        })
+        return { updated: [statusId], skipped: [] }
+      })
+
+      const response = await save(id, { apply_to_posts: 'update' })
+
+      expect(response.status).toBe(200)
+      const ownRender = `medias/render-${renders}.webp`
+      expect(deleteMediaFile).not.toHaveBeenCalled()
+      const files = await database.listMediaEditFiles({ mediaIds: [id] })
+      expect(files.map((file) => file.path)).toContain(ownRender)
+    })
+
+    it('answers a recipe that only changes the aspect preset as saved, storing nothing', async () => {
+      const id = await createMediaFor(ACTOR1_ID)
+      const statusId = await postWithMedia(id)
+      vi.mocked(refreshPostsForEditedMedia).mockResolvedValue({
+        updated: [statusId],
+        skipped: []
+      })
+      const saveId = crypto.randomUUID()
+      expect(
+        (await save(id, { apply_to_posts: 'update', save_id: saveId })).status
+      ).toBe(200)
+      vi.mocked(saveEditedImage).mockClear()
+      vi.mocked(refreshPostsForEditedMedia).mockClear()
+
+      // 1:1 picked and then Original again: same crop, another preset label.
+      const response = await save(id, {
+        recipe: JSON.stringify({
+          ...RECIPE,
+          geometry: { ...RECIPE.geometry, aspect: 'free' }
+        }),
+        base_version: '1'
+      })
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.edit).toMatchObject({ version: 1, recipe: RECIPE, saveId })
+      expect(body.posts).toEqual({ updated: [], skipped: [] })
+      expect(saveEditedImage).not.toHaveBeenCalled()
+      expect(refreshPostsForEditedMedia).not.toHaveBeenCalled()
       const slots = (await database.listMediaEditFiles({ mediaIds: [id] })).map(
         (file) => file.slot
       )
@@ -541,7 +640,8 @@ describe('/api/v1/media/[id]/edit', () => {
       const firstRender = `medias/render-${renders}.webp`
       const second = await save(id, {
         apply_to_posts: 'gallery',
-        base_version: '1'
+        base_version: '1',
+        recipe: JSON.stringify(NEXT_RECIPE)
       })
 
       expect(second.status).toBe(200)
@@ -561,7 +661,11 @@ describe('/api/v1/media/[id]/edit', () => {
       })
 
       await save(id, { apply_to_posts: 'update' })
-      await save(id, { apply_to_posts: 'update', base_version: '1' })
+      await save(id, {
+        apply_to_posts: 'update',
+        base_version: '1',
+        recipe: JSON.stringify(NEXT_RECIPE)
+      })
 
       expect(deleteMediaFile).not.toHaveBeenCalled()
       const slots = (await database.listMediaEditFiles({ mediaIds: [id] })).map(

@@ -406,6 +406,27 @@ describe('updateNoteJob', () => {
       )
     })
 
+    // Fitness rows are kept across an Update with the `createdAt` their place
+    // in the full list gave them, so the new rows count the same way.
+    it('orders the new rows around the fitness file it keeps', async () => {
+      const note = await createRemoteNote([photo('g'), track, photo('h')])
+
+      await update(note, {
+        ...note,
+        attachment: [photo('g-edited'), track, photo('h-edited')]
+      })
+
+      const published = new Date(note.published).getTime()
+      const attachments = await database.getAttachments({ statusId: note.id })
+      expect(
+        attachments.map((item) => [item.url, item.createdAt - published])
+      ).toEqual([
+        ['https://llun.dev/media/g-edited.jpg', 0],
+        [track.url, 1],
+        ['https://llun.dev/media/h-edited.jpg', 2]
+      ])
+    })
+
     it('removes the attachments the Update no longer carries', async () => {
       const note = await createRemoteNote([photo('f')])
 

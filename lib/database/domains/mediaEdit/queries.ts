@@ -182,7 +182,7 @@ const lockOwnedMedia = async (
     trx,
     trx
       .selectFrom('medias')
-      .select([...MEDIA_COLUMNS, 'editVersion', 'editSaveId'])
+      .select([...MEDIA_COLUMNS, 'editSaveId'])
       .where('id', '=', mediaRowId)
   ).executeTakeFirst()
   if (!row?.actorId) return null
@@ -487,10 +487,16 @@ export const revertMediaEdit = async (
  * account's media usage. Returns the paths, which the caller deletes after
  * the commit. The hourly `media-bytes` bucket is increment-only (it counts
  * stored bytes per hour, like every other bucket), so it is left alone.
+ *
+ * Only the write that is still the media's latest may prune, checked under the
+ * row lock: once another save or revert has committed, the render this write
+ * made is itself superseded and that write's posts may still show it (a
+ * "Gallery only" save keeps it for them; an "Update posts" one may not have
+ * reached them yet). The later write prunes when its own posts are done.
  */
 export const pruneSupersededMediaEditFiles = async (
   db: Db,
-  { mediaId, accountId }: PruneSupersededMediaEditFilesParams
+  { mediaId, accountId, version }: PruneSupersededMediaEditFilesParams
 ): Promise<string[]> => {
   const mediaRowId = toMediaRowId(mediaId)
   if (mediaRowId === null) return []
@@ -498,6 +504,7 @@ export const pruneSupersededMediaEditFiles = async (
   return inTransaction(db, async (trx) => {
     const locked = await lockOwnedMedia(trx, mediaRowId, accountId)
     if (!locked) return []
+    if (Number(locked.row.editVersion) !== version) return []
 
     const superseded = (await selectFiles(trx, mediaRowId))
       .map(toMediaEditFile)

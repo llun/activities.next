@@ -13,8 +13,10 @@ import {
 } from '@/lib/services/medias/edit/editable'
 import { Size, getRecipeOutputSize } from '@/lib/services/medias/edit/geometry'
 import {
+  MAX_SOURCE_PIXELS,
   Recipe,
   isNeutralRecipe,
+  isSameRender,
   normalizeRecipe,
   parseRecipe,
   parseStoredRecipe
@@ -141,7 +143,8 @@ interface EditSource {
  * Reads the source and decodes its pixel size. `medias.original.metaData`
  * cannot be trusted for this: it describes the file as it was uploaded, before
  * the stored rendition was fitted inside 4000 px. Null when the file is
- * missing, too large or not an image.
+ * missing, too large (in bytes, or over `MAX_SOURCE_PIXELS` decoded) or not
+ * an image.
  */
 export const readEditSource = async (
   database: Database,
@@ -152,6 +155,7 @@ export const readEditSource = async (
     if (!stored) return null
     const { width, height, orientation } = await sharp(stored.buffer).metadata()
     if (!width || !height) return null
+    if (width * height > MAX_SOURCE_PIXELS) return null
     return {
       buffer: stored.buffer,
       mimeType: stored.mimeType,
@@ -366,11 +370,14 @@ export const getMediaEditSource = async ({
 /**
  * Steps 7–9 of a save or revert, once the write committed: delete the files
  * it released, update the posts when asked, and prune superseded renders no
- * post can still show.
+ * post can still show. The prune is scoped to `version`, the version this
+ * write produced: a save or revert that commits while the posts are being
+ * updated owns the renders from then on.
  */
 const afterWrite = async ({
   database,
   media,
+  version,
   accountId,
   removedPaths,
   statusIds,
@@ -378,6 +385,7 @@ const afterWrite = async ({
 }: {
   database: Database
   media: Media
+  version: number
   accountId: string
   removedPaths: string[]
   statusIds: string[]
@@ -387,7 +395,12 @@ const afterWrite = async ({
 
   const posts =
     statusIds.length > 0 && applyToPosts === 'update'
-      ? await refreshPostsForEditedMedia({ database, media, accountId })
+      ? await refreshPostsForEditedMedia({
+          database,
+          media,
+          version,
+          accountId
+        })
       : { updated: [], skipped: [] }
 
   // "Gallery only" keeps the superseded renders: its posts still show them.
@@ -397,7 +410,8 @@ const afterWrite = async ({
   if (prune) {
     const pruned = await database.pruneSupersededMediaEditFiles({
       mediaId: media.id,
-      accountId
+      accountId,
+      version
     })
     await deleteFilesBestEffort(database, pruned)
   }
@@ -424,6 +438,7 @@ const finishWrite = async ({
   const posts = await afterWrite({
     database,
     media: result.media,
+    version: result.version,
     accountId,
     removedPaths: result.removedPaths,
     statusIds: usage.statusIds,
@@ -531,13 +546,30 @@ export const saveMediaEdit = async ({
     mediaId: media.id,
     accountId
   })
+  const source = await readEditSource(database, getEditSourcePath(media, state))
+  if (!source) return notEditable()
+
+  // A recipe that renders what the live file already shows (only the aspect
+  // preset changed, or nothing did) is answered as saved without storing
+  // anything: a new render would be the same picture, and updating the posts
+  // would send every follower an edit that changes nothing.
+  const storedRecipe = parseStoredRecipe(state.recipe)
+  if (storedRecipe && isSameRender(storedRecipe, recipe)) {
+    const body = await buildResponse({
+      database,
+      media,
+      state,
+      source,
+      usage,
+      host
+    })
+    return { ok: true, body: { ...body, posts: { updated: [], skipped: [] } } }
+  }
+
   if (usage.statusCount > 0 && !applyToPosts) {
     return fail(422, ERROR_APPLY_TO_POSTS_REQUIRED)
   }
   const choice = usage.statusCount > 0 ? applyToPosts : undefined
-
-  const source = await readEditSource(database, getEditSourcePath(media, state))
-  if (!source) return notEditable()
 
   let renderSize: Size
   try {

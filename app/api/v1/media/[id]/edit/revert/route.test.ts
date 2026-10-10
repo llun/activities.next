@@ -290,6 +290,7 @@ describe('POST /api/v1/media/[id]/edit/revert', () => {
         id: media.id,
         original: expect.objectContaining({ path: media.original.path })
       }),
+      version: 2,
       accountId
     })
   })

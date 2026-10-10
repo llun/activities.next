@@ -93,6 +93,12 @@ export type ApplyMediaEditResult =
 export type PruneSupersededMediaEditFilesParams = {
   mediaId: string
   accountId: string
+  /**
+   * The edit version the caller's write produced. Nothing is pruned once the
+   * media has moved past it: a later save or revert owns the renders then
+   * (its posts may still show the one this write made).
+   */
+  version: number
 }
 
 export interface MediaEditDatabase {
@@ -105,8 +111,8 @@ export interface MediaEditDatabase {
   getMediaEditFilePaths(params: GetMediaEditFilePathsParams): Promise<string[]>
   applyMediaEdit(params: ApplyMediaEditParams): Promise<ApplyMediaEditResult>
   revertMediaEdit(params: RevertMediaEditParams): Promise<ApplyMediaEditResult>
-  // Removes every superseded render and returns their paths; the caller
-  // deletes the files after the commit.
+  // Removes every superseded render and returns their paths, unless the media
+  // has moved past `version`; the caller deletes the files after the commit.
   pruneSupersededMediaEditFiles(
     params: PruneSupersededMediaEditFilesParams
   ): Promise<string[]>

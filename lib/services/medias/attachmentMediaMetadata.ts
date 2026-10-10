@@ -1,9 +1,14 @@
 import { Database } from '@/lib/database/types'
-import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
+import { getLiveThumbnail } from '@/lib/services/medias/getMediaAttachment'
+import {
+  MEDIA_FILE_URL_PATH,
+  getMediaFileUrl
+} from '@/lib/services/medias/mediaFileUrl'
 import { MediaStorageSaveFileOutput } from '@/lib/services/medias/types'
 import { Media, UpdateNoteAttachment } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import {
+  Attachment,
   AttachmentMediaMetadata,
   PostBoxAttachment
 } from '@/lib/types/domain/attachment'
@@ -19,15 +24,17 @@ export const EMPTY_ATTACHMENT_MEDIA_METADATA: AttachmentMediaMetadata = {
  * stored paths are served from — the owning local actor's domain.
  */
 export const getAttachmentMediaMetadata = (
-  media: Pick<Media, 'blurhash' | 'focus' | 'thumbnail'> | null | undefined,
+  media:
+    Pick<Media, 'blurhash' | 'focus' | 'thumbnail' | 'edit'> | null | undefined,
   host: string
-): AttachmentMediaMetadata => ({
-  blurhash: media?.blurhash ?? null,
-  focus: media?.focus ?? null,
-  thumbnailUrl: media?.thumbnail
-    ? getMediaFileUrl(host, media.thumbnail.path)
-    : null
-})
+): AttachmentMediaMetadata => {
+  const thumbnail = media ? getLiveThumbnail(media) : undefined
+  return {
+    blurhash: media?.blurhash ?? null,
+    focus: media?.focus ?? null,
+    thumbnailUrl: thumbnail ? getMediaFileUrl(host, thumbnail.path) : null
+  }
+}
 
 /**
  * Reads the snapshot off the entity `saveMedia` returns, for the import jobs
@@ -84,33 +91,82 @@ export const resolveAttachmentMediaMetadata = async ({
   )
 }
 
+const showsLiveFile = (url: string, media: Pick<Media, 'original'>) =>
+  url.endsWith(`${MEDIA_FILE_URL_PATH}${media.original.path}`)
+
+/**
+ * The snapshot an attachment keeps when it still shows an earlier file of an
+ * edited photo (a post saved "Gallery only" keeps the render it was published
+ * with): the BlurHash, focal point and thumbnail stored with that file on the
+ * status's own attachment row. The media row now describes another image, so
+ * copying its values would federate a placeholder and focal point that do not
+ * match the image at `url`. Null when the attachment shows the live file, the
+ * photo was never edited, or the status has no row for that file.
+ */
+const getEarlierFileSnapshot = (
+  attachment: PostBoxAttachment,
+  media: Pick<Media, 'id' | 'original' | 'edit'>,
+  existingAttachments: Pick<
+    Attachment,
+    'mediaId' | 'url' | 'blurhash' | 'focus' | 'thumbnailUrl'
+  >[]
+): AttachmentMediaMetadata | null => {
+  if (!media.edit?.version) return null
+  if (showsLiveFile(attachment.url, media)) return null
+  const existing = existingAttachments.find(
+    (item) =>
+      item.mediaId != null &&
+      String(item.mediaId) === String(media.id) &&
+      item.url === attachment.url
+  )
+  if (!existing) return null
+  return {
+    blurhash: existing.blurhash ?? null,
+    focus: existing.focus ?? null,
+    thumbnailUrl: existing.thumbnailUrl ?? null
+  }
+}
+
 /**
  * Attaches the resolved snapshot to each attachment, ready for
  * `database.updateNote`. An attachment whose media row is gone (or which
  * carries no media id at all) keeps the empty snapshot rather than being
- * dropped — the edit still has to write the row.
+ * dropped — the edit still has to write the row. An attachment still showing
+ * an earlier file of an edited photo keeps what the status's row recorded for
+ * that file (`existingAttachments`, the status's attachments before the edit).
  */
 export const withAttachmentMediaMetadata = async ({
   database,
   currentActor,
-  attachments
+  attachments,
+  existingAttachments = []
 }: {
   database: Database
   currentActor: Actor
   attachments: PostBoxAttachment[]
+  existingAttachments?: Pick<
+    Attachment,
+    'mediaId' | 'url' | 'blurhash' | 'focus' | 'thumbnailUrl'
+  >[]
 }): Promise<UpdateNoteAttachment[]> => {
-  const metadataById = await resolveAttachmentMediaMetadata({
-    database,
-    currentActor,
-    mediaIds: attachments
-      .map((attachment) => attachment.id)
-      .filter((id): id is string => Boolean(id))
+  const accountId = currentActor.account?.id
+  const mediaIds = attachments
+    .map((attachment) => attachment.id)
+    .filter((id): id is string => Boolean(id))
+  const mediaRows =
+    accountId && mediaIds.length > 0
+      ? await database.getMediaByIdsForAccount({ mediaIds, accountId })
+      : []
+  const mediaById = new Map(mediaRows.map((media) => [String(media.id), media]))
+  return attachments.map((attachment) => {
+    const media = attachment.id
+      ? mediaById.get(String(attachment.id))
+      : undefined
+    if (!media) return { ...attachment, ...EMPTY_ATTACHMENT_MEDIA_METADATA }
+    return {
+      ...attachment,
+      ...(getEarlierFileSnapshot(attachment, media, existingAttachments) ??
+        getAttachmentMediaMetadata(media, currentActor.domain))
+    }
   })
-  return attachments.map((attachment) => ({
-    ...attachment,
-    ...(attachment.id
-      ? (metadataById.get(String(attachment.id)) ??
-        EMPTY_ATTACHMENT_MEDIA_METADATA)
-      : EMPTY_ATTACHMENT_MEDIA_METADATA)
-  }))
 }

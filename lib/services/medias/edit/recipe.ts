@@ -233,6 +233,46 @@ export const isNeutralRecipe = (recipe: Recipe): boolean => {
   )
 }
 
+// The recipe without its UI-only aspect state, in canonical form.
+const getPixelRecipe = (recipe: Recipe) => {
+  const { geometry, ...rest } = normalizeRecipe(recipe)
+  const { aspect: _aspect, aspectPortrait: _portrait, ...pixels } = geometry
+  return { ...rest, geometry: pixels }
+}
+
+const isSameValue = (left: unknown, right: unknown): boolean => {
+  if (left === right) return true
+  if (
+    typeof left !== 'object' ||
+    typeof right !== 'object' ||
+    left === null ||
+    right === null ||
+    Array.isArray(left) !== Array.isArray(right)
+  ) {
+    return false
+  }
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) =>
+      isSameValue(
+        (left as Record<string, unknown>)[key],
+        (right as Record<string, unknown>)[key]
+      )
+    )
+  )
+}
+
+/**
+ * True when two recipes render the same pixels from the same source: they
+ * are equal once normalized, ignoring `aspect` and `aspectPortrait`, which
+ * only say which preset the crop box follows (choosing 1:1 and then Original
+ * again, or a preset whose crop is the full frame, changes no pixel).
+ */
+export const isSameRender = (left: Recipe, right: Recipe): boolean =>
+  isSameValue(getPixelRecipe(left), getPixelRecipe(right))
+
 export type ParseRecipeResult =
   { ok: true; recipe: Recipe } | { ok: false; error: string }
 

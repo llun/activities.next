@@ -39,7 +39,7 @@ import {
   DeleteMediaForAccountParams,
   DeleteMediaForAccountResult,
   DeleteMediaParams,
-  DeleteRemoteAttachmentsForStatusParams,
+  DeleteMediaWithFilesResult,
   GetAttachmentsForActorParams,
   GetAttachmentsParams,
   GetAttachmentsWithMediaParams,
@@ -54,6 +54,7 @@ import {
   MediaDatabase,
   MediaWithAttachedStatusIds,
   PaginatedMediaWithStatus,
+  ReplaceRemoteAttachmentsForStatusParams,
   SetMediaPlaceLookupParams,
   SetMediaSubjectLookupParams,
   SetMediaSubjectSuggestionsParams,
@@ -134,53 +135,183 @@ const toCanonicalMediaId = <T extends string | null | undefined>(
   return id === null ? mediaId : String(id)
 }
 
+// NOTE: `mediaId` is WRITTEN here, not compared, so it does not go through
+// `toMediaRowId` — coercing would silently drop the link rather than surface
+// the caller's bad id. Almost every caller hands over an id read back out of
+// `medias`, but `POST /api/v1/accounts/outbox` does not: its
+// `PostBoxAttachment.id` is a bare `z.string()`. That endpoint now shape-
+// checks the id against `toMediaRowId` before it writes anything, so a
+// malformed one is a 422 rather than an `invalid input syntax for type
+// integer` raised here AFTER `createNote` had committed the status row.
+// The guard belongs at the route, not here: it is the last point at which
+// the request can be refused before a write, and `createNote.ts` opens no
+// transaction to roll one back.
+const insertAttachment = async (
+  database: Knex | Knex.Transaction,
+  {
+    actorId,
+    statusId,
+    mediaType,
+    url,
+    width,
+    height,
+    name = '',
+    mediaId,
+    createdAt,
+    blurhash,
+    focus,
+    thumbnailUrl,
+    playbackType
+  }: CreateAttachmentParams
+): Promise<Attachment> => {
+  const currentTime =
+    typeof createdAt === 'number' ? new Date(createdAt) : new Date()
+  const data = Attachment.parse({
+    id: crypto.randomUUID(),
+    actorId,
+    statusId,
+    type: 'Document',
+    mediaType,
+    url,
+    width,
+    height,
+    name,
+    blurhash: blurhash ?? undefined,
+    focus: focus ?? undefined,
+    thumbnailUrl: thumbnailUrl ?? undefined,
+    playbackType: playbackType ?? undefined,
+    createdAt: currentTime.getTime(),
+    updatedAt: currentTime.getTime()
+  })
+  await database('attachments').insert({
+    id: data.id,
+    actorId: data.actorId,
+    statusId: data.statusId,
+    type: data.type,
+    mediaType: data.mediaType,
+    url: data.url,
+    width: data.width,
+    height: data.height,
+    name: data.name,
+    mediaId: toCanonicalMediaId(mediaId),
+    blurhash: blurhash ?? null,
+    focusX: focus?.x ?? null,
+    focusY: focus?.y ?? null,
+    thumbnailUrl: thumbnailUrl ?? null,
+    playbackType: playbackType ?? null,
+    createdAt: currentTime,
+    updatedAt: currentTime
+  })
+  return data
+}
+
+type MediaDeleteRow = {
+  id: string | number
+  actorId: string
+  original: string
+  originalMetaData: string | MediaMetaData | null
+  thumbnail: string | null
+  originalBytes: number | string | bigint | null
+  thumbnailBytes: number | string | bigint | null
+}
+
+// The media row a delete removes, re-read under its row lock (FOR UPDATE on
+// PostgreSQL; SQLite serialises write transactions on its one connection).
+// A photo edit locks the same row before it moves `original` and adds
+// `media_edit_files` rows, so once this returns no save can commit a file the
+// delete would miss: what it reads here is everything the row stores.
+const lockMediaForDelete = async (
+  trx: Knex.Transaction,
+  mediaId: string | number
+): Promise<MediaDeleteRow | undefined> => {
+  const query = trx('medias')
+    .where('id', mediaId)
+    .select(
+      'id',
+      'actorId',
+      'original',
+      'originalMetaData',
+      'thumbnail',
+      'originalBytes',
+      'thumbnailBytes'
+    )
+  if (isPostgresClient(trx)) query.forUpdate()
+  return query.first<MediaDeleteRow | undefined>()
+}
+
+// Every stored path a deleted media row kept: the live file, the presigned
+// upload's own key when the stripped copy replaced it (a re-PUT through the
+// still-valid URL can recreate it), the thumbnail and the photo edit files.
+const getDeletedMediaFiles = (
+  media: MediaDeleteRow,
+  editFilePaths: string[]
+): string[] => {
+  const clientPath = parseMediaMetaData(media.originalMetaData).upload
+    ?.clientPath
+  return [
+    ...new Set([
+      media.original,
+      ...(clientPath && clientPath !== media.original ? [clientPath] : []),
+      ...(media.thumbnail ? [media.thumbnail] : []),
+      ...editFilePaths
+    ])
+  ]
+}
+
+// Deletes the row inside the caller's transaction once its owner's album lock
+// and its own row lock are held, frees everything it stored from the account's
+// usage, and returns the paths to delete after the commit.
+const deleteLockedMedia = async (
+  trx: Knex.Transaction,
+  media: MediaDeleteRow,
+  accountId: string | null | undefined
+): Promise<string[] | null> => {
+  await removeMediaFromGalleryAlbums(trx, Number(media.id))
+  const editFilePaths = await getMediaEditFilePathsForMedia(trx, media.id)
+  const editFileBytes = await deleteMediaEditFiles(trx, media.id)
+  const deleted = await trx('medias').where('id', media.id).del()
+  if (!deleted) return null
+
+  const usageDelta =
+    parseCounterValue(media.originalBytes) +
+    parseCounterValue(media.thumbnailBytes) +
+    editFileBytes
+  if (accountId) {
+    if (usageDelta > 0) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.mediaUsage(accountId),
+        usageDelta
+      )
+    }
+    await decreaseCounterValue(trx, CounterKey.totalMedia(accountId), 1)
+  }
+  return getDeletedMediaFiles(media, editFilePaths)
+}
+
 const deleteMediaByConditions = async (
   database: Knex,
   conditions: Record<string, string | number>
-): Promise<boolean> => {
+): Promise<DeleteMediaWithFilesResult> => {
   return database.transaction(async (trx) => {
-    const media = await trx('medias')
+    const found = await trx('medias')
       .where(conditions)
-      .select('id', 'actorId', 'originalBytes', 'thumbnailBytes')
-      .first<{
-        id: string | number
-        actorId: string
-        originalBytes: number | string | bigint | null
-        thumbnailBytes: number | string | bigint | null
-      }>()
-    if (!media) return false
+      .select('id', 'actorId')
+      .first<{ id: string | number; actorId: string } | undefined>()
+    if (!found) return { status: 'not-found' }
 
     const actor = await trx('actors')
-      .where('id', media.actorId)
+      .where('id', found.actorId)
       .select<{ accountId: string | null }>('accountId')
       .first()
 
-    // The owner's album lock first, then the album rows, then the media row:
-    // the same order every album write takes.
-    await lockGalleryAlbumActor(trx, media.actorId)
-    await removeMediaFromGalleryAlbums(trx, Number(media.id))
-    const editFileBytes = await deleteMediaEditFiles(trx, media.id)
-    const deleted = await trx('medias')
-      .where({ ...conditions, id: media.id })
-      .del()
-    if (!deleted) return false
-
-    const usageDelta =
-      parseCounterValue(media.originalBytes) +
-      parseCounterValue(media.thumbnailBytes) +
-      editFileBytes
-
-    if (actor?.accountId) {
-      if (usageDelta > 0) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.mediaUsage(actor.accountId),
-          usageDelta
-        )
-      }
-      await decreaseCounterValue(trx, CounterKey.totalMedia(actor.accountId), 1)
-    }
-    return true
+    // The owner's album lock first (the order every album write takes), then
+    // the media row, then the album rows.
+    await lockGalleryAlbumActor(trx, found.actorId)
+    const media = await lockMediaForDelete(trx, found.id)
+    if (!media) return { status: 'not-found' }
+    const files = await deleteLockedMedia(trx, media, actor?.accountId)
+    return files ? { status: 'deleted', files } : { status: 'not-found' }
   })
 }
 
@@ -226,9 +357,9 @@ const getMediaEditFilePathsForMedia = async (
 const deleteMediaById = async (
   database: Knex,
   mediaId: string
-): Promise<boolean> => {
+): Promise<DeleteMediaWithFilesResult> => {
   const id = toMediaRowId(mediaId)
-  if (id === null) return false
+  if (id === null) return { status: 'not-found' }
   return deleteMediaByConditions(database, { id })
 }
 
@@ -882,71 +1013,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
       }
     })
   },
-  // NOTE: `mediaId` is WRITTEN here, not compared, so it does not go through
-  // `toMediaRowId` — coercing would silently drop the link rather than surface
-  // the caller's bad id. Almost every caller hands over an id read back out of
-  // `medias`, but `POST /api/v1/accounts/outbox` does not: its
-  // `PostBoxAttachment.id` is a bare `z.string()`. That endpoint now shape-
-  // checks the id against `toMediaRowId` before it writes anything, so a
-  // malformed one is a 422 rather than an `invalid input syntax for type
-  // integer` raised here AFTER `createNote` had committed the status row.
-  // The guard belongs at the route, not here: it is the last point at which
-  // the request can be refused before a write, and `createNote.ts` opens no
-  // transaction to roll one back.
-  async createAttachment({
-    actorId,
-    statusId,
-    mediaType,
-    url,
-    width,
-    height,
-    name = '',
-    mediaId,
-    createdAt,
-    blurhash,
-    focus,
-    thumbnailUrl,
-    playbackType
-  }: CreateAttachmentParams): Promise<Attachment> {
-    const currentTime =
-      typeof createdAt === 'number' ? new Date(createdAt) : new Date()
-    const data = Attachment.parse({
-      id: crypto.randomUUID(),
-      actorId,
-      statusId,
-      type: 'Document',
-      mediaType,
-      url,
-      width,
-      height,
-      name,
-      blurhash: blurhash ?? undefined,
-      focus: focus ?? undefined,
-      thumbnailUrl: thumbnailUrl ?? undefined,
-      playbackType: playbackType ?? undefined,
-      createdAt: currentTime.getTime(),
-      updatedAt: currentTime.getTime()
-    })
-    await database('attachments').insert({
-      id: data.id,
-      actorId: data.actorId,
-      statusId: data.statusId,
-      type: data.type,
-      mediaType: data.mediaType,
-      url: data.url,
-      width: data.width,
-      height: data.height,
-      name: data.name,
-      mediaId: toCanonicalMediaId(mediaId),
-      blurhash: blurhash ?? null,
-      focusX: focus?.x ?? null,
-      focusY: focus?.y ?? null,
-      thumbnailUrl: thumbnailUrl ?? null,
-      playbackType: playbackType ?? null,
-      createdAt: currentTime,
-      updatedAt: currentTime
-    })
-    return data
+  async createAttachment(params: CreateAttachmentParams): Promise<Attachment> {
+    return insertAttachment(database, params)
   },
 
   async updateAttachmentPlayback({
@@ -973,32 +1041,40 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
     return updated > 0
   },
 
-  // Removes the attachments a remote note brought along (no media row of
-  // their own), so an inbound Update can store its new list. A local media
-  // attachment and a fitness file are never touched.
-  async deleteRemoteAttachmentsForStatus({
-    statusId
-  }: DeleteRemoteAttachmentsForStatusParams): Promise<number> {
-    const rows = await database('attachments')
-      .where('statusId', statusId)
-      .whereNull('mediaId')
-      .select('id', 'mediaType', 'url', 'name')
-    const ids = rows
-      .filter(
-        (row) =>
-          !isFitnessAttachment({
-            mediaType: String(row.mediaType ?? ''),
-            url: String(row.url ?? ''),
-            name: String(row.name ?? '')
-          })
-      )
-      .map((row) => row.id)
-    if (ids.length === 0) return 0
-    return database('attachments')
-      .where('statusId', statusId)
-      .whereNull('mediaId')
-      .whereIn('id', ids)
-      .delete()
+  // Swaps the attachments a remote note brought along (no media row of their
+  // own) for the list an inbound Update carries, in one transaction, so a
+  // failure part-way leaves the old rows and no reader sees none in between.
+  // A local media attachment and a fitness file are never touched.
+  async replaceRemoteAttachmentsForStatus({
+    statusId,
+    attachments
+  }: ReplaceRemoteAttachmentsForStatusParams): Promise<void> {
+    await database.transaction(async (trx) => {
+      const rows = await trx('attachments')
+        .where('statusId', statusId)
+        .whereNull('mediaId')
+        .select('id', 'mediaType', 'url', 'name')
+      const ids = rows
+        .filter(
+          (row) =>
+            !isFitnessAttachment({
+              mediaType: String(row.mediaType ?? ''),
+              url: String(row.url ?? ''),
+              name: String(row.name ?? '')
+            })
+        )
+        .map((row) => row.id)
+      if (ids.length > 0) {
+        await trx('attachments')
+          .where('statusId', statusId)
+          .whereNull('mediaId')
+          .whereIn('id', ids)
+          .delete()
+      }
+      for (const attachment of attachments) {
+        await insertAttachment(trx, { ...attachment, statusId })
+      }
+    })
   },
 
   async getAttachments({ statusId }: GetAttachmentsParams) {
@@ -1463,6 +1539,12 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
   },
 
   async deleteMedia({ mediaId }: DeleteMediaParams): Promise<boolean> {
+    return (await deleteMediaById(database, mediaId)).status === 'deleted'
+  },
+
+  async deleteMediaWithFiles({
+    mediaId
+  }: DeleteMediaParams): Promise<DeleteMediaWithFilesResult> {
     return deleteMediaById(database, mediaId)
   },
 
@@ -1480,24 +1562,8 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .join('actors', 'medias.actorId', 'actors.id')
         .where('medias.id', mediaRowId)
         .where('actors.accountId', accountId)
-        .select(
-          'medias.id',
-          'medias.actorId',
-          'medias.original',
-          'medias.originalMetaData',
-          'medias.thumbnail',
-          'medias.originalBytes',
-          'medias.thumbnailBytes'
-        )
-        .first<{
-          id: string | number
-          actorId: string
-          original: string
-          originalMetaData: string | MediaMetaData | null
-          thumbnail: string | null
-          originalBytes: number | string | bigint | null
-          thumbnailBytes: number | string | bigint | null
-        }>()
+        .select('medias.id', 'medias.actorId')
+        .first<{ id: string | number; actorId: string } | undefined>()
       if (!media) return { status: 'not-found' }
 
       // Mastodon's destroy returns 422 (in_usage_error) when the attachment is
@@ -1512,44 +1578,14 @@ export const MediaSQLDatabaseMixin = (database: Knex): MediaDatabase => ({
         .first('attachments.id')
       if (attached) return { status: 'in-use' }
 
-      // The owner's album lock first, then the album rows, then the media row.
+      // The owner's album lock first, then the media row, then the album rows.
       await lockGalleryAlbumActor(trx, media.actorId)
-      await removeMediaFromGalleryAlbums(trx, Number(media.id))
-      const editFilePaths = await getMediaEditFilePathsForMedia(trx, media.id)
-      const editFileBytes = await deleteMediaEditFiles(trx, media.id)
-      const deleted = await trx('medias').where('id', media.id).del()
-      if (!deleted) return { status: 'not-found' }
-
-      const usageDelta =
-        parseCounterValue(media.originalBytes) +
-        parseCounterValue(media.thumbnailBytes) +
-        editFileBytes
-      if (usageDelta > 0) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.mediaUsage(accountId),
-          usageDelta
-        )
-      }
-      await decreaseCounterValue(trx, CounterKey.totalMedia(accountId), 1)
-
-      // Return the paths captured inside the transaction so the caller deletes
+      const locked = await lockMediaForDelete(trx, media.id)
+      if (!locked) return { status: 'not-found' }
+      const files = await deleteLockedMedia(trx, locked, accountId)
+      // The paths are captured inside the transaction so the caller deletes
       // exactly the files that belonged to this row (no racy prefetch).
-      // The presigned URL outlives the key swap, so a re-PUT may have
-      // recreated an object at the client's original key: delete it as well.
-      const clientPath = parseMediaMetaData(media.originalMetaData).upload
-        ?.clientPath
-      // A photo edit keeps the uploaded file and earlier renders beside the
-      // live one; they go with the row.
-      const files = [
-        ...new Set([
-          media.original,
-          ...(clientPath && clientPath !== media.original ? [clientPath] : []),
-          ...(media.thumbnail ? [media.thumbnail] : []),
-          ...editFilePaths
-        ])
-      ]
-      return { status: 'deleted', files }
+      return files ? { status: 'deleted', files } : { status: 'not-found' }
     })
   },
 

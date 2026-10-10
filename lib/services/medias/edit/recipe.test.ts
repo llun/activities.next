@@ -6,6 +6,7 @@ import {
   RecipeSchema,
   countChangedAdjustments,
   isNeutralRecipe,
+  isSameRender,
   normalizeRecipe,
   parseRecipe,
   parseStoredRecipe
@@ -350,5 +351,51 @@ describe('isNeutralRecipe', () => {
         recipe({ masks: [subject('abcd1234', { adjustments: { tint: 4 } })] })
       )
     ).toBe(false)
+  })
+})
+
+describe('isSameRender', () => {
+  const edited = recipe({ adjustments: { exposure: 0.5 } })
+
+  it('ignores the aspect preset and its orientation', () => {
+    const geometry = {
+      ...edited.geometry,
+      aspect: '1:1' as const,
+      aspectPortrait: true
+    }
+    expect(isSameRender(edited, { ...edited, geometry })).toBe(true)
+  })
+
+  it('compares the normalized recipes', () => {
+    expect(
+      isSameRender(
+        edited,
+        recipe({ adjustments: { exposure: 0.501, contrast: 0 } })
+      )
+    ).toBe(true)
+  })
+
+  it.each([
+    ['an adjustment', recipe({ adjustments: { exposure: 0.6 } })],
+    ['another adjustment', recipe({ adjustments: { exposure: 0.5, tint: 2 } })],
+    [
+      'the crop',
+      recipe({
+        adjustments: { exposure: 0.5 },
+        geometry: {
+          ...NEUTRAL_RECIPE.geometry,
+          crop: { x: 0, y: 0, width: 0.5, height: 1 }
+        }
+      })
+    ],
+    [
+      'a mask',
+      recipe({
+        adjustments: { exposure: 0.5 },
+        masks: [subject('abcd1234', { adjustments: { tint: 4 } })]
+      })
+    ]
+  ])('is false when %s differs', (_, other) => {
+    expect(isSameRender(edited, other)).toBe(false)
   })
 })

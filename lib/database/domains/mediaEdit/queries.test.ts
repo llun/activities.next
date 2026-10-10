@@ -328,7 +328,8 @@ describe('MediaEditDatabase', () => {
     await expect(
       database.pruneSupersededMediaEditFiles({
         mediaId: media.id,
-        accountId: otherAccountId
+        accountId: otherAccountId,
+        version: 0
       })
     ).resolves.toEqual([])
     expect(await slotsOf(media.id)).toEqual([])
@@ -350,7 +351,8 @@ describe('MediaEditDatabase', () => {
 
     const pruned = await database.pruneSupersededMediaEditFiles({
       mediaId: media.id,
-      accountId
+      accountId,
+      version: 3
     })
 
     expect(pruned.sort()).toEqual([
@@ -360,7 +362,104 @@ describe('MediaEditDatabase', () => {
     expect(await slotsOf(media.id)).toEqual(['original'])
     expect(await usage()).toBe(before - 300)
     await expect(
-      database.pruneSupersededMediaEditFiles({ mediaId: media.id, accountId })
+      database.pruneSupersededMediaEditFiles({
+        mediaId: media.id,
+        accountId,
+        version: 3
+      })
     ).resolves.toEqual([])
+  })
+
+  // A save's prune runs after its posts were updated, which can take seconds.
+  // A save that committed meanwhile superseded this save's render, and that
+  // save's posts ("Gallery only", or not reached yet) may still show it.
+  it('prunes nothing once a later write moved the version on', async () => {
+    const media = await createPhoto('prune-late')
+    for (const [index, name] of [
+      'prune-late-a',
+      'prune-late-b',
+      'prune-late-c'
+    ].entries()) {
+      await database.applyMediaEdit({
+        mediaId: media.id,
+        accountId,
+        baseVersion: index,
+        saveId: name,
+        recipe: RECIPE,
+        render: render(name, 100 * (index + 1))
+      })
+    }
+    const before = await usage()
+
+    // The save that produced version 2 (render b) prunes after version 3.
+    await expect(
+      database.pruneSupersededMediaEditFiles({
+        mediaId: media.id,
+        accountId,
+        version: 2
+      })
+    ).resolves.toEqual([])
+    expect(await slotsOf(media.id)).toEqual([
+      'original',
+      'superseded',
+      'superseded'
+    ])
+    expect(await usage()).toBe(before)
+  })
+
+  // A delete reads the row's files and bytes under the media row's lock, so a
+  // save committing at the same moment is either fully in what the delete
+  // removes or finds the row gone; no file is orphaned and no byte left counted.
+  it.each([
+    [
+      'deleteMediaWithFiles',
+      (mediaId: string) => database.deleteMediaWithFiles({ mediaId })
+    ],
+    [
+      'deleteMediaForAccount',
+      (mediaId: string) =>
+        database.deleteMediaForAccount({ mediaId, accountId })
+    ]
+  ])('%s waits for a save holding the row', async (_name, remove) => {
+    const media = await createPhoto(`delete-race-${_name}`)
+    const before = await usage()
+
+    let release: (() => void) | null = null
+    const saving = testDb.db.transaction().execute(async (trx) => {
+      const result = await mediaEditQueries.applyMediaEdit(trx, {
+        mediaId: media.id,
+        accountId,
+        baseVersion: 0,
+        saveId: 'held',
+        recipe: RECIPE,
+        render: render(`delete-race-${_name}-render`)
+      })
+      await new Promise<void>((resolve) => {
+        release = resolve
+      })
+      return result
+    })
+    while (!release) await new Promise((resolve) => setTimeout(resolve, 5))
+
+    const deleting = remove(media.id)
+    // Let the delete reach the row lock before the save commits.
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    ;(release as () => void)()
+    const [saved, deleted] = await Promise.all([saving, deleting])
+
+    expect(saved.status).toBe('ok')
+    expect(deleted).toEqual({
+      status: 'deleted',
+      files: expect.arrayContaining([
+        `medias/delete-race-${_name}-render.webp`,
+        `medias/delete-race-${_name}.webp`,
+        `uploads/delete-race-${_name}.jpg`
+      ])
+    })
+    expect(await database.listMediaEditFiles({ mediaIds: [media.id] })).toEqual(
+      []
+    )
+    // The uploaded 1000 bytes and the 600-byte render both left the usage.
+    expect(await usage()).toBe(before - 1000)
   })
 })

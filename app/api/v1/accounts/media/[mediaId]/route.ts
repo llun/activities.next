@@ -67,26 +67,27 @@ export const DELETE = traceApiRoute(
       })
     }
 
-    // Delete the storage files (original, thumbnail and edit files)
-    const filesToDelete: string[] = [media.original.path]
-    // A re-PUT through the still-valid presigned URL can recreate the client's
-    // original key after the stripped copy was swapped in.
-    const clientPath = media.original.metaData?.upload?.clientPath
-    if (clientPath && clientPath !== media.original.path) {
-      filesToDelete.push(clientPath)
-    }
-    if (media.thumbnail) {
-      filesToDelete.push(media.thumbnail.path)
-    }
-    // A photo edit keeps the uploaded file and earlier renders beside the
-    // live one.
-    for (const path of await database.getMediaEditFilePaths({
-      mediaIds: [mediaId]
-    })) {
-      if (!filesToDelete.includes(path)) filesToDelete.push(path)
+    // Delete the media record first. It reports every file the row kept
+    // (original, the presigned upload's own key, thumbnail and photo edit
+    // files), read under its row lock so an edit saved meanwhile cannot leave
+    // one behind; the files go after the commit.
+    const deleted = await database.deleteMediaWithFiles({ mediaId })
+    if (deleted.status !== 'deleted') {
+      logger.error({
+        message: 'Failed to delete media',
+        mediaId,
+        accountId: account.id
+      })
+      return apiResponse({
+        req,
+        allowedMethods: CORS_HEADERS,
+        data: ERROR_500,
+        responseStatusCode: 500
+      })
     }
 
     // Delete files from storage
+    const filesToDelete = deleted.files
     const deletionResults = await Promise.allSettled(
       filesToDelete.map((filePath) => deleteMediaFile(database, filePath))
     )
@@ -102,22 +103,6 @@ export const DELETE = traceApiRoute(
         })
       }
     })
-
-    // Delete the media record from database
-    const deleted = await database.deleteMedia({ mediaId })
-    if (!deleted) {
-      logger.error({
-        message: 'Failed to delete media',
-        mediaId,
-        accountId: account.id
-      })
-      return apiResponse({
-        req,
-        allowedMethods: CORS_HEADERS,
-        data: ERROR_500,
-        responseStatusCode: 500
-      })
-    }
 
     logger.info({
       message: 'Media deleted successfully',

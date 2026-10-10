@@ -48,7 +48,7 @@ import {
   UPDATE_NOTE_JOB_NAME
 } from './names'
 import {
-  createRemoteAttachments,
+  buildRemoteAttachments,
   getRemoteAttachmentDocuments
 } from './noteAttachments'
 
@@ -86,12 +86,17 @@ const syncRemoteAttachments = async ({
     return
   }
 
-  await database.deleteRemoteAttachmentsForStatus({ statusId: status.id })
-  await createRemoteAttachments({
-    database,
+  // Built first (a video's playback type may need a fetch), then swapped in
+  // one transaction: a failure leaves the stored rows as they were, and no
+  // reader sees the post without its media in between.
+  const attachments = await buildRemoteAttachments({
     statusId: status.id,
     note,
     withoutFitness: true
+  })
+  await database.replaceRemoteAttachmentsForStatus({
+    statusId: status.id,
+    attachments
   })
 }
 
