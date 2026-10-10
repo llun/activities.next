@@ -8,6 +8,7 @@ import {
   toScientificHashtag
 } from '@/lib/components/gallery/galleryTaxonomy'
 import type { MediaPublicDetails } from '@/lib/services/gallery/galleryEntities'
+import { cn } from '@/lib/utils'
 
 type Exposure = NonNullable<MediaPublicDetails['exposure']>
 
@@ -48,6 +49,7 @@ interface Props {
    * by <name>".
    */
   ownerName?: string | null
+  className?: string
 }
 
 const summarize = (details: MediaPublicDetails) => {
@@ -81,15 +83,19 @@ const summarize = (details: MediaPublicDetails) => {
 }
 
 // True when the panel would render something. The viewer uses it to decide
-// whether to make room under the photo, so it must match the panel exactly.
+// whether there is anything to show, so it must match the panel exactly.
 export const hasPublicDetailsContent = (
   details: MediaPublicDetails | null | undefined
 ): details is MediaPublicDetails =>
   details != null && summarize(details).hasContent
 
-// Compact, read-only summary of a photo's public details, shown under the
-// viewer's alt text. Renders nothing when none of the details are present.
-export const MediaDetailsPanel: FC<Props> = ({ details, ownerName }) => {
+// Compact, read-only summary of a photo's public details, shown in the
+// viewer's info overlay. Renders nothing when none of the details are present.
+export const MediaDetailsPanel: FC<Props> = ({
+  details,
+  ownerName,
+  className
+}) => {
   const {
     subjectName,
     scientificName,
@@ -109,10 +115,13 @@ export const MediaDetailsPanel: FC<Props> = ({ details, ownerName }) => {
   return (
     <div
       onTouchStart={(e) => e.stopPropagation()}
-      className="mt-2 max-w-2xl space-y-1 px-4 text-center text-xs leading-relaxed text-white/75 select-text"
+      className={cn(
+        'space-y-1 text-left text-xs leading-relaxed text-white/75 select-text',
+        className
+      )}
     >
       {hasSubject && (
-        <p className="flex flex-wrap items-center justify-center gap-x-1.5 text-sm text-white/90">
+        <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-white/90">
           {subjectName && <span className="font-semibold">{subjectName}</span>}
           {scientificName && (
             <span className="italic text-white/60">{scientificName}</span>
@@ -144,14 +153,14 @@ export const MediaDetailsPanel: FC<Props> = ({ details, ownerName }) => {
         </p>
       )}
       {gear.length > 0 && (
-        <p className="flex items-center justify-center gap-1.5">
+        <p className="flex items-center gap-1.5">
           <Camera className="size-3.5 shrink-0" aria-hidden="true" />
           <span>{gear.join(' · ')}</span>
         </p>
       )}
       {exposure && <p>{exposure}</p>}
       {place && (
-        <p className="flex items-center justify-center gap-1.5">
+        <p className="flex items-center gap-1.5">
           <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
           <span>{place}</span>
         </p>

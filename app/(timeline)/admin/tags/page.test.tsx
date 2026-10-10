@@ -114,6 +114,19 @@ describe('/admin/tags', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
+  it('keeps the offset of a huge page number in the safe-integer range', async () => {
+    getAllHashtags.mockResolvedValue({ hashtags: [], total: 0 })
+
+    await renderPage({ page: '100000000000000000000' })
+
+    // 1e21 as a bound parameter makes SQLite and PostgreSQL throw.
+    expect(getAllHashtags).toHaveBeenCalledWith({
+      limit: 20,
+      offset: Number.MAX_SAFE_INTEGER,
+      sort: 'alphabetical'
+    })
+  })
+
   it('pages under the table and keeps the sort in the links', async () => {
     getAllHashtags.mockResolvedValue({
       hashtags: [hashtag('#a', 1)],

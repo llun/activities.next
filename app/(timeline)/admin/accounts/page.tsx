@@ -39,7 +39,7 @@ const Page = async ({ searchParams }: Props) => {
 
   const params = await searchParams
   const page = Math.max(1, parseInt(params.page ?? '1', 10) || 1)
-  const offset = (page - 1) * ITEMS_PER_PAGE
+  const offset = Math.min((page - 1) * ITEMS_PER_PAGE, Number.MAX_SAFE_INTEGER)
 
   const { accounts, total } = await database.getAllAccounts({
     limit: ITEMS_PER_PAGE,

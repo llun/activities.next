@@ -145,6 +145,18 @@ describe('/admin/accounts', () => {
     )
   })
 
+  it('keeps the offset of a huge page number in the safe-integer range', async () => {
+    getAllAccounts.mockResolvedValue({ accounts: [], total: 0 })
+
+    await renderPage({ page: '100000000000000000000' })
+
+    // 1e21 as a bound parameter makes SQLite and PostgreSQL throw.
+    expect(getAllAccounts).toHaveBeenCalledWith({
+      limit: 20,
+      offset: Number.MAX_SAFE_INTEGER
+    })
+  })
+
   it('has no Next link on the last page', async () => {
     getAllAccounts.mockResolvedValue({
       accounts: [account({ id: 'a41' })],

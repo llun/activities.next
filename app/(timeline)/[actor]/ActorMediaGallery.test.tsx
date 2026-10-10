@@ -46,7 +46,7 @@ describe('ActorMediaGallery', () => {
     expect(altBadges).toHaveLength(1)
   })
 
-  it('opens MediasModal when a thumbnail is clicked and shows the alt text', () => {
+  it('opens MediasModal when a thumbnail is clicked and shows the alt text in the Details overlay', () => {
     const attachment = buildAttachment({
       id: 'attachment-1',
       name: 'Cat in the garden'
@@ -64,8 +64,14 @@ describe('ActorMediaGallery', () => {
     })
     fireEvent.click(button)
 
-    const descriptions = screen.getAllByText('Cat in the garden')
-    expect(descriptions[0]).toBeInTheDocument()
+    expect(
+      screen.getByRole('dialog', { name: 'Media viewer' })
+    ).toBeInTheDocument()
+    // The alt text is in the viewer's Details overlay, hidden until asked for.
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    expect(
+      screen.getByRole('region', { name: 'Photo details' })
+    ).toHaveTextContent('Cat in the garden')
   })
 
   it('applies keyboard focus-visible outline classes on thumbnail buttons', () => {

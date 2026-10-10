@@ -69,7 +69,7 @@ const getStatusMessage = (status?: string): string | null => {
 
 const getOffset = (value?: string): number => {
   const offset = Number(value ?? 0)
-  return Number.isInteger(offset) && offset > 0 ? offset : 0
+  return Number.isSafeInteger(offset) && offset > 0 ? offset : 0
 }
 
 const getPaginationHref = ({

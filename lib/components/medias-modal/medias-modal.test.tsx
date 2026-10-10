@@ -29,7 +29,10 @@ describe('MediasModal', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders alt text underneath image when description exists', () => {
+  const openDetails = () =>
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+
+  it('hides the alt text until the Details button is pressed', () => {
     const attachment = buildAttachment({
       name: 'A mountaineer walking along a ridge'
     })
@@ -42,11 +45,35 @@ describe('MediasModal', () => {
       />
     )
 
-    const alts = screen.getAllByText('A mountaineer walking along a ridge')
-    expect(alts[0]).toBeInTheDocument()
+    expect(
+      screen.getByText('A mountaineer walking along a ridge')
+    ).not.toBeVisible()
+    expect(
+      screen.queryByRole('region', { name: 'Photo details' })
+    ).not.toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: 'Details' })
+    expect(toggle).not.toHaveAttribute('aria-pressed')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    const hiddenOverlay = document.getElementById(
+      toggle.getAttribute('aria-controls') ?? ''
+    )
+    expect(hiddenOverlay).toHaveAttribute('hidden')
+
+    openDetails()
+
+    const overlay = screen.getByRole('region', { name: 'Photo details' })
+    expect(overlay).toHaveTextContent('A mountaineer walking along a ridge')
+    expect(overlay).toHaveAttribute('tabindex', '0')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle).toHaveAttribute('aria-controls', overlay.id)
+
+    openDetails()
+    expect(
+      screen.queryByRole('region', { name: 'Photo details' })
+    ).not.toBeInTheDocument()
   })
 
-  it('does not render alt text paragraph when description is empty or whitespace', () => {
+  it('hides the Details button, keeping its space, when there is nothing to show', () => {
     const attachment = buildAttachment({
       name: '   '
     })
@@ -59,10 +86,60 @@ describe('MediasModal', () => {
       />
     )
 
+    const toggle = screen.getByText('Details').closest('button')
+    expect(toggle).toHaveClass('invisible')
+    expect(toggle).toHaveAttribute('aria-hidden', 'true')
+    expect(toggle).toHaveAttribute('tabindex', '-1')
     expect(container.querySelector('p')).not.toBeInTheDocument()
+    expect(document.querySelector('p')).not.toBeInTheDocument()
   })
 
-  it('shows the corresponding alt text when navigating between media items', () => {
+  it('keeps one image size cap whatever the photo carries', () => {
+    const { rerender } = render(
+      <MediasModal
+        medias={[buildAttachment({ id: 'a', name: '' })]}
+        initialSelection={0}
+        onClosed={vi.fn()}
+      />
+    )
+    const bare = document.querySelectorAll('img')[1].className
+    expect(bare).toContain('max-h-[calc(100dvh-6rem)]')
+
+    rerender(
+      <MediasModal
+        medias={[buildAttachment({ id: 'b', name: 'With alt text' })]}
+        initialSelection={0}
+        onClosed={vi.fn()}
+      />
+    )
+    openDetails()
+    expect(document.querySelectorAll('img')[1].className).toBe(bare)
+  })
+
+  it('uses the same cap for every panel when thumbnails are shown', () => {
+    render(
+      <MediasModal
+        medias={[
+          buildAttachment({ id: 'a', name: 'First' }),
+          buildAttachment({ id: 'b', name: '' }),
+          buildAttachment({ id: 'c', name: 'Third' })
+        ]}
+        initialSelection={0}
+        onClosed={vi.fn()}
+      />
+    )
+
+    const images = Array.from(document.querySelectorAll('.w-\\[300\\%\\] img'))
+    expect(images).toHaveLength(3)
+    for (const image of images) {
+      expect(image).toHaveClass(
+        'max-h-[calc(100dvh-11rem)]',
+        'md:max-h-[calc(100dvh-12rem)]'
+      )
+    }
+  })
+
+  it('shows the corresponding alt text in the open overlay when navigating between media items', () => {
     const first = buildAttachment({
       id: 'attachment-1',
       name: 'First photo description'
@@ -80,6 +157,7 @@ describe('MediasModal', () => {
       />
     )
 
+    openDetails()
     expect(screen.getByText('First photo description')).toBeInTheDocument()
 
     const secondThumbnail = screen.getByRole('button', {
@@ -88,6 +166,111 @@ describe('MediasModal', () => {
     fireEvent.click(secondThumbnail)
 
     expect(screen.getByText('Second photo description')).toBeInTheDocument()
+    expect(
+      screen.queryByText('First photo description')
+    ).not.toBeInTheDocument()
+  })
+
+  it('hides the overlay for a photo with nothing to show and shows it again afterwards', () => {
+    render(
+      <MediasModal
+        medias={[
+          buildAttachment({ id: 'a', name: 'First' }),
+          buildAttachment({ id: 'b', name: '' }),
+          buildAttachment({ id: 'c', name: 'Third' })
+        ]}
+        initialSelection={0}
+        onClosed={vi.fn()}
+      />
+    )
+
+    openDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next media' }))
+    expect(
+      screen.queryByRole('region', { name: 'Photo details' })
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next media' }))
+    expect(
+      screen.getByRole('region', { name: 'Photo details' })
+    ).toHaveTextContent('Third')
+  })
+
+  it('closes only the overlay on Escape, and the viewer on the next', () => {
+    const onClosed = vi.fn()
+    render(
+      <MediasModal
+        medias={[buildAttachment({ name: 'Ridge' })]}
+        initialSelection={0}
+        onClosed={onClosed}
+      />
+    )
+    openDetails()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(
+      screen.queryByRole('region', { name: 'Photo details' })
+    ).not.toBeInTheDocument()
+    expect(onClosed).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClosed).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes only the overlay when the backdrop is clicked, and the viewer on the next click', () => {
+    const onClosed = vi.fn()
+    render(
+      <MediasModal
+        medias={[buildAttachment({ name: 'Ridge' })]}
+        initialSelection={0}
+        onClosed={onClosed}
+      />
+    )
+    openDetails()
+    const backdrop = screen.getByRole('dialog', { name: 'Media viewer' })
+
+    fireEvent.click(backdrop)
+    expect(
+      screen.queryByRole('region', { name: 'Photo details' })
+    ).not.toBeInTheDocument()
+    expect(onClosed).not.toHaveBeenCalled()
+
+    fireEvent.click(backdrop)
+    expect(onClosed).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not close the viewer when the overlay or the Details button is clicked', () => {
+    const onClosed = vi.fn()
+    render(
+      <MediasModal
+        medias={[buildAttachment({ name: 'Ridge' })]}
+        initialSelection={0}
+        onClosed={onClosed}
+      />
+    )
+    openDetails()
+
+    fireEvent.click(screen.getByText('Ridge'))
+    fireEvent.click(screen.getByRole('region', { name: 'Photo details' }))
+
+    expect(onClosed).not.toHaveBeenCalled()
+    expect(screen.getByRole('region', { name: 'Photo details' })).toBeVisible()
+  })
+
+  it('starts with the overlay hidden again when reopened with other medias', () => {
+    const modalFor = (medias: Attachment[] | null) => (
+      <MediasModal medias={medias} initialSelection={0} onClosed={vi.fn()} />
+    )
+    const { rerender } = render(modalFor([buildAttachment({ name: 'Ridge' })]))
+    openDetails()
+    expect(screen.getByRole('region', { name: 'Photo details' })).toBeVisible()
+
+    rerender(modalFor(null))
+    rerender(modalFor([buildAttachment({ name: 'Ridge' })]))
+
+    expect(
+      screen.queryByRole('region', { name: 'Photo details' })
+    ).not.toBeInTheDocument()
   })
 
   it('marks off-screen carousel panels as aria-hidden and active panel as visible', () => {
@@ -109,25 +292,176 @@ describe('MediasModal', () => {
     expect(panels[2]).toHaveAttribute('aria-hidden', 'true')
   })
 
-  it('stops touch event propagation on alt text paragraph', () => {
-    const attachment = buildAttachment({
-      name: 'Touch description'
+  describe('swiping', () => {
+    const renderThree = () => {
+      render(
+        <MediasModal
+          medias={[
+            buildAttachment({ id: 'a', name: 'Touch description' }),
+            buildAttachment({ id: 'b' }),
+            buildAttachment({ id: 'c' })
+          ]}
+          initialSelection={0}
+          onClosed={vi.fn()}
+        />
+      )
+      openDetails()
+    }
+    const swipe = (element: Element) => {
+      fireEvent.touchStart(element, { touches: [{ clientX: 300 }] })
+      fireEvent.touchMove(element, { touches: [{ clientX: 100 }] })
+      fireEvent.touchEnd(element)
+      const track = document.querySelector<HTMLElement>(
+        '[style*="translateX"]'
+      )!
+      fireEvent.transitionEnd(track)
+    }
+
+    it('does not change the photo when the swipe is on the overlay', () => {
+      renderThree()
+
+      swipe(screen.getByText('Touch description'))
+
+      expect(screen.getByText('1 / 3')).toBeInTheDocument()
     })
 
+    it('changes the photo when the same swipe is on the photo', () => {
+      renderThree()
+
+      swipe(document.querySelectorAll('img')[1])
+
+      expect(screen.getByText('2 / 3')).toBeInTheDocument()
+    })
+  })
+
+  describe('focus', () => {
+    it('moves focus to the Details button when Escape closes the overlay', () => {
+      render(
+        <MediasModal
+          medias={[buildAttachment({ name: 'Ridge' })]}
+          initialSelection={0}
+          onClosed={vi.fn()}
+        />
+      )
+      openDetails()
+      const overlay = screen.getByRole('region', { name: 'Photo details' })
+      overlay.focus()
+      expect(overlay).toHaveFocus()
+
+      fireEvent.keyDown(document, { key: 'Escape' })
+
+      expect(screen.getByRole('button', { name: 'Details' })).toHaveFocus()
+    })
+
+    it('moves focus to the Details button when the backdrop closes the overlay', () => {
+      render(
+        <MediasModal
+          medias={[buildAttachment({ name: 'Ridge' })]}
+          initialSelection={0}
+          onClosed={vi.fn()}
+        />
+      )
+      openDetails()
+      screen.getByRole('region', { name: 'Photo details' }).focus()
+
+      fireEvent.click(screen.getByRole('dialog', { name: 'Media viewer' }))
+
+      expect(screen.getByRole('button', { name: 'Details' })).toHaveFocus()
+    })
+
+    it('leaves focus alone when it is not in the overlay', () => {
+      render(
+        <MediasModal
+          medias={[buildAttachment({ name: 'Ridge' })]}
+          initialSelection={0}
+          onClosed={vi.fn()}
+        />
+      )
+      openDetails()
+      const close = screen.getByRole('button', { name: 'Close media dialog' })
+      close.focus()
+
+      fireEvent.keyDown(document, { key: 'Escape' })
+
+      expect(close).toHaveFocus()
+    })
+
+    it('moves focus to the close button when the Details button becomes invisible', () => {
+      render(
+        <MediasModal
+          medias={[
+            buildAttachment({ id: 'a', name: 'First' }),
+            buildAttachment({ id: 'b', name: '' })
+          ]}
+          initialSelection={0}
+          onClosed={vi.fn()}
+        />
+      )
+      const details = screen.getByRole('button', { name: 'Details' })
+      details.focus()
+      expect(details).toHaveFocus()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Next media' }))
+
+      expect(
+        screen.getByRole('button', { name: 'Close media dialog' })
+      ).toHaveFocus()
+    })
+
+    it('moves focus from the overlay to the close button when the next photo has nothing to show', () => {
+      render(
+        <MediasModal
+          medias={[
+            buildAttachment({ id: 'a', name: 'First' }),
+            buildAttachment({ id: 'b', name: '' })
+          ]}
+          initialSelection={0}
+          onClosed={vi.fn()}
+        />
+      )
+      openDetails()
+      screen.getByRole('region', { name: 'Photo details' }).focus()
+
+      fireEvent.keyDown(window, { key: 'ArrowRight' })
+
+      expect(
+        screen.getByRole('button', { name: 'Close media dialog' })
+      ).toHaveFocus()
+    })
+  })
+
+  it('puts the GIF toggle at the top-left of the image, clear of the overlay', async () => {
+    const gif = buildAttachment({
+      id: 'attachment-gif-pos',
+      mediaType: 'image/gif',
+      thumbnailUrl: 'https://activities.local/media/preview.jpg'
+    })
+    await act(async () => {
+      render(
+        <PlaybackPreferencesProvider initialAutoplayGifs={false}>
+          <MediasModal medias={[gif]} initialSelection={0} onClosed={vi.fn()} />
+        </PlaybackPreferencesProvider>
+      )
+    })
+
+    const toggle = screen.getByRole('button', { name: 'Play animation' })
+    expect(toggle).toHaveClass('top-2', 'left-2')
+    expect(toggle).not.toHaveClass('bottom-2')
+  })
+
+  it('keeps the overlay clear of the arrows when navigation is shown', () => {
     render(
       <MediasModal
-        medias={[attachment]}
+        medias={[
+          buildAttachment({ id: 'a', name: 'First' }),
+          buildAttachment({ id: 'b', name: 'Second' })
+        ]}
         initialSelection={0}
         onClosed={vi.fn()}
       />
     )
-
-    const altElements = screen.getAllByText('Touch description')
-    const touchStartEvent = new Event('touchstart', { bubbles: true })
-    const stopPropagationSpy = vi.spyOn(touchStartEvent, 'stopPropagation')
-
-    altElements[1].dispatchEvent(touchStartEvent)
-    expect(stopPropagationSpy).toHaveBeenCalled()
+    const overlay = document.querySelector('[aria-label="Photo details"]')
+    expect(overlay).toHaveClass('inset-x-3', 'max-h-[calc(50%-2.5rem)]')
   })
 
   it('renders custom emoji images in alt text when matching tags are passed', () => {
@@ -149,6 +483,7 @@ describe('MediasModal', () => {
         onClosed={vi.fn()}
       />
     )
+    openDetails()
 
     const imgs = screen.getAllByRole('img', { name: ':blobcat:' })
     expect(imgs.length).toBeGreaterThanOrEqual(1)

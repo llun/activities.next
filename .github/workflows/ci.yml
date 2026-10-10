@@ -179,10 +179,12 @@ jobs:
   # tag and trends domains (the full-text index, account search by profile
   # text, exact handle and followed accounts, hashtag aggregates, status search
   # and which indexed statuses a viewer can find, featured tags with their
-  # stats, trending tags and statuses), the Kysely status visibility filter
-  # checked against its Knex original, and the Knex-backed Kysely driver
-  # (result normalisation, the mixed-transaction guard, counters, bucket
-  # counters, chunked IN lists, savepoints).
+  # stats, trending tags and statuses), the admin domain (account and hashtag
+  # listings, service statistics, domain block and allow rules with their
+  # import), the Kysely status visibility filter checked against its Knex
+  # original, and the Knex-backed Kysely driver (result normalisation, the
+  # mixed-transaction guard, counters, bucket counters, chunked IN lists,
+  # savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -301,6 +303,8 @@ jobs:
             lib/database/sql/trends.test.ts \
             lib/database/sql/trendsQueries.test.ts \
             lib/database/kysely/visibility/visibilityEquivalence.test.ts \
+            lib/database/sql/admin.test.ts \
+            lib/database/sql/adminDomainRules.test.ts \
             lib/database/kysely/driver.test.ts \
             lib/database/kysely/guard.test.ts \
             lib/database/kysely/counter.test.ts \

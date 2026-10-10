@@ -59,6 +59,14 @@ const kingfisherDetails: MediaPublicDetails = {
   }
 }
 
+const openDetails = () =>
+  fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+
+// The button only appears once the photo has something to show, which for a
+// photo without alt text is when its details arrive.
+const openDetailsWhenReady = async () =>
+  fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
+
 const renderModal = (medias: Attachment[], initialSelection = 0) =>
   render(
     <PlaybackPreferencesProvider initialAutoplayGifs={false}>
@@ -79,17 +87,27 @@ describe('MediasModal media details', () => {
     vi.restoreAllMocks()
   })
 
-  it('shrinks the image cap and makes the caption and details region scroll when details are shown', async () => {
+  it('keeps the image cap unchanged when details load, and shows them only in the overlay', async () => {
     mockGetMediaPublicDetails.mockResolvedValue(kingfisherDetails)
 
     renderModal([buildAttachment({ mediaId: 'media-1', name: 'A bird' })])
 
-    const subject = await screen.findByText('Common Kingfisher')
     const image = document.querySelectorAll('img')[1]
-    expect(image).toHaveClass('max-h-[45vh]')
-    expect(image).not.toHaveClass('max-h-[72vh]')
-    const region = subject.closest('.overflow-y-auto.max-h-\\[25vh\\]')
-    expect(region).not.toBeNull()
+    const before = image.className
+    expect(image).toHaveClass('max-h-[calc(100dvh-6rem)]')
+    await waitFor(() => expect(mockGetMediaPublicDetails).toHaveBeenCalled())
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByText('Common Kingfisher')).not.toBeVisible()
+    expect(image.className).toBe(before)
+
+    openDetails()
+    expect(screen.getByText('Common Kingfisher')).toBeVisible()
+    const subject = screen.getByText('Common Kingfisher')
+    expect(document.querySelectorAll('img')[1].className).toBe(before)
+    const region = screen.getByRole('region', { name: 'Photo details' })
+    expect(region).toContainElement(subject)
     expect(region).toHaveTextContent('A bird')
   })
 
@@ -98,20 +116,24 @@ describe('MediasModal media details', () => {
 
     renderModal([buildAttachment({ mediaId: 'media-1', name: 'A bird' })])
 
+    await waitFor(() => expect(mockGetMediaPublicDetails).toHaveBeenCalled())
+    openDetails()
     const region = await screen.findByRole('region', { name: 'Photo details' })
     expect(region).toHaveAttribute('tabindex', '0')
     expect(region).toHaveTextContent('Common Kingfisher')
   })
 
-  it('does not add a focusable region without details', async () => {
+  it('opens the overlay with the alt text only when there are no details', async () => {
     mockGetMediaPublicDetails.mockResolvedValue(null as never)
 
     renderModal([buildAttachment({ mediaId: 'media-1', name: 'A bird' })])
 
-    await screen.findAllByText('A bird')
-    expect(
-      screen.queryByRole('region', { name: 'Photo details' })
-    ).not.toBeInTheDocument()
+    await waitFor(() => expect(mockGetMediaPublicDetails).toHaveBeenCalled())
+    openDetails()
+    // The alt text is still there, so the overlay opens; it is the only content.
+    const region = await screen.findByRole('region', { name: 'Photo details' })
+    expect(region).toHaveTextContent('A bird')
+    expect(region).not.toHaveTextContent('Common Kingfisher')
   })
 
   it.each([
@@ -127,27 +149,36 @@ describe('MediasModal media details', () => {
         place: null
       } as MediaPublicDetails
     ]
-  ])('keeps the full image cap for %s', async (_label, payload) => {
-    mockGetMediaPublicDetails.mockResolvedValue(payload as never)
+  ])(
+    'keeps the same image cap and hides the Details button for %s',
+    async (_label, payload) => {
+      mockGetMediaPublicDetails.mockResolvedValue(payload as never)
 
-    renderModal([buildAttachment({ mediaId: 'media-1' })])
+      renderModal([buildAttachment({ mediaId: 'media-1' })])
 
-    await waitFor(() => expect(mockGetMediaPublicDetails).toHaveBeenCalled())
-    // Let the resolved payload reach state before asserting on the layout.
-    await act(async () => {
-      await Promise.resolve()
-    })
-    const image = document.querySelector('img')
-    expect(image).toHaveClass('max-h-[80vh]')
-    expect(image).not.toHaveClass('max-h-[45vh]')
-    expect(document.querySelector('.max-h-\\[25vh\\]')).toBeNull()
-  })
+      await waitFor(() => expect(mockGetMediaPublicDetails).toHaveBeenCalled())
+      // Let the resolved payload reach state before asserting on the layout.
+      await act(async () => {
+        await Promise.resolve()
+      })
+      const image = document.querySelector('img')
+      expect(image).toHaveClass('max-h-[calc(100dvh-6rem)]')
+      // Nothing to show: no region and the Details button keeps its space.
+      expect(screen.getByText('Details').closest('button')).toHaveClass(
+        'invisible'
+      )
+      expect(
+        screen.queryByRole('region', { name: 'Photo details' })
+      ).not.toBeInTheDocument()
+    }
+  )
 
   it('renders the public details of the shown photo', async () => {
     mockGetMediaPublicDetails.mockResolvedValue(kingfisherDetails)
 
     renderModal([buildAttachment({ mediaId: 'media-1' })])
 
+    await openDetailsWhenReady()
     expect(await screen.findByText('Common Kingfisher')).toBeInTheDocument()
     expect(screen.getByText('Alcedo atthis')).toBeInTheDocument()
     expect(screen.getByText('bird')).toBeInTheDocument()
@@ -193,6 +224,7 @@ describe('MediasModal media details', () => {
       buildAttachment({ id: 'attachment-2', mediaId: 'media-2' })
     ])
 
+    await openDetailsWhenReady()
     expect(await screen.findByText('Common Kingfisher')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Next media' }))
@@ -234,11 +266,13 @@ describe('MediasModal media details', () => {
       const medias = [buildAttachment({ mediaId: 'media-1' })]
 
       const { rerender } = render(modalFor(medias))
+      await openDetailsWhenReady()
       expect(await screen.findByText('Common Kingfisher')).toBeInTheDocument()
 
       rerender(modalFor(null))
       rerender(modalFor([buildAttachment({ mediaId: 'media-1' })]))
 
+      await openDetailsWhenReady()
       expect(await screen.findByText('Grey Heron')).toBeInTheDocument()
       expect(screen.queryByText('Common Kingfisher')).not.toBeInTheDocument()
       expect(mockGetMediaPublicDetails).toHaveBeenCalledTimes(2)
@@ -258,6 +292,7 @@ describe('MediasModal media details', () => {
       const { rerender } = render(modalFor(medias))
       rerender(modalFor(null))
       rerender(modalFor([buildAttachment({ mediaId: 'media-1' })]))
+      await openDetailsWhenReady()
       expect(await screen.findByText('Grey Heron')).toBeInTheDocument()
 
       resolveFirst(kingfisherDetails)
