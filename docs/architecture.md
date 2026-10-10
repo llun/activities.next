@@ -2367,12 +2367,13 @@ legacy shape left to copy.
   `scroll-pr-3` so a focused tile leaves room): the Remove button sits 8px
   outside its tile's top-right corner and its focus outline needs the other
   4px. The top padding is also the 12px gap above the row (no margin). The
-  tile's focus indicator is an inset outline (`outline-2 -outline-offset-2
-outline-ring`), for the same clipping reason as `MEDIA_FOCUS_CLASS`. The
-  list is `role="list"` named `Attached media` however many tiles it holds. A
-  new upload (uploading, uploaded with a client key, or failed) scrolls the row
-  to the end without moving focus; an edit's media, which load after the first
-  render with none of those, leave it at the first tile. `scroll-pl-16` keeps a snapped tile clear of the left fade and
+  tile's focus indicator is an inset outline
+  (`outline-2 -outline-offset-2 outline-ring`), for the same clipping reason
+  as `MEDIA_FOCUS_CLASS`. The list is `role="list"` named `Attached media`
+  however many tiles it holds. A new upload (uploading, uploaded with a client
+  key, or failed) scrolls the row to the end without moving focus; an edit's
+  media, which load after the first render with none of those, leave it at the
+  first tile. `scroll-pl-16` keeps a snapped tile clear of the left fade and
   Previous arrow, as the status strip's `scroll-pl` inset does.
 
 <a id="review-status-delete-unboost-federation"></a>

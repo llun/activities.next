@@ -200,32 +200,48 @@ describe('PostBox media details', () => {
     await waitFor(() => expect(next).toHaveAttribute('aria-disabled', 'true'))
   })
 
-  it('scrolls the row to the new tile when one is added, without moving focus', async () => {
-    const scrollTo = vi.fn()
-    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
-      configurable: true,
-      value: scrollTo
-    })
-    try {
-      renderPostBox()
+  it.each([
+    ['while it uploads', 'Uploading…', 'pending'],
+    ['when its upload fails', 'Upload failed', 'failed'],
+    ['when its upload finishes at once', 'Review', 'done']
+  ] as const)(
+    'scrolls the row to a new tile %s, without moving focus',
+    async (_case, tileText, upload) => {
+      const scrollTo = vi.fn()
+      Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+        configurable: true,
+        value: scrollTo
+      })
+      try {
+        renderPostBox()
 
-      attach('heron.png')
-      await screen.findByRole('list', { name: 'Attached media' })
-      scrollTo.mockClear()
-      const before = document.activeElement
+        attach('heron.png')
+        await screen.findByRole('list', { name: 'Attached media' })
+        await screen.findByText('Review')
+        scrollTo.mockClear()
+        const before = document.activeElement
 
-      attach('egret.png')
+        if (upload === 'pending') {
+          uploadAttachmentMock.mockReturnValueOnce(
+            createDeferred<UploadedAttachment>().promise
+          )
+        } else if (upload === 'failed') {
+          uploadAttachmentMock.mockRejectedValueOnce(new Error('boom'))
+        }
+        attach('egret.png')
 
-      await waitFor(() =>
-        expect(scrollTo).toHaveBeenCalledWith(
-          expect.objectContaining({ behavior: expect.any(String) })
+        expect(await screen.findAllByText(tileText)).not.toHaveLength(0)
+        await waitFor(() =>
+          expect(scrollTo).toHaveBeenCalledWith(
+            expect.objectContaining({ behavior: expect.any(String) })
+          )
         )
-      )
-      expect(document.activeElement).toBe(before)
-    } finally {
-      delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo
+        expect(document.activeElement).toBe(before)
+      } finally {
+        delete (HTMLElement.prototype as { scrollTo?: unknown }).scrollTo
+      }
     }
-  })
+  )
 
   it('leaves the row where it is when a tile is removed', async () => {
     const scrollTo = vi.fn()
