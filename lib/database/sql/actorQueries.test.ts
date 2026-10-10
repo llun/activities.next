@@ -534,7 +534,9 @@ describe('createActor', () => {
       followersCount: 0,
       deletionStatus: null
     })
-    // A remote actor's emoji tags are not resolved from its profile text.
+    // No tags: none were passed and no emoji is named. That a remote actor's
+    // text is never resolved against this instance's emojis is pinned with a
+    // seeded emoji in the emoji test below.
     expect(actor?.tags).toBeUndefined()
     const row = await actorRow(actorId)
     expect(row.settings).toEqual({
@@ -609,6 +611,98 @@ describe('createActor', () => {
     ])
     const renamed = await database.updateActor({ actorId, name: 'Plain' })
     expect(renamed?.tags).toEqual([])
+
+    // A remote actor naming the very same enabled emoji gets no tag from this
+    // instance, whether it is created or updated: its tags are what its own
+    // instance sent. Local and remote differ only by the domain.
+    const remote = createRemoteActor('emoji-remote', {
+      name: `Remote :${enabled}:`,
+      summary: `About :${enabled}:`,
+      fields: [{ name: 'Emoji', value: `:${enabled}:` }]
+    })
+    const remoteCreated = await database.createActor(remote.params)
+    expect(remoteCreated?.name).toBe(`Remote :${enabled}:`)
+    expect(remoteCreated?.tags).toBeUndefined()
+    expect(await actorRow(remote.actorId)).toMatchObject({
+      settings: { fields: [{ name: 'Emoji', value: `:${enabled}:` }] }
+    })
+    expect((await actorRow(remote.actorId)).settings).not.toHaveProperty('tags')
+
+    const quiet = createRemoteActor('emoji-quiet', { name: 'Quiet' })
+    await database.createActor(quiet.params)
+    const quietUpdated = await database.updateActor({
+      actorId: quiet.actorId,
+      summary: `Now :${enabled}:`
+    })
+    expect(quietUpdated?.summary).toBe(`Now :${enabled}:`)
+    expect(quietUpdated?.tags).toBeUndefined()
+    expect((await actorRow(quiet.actorId)).settings).not.toHaveProperty('tags')
+
+    // Tags a remote actor already carries survive an update of its text.
+    const sent = [
+      {
+        type: 'emoji' as const,
+        name: ':sent:',
+        value: 'https://remote.test/sent.png'
+      }
+    ]
+    const tagged = createRemoteActor('emoji-tagged', { tags: sent })
+    await database.createActor(tagged.params)
+    const taggedUpdated = await database.updateActor({
+      actorId: tagged.actorId,
+      name: `Tagged :${enabled}:`
+    })
+    expect(taggedUpdated?.tags).toEqual(sent)
+  })
+
+  it('stores no tags key when no emoji is resolved, as before', async () => {
+    const username = `no-emoji-${suffix()}`
+    const actorId = `https://${LOCAL}/users/${username}`
+    const params = {
+      actorId,
+      username,
+      domain: LOCAL,
+      followersUrl: `${actorId}/followers`,
+      inboxUrl: `${actorId}/inbox`,
+      sharedInboxUrl: `https://${LOCAL}/inbox`,
+      publicKey: 'public',
+      createdAt: 3_000_000
+    }
+
+    // The text names a shortcode that is no emoji of this instance.
+    const unresolved = await database.createActor({
+      ...params,
+      name: 'Plain :nosuchemoji:'
+    })
+    expect(unresolved?.tags).toBeUndefined()
+    expect(unresolved?.name).toBe('Plain :nosuchemoji:')
+    expect((await actorRow(actorId)).settings).not.toHaveProperty('tags')
+
+    // An explicit empty list is dropped the same way.
+    const remote = createRemoteActor('no-emoji-empty', { tags: [] })
+    const explicit = await database.createActor(remote.params)
+    expect(explicit?.tags).toBeUndefined()
+    expect((await actorRow(remote.actorId)).settings).not.toHaveProperty('tags')
+
+    // An update, in contrast, stores an explicit empty list: it clears the
+    // tags the actor had.
+    const sent = [
+      {
+        type: 'emoji' as const,
+        name: ':sent:',
+        value: 'https://remote.test/sent.png'
+      }
+    ]
+    const tagged = createRemoteActor('no-emoji-clear', { tags: sent })
+    expect((await database.createActor(tagged.params))?.tags).toEqual(sent)
+    const cleared = await database.updateActor({
+      actorId: tagged.actorId,
+      tags: []
+    })
+    expect(cleared?.tags).toEqual([])
+    expect((await actorRow(tagged.actorId)).settings).toMatchObject({
+      tags: []
+    })
   })
 })
 
@@ -681,6 +775,54 @@ describe('updateActor', () => {
       bot: true,
       discoverable: false
     })
+  })
+
+  it('still clears an icon given as null when it appends accepted senders', async () => {
+    const target = await insertActor('upd-append-clear', {
+      settings: JSON.stringify({
+        ...settingsFor('ac', REMOTE),
+        iconUrl: 'https://img.test/i.png',
+        headerImageUrl: 'https://img.test/h.png',
+        notificationAcceptedSenders: ['one']
+      })
+    })
+    const actor = await database.updateActor({
+      actorId: target,
+      iconUrl: null,
+      appendNotificationAcceptedSenders: ['two']
+    })
+    // The merge starts from the locked row, then re-applies this call's own
+    // clears: the icon goes, the untouched header stays.
+    const settings = (await actorRow(target)).settings as Record<
+      string,
+      unknown
+    >
+    expect(settings).not.toHaveProperty('iconUrl')
+    expect(settings).toMatchObject({
+      headerImageUrl: 'https://img.test/h.png',
+      notificationAcceptedSenders: ['one', 'two']
+    })
+    expect(actor?.iconUrl).toBeUndefined()
+  })
+
+  it('keeps a name and a summary given as an empty string', async () => {
+    const target = await insertActor('upd-empty', {
+      name: 'Old name',
+      summary: 'Old summary'
+    })
+    const actor = await database.updateActor({
+      actorId: target,
+      name: '',
+      summary: '',
+      bot: true
+    })
+    expect(actor).toMatchObject({ name: 'Old name', summary: 'Old summary' })
+    expect(await actorRow(target)).toMatchObject({
+      name: 'Old name',
+      summary: 'Old summary',
+      settings: { bot: true }
+    })
+    expect((await searchDocument(target))?.documentText).toContain('Old name')
   })
 })
 

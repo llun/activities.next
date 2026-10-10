@@ -28,7 +28,6 @@ import { timestampValue } from '@/lib/database/kysely/dialect'
 import { getWhereInBatchSize } from '@/lib/database/kysely/inList'
 import { findActorRowByUsername } from '@/lib/database/kysely/usernameMatch'
 import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   resolveIdsByPublicIds,
   resolvePublicIdsByIds
@@ -274,10 +273,7 @@ export const getActorDeletionStatus = async (
   if (!row) return undefined
   return {
     status: row.deletionStatus ?? null,
-    scheduledAt:
-      row.deletionScheduledAt != null
-        ? getCompatibleTime(row.deletionScheduledAt)
-        : null
+    scheduledAt: row.deletionScheduledAt
   }
 }
 
