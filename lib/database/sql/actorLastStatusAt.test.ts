@@ -1,30 +1,26 @@
-import knex, { Knex } from 'knex'
+import type { Knex } from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { TEST_DOMAIN } from '@/lib/stub/const'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 // Exercises the persisted `actors.lastStatusAt` column: it is maintained inside
 // the status create/delete transactions and read by the directory `order=active`
-// sort and the Mastodon serializer's `last_status_at`. Uses a self-owned
-// in-memory SQLite database (running the real migration chain, including the new
-// `lastStatusAt` migration) so tests can control `actors.createdAt` and read the
-// raw column directly.
+// sort and the Mastodon serializer's `last_status_at`. Each test gets a fresh
+// database (SQLite, or PostgreSQL under TEST_DATABASE_TYPE=pg) so it can
+// control `actors.createdAt` and read the raw column directly.
 const withDatabase = async (
   test: (database: Database, instance: Knex) => Promise<void>
 ) => {
-  const instance = knex({
-    client: 'better-sqlite3',
-    useNullAsDefault: true,
-    connection: { filename: ':memory:' }
-  })
-  const database = getSQLDatabase(instance)
+  const testDb = createTestDatabase()
+  await testDb.prepare()
+  const { database } = testDb
   try {
     await database.migrate()
-    await test(database, instance)
+    await test(database, testDb.knex)
   } finally {
-    await instance.destroy()
+    await testDb.destroy()
   }
 }
 

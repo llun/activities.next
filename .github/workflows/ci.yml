@@ -191,10 +191,18 @@ jobs:
   # listing), the direct conversation domain (conversation listings and their
   # cursors, read and hidden state, syncing statuses into conversations with
   # their participants and blocks, the read-marker row lock, the legacy
-  # conversation backfill), the Kysely status visibility filter checked
-  # against its Knex original, and the Knex-backed Kysely driver (result
-  # normalisation, the mixed-transaction guard, counters, bucket counters,
-  # chunked IN lists, savepoints).
+  # conversation backfill), the actor domain (actor rows with their search
+  # documents, profile settings and the accepted-senders row lock, counters
+  # and NodeInfo statistics, the Mastodon account view and the profile
+  # directory, the federation signing actor, publicId and case-insensitive
+  # username lookups, deletion scheduling), the follow domain and the local
+  # actor predicate, the two heaviest users of the actor facade (follow edges
+  # and requests with their cursors, follower and following counters,
+  # remote actors stored with an empty key kept out of the local timelines,
+  # followers collections and fan-out), the Kysely status visibility filter
+  # checked against its Knex original, and the Knex-backed Kysely driver
+  # (result normalisation, the mixed-transaction guard, counters, bucket
+  # counters, chunked IN lists, savepoints).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -326,6 +334,17 @@ jobs:
             lib/database/sql/sessionTokenDetach.test.ts \
             lib/database/sql/moderation.test.ts \
             lib/database/sql/moderationQueries.test.ts \
+            lib/database/sql/actor.test.ts \
+            lib/database/sql/actorQueries.test.ts \
+            lib/database/sql/actorMastodonQueries.test.ts \
+            lib/database/sql/actorFederationSigner.test.ts \
+            lib/database/sql/actorLastStatusAt.test.ts \
+            lib/database/sql/actorMastodon.test.ts \
+            lib/database/sql/actorPublicId.test.ts \
+            lib/database/sql/directory.test.ts \
+            lib/database/sql/utils/usernameMatch.test.ts \
+            lib/database/sql/follow.test.ts \
+            lib/database/sql/localActorPredicate.test.ts \
             lib/database/sql/conversation.test.ts \
             lib/database/sql/conversationQueries.test.ts \
             lib/database/sql/directConversationsMigration.test.ts \

@@ -1,6 +1,5 @@
 import { Knex } from 'knex'
 
-import { getConfig } from '@/lib/config'
 import { searchQueries } from '@/lib/database/domains/search/queries'
 import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
 import { deleteStatusSearchDocumentsByStatusIds } from '@/lib/database/domains/search/statuses'
@@ -10,1993 +9,598 @@ import {
   decreaseCounterValue,
   deleteCounterValue,
   deleteCounterValues,
-  getCounterValue,
-  getCounterValues,
-  parseCounterValue,
-  setCounterValue
+  parseCounterValue
 } from '@/lib/database/sql/utils/counter'
-import { getCompatibleJSON } from '@/lib/database/sql/utils/getCompatibleJSON'
-import { getCompatibleTime } from '@/lib/database/sql/utils/getCompatibleTime'
 import {
   chunkArray,
   deleteRowsByColumnChunks,
-  getWhereInBatchSize,
-  isPostgresClient
+  getWhereInBatchSize
 } from '@/lib/database/sql/utils/knex'
-import { whereLocalActor } from '@/lib/database/sql/utils/localActor'
 import { parseStatusContent } from '@/lib/database/sql/utils/parseStatusContent'
-import {
-  resolveIdsByPublicIds,
-  resolvePublicIdsByIds
-} from '@/lib/database/sql/utils/publicIdLookup'
 import {
   selectHashtagTagsByStatusIds,
   selectPubliclyAddressedStatusIds
 } from '@/lib/database/sql/utils/status'
-import { findActorRowByUsername } from '@/lib/database/sql/utils/usernameMatch'
-import {
-  FEDERATION_SIGNING_ACTOR_TYPE,
-  FEDERATION_SIGNING_ACTOR_USERNAME,
-  getFederationSigningActorId,
-  getFederationSigningActorUsername,
-  isFederationSigningActorUsername
-} from '@/lib/services/federation/instanceActor'
-import { Mastodon } from '@/lib/types/activitypub'
-import {
-  ActorDatabase,
-  CancelActorDeletionParams,
-  CreateActorParams,
-  DEFAULT_NOTIFICATION_POLICY,
-  DeleteActorDataParams,
-  DeleteActorParams,
-  GetActorFollowersCountParams,
-  GetActorFollowingCountParams,
-  GetActorFromEmailParams,
-  GetActorFromIdParams,
-  GetActorFromUsernameParams,
-  GetActorIdByPublicIdParams,
-  GetActorIdsByPublicIdsParams,
-  GetActorPublicIdsParams,
-  GetActorSettingsParams,
-  GetActorsFromIdsParams,
-  GetActorsScheduledForDeletionParams,
-  GetLocalActorsParams,
-  HasActorCountersParams,
-  IsCurrentActorFollowingParams,
-  NotificationPolicy,
-  ScheduleActorDeletionParams,
-  SetActorCountersParams,
-  StartActorDeletionParams,
-  UpdateActorParams,
-  UpdateNotificationPolicyParams
-} from '@/lib/types/database/operations'
-import { ActorSettings, SQLAccount, SQLActor } from '@/lib/types/database/rows'
-import { Account } from '@/lib/types/domain/account'
-import { Actor, ActorType } from '@/lib/types/domain/actor'
+import { DeleteActorDataParams } from '@/lib/types/database/operations'
 import { getHashFromString } from '@/lib/utils/getHashFromString'
-import { getISOTimeUTC } from '@/lib/utils/getISOTimeUTC'
 import { logger } from '@/lib/utils/logger'
-import {
-  generatePublicId,
-  getClientActorId,
-  toPublicIdLookupKey
-} from '@/lib/utils/publicId'
-import { generateKeyPair } from '@/lib/utils/signature'
-import {
-  getEmojiTags,
-  toEmojiShortcodeToken
-} from '@/lib/utils/text/getEmojiTags'
-import { sanitizeText } from '@/lib/utils/text/sanitizeText'
 
-export interface SQLActorDatabase extends ActorDatabase {
-  getActor: (
-    sqlActor: SQLActor,
-    followingCount: number,
-    followersCount: number,
-    statusCount: number,
-    lastStatusAt: number,
-    sqlAccount?: SQLAccount
-  ) => Actor
-  getMastodonActor: (actorId: string) => Promise<Mastodon.Account | null>
-  getMastodonActors: (actorIds: string[]) => Promise<Mastodon.Account[]>
-}
-
-const getActorCounterSummary = async (
-  database: Knex | Knex.Transaction,
-  actorId: string
-): Promise<{
-  followersCount: number
-  followingCount: number
-  statusCount: number
-}> => {
-  const counters = await getCounterValues(database, [
-    CounterKey.totalFollowers(actorId),
-    CounterKey.totalFollowing(actorId),
-    CounterKey.totalStatus(actorId)
-  ])
-
-  return {
-    followersCount: counters[CounterKey.totalFollowers(actorId)] ?? 0,
-    followingCount: counters[CounterKey.totalFollowing(actorId)] ?? 0,
-    statusCount: counters[CounterKey.totalStatus(actorId)] ?? 0
-  }
-}
-
-const getConfiguredActorDomain = () => {
-  const host = getConfig().host
-  return host.includes('://') ? new URL(host).host : host
-}
-
-const resolveLocalEmojiTags = async (
-  database: Knex,
-  text: string
-): Promise<{ type: 'emoji'; name: string; value: string }[]> => {
-  if (!text) return []
-  const rows = await database('customEmojis')
-    .select('shortcode', 'url')
-    .where('disabled', false)
-  const tags = getEmojiTags(text, rows)
-  return tags.map((tag) => ({
-    type: 'emoji' as const,
-    name: tag.name,
-    value: tag.value
-  }))
-}
-
-const getAccountEmojisFromTags = (
-  tags?: { type: string; name: string; value: string }[]
-): Mastodon.CustomEmoji[] => {
-  if (!tags) return []
-  return tags
-    .filter((tag) => tag.type === 'emoji')
-    .flatMap((tag) => {
-      const token = toEmojiShortcodeToken(tag.name)
-      if (!token) return []
-      return [
-        {
-          shortcode: token.slice(1, -1),
-          url: tag.value,
-          static_url: tag.value,
-          visible_in_picker: true,
-          category: null
-        }
-      ]
-    })
-}
-
-const insertActorWithSearchIndex = async (
-  database: Knex,
-  {
-    actorId,
-    type = 'Person',
-    username,
-    domain,
-    name,
-    summary,
-    iconUrl,
-    headerImageUrl,
-    manuallyApprovesFollowers,
-    fields,
-    tags,
-    followersUrl,
-    inboxUrl,
-    sharedInboxUrl,
-    publicKey,
-    privateKey,
-    createdAt
-  }: CreateActorParams
-) => {
-  const currentTime = new Date()
-  let resolvedTags = tags
-  if (resolvedTags === undefined && (name || summary || fields)) {
-    const isLocal =
-      domain.toLowerCase() === getConfiguredActorDomain().toLowerCase()
-    if (isLocal) {
-      const fieldsText =
-        fields?.map((f) => `${f.name} ${f.value}`).join(' ') ?? ''
-      resolvedTags = await resolveLocalEmojiTags(
-        database,
-        `${name ?? ''} ${summary ?? ''} ${fieldsText}`.trim()
-      )
-    }
-  }
-
-  const settings: ActorSettings = {
-    iconUrl,
-    headerImageUrl,
-    followersUrl,
-    inboxUrl,
-    sharedInboxUrl,
-    ...(manuallyApprovesFollowers !== undefined
-      ? { manuallyApprovesFollowers }
-      : null),
-    ...(fields !== undefined ? { fields } : null),
-    ...(resolvedTags && resolvedTags.length > 0 ? { tags: resolvedTags } : null)
-  }
-  const actor = {
-    id: actorId,
-    publicId: generatePublicId(createdAt),
-    type,
-    username,
-    domain,
-    name,
-    summary,
-    accountId: null,
-    settings: JSON.stringify(settings),
-    publicKey,
-    privateKey,
-    deletionStatus: null,
-    deletionScheduledAt: null,
-    createdAt: new Date(createdAt),
-    updatedAt: currentTime
-  }
-
-  await database.transaction(async (trx) => {
-    await trx('actors').insert(actor)
-    await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
-      id: actorId,
-      actor
-    })
-  })
-}
+// The rest of the actor domain is Kysely, in lib/database/domains/actor/.
+// deleteActorData stays on Knex until it is ported with status deletion: one
+// transaction over every table that holds the actor's data. Its calls into the
+// ported search code take kyselyFor(trx).
+export type { SQLActorDatabase } from '@/lib/database/domains/actor/types'
 
 const getStatusUrlHash = (url: string): string => getHashFromString(url)
 
-const getFederationSigningActorSettings = (
-  actorId: string,
-  domain: string
-) => ({
-  followersUrl: `${actorId}/followers`,
-  inboxUrl: `${actorId}/inbox`,
-  sharedInboxUrl: `https://${domain}/inbox`
-})
-
-const isValidFederationSigningSQLActor = (
-  sqlActor: SQLActor | undefined,
-  domain: string
-): sqlActor is SQLActor =>
-  Boolean(
-    sqlActor &&
-    sqlActor.type === FEDERATION_SIGNING_ACTOR_TYPE &&
-    sqlActor.domain === domain &&
-    sqlActor.accountId == null &&
-    sqlActor.privateKey &&
-    !sqlActor.deletionStatus &&
-    isFederationSigningActorUsername(sqlActor.username)
-  )
-
-const FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN = `${FEDERATION_SIGNING_ACTOR_USERNAME.replace(/[\\%_]/g, '\\$&')}%`
-
-const federationSigningActorCreationLocks = new Map<
-  string,
-  Promise<Actor | null>
->()
-// Process-local only; cross-process races still rely on the actor id unique
-// constraint plus insert recovery below.
-
-const isMastodonBotActorType = (type: SQLActor['type']) =>
-  type === 'Service' || type === 'Application' || type === 'Organization'
-
-const getActorCounterSummaries = async (database: Knex, actorIds: string[]) => {
-  const counterValues = await getCounterValues(
-    database,
-    actorIds.flatMap((actorId) => [
-      CounterKey.totalFollowers(actorId),
-      CounterKey.totalFollowing(actorId),
-      CounterKey.totalStatus(actorId)
-    ])
-  )
-
-  return new Map(
-    actorIds.map((actorId) => [
-      actorId,
-      {
-        followersCount: counterValues[CounterKey.totalFollowers(actorId)] ?? 0,
-        followingCount: counterValues[CounterKey.totalFollowing(actorId)] ?? 0,
-        statusCount: counterValues[CounterKey.totalStatus(actorId)] ?? 0
-      }
-    ])
-  )
-}
-
-// The persisted `lastStatusAt` as an epoch-millis number for the domain `Actor`
-// (0 when the actor has never posted). `lastStatusAt` is now a column on
-// `actors` maintained inside the status create/delete transactions, so callers
-// read it straight off the row instead of re-aggregating `statuses`.
-const getSqlActorLastStatusAtTime = (sqlActor: SQLActor): number =>
-  sqlActor.lastStatusAt ? getCompatibleTime(sqlActor.lastStatusAt) : 0
-
-const getMastodonAccountFromSQLActor = ({
-  sqlActor,
-  counters
-}: {
-  sqlActor: SQLActor
-  counters: {
-    followersCount: number
-    followingCount: number
-    statusCount: number
-  }
-}) => {
-  const settings = getCompatibleJSON(sqlActor.settings)
-  const isLocalHeadlessSigner = isValidFederationSigningSQLActor(
-    sqlActor,
-    getConfiguredActorDomain()
-  )
-
-  // Mastodon `acct` is bare only for actors whose domain is the instance's own
-  // (configured) host; every other actor — remote, OR one we host on a
-  // *different* domain — must use the `username@domain` form. Comparing against
-  // the configured host (not merely "do we host this actor") keeps a Mastodon
-  // client from collapsing two same-username actors on different local domains
-  // into one account (which renders as a blank account-switcher row). Domains
-  // are case-insensitive, so compare case-insensitively.
-  const isLocalActor =
-    sqlActor.domain.toLowerCase() === getConfiguredActorDomain().toLowerCase()
-  // Canonicalize the domain part to lowercase: Mastodon normalizes domains, and
-  // some clients/servers string-match `acct` strictly.
-  const qualifiedAcct = `${sqlActor.username}@${sqlActor.domain.toLowerCase()}`
-
-  // Profile metadata fields are stored as plain name/value pairs; URLs are not
-  // server-verified, so verified_at is always null.
-  const sourceFields = (settings.fields ?? []).map((field) => ({
-    name: field.name,
-    value: field.value,
-    verified_at: null
-  }))
-  const sourceNote = sqlActor.summary ?? ''
-  // `note` and `fields[].value` are HTML in the Mastodon Account entity, and
-  // clients render them as server-sanitized markup. The stored values are raw:
-  // a local user's bio is whatever they typed, a remote actor's is whatever
-  // its server sent. Sanitize here — the single Account emission point — so
-  // no embedded account can carry scriptable HTML to a client. `source` keeps
-  // the raw values: it is the plain-text editing copy (and feeds Profile).
-  const profileFields = sourceFields.map((field) => ({
-    ...field,
-    value: sanitizeText(field.value)
-  }))
-  const note = sanitizeText(sourceNote)
-
-  return Mastodon.Account.parse({
-    // The single Account emission point: every embedded `account` (statuses,
-    // notifications, search, reactions, favourited_by, …) flips through here.
-    // A row that predates the backfill keeps emitting the legacy encoding.
-    id: getClientActorId(sqlActor),
-    username: sqlActor.username,
-    acct: isLocalActor ? sqlActor.username : qualifiedAcct,
-    url: sqlActor.id,
-    // The ActivityPub actor id. This service uses the actor id as the profile
-    // URL too, so `uri` and `url` carry the same value.
-    uri: sqlActor.id,
-    display_name: sqlActor.name ?? '',
-    note,
-
-    avatar: settings.iconUrl ?? '',
-    avatar_static: settings.iconUrl ?? '',
-    header: settings.headerImageUrl ?? '',
-    header_static: settings.headerImageUrl ?? '',
-    // Mastodon 4.6 avatar/header alt text. Empty string when unset, matching
-    // Mastodon's serialization (and the Profile entity in lib/services/accounts).
-    avatar_description: settings.avatarDescription ?? '',
-    header_description: settings.headerDescription ?? '',
-
-    fields: profileFields,
-    emojis: getAccountEmojisFromTags(settings.tags),
-
-    // Moderation flags: emitted only when set, matching Mastodon's Account
-    // entity (extra "only when suspended/silenced" attributes).
-    ...(sqlActor.suspendedAt ? { suspended: true } : null),
-    ...(sqlActor.silencedAt ? { limited: true } : null),
-
-    locked: settings.manuallyApprovesFollowers ?? true,
-    bot: isMastodonBotActorType(sqlActor.type) || settings.bot === true,
-    group: sqlActor.type === 'Group',
-    discoverable: settings.discoverable ?? !isLocalHeadlessSigner,
-    noindex: isLocalHeadlessSigner,
-    // No roles system: every account serializes an empty public role list (the
-    // credential endpoints still overlay the singular default `role`).
-    roles: [],
-    // Mastodon's opt-in full-text-search flag; false by default like Mastodon.
-    indexable: settings.indexable ?? false,
-    hide_collections: settings.hideCollections ?? null,
-
-    // `source.note` is the plain-text bio and `source.fields` mirror the public
-    // fields. The default privacy/sensitive/language come from the account's
-    // saved posting preferences. follow_requests_count is left at 0 here so the
-    // public Account never leaks it; the credential endpoints overlay the real
-    // count (see lib/services/accounts/credentialAccount).
-    source: {
-      note: sourceNote,
-      fields: sourceFields,
-      privacy: settings.defaultPrivacy ?? 'public',
-      sensitive: settings.defaultSensitive ?? false,
-      language: settings.defaultLanguage ?? 'en',
-      quote_policy: settings.defaultQuotePolicy ?? 'public',
-      attribution_domains: settings.attributionDomains ?? [],
-      follow_requests_count: 0
-    },
-
-    created_at: getISOTimeUTC(getCompatibleTime(sqlActor.createdAt)),
-    last_status_at: sqlActor.lastStatusAt
-      ? getISOTimeUTC(getCompatibleTime(sqlActor.lastStatusAt), true)
-      : null,
-
-    followers_count: counters.followersCount,
-    following_count: counters.followingCount,
-    statuses_count: counters.statusCount
-  })
-}
-
-export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
-  async createActor(params: CreateActorParams) {
-    await insertActorWithSearchIndex(database, params)
-    const { actorId } = params
-    return this.getActorFromId({ id: actorId })
-  },
-
-  async getActorFromEmail({ email }: GetActorFromEmailParams) {
-    const persistedActor = await database('actors')
-      .select<SQLActor>('actors.*')
-      .leftJoin('accounts', 'actors.accountId', 'accounts.id')
-      .where('accounts.email', email)
-      .first()
-    if (!persistedActor) return null
-
-    const [account, counters] = await database.transaction(async (trx) => {
-      return Promise.all([
-        trx<Account>('accounts').where('id', persistedActor.accountId).first(),
-        getActorCounterSummary(trx, persistedActor.id)
-      ])
-    })
-
-    return this.getActor(
-      persistedActor,
-      counters.followingCount,
-      counters.followersCount,
-      counters.statusCount,
-      getSqlActorLastStatusAtTime(persistedActor),
-      account
-    )
-  },
-
-  async isCurrentActorFollowing({
-    currentActorId,
-    followingActorId
-  }: IsCurrentActorFollowingParams) {
-    const result = await database('follows')
-      .where('actorId', currentActorId)
-      .andWhere('targetActorId', followingActorId)
-      .andWhere('status', 'Accepted')
-      .count<{ count: string }>('id as count')
-      .first()
-    return parseInt(result?.count ?? '0', 10) > 0
-  },
-
-  async getActorFromUsername({ username, domain }: GetActorFromUsernameParams) {
-    // Case-insensitive: a handle reaches this from a URL path, a mention, a
-    // WebFinger resource and a search box, and none of them control casing.
-    // See findActorRowByUsername for why the exact match is still tried first.
-    const persistedActor = await findActorRowByUsername(database, {
-      username,
-      domain
-    })
-    if (!persistedActor) return null
-
-    const [account, counters] = await database.transaction(async (trx) => {
-      return Promise.all([
-        trx<Account>('accounts').where('id', persistedActor.accountId).first(),
-        getActorCounterSummary(trx, persistedActor.id)
-      ])
-    })
-
-    return this.getActor(
-      persistedActor,
-      counters.followingCount,
-      counters.followersCount,
-      counters.statusCount,
-      getSqlActorLastStatusAtTime(persistedActor),
-      account
-    )
-  },
-
-  async getFederationSigningActor() {
-    const domain = getConfiguredActorDomain()
-    const actorId = getFederationSigningActorId(domain)
-    const getActorFromRow = (sqlActor: SQLActor | undefined) => {
-      if (!isValidFederationSigningSQLActor(sqlActor, domain)) return null
-
-      return this.getActor(sqlActor, 0, 0, 0, 0)
-    }
-    const getExistingHeadlessActor = async () => {
-      const localServiceActors = await database<SQLActor>('actors')
-        .where('domain', domain)
-        .andWhere('type', FEDERATION_SIGNING_ACTOR_TYPE)
-        .whereRaw("?? LIKE ? ESCAPE '\\'", [
-          'username',
-          FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN
-        ])
-        .whereNull('accountId')
-        .modify(whereLocalActor)
-        .whereNull('deletionStatus')
-        .orderBy('createdAt', 'asc')
-        .orderBy('id', 'asc')
-        // knex's `modify` returns QueryBuilder<any, any>, so without this the
-        // rows reach isValidFederationSigningSQLActor as `any` and a column
-        // rename in this block would stop failing the build.
-        .select<SQLActor[]>('*')
-
-      for (const sqlActor of localServiceActors) {
-        const actor = getActorFromRow(sqlActor)
-        if (actor) return actor
-      }
-
-      return null
-    }
-
-    const pendingActor = federationSigningActorCreationLocks.get(domain)
-    if (pendingActor) return pendingActor
-
-    const createSigningActor = async () => {
-      const reservedActor = getActorFromRow(
-        await database<SQLActor>('actors').where('id', actorId).first()
-      )
-      if (reservedActor) return reservedActor
-
-      const existingHeadlessActor = await getExistingHeadlessActor()
-      if (existingHeadlessActor) return existingHeadlessActor
-
-      const usedUsernames = new Set(
-        (
-          await database<SQLActor>('actors')
-            .where('domain', domain)
-            .whereRaw("?? LIKE ? ESCAPE '\\'", [
-              'username',
-              FEDERATION_SIGNING_ACTOR_USERNAME_LIKE_PATTERN
-            ])
-            .select('username')
-        ).map((actor) => actor.username)
-      )
-      let username = FEDERATION_SIGNING_ACTOR_USERNAME
-      for (let index = 0; usedUsernames.has(username); index += 1) {
-        username = getFederationSigningActorUsername(index + 1)
-      }
-      const signingActorId = getFederationSigningActorId(domain, username)
-
-      const currentTime = new Date()
-      const keyPair = await generateKeyPair(getConfig().secretPhase)
-      try {
-        await database<SQLActor>('actors').insert({
-          id: signingActorId,
-          publicId: generatePublicId(),
-          type: FEDERATION_SIGNING_ACTOR_TYPE,
-          username,
-          domain,
-          name: 'Instance actor',
-          summary: 'Service actor used for ActivityPub federation signing.',
-          accountId: null,
-          settings: JSON.stringify(
-            getFederationSigningActorSettings(signingActorId, domain)
-          ),
-          publicKey: keyPair.publicKey,
-          privateKey: keyPair.privateKey,
-          createdAt: currentTime,
-          updatedAt: currentTime
-        })
-      } catch (error) {
-        const actor = await getExistingHeadlessActor()
-        if (actor) return actor
-        throw error
-      }
-
-      const sqlActor = await database<SQLActor>('actors')
-        .where('id', signingActorId)
-        .first()
-      return getActorFromRow(sqlActor)
-    }
-
-    const creatingActor = createSigningActor()
-    federationSigningActorCreationLocks.set(domain, creatingActor)
-    try {
-      return await creatingActor
-    } finally {
-      if (federationSigningActorCreationLocks.get(domain) === creatingActor) {
-        federationSigningActorCreationLocks.delete(domain)
-      }
-    }
-  },
-
-  async getActorFromId({ id }: GetActorFromIdParams) {
-    const persistedActor = await database<SQLActor>('actors')
-      .where('id', id)
-      .first()
-    if (!persistedActor) return null
-
-    if (!persistedActor.accountId) {
-      const counters = await getActorCounterSummary(database, persistedActor.id)
-      return this.getActor(
-        persistedActor,
-        counters.followingCount,
-        counters.followersCount,
-        counters.statusCount,
-        getSqlActorLastStatusAtTime(persistedActor)
-      )
-    }
-
-    const [account, counters] = await database.transaction(async (trx) => {
-      return Promise.all([
-        trx<Account>('accounts').where('id', persistedActor.accountId).first(),
-        getActorCounterSummary(trx, persistedActor.id)
-      ])
-    })
-
-    return this.getActor(
-      persistedActor,
-      counters.followingCount,
-      counters.followersCount,
-      counters.statusCount,
-      getSqlActorLastStatusAtTime(persistedActor),
-      account
-    )
-  },
-
-  async getActorsFromIds({ ids }: GetActorsFromIdsParams) {
-    const actorIds = [...new Set(ids)]
-    if (actorIds.length === 0) return []
-
-    const persistedActors = await database<SQLActor>('actors').whereIn(
-      'id',
-      actorIds
-    )
-    const actorById = new Map(persistedActors.map((actor) => [actor.id, actor]))
-    const accountIds = [
-      ...new Set(
-        persistedActors
-          .map((actor) => actor.accountId)
-          .filter((accountId): accountId is string => Boolean(accountId))
-      )
-    ]
-    const [accounts, countersByActorId] = await Promise.all([
-      accountIds.length > 0
-        ? database<SQLAccount>('accounts').whereIn('id', accountIds)
-        : [],
-      getActorCounterSummaries(database, actorIds)
-    ])
-    const accountById = new Map(
-      accounts.map((account) => [account.id, account])
-    )
-
-    return actorIds
-      .map((actorId) => {
-        const actor = actorById.get(actorId)
-        if (!actor) return null
-
-        const counters = countersByActorId.get(actorId) ?? {
-          followersCount: 0,
-          followingCount: 0,
-          statusCount: 0
-        }
-
-        return this.getActor(
-          actor,
-          counters.followingCount,
-          counters.followersCount,
-          counters.statusCount,
-          getSqlActorLastStatusAtTime(actor),
-          actor.accountId ? accountById.get(actor.accountId) : undefined
-        )
-      })
-      .filter((actor): actor is Actor => actor !== null)
-  },
-
-  // The lookup parameter is normalized here, at the single choke point every
-  // resolution site goes through, rather than in each caller — see
-  // toPublicIdLookupKey.
-  async getActorIdByPublicId({ publicId }: GetActorIdByPublicIdParams) {
-    const row = await database<SQLActor>('actors')
-      .where('publicId', toPublicIdLookupKey(publicId))
-      .first('id')
-    return row?.id ?? null
-  },
-
-  // Batch counterpart of getActorIdByPublicId, so a request carrying an array
-  // of ids costs one query instead of one per id. The returned map is keyed by
-  // the publicIds as REQUESTED, so callers can zip it back against their input.
-  async getActorIdsByPublicIds({ publicIds }: GetActorIdsByPublicIdsParams) {
-    return resolveIdsByPublicIds({
-      publicIds,
-      batchSize: getWhereInBatchSize(database),
-      selectChunk: async (lookupKeys) => {
-        const rows = await database<SQLActor>('actors')
-          .whereIn('publicId', lookupKeys)
-          .select('id', 'publicId')
-        return rows.map((row) => ({
-          id: row.id,
-          publicId: row.publicId as string
-        }))
-      }
-    })
-  },
-
-  async getActorPublicIds({ actorIds }: GetActorPublicIdsParams) {
-    return resolvePublicIdsByIds({
-      ids: actorIds,
-      batchSize: getWhereInBatchSize(database),
-      selectChunk: async (ids) => {
-        const rows = await database<SQLActor>('actors')
-          .whereIn('id', ids)
-          .whereNotNull('publicId')
-          .select('id', 'publicId')
-        return rows.map((row) => ({
-          id: row.id,
-          publicId: row.publicId as string
-        }))
-      }
-    })
-  },
-
-  async getMastodonActorFromId({ id }: GetActorFromIdParams) {
-    return this.getMastodonActor(id)
-  },
-
-  async getMastodonActorsFromIds({ ids }: GetActorsFromIdsParams) {
-    return this.getMastodonActors(ids)
-  },
-
-  getActor(
-    sqlActor: SQLActor,
-    followingCount: number,
-    followersCount: number,
-    statusCount: number,
-    lastStatusAt: number,
-    sqlAccount?: SQLAccount
-  ): Actor {
-    const settings = getCompatibleJSON(sqlActor.settings)
-    const account = sqlAccount
-      ? {
-          account: Account.parse({
-            ...sqlAccount,
-            createdAt: getCompatibleTime(sqlAccount.createdAt),
-            updatedAt: getCompatibleTime(sqlAccount.updatedAt),
-            ...{
-              verifiedAt: sqlAccount.verifiedAt
-                ? getCompatibleTime(sqlAccount.verifiedAt)
-                : null
-            },
-            ...{
-              emailVerifiedAt: sqlAccount.emailVerifiedAt
-                ? getCompatibleTime(sqlAccount.emailVerifiedAt)
-                : null
-            },
-            ...{
-              emailChangeCodeExpiresAt: sqlAccount.emailChangeCodeExpiresAt
-                ? getCompatibleTime(sqlAccount.emailChangeCodeExpiresAt)
-                : null
-            },
-            passwordResetCodeExpiresAt: sqlAccount.passwordResetCodeExpiresAt
-              ? getCompatibleTime(sqlAccount.passwordResetCodeExpiresAt)
-              : null,
-            ...{
-              disabledAt: sqlAccount.disabledAt
-                ? getCompatibleTime(sqlAccount.disabledAt)
-                : null
-            },
-            ...{
-              approvedAt: sqlAccount.approvedAt
-                ? getCompatibleTime(sqlAccount.approvedAt)
-                : null
-            },
-            twoFactorEnabled:
-              sqlAccount.twoFactorEnabled != null
-                ? Boolean(sqlAccount.twoFactorEnabled)
-                : false,
-            // Coerced for the same reason `twoFactorEnabled` is: SQLite hands
-            // back 0/1, which `z.boolean()` rejects.
-            emailVerified:
-              sqlAccount.emailVerified != null
-                ? Boolean(sqlAccount.emailVerified)
-                : false
-          })
-        }
-      : null
-    return Actor.parse({
-      id: sqlActor.id,
-      publicId: sqlActor.publicId ?? null,
-      type: ActorType.catch(ActorType.enum.Person).parse(sqlActor.type),
-      username: sqlActor.username,
-      domain: sqlActor.domain,
-      ...(sqlActor.name ? { name: sqlActor.name } : null),
-      ...(sqlActor.summary ? { summary: sqlActor.summary } : null),
-      ...(settings.iconUrl ? { iconUrl: settings.iconUrl } : null),
-      ...(settings.headerImageUrl
-        ? { headerImageUrl: settings.headerImageUrl }
-        : null),
-      manuallyApprovesFollowers: settings.manuallyApprovesFollowers ?? true,
-      ...(settings.tags ? { tags: settings.tags } : null),
-      // Booleans use !== undefined so a persisted `false` survives the
-      // row-to-domain round-trip (a truthy spread would drop it).
-      ...(settings.readingExpandMedia !== undefined
-        ? { readingExpandMedia: settings.readingExpandMedia }
-        : null),
-      ...(settings.readingExpandSpoilers !== undefined
-        ? { readingExpandSpoilers: settings.readingExpandSpoilers }
-        : null),
-      ...(settings.readingAutoplayGifs !== undefined
-        ? { readingAutoplayGifs: settings.readingAutoplayGifs }
-        : null),
-      followersUrl: settings.followersUrl,
-      inboxUrl: settings.inboxUrl,
-      sharedInboxUrl: settings.sharedInboxUrl,
-      publicKey: sqlActor.publicKey,
-      ...(sqlActor.privateKey ? { privateKey: sqlActor.privateKey } : null),
-      ...account,
-
-      followingCount,
-      followersCount,
-
-      statusCount,
-      lastStatusAt,
-
-      createdAt: getCompatibleTime(sqlActor.createdAt),
-      updatedAt: getCompatibleTime(sqlActor.updatedAt),
-      deletionStatus: sqlActor.deletionStatus ?? null,
-      deletionScheduledAt: sqlActor.deletionScheduledAt
-        ? getCompatibleTime(sqlActor.deletionScheduledAt)
-        : null,
-      suspendedAt: sqlActor.suspendedAt
-        ? getCompatibleTime(sqlActor.suspendedAt)
-        : null,
-      silencedAt: sqlActor.silencedAt
-        ? getCompatibleTime(sqlActor.silencedAt)
-        : null,
-      sensitizedAt: sqlActor.sensitizedAt
-        ? getCompatibleTime(sqlActor.sensitizedAt)
-        : null
-    })
-  },
-
-  async getMastodonActor(actorId: string) {
-    const actors = await this.getMastodonActors([actorId])
-    return actors[0] ?? null
-  },
-
-  async getLocalMastodonActors({
-    localDomain,
-    limit = 40,
-    offset = 0,
-    order = 'active',
-    local = true
-  }: GetLocalActorsParams) {
-    // Actors store the bare host in `domain`, but callers may pass a configured
-    // host that includes a scheme (e.g. `https://example.com`). Normalize so the
-    // comparison matches.
-    const normalizedDomain = localDomain.includes('://')
-      ? new URL(localDomain).host
-      : localDomain
-    const query = database<SQLActor>('actors').limit(limit).offset(offset)
-
-    // local=false lists every known profile (Mastodon's default directory);
-    // local=true keeps only this server's account-backed actors.
-    // The directory never lists suspended or silenced actors on any surface.
-    query.whereNull('actors.suspendedAt').whereNull('actors.silencedAt')
-
-    if (local) {
-      query
-        .where('actors.domain', normalizedDomain)
-        .whereNotNull('actors.accountId')
-    } else {
-      // Even the all-profiles view must not expose internal system actors —
-      // the headless federation signer and any other local actor with no
-      // backing account (accountId null on the local domain). Remote actors
-      // (foreign domain) and local account-backed actors are still listed.
-      query.whereNot(function () {
-        this.where('actors.domain', normalizedDomain).whereNull(
-          'actors.accountId'
-        )
-      })
-    }
-
-    if (order === 'active') {
-      // `active` sorts by the actor's most recent status via the persisted
-      // `actors.lastStatusAt` column (maintained inside the status
-      // create/delete transactions), so the directory no longer runs a
-      // per-request MAX(statuses.createdAt) GROUP BY aggregation. Actors who
-      // have never posted (NULL) sort last on both SQLite and PostgreSQL:
-      // `?? is null` yields false (0) before true (1), the portable NULLS LAST
-      // pattern; newest account breaks ties.
-      query
-        .orderByRaw('?? is null', ['actors.lastStatusAt'])
-        .orderBy('actors.lastStatusAt', 'desc')
-        .orderBy('actors.createdAt', 'desc')
-    } else {
-      query.orderBy('actors.createdAt', 'desc')
-    }
-
-    const rows = await query.select<{ id: string }[]>({ id: 'actors.id' })
-    return this.getMastodonActors(rows.map((row) => row.id))
-  },
-
-  async getMastodonActors(actorIds: string[]) {
-    const uniqueActorIds = Array.from(new Set(actorIds))
-    if (uniqueActorIds.length === 0) return []
-
-    const sqlActors = await database<SQLActor>('actors').whereIn(
-      'id',
-      uniqueActorIds
-    )
-    if (sqlActors.length === 0) return []
-
-    const sqlActorById = new Map(sqlActors.map((actor) => [actor.id, actor]))
-    const existingActorIds = sqlActors.map((actor) => actor.id)
-    const countersByActorId = await getActorCounterSummaries(
-      database,
-      existingActorIds
-    )
-
-    return actorIds.flatMap((id) => {
-      const sqlActor = sqlActorById.get(id)
-      if (!sqlActor) return []
-
-      return getMastodonAccountFromSQLActor({
-        sqlActor,
-        counters: countersByActorId.get(id) ?? {
-          followersCount: 0,
-          followingCount: 0,
-          statusCount: 0
-        }
-      })
-    })
-  },
-
-  async updateActor({
-    actorId,
-    type,
-    name,
-    summary,
-    iconUrl,
-    headerImageUrl,
-    manuallyApprovesFollowers,
-    fields,
-    tags,
-    bot,
-    discoverable,
-    indexable,
-    hideCollections,
-    attributionDomains,
-    defaultPrivacy,
-    defaultSensitive,
-    defaultLanguage,
-    defaultQuotePolicy,
-    postLineLimit,
-    readingExpandMedia,
-    readingExpandSpoilers,
-    readingAutoplayGifs,
-    emailNotifications,
-    pushNotifications,
-    notificationPolicy,
-    notificationAcceptedSenders,
-    appendNotificationAcceptedSenders,
-    fitness,
-    avatarDescription,
-    headerDescription,
-    showMedia,
-    showMediaReplies,
-    showFeatured,
-    navOrder,
-    navHidden,
-
-    publicKey,
-
-    followersUrl,
-    inboxUrl,
-    sharedInboxUrl
-  }: UpdateActorParams) {
-    const persistedActor = await database<SQLActor>('actors')
+export const deleteActorData = async (
+  database: Knex,
+  { actorId }: DeleteActorDataParams
+): Promise<void> => {
+  const affectedHashtags: string[] = []
+
+  await database.transaction(async (trx) => {
+    const currentTime = new Date()
+
+    const persistedActor = await trx('actors')
       .where('id', actorId)
-      .first()
-    if (!persistedActor) return null
+      .first<{ accountId: string | null }>('accountId')
 
-    const persistedSettings = getCompatibleJSON(persistedActor.settings)
-    let resolvedTags = tags
-    if (
-      resolvedTags === undefined &&
-      (name !== undefined || summary !== undefined || fields !== undefined)
-    ) {
-      const isLocal =
-        persistedActor.domain.toLowerCase() ===
-        getConfiguredActorDomain().toLowerCase()
-      if (isLocal) {
-        const targetName =
-          name !== undefined ? name : (persistedActor.name ?? '')
-        const targetSummary =
-          summary !== undefined ? summary : (persistedActor.summary ?? '')
-        const targetFields =
-          fields !== undefined ? fields : (persistedSettings.fields ?? [])
-        const fieldsText = targetFields
-          .map((f: { name: string; value: string }) => `${f.name} ${f.value}`)
-          .join(' ')
-        resolvedTags = await resolveLocalEmojiTags(
-          database,
-          `${targetName} ${targetSummary} ${fieldsText}`.trim()
+    const actorStatuses = await trx('statuses')
+      .where('actorId', actorId)
+      .select('id', 'type', 'reply', 'content', 'originalStatusId')
+
+    const statusIds = actorStatuses.map((status) => status.id)
+    // Reply and hashtag counters only ever counted publicly addressed
+    // statuses; read which ones those were while their recipients remain.
+    const publiclyAddressedStatusIds = await selectPubliclyAddressedStatusIds(
+      trx,
+      statusIds
+    )
+    const statusReferenceToId = new Map<string, string>()
+    const replyReferences = Array.from(
+      new Set(
+        actorStatuses
+          .map((status) => status.reply)
+          .filter((reply): reply is string => Boolean(reply))
+      )
+    )
+    if (replyReferences.length > 0) {
+      const replyReferenceHashes = Array.from(
+        new Set(replyReferences.map((reply) => getStatusUrlHash(reply)))
+      )
+      const parentStatuses = await trx('statuses')
+        .whereIn('id', replyReferences)
+        .orWhere((builder) =>
+          builder
+            .whereIn('urlHash', replyReferenceHashes)
+            .whereIn('url', replyReferences)
         )
-      }
-    }
-    // The explicit settings changes requested by this call (undefined fields
-    // mean "no change"). Kept as a standalone object so the
-    // appendNotificationAcceptedSenders path can re-apply them on top of the
-    // fresh in-transaction read without losing any of them.
-    const settingsUpdates: Partial<ActorSettings> = {
-      ...(iconUrl ? { iconUrl } : null),
-      ...(headerImageUrl ? { headerImageUrl } : null),
-      ...(manuallyApprovesFollowers !== undefined
-        ? { manuallyApprovesFollowers }
-        : null),
-      ...(fields !== undefined ? { fields } : null),
-      ...(resolvedTags !== undefined ? { tags: resolvedTags } : null),
-      ...(bot !== undefined ? { bot } : null),
-      ...(discoverable !== undefined ? { discoverable } : null),
-      ...(indexable !== undefined ? { indexable } : null),
-      ...(hideCollections !== undefined ? { hideCollections } : null),
-      ...(attributionDomains !== undefined ? { attributionDomains } : null),
-      ...(defaultPrivacy !== undefined ? { defaultPrivacy } : null),
-      ...(defaultSensitive !== undefined ? { defaultSensitive } : null),
-      ...(defaultLanguage !== undefined ? { defaultLanguage } : null),
-      ...(defaultQuotePolicy !== undefined ? { defaultQuotePolicy } : null),
-      ...(postLineLimit !== undefined ? { postLineLimit } : null),
-      ...(readingExpandMedia !== undefined ? { readingExpandMedia } : null),
-      ...(readingExpandSpoilers !== undefined
-        ? { readingExpandSpoilers }
-        : null),
-      ...(readingAutoplayGifs !== undefined ? { readingAutoplayGifs } : null),
-      ...(emailNotifications !== undefined ? { emailNotifications } : null),
-      ...(pushNotifications !== undefined ? { pushNotifications } : null),
-      ...(notificationPolicy !== undefined ? { notificationPolicy } : null),
-      ...(notificationAcceptedSenders !== undefined
-        ? { notificationAcceptedSenders }
-        : null),
-      // appendNotificationAcceptedSenders is handled inside the transaction
-      // with a fresh read to prevent lost-update races.
-      ...(fitness !== undefined ? { fitness } : null),
-      ...(avatarDescription !== undefined ? { avatarDescription } : null),
-      ...(headerDescription !== undefined ? { headerDescription } : null),
-      ...(showMedia !== undefined ? { showMedia } : null),
-      ...(showMediaReplies !== undefined ? { showMediaReplies } : null),
-      ...(showFeatured !== undefined ? { showFeatured } : null),
-      ...(navOrder !== undefined ? { navOrder } : null),
-      ...(navHidden !== undefined ? { navHidden } : null),
+        .select('id', 'url')
 
-      ...(followersUrl ? { followersUrl } : null),
-      ...(inboxUrl ? { inboxUrl } : null),
-      ...(sharedInboxUrl ? { sharedInboxUrl } : null)
-    }
-    // A null iconUrl/headerImageUrl means "explicitly clear this field"
-    // (distinct from undefined = "no change"). ActorSettings types these as
-    // optional strings, so we drop the key rather than storing null. Centralized
-    // here so every derived settings object (pre-transaction and the
-    // append-path rebuild) clears them the same way.
-    const applyExplicitClears = (target: ActorSettings): ActorSettings => {
-      if (iconUrl === null) delete target.iconUrl
-      if (headerImageUrl === null) delete target.headerImageUrl
-      return target
-    }
-
-    const settings = applyExplicitClears({
-      ...persistedSettings,
-      ...settingsUpdates
-    })
-
-    const currentTime = new Date()
-    const updatedActor: SQLActor = {
-      ...persistedActor,
-      ...(type ? { type } : null),
-      ...(name ? { name } : null),
-      ...(summary ? { summary } : null),
-      ...(publicKey ? { publicKey } : null),
-      settings: JSON.stringify(settings),
-      updatedAt: currentTime
-    }
-
-    await database.transaction(async (trx) => {
-      let finalSettings = settings
-
-      if (appendNotificationAcceptedSenders !== undefined) {
-        // Re-read inside the transaction (with row lock on PostgreSQL) to merge
-        // accepted senders atomically and avoid lost-update races.
-        const freshActorQuery = trx<SQLActor>('actors').where('id', actorId)
-        if (isPostgresClient(database)) freshActorQuery.forUpdate()
-        const freshActor = await freshActorQuery.first()
-        if (freshActor) {
-          const freshSettings = getCompatibleJSON<ActorSettings>(
-            freshActor.settings
-          )
-          const existing = new Set(
-            freshSettings?.notificationAcceptedSenders ?? []
-          )
-          const toAdd = appendNotificationAcceptedSenders.filter(
-            (id) => !existing.has(id)
-          )
-          // Base the merge on freshSettings so all settings fields (policy,
-          // email/push notifications, etc.) come from the locked row, not the
-          // stale pre-transaction snapshot. This prevents concurrent settings
-          // changes from being clobbered by this write. Re-apply this call's
-          // own explicit settingsUpdates on top so they are not lost when an
-          // append is combined with other settings changes in the same call,
-          // then re-clear any explicitly-nulled fields.
-          finalSettings = applyExplicitClears({
-            ...freshSettings,
-            ...settingsUpdates,
-            notificationAcceptedSenders: [...existing, ...toAdd]
-          })
+      for (const parentStatus of parentStatuses) {
+        statusReferenceToId.set(parentStatus.id, parentStatus.id)
+        if (parentStatus.url) {
+          statusReferenceToId.set(parentStatus.url, parentStatus.id)
         }
       }
+    }
 
-      await trx<SQLActor>('actors')
-        .where('id', actorId)
-        .update({
-          ...(type ? { type } : null),
-          ...(name ? { name } : null),
-          ...(summary ? { summary } : null),
-
-          ...(publicKey ? { publicKey } : null),
-
-          settings: JSON.stringify(finalSettings),
-          updatedAt: currentTime
-        })
-      await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
-        id: actorId,
-        actor: { ...updatedActor, settings: JSON.stringify(finalSettings) }
-      })
-    })
-    return this.getActorFromId({ id: actorId })
-  },
-
-  async deleteActor({ actorId }: DeleteActorParams) {
-    await database.transaction(async (trx) => {
-      await trx('actors').where('id', actorId).delete()
-      await searchQueries.deleteActorSearchDocument(kyselyFor(trx), {
-        id: actorId
-      })
-    })
-  },
-
-  // Overwrite the actor's counter rows with the collection sizes a remote
-  // server advertises (followers/following/outbox totalItems). A null or
-  // undefined value keeps the locally-accumulated counter. Every call also
-  // stamps the remote-counts-synced marker row, so hasActorCounters reports
-  // the sync as done even when the remote hides (or fails to serve) a
-  // collection's total.
-  async setActorCounters({
-    actorId,
-    followersCount,
-    followingCount,
-    statusCount
-  }: SetActorCountersParams) {
-    const currentTime = new Date()
-    const counters: [string, number | null | undefined][] = [
-      [CounterKey.totalFollowers(actorId), followersCount],
-      [CounterKey.totalFollowing(actorId), followingCount],
-      [CounterKey.totalStatus(actorId), statusCount]
-    ]
-    await Promise.all([
-      ...counters
-        .filter(
-          (counter): counter is [string, number] =>
-            typeof counter[1] === 'number'
-        )
-        .map(([key, value]) =>
-          setCounterValue(database, key, value, currentTime)
-        ),
-      setCounterValue(
-        database,
-        CounterKey.remoteCountsSyncedAt(actorId),
-        Math.floor(currentTime.getTime() / 1000),
+    if (actorStatuses.length > 0) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.totalStatus(actorId),
+        actorStatuses.length,
         currentTime
       )
-    ])
-  },
-
-  // Whether the actor's remote collection counts were ever synced (the
-  // remote-counts-synced marker row exists). The follower/following/status
-  // rows themselves can't carry this signal: local accumulation (follows,
-  // federated statuses) creates them too.
-  async hasActorCounters({ actorId }: HasActorCountersParams) {
-    const key = CounterKey.remoteCountsSyncedAt(actorId)
-    const counters = await getCounterValues(database, [key])
-    return key in counters
-  },
-
-  async getActorFollowingCount({ actorId }: GetActorFollowingCountParams) {
-    return getCounterValue(database, CounterKey.totalFollowing(actorId))
-  },
-
-  async getActorFollowersCount({ actorId }: GetActorFollowersCountParams) {
-    return getCounterValue(database, CounterKey.totalFollowers(actorId))
-  },
-
-  async getActorSettings({ actorId }: GetActorSettingsParams) {
-    const persistedActor = await database<SQLActor>('actors')
-      .where('id', actorId)
-      .select('settings')
-      .first()
-    if (!persistedActor) return undefined
-    return getCompatibleJSON(persistedActor.settings) as ActorSettings
-  },
-
-  async getNotificationPolicy({ actorId }: GetActorSettingsParams) {
-    const settings = await this.getActorSettings({ actorId })
-    return {
-      ...DEFAULT_NOTIFICATION_POLICY,
-      ...(settings?.notificationPolicy ?? {})
-    }
-  },
-
-  async updateNotificationPolicy({
-    actorId,
-    ...partial
-  }: UpdateNotificationPolicyParams) {
-    const current = await this.getNotificationPolicy({ actorId })
-    const notificationPolicy: NotificationPolicy = { ...current, ...partial }
-    await this.updateActor({ actorId, notificationPolicy })
-    return notificationPolicy
-  },
-
-  async scheduleActorDeletion({
-    actorId,
-    scheduledAt
-  }: ScheduleActorDeletionParams) {
-    const currentTime = new Date()
-    await database.transaction(async (trx) => {
-      await trx<SQLActor>('actors').where('id', actorId).update({
-        deletionStatus: 'scheduled',
-        deletionScheduledAt: scheduledAt,
-        updatedAt: currentTime
-      })
-      await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
-        id: actorId
-      })
-    })
-  },
-
-  async cancelActorDeletion({ actorId }: CancelActorDeletionParams) {
-    const currentTime = new Date()
-    await database.transaction(async (trx) => {
-      await trx<SQLActor>('actors').where('id', actorId).update({
-        deletionStatus: null,
-        deletionScheduledAt: null,
-        updatedAt: currentTime
-      })
-      await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
-        id: actorId
-      })
-    })
-  },
-
-  async startActorDeletion({ actorId }: StartActorDeletionParams) {
-    const currentTime = new Date()
-    await database.transaction(async (trx) => {
-      await trx<SQLActor>('actors').where('id', actorId).update({
-        deletionStatus: 'deleting',
-        updatedAt: currentTime
-      })
-      await searchQueries.indexActorSearchDocument(kyselyFor(trx), {
-        id: actorId
-      })
-    })
-  },
-
-  async getActorsScheduledForDeletion({
-    beforeDate
-  }: GetActorsScheduledForDeletionParams) {
-    const sqlActors = await database<SQLActor>('actors')
-      .where('deletionStatus', 'scheduled')
-      .andWhere('deletionScheduledAt', '<=', beforeDate)
-
-    const results: Actor[] = []
-    for (const sqlActor of sqlActors) {
-      const actor = await this.getActorFromId({ id: sqlActor.id })
-      if (actor) {
-        results.push(actor)
-      }
-    }
-    return results
-  },
-
-  async getActorDeletionStatus({ id }: GetActorFromIdParams) {
-    const persistedActor = await database<SQLActor>('actors')
-      .where('id', id)
-      .select('deletionStatus', 'deletionScheduledAt')
-      .first()
-    if (!persistedActor) return undefined
-    return {
-      status: persistedActor.deletionStatus ?? null,
-      scheduledAt: persistedActor.deletionScheduledAt
-        ? getCompatibleTime(persistedActor.deletionScheduledAt)
-        : null
-    }
-  },
-
-  async getNodeInfoStats() {
-    const nowSeconds = Math.floor(Date.now() / 1000)
-    const ACTIVE_USERS_TTL_SECONDS = 60 * 60 // 1 hour
-
-    const totalUsers = await getCounterValue(
-      database,
-      CounterKey.nodeinfoTotalUsers()
-    )
-    const localPosts = await getCounterValue(
-      database,
-      CounterKey.nodeinfoLocalPosts()
-    )
-
-    const computedAt = await getCounterValue(
-      database,
-      CounterKey.nodeinfoComputedAt()
-    )
-    const isStale =
-      computedAt === 0 || nowSeconds - computedAt > ACTIVE_USERS_TTL_SECONDS
-
-    if (!isStale) {
-      const activeMonth = await getCounterValue(
-        database,
-        CounterKey.nodeinfoActiveMonth()
-      )
-      const activeHalfyear = await getCounterValue(
-        database,
-        CounterKey.nodeinfoActiveHalfyear()
-      )
-      return { totalUsers, activeMonth, activeHalfyear, localPosts }
-    }
-
-    // Recompute active user counts
-    const now = Date.now()
-    const oneMonthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000)
-    const sixMonthsAgo = new Date(now - 180 * 24 * 60 * 60 * 1000)
-
-    const activeCounts = await database('statuses')
-      .join('actors', 'statuses.actorId', 'actors.id')
-      .whereNotNull('actors.accountId')
-      .andWhere('statuses.createdAt', '>=', sixMonthsAgo)
-      .select(
-        database.raw('count(distinct case when ?? >= ? then ?? end) as ??', [
-          'statuses.createdAt',
-          oneMonthAgo,
-          'statuses.actorId',
-          'activeMonth'
-        ]),
-        database.raw('count(distinct ??) as ??', [
-          'statuses.actorId',
-          'activeHalfyear'
-        ])
-      )
-      .first<{
-        activeMonth: string | number
-        activeHalfyear: string | number
-      }>()
-
-    const activeMonth = parseInt(String(activeCounts?.activeMonth ?? '0'), 10)
-    const activeHalfyear = parseInt(
-      String(activeCounts?.activeHalfyear ?? '0'),
-      10
-    )
-
-    const currentTime = new Date(now)
-    await setCounterValue(
-      database,
-      CounterKey.nodeinfoActiveMonth(),
-      activeMonth,
-      currentTime
-    )
-    await setCounterValue(
-      database,
-      CounterKey.nodeinfoActiveHalfyear(),
-      activeHalfyear,
-      currentTime
-    )
-    await setCounterValue(
-      database,
-      CounterKey.nodeinfoComputedAt(),
-      nowSeconds,
-      currentTime
-    )
-
-    return { totalUsers, activeMonth, activeHalfyear, localPosts }
-  },
-
-  async deleteActorData({ actorId }: DeleteActorDataParams) {
-    const affectedHashtags: string[] = []
-
-    await database.transaction(async (trx) => {
-      const currentTime = new Date()
-
-      const persistedActor = await trx('actors')
-        .where('id', actorId)
-        .first<{ accountId: string | null }>('accountId')
-
-      const actorStatuses = await trx('statuses')
-        .where('actorId', actorId)
-        .select('id', 'type', 'reply', 'content', 'originalStatusId')
-
-      const statusIds = actorStatuses.map((status) => status.id)
-      // Reply and hashtag counters only ever counted publicly addressed
-      // statuses; read which ones those were while their recipients remain.
-      const publiclyAddressedStatusIds = await selectPubliclyAddressedStatusIds(
+      await decreaseCounterValue(
         trx,
-        statusIds
+        CounterKey.serviceTotalStatuses(),
+        actorStatuses.length,
+        currentTime
       )
-      const statusReferenceToId = new Map<string, string>()
-      const replyReferences = Array.from(
-        new Set(
-          actorStatuses
-            .map((status) => status.reply)
-            .filter((reply): reply is string => Boolean(reply))
-        )
-      )
-      if (replyReferences.length > 0) {
-        const replyReferenceHashes = Array.from(
-          new Set(replyReferences.map((reply) => getStatusUrlHash(reply)))
-        )
-        const parentStatuses = await trx('statuses')
-          .whereIn('id', replyReferences)
-          .orWhere((builder) =>
-            builder
-              .whereIn('urlHash', replyReferenceHashes)
-              .whereIn('url', replyReferences)
-          )
-          .select('id', 'url')
+    }
 
-        for (const parentStatus of parentStatuses) {
-          statusReferenceToId.set(parentStatus.id, parentStatus.id)
-          if (parentStatus.url) {
-            statusReferenceToId.set(parentStatus.url, parentStatus.id)
-          }
+    if (persistedActor?.accountId) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.serviceTotalActors(),
+        1,
+        currentTime
+      )
+    }
+
+    const reblogCounterChanges: Record<string, number> = {}
+    const replyCounterChanges: Record<string, number> = {}
+    for (const status of actorStatuses) {
+      if (status.type === 'Announce') {
+        const content = parseStatusContent(status.content)
+        const originalStatusId =
+          typeof status.originalStatusId === 'string'
+            ? status.originalStatusId
+            : typeof content === 'string'
+              ? content
+              : typeof content?.url === 'string'
+                ? content.url
+                : typeof status.content === 'string'
+                  ? status.content
+                  : null
+
+        if (originalStatusId) {
+          reblogCounterChanges[originalStatusId] =
+            (reblogCounterChanges[originalStatusId] || 0) + 1
         }
       }
 
+      if (status.reply && publiclyAddressedStatusIds.has(status.id)) {
+        const parentStatusId = statusReferenceToId.get(status.reply)
+        if (parentStatusId) {
+          replyCounterChanges[parentStatusId] =
+            (replyCounterChanges[parentStatusId] || 0) + 1
+        }
+      }
+    }
+
+    for (const [statusId, count] of Object.entries(reblogCounterChanges)) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.totalReblog(statusId),
+        count,
+        currentTime
+      )
+    }
+    for (const [statusId, count] of Object.entries(replyCounterChanges)) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.totalReply(statusId),
+        count,
+        currentTime
+      )
+    }
+
+    const acceptedFollowing = await trx('follows')
+      .where('actorId', actorId)
+      .andWhere('status', 'Accepted')
+      .select('targetActorId')
+
+    if (acceptedFollowing.length > 0) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.totalFollowing(actorId),
+        acceptedFollowing.length,
+        currentTime
+      )
+
+      const followerAdjustments: Record<string, number> = {}
+      for (const follow of acceptedFollowing) {
+        followerAdjustments[follow.targetActorId] =
+          (followerAdjustments[follow.targetActorId] || 0) + 1
+      }
+      for (const [targetActorId, count] of Object.entries(
+        followerAdjustments
+      )) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.totalFollowers(targetActorId),
+          count,
+          currentTime
+        )
+      }
+    }
+
+    const acceptedFollowers = await trx('follows')
+      .where('targetActorId', actorId)
+      .andWhere('status', 'Accepted')
+      .select('actorId')
+    if (acceptedFollowers.length > 0) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.totalFollowers(actorId),
+        acceptedFollowers.length,
+        currentTime
+      )
+
+      const followingAdjustments: Record<string, number> = {}
+      for (const follow of acceptedFollowers) {
+        followingAdjustments[follow.actorId] =
+          (followingAdjustments[follow.actorId] || 0) + 1
+      }
+
+      for (const [followerActorId, count] of Object.entries(
+        followingAdjustments
+      )) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.totalFollowing(followerActorId),
+          count,
+          currentTime
+        )
+      }
+    }
+
+    const likesMadeByActor = await trx('likes')
+      .where('actorId', actorId)
+      .select('statusId')
+    const likeAdjustments: Record<string, number> = {}
+    for (const like of likesMadeByActor) {
+      likeAdjustments[like.statusId] = (likeAdjustments[like.statusId] || 0) + 1
+    }
+    for (const [statusId, count] of Object.entries(likeAdjustments)) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.totalLike(statusId),
+        count,
+        currentTime
+      )
+    }
+
+    const medias = await trx('medias')
+      .where('actorId', actorId)
+      .select('originalBytes', 'thumbnailBytes')
+    // A photo edit keeps the uploaded file and earlier renders beside the
+    // live one; they count toward the usage too.
+    const editFiles = await trx('media_edit_files')
+      .whereIn('mediaId', trx('medias').where('actorId', actorId).select('id'))
+      .select('bytes')
+    const totalMediaBytes =
+      medias.reduce(
+        (sum, media) =>
+          sum +
+          parseCounterValue(media.originalBytes) +
+          parseCounterValue(media.thumbnailBytes),
+        0
+      ) +
+      editFiles.reduce((sum, file) => sum + parseCounterValue(file.bytes), 0)
+    if (persistedActor?.accountId && totalMediaBytes > 0) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.mediaUsage(persistedActor.accountId),
+        totalMediaBytes,
+        currentTime
+      )
+    }
+
+    if (statusIds.length > 0) {
+      const hashtagTags = await selectHashtagTagsByStatusIds(trx, statusIds)
+      affectedHashtags.push(...hashtagTags.map((tag) => tag.name))
+      const hashtagCounterAdjustments = new Map<string, number>()
+      for (const tag of hashtagTags) {
+        if (!publiclyAddressedStatusIds.has(tag.statusId)) continue
+        const tagName = normalizeHashtagSearchName(tag.name)
+        if (tagName.length === 0) continue
+        hashtagCounterAdjustments.set(
+          tagName,
+          (hashtagCounterAdjustments.get(tagName) ?? 0) + 1
+        )
+      }
+      for (const [tagName, count] of hashtagCounterAdjustments) {
+        await decreaseCounterValue(
+          trx,
+          CounterKey.totalHashtag(tagName),
+          count,
+          currentTime
+        )
+      }
+
+      // Delete status-related data
+      await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIds)
+      await deleteRowsByColumnChunks(trx, 'recipients', 'statusId', statusIds)
+      await deleteRowsByColumnChunks(trx, 'likes', 'statusId', statusIds)
+      await deleteRowsByColumnChunks(
+        trx,
+        'status_reactions',
+        'statusId',
+        statusIds
+      )
+      await deleteRowsByColumnChunks(trx, 'bookmarks', 'statusId', statusIds)
+      await deleteRowsByColumnChunks(trx, 'attachments', 'statusId', statusIds)
+      await deleteRowsByColumnChunks(
+        trx,
+        'status_history',
+        'statusId',
+        statusIds
+      )
+      // Same rule as the status-deletion path: only the status→card link
+      // goes, never the shared per-url cache. Without it a purged actor
+      // leaves one orphan row per status forever, and because `statusId` is
+      // the deterministic ActivityPub id, a re-ingested remote status would
+      // come back wearing its old card with no fetch at all.
+      await deleteRowsByColumnChunks(
+        trx,
+        'status_link_previews',
+        'statusId',
+        statusIds
+      )
+      await deleteRowsByColumnChunks(trx, 'poll_answers', 'statusId', statusIds)
+      await deleteRowsByColumnChunks(trx, 'poll_voters', 'statusId', statusIds)
+      await deleteRowsByColumnChunks(trx, 'poll_choices', 'statusId', statusIds)
+      await deleteRowsByColumnChunks(
+        trx,
+        'notifications',
+        'statusId',
+        statusIds
+      )
+      await deleteRowsByColumnChunks(
+        trx,
+        'direct_conversation_statuses',
+        'statusId',
+        statusIds
+      )
+      for (const statusIdChunk of chunkArray(
+        statusIds,
+        getWhereInBatchSize(trx)
+      )) {
+        await trx('fitness_files')
+          .whereIn('statusId', statusIdChunk)
+          .update({ statusId: null })
+      }
+    }
+
+    // Delete timeline entries for this actor
+    await trx('timelines').where('actorId', actorId).delete()
+    await trx('timelines').where('statusActorId', actorId).delete()
+
+    // Delete statuses
+    await trx('statuses').where('actorId', actorId).delete()
+    if (statusIds.length > 0) {
+      await deleteStatusSearchDocumentsByStatusIds(kyselyFor(trx), statusIds)
+    }
+
+    // Delete follows (both directions)
+    await trx('follows').where('actorId', actorId).delete()
+    await trx('follows').where('targetActorId', actorId).delete()
+
+    // Delete list memberships holding the actor and the lists it owns, as
+    // removeListAccounts / deleteList do (their `list:<id>` feed rows went
+    // with the actorId/statusActorId timelines sweep above). Kept after the
+    // follows delete, the same follows → list_accounts order
+    // updateFollowStatus writes in.
+    await trx('list_accounts').where('targetActorId', actorId).delete()
+    const ownedListIds: string[] = await trx('lists')
+      .where('actorId', actorId)
+      .pluck('id')
+    await deleteRowsByColumnChunks(trx, 'list_accounts', 'listId', ownedListIds)
+    await trx('lists').where('actorId', actorId).delete()
+
+    // Delete endorsements (both as endorser and endorsed)
+    await trx('endorsements').where('actorId', actorId).delete()
+    await trx('endorsements').where('targetActorId', actorId).delete()
+
+    // Delete the actor's featured tags.
+    await trx('featured_tags').where('actorId', actorId).delete()
+
+    const blocks = await trx('blocks')
+      .where('actorId', actorId)
+      .orWhere('targetActorId', actorId)
+      .select('actorId', 'targetActorId')
+    const blockingAdjustments: Record<string, number> = {}
+    const blockedByAdjustments: Record<string, number> = {}
+    for (const block of blocks) {
+      if (block.actorId !== actorId) {
+        blockingAdjustments[block.actorId] =
+          (blockingAdjustments[block.actorId] || 0) + 1
+      }
+      if (block.targetActorId !== actorId) {
+        blockedByAdjustments[block.targetActorId] =
+          (blockedByAdjustments[block.targetActorId] || 0) + 1
+      }
+    }
+    await Promise.all([
+      ...Object.entries(blockingAdjustments).map(([blockingActorId, count]) =>
+        decreaseCounterValue(
+          trx,
+          CounterKey.totalBlocking(blockingActorId),
+          count,
+          currentTime
+        )
+      ),
+      ...Object.entries(blockedByAdjustments).map(([blockedActorId, count]) =>
+        decreaseCounterValue(
+          trx,
+          CounterKey.totalBlockedBy(blockedActorId),
+          count,
+          currentTime
+        )
+      )
+    ])
+    await trx('blocks')
+      .where((builder) => {
+        builder.where('actorId', actorId).orWhere('targetActorId', actorId)
+      })
+      .delete()
+
+    await trx('mutes')
+      .where((builder) => {
+        builder.where('actorId', actorId).orWhere('targetActorId', actorId)
+      })
+      .delete()
+
+    // Private account notes reference the actor on either side (author or
+    // target); remove both so a recreated actor URL cannot resurface them.
+    await trx('account_notes')
+      .where((builder) => {
+        builder.where('actorId', actorId).orWhere('targetActorId', actorId)
+      })
+      .delete()
+
+    // Subquery avoids hitting the SQLite 999-parameter limit when an
+    // actor has accumulated many filters; the mute precedent only
+    // touches one table per actor so doesn't need this.
+    await trx('filter_statuses')
+      .whereIn('filterId', function () {
+        this.select('id').from('filters').where('actorId', actorId)
+      })
+      .delete()
+    await trx('filter_keywords')
+      .whereIn('filterId', function () {
+        this.select('id').from('filters').where('actorId', actorId)
+      })
+      .delete()
+    await trx('filters').where('actorId', actorId).delete()
+
+    // Delete likes made by this actor
+    await trx('likes').where('actorId', actorId).delete()
+
+    // Delete emoji reactions made by this actor, so a recreated actor URL
+    // cannot resurface them as the new owner's own reactions.
+    await trx('status_reactions').where('actorId', actorId).delete()
+
+    // Delete bookmarks made by this actor
+    await trx('bookmarks').where('actorId', actorId).delete()
+
+    // Delete markers made by this actor
+    await trx('markers').where('actorId', actorId).delete()
+
+    const pollAnswersMadeByActor: { statusId: string; choice: number }[] =
+      await trx('poll_answers')
+        .where('actorId', actorId)
+        .select('statusId', 'choice')
+    if (pollAnswersMadeByActor.length > 0) {
+      const choiceIdsByStatusId = new Map<string, number[]>()
+      const votedStatusIds = [
+        ...new Set(pollAnswersMadeByActor.map((answer) => answer.statusId))
+      ]
+
+      for (const statusIdChunk of chunkArray(
+        votedStatusIds,
+        getWhereInBatchSize(trx)
+      )) {
+        const pollChoices: { statusId: string; choiceId: number }[] = await trx(
+          'poll_choices'
+        )
+          .whereIn('statusId', statusIdChunk)
+          .orderBy('statusId', 'asc')
+          .orderBy('choiceId', 'asc')
+          .select('statusId', 'choiceId')
+
+        for (const choice of pollChoices) {
+          const choices = choiceIdsByStatusId.get(choice.statusId) ?? []
+          choices.push(choice.choiceId)
+          choiceIdsByStatusId.set(choice.statusId, choices)
+        }
+      }
+
+      const pollChoiceDecrements = new Map<
+        string,
+        { statusId: string; choiceId: number; count: number }
+      >()
+      for (const answer of pollAnswersMadeByActor) {
+        const choiceId = choiceIdsByStatusId.get(answer.statusId)?.[
+          Number(answer.choice)
+        ]
+        if (choiceId === undefined) continue
+
+        const key = `${answer.statusId}:${choiceId}`
+        const existing = pollChoiceDecrements.get(key) ?? {
+          statusId: answer.statusId,
+          choiceId,
+          count: 0
+        }
+        existing.count += 1
+        pollChoiceDecrements.set(key, existing)
+      }
+
+      for (const {
+        statusId,
+        choiceId,
+        count
+      } of pollChoiceDecrements.values()) {
+        await trx('poll_choices')
+          .where({ statusId, choiceId })
+          .update({
+            totalVotes: trx.raw('CASE WHEN ?? > ? THEN ?? - ? ELSE 0 END', [
+              'totalVotes',
+              count,
+              'totalVotes',
+              count
+            ])
+          })
+      }
+    }
+
+    // Delete poll votes cast by this actor on other actors' polls
+    await trx('poll_answers').where('actorId', actorId).delete()
+    await trx('poll_voters').where('actorId', actorId).delete()
+
+    // Delete attachments created by this actor
+    await trx('attachments').where('actorId', actorId).delete()
+
+    // Delete the actor's gallery albums before their media (SQLite runs
+    // without the foreign keys that cascade these on PostgreSQL).
+    await trx('gallery_album_items').where('actorId', actorId).delete()
+    await trx('gallery_albums').where('actorId', actorId).delete()
+
+    // Delete the photo edit files of the actor's media before the media
+    // (SQLite may run without the foreign key that cascades them).
+    await trx('media_edit_files')
+      .whereIn('mediaId', trx('medias').where('actorId', actorId).select('id'))
+      .delete()
+
+    // Delete medias created by this actor
+    await trx('medias').where('actorId', actorId).delete()
+
+    await deleteCounterValue(trx, CounterKey.totalStatus(actorId))
+    await deleteCounterValue(trx, CounterKey.totalFollowers(actorId))
+    await deleteCounterValue(trx, CounterKey.totalFollowing(actorId))
+    await deleteCounterValue(trx, CounterKey.totalBlocking(actorId))
+    await deleteCounterValue(trx, CounterKey.totalBlockedBy(actorId))
+    await deleteCounterValue(trx, CounterKey.remoteCountsSyncedAt(actorId))
+
+    if (persistedActor?.accountId) {
+      await decreaseCounterValue(
+        trx,
+        CounterKey.nodeinfoTotalUsers(),
+        1,
+        currentTime
+      )
       if (actorStatuses.length > 0) {
         await decreaseCounterValue(
           trx,
-          CounterKey.totalStatus(actorId),
+          CounterKey.nodeinfoLocalPosts(),
           actorStatuses.length,
           currentTime
-        )
-        await decreaseCounterValue(
-          trx,
-          CounterKey.serviceTotalStatuses(),
-          actorStatuses.length,
-          currentTime
-        )
-      }
-
-      if (persistedActor?.accountId) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.serviceTotalActors(),
-          1,
-          currentTime
-        )
-      }
-
-      const reblogCounterChanges: Record<string, number> = {}
-      const replyCounterChanges: Record<string, number> = {}
-      for (const status of actorStatuses) {
-        if (status.type === 'Announce') {
-          const content = parseStatusContent(status.content)
-          const originalStatusId =
-            typeof status.originalStatusId === 'string'
-              ? status.originalStatusId
-              : typeof content === 'string'
-                ? content
-                : typeof content?.url === 'string'
-                  ? content.url
-                  : typeof status.content === 'string'
-                    ? status.content
-                    : null
-
-          if (originalStatusId) {
-            reblogCounterChanges[originalStatusId] =
-              (reblogCounterChanges[originalStatusId] || 0) + 1
-          }
-        }
-
-        if (status.reply && publiclyAddressedStatusIds.has(status.id)) {
-          const parentStatusId = statusReferenceToId.get(status.reply)
-          if (parentStatusId) {
-            replyCounterChanges[parentStatusId] =
-              (replyCounterChanges[parentStatusId] || 0) + 1
-          }
-        }
-      }
-
-      for (const [statusId, count] of Object.entries(reblogCounterChanges)) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.totalReblog(statusId),
-          count,
-          currentTime
-        )
-      }
-      for (const [statusId, count] of Object.entries(replyCounterChanges)) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.totalReply(statusId),
-          count,
-          currentTime
-        )
-      }
-
-      const acceptedFollowing = await trx('follows')
-        .where('actorId', actorId)
-        .andWhere('status', 'Accepted')
-        .select('targetActorId')
-
-      if (acceptedFollowing.length > 0) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.totalFollowing(actorId),
-          acceptedFollowing.length,
-          currentTime
-        )
-
-        const followerAdjustments: Record<string, number> = {}
-        for (const follow of acceptedFollowing) {
-          followerAdjustments[follow.targetActorId] =
-            (followerAdjustments[follow.targetActorId] || 0) + 1
-        }
-        for (const [targetActorId, count] of Object.entries(
-          followerAdjustments
-        )) {
-          await decreaseCounterValue(
-            trx,
-            CounterKey.totalFollowers(targetActorId),
-            count,
-            currentTime
-          )
-        }
-      }
-
-      const acceptedFollowers = await trx('follows')
-        .where('targetActorId', actorId)
-        .andWhere('status', 'Accepted')
-        .select('actorId')
-      if (acceptedFollowers.length > 0) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.totalFollowers(actorId),
-          acceptedFollowers.length,
-          currentTime
-        )
-
-        const followingAdjustments: Record<string, number> = {}
-        for (const follow of acceptedFollowers) {
-          followingAdjustments[follow.actorId] =
-            (followingAdjustments[follow.actorId] || 0) + 1
-        }
-
-        for (const [followerActorId, count] of Object.entries(
-          followingAdjustments
-        )) {
-          await decreaseCounterValue(
-            trx,
-            CounterKey.totalFollowing(followerActorId),
-            count,
-            currentTime
-          )
-        }
-      }
-
-      const likesMadeByActor = await trx('likes')
-        .where('actorId', actorId)
-        .select('statusId')
-      const likeAdjustments: Record<string, number> = {}
-      for (const like of likesMadeByActor) {
-        likeAdjustments[like.statusId] =
-          (likeAdjustments[like.statusId] || 0) + 1
-      }
-      for (const [statusId, count] of Object.entries(likeAdjustments)) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.totalLike(statusId),
-          count,
-          currentTime
-        )
-      }
-
-      const medias = await trx('medias')
-        .where('actorId', actorId)
-        .select('originalBytes', 'thumbnailBytes')
-      // A photo edit keeps the uploaded file and earlier renders beside the
-      // live one; they count toward the usage too.
-      const editFiles = await trx('media_edit_files')
-        .whereIn(
-          'mediaId',
-          trx('medias').where('actorId', actorId).select('id')
-        )
-        .select('bytes')
-      const totalMediaBytes =
-        medias.reduce(
-          (sum, media) =>
-            sum +
-            parseCounterValue(media.originalBytes) +
-            parseCounterValue(media.thumbnailBytes),
-          0
-        ) +
-        editFiles.reduce((sum, file) => sum + parseCounterValue(file.bytes), 0)
-      if (persistedActor?.accountId && totalMediaBytes > 0) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.mediaUsage(persistedActor.accountId),
-          totalMediaBytes,
-          currentTime
-        )
-      }
-
-      if (statusIds.length > 0) {
-        const hashtagTags = await selectHashtagTagsByStatusIds(trx, statusIds)
-        affectedHashtags.push(...hashtagTags.map((tag) => tag.name))
-        const hashtagCounterAdjustments = new Map<string, number>()
-        for (const tag of hashtagTags) {
-          if (!publiclyAddressedStatusIds.has(tag.statusId)) continue
-          const tagName = normalizeHashtagSearchName(tag.name)
-          if (tagName.length === 0) continue
-          hashtagCounterAdjustments.set(
-            tagName,
-            (hashtagCounterAdjustments.get(tagName) ?? 0) + 1
-          )
-        }
-        for (const [tagName, count] of hashtagCounterAdjustments) {
-          await decreaseCounterValue(
-            trx,
-            CounterKey.totalHashtag(tagName),
-            count,
-            currentTime
-          )
-        }
-
-        // Delete status-related data
-        await deleteRowsByColumnChunks(trx, 'tags', 'statusId', statusIds)
-        await deleteRowsByColumnChunks(trx, 'recipients', 'statusId', statusIds)
-        await deleteRowsByColumnChunks(trx, 'likes', 'statusId', statusIds)
-        await deleteRowsByColumnChunks(
-          trx,
-          'status_reactions',
-          'statusId',
-          statusIds
-        )
-        await deleteRowsByColumnChunks(trx, 'bookmarks', 'statusId', statusIds)
-        await deleteRowsByColumnChunks(
-          trx,
-          'attachments',
-          'statusId',
-          statusIds
-        )
-        await deleteRowsByColumnChunks(
-          trx,
-          'status_history',
-          'statusId',
-          statusIds
-        )
-        // Same rule as the status-deletion path: only the status→card link
-        // goes, never the shared per-url cache. Without it a purged actor
-        // leaves one orphan row per status forever, and because `statusId` is
-        // the deterministic ActivityPub id, a re-ingested remote status would
-        // come back wearing its old card with no fetch at all.
-        await deleteRowsByColumnChunks(
-          trx,
-          'status_link_previews',
-          'statusId',
-          statusIds
-        )
-        await deleteRowsByColumnChunks(
-          trx,
-          'poll_answers',
-          'statusId',
-          statusIds
-        )
-        await deleteRowsByColumnChunks(
-          trx,
-          'poll_voters',
-          'statusId',
-          statusIds
-        )
-        await deleteRowsByColumnChunks(
-          trx,
-          'poll_choices',
-          'statusId',
-          statusIds
-        )
-        await deleteRowsByColumnChunks(
-          trx,
-          'notifications',
-          'statusId',
-          statusIds
-        )
-        await deleteRowsByColumnChunks(
-          trx,
-          'direct_conversation_statuses',
-          'statusId',
-          statusIds
-        )
-        for (const statusIdChunk of chunkArray(
-          statusIds,
-          getWhereInBatchSize(trx)
-        )) {
-          await trx('fitness_files')
-            .whereIn('statusId', statusIdChunk)
-            .update({ statusId: null })
-        }
-      }
-
-      // Delete timeline entries for this actor
-      await trx('timelines').where('actorId', actorId).delete()
-      await trx('timelines').where('statusActorId', actorId).delete()
-
-      // Delete statuses
-      await trx('statuses').where('actorId', actorId).delete()
-      if (statusIds.length > 0) {
-        await deleteStatusSearchDocumentsByStatusIds(kyselyFor(trx), statusIds)
-      }
-
-      // Delete follows (both directions)
-      await trx('follows').where('actorId', actorId).delete()
-      await trx('follows').where('targetActorId', actorId).delete()
-
-      // Delete list memberships holding the actor and the lists it owns, as
-      // removeListAccounts / deleteList do (their `list:<id>` feed rows went
-      // with the actorId/statusActorId timelines sweep above). Kept after the
-      // follows delete, the same follows → list_accounts order
-      // updateFollowStatus writes in.
-      await trx('list_accounts').where('targetActorId', actorId).delete()
-      const ownedListIds: string[] = await trx('lists')
-        .where('actorId', actorId)
-        .pluck('id')
-      await deleteRowsByColumnChunks(
-        trx,
-        'list_accounts',
-        'listId',
-        ownedListIds
-      )
-      await trx('lists').where('actorId', actorId).delete()
-
-      // Delete endorsements (both as endorser and endorsed)
-      await trx('endorsements').where('actorId', actorId).delete()
-      await trx('endorsements').where('targetActorId', actorId).delete()
-
-      // Delete the actor's featured tags.
-      await trx('featured_tags').where('actorId', actorId).delete()
-
-      const blocks = await trx('blocks')
-        .where('actorId', actorId)
-        .orWhere('targetActorId', actorId)
-        .select('actorId', 'targetActorId')
-      const blockingAdjustments: Record<string, number> = {}
-      const blockedByAdjustments: Record<string, number> = {}
-      for (const block of blocks) {
-        if (block.actorId !== actorId) {
-          blockingAdjustments[block.actorId] =
-            (blockingAdjustments[block.actorId] || 0) + 1
-        }
-        if (block.targetActorId !== actorId) {
-          blockedByAdjustments[block.targetActorId] =
-            (blockedByAdjustments[block.targetActorId] || 0) + 1
-        }
-      }
-      await Promise.all([
-        ...Object.entries(blockingAdjustments).map(([blockingActorId, count]) =>
-          decreaseCounterValue(
-            trx,
-            CounterKey.totalBlocking(blockingActorId),
-            count,
-            currentTime
-          )
-        ),
-        ...Object.entries(blockedByAdjustments).map(([blockedActorId, count]) =>
-          decreaseCounterValue(
-            trx,
-            CounterKey.totalBlockedBy(blockedActorId),
-            count,
-            currentTime
-          )
-        )
-      ])
-      await trx('blocks')
-        .where((builder) => {
-          builder.where('actorId', actorId).orWhere('targetActorId', actorId)
-        })
-        .delete()
-
-      await trx('mutes')
-        .where((builder) => {
-          builder.where('actorId', actorId).orWhere('targetActorId', actorId)
-        })
-        .delete()
-
-      // Private account notes reference the actor on either side (author or
-      // target); remove both so a recreated actor URL cannot resurface them.
-      await trx('account_notes')
-        .where((builder) => {
-          builder.where('actorId', actorId).orWhere('targetActorId', actorId)
-        })
-        .delete()
-
-      // Subquery avoids hitting the SQLite 999-parameter limit when an
-      // actor has accumulated many filters; the mute precedent only
-      // touches one table per actor so doesn't need this.
-      await trx('filter_statuses')
-        .whereIn('filterId', function () {
-          this.select('id').from('filters').where('actorId', actorId)
-        })
-        .delete()
-      await trx('filter_keywords')
-        .whereIn('filterId', function () {
-          this.select('id').from('filters').where('actorId', actorId)
-        })
-        .delete()
-      await trx('filters').where('actorId', actorId).delete()
-
-      // Delete likes made by this actor
-      await trx('likes').where('actorId', actorId).delete()
-
-      // Delete emoji reactions made by this actor, so a recreated actor URL
-      // cannot resurface them as the new owner's own reactions.
-      await trx('status_reactions').where('actorId', actorId).delete()
-
-      // Delete bookmarks made by this actor
-      await trx('bookmarks').where('actorId', actorId).delete()
-
-      // Delete markers made by this actor
-      await trx('markers').where('actorId', actorId).delete()
-
-      const pollAnswersMadeByActor: { statusId: string; choice: number }[] =
-        await trx('poll_answers')
-          .where('actorId', actorId)
-          .select('statusId', 'choice')
-      if (pollAnswersMadeByActor.length > 0) {
-        const choiceIdsByStatusId = new Map<string, number[]>()
-        const votedStatusIds = [
-          ...new Set(pollAnswersMadeByActor.map((answer) => answer.statusId))
-        ]
-
-        for (const statusIdChunk of chunkArray(
-          votedStatusIds,
-          getWhereInBatchSize(trx)
-        )) {
-          const pollChoices: { statusId: string; choiceId: number }[] =
-            await trx('poll_choices')
-              .whereIn('statusId', statusIdChunk)
-              .orderBy('statusId', 'asc')
-              .orderBy('choiceId', 'asc')
-              .select('statusId', 'choiceId')
-
-          for (const choice of pollChoices) {
-            const choices = choiceIdsByStatusId.get(choice.statusId) ?? []
-            choices.push(choice.choiceId)
-            choiceIdsByStatusId.set(choice.statusId, choices)
-          }
-        }
-
-        const pollChoiceDecrements = new Map<
-          string,
-          { statusId: string; choiceId: number; count: number }
-        >()
-        for (const answer of pollAnswersMadeByActor) {
-          const choiceId = choiceIdsByStatusId.get(answer.statusId)?.[
-            Number(answer.choice)
-          ]
-          if (choiceId === undefined) continue
-
-          const key = `${answer.statusId}:${choiceId}`
-          const existing = pollChoiceDecrements.get(key) ?? {
-            statusId: answer.statusId,
-            choiceId,
-            count: 0
-          }
-          existing.count += 1
-          pollChoiceDecrements.set(key, existing)
-        }
-
-        for (const {
-          statusId,
-          choiceId,
-          count
-        } of pollChoiceDecrements.values()) {
-          await trx('poll_choices')
-            .where({ statusId, choiceId })
-            .update({
-              totalVotes: trx.raw('CASE WHEN ?? > ? THEN ?? - ? ELSE 0 END', [
-                'totalVotes',
-                count,
-                'totalVotes',
-                count
-              ])
-            })
-        }
-      }
-
-      // Delete poll votes cast by this actor on other actors' polls
-      await trx('poll_answers').where('actorId', actorId).delete()
-      await trx('poll_voters').where('actorId', actorId).delete()
-
-      // Delete attachments created by this actor
-      await trx('attachments').where('actorId', actorId).delete()
-
-      // Delete the actor's gallery albums before their media (SQLite runs
-      // without the foreign keys that cascade these on PostgreSQL).
-      await trx('gallery_album_items').where('actorId', actorId).delete()
-      await trx('gallery_albums').where('actorId', actorId).delete()
-
-      // Delete the photo edit files of the actor's media before the media
-      // (SQLite may run without the foreign key that cascades them).
-      await trx('media_edit_files')
-        .whereIn(
-          'mediaId',
-          trx('medias').where('actorId', actorId).select('id')
-        )
-        .delete()
-
-      // Delete medias created by this actor
-      await trx('medias').where('actorId', actorId).delete()
-
-      await deleteCounterValue(trx, CounterKey.totalStatus(actorId))
-      await deleteCounterValue(trx, CounterKey.totalFollowers(actorId))
-      await deleteCounterValue(trx, CounterKey.totalFollowing(actorId))
-      await deleteCounterValue(trx, CounterKey.totalBlocking(actorId))
-      await deleteCounterValue(trx, CounterKey.totalBlockedBy(actorId))
-      await deleteCounterValue(trx, CounterKey.remoteCountsSyncedAt(actorId))
-
-      if (persistedActor?.accountId) {
-        await decreaseCounterValue(
-          trx,
-          CounterKey.nodeinfoTotalUsers(),
-          1,
-          currentTime
-        )
-        if (actorStatuses.length > 0) {
-          await decreaseCounterValue(
-            trx,
-            CounterKey.nodeinfoLocalPosts(),
-            actorStatuses.length,
-            currentTime
-          )
-        }
-      }
-
-      await deleteCounterValues(
-        trx,
-        statusIds.flatMap((statusId) => [
-          CounterKey.totalLike(statusId),
-          CounterKey.totalReblog(statusId),
-          CounterKey.totalReply(statusId)
-        ])
-      )
-
-      // Delete notifications table entries if exists
-      try {
-        await trx('notifications').where('actorId', actorId).delete()
-        await trx('notifications').where('sourceActorId', actorId).delete()
-      } catch {
-        // Table might not exist in older migrations
-      }
-
-      // Finally delete the actor
-      await trx('actors').where('id', actorId).delete()
-      await searchQueries.deleteActorSearchDocument(kyselyFor(trx), {
-        id: actorId
-      })
-    })
-
-    if (affectedHashtags.length > 0) {
-      try {
-        await searchQueries.indexHashtagSearchDocuments(kyselyFor(database), {
-          hashtags: [...new Set(affectedHashtags)]
-        })
-      } catch (err) {
-        logger.warn(
-          {
-            actorId,
-            err,
-            hashtags: [...new Set(affectedHashtags)]
-          },
-          'Failed to refresh hashtag search documents after actor deletion'
         )
       }
     }
+
+    await deleteCounterValues(
+      trx,
+      statusIds.flatMap((statusId) => [
+        CounterKey.totalLike(statusId),
+        CounterKey.totalReblog(statusId),
+        CounterKey.totalReply(statusId)
+      ])
+    )
+
+    // Delete notifications table entries if exists
+    try {
+      await trx('notifications').where('actorId', actorId).delete()
+      await trx('notifications').where('sourceActorId', actorId).delete()
+    } catch {
+      // Table might not exist in older migrations
+    }
+
+    // Finally delete the actor
+    await trx('actors').where('id', actorId).delete()
+    await searchQueries.deleteActorSearchDocument(kyselyFor(trx), {
+      id: actorId
+    })
+  })
+
+  if (affectedHashtags.length > 0) {
+    try {
+      await searchQueries.indexHashtagSearchDocuments(kyselyFor(database), {
+        hashtags: [...new Set(affectedHashtags)]
+      })
+    } catch (err) {
+      logger.warn(
+        {
+          actorId,
+          err,
+          hashtags: [...new Set(affectedHashtags)]
+        },
+        'Failed to refresh hashtag search documents after actor deletion'
+      )
+    }
   }
-})
+}
