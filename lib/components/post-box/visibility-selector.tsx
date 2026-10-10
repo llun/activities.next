@@ -70,7 +70,7 @@ export const VISIBILITY_OPTIONS: {
   }
 ]
 
-export const QUOTE_POLICY_OPTIONS: {
+const QUOTE_POLICY_OPTIONS: {
   value: QuoteApprovalPolicy
   label: string
   Icon: LucideIcon

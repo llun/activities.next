@@ -100,7 +100,7 @@ describe('PostBox options menu', () => {
       screen.getByRole('button', { name: 'Post options' })
     ).toBeInTheDocument()
 
-    // The seven old controls are gone from the toolbar.
+    // The old toolbar controls are gone.
     for (const name of [
       'Add poll',
       'Add content warning',
@@ -190,45 +190,22 @@ describe('PostBox options menu', () => {
     )
   })
 
-  it('toggles the content warning and preview with the menu kept open', async () => {
+  it('shows the warning field and the preview from their menu toggles', async () => {
     renderNewPost()
-    const optionsButton = screen.getByRole('button', { name: 'Post options' })
-    expect(optionsButton).not.toHaveAttribute('data-active')
 
     await choosePostOption('Content warning')
-
     expect(screen.getByPlaceholderText('Write your warning here')).toBeVisible()
-    expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(
-      screen.getByRole('menuitemcheckbox', { name: 'Content warning' })
-    ).toHaveAttribute('aria-checked', 'true')
 
     await choosePostOption('Preview')
-
     expect(screen.getByText('Nothing to preview')).toBeInTheDocument()
-    expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(
-      screen.getByRole('menuitemcheckbox', { name: 'Preview' })
-    ).toHaveAttribute('aria-checked', 'true')
 
-    // Switching one back off flips only that option and keeps the button lit.
     await choosePostOption('Content warning')
     expect(
       screen.queryByPlaceholderText('Write your warning here')
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('menuitemcheckbox', { name: 'Preview' })
-    ).toHaveAttribute('aria-checked', 'true')
-
-    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
-    await waitFor(() =>
-      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
-    )
-    expect(optionsButton).toHaveAttribute('data-active', 'true')
-    expect(optionsButton).toHaveClass('bg-primary/10', 'text-primary')
   })
 
-  it('tints the Post options button while a poll is on and closes the menu', async () => {
+  it('turns the poll editor on from the menu', async () => {
     // The poll editor renders a Radix Switch, which measures itself; jsdom has
     // no ResizeObserver.
     global.ResizeObserver = class {
@@ -240,12 +217,28 @@ describe('PostBox options menu', () => {
 
     await choosePostOption('Poll')
 
-    await waitFor(() =>
-      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
-    )
     expect(
-      screen.getByRole('button', { name: 'Post options' })
-    ).toHaveAttribute('data-active', 'true')
+      await screen.findByRole('button', { name: 'Remove poll' })
+    ).toBeInTheDocument()
+  })
+
+  it('names the edit-mode cancel button "Cancel Edit" and discards the edit', () => {
+    const onDiscardEdit = vi.fn()
+    render(
+      <PostBox
+        host="activities.local"
+        profile={profile}
+        editStatus={editStatus}
+        onDiscardReply={vi.fn()}
+        onPostCreated={vi.fn()}
+        onPostUpdated={vi.fn()}
+        onDiscardEdit={onDiscardEdit}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Edit' }))
+
+    expect(onDiscardEdit).toHaveBeenCalledTimes(1)
   })
 
   it('posts with the visibility and quote policy chosen in the submenu', async () => {

@@ -6,7 +6,7 @@ import {
   Eye,
   SlidersHorizontal
 } from 'lucide-react'
-import { FC, ReactNode, useSyncExternalStore } from 'react'
+import { FC, ReactNode, useId, useSyncExternalStore } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
 import {
@@ -53,11 +53,11 @@ interface Props {
   onTogglePreview: () => void
 }
 
-export const QUOTE_POLL_EXPLANATION = 'A quote post cannot include a poll'
+const QUOTE_POLL_EXPLANATION = 'A quote post cannot include a poll'
 
-// Tailwind's `md` breakpoint: below it the menu is too narrow to open a
-// submenu beside itself.
-const PHONE_QUERY = '(max-width: 767px)'
+// Tailwind's `max-md` (`md` is 48rem): below it the menu is too narrow to open
+// a submenu beside itself.
+const PHONE_QUERY = '(width < 48rem)'
 
 const subscribeToPhoneQuery = (onChange: () => void) => {
   if (typeof window.matchMedia !== 'function') return () => {}
@@ -73,9 +73,12 @@ const isPhoneViewport = () =>
 const useIsPhoneViewport = () =>
   useSyncExternalStore(subscribeToPhoneQuery, isPhoneViewport, () => false)
 
-// The menu is `w-72` (288px) and the submenu `w-64` (256px): a submenu pulled
-// back by 264px ends 8px inside the menu's right edge.
-const PHONE_SUBMENU_OFFSET = -264
+// The submenu's width, set once and used for its offset too. The offset is
+// measured from the Visibility row (the SubTrigger), not from the menu edge:
+// pulling the submenu back by its own width plus 8px puts its right edge 8px
+// short of that row's right edge, whatever the menu's position.
+const SUBMENU_WIDTH = 256
+const PHONE_SUBMENU_OFFSET = -(SUBMENU_WIDTH + 8)
 
 const ITEM_CLASS = 'min-h-10 cursor-pointer gap-3 md:min-h-9'
 
@@ -101,14 +104,22 @@ const SwitchIndicator: FC<{ checked: boolean }> = ({ checked }) => (
   </span>
 )
 
-const MenuRowText: FC<{ children: ReactNode; description?: string }> = ({
-  children,
-  description
-}) => (
+const MenuRowText: FC<{
+  children: ReactNode
+  description?: string
+  labelId?: string
+  descriptionId?: string
+  /** Dims the label only, so a description beside it stays readable. */
+  dimmed?: boolean
+}> = ({ children, description, labelId, descriptionId, dimmed }) => (
   <span className="min-w-0 flex-1">
-    <span className="block">{children}</span>
+    <span id={labelId} className={cn('block', dimmed && 'opacity-50')}>
+      {children}
+    </span>
     {description ? (
-      <span className="block text-xs text-muted-foreground">{description}</span>
+      <span id={descriptionId} className="block text-xs text-muted-foreground">
+        {description}
+      </span>
     ) : null}
   </span>
 )
@@ -135,11 +146,22 @@ export const PostOptionsMenu: FC<Props> = ({
   onTogglePreview
 }) => {
   const isPhone = useIsPhoneViewport()
+  const pollLabelId = useId()
+  const pollDescriptionId = useId()
   const active = pollShowing || contentWarningVisible || previewShowing
   const currentVisibility =
     VISIBILITY_OPTIONS.find((option) => option.value === visibility) ??
     VISIBILITY_OPTIONS[0]
   const VisibilityIcon = currentVisibility.Icon
+  // A restricted "who can quote" shows next to the visibility, as the old
+  // toolbar pill did with its icon.
+  const quoteSuffix =
+    quotePolicy === 'followers'
+      ? ' · Followers quote'
+      : quotePolicy === 'nobody'
+        ? ' · No quotes'
+        : ''
+  const visibilityValue = `${currentVisibility.label}${quoteSuffix}`
 
   return (
     <DropdownMenu>
@@ -182,15 +204,30 @@ export const PostOptionsMenu: FC<Props> = ({
           // A quote post cannot carry a poll (they are mutually exclusive,
           // like media), so the item is disabled while quoting.
           disabled={disabled || quoting}
+          // Name stays "Poll"; the explanation inside the row is only its
+          // description.
+          aria-labelledby={pollLabelId}
+          aria-describedby={quoting ? pollDescriptionId : undefined}
           onSelect={onTogglePoll}
           className={cn(
             ITEM_CLASS,
-            pollShowing && 'text-primary-text [&_svg]:text-primary'
+            // While quoting, only the icon and label dim: the explanation
+            // is the part meant to be read.
+            quoting && 'data-[disabled]:opacity-100',
+            pollShowing && 'text-primary-text'
           )}
         >
-          <BarChart3 />
+          <BarChart3
+            className={cn(
+              pollShowing && 'text-primary',
+              quoting && 'opacity-50'
+            )}
+          />
           <MenuRowText
             description={quoting ? QUOTE_POLL_EXPLANATION : undefined}
+            labelId={pollLabelId}
+            descriptionId={pollDescriptionId}
+            dimmed={quoting}
           >
             Poll
           </MenuRowText>
@@ -208,19 +245,19 @@ export const PostOptionsMenu: FC<Props> = ({
           >
             <VisibilityIcon />
             <span className="min-w-0 flex-1">Visibility</span>{' '}
-            <span className="text-xs text-muted-foreground">
-              {currentVisibility.label}
+            <span className="min-w-0 truncate text-xs text-muted-foreground">
+              {visibilityValue}
             </span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
             // Beside the menu on desktop. A phone has no room for two menus
             // side by side, so there the submenu is pulled back over its
             // parent (still on the right side, so it cannot flip off-screen):
-            // its left edge sits inside the menu and its right edge stays
-            // 8px short of the menu's, whatever the menu's own position.
+            // its right edge stays 8px short of the Visibility row's.
             sideOffset={isPhone ? PHONE_SUBMENU_OFFSET : undefined}
             collisionPadding={16}
-            className="w-64"
+            style={{ width: SUBMENU_WIDTH }}
+            className="max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto"
           >
             <VisibilityMenuOptions
               visibility={visibility}

@@ -124,9 +124,12 @@ describe('PostOptionsMenu', () => {
     renderMenu({ quoting: true, onTogglePoll })
     await openMenu()
 
-    const poll = screen.getByRole('menuitemcheckbox', { name: /^Poll/ })
+    // The name stays "Poll"; the explanation is its description.
+    const poll = screen.getByRole('menuitemcheckbox', { name: 'Poll' })
     expect(poll).toHaveAttribute('aria-disabled', 'true')
-    expect(poll).toHaveTextContent('A quote post cannot include a poll')
+    expect(poll).toHaveAccessibleDescription(
+      'A quote post cannot include a poll'
+    )
 
     fireEvent.click(poll)
     expect(onTogglePoll).not.toHaveBeenCalled()
@@ -186,6 +189,22 @@ describe('PostOptionsMenu', () => {
       screen.getByRole('menuitem', { name: /^Visibility/ })
     ).toHaveTextContent('Unlisted')
   })
+
+  it.each([
+    { quotePolicy: 'public', value: 'Public' },
+    { quotePolicy: 'followers', value: 'Public · Followers quote' },
+    { quotePolicy: 'nobody', value: 'Public · No quotes' }
+  ] as const)(
+    'shows "$value" on the Visibility row for quote policy $quotePolicy',
+    async ({ quotePolicy, value }) => {
+      renderMenu({ quotePolicy })
+      await openMenu()
+
+      expect(
+        screen.getByRole('menuitem', { name: /^Visibility/ })
+      ).toHaveTextContent(`Visibility ${value}`)
+    }
+  )
 
   it('changes the visibility from the Visibility submenu', async () => {
     const onVisibilityChange = vi.fn()

@@ -316,8 +316,10 @@ describe('PostBox quote composing', () => {
 
     await openPostOptions()
 
-    const poll = screen.getByRole('menuitemcheckbox', { name: /^Poll/ })
+    const poll = screen.getByRole('menuitemcheckbox', { name: 'Poll' })
     expect(poll).toHaveAttribute('aria-disabled', 'true')
-    expect(poll).toHaveTextContent('A quote post cannot include a poll')
+    expect(poll).toHaveAccessibleDescription(
+      'A quote post cannot include a poll'
+    )
   })
 })
