@@ -2355,6 +2355,26 @@ legacy shape left to copy.
 - `no-scrollbar` belongs only on a row that carries its own overflow affordance.
   It was applied in the emoji and reaction pickers while defined nowhere, so
   defining it would have removed their only cue.
+- The composer's attached-media tiles (`composer-attachment-tiles.tsx`) are
+  never a grid either: one horizontally scrolling row of fixed-width
+  (`w-36`/`sm:w-40`) `flex-none` tiles. The row carries the status strip's own
+  affordances, which is the only reason it is `no-scrollbar`: it uses
+  `useMediaStripScroll` and the shared `MediaStripEdges` (edge fades and the
+  Previous/Next media arrows, the same tab-order rules), and snaps like the
+  strip (`snap-x snap-proximity`, `snap-start`). Its `contentKey` is the tile
+  count, which is right only because the tiles are fixed width. The scroller
+  clips both axes, so it pads its top and right by 12px (`pt-3 pr-3`, with
+  `scroll-pr-3` so a focused tile leaves room): the Remove button sits 8px
+  outside its tile's top-right corner and its focus outline needs the other
+  4px. The top padding is also the 12px gap above the row (no margin). The
+  tile's focus indicator is an inset outline
+  (`outline-2 -outline-offset-2 outline-ring`), for the same clipping reason
+  as `MEDIA_FOCUS_CLASS`. The list is `role="list"` named `Attached media`
+  however many tiles it holds. A new upload (uploading, uploaded with a client
+  key, or failed) scrolls the row to the end without moving focus; an edit's
+  media, which load after the first render with none of those, leave it at the
+  first tile. `scroll-pl-16` keeps a snapped tile clear of the left fade and
+  Previous arrow, as the status strip's `scroll-pl` inset does.
 
 <a id="review-status-delete-unboost-federation"></a>
 
