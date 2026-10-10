@@ -24,17 +24,22 @@ export const GALLERY_SHOW_OPTIONS: ShowOption[] = [
   {
     id: 'all',
     label: 'Everything',
-    hint: 'Photos and videos you’ve posted'
+    hint: 'Photos and videos you’ve posted or added'
   },
   {
     id: 'in_gallery',
     label: 'In gallery',
-    hint: 'Posted and shown in your gallery'
+    hint: 'Shown in your gallery'
   },
   {
     id: 'hidden',
     label: 'Hidden from gallery',
     hint: 'Posted, with Show in my gallery switched off'
+  },
+  {
+    id: 'not_posted',
+    label: 'Not posted',
+    hint: 'Added in Gallery, only you can see them'
   }
 ]
 

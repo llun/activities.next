@@ -850,7 +850,8 @@ CREATE TABLE public.medias (
     "placeCountryCode" character varying(2),
     "placeNameSource" character varying(16),
     "placeLookupStatus" character varying(16),
-    "placeLookupAt" timestamp with time zone
+    "placeLookupAt" timestamp with time zone,
+    "galleryAddedAt" timestamp with time zone
 );
 
 CREATE SEQUENCE public.medias_id_seq

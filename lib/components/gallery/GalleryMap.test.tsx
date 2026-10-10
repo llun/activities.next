@@ -252,6 +252,32 @@ describe('GalleryMap', () => {
       expect(screen.queryByRole('group', { name: 'Selected photo' })).toBeNull()
     })
 
+    it('says an unposted photo is only for the owner instead of offering to open it', async () => {
+      const onSelect = vi.fn()
+      const fake = createFakeGl([
+        { properties: { idx: 0 }, geometry: { coordinates: [101.4, 14.4] } }
+      ])
+      vi.mocked(loadMaplibreModule).mockResolvedValue(fake.gl as never)
+
+      render(
+        <GalleryMap
+          points={[makePoint(0, { statusId: null })]}
+          mapProvider={{ type: 'osm' }}
+          onSelect={onSelect}
+        />
+      )
+      await screen.findByText('OpenFreeMap')
+      act(() => fake.handlers.render())
+      fireEvent.click(within(fake.markers[0].element).getByRole('button'))
+
+      const card = screen.getByRole('group', { name: 'Selected photo' })
+      expect(within(card).getByText('Only you can see this')).toBeVisible()
+      expect(
+        within(card).queryByRole('button', { name: 'Open photo' })
+      ).toBeNull()
+      expect(onSelect).not.toHaveBeenCalled()
+    })
+
     it('offers no Open photo action without onSelect', async () => {
       const fake = createFakeGl([
         { properties: { idx: 0 }, geometry: { coordinates: [101.4, 14.4] } }

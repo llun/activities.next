@@ -324,4 +324,92 @@ describe('MediaDetailsDialog in the gallery', () => {
       expect.objectContaining({ id: 'c', description: 'Third' })
     ])
   })
+  describe('a photo added in Gallery and not posted yet', () => {
+    const unposted = (id: string) => makeItem(id, { unposted: true })
+
+    it('offers Post… and Delete instead of a link to a post', () => {
+      renderDialog([unposted('a')], {
+        context: 'gallery',
+        onPostItem: vi.fn(),
+        onDeleteItem: vi.fn()
+      })
+
+      expect(screen.getByRole('button', { name: 'Post…' })).toBeVisible()
+      expect(screen.getByRole('button', { name: 'Delete' })).toBeVisible()
+      expect(screen.queryByText('Open post')).not.toBeInTheDocument()
+      // No post to edit, so no note about editing one.
+      expect(
+        screen.queryByText(/Changing alt text edits the post/)
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers nothing for a posted photo, or when the page does not handle them', () => {
+      const { unmount } = renderDialog([makeItem('a', { post: POST })], {
+        context: 'gallery',
+        onPostItem: vi.fn(),
+        onDeleteItem: vi.fn()
+      })
+      expect(
+        screen.queryByRole('button', { name: 'Post…' })
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Delete' })
+      ).not.toBeInTheDocument()
+      unmount()
+
+      renderDialog([unposted('a')], { context: 'gallery' })
+      expect(
+        screen.queryByRole('button', { name: 'Post…' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('saves the details first, then hands the photo over to post', async () => {
+      const onPostItem = vi.fn()
+      const { onClose, onSaved } = renderDialog([unposted('a')], {
+        context: 'gallery',
+        onPostItem
+      })
+      fireEvent.change(screen.getByLabelText('Description (alt text)'), {
+        target: { value: 'A heron' }
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Post…' }))
+
+      await waitFor(() => expect(onPostItem).toHaveBeenCalledWith('a'))
+      // The alt text went to the media itself, where the composer reads it.
+      expect(updateMediaDetailsMock).toHaveBeenCalledWith('a', {
+        description: 'A heron'
+      })
+      expect(onSaved).toHaveBeenCalledTimes(1)
+      expect(updateNoteMock).not.toHaveBeenCalled()
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('stays when the details could not be saved', async () => {
+      updateMediaDetailsMock.mockRejectedValue(new Error('Disk full'))
+      const onPostItem = vi.fn()
+      renderDialog([unposted('a')], { context: 'gallery', onPostItem })
+      fireEvent.change(screen.getByLabelText('Description (alt text)'), {
+        target: { value: 'A heron' }
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Post…' }))
+
+      expect(await screen.findByText(/Disk full/)).toBeVisible()
+      expect(onPostItem).not.toHaveBeenCalled()
+    })
+
+    it('hands the photo to the page to delete', () => {
+      const onDeleteItem = vi.fn()
+      renderDialog([unposted('a'), unposted('b')], {
+        context: 'gallery',
+        onDeleteItem,
+        initialId: 'b'
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+      expect(onDeleteItem).toHaveBeenCalledWith('b')
+    })
+  })
 })

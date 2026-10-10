@@ -24,13 +24,17 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
     selection,
     albumsOwnerId,
     onItemEdited,
-    onViewerClosed
+    onViewerClosed,
+    onPostItems,
+    onItemsDeleted
   }: {
     items: GalleryItemEntity[]
     selection?: unknown
     albumsOwnerId?: string | null
     onItemEdited?: (item: GalleryItemEntity) => void
     onViewerClosed?: () => void
+    onPostItems?: (mediaIds: string[]) => void
+    onItemsDeleted?: (mediaIds: string[]) => void
   }) => (
     <ul
       data-testid="grid"
@@ -52,6 +56,12 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
         Edit first
       </button>
       <button onClick={() => onViewerClosed?.()}>Close viewer</button>
+      <button onClick={() => onPostItems?.([items[0].mediaId])}>
+        Post first
+      </button>
+      <button onClick={() => onItemsDeleted?.([items[0].mediaId])}>
+        Delete first
+      </button>
       <li data-testid="first-name">{items[0]?.attachment.name}</li>
     </ul>
   )
@@ -343,6 +353,85 @@ describe('GalleryPagedGrid', () => {
       expect(screen.getByTestId('grid')).toHaveTextContent('2')
       expect(screen.getByTestId('grid')).not.toHaveTextContent('1')
       expect(screen.getByTestId('grid')).not.toHaveTextContent('9')
+    })
+    it('keeps an unposted tile only under the lists it is in', () => {
+      const unposted = (mediaId: string) =>
+        buildGalleryItem(mediaId, {
+          statusId: null,
+          posted: false,
+          inGallery: true
+        })
+      const render_ = (show: 'not_posted' | 'in_gallery') =>
+        render(
+          <GalleryPagedGrid
+            actorId="actor-1"
+            show={show}
+            initialPage={{
+              items: [unposted('2'), buildGalleryItem('1', { posted: true })],
+              nextMaxId: null
+            }}
+          />
+        )
+
+      // Not posted: only the unposted tile stays once the viewer closes.
+      const { unmount } = render_('not_posted')
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+      expect(screen.getByTestId('grid')).toHaveTextContent('2')
+      expect(screen.getByTestId('grid')).not.toHaveTextContent('1')
+      unmount()
+
+      // In gallery: both are shown in the gallery.
+      render_('in_gallery')
+      fireEvent.click(screen.getByRole('button', { name: 'Close viewer' }))
+      expect(screen.getByTestId('grid')).toHaveTextContent('21')
+    })
+
+    it('lets the page drop tiles that were deleted', () => {
+      const controller = createRef<GalleryPagedGridController>()
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          show="all"
+          controllerRef={controller}
+          initialPage={{
+            items: [
+              buildGalleryItem('3'),
+              buildGalleryItem('2'),
+              buildGalleryItem('1')
+            ],
+            nextMaxId: null
+          }}
+        />
+      )
+
+      act(() => controller.current?.removeItems(['3', '1', 'unknown']))
+
+      expect(screen.getByTestId('grid')).toHaveTextContent('2')
+      expect(screen.getByTestId('grid')).not.toHaveTextContent('3')
+    })
+
+    it('passes Post… from the viewer on, and drops a tile deleted there', () => {
+      const onPostItems = vi.fn()
+      const onItemsDeleted = vi.fn()
+      render(
+        <GalleryPagedGrid
+          actorId="actor-1"
+          show="all"
+          onPostItems={onPostItems}
+          onItemsDeleted={onItemsDeleted}
+          initialPage={{
+            items: [buildGalleryItem('2'), buildGalleryItem('1')],
+            nextMaxId: null
+          }}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Post first' }))
+      expect(onPostItems).toHaveBeenCalledWith(['2'])
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete first' }))
+      expect(onItemsDeleted).toHaveBeenCalledWith(['2'])
+      expect(screen.getByTestId('grid')).not.toHaveTextContent('2')
     })
   })
 })

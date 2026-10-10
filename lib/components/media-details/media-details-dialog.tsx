@@ -1,14 +1,18 @@
 'use client'
 
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   Info,
   Loader2,
+  Lock,
   MapPin,
   Play,
   Sparkles,
+  Trash2,
+  TriangleAlert,
   X
 } from 'lucide-react'
 import Link from 'next/link'
@@ -109,6 +113,21 @@ export interface MediaDetailsDialogItem {
     /** The post's page, for the footer's "Open post" link; null when unknown. */
     href: string | null
   }
+  /**
+   * Edit details for a photo added in Gallery and not posted yet: the footer
+   * offers Post… and Delete (when the caller handles them) instead of a link to
+   * a post.
+   */
+  unposted?: boolean
+  /**
+   * Add to gallery only: the file is still going up (or did not). The item has
+   * no details to edit yet, and it is left out of "Add N to gallery".
+   */
+  upload?: {
+    state: 'uploading' | 'failed'
+    /** Why it failed. */
+    error?: string
+  }
 }
 
 export interface MediaDetailsSavedItem {
@@ -150,9 +169,31 @@ interface Props {
    * Where the dialog is opened. `composer` (the default) is the post box's
    * upload flow. `gallery` is Edit details from the viewer or Select mode: the
    * title is "Edit details", a lone item has no "1 of 1" counter, and an item
-   * with a `post` explains and routes its alt text through that post.
+   * with a `post` explains and routes its alt text through that post. `add` is
+   * Add to gallery: the title is "Add to gallery" over the files being uploaded,
+   * the strip shows each file's upload, an Apply to all row copies one photo's
+   * subject, place or gear to the rest, and the primary action saves every
+   * photo's details and then calls `onAdd`.
    */
-  context?: 'composer' | 'gallery'
+  context?: 'composer' | 'gallery' | 'add'
+  /**
+   * Add to gallery: called with the ids of the uploaded photos once their
+   * details are saved. The dialog closes when it resolves; when it rejects the
+   * dialog stays open with the error so adding can be tried again.
+   */
+  onAdd?: (mediaIds: string[]) => Promise<void>
+  /**
+   * Add to gallery: the dialog was cancelled (after confirming, when anything
+   * was edited). The caller removes what was uploaded; `onClose` is only for
+   * after the photos were added.
+   */
+  onDiscard?: () => void
+  /** Add to gallery: drops an upload that failed from the batch. */
+  onRemoveItem?: (id: string) => void
+  /** Edit details of an unposted photo: Post… (saves the details first). */
+  onPostItem?: (id: string) => void
+  /** Edit details of an unposted photo: Delete. */
+  onDeleteItem?: (id: string) => void
 }
 
 const ADD_NEW_GEAR = '__add_new_gear__'
@@ -539,6 +580,14 @@ const withClientStaleness = (
   return next
 }
 
+/** "3 photos", "2 videos" or "5 items" for the files of Add to gallery. */
+const describeCount = (items: Pick<MediaDetailsDialogItem, 'mediaType'>[]) => {
+  const videos = items.filter(isVideo).length
+  const noun =
+    videos === 0 ? 'photo' : videos === items.length ? 'video' : 'item'
+  return `${items.length} ${noun}${items.length === 1 ? '' : 's'}`
+}
+
 function withoutKey<T>(record: Record<string, T>, key: string) {
   const { [key]: _removed, ...rest } = record
   return rest
@@ -553,7 +602,12 @@ export const MediaDetailsDialog: FC<Props> = ({
   onDetailsRefreshed,
   suggestionsPending = {},
   ownerId,
-  context = 'composer'
+  context = 'composer',
+  onAdd,
+  onDiscard,
+  onRemoveItem,
+  onPostItem,
+  onDeleteItem
 }) => {
   const uid = useId()
   // Details the dialog fetched itself; each is only used while the details the
@@ -604,8 +658,11 @@ export const MediaDetailsDialog: FC<Props> = ({
   const [shared, setShared] = useState<SharedSections>({
     gallery: false,
     gear: false,
-    place: false
+    place: false,
+    subject: false
   })
+  const isAdd = context === 'add'
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
   const [gears, setGears] = useState<GalleryGearEntity[]>([])
   const [gearError, setGearError] = useState<string | null>(null)
   const [addingGear, setAddingGear] = useState<'camera' | 'lens' | null>(null)
@@ -641,6 +698,17 @@ export const MediaDetailsDialog: FC<Props> = ({
   const index = Math.max(0, foundIndex)
   const item: MediaDetailsDialogItem | undefined = items[index]
   const total = items.length
+  // Add to gallery: a file's id changes when its upload finishes (a temporary
+  // id gives way to the media id). The dialog stays on the same position.
+  const lastIndexRef = useRef(0)
+  useEffect(() => {
+    if (!isAdd) return
+    if (foundIndex === -1 && items.length > 0) {
+      setSelectedId(items[Math.min(lastIndexRef.current, items.length - 1)].id)
+    } else if (foundIndex >= 0) {
+      lastIndexRef.current = foundIndex
+    }
+  }, [isAdd, foundIndex, items])
   const suggestError = item ? (suggestErrors[item.id] ?? null) : null
   const retryError = item ? (retryErrors[item.id] ?? null) : null
 
@@ -785,6 +853,31 @@ export const MediaDetailsDialog: FC<Props> = ({
   if (!item) return null
   const draft = drafts[item.id]
   const video = isVideo(item)
+  // What Add to gallery would lose by cancelling: anything the owner typed or
+  // chose, or already saved to the uploads.
+  const hasEdits =
+    Object.values(editedDrafts).some(
+      (edited) => Object.keys(edited).length > 0
+    ) ||
+    Object.keys(savedOriginals).length > 0 ||
+    Boolean(shared.subject || shared.gear || shared.place)
+  const requestClose = () => {
+    if (!isAdd) {
+      onClose()
+      return
+    }
+    if (saving) return
+    if (hasEdits) setConfirmingDiscard(true)
+    else (onDiscard ?? onClose)()
+  }
+  // The photos Add N to gallery adds: the ones that finished uploading.
+  const addable = items.filter((entry) => !entry.upload)
+  const uploadingCount = items.filter(
+    (entry) => entry.upload?.state === 'uploading'
+  ).length
+  const failedCount = items.filter(
+    (entry) => entry.upload?.state === 'failed'
+  ).length
 
   const onRegenerate = async () => {
     const targetId = item.id
@@ -911,7 +1004,7 @@ export const MediaDetailsDialog: FC<Props> = ({
     }
   }
 
-  const onSave = async () => {
+  const onSave = async (afterSave?: () => void) => {
     setSaving(true)
     setSaveError(null)
     const savedById = new Map<string, MediaDetailsSavedItem>()
@@ -933,7 +1026,10 @@ export const MediaDetailsDialog: FC<Props> = ({
       updated: Awaited<ReturnType<typeof updateMediaDetails>> | null
     }
     const postEdits = new Map<string, PostEdit[]>()
-    for (const target of items) {
+    // Add to gallery saves the photos that went up; a failed upload has nothing
+    // to save.
+    const targets = isAdd ? addable : items
+    for (const target of targets) {
       const effective = applySharedSections(drafts[target.id], draft, shared)
       const original = originals[target.id]
       const fields = diffDraft(original, effective)
@@ -1014,12 +1110,29 @@ export const MediaDetailsDialog: FC<Props> = ({
         )
       }
     }
-    const saved = items.flatMap((target) => {
+    const saved = targets.flatMap((target) => {
       const entry = savedById.get(target.id)
       return entry ? [entry] : []
     })
     const failure = failures.length > 0 ? failures.join(' ') : null
     if (saved.length > 0) onSaved(saved)
+    if (!failure && isAdd) {
+      try {
+        await onAdd?.(targets.map((target) => target.id))
+      } catch (error) {
+        // The details are saved; only adding failed, so Add can be pressed
+        // again without sending them twice.
+        setOriginals((current) => ({ ...current, ...savedNow }))
+        setDrafts((current) => {
+          const next = { ...current }
+          for (const id of Object.keys(savedNow)) delete next[id]
+          return next
+        })
+        setSaving(false)
+        setSaveError(errorMessage(error, 'Could not add to your gallery.'))
+        return
+      }
+    }
     setSaving(false)
     if (failure) {
       // Only the saved items get a new baseline; the failed item and the ones
@@ -1033,7 +1146,8 @@ export const MediaDetailsDialog: FC<Props> = ({
       setSaveError(failure)
       return
     }
-    onClose()
+    if (afterSave) afterSave()
+    else onClose()
   }
 
   // Retired gear is out of the pickers, except the one this media already
@@ -1198,7 +1312,7 @@ export const MediaDetailsDialog: FC<Props> = ({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !saving) onClose()
+        if (!open && !saving) requestClose()
       }}
     >
       <DialogContent
@@ -1211,17 +1325,25 @@ export const MediaDetailsDialog: FC<Props> = ({
         )}
       >
         <DialogDescription className="sr-only">
-          Review the description, subject, gear and place of each media item.
+          {isAdd
+            ? 'Add the files you chose to your gallery. Review the description, subject, gear and place of each one. Only you can see them until you post them.'
+            : 'Review the description, subject, gear and place of each media item.'}
         </DialogDescription>
         <header className="flex items-center gap-3 border-b px-5 py-3">
           <DialogTitle className="text-base">
-            {context === 'gallery'
-              ? 'Edit details'
-              : video
-                ? 'Video details'
-                : 'Media details'}
+            {isAdd
+              ? 'Add to gallery'
+              : context === 'gallery'
+                ? 'Edit details'
+                : video
+                  ? 'Video details'
+                  : 'Media details'}
           </DialogTitle>
-          {context === 'gallery' && total === 1 ? null : (
+          {isAdd ? (
+            <span className="text-sm text-muted-foreground">
+              {describeCount(items)}
+            </span>
+          ) : context === 'gallery' && total === 1 ? null : (
             <span className="text-sm text-muted-foreground">
               {index + 1} of {total}
             </span>
@@ -1265,7 +1387,28 @@ export const MediaDetailsDialog: FC<Props> = ({
 
         <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:overflow-hidden">
           <div className="min-w-0 space-y-3 bg-muted/40 p-5 md:overflow-y-auto">
-            <div className="flex items-center justify-center overflow-hidden rounded-lg bg-muted">
+            <div className="relative flex items-center justify-center overflow-hidden rounded-lg bg-muted">
+              {item.upload ? (
+                <div
+                  data-testid="upload-overlay"
+                  className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-black/45 px-4 text-center text-sm font-medium text-white"
+                >
+                  {item.upload.state === 'uploading' ? (
+                    <>
+                      <Loader2
+                        className="size-6 animate-spin"
+                        aria-hidden="true"
+                      />
+                      <span role="status">Uploading…</span>
+                    </>
+                  ) : (
+                    <>
+                      <TriangleAlert className="size-6" aria-hidden="true" />
+                      <span>Upload failed</span>
+                    </>
+                  )}
+                </div>
+              ) : null}
               {video ? (
                 <video
                   key={item.id}
@@ -1291,7 +1434,13 @@ export const MediaDetailsDialog: FC<Props> = ({
                   <li key={thumb.id} className="shrink-0">
                     <button
                       type="button"
-                      aria-label={`Item ${thumbIndex + 1}`}
+                      aria-label={`Item ${thumbIndex + 1}${
+                        thumb.upload?.state === 'uploading'
+                          ? ', uploading'
+                          : thumb.upload?.state === 'failed'
+                            ? ', upload failed'
+                            : ''
+                      }`}
                       aria-current={thumbIndex === index ? 'true' : undefined}
                       onClick={() => goTo(thumbIndex)}
                       className={cn(
@@ -1307,6 +1456,19 @@ export const MediaDetailsDialog: FC<Props> = ({
                       {isVideo(thumb) ? (
                         <span className="absolute right-1 bottom-1 flex size-4 items-center justify-center rounded-full bg-black/60 text-white">
                           <Play className="size-2.5 fill-current" />
+                        </span>
+                      ) : null}
+                      {thumb.upload ? (
+                        <span
+                          data-testid={`upload-${thumb.upload.state}`}
+                          aria-hidden="true"
+                          className="absolute inset-0 flex items-center justify-center rounded-md bg-black/50 text-white"
+                        >
+                          {thumb.upload.state === 'uploading' ? (
+                            <Loader2 className="size-5 animate-spin" />
+                          ) : (
+                            <TriangleAlert className="size-5" />
+                          )}
                         </span>
                       ) : null}
                     </button>
@@ -1333,395 +1495,566 @@ export const MediaDetailsDialog: FC<Props> = ({
           </div>
 
           <div className="min-w-0 md:overflow-y-auto">
-            <Section title="Show in my gallery">
-              <div
-                className={cn(
-                  'space-y-2 rounded-lg border p-3',
-                  draft.inGallery && 'bg-primary/5'
+            {item.upload ? (
+              <div className="flex flex-col items-start gap-3 px-5 py-6 text-sm">
+                {item.upload.state === 'uploading' ? (
+                  <p className="text-muted-foreground flex items-center gap-2">
+                    <Loader2
+                      className="size-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                    Uploading this file. Its date, camera and place are read
+                    from it when it arrives.
+                  </p>
+                ) : (
+                  <>
+                    <Alert
+                      title={`This file could not be uploaded${
+                        item.upload.error ? `: ${item.upload.error}` : '.'
+                      }`}
+                    />
+                    <p className="text-muted-foreground text-xs">
+                      It is left out when you add the rest.
+                    </p>
+                    {onRemoveItem ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onRemoveItem(item.id)}
+                      >
+                        Remove this file
+                      </Button>
+                    ) : null}
+                  </>
                 )}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor={idFor('gallery')} className="text-sm">
-                    Show in my gallery
-                  </Label>
-                  <Switch
-                    id={idFor('gallery')}
-                    checked={draft.inGallery}
-                    onCheckedChange={(checked) =>
-                      patchDraft({ inGallery: checked })
-                    }
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Adds it to Subjects, Map and Gear. The post is the same either
-                  way.
-                </p>
-                {total > 1 ? (
-                  <CheckRow
-                    id={idFor('gallery-all')}
-                    checked={shared.gallery}
-                    onChange={(checked) =>
-                      setShared((s) => ({ ...s, gallery: checked }))
-                    }
+              </div>
+            ) : (
+              <>
+                {isAdd && addable.length > 1 ? (
+                  <section
+                    aria-label="Apply to all"
+                    className="space-y-2 border-b px-5 py-4"
                   >
-                    Show all {total} items in my gallery
-                  </CheckRow>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <h3 className="text-sm font-semibold">Apply to all</h3>
+                      <span className="text-muted-foreground text-xs">
+                        Copy this photo’s choices to all {addable.length}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(
+                        [
+                          ['subject', 'Subject'],
+                          ['place', 'Place'],
+                          ['gear', 'Gear']
+                        ] as const
+                      ).map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          aria-pressed={Boolean(shared[key])}
+                          onClick={() =>
+                            setShared((current) => ({
+                              ...current,
+                              [key]: !current[key]
+                            }))
+                          }
+                          className={cn(
+                            'focus-visible:ring-ring/50 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium outline-none focus-visible:ring-[3px] pointer-coarse:py-2.5',
+                            shared[key]
+                              ? 'border-primary bg-primary/10 text-primary-text'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {shared[key] ? (
+                            <Check className="size-3" aria-hidden="true" />
+                          ) : null}
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                 ) : null}
-              </div>
-            </Section>
-
-            {ownerId ? (
-              // Out of sight until the albums route says the photo is the
-              // caller's, and no part of the draft: a toggle is saved on the
-              // spot, never by Save details. A fresh menu for each photo.
-              <MediaAlbumsControl
-                key={item.id}
-                mediaId={item.id}
-                ownerId={ownerId}
-                variant="row"
-                renderFrame={(content) => (
-                  <Section title="Albums">{content}</Section>
+                {isAdd ? null : (
+                  <Section title="Show in my gallery">
+                    <div
+                      className={cn(
+                        'space-y-2 rounded-lg border p-3',
+                        draft.inGallery && 'bg-primary/5'
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor={idFor('gallery')} className="text-sm">
+                          Show in my gallery
+                        </Label>
+                        <Switch
+                          id={idFor('gallery')}
+                          checked={draft.inGallery}
+                          onCheckedChange={(checked) =>
+                            patchDraft({ inGallery: checked })
+                          }
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Adds it to Subjects, Map and Gear. The post is the same
+                        either way.
+                      </p>
+                      {total > 1 ? (
+                        <CheckRow
+                          id={idFor('gallery-all')}
+                          checked={shared.gallery}
+                          onChange={(checked) =>
+                            setShared((s) => ({ ...s, gallery: checked }))
+                          }
+                        >
+                          Show all {total} items in my gallery
+                        </CheckRow>
+                      ) : null}
+                    </div>
+                  </Section>
                 )}
-              />
-            ) : null}
 
-            {video ? (
-              <Section title="Cover and description frame">
-                <div
-                  className="h-20 w-32 rounded-md bg-muted bg-cover bg-center"
-                  role="img"
-                  aria-label="Cover frame"
-                  style={{
-                    backgroundImage: item.posterUrl
-                      ? `url("${item.posterUrl}")`
-                      : undefined
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  The subject and description are suggested from this frame.
-                </p>
-              </Section>
-            ) : null}
-
-            <Section title="Subject">
-              <SubjectSuggestions
-                suggestions={suggestions}
-                threshold={settings?.subjectConfidenceThreshold ?? 70}
-                draft={draft}
-                canSuggest={canSuggest}
-                suggesting={isSuggesting}
-                error={suggestError}
-                canSearch={canSearch}
-                showChosen={!showManual}
-                onPick={(picked) => applySubjectTo(picked, false)}
-                onClear={() => applySubjectTo(NO_SUBJECT, false)}
-                onSuggest={() => void onSuggest()}
-                onSearch={() => setPickerOpen(true)}
-              />
-              {showPathLine ? (
-                <TaxonPathLine
-                  scientificName={draft.subjectScientificName}
-                  path={subjectPath}
-                />
-              ) : null}
-              {subjectStatus ? (
-                <SubjectLookupStatus
-                  subject={subjectStatus}
-                  hidePlaces={settings?.hideThreatenedPlaces ?? true}
-                  canRetry={canSearch}
-                  retrying={retrying[item.id] === 'subject'}
-                  disabled={Boolean(retrying[item.id])}
-                  error={
-                    retryError?.kind === 'subject' ? retryError.message : null
-                  }
-                  onRetry={() => void onRetryLookups('subject')}
-                  onPick={canSearch ? () => setPickerOpen(true) : null}
-                />
-              ) : null}
-              {hasAssist ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-expanded={showManual}
-                  aria-controls={idFor('subject-manual')}
-                  className="-ml-2"
-                  onClick={() => setManualOpen((open) => !open)}
-                >
-                  Edit manually
-                </Button>
-              ) : null}
-              <div
-                id={idFor('subject-manual')}
-                hidden={!showManual}
-                className="space-y-3"
-              >
-                <Field label="Name" htmlFor={idFor('subject-name')}>
-                  <Input
-                    id={idFor('subject-name')}
-                    value={draft.subjectName}
-                    onChange={(event) =>
-                      patchDraft({ subjectName: event.target.value })
-                    }
-                  />
-                </Field>
-                <Field
-                  label="Scientific name"
-                  htmlFor={idFor('subject-scientific')}
-                >
-                  <Input
-                    id={idFor('subject-scientific')}
-                    value={draft.subjectScientificName}
-                    onChange={(event) =>
-                      // A different scientific name is a different taxon, so the
-                      // matched one no longer applies; the server clears it too.
-                      patchDraft({
-                        subjectScientificName: event.target.value,
-                        subjectTaxonKey: '',
-                        subjectTaxonPath: []
-                      })
-                    }
-                  />
-                </Field>
-                <Field label="Category" htmlFor={idFor('subject-category')}>
-                  <Select
-                    id={idFor('subject-category')}
-                    value={draft.subjectCategory}
-                    onChange={(event) =>
-                      patchDraft({
-                        subjectCategory: event.target.value as
-                          MediaSubjectCategory | ''
-                      })
-                    }
-                  >
-                    <option value="">No category</option>
-                    {MEDIA_SUBJECT_CATEGORIES.map((category) => (
-                      <option key={category} value={category}>
-                        {capitalize(category)}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
-            </Section>
-
-            <Section title="Description (alt text)">
-              <Textarea
-                aria-label="Description (alt text)"
-                value={draft.description}
-                maxLength={MAX_MEDIA_DESCRIPTION_LENGTH}
-                disabled={draft.decorative || describing}
-                rows={4}
-                onChange={(event) =>
-                  patchDraft({ description: event.target.value })
-                }
-              />
-              <div className="flex items-center justify-between gap-2">
-                <span
-                  className="text-xs tabular-nums text-muted-foreground"
-                  aria-live="off"
-                >
-                  {descriptionLength}/{MAX_MEDIA_DESCRIPTION_LENGTH}
-                </span>
-                {settings?.altTextAvailable ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={describing}
-                    onClick={() => void onRegenerate()}
-                  >
-                    {describing ? (
-                      <Loader2 className="animate-spin" />
-                    ) : (
-                      <Sparkles />
+                {ownerId ? (
+                  // Out of sight until the albums route says the photo is the
+                  // caller's, and no part of the draft: a toggle is saved on the
+                  // spot, never by Save details. A fresh menu for each photo.
+                  <MediaAlbumsControl
+                    key={item.id}
+                    mediaId={item.id}
+                    ownerId={ownerId}
+                    variant="row"
+                    renderFrame={(content) => (
+                      <Section title="Albums">{content}</Section>
                     )}
-                    Regenerate
-                  </Button>
-                ) : null}
-              </div>
-              {describeError ? <Alert title={describeError} /> : null}
-              <CheckRow
-                id={idFor('decorative')}
-                checked={draft.decorative}
-                onChange={(checked) => patchDraft({ decorative: checked })}
-              >
-                {context === 'gallery'
-                  ? 'Decorative image, no description'
-                  : 'Post without a description (decorative image)'}
-              </CheckRow>
-              {item.post ? (
-                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                  <Info
-                    className="mt-0.5 size-3.5 shrink-0"
-                    aria-hidden="true"
                   />
-                  Changing alt text edits the post, like Mastodon. Followers see
-                  it as edited.
-                </p>
-              ) : null}
-            </Section>
+                ) : null}
 
-            <Section title="Gear">
-              {gearSelect(
-                'camera',
-                'Camera',
-                draft.cameraGearId,
-                withCurrent(cameras, draft.cameraGearId, details?.camera?.name)
-              )}
-              {gearSelect(
-                'lens',
-                'Lens',
-                draft.lensGearId,
-                withCurrent(lenses, draft.lensGearId, details?.lens?.name)
-              )}
-              {gearError ? <Alert title={gearError} /> : null}
-              {/* A new tab: the dialog also opens from the composer's upload
+                {video ? (
+                  <Section title="Cover and description frame">
+                    <div
+                      className="h-20 w-32 rounded-md bg-muted bg-cover bg-center"
+                      role="img"
+                      aria-label="Cover frame"
+                      style={{
+                        backgroundImage: item.posterUrl
+                          ? `url("${item.posterUrl}")`
+                          : undefined
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The subject and description are suggested from this frame.
+                    </p>
+                  </Section>
+                ) : null}
+
+                <Section title="Subject">
+                  <SubjectSuggestions
+                    suggestions={suggestions}
+                    threshold={settings?.subjectConfidenceThreshold ?? 70}
+                    draft={draft}
+                    canSuggest={canSuggest}
+                    suggesting={isSuggesting}
+                    error={suggestError}
+                    canSearch={canSearch}
+                    showChosen={!showManual}
+                    onPick={(picked) => applySubjectTo(picked, false)}
+                    onClear={() => applySubjectTo(NO_SUBJECT, false)}
+                    onSuggest={() => void onSuggest()}
+                    onSearch={() => setPickerOpen(true)}
+                  />
+                  {showPathLine ? (
+                    <TaxonPathLine
+                      scientificName={draft.subjectScientificName}
+                      path={subjectPath}
+                    />
+                  ) : null}
+                  {subjectStatus ? (
+                    <SubjectLookupStatus
+                      subject={subjectStatus}
+                      hidePlaces={settings?.hideThreatenedPlaces ?? true}
+                      canRetry={canSearch}
+                      retrying={retrying[item.id] === 'subject'}
+                      disabled={Boolean(retrying[item.id])}
+                      error={
+                        retryError?.kind === 'subject'
+                          ? retryError.message
+                          : null
+                      }
+                      onRetry={() => void onRetryLookups('subject')}
+                      onPick={canSearch ? () => setPickerOpen(true) : null}
+                    />
+                  ) : null}
+                  {hasAssist ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-expanded={showManual}
+                      aria-controls={idFor('subject-manual')}
+                      className="-ml-2"
+                      onClick={() => setManualOpen((open) => !open)}
+                    >
+                      Edit manually
+                    </Button>
+                  ) : null}
+                  <div
+                    id={idFor('subject-manual')}
+                    hidden={!showManual}
+                    className="space-y-3"
+                  >
+                    <Field label="Name" htmlFor={idFor('subject-name')}>
+                      <Input
+                        id={idFor('subject-name')}
+                        value={draft.subjectName}
+                        onChange={(event) =>
+                          patchDraft({ subjectName: event.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field
+                      label="Scientific name"
+                      htmlFor={idFor('subject-scientific')}
+                    >
+                      <Input
+                        id={idFor('subject-scientific')}
+                        value={draft.subjectScientificName}
+                        onChange={(event) =>
+                          // A different scientific name is a different taxon, so the
+                          // matched one no longer applies; the server clears it too.
+                          patchDraft({
+                            subjectScientificName: event.target.value,
+                            subjectTaxonKey: '',
+                            subjectTaxonPath: []
+                          })
+                        }
+                      />
+                    </Field>
+                    <Field label="Category" htmlFor={idFor('subject-category')}>
+                      <Select
+                        id={idFor('subject-category')}
+                        value={draft.subjectCategory}
+                        onChange={(event) =>
+                          patchDraft({
+                            subjectCategory: event.target.value as
+                              MediaSubjectCategory | ''
+                          })
+                        }
+                      >
+                        <option value="">No category</option>
+                        {MEDIA_SUBJECT_CATEGORIES.map((category) => (
+                          <option key={category} value={category}>
+                            {capitalize(category)}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
+                </Section>
+
+                <Section title="Description (alt text)">
+                  <Textarea
+                    aria-label="Description (alt text)"
+                    value={draft.description}
+                    maxLength={MAX_MEDIA_DESCRIPTION_LENGTH}
+                    disabled={draft.decorative || describing}
+                    rows={4}
+                    onChange={(event) =>
+                      patchDraft({ description: event.target.value })
+                    }
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className="text-xs tabular-nums text-muted-foreground"
+                      aria-live="off"
+                    >
+                      {descriptionLength}/{MAX_MEDIA_DESCRIPTION_LENGTH}
+                    </span>
+                    {settings?.altTextAvailable ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={describing}
+                        onClick={() => void onRegenerate()}
+                      >
+                        {describing ? (
+                          <Loader2 className="animate-spin" />
+                        ) : (
+                          <Sparkles />
+                        )}
+                        Regenerate
+                      </Button>
+                    ) : null}
+                  </div>
+                  {describeError ? <Alert title={describeError} /> : null}
+                  <CheckRow
+                    id={idFor('decorative')}
+                    checked={draft.decorative}
+                    onChange={(checked) => patchDraft({ decorative: checked })}
+                  >
+                    {context !== 'composer'
+                      ? 'Decorative image, no description'
+                      : 'Post without a description (decorative image)'}
+                  </CheckRow>
+                  {item.post ? (
+                    <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                      <Info
+                        className="mt-0.5 size-3.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                      Changing alt text edits the post, like Mastodon. Followers
+                      see it as edited.
+                    </p>
+                  ) : null}
+                </Section>
+
+                <Section title="Gear">
+                  {gearSelect(
+                    'camera',
+                    'Camera',
+                    draft.cameraGearId,
+                    withCurrent(
+                      cameras,
+                      draft.cameraGearId,
+                      details?.camera?.name
+                    )
+                  )}
+                  {gearSelect(
+                    'lens',
+                    'Lens',
+                    draft.lensGearId,
+                    withCurrent(lenses, draft.lensGearId, details?.lens?.name)
+                  )}
+                  {gearError ? <Alert title={gearError} /> : null}
+                  {/* A new tab: the dialog also opens from the composer's upload
                   flow, and navigating here would unmount the composer and lose
                   its unposted text and attachments. */}
-              <Link
-                href="/gallery/gear"
-                target="_blank"
-                rel="noopener"
-                prefetch={false}
-                className="text-xs font-medium text-primary-text hover:underline"
-              >
-                Manage gear{' '}
-                <span className="sr-only">(opens in a new tab)</span>
-              </Link>
-              {exposureChips.length > 0 ? (
-                <ul
-                  className="flex flex-wrap gap-1.5"
-                  aria-label="Exposure from file"
-                >
-                  {exposureChips.map((chip) => (
-                    <li key={chip}>
-                      <Badge>{chip}</Badge>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {total > 1 ? (
-                <CheckRow
-                  id={idFor('gear-all')}
-                  checked={shared.gear}
-                  onChange={(checked) =>
-                    setShared((s) => ({ ...s, gear: checked }))
-                  }
-                >
-                  Use this gear for all {total} items
-                </CheckRow>
-              ) : null}
-            </Section>
-
-            <Section
-              title="Place"
-              aside={
-                hasFilePlace && settings?.placeLookupsAvailable ? (
-                  <span className="text-xs text-muted-foreground">
-                    Place names © OpenStreetMap contributors
-                  </span>
-                ) : undefined
-              }
-            >
-              <Field label="Place name" htmlFor={idFor('place-name')}>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id={idFor('place-name')}
-                    value={draft.placeName}
-                    onChange={(event) =>
-                      patchDraft({ placeName: event.target.value })
-                    }
-                  />
-                  {hasFilePlace ? (
-                    <Badge className="shrink-0 gap-1">
-                      <MapPin className="size-3" />
-                      From file
-                    </Badge>
-                  ) : null}
-                </div>
-              </Field>
-              <PlaceLookupStatus
-                place={placeStatus}
-                canRetry={settings?.placeLookupsAvailable !== false}
-                retrying={retrying[item.id] === 'place'}
-                disabled={Boolean(retrying[item.id])}
-                error={retryError?.kind === 'place' ? retryError.message : null}
-                onRetry={() => void onRetryLookups('place')}
-              />
-              <div
-                role="radiogroup"
-                aria-label="Place precision"
-                className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1"
-                onKeyDown={onPrecisionKeyDown}
-              >
-                {MEDIA_PLACE_PRECISIONS.map((option, optionIndex) => (
-                  <button
-                    key={option}
-                    ref={(node) => {
-                      precisionRefs.current[optionIndex] = node
-                    }}
-                    type="button"
-                    role="radio"
-                    aria-checked={precision === option}
-                    tabIndex={precision === option ? 0 : -1}
-                    onClick={() => patchDraft({ placePrecision: option })}
-                    className={cn(
-                      'rounded-md px-2 py-1.5 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                      precision === option
-                        ? 'bg-background text-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
+                  <Link
+                    href="/gallery/gear"
+                    target="_blank"
+                    rel="noopener"
+                    prefetch={false}
+                    className="text-xs font-medium text-primary-text hover:underline"
                   >
-                    {PRECISION_LABELS[option]}
-                  </button>
-                ))}
-              </div>
-              {total > 1 ? (
-                <CheckRow
-                  id={idFor('place-all')}
-                  checked={shared.place}
-                  onChange={(checked) =>
-                    setShared((s) => ({ ...s, place: checked }))
+                    Manage gear{' '}
+                    <span className="sr-only">(opens in a new tab)</span>
+                  </Link>
+                  {exposureChips.length > 0 ? (
+                    <ul
+                      className="flex flex-wrap gap-1.5"
+                      aria-label="Exposure from file"
+                    >
+                      {exposureChips.map((chip) => (
+                        <li key={chip}>
+                          <Badge>{chip}</Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {total > 1 && !isAdd ? (
+                    <CheckRow
+                      id={idFor('gear-all')}
+                      checked={shared.gear}
+                      onChange={(checked) =>
+                        setShared((s) => ({ ...s, gear: checked }))
+                      }
+                    >
+                      Use this gear for all {total} items
+                    </CheckRow>
+                  ) : null}
+                </Section>
+
+                <Section
+                  title="Place"
+                  aside={
+                    hasFilePlace && settings?.placeLookupsAvailable ? (
+                      <span className="text-xs text-muted-foreground">
+                        Place names © OpenStreetMap contributors
+                      </span>
+                    ) : undefined
                   }
                 >
-                  Use this place for all {total} items
-                </CheckRow>
-              ) : null}
-            </Section>
+                  <Field label="Place name" htmlFor={idFor('place-name')}>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id={idFor('place-name')}
+                        value={draft.placeName}
+                        onChange={(event) =>
+                          patchDraft({ placeName: event.target.value })
+                        }
+                      />
+                      {hasFilePlace ? (
+                        <Badge className="shrink-0 gap-1">
+                          <MapPin className="size-3" />
+                          From file
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </Field>
+                  <PlaceLookupStatus
+                    place={placeStatus}
+                    canRetry={settings?.placeLookupsAvailable !== false}
+                    retrying={retrying[item.id] === 'place'}
+                    disabled={Boolean(retrying[item.id])}
+                    error={
+                      retryError?.kind === 'place' ? retryError.message : null
+                    }
+                    onRetry={() => void onRetryLookups('place')}
+                  />
+                  <div
+                    role="radiogroup"
+                    aria-label="Place precision"
+                    className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1"
+                    onKeyDown={onPrecisionKeyDown}
+                  >
+                    {MEDIA_PLACE_PRECISIONS.map((option, optionIndex) => (
+                      <button
+                        key={option}
+                        ref={(node) => {
+                          precisionRefs.current[optionIndex] = node
+                        }}
+                        type="button"
+                        role="radio"
+                        aria-checked={precision === option}
+                        tabIndex={precision === option ? 0 : -1}
+                        onClick={() => patchDraft({ placePrecision: option })}
+                        className={cn(
+                          'rounded-md px-2 py-1.5 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                          precision === option
+                            ? 'bg-background text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {PRECISION_LABELS[option]}
+                      </button>
+                    ))}
+                  </div>
+                  {total > 1 && !isAdd ? (
+                    <CheckRow
+                      id={idFor('place-all')}
+                      checked={shared.place}
+                      onChange={(checked) =>
+                        setShared((s) => ({ ...s, place: checked }))
+                      }
+                    >
+                      Use this place for all {total} items
+                    </CheckRow>
+                  ) : null}
+                </Section>
+              </>
+            )}
           </div>
         </div>
 
-        <footer className="flex items-center justify-end gap-2 border-t px-5 py-3">
-          {item.post?.href ? (
-            // A new tab: leaving would unmount the viewer this dialog sits on.
-            <Link
-              href={item.post.href}
-              target="_blank"
-              rel="noopener"
-              prefetch={false}
-              className="mr-auto inline-flex items-center gap-1 text-sm font-medium text-primary-text hover:underline"
+        <footer className="flex flex-wrap items-center justify-end gap-x-2 gap-y-2 border-t px-5 py-3">
+          {isAdd && confirmingDiscard ? (
+            <div
+              role="group"
+              aria-label="Discard photos"
+              className="flex w-full flex-wrap items-center gap-x-3 gap-y-2"
             >
-              Open post
-              <ExternalLink className="size-3.5" aria-hidden="true" />
-              <span className="sr-only">(opens in a new tab)</span>
-            </Link>
-          ) : null}
-          {saveError ? (
-            <Alert title={saveError} className="mr-auto flex-1 py-2" />
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            disabled={saving}
-            onClick={onClose}
-          >
-            Cancel
-          </Button>
-          <Button type="button" disabled={saving} onClick={() => void onSave()}>
-            {saving ? <Loader2 className="animate-spin" /> : null}
-            Save details
-          </Button>
+              <p className="min-w-0 flex-1 text-sm">
+                Discard {addable.length === 1 ? 'this photo' : 'these photos'}?
+                What you changed is lost and the uploads are removed.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                autoFocus
+                onClick={() => setConfirmingDiscard(false)}
+              >
+                Keep editing
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => (onDiscard ?? onClose)()}
+              >
+                Discard
+              </Button>
+            </div>
+          ) : (
+            <>
+              {isAdd ? (
+                <p className="text-muted-foreground mr-auto flex items-center gap-1.5 text-xs">
+                  <Lock className="size-3.5 shrink-0" aria-hidden="true" />
+                  Only you can see these until you post them
+                </p>
+              ) : null}
+              {context === 'gallery' && item.unposted ? (
+                <div className="mr-auto flex items-center gap-1">
+                  {onPostItem ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={saving}
+                      onClick={() => void onSave(() => onPostItem(item.id))}
+                    >
+                      Post…
+                    </Button>
+                  ) : null}
+                  {onDeleteItem ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      disabled={saving}
+                      onClick={() => onDeleteItem(item.id)}
+                    >
+                      <Trash2 aria-hidden="true" />
+                      Delete
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+              {item.post?.href ? (
+                // A new tab: leaving would unmount the viewer this dialog sits on.
+                <Link
+                  href={item.post.href}
+                  target="_blank"
+                  rel="noopener"
+                  prefetch={false}
+                  className="mr-auto inline-flex items-center gap-1 text-sm font-medium text-primary-text hover:underline"
+                >
+                  Open post
+                  <ExternalLink className="size-3.5" aria-hidden="true" />
+                  <span className="sr-only">(opens in a new tab)</span>
+                </Link>
+              ) : null}
+              {saveError ? (
+                <Alert title={saveError} className="mr-auto flex-1 py-2" />
+              ) : null}
+              {isAdd && failedCount > 0 ? (
+                <p className="text-muted-foreground text-xs">
+                  {failedCount === 1
+                    ? '1 file failed and is left out.'
+                    : `${failedCount} files failed and are left out.`}
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                onClick={requestClose}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={
+                  saving ||
+                  (isAdd && (uploadingCount > 0 || addable.length === 0))
+                }
+                onClick={() => void onSave()}
+              >
+                {saving ? <Loader2 className="animate-spin" /> : null}
+                {isAdd
+                  ? `Add ${items.length - failedCount} to gallery`
+                  : 'Save details'}
+              </Button>
+            </>
+          )}
         </footer>
         {pickerOpen ? (
           <SpeciesPickerDialog

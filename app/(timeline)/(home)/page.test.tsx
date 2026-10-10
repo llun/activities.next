@@ -34,6 +34,7 @@ const mockGetCachedLocalPublicStatusesCount = vi.fn()
 const mockGetFilteredStatusPage = vi.fn()
 const mockGetFilteredTimelinePage = vi.fn()
 const mockGetActorSettings = vi.fn()
+const mockGetUnattachedMedia = vi.fn()
 const mockLoggerError = vi.fn()
 
 vi.mock('@/lib/utils/logger', () => ({
@@ -130,8 +131,10 @@ describe('(timeline)/(home) page', () => {
     })
     mockGetDatabase.mockReturnValue({
       getActorSettings: mockGetActorSettings,
+      getUnattachedMedia: mockGetUnattachedMedia,
       getTimeline: vi.fn()
     })
+    mockGetUnattachedMedia.mockResolvedValue([])
     mockGetResolvedServerSettings.mockResolvedValue({
       registrations: { open: true }
     })
@@ -210,6 +213,81 @@ describe('(timeline)/(home) page', () => {
       database: expect.anything(),
       timeline: Timeline.MAIN,
       actorId: mockActor.id
+    })
+  })
+  describe('composer photos from ?media=', () => {
+    const unposted = (id: string, description = '') => ({
+      id,
+      actorId: mockActor.id,
+      description,
+      original: {
+        path: `medias/${id}.jpg`,
+        bytes: 10,
+        mimeType: 'image/jpeg',
+        metaData: { width: 800, height: 600 }
+      },
+      thumbnail: null
+    })
+
+    beforeEach(() => {
+      mockGetActorFromSession.mockResolvedValue(mockActor)
+    })
+
+    it('opens the composer with no photos by default', async () => {
+      const node = await Page({ searchParams: Promise.resolve({}) })
+      const timeline = findElementByType(node, MainPageTimeline)
+
+      expect(timeline?.props.initialMedia).toEqual([])
+      expect(mockGetUnattachedMedia).not.toHaveBeenCalled()
+    })
+
+    it('opens the composer with the actor’s own unposted photos and their alt text', async () => {
+      mockGetUnattachedMedia.mockResolvedValue([
+        unposted('4', 'A heron'),
+        unposted('3')
+      ])
+
+      const node = await Page({
+        searchParams: Promise.resolve({ media: '3,4,nope' })
+      })
+      const timeline = findElementByType(node, MainPageTimeline)
+
+      expect(mockGetUnattachedMedia).toHaveBeenCalledWith({
+        actorId: mockActor.id,
+        mediaIds: ['3', '4']
+      })
+      expect(
+        (timeline?.props.initialMedia as { id: string; name?: string }[]).map(
+          (attachment) => [attachment.id, attachment.name]
+        )
+      ).toEqual([
+        ['3', undefined],
+        ['4', 'A heron']
+      ])
+    })
+
+    it('leaves out the ids the database does not give back', async () => {
+      mockGetUnattachedMedia.mockResolvedValue([unposted('3')])
+
+      const node = await Page({
+        searchParams: Promise.resolve({ media: '3,9' })
+      })
+      const timeline = findElementByType(node, MainPageTimeline)
+
+      expect(
+        (timeline?.props.initialMedia as { id: string }[]).map(
+          (attachment) => attachment.id
+        )
+      ).toEqual(['3'])
+    })
+
+    it('ignores ?media= for logged-out visitors', async () => {
+      mockGetActorFromSession.mockResolvedValue(null)
+
+      const node = await Page({ searchParams: Promise.resolve({ media: '3' }) })
+
+      expect(findElementByType(node, Landing)).not.toBeNull()
+      expect(mockGetUnattachedMedia).not.toHaveBeenCalled()
     })
   })
 })

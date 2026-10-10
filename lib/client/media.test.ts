@@ -5,6 +5,7 @@ import { getMediaWidthAndHeight } from '@/lib/utils/getMediaWidthAndHeight'
 import {
   completeUploadPresignedUrl,
   createUploadPresignedUrl,
+  deleteUnpostedMedia,
   getActorMedia,
   uploadAttachment,
   uploadFileToPresignedUrl,
@@ -593,6 +594,36 @@ describe('client media module', () => {
       })
 
       expect(result).toEqual([])
+    })
+  })
+  describe('deleteUnpostedMedia', () => {
+    it('deletes the media by id', async () => {
+      fetchMock.mockResponseOnce('', { status: 200 })
+
+      await deleteUnpostedMedia('media 1')
+
+      expect(fetchMock).toHaveBeenCalledWith('/api/v1/media/media%201', {
+        method: 'DELETE',
+        headers: { Accept: 'application/json' }
+      })
+    })
+
+    it('says a photo in a post cannot be deleted', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Media in use' }), {
+        status: 422
+      })
+
+      await expect(deleteUnpostedMedia('1')).rejects.toThrow(
+        'This photo is in a post, so it can’t be deleted.'
+      )
+    })
+
+    it('rejects with the server message', async () => {
+      fetchMock.mockResponseOnce(JSON.stringify({ error: 'Not found' }), {
+        status: 404
+      })
+
+      await expect(deleteUnpostedMedia('1')).rejects.toThrow('Not found')
     })
   })
 })

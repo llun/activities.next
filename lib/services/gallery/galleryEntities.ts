@@ -105,10 +105,12 @@ export interface MediaPublicDetails {
 export interface GalleryItemEntity {
   mediaId: string
   // `getClientStatusId` of the status behind `attachment` — always a status
-  // the requesting audience may read.
-  statusId: string
+  // the requesting audience may read. Null only for the owner's own media that
+  // was added in Gallery and is not posted yet (`posted` is then false).
+  statusId: string | null
   // The attachment row of that status (url, thumbnailUrl, width, height,
-  // blurhash, name = alt text); feeds `Media` and `MediasModal`.
+  // blurhash, name = alt text); feeds `Media` and `MediasModal`. For an
+  // unposted media it is built from the media row, with the same shape.
   attachment: Attachment
   subject: PublicSubjectEntity | null
   // ISO 8601.
@@ -121,6 +123,9 @@ export interface GalleryItemEntity {
   // Owner only (omitted for everyone else): whether "Show in my gallery" is on.
   // False for a posted photo the owner hid from the gallery.
   inGallery?: boolean
+  // Owner only: whether a post uses it. False for a photo added in Gallery
+  // that only the owner can see.
+  posted?: boolean
   // The owner gets the stored place with coordinates whatever the precision;
   // everyone else gets `getPublicPlace`.
   place:
@@ -211,7 +216,8 @@ export type GalleryMapPublicState =
 
 export interface GalleryMapPoint {
   mediaId: string
-  statusId: string
+  // Null for the owner's unposted media.
+  statusId: string | null
   latitude: number
   longitude: number
   // The public only ever gets `area` (snapped) and `exact`.

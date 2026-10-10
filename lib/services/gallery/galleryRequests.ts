@@ -127,3 +127,18 @@ export type UpdateGalleryGearRequest = z.infer<typeof UpdateGalleryGearRequest>
 
 export const RetireGalleryGearRequest = z.object({ retired: z.boolean() })
 export type RetireGalleryGearRequest = z.infer<typeof RetireGalleryGearRequest>
+
+// Media kept in one Add to gallery step. The dialog adds what one drop or pick
+// holds, and edits at most this many together (`MAX_EDIT_DETAILS_PHOTOS`), so
+// a request past it is a runaway client's and is refused.
+export const MAX_ADD_TO_GALLERY_MEDIA = 40
+
+// `POST /api/v1/gallery/media`: a media id on the wire is the decimal
+// `medias.id`; repeats are harmless (they are de-duplicated).
+export const AddGalleryMediaRequest = z.object({
+  media_ids: z
+    .array(z.string().trim().regex(/^\d+$/).max(10))
+    .min(1)
+    .max(MAX_ADD_TO_GALLERY_MEDIA)
+})
+export type AddGalleryMediaRequest = z.infer<typeof AddGalleryMediaRequest>

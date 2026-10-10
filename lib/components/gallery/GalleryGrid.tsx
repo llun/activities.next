@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, EyeOff, Video } from 'lucide-react'
+import { Check, EyeOff, Lock, Video } from 'lucide-react'
 import { FC, useCallback, useMemo, useRef, useState } from 'react'
 
 import { GalleryEditDetailsDialog } from '@/lib/components/gallery/GalleryEditDetailsDialog'
@@ -33,6 +33,16 @@ interface Props {
    * list can keep it (the grid shows the edit itself until `items` changes).
    */
   onItemEdited?: (item: GalleryItemEntity) => void
+  /**
+   * Owner views: Post… on a photo added in Gallery and not posted yet, from
+   * Edit details over the viewer. Without it Edit details offers no Post….
+   */
+  onPostItems?: (mediaIds: string[]) => void
+  /**
+   * Owner views: told the photos Edit details deleted (unposted ones only), so
+   * the page holding the list can drop them. The viewer closes with them.
+   */
+  onItemsDeleted?: (mediaIds: string[]) => void
   /** Called once the viewer has closed. */
   onViewerClosed?: () => void
   /**
@@ -54,7 +64,13 @@ const itemLabel = (item: GalleryItemEntity, index: number, verb = 'Open') => {
   const alt = item.attachment.name?.trim()
   // Only the owner is told (`inGallery` is omitted for everyone else). Spoken
   // here, in the name, because the visible "Hidden" pill is decoration.
-  const state = item.inGallery === false ? ', hidden from your gallery' : ''
+  const state = [
+    item.posted === false ? 'only you can see it, not posted' : '',
+    item.inGallery === false ? 'hidden from your gallery' : ''
+  ]
+    .filter(Boolean)
+    .map((part) => `, ${part}`)
+    .join('')
   if (alt) return `${verb} ${noun}: ${alt}${state}`
   if (item.subject?.name) return `${verb} ${noun}: ${item.subject.name}${state}`
   return `${verb} ${noun} ${index + 1}${state}`
@@ -72,6 +88,8 @@ export const GalleryGrid: FC<Props> = ({
   selection,
   albumsOwnerId,
   onItemEdited,
+  onPostItems,
+  onItemsDeleted,
   onViewerClosed,
   onAlbumsChanged,
   className
@@ -187,6 +205,18 @@ export const GalleryGrid: FC<Props> = ({
                     Hidden
                   </span>
                 ) : null}
+                {item.posted === false ? (
+                  <span
+                    data-testid="only-you-badge"
+                    aria-hidden="true"
+                    className={cn(
+                      'pointer-events-none absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[11px] leading-4 font-medium text-white backdrop-blur-xs'
+                    )}
+                  >
+                    <Lock className="size-3" aria-hidden="true" />
+                    Only you
+                  </span>
+                ) : null}
                 {selection ? (
                   <span
                     aria-hidden="true"
@@ -253,6 +283,15 @@ export const GalleryGrid: FC<Props> = ({
           ownerId={albumsOwnerId}
           onClose={() => setEditingId(null)}
           onSaved={handleEdited}
+          onPost={onPostItems}
+          onDeleted={
+            onItemsDeleted
+              ? (ids) => {
+                  setModalIndex(null)
+                  onItemsDeleted(ids)
+                }
+              : undefined
+          }
         />
       ) : null}
     </>

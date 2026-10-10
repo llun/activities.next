@@ -37,6 +37,8 @@ export interface GalleryPagedGridController {
    * that no longer belongs under the grid's `show` filter leaves the list.
    */
   updateItems: (items: GalleryItemEntity[]) => void
+  /** Drops loaded tiles by media id, for photos deleted outside the grid. */
+  removeItems: (mediaIds: string[]) => void
 }
 
 interface Props {
@@ -47,8 +49,9 @@ interface Props {
   /** Owner only: one camera or lens. */
   gearId?: string
   /**
-   * Owner only: `all` posted media, just the `hidden` ones or the `in_gallery`
-   * ones. Left out, the server lists the gallery's photos.
+   * Owner only: `all` media (posted or added), just the `hidden` ones, the
+   * `in_gallery` ones or those `not_posted` yet. Left out, the server lists the
+   * gallery's photos.
    */
   show?: GalleryShow
   /** A page the server already loaded; without it the grid loads its own. */
@@ -59,6 +62,10 @@ interface Props {
   selection?: GalleryGridSelection
   /** The signed-in owner's actor id when these are their own photos. */
   albumsOwnerId?: string | null
+  /** Owner views: Post… from Edit details over the viewer (see `GalleryGrid`). */
+  onPostItems?: (mediaIds: string[]) => void
+  /** Told the photos Edit details deleted, once they are gone from the grid. */
+  onItemsDeleted?: (mediaIds: string[]) => void
   /** Told the photos loaded so far each time they change. */
   onItemsChange?: (items: GalleryItemEntity[]) => void
   /** Lets the page update tiles it edited itself. */
@@ -95,6 +102,8 @@ export const GalleryPagedGrid: FC<Props> = ({
   showCaption = true,
   selection,
   albumsOwnerId,
+  onPostItems,
+  onItemsDeleted,
   onItemsChange,
   controllerRef
 }) => {
@@ -167,13 +176,19 @@ export const GalleryPagedGrid: FC<Props> = ({
         ? item.inGallery !== false
         : list === 'hidden'
           ? item.inGallery !== true
-          : true
+          : list === 'not_posted'
+            ? item.posted === false
+            : true
     },
     [show]
   )
   const replaceItems = useCallback((edited: GalleryItemEntity[]) => {
     const byId = new Map(edited.map((item) => [item.mediaId, item]))
     setItems((current) => current.map((item) => byId.get(item.mediaId) ?? item))
+  }, [])
+  const removeItems = useCallback((mediaIds: string[]) => {
+    const gone = new Set(mediaIds)
+    setItems((current) => current.filter((item) => !gone.has(item.mediaId)))
   }, [])
   const dropMisfiled = useCallback(
     () =>
@@ -188,9 +203,10 @@ export const GalleryPagedGrid: FC<Props> = ({
       updateItems: (edited) => {
         replaceItems(edited)
         dropMisfiled()
-      }
+      },
+      removeItems
     }),
-    [replaceItems, dropMisfiled]
+    [replaceItems, dropMisfiled, removeItems]
   )
 
   // A ref, so a parent that passes a new callback each render does not make
@@ -225,6 +241,15 @@ export const GalleryPagedGrid: FC<Props> = ({
           selection={selection}
           albumsOwnerId={albumsOwnerId}
           onItemEdited={(item) => replaceItems([item])}
+          onPostItems={onPostItems}
+          onItemsDeleted={
+            onItemsDeleted
+              ? (ids) => {
+                  removeItems(ids)
+                  onItemsDeleted(ids)
+                }
+              : undefined
+          }
           onViewerClosed={dropMisfiled}
         />
       ) : error || nextMaxId ? null : (

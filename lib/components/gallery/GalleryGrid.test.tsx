@@ -64,6 +64,8 @@ const editorProps = vi.hoisted(() => ({
     ownerId: string
     onClose: () => void
     onSaved: (items: unknown[]) => void
+    onPost?: (mediaIds: string[]) => void
+    onDeleted?: (mediaIds: string[]) => void
   }
 }))
 
@@ -222,6 +224,80 @@ describe('GalleryGrid', () => {
         })
       ).toContainElement(screen.getByTestId('hidden-badge'))
       expect(screen.getByTestId('select-mark')).toBeInTheDocument()
+    })
+  })
+
+  describe('added in Gallery and not posted yet', () => {
+    const unposted = buildGalleryItem('4', { statusId: null, posted: false })
+
+    it('badges the tile "Only you" and says so in its name', () => {
+      render(
+        <GalleryGrid
+          items={[buildGalleryItem('3', { posted: true }), unposted]}
+        />
+      )
+
+      expect(screen.getAllByTestId('only-you-badge')).toHaveLength(1)
+      const tile = screen.getByRole('button', {
+        name: 'Open media 2, only you can see it, not posted'
+      })
+      expect(tile).toHaveTextContent('Only you')
+      expect(
+        screen.getByRole('button', { name: 'Open media 1' })
+      ).not.toHaveTextContent('Only you')
+    })
+
+    it('keeps the badge with the select mark and the hidden state', () => {
+      render(
+        <GalleryGrid
+          items={[{ ...unposted, inGallery: false }]}
+          selection={{ selected: new Set(), onToggle: vi.fn() }}
+        />
+      )
+
+      expect(
+        screen.getByRole('button', {
+          name: 'Select media 1, only you can see it, not posted, hidden from your gallery'
+        })
+      ).toContainElement(screen.getByTestId('only-you-badge'))
+    })
+
+    it('shows nothing for a viewer, who never gets an unposted photo', () => {
+      render(<GalleryGrid items={items} />)
+      expect(screen.queryByTestId('only-you-badge')).not.toBeInTheDocument()
+    })
+
+    it('passes Post… and Delete from Edit details to the page, closing the viewer on a delete', () => {
+      const onPostItems = vi.fn()
+      const onItemsDeleted = vi.fn()
+      render(
+        <GalleryGrid
+          items={[unposted]}
+          albumsOwnerId="owner-1"
+          onPostItems={onPostItems}
+          onItemsDeleted={onItemsDeleted}
+        />
+      )
+      fireEvent.click(screen.getByRole('button', { name: /^Open media/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+      act(() => editorProps.current?.onPost?.(['4']))
+      expect(onPostItems).toHaveBeenCalledWith(['4'])
+
+      act(() => editorProps.current?.onDeleted?.(['4']))
+      expect(onItemsDeleted).toHaveBeenCalledWith(['4'])
+      expect(
+        screen.queryByRole('dialog', { name: 'Media viewer' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('offers neither action unless the page handles them', () => {
+      render(<GalleryGrid items={[unposted]} albumsOwnerId="owner-1" />)
+      fireEvent.click(screen.getByRole('button', { name: /^Open media/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+      expect(editorProps.current?.onPost).toBeUndefined()
+      expect(editorProps.current?.onDeleted).toBeUndefined()
     })
   })
 

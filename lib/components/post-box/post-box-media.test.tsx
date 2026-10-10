@@ -17,6 +17,7 @@ import {
   getGallerySettings,
   getMedia
 } from '@/lib/client'
+import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { createDeferred } from '@/lib/testing/deferred'
 import { UploadedAttachment } from '@/lib/types/domain/attachment'
 import { extractVideoPoster } from '@/lib/utils/extractVideoPoster'
@@ -1103,5 +1104,130 @@ describe('PostBox media details', () => {
     await screen.findByText('closed')
     expect(createNoteMock).toHaveBeenCalledTimes(1)
     expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+  })
+  describe('photos from Gallery (initialMedia)', () => {
+    const prefilled = [
+      {
+        type: 'upload' as const,
+        id: '7',
+        mediaType: 'image/jpeg',
+        url: 'https://activities.local/api/v1/files/seven.jpg',
+        width: 640,
+        height: 480,
+        name: 'A heron'
+      },
+      {
+        type: 'upload' as const,
+        id: '8',
+        mediaType: 'image/jpeg',
+        url: 'https://activities.local/api/v1/files/eight.jpg',
+        width: 640,
+        height: 480
+      }
+    ]
+
+    const renderWith = (initialMedia = prefilled, maxAttachments?: number) =>
+      render(
+        <InstanceLimitsProvider maxMediaAttachments={maxAttachments}>
+          <PostBox
+            host="activities.local"
+            profile={profile}
+            isMediaUploadEnabled
+            initialMedia={initialMedia}
+            onDiscardReply={vi.fn()}
+            onPostCreated={vi.fn()}
+            onPostUpdated={vi.fn()}
+            onDiscardEdit={vi.fn()}
+          />
+        </InstanceLimitsProvider>
+      )
+
+    it('opens with the photos attached, reads their details and allows posting', async () => {
+      renderWith()
+
+      expect(
+        await screen.findByRole('button', { name: 'Remove media A heron' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Remove media 2' })
+      ).toBeInTheDocument()
+      expect(uploadAttachmentMock).not.toHaveBeenCalled()
+      await waitFor(() => expect(getMediaMock).toHaveBeenCalledTimes(2))
+      expect(screen.getByRole('button', { name: 'Post' })).toBeEnabled()
+    })
+
+    it('posts the photos by their media ids, with the alt text they have', async () => {
+      getMediaMock.mockImplementation(async (id) =>
+        mediaEntity(id, id === '7' ? 'A heron' : null)
+      )
+      renderWith()
+      await screen.findByRole('button', { name: 'Remove media A heron' })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Post' }))
+
+      await waitFor(() => expect(createNoteMock).toHaveBeenCalledTimes(1))
+      expect(
+        createNoteMock.mock.calls[0][0].attachments?.map((a) => [a.id, a.name])
+      ).toEqual([
+        ['7', 'A heron'],
+        ['8', '']
+      ])
+    })
+
+    it('keeps no more than the instance allows', async () => {
+      renderWith(prefilled, 1)
+
+      expect(
+        await screen.findByRole('button', { name: 'Remove media A heron' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Remove media 2' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('never deletes the photos: they are in the owner’s gallery', async () => {
+      const { unmount } = renderWith()
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Remove media A heron' })
+      )
+      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+
+      unmount()
+
+      expect(vi.mocked(deleteAccountMedia)).not.toHaveBeenCalled()
+    })
+
+    it('does not seed a reply', async () => {
+      render(
+        <PostBox
+          host="activities.local"
+          profile={profile}
+          isMediaUploadEnabled
+          initialMedia={prefilled}
+          replyStatus={
+            {
+              id: 'https://activities.local/users/llun/statuses/1',
+              type: 'Note',
+              actorId: 'https://activities.local/users/llun',
+              actor: null,
+              text: 'hi',
+              to: [],
+              cc: [],
+              attachments: [],
+              tags: []
+            } as never
+          }
+          onDiscardReply={vi.fn()}
+          onPostCreated={vi.fn()}
+          onPostUpdated={vi.fn()}
+          onDiscardEdit={vi.fn()}
+        />
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(
+        screen.queryByRole('button', { name: 'Remove media A heron' })
+      ).not.toBeInTheDocument()
+    })
   })
 })

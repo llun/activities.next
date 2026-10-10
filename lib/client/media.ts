@@ -375,6 +375,25 @@ export const updateMediaDetails = async (
 }
 
 /**
+ * Deletes a photo or video that no post uses (Mastodon's media destroy): its
+ * row, its album places and its files. A media a post already uses is refused,
+ * so this can never take a photo out of a post. Rejects with the server's
+ * message.
+ */
+export const deleteUnpostedMedia = async (mediaId: string): Promise<void> => {
+  const response = await fetch(`/api/v1/media/${encodeURIComponent(mediaId)}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' }
+  })
+  if (response.status === 422) {
+    throw new Error('This photo is in a post, so it can’t be deleted.')
+  }
+  if (!response.ok) {
+    throw new Error(await parseApiError(response, 'Failed to delete media.'))
+  }
+}
+
+/**
  * Asks the instance's alt text service to describe a stored media. Returns the
  * text WITHOUT saving it — show it to the author and save it with
  * `updateMediaDetails`. Rejects with the server's message when alt text is not

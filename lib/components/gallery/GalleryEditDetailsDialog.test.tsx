@@ -2,9 +2,9 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-import { getGallerySettings, getMedia } from '@/lib/client'
+import { deleteUnpostedMedia, getGallerySettings, getMedia } from '@/lib/client'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
 import type {
   MediaDetailsDialogItem,
@@ -17,6 +17,7 @@ import { DEFAULT_GALLERY_SETTINGS } from '@/lib/types/database/gallery'
 import { GalleryEditDetailsDialog } from './GalleryEditDetailsDialog'
 
 vi.mock('@/lib/client', () => ({
+  deleteUnpostedMedia: vi.fn(),
   getGallerySettings: vi.fn(),
   getMedia: vi.fn()
 }))
@@ -29,6 +30,8 @@ interface DialogProps {
   ownerId?: string
   onClose: () => void
   onSaved: (items: MediaDetailsSavedItem[]) => void
+  onPostItem?: (id: string) => void
+  onDeleteItem?: (id: string) => void
   onDetailsRefreshed: (
     id: string,
     patch: Partial<MediaDetailsEntity>,
@@ -266,5 +269,90 @@ describe('GalleryEditDetailsDialog', () => {
     latest().onClose()
 
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+  describe('photos added in Gallery and not posted yet', () => {
+    const unposted = buildGalleryItem('9', { statusId: null, posted: false })
+
+    const renderUnposted = (
+      props: Partial<React.ComponentProps<typeof GalleryEditDetailsDialog>> = {}
+    ) =>
+      render(
+        <GalleryEditDetailsDialog
+          items={[unposted]}
+          initialMediaId="9"
+          ownerId={OWNER}
+          onClose={vi.fn()}
+          onSaved={vi.fn()}
+          {...props}
+        />
+      )
+
+    it('marks the photo as unposted, with no post to link to', () => {
+      renderUnposted()
+
+      expect(latest().items[0]).toEqual(
+        expect.objectContaining({ id: '9', unposted: true })
+      )
+      expect(latest().items[0].post).toBeUndefined()
+    })
+
+    it('offers Post… and Delete only when the page handles them', () => {
+      const { unmount } = renderUnposted()
+      expect(latest().onPostItem).toBeUndefined()
+      expect(latest().onDeleteItem).toBeUndefined()
+      unmount()
+
+      renderUnposted({ onPost: vi.fn(), onDeleted: vi.fn() })
+      expect(latest().onPostItem).toBeDefined()
+      expect(latest().onDeleteItem).toBeDefined()
+    })
+
+    it('hands the photo to post', () => {
+      const onPost = vi.fn()
+      renderUnposted({ onPost })
+
+      act(() => latest().onPostItem?.('9'))
+
+      expect(onPost).toHaveBeenCalledWith(['9'])
+    })
+
+    it('confirms a delete, deletes the photo, tells the page and closes', async () => {
+      vi.mocked(deleteUnpostedMedia).mockResolvedValue(undefined)
+      const onDeleted = vi.fn()
+      const onClose = vi.fn()
+      renderUnposted({ onDeleted, onClose })
+
+      act(() => latest().onDeleteItem?.('9'))
+      const confirm = await screen.findByRole('dialog', {
+        name: 'Delete 1 photo?'
+      })
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete 1 photo' }))
+
+      await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(['9']))
+      expect(deleteUnpostedMedia).toHaveBeenCalledWith('9')
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(confirm).toBeDefined()
+    })
+
+    it('keeps the photo when the delete is cancelled', async () => {
+      const onDeleted = vi.fn()
+      const onClose = vi.fn()
+      renderUnposted({ onDeleted, onClose })
+      act(() => latest().onDeleteItem?.('9'))
+      await screen.findByRole('dialog', { name: 'Delete 1 photo?' })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('dialog', { name: 'Delete 1 photo?' })
+        ).not.toBeInTheDocument()
+      )
+      expect(deleteUnpostedMedia).not.toHaveBeenCalled()
+      expect(onDeleted).not.toHaveBeenCalled()
+      expect(onClose).not.toHaveBeenCalled()
+    })
   })
 })

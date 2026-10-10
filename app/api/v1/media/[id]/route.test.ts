@@ -628,6 +628,56 @@ describe('/api/v1/media/[id]', () => {
     )
   })
 
+  it('DELETE removes a photo added in Gallery from its albums and from the gallery', async () => {
+    const media = await database.createMedia({
+      actorId: ACTOR1_ID,
+      original: {
+        path: 'medias/route-delete-added.jpg',
+        bytes: 1000,
+        mimeType: 'image/jpeg',
+        metaData: { width: 320, height: 240 }
+      },
+      details: { inGallery: true }
+    })
+    const id = String(media!.id)
+    await database.addMediaToGallery({ actorId: ACTOR1_ID, mediaIds: [id] })
+    const created = await database.createGalleryAlbumWithinLimit({
+      actorId: ACTOR1_ID,
+      title: 'Added photos',
+      limit: 10,
+      mediaIds: [id],
+      itemLimit: 10
+    })
+    if (created.status !== 'created') throw new Error('Album not created')
+    expect(created.added).toEqual([id])
+    mockDeleteMediaFile.mockResolvedValue(true)
+
+    const response = await DELETE(deleteRequest(id), {
+      params: Promise.resolve({ id })
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockDeleteMediaFile).toHaveBeenCalledWith(
+      expect.anything(),
+      'medias/route-delete-added.jpg'
+    )
+    expect(
+      await database.getGalleryMediaByIds({
+        actorId: ACTOR1_ID,
+        audience: { kind: 'owner' },
+        mediaIds: [id],
+        show: 'all'
+      })
+    ).toEqual([])
+    expect(
+      await database.getAlbumsForMedia({
+        mediaId: id,
+        actorId: ACTOR1_ID,
+        audience: { kind: 'owner' }
+      })
+    ).toEqual([])
+  })
+
   it('DELETE does not touch storage files on the 404 path', async () => {
     const id = await createMediaFor(ACTOR2_ID, 'delete-foreign-nofiles')
 

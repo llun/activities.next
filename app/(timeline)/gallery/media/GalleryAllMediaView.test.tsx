@@ -12,9 +12,10 @@ import {
 } from '@testing-library/react'
 import fetchMock, { enableFetchMocks } from 'jest-fetch-mock'
 
-import { getGalleryMedia } from '@/lib/client'
+import { deleteUnpostedMedia, getGalleryMedia } from '@/lib/client'
 import { buildAlbumCard } from '@/lib/components/gallery/__fixtures__/galleryAlbums'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
+import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import { GALLERY_ALBUM_FULL_MESSAGE } from '@/lib/types/database/galleryAlbums'
 
 import { GalleryAllMediaView } from './GalleryAllMediaView'
@@ -29,11 +30,29 @@ vi.mock('@/lib/client', async () => {
   >('@/lib/client/galleryAlbums')
   return {
     getGalleryMedia: vi.fn(),
+    deleteUnpostedMedia: vi.fn(),
     getGalleryAlbums: albums.getGalleryAlbums,
     addGalleryAlbumItems: albums.addGalleryAlbumItems,
     GalleryAlbumAddError: albums.GalleryAlbumAddError
   }
 })
+
+const router = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock('next/navigation', () => ({ useRouter: () => router }))
+
+const addDialog = vi.hoisted(() => ({
+  current: null as null | {
+    files: File[]
+    onClose: () => void
+    onAdded: (mediaIds: string[]) => void
+  }
+}))
+vi.mock('@/lib/components/gallery/AddToGalleryDialog', () => ({
+  AddToGalleryDialog: (props: NonNullable<typeof addDialog.current>) => {
+    addDialog.current = props
+    return <div role="dialog" aria-label="Add to gallery" />
+  }
+}))
 
 vi.mock('next/link', () => ({
   default: ({
@@ -69,6 +88,8 @@ const editDialog = vi.hoisted(() => ({
     ownerId: string
     onClose: () => void
     onSaved: (items: unknown[]) => void
+    onPost?: (mediaIds: string[]) => void
+    onDeleted?: (mediaIds: string[]) => void
   }
 }))
 
@@ -111,6 +132,7 @@ vi.mock('@/lib/components/gallery/GalleryGrid', () => ({
 }))
 
 const getGalleryMediaMock = getGalleryMedia as jest.Mock
+const deleteUnpostedMediaMock = deleteUnpostedMedia as jest.Mock
 
 describe('GalleryAllMediaView', () => {
   beforeEach(() => {
@@ -118,6 +140,9 @@ describe('GalleryAllMediaView', () => {
     fetchMock.resetMocks()
     formDialog.current = null
     editDialog.current = null
+    addDialog.current = null
+    router.push.mockReset()
+    deleteUnpostedMediaMock.mockReset()
   })
 
   it('renders the server page without fetching', () => {
@@ -227,7 +252,9 @@ describe('GalleryAllMediaView', () => {
       screen.getByRole('heading', { name: 'All media' })
     ).toBeInTheDocument()
     expect(
-      screen.getByText("Every photo and video you've posted, newest first")
+      screen.getByText(
+        "Every photo and video you've posted or added, newest first"
+      )
     ).toBeInTheDocument()
   })
 
@@ -265,7 +292,7 @@ describe('GalleryAllMediaView', () => {
       )
     })
 
-    it('offers the three lists with a hint each', async () => {
+    it('offers the four lists with a hint each', async () => {
       render(
         <GalleryAllMediaView
           actorId="actor-1"
@@ -277,9 +304,10 @@ describe('GalleryAllMediaView', () => {
       const menu = await openShowMenu()
       const items = within(menu).getAllByRole('menuitem')
       expect(items.map((item) => item.textContent)).toEqual([
-        'EverythingPhotos and videos you’ve posted',
-        'In galleryPosted and shown in your gallery',
-        'Hidden from galleryPosted, with Show in my gallery switched off'
+        'EverythingPhotos and videos you’ve posted or added',
+        'In galleryShown in your gallery',
+        'Hidden from galleryPosted, with Show in my gallery switched off',
+        'Not postedAdded in Gallery, only you can see them'
       ])
       expect(items[0]).toHaveAttribute('aria-current', 'true')
     })
@@ -294,6 +322,11 @@ describe('GalleryAllMediaView', () => {
         description: 'hidden from the gallery',
         label: /^Hidden from gallery/,
         show: 'hidden'
+      },
+      {
+        description: 'not posted',
+        label: /^Not posted/,
+        show: 'not_posted'
       }
     ])(
       'reloads from the first page for $description',
@@ -346,6 +379,218 @@ describe('GalleryAllMediaView', () => {
       expect(
         await screen.findByText('Nothing is hidden from your gallery')
       ).toBeInTheDocument()
+
+      await openShowMenu()
+      fireEvent.click(
+        await screen.findByRole('menuitem', { name: /^Not posted/ })
+      )
+      expect(
+        await screen.findByText('No photos waiting to be posted')
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('add to gallery', () => {
+    const renderView = (items = [buildGalleryItem('5')]) =>
+      render(
+        <InstanceLimitsProvider maxMediaAttachments={4}>
+          <GalleryAllMediaView
+            actorId="actor-1"
+            initialCategory={null}
+            initialShow="all"
+            initialPage={{ items, nextMaxId: null }}
+          />
+        </InstanceLimitsProvider>
+      )
+
+    const photo = (name: string, type = 'image/jpeg') =>
+      new File(['x'], name, { type })
+
+    const pick = (...files: File[]) =>
+      fireEvent.change(
+        screen.getByLabelText('Choose photos and videos to add'),
+        { target: { files } }
+      )
+
+    it('offers a primary Add button before Select that opens the picker', () => {
+      renderView()
+      const buttons = screen
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+      expect(buttons.indexOf('Add')).toBeGreaterThan(-1)
+      expect(buttons.indexOf('Add')).toBeLessThan(buttons.indexOf('Select'))
+
+      const input = screen.getByLabelText(
+        'Choose photos and videos to add'
+      ) as HTMLInputElement
+      expect(input).toHaveAttribute('multiple')
+      expect(input.accept).toContain('image/jpeg')
+      expect(input.accept).toContain('video/mp4')
+      expect(input.accept).not.toContain('audio')
+      const click = vi.spyOn(input, 'click')
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+      expect(click).toHaveBeenCalled()
+    })
+
+    it('opens Add to gallery with the picked files', () => {
+      renderView()
+      pick(photo('a.jpg'), photo('b.mp4', 'video/mp4'))
+
+      expect(
+        screen.getByRole('dialog', { name: 'Add to gallery' })
+      ).toBeVisible()
+      expect(addDialog.current?.files.map((file) => file.name)).toEqual([
+        'a.jpg',
+        'b.mp4'
+      ])
+    })
+
+    it('leaves out what is not a photo or a video, and says so', () => {
+      renderView()
+      pick(photo('a.jpg'), photo('notes.txt', 'text/plain'))
+
+      expect(addDialog.current?.files.map((file) => file.name)).toEqual([
+        'a.jpg'
+      ])
+      expect(
+        screen.getByText(/1 file was skipped: only photos and videos/)
+      ).toBeVisible()
+    })
+
+    it('does not open the dialog when nothing can be added', () => {
+      renderView()
+      pick(photo('notes.txt', 'text/plain'))
+
+      expect(addDialog.current).toBeNull()
+      expect(
+        screen.getByText(/Only photos and videos can be added/)
+      ).toBeVisible()
+    })
+
+    it('takes at most 40 files at a time', () => {
+      renderView()
+      pick(...Array.from({ length: 43 }, (_, i) => photo(`p${i}.jpg`)))
+
+      expect(addDialog.current?.files).toHaveLength(40)
+      expect(screen.getByText(/Only the first 40 were taken/)).toBeVisible()
+    })
+
+    it('shows the drop overlay while files are dragged over the page', () => {
+      renderView()
+      expect(screen.queryByTestId('drop-overlay')).not.toBeInTheDocument()
+
+      const dataTransfer = { types: ['Files'], files: [] }
+      fireEvent.dragEnter(window, { dataTransfer })
+      const overlay = screen.getByTestId('drop-overlay')
+      expect(overlay).toHaveTextContent(
+        'Drop photos and videos to add them to your gallery'
+      )
+      expect(overlay).toHaveTextContent(
+        'Only you can see them until you post them'
+      )
+
+      fireEvent.dragLeave(window, { dataTransfer })
+      expect(screen.queryByTestId('drop-overlay')).not.toBeInTheDocument()
+    })
+
+    it('ignores drags that carry no files', () => {
+      renderView()
+      fireEvent.dragEnter(window, { dataTransfer: { types: ['text/plain'] } })
+      expect(screen.queryByTestId('drop-overlay')).not.toBeInTheDocument()
+    })
+
+    it('adds the dropped files', () => {
+      renderView()
+      const file = photo('dropped.jpg')
+      const dataTransfer = { types: ['Files'], files: [file] }
+      fireEvent.dragEnter(window, { dataTransfer })
+      fireEvent.drop(window, { dataTransfer })
+
+      expect(screen.queryByTestId('drop-overlay')).not.toBeInTheDocument()
+      expect(addDialog.current?.files).toEqual([file])
+    })
+
+    it('says what was added, starts over at the new photos and offers to post them', async () => {
+      getGalleryMediaMock.mockResolvedValue({
+        items: [
+          buildGalleryItem('9', { statusId: null, posted: false }),
+          buildGalleryItem('8', { statusId: null, posted: false })
+        ],
+        nextMaxId: null
+      })
+      renderView()
+      pick(photo('a.jpg'), photo('b.jpg'))
+
+      await act(async () => addDialog.current?.onAdded(['9', '8']))
+      act(() => addDialog.current?.onClose())
+
+      expect(await screen.findByText('2 added to your gallery.')).toBeVisible()
+      await waitFor(() =>
+        expect(screen.getByTestId('grid')).toHaveTextContent('98')
+      )
+      expect(getGalleryMediaMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({ show: 'all', category: undefined })
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Post them' }))
+      expect(router.push).toHaveBeenCalledWith('/?media=9,8')
+      expect(
+        screen.queryByText('2 added to your gallery.')
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows Everything again when it was added from Hidden from gallery', async () => {
+      getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
+      render(
+        <GalleryAllMediaView
+          actorId="actor-1"
+          initialCategory="bird"
+          initialShow="hidden"
+          initialPage={{ items: [buildGalleryItem('5')], nextMaxId: null }}
+        />
+      )
+      pick(photo('a.jpg'))
+      await act(async () => addDialog.current?.onAdded(['9']))
+
+      expect(screen.getByRole('group', { name: 'Show' })).toHaveTextContent(
+        'Show Everything'
+      )
+      expect(getGalleryMediaMock).toHaveBeenCalledWith(
+        'actor-1',
+        expect.objectContaining({ show: 'all', category: undefined })
+      )
+    })
+
+    it('takes the toast away when Select mode starts, since its bar needs the bottom of the page', async () => {
+      getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
+      renderView()
+      pick(photo('a.jpg'))
+      await act(async () => addDialog.current?.onAdded(['9']))
+      expect(await screen.findByText('1 added to your gallery.')).toBeVisible()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+
+      expect(
+        screen.queryByText('1 added to your gallery.')
+      ).not.toBeInTheDocument()
+    })
+
+    it('dismisses the toast', async () => {
+      getGalleryMediaMock.mockResolvedValue({ items: [], nextMaxId: null })
+      renderView()
+      pick(photo('a.jpg'))
+      await act(async () => addDialog.current?.onAdded(['9']))
+      expect(await screen.findByText('1 added to your gallery.')).toBeVisible()
+
+      fireEvent.click(
+        within(screen.getByTestId('gallery-added-toast')).getByRole('button', {
+          name: 'Dismiss'
+        })
+      )
+      expect(
+        screen.queryByText('1 added to your gallery.')
+      ).not.toBeInTheDocument()
     })
   })
 
@@ -864,6 +1109,168 @@ describe('GalleryAllMediaView', () => {
         expect(
           screen.queryByRole('button', { name: 'Select 1' })
         ).not.toBeInTheDocument()
+      })
+    })
+
+    describe('post and delete', () => {
+      const mixed = () => [
+        buildGalleryItem('1', { statusId: null, posted: false }),
+        buildGalleryItem('2', { statusId: null, posted: false }),
+        buildGalleryItem('3', { posted: true }),
+        buildGalleryItem('4', { statusId: null, posted: false })
+      ]
+      const renderMixed = (maxMediaAttachments = 4) =>
+        render(
+          <InstanceLimitsProvider maxMediaAttachments={maxMediaAttachments}>
+            <GalleryAllMediaView
+              actorId="actor-1"
+              initialCategory={null}
+              initialShow="all"
+              initialPage={{ items: mixed(), nextMaxId: null }}
+            />
+          </InstanceLimitsProvider>
+        )
+      const bar = () => screen.getByRole('region', { name: 'Selection' })
+      const pickPhotos = (...ids: string[]) => {
+        startSelecting()
+        for (const id of ids) {
+          fireEvent.click(screen.getByRole('button', { name: `Select ${id}` }))
+        }
+      }
+
+      it('turns Post and Delete off until something is picked', () => {
+        renderMixed()
+        pickPhotos()
+        for (const name of ['Post', 'Delete']) {
+          expect(within(bar()).getByRole('button', { name })).toHaveAttribute(
+            'aria-disabled',
+            'true'
+          )
+        }
+        expect(bar()).not.toHaveTextContent('Only photos you haven’t posted')
+      })
+
+      it('posts the picked photos in the order they were picked', () => {
+        renderMixed()
+        pickPhotos('4', '1')
+
+        fireEvent.click(within(bar()).getByRole('button', { name: 'Post' }))
+
+        expect(router.push).toHaveBeenCalledWith('/?media=4,1')
+      })
+
+      it('turns Post and Delete off when a posted photo is picked, and says why', () => {
+        renderMixed()
+        pickPhotos('1', '3')
+
+        expect(bar()).toHaveTextContent('Only photos you haven’t posted')
+        for (const name of ['Post', 'Delete']) {
+          const button = within(bar()).getByRole('button', { name })
+          expect(button).toHaveAttribute('aria-disabled', 'true')
+          fireEvent.click(button)
+        }
+        expect(router.push).not.toHaveBeenCalled()
+        expect(
+          screen.queryByRole('dialog', { name: /^Delete/ })
+        ).not.toBeInTheDocument()
+      })
+
+      it('turns Post off above the instance limit, and says it', () => {
+        renderMixed(2)
+        pickPhotos('1', '2', '4')
+
+        const post = within(bar()).getByRole('button', { name: 'Post' })
+        expect(post).toHaveAttribute('aria-disabled', 'true')
+        expect(bar()).toHaveTextContent('Up to 2 per post')
+        fireEvent.click(post)
+        expect(router.push).not.toHaveBeenCalled()
+        // Delete has no such limit.
+        expect(
+          within(bar()).getByRole('button', { name: 'Delete' })
+        ).not.toHaveAttribute('aria-disabled')
+      })
+
+      it('asks before deleting, then removes the photos', async () => {
+        deleteUnpostedMediaMock.mockResolvedValue(undefined)
+        renderMixed()
+        pickPhotos('1', '2')
+
+        fireEvent.click(within(bar()).getByRole('button', { name: 'Delete' }))
+        const dialog = await screen.findByRole('dialog', {
+          name: 'Delete 2 photos?'
+        })
+        expect(dialog).toHaveTextContent('This can’t be undone.')
+        expect(deleteUnpostedMediaMock).not.toHaveBeenCalled()
+
+        fireEvent.click(
+          within(dialog).getByRole('button', { name: 'Delete 2 photos' })
+        )
+
+        await waitFor(() =>
+          expect(deleteUnpostedMediaMock.mock.calls.map((c) => c[0])).toEqual([
+            '1',
+            '2'
+          ])
+        )
+        expect(await screen.findByText('Deleted 2 photos.')).toBeVisible()
+        expect(screen.getByTestId('grid')).not.toHaveTextContent(/[12]/)
+        expect(screen.getByTestId('grid')).toHaveTextContent('3')
+        // Select mode is over, with focus back on Select.
+        expect(
+          screen.queryByRole('region', { name: 'Selection' })
+        ).not.toBeInTheDocument()
+      })
+
+      it('keeps the photos when the delete is cancelled', async () => {
+        renderMixed()
+        pickPhotos('1')
+        fireEvent.click(within(bar()).getByRole('button', { name: 'Delete' }))
+        const dialog = await screen.findByRole('dialog', {
+          name: 'Delete 1 photo?'
+        })
+
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+        await waitFor(() =>
+          expect(
+            screen.queryByRole('dialog', { name: 'Delete 1 photo?' })
+          ).not.toBeInTheDocument()
+        )
+        expect(deleteUnpostedMediaMock).not.toHaveBeenCalled()
+        expect(bar()).toHaveTextContent('1 selected')
+      })
+
+      it('says why a delete failed and keeps the dialog open', async () => {
+        deleteUnpostedMediaMock.mockRejectedValue(new Error('Server said no'))
+        renderMixed()
+        pickPhotos('1')
+        fireEvent.click(within(bar()).getByRole('button', { name: 'Delete' }))
+        const dialog = await screen.findByRole('dialog', {
+          name: 'Delete 1 photo?'
+        })
+
+        fireEvent.click(
+          within(dialog).getByRole('button', { name: 'Delete 1 photo' })
+        )
+
+        expect(await within(dialog).findByText('Server said no')).toBeVisible()
+        expect(screen.getByTestId('grid')).toHaveTextContent('1')
+      })
+
+      it('hands Post and Delete from Edit details to the page', async () => {
+        renderMixed()
+        pickPhotos('1')
+        fireEvent.click(
+          within(bar()).getByRole('button', { name: 'Edit details' })
+        )
+        await screen.findByRole('dialog', { name: 'Edit details' })
+
+        act(() => editDialog.current?.onPost?.(['1']))
+        expect(router.push).toHaveBeenCalledWith('/?media=1')
+
+        await act(async () => editDialog.current?.onDeleted?.(['1']))
+        expect(await screen.findByText('Deleted 1 photo.')).toBeVisible()
+        expect(screen.getByTestId('grid')).not.toHaveTextContent('1')
       })
     })
 

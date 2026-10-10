@@ -841,7 +841,7 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
         id: statusId,
         url: statusId,
         actorId: ACTOR1_ID,
-        text: 'Three photos',
+        text: 'Four photos',
         to: [ACTIVITY_STREAM_PUBLIC],
         cc: []
       })
@@ -852,7 +852,9 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
       const photos = [
         { row: 'Old first', published: 'Old first' },
         { row: '', published: 'Sibling alt on the post' },
-        { row: 'Abandoned draft', published: 'Published alt' }
+        { row: 'Abandoned draft', published: 'Published alt' },
+        // An older post: no alt text published, a draft left on the row.
+        { row: 'Draft', published: '' }
       ]
       const medias = []
       for (const [index, photo] of photos.entries()) {
@@ -904,7 +906,12 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
         data.media_attachments.map(
           (attachment: { description: string | null }) => attachment.description
         )
-      ).toEqual(['First, fixed', 'Sibling alt on the post', 'Published alt'])
+      ).toEqual([
+        'First, fixed',
+        'Sibling alt on the post',
+        'Published alt',
+        ''
+      ])
 
       const status = await database.getStatus({ statusId })
       if (!status || status.type !== StatusType.enum.Note) {
@@ -914,7 +921,8 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
       expect(status.attachments.map((attachment) => attachment.name)).toEqual([
         'First, fixed',
         'Sibling alt on the post',
-        'Published alt'
+        'Published alt',
+        ''
       ])
       expect(status.edits).toHaveLength(1)
       expect(
@@ -924,6 +932,140 @@ describe('PUT /api/v1/statuses/[id] media attachments', () => {
             ([message]) => message.name === SEND_UPDATE_NOTE_JOB_NAME
           )
       ).toHaveLength(1)
+    })
+
+    it('edits the alt text of the photo named by its attachment id and leaves its sibling alone', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-alt-by-attachment-id`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Two photos',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const attachments = []
+      for (const [index, published] of ['Old first', 'Sibling alt'].entries()) {
+        const media = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/api-edit-by-uuid-${index}.webp`,
+            bytes: 1024,
+            mimeType: 'image/jpeg',
+            metaData: { width: 320, height: 240 },
+            fileName: `api-edit-by-uuid-${index}.jpg`
+          },
+          // The row has drifted from what the post published.
+          description: `Row ${index}`
+        })
+        attachments.push(
+          await database.createAttachment({
+            actorId: ACTOR1_ID,
+            statusId,
+            mediaType: media!.original.mimeType,
+            url: `https://llun.test/api/v1/files/medias/api-edit-by-uuid-${index}.webp`,
+            width: 320,
+            height: 240,
+            name: published,
+            mediaId: media!.id
+          })
+        )
+      }
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [
+                { id: attachments[0].id, description: 'New first' }
+              ]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(response.status).toBe(200)
+
+      const status = await database.getStatus({ statusId })
+      if (!status || status.type !== StatusType.enum.Note) {
+        throw new Error('Expected note status')
+      }
+      expect(status.attachments.map((attachment) => attachment.name)).toEqual([
+        'New first',
+        'Sibling alt'
+      ])
+    })
+
+    it('edits the alt text when the media id is spelled non-canonically', async () => {
+      const statusId = `${ACTOR1_ID}/statuses/api-edit-alt-noncanonical-id`
+      await database.createNote({
+        id: statusId,
+        url: statusId,
+        actorId: ACTOR1_ID,
+        text: 'Two photos',
+        to: [ACTIVITY_STREAM_PUBLIC],
+        cc: []
+      })
+      const medias = []
+      for (const [index, published] of ['Old first', 'Sibling alt'].entries()) {
+        const media = await database.createMedia({
+          actorId: ACTOR1_ID,
+          original: {
+            path: `medias/api-edit-noncanonical-${index}.webp`,
+            bytes: 1024,
+            mimeType: 'image/jpeg',
+            metaData: { width: 320, height: 240 },
+            fileName: `api-edit-noncanonical-${index}.jpg`
+          },
+          description: `Row ${index}`
+        })
+        await database.createAttachment({
+          actorId: ACTOR1_ID,
+          statusId,
+          mediaType: media!.original.mimeType,
+          url: `https://llun.test/api/v1/files/medias/api-edit-noncanonical-${index}.webp`,
+          width: 320,
+          height: 240,
+          name: published,
+          mediaId: media!.id
+        })
+        medias.push(media!)
+      }
+
+      const response = await PUT(
+        new NextRequest(
+          `https://llun.test/api/v1/statuses/${urlToId(statusId)}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              media_attributes: [
+                { id: `${medias[0].id}.0`, description: 'New first' }
+              ]
+            }),
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://llun.test'
+            }
+          }
+        ),
+        { params: Promise.resolve({ id: urlToId(statusId) }) }
+      )
+      expect(response.status).toBe(200)
+
+      const status = await database.getStatus({ statusId })
+      if (!status || status.type !== StatusType.enum.Note) {
+        throw new Error('Expected note status')
+      }
+      expect(status.attachments.map((attachment) => attachment.name)).toEqual([
+        'New first',
+        'Sibling alt'
+      ])
     })
 
     it('keeps a photo`s alt text when media_attributes only sets its focus', async () => {

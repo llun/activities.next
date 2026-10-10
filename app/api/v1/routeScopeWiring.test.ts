@@ -550,6 +550,11 @@ const EXPECTED: Array<{
     scopes: ['read', 'read:statuses'],
     guard: 'OptionalOAuthGuard:any'
   },
+  // gallery media added without a post (owner only)
+  {
+    module: '@/app/api/v1/gallery/media/route',
+    scopes: ['write', 'write:media']
+  },
   // gallery albums (owner only)
   {
     module: '@/app/api/v1/gallery/albums/route',

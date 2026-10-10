@@ -98,6 +98,28 @@ describe('toMediaDetailsDialogItem', () => {
   })
 })
 
+describe('toMediaDetailsDialogItem for a photo added in Gallery', () => {
+  it('has no post and is marked unposted', () => {
+    const item = buildGalleryItem('7', { statusId: null, posted: false })
+
+    const mapped = toMediaDetailsDialogItem(item, null, OWNER)
+
+    expect(mapped.post).toBeUndefined()
+    expect(mapped.unposted).toBe(true)
+    expect(mapped.id).toBe('7')
+  })
+
+  it('does not mark a posted photo unposted', () => {
+    const mapped = toMediaDetailsDialogItem(
+      buildGalleryItem('7', { posted: true }),
+      null,
+      OWNER
+    )
+    expect(mapped.unposted).toBeUndefined()
+    expect(mapped.post).toBeDefined()
+  })
+})
+
 describe('applySavedToItem', () => {
   const item = buildGalleryItem('m1', { inGallery: true })
 

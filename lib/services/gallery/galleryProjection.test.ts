@@ -82,6 +82,7 @@ const mapRow = (overrides: Partial<GalleryMapRow> = {}): GalleryMapRow => ({
   subjectLookupStatus: null,
   takenAt: Date.UTC(2024, 4, 6),
   thumbnailUrl: 'https://test.llun.dev/a-thumb.jpg',
+  file: { path: 'a.jpg', thumbnailPath: 'a-thumb.jpg', mimeType: 'image/jpeg' },
   statusId: 'https://test.llun.dev/users/owner/statuses/1',
   statusPublicId: null,
   ...overrides
@@ -208,6 +209,85 @@ describe('toGalleryItemEntity gallery membership', () => {
     })
 
     expect(item).not.toHaveProperty('inGallery')
+  })
+})
+
+describe('toGalleryItemEntity posted state', () => {
+  const unposted = (): GalleryMediaRow => ({
+    ...mediaRow({ inGallery: true }),
+    media: {
+      ...mediaRow({ inGallery: true }).media,
+      id: '43',
+      description: 'Alt from the media row',
+      blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+      focus: { x: 0.25, y: -0.5 },
+      original: {
+        path: 'medias/43.webp',
+        bytes: 1,
+        mimeType: 'image/webp',
+        metaData: { width: 640, height: 480 }
+      },
+      thumbnail: {
+        path: 'medias/43-thumb.webp',
+        bytes: 1,
+        mimeType: 'image/webp',
+        metaData: { width: 100, height: 75 }
+      }
+    },
+    attachment: null,
+    statusId: null,
+    statusPublicId: null
+  })
+  const context = {
+    settings: settingsWith(),
+    gearNames: {}
+  }
+
+  it('tells the owner a posted photo is posted', () => {
+    const item = toGalleryItemEntity(mediaRow(), {
+      ...context,
+      viewer: 'owner'
+    })
+
+    expect(item.posted).toBe(true)
+  })
+
+  it('gives the owner an unposted photo with no status and an attachment built from the media', () => {
+    const item = toGalleryItemEntity(unposted(), {
+      ...context,
+      viewer: 'owner'
+    })
+
+    expect(item).toMatchObject({
+      mediaId: '43',
+      statusId: null,
+      posted: false,
+      inGallery: true,
+      attachment: {
+        mediaId: '43',
+        mediaType: 'image/webp',
+        url: expect.stringMatching(
+          /^https?:\/\/.+\/api\/v1\/files\/medias\/43\.webp$/
+        ),
+        thumbnailUrl: expect.stringMatching(
+          /\/api\/v1\/files\/medias\/43-thumb\.webp$/
+        ),
+        width: 640,
+        height: 480,
+        name: 'Alt from the media row',
+        blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+        focus: { x: 0.25, y: -0.5 }
+      }
+    })
+  })
+
+  it('leaves the posted flag out for everyone else', () => {
+    const item = toGalleryItemEntity(mediaRow(), {
+      ...context,
+      viewer: 'public'
+    })
+
+    expect(item).not.toHaveProperty('posted')
   })
 })
 
@@ -401,6 +481,69 @@ describe('toGalleryMapPoint', () => {
 
     expect(point?.statusId).toBe('public-id')
     expect(point?.takenAt).toBe('2024-05-06T00:00:00.000Z')
+  })
+})
+
+describe('toGalleryMapPoint for an unposted photo', () => {
+  const unposted = (file: GalleryMapRow['file']) =>
+    mapRow({
+      placePrecision: 'exact',
+      statusId: null,
+      statusPublicId: null,
+      thumbnailUrl: null,
+      file
+    })
+  const ctx = {
+    viewer: 'owner' as const,
+    settings: { hiddenLocations: [], hideThreatenedPlaces: true }
+  }
+
+  it('has no status and shows the stored thumbnail', () => {
+    const point = toGalleryMapPoint(
+      unposted({
+        path: 'medias/7.webp',
+        thumbnailPath: 'medias/7-thumb.webp',
+        mimeType: 'image/webp'
+      }),
+      ctx
+    )
+
+    expect(point?.statusId).toBeNull()
+    expect(point?.thumbnailUrl).toMatch(
+      /\/api\/v1\/files\/medias\/7-thumb\.webp$/
+    )
+  })
+
+  it('falls back to the original for an image with no thumbnail, and to nothing for a video', () => {
+    expect(
+      toGalleryMapPoint(
+        unposted({
+          path: 'medias/7.webp',
+          thumbnailPath: null,
+          mimeType: 'image/webp'
+        }),
+        ctx
+      )?.thumbnailUrl
+    ).toMatch(/\/api\/v1\/files\/medias\/7\.webp$/)
+    expect(
+      toGalleryMapPoint(
+        unposted({
+          path: 'medias/7.mp4',
+          thumbnailPath: null,
+          mimeType: 'video/mp4'
+        }),
+        ctx
+      )?.thumbnailUrl
+    ).toBeNull()
+  })
+
+  it('is never a public point', () => {
+    expect(
+      toGalleryMapPoint(
+        unposted({ path: 'a', thumbnailPath: null, mimeType: 'image/jpeg' }),
+        { ...ctx, viewer: 'owner', publicMediaIds: new Set() }
+      )?.publicState
+    ).toBe('not-public-post')
   })
 })
 

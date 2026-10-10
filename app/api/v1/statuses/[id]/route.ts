@@ -29,7 +29,8 @@ import { canActorReadStatus } from '@/lib/services/statusAccess'
 import { validateStatusContentLimits } from '@/lib/services/statuses/contentLimits'
 import {
   getAttachmentsFromMediaIds,
-  resolveStatusAttachmentMediaIds
+  resolveStatusAttachmentMediaIds,
+  toCanonicalMediaId
 } from '@/lib/services/statuses/mediaIds'
 import { parseStatusRequestBody } from '@/lib/services/statuses/parseStatusRequestBody'
 import { Scope } from '@/lib/types/database/operations'
@@ -396,7 +397,10 @@ export const PUT = traceApiRoute(
           )
           for (const [index, attribute] of mediaAttributes.entries()) {
             if (attribute.description !== undefined) {
-              describedMediaIds.add(String(resolvedAttributeIds[index]))
+              // Canonical, as the attachment ids compared against below are.
+              describedMediaIds.add(
+                toCanonicalMediaId(resolvedAttributeIds[index])
+              )
             }
             const updatedMedia = await database.updateMedia({
               mediaId: resolvedAttributeIds[index],
@@ -453,10 +457,14 @@ export const PUT = traceApiRoute(
           resolvedMediaIds === undefined &&
           attachmentMediaIds !== undefined
             ? resolvedAttachments.map((attachment) => {
-                if (describedMediaIds.has(String(attachment.id)))
-                  return attachment
+                const attachmentMediaId = toCanonicalMediaId(attachment.id)
+                if (describedMediaIds.has(attachmentMediaId)) return attachment
                 const existing = existingStatus.attachments.find(
-                  (candidate) => String(candidate.mediaId) === attachment.id
+                  (candidate) =>
+                    candidate.mediaId !== null &&
+                    candidate.mediaId !== undefined &&
+                    toCanonicalMediaId(String(candidate.mediaId)) ===
+                      attachmentMediaId
                 )
                 const { name: _rowName, ...withoutName } = attachment
                 return existing?.name

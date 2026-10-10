@@ -119,6 +119,14 @@ interface Props {
   editStatus?: EditableStatus
   quotedStatus?: Status
   isMediaUploadEnabled?: boolean
+  /**
+   * Photos to open the composer with: the owner's media added in Gallery that
+   * no post uses yet ("Post" in Gallery). Taken once, by a new post's composer
+   * (not a reply, quote or edit), up to the instance's attachment limit. They
+   * are the owner's gallery photos, so abandoning the composer never deletes
+   * them.
+   */
+  initialMedia?: PostBoxAttachment[]
   onDiscardReply: () => void
   onDiscardQuote?: () => void
   onPostCreated: (status: Status, attachments: Attachment[]) => void
@@ -133,6 +141,7 @@ export const PostBox: FC<Props> = ({
   editStatus,
   quotedStatus,
   isMediaUploadEnabled,
+  initialMedia,
   onPostCreated,
   onPostUpdated,
   onDiscardReply,
@@ -173,6 +182,10 @@ export const PostBox: FC<Props> = ({
   // Media ids that belong to the status being edited. They are the status's own
   // media, so abandoning the composer must never delete them.
   const originalMediaIdsRef = useRef<Set<string>>(new Set())
+  // Media the composer opened with (`initialMedia`): the owner's gallery
+  // photos, which abandoning the composer must not delete either.
+  const keptMediaIdsRef = useRef<Set<string>>(new Set())
+  const initialMediaTakenRef = useRef(false)
   const isMountedRef = useRef(true)
   // Media details live beside the attachments, keyed by media id, rather than
   // on PostBoxAttachment: that type is what goes to the outbox, and the details
@@ -361,6 +374,7 @@ export const PostBox: FC<Props> = ({
     attachments.forEach((attachment) => {
       if (attachment.file || attachment.isLoading) return
       if (originalMediaIdsRef.current.has(attachment.id)) return
+      if (keptMediaIdsRef.current.has(attachment.id)) return
       if (postedMediaIdsRef.current.has(attachment.id)) return
       deleteAccountMedia({ mediaId: attachment.id }).catch(() => undefined)
     })
@@ -1260,6 +1274,23 @@ export const PostBox: FC<Props> = ({
       dispatch(resetExtension())
       resetMediaState()
       setAllowPost(false)
+    }
+
+    // The photos a "Post" action in Gallery handed over, once.
+    const seeded =
+      !initialMediaTakenRef.current && !replyStatus && !quotedStatus
+        ? (initialMedia ?? []).slice(0, maxMediaAttachments)
+        : []
+    initialMediaTakenRef.current = true
+    keptMediaIdsRef.current = new Set(seeded.map((attachment) => attachment.id))
+    if (seeded.length > 0) {
+      postExtensionRef.current = {
+        ...postExtensionRef.current,
+        attachments: seeded
+      }
+      dispatch(setAttachments(seeded))
+      setAllowPost(true)
+      seeded.forEach((attachment) => void loadDetails(attachment.id))
     }
 
     if (!replyStatus) {

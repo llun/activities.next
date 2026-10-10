@@ -47,6 +47,7 @@ describe('GalleryAlbumDatabase', () => {
       ids,
       statusId,
       addPhoto,
+      createMedia,
       namesOf,
       createAlbum,
       addItems,
@@ -427,7 +428,7 @@ describe('GalleryAlbumDatabase', () => {
           limit: 1
         })
         expect(row.statusId).toBe(statusId('unlisted'))
-        expect(row.attachment.mediaId).toBe(row.media.id)
+        expect(row.attachment?.mediaId).toBe(row.media.id)
       })
 
       it('filters to one species', async () => {
@@ -688,6 +689,61 @@ describe('GalleryAlbumDatabase', () => {
         expect(
           await database.getAlbumsForMedia({
             mediaId: 'x',
+            actorId: ownerId,
+            audience: OWNER_GALLERY_AUDIENCE
+          })
+        ).toEqual([])
+      })
+    })
+
+    // A photo added in Gallery is the owner's to put in an album; nobody else
+    // is shown it, on a public album page or anywhere.
+    describe('Gallery additions', () => {
+      it('puts an addition in an album for the owner only, and removes it with the media', async () => {
+        const mediaId = await createMedia('kept')
+        await createMedia('not-kept')
+        await database.addMediaToGallery({
+          actorId: ownerId,
+          mediaIds: [mediaId]
+        })
+        const album = await createAlbum(uniqueTitle())
+
+        const result = await database.addGalleryAlbumItems({
+          albumId: album.id,
+          actorId: ownerId,
+          mediaIds: [ids.kept, ids['not-kept']],
+          limit: MAX_GALLERY_ALBUM_ITEMS
+        })
+
+        expect(result).toMatchObject({
+          status: 'added',
+          added: [ids.kept],
+          skipped: [ids['not-kept']]
+        })
+        expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([
+          'kept'
+        ])
+        for (const name of ['logged out', 'stranger', 'follower']) {
+          expect(await namesIn(album.id, audiences[name])).toEqual([])
+        }
+        expect(
+          await database.getAlbumsForMedia({
+            mediaId,
+            actorId: ownerId,
+            audience: OWNER_GALLERY_AUDIENCE
+          })
+        ).toHaveLength(1)
+
+        const deleted = await database.deleteMediaForAccount({
+          mediaId,
+          accountId: ownerAccountId
+        })
+
+        expect(deleted.status).toBe('deleted')
+        expect(await namesIn(album.id, OWNER_GALLERY_AUDIENCE)).toEqual([])
+        expect(
+          await database.getAlbumsForMedia({
+            mediaId,
             actorId: ownerId,
             audience: OWNER_GALLERY_AUDIENCE
           })

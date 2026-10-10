@@ -3,6 +3,7 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getGallerySettings, getMedia } from '@/lib/client'
+import { ConfirmDeleteMediaDialog } from '@/lib/components/gallery/ConfirmDeleteMediaDialog'
 import {
   applySavedToItem,
   toMediaDetailsDialogItem
@@ -27,13 +28,24 @@ interface Props {
   onClose: () => void
   /** The tiles as they are after a save, for the items that changed. */
   onSaved: (items: GalleryItemEntity[]) => void
+  /**
+   * Post… on a photo added in Gallery and not posted yet (its details are
+   * saved first). Without it the dialog offers no Post….
+   */
+  onPost?: (mediaIds: string[]) => void
+  /**
+   * Delete on a photo not posted yet, once confirmed and done. The dialog then
+   * closes. Without it the dialog offers no Delete.
+   */
+  onDeleted?: (mediaIds: string[]) => void
 }
 
 // How many owner details are read at once when several photos are edited.
 const DETAILS_CONCURRENCY = 4
 
 /**
- * Edit details for posted gallery photos: the media details dialog the composer
+ * Edit details for gallery photos (posted, or added in Gallery and not posted
+ * yet, which can also be posted or deleted from here): the media details dialog the composer
  * uses, loaded with the owner's own details for each photo. The photo it opens
  * on is read first; a photo's details that have not arrived yet do not block
  * the dialog (they fill in when they do, and a field nobody touched is never
@@ -44,8 +56,11 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
   initialMediaId,
   ownerId,
   onClose,
-  onSaved
+  onSaved,
+  onPost,
+  onDeleted
 }) => {
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [settings, setSettings] = useState<GallerySettingsEntity | null>(null)
   const [details, setDetails] = useState<Record<string, MediaDetailsEntity>>({})
   // The tiles as the dialog last saw them, so a save maps onto them.
@@ -158,15 +173,29 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
   )
 
   return (
-    <MediaDetailsDialog
-      context="gallery"
-      items={dialogItems}
-      initialId={initialMediaId}
-      settings={settings}
-      ownerId={ownerId}
-      onClose={onClose}
-      onSaved={handleSaved}
-      onDetailsRefreshed={handleDetailsRefreshed}
-    />
+    <>
+      <MediaDetailsDialog
+        context="gallery"
+        items={dialogItems}
+        initialId={initialMediaId}
+        settings={settings}
+        ownerId={ownerId}
+        onClose={onClose}
+        onSaved={handleSaved}
+        onDetailsRefreshed={handleDetailsRefreshed}
+        onPostItem={onPost ? (id) => onPost([id]) : undefined}
+        onDeleteItem={onDeleted ? (id) => setDeletingId(id) : undefined}
+      />
+      {deletingId !== null && onDeleted ? (
+        <ConfirmDeleteMediaDialog
+          mediaIds={[deletingId]}
+          onCancel={() => setDeletingId(null)}
+          onDeleted={(ids) => {
+            onDeleted(ids)
+            onClose()
+          }}
+        />
+      ) : null}
+    </>
   )
 }

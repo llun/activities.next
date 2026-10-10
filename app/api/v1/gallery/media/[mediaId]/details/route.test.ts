@@ -394,6 +394,13 @@ describe('GET /api/v1/gallery/media/[mediaId]/details', () => {
       expect((await request(id)).status).toBe(404)
     })
 
+    it('answers 404 for media only added in Gallery and not posted', async () => {
+      const { id } = await createMedia({})
+      await database.addMediaToGallery({ actorId: ACTOR1_ID, mediaIds: [id] })
+
+      expect((await request(id)).status).toBe(404)
+    })
+
     it('reads the media through whichever attached post the viewer may see', async () => {
       const { id } = await createMedia({ to: followersOnly })
       const publicStatusId = `${ACTOR1_ID}/statuses/gallery-details-redraft`

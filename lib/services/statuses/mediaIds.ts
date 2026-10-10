@@ -1,8 +1,19 @@
 import { getBaseURL } from '@/lib/config'
+import { toMediaRowId } from '@/lib/database/sql/media'
 import { Database } from '@/lib/database/types'
 import { Actor } from '@/lib/types/domain/actor'
 import { PostBoxAttachment } from '@/lib/types/domain/attachment'
 import { Status, StatusType } from '@/lib/types/domain/status'
+
+/**
+ * The canonical spelling of a media row id (`'12'` for `'012'` and `'12.0'`),
+ * so ids that name one row compare equal. Anything that is not a row id is
+ * returned unchanged.
+ */
+export const toCanonicalMediaId = (mediaId: string): string => {
+  const rowId = toMediaRowId(mediaId)
+  return rowId === null ? mediaId : String(rowId)
+}
 
 const getMediaUrl = (path: string) => `${getBaseURL()}/api/v1/files/${path}`
 

@@ -760,6 +760,7 @@ export interface Medias {
   exposure: Nullable<string>
   focusX: Nullable<number>
   focusY: Nullable<number>
+  galleryAddedAt: Nullable<Timestamp>
   id: WithDefault<number>
   inGallery: WithDefault<boolean>
   lensGearId: Nullable<string>

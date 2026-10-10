@@ -39,24 +39,31 @@ import { Attachment } from '@/lib/types/domain/attachment'
 //   AND EXISTS an attachment of that media, written by the owner, on a status
 //       of the owner's that the audience may read
 //
-// so an unposted upload never appears (not even to the owner), a deleted post
-// drops its photos (attachments are deleted with their status), and a viewer
-// sees exactly the photos of the posts they could read on the profile. The
-// status filter is `buildActorVisibleStatusIdsQuery`, the same subquery the
-// profile's posts and Media tab use — never re-derived here.
+// so a viewer sees exactly the photos of the posts they could read on the
+// profile, a deleted post drops its photos (attachments are deleted with their
+// status), and an unposted upload never appears for anyone else. The status
+// filter is `buildActorVisibleStatusIdsQuery`, the same subquery the profile's
+// posts and Media tab use — never re-derived here.
 //
-// Only the owner's "All media" list may widen the first condition, through the
-// `show` option (`all`, `in_gallery`, `hidden`). It is read for the owner
-// audience alone: any other audience is scoped to `inGallery = true` whatever
-// `show` says, so a request parameter can never reach a hidden photo.
+// The OWNER's view widens the last condition: media the owner added in Gallery
+// (`medias.galleryAddedAt` set) is theirs to see even though no post uses it,
+// so an owner reads "posted OR added in Gallery". That is the only way a media
+// without an attachment is ever returned, and it is gated on the owner audience
+// alone: every other audience keeps the posted condition, whatever `show` says.
+//
+// `show` (`all`, `in_gallery`, `hidden`, `not_posted`) narrows the owner's
+// list. It is read for the owner audience only: any other audience is scoped to
+// `inGallery = true` whatever `show` says, so a request parameter can never
+// reach a hidden or an unposted photo.
 
 /** A gallery photo or video together with the post it is shown through. */
 export interface GalleryMediaRow {
   media: Media
   // The newest attachment of this media on a status the audience may read —
-  // never one on a post the audience may not see.
-  attachment: Attachment
-  statusId: string
+  // never one on a post the audience may not see. Null for the owner's media
+  // that was added in Gallery and is not posted (then `statusId` is null too).
+  attachment: Attachment | null
+  statusId: string | null
   statusPublicId: string | null
 }
 
@@ -107,9 +114,14 @@ export interface GalleryMapRow {
   subjectIucnCategory: IucnCategory | null
   subjectLookupStatus: MediaLookupStatus | null
   takenAt: number | null
-  // The chosen attachment's thumbnail, or its url when it is an image.
+  // The chosen attachment's thumbnail, or its url when it is an image. Null
+  // for an unposted media, which is addressed by `file` instead.
   thumbnailUrl: string | null
-  statusId: string
+  // The stored files of the media itself: how an unposted media (no attachment
+  // to take a url from) is shown.
+  file: { path: string; thumbnailPath: string | null; mimeType: string }
+  // Null for the owner's media that is added in Gallery but not posted.
+  statusId: string | null
   statusPublicId: string | null
 }
 
@@ -139,7 +151,7 @@ export interface GetGalleryMediaParams {
   limit: number
   // Camera or lens.
   gearId?: string
-  // Owner only (ignored for a viewer): which posted media to list.
+  // Owner only (ignored for a viewer): which media to list.
   show?: GalleryShow
 }
 
@@ -157,7 +169,7 @@ export interface GetGalleryMediaIndexParams {
   limit: number
   // Only media with an id below this one. An invalid id reads nothing.
   maxId?: string
-  // Owner only (ignored for a viewer): which posted media to index.
+  // Owner only (ignored for a viewer): which media to index.
   show?: GalleryShow
 }
 
@@ -170,6 +182,16 @@ export interface GetGalleryMapRowsParams {
 export interface GetGalleryGearUsageRowsParams {
   actorId: string
   gearIds: string[]
+}
+
+export interface AddMediaToGalleryParams {
+  actorId: string
+  mediaIds: string[]
+}
+
+export interface GetUnattachedMediaParams {
+  actorId: string
+  mediaIds: string[]
 }
 
 export interface GalleryMediaDatabase {
@@ -190,11 +212,20 @@ export interface GalleryMediaDatabase {
   // Only media with both coordinates. For a viewer, only `area` and `exact`
   // precision rows are read at all. Newest first.
   getGalleryMapRows(params: GetGalleryMapRowsParams): Promise<GalleryMapRow[]>
-  // Owner-only: every POSTED media of the actor using one of the gear ids,
-  // in the gallery or not (EXIF dates show real use either way).
+  // Owner-only: every posted or Gallery-added media of the actor using one of
+  // the gear ids, in the gallery or not (EXIF dates show real use either way).
   getGalleryGearUsageRows(
     params: GetGalleryGearUsageRowsParams
   ): Promise<GalleryGearUsageRow[]>
+  // Keeps the actor's own media that no status uses in their gallery: stamps
+  // `galleryAddedAt` (once, so repeating the call changes nothing) and turns
+  // `inGallery` on. Media of another actor, media a status already uses and
+  // ids that are not media are skipped. Returns the ids that are now added.
+  addMediaToGallery(params: AddMediaToGalleryParams): Promise<string[]>
+  // The actor's own media among `mediaIds` that no status uses, whether or not
+  // it was added in Gallery. Newest (highest id) first; any other id is simply
+  // absent.
+  getUnattachedMedia(params: GetUnattachedMediaParams): Promise<Media[]>
 }
 
 const ATTACHMENTS = 'gallery_attachments'
@@ -306,11 +337,13 @@ export const mediaIdRef = (database: Knex) =>
 
 /**
  * Applies the gallery scope to a query over `medias`. `requireInGallery: false`
- * is only for the owner's gear usage, which counts every posted photo.
+ * is only for the owner's gear usage, which counts every photo regardless of
+ * its gallery switch.
  *
- * `show` narrows the owner's view of posted media (`all` adds no `inGallery`
- * condition, `hidden` requires it to be false). It is honoured for the owner
- * audience only; every other audience keeps `inGallery = true`.
+ * `show` narrows the owner's view (`all` adds no `inGallery` condition,
+ * `hidden` requires it to be false, `not_posted` lists only the media added in
+ * Gallery that no post uses). It is honoured for the owner audience only; every
+ * other audience keeps `inGallery = true` and the posted condition.
  */
 export const buildGalleryMediaScope = (
   database: Knex,
@@ -321,13 +354,18 @@ export const buildGalleryMediaScope = (
     show
   }: { requireInGallery?: boolean; show?: GalleryShow } = {}
 ) => {
+  const isOwner = audience?.kind === 'owner'
   const effectiveShow: GalleryShow =
-    audience?.kind === 'owner' && show !== undefined ? show : 'in_gallery'
+    isOwner && show !== undefined ? show : 'in_gallery'
   return (query: Knex.QueryBuilder): Knex.QueryBuilder => {
     query.where('medias.actorId', actorId)
     // Bound as `true`/`false`; SQLite stores the column as 0/1 and knex binds
-    // 1/0.
-    if (requireInGallery && effectiveShow !== 'all') {
+    // 1/0. `not_posted` lists what was added in Gallery whatever its switch.
+    if (
+      requireInGallery &&
+      effectiveShow !== 'all' &&
+      effectiveShow !== 'not_posted'
+    ) {
       query.where('medias.inGallery', effectiveShow === 'in_gallery')
     }
 
@@ -336,7 +374,17 @@ export const buildGalleryMediaScope = (
       .select(database.raw('1'))
       .where(`${ATTACHMENTS}.mediaId`, mediaIdRef(database))
     scopePostedAttachments(database, posted, actorId, audience)
-    query.whereExists(posted)
+
+    if (!isOwner) {
+      query.whereExists(posted)
+    } else if (effectiveShow === 'not_posted') {
+      query.whereNotNull('medias.galleryAddedAt').whereNotExists(posted)
+    } else {
+      // Posted, or kept in Gallery without a post.
+      query.where((builder) =>
+        builder.whereExists(posted).orWhereNotNull('medias.galleryAddedAt')
+      )
+    }
     return query
   }
 }
@@ -451,6 +499,9 @@ interface PickedAttachment {
   statusPublicId: string | null
 }
 
+const isPresent = (value: unknown) =>
+  value !== null && value !== undefined && value !== ''
+
 const sortByIdDesc = <T>(rows: T[], getId: (row: T) => string | number) =>
   rows.sort((a, b) => Number(getId(b)) - Number(getId(a)))
 
@@ -528,11 +579,23 @@ export const GalleryMediaSQLDatabaseMixin = (
       audience,
       rows.map((row) => row.id)
     )
-    // A media whose last visible post went away between the two reads has no
-    // attachment to be shown through, and is dropped rather than shown bare.
-    return rows.flatMap((row) => {
+    return rows.flatMap((row): GalleryMediaRow[] => {
       const pick = picked.get(String(row.id))
-      return pick ? [{ media: parseMediaRow(row), ...pick }] : []
+      if (pick) return [{ media: parseMediaRow(row), ...pick }]
+      // Only the owner's own Gallery additions are shown without a post.
+      // Anything else here lost its last visible post between the two reads,
+      // and is dropped rather than shown bare.
+      if (audience?.kind === 'owner' && isPresent(row.galleryAddedAt)) {
+        return [
+          {
+            media: parseMediaRow(row),
+            attachment: null,
+            statusId: null,
+            statusPublicId: null
+          }
+        ]
+      }
+      return []
     })
   }
 
@@ -657,7 +720,11 @@ export const GalleryMediaSQLDatabaseMixin = (
           'medias.subjectTaxonKey',
           'medias.subjectIucnCategory',
           'medias.subjectLookupStatus',
-          'medias.takenAt'
+          'medias.takenAt',
+          'medias.original',
+          'medias.thumbnail',
+          'medias.originalMimeType',
+          'medias.galleryAddedAt'
         )
         .whereNotNull('medias.placeLatitude')
         .whereNotNull('medias.placeLongitude')
@@ -682,9 +749,16 @@ export const GalleryMediaSQLDatabaseMixin = (
         const pick = picked.get(id)
         const latitude = parseCoordinate(row.placeLatitude)
         const longitude = parseCoordinate(row.placeLongitude)
-        if (!pick || latitude === null || longitude === null) return []
+        if (latitude === null || longitude === null) return []
+        // The owner's Gallery additions have no post to be shown through.
+        if (
+          !pick &&
+          !(audience?.kind === 'owner' && isPresent(row.galleryAddedAt))
+        ) {
+          return []
+        }
 
-        const { attachment } = pick
+        const attachment = pick?.attachment ?? null
         return [
           {
             id,
@@ -702,13 +776,19 @@ export const GalleryMediaSQLDatabaseMixin = (
             subjectIucnCategory: parseIucnCategory(row.subjectIucnCategory),
             subjectLookupStatus: parseLookupStatus(row.subjectLookupStatus),
             takenAt: parseNullableTime(row.takenAt),
-            thumbnailUrl:
-              attachment.thumbnailUrl ??
-              (attachment.mediaType.startsWith('image/')
-                ? attachment.url
-                : null),
-            statusId: pick.statusId,
-            statusPublicId: pick.statusPublicId
+            thumbnailUrl: attachment
+              ? (attachment.thumbnailUrl ??
+                (attachment.mediaType.startsWith('image/')
+                  ? attachment.url
+                  : null))
+              : null,
+            file: {
+              path: String(row.original ?? ''),
+              thumbnailPath: (row.thumbnail as string | null) ?? null,
+              mimeType: String(row.originalMimeType ?? '')
+            },
+            statusId: pick?.statusId ?? null,
+            statusPublicId: pick?.statusPublicId ?? null
           }
         ]
       })
@@ -771,6 +851,85 @@ export const GalleryMediaSQLDatabaseMixin = (
         }
       }
       return usage
+    },
+
+    async getUnattachedMedia({ actorId, mediaIds }) {
+      const rowIds = [
+        ...new Set(
+          mediaIds
+            .map((id) => toMediaRowId(String(id)))
+            .filter((id): id is number => id !== null)
+        )
+      ]
+      const rows: MediaRow[] = []
+      for (const chunk of chunkArray(
+        rowIds,
+        getWhereInBatchSize(database, RESERVED_BINDINGS)
+      )) {
+        const query = selectMediaColumns()
+          .whereIn('medias.id', chunk)
+          .where('medias.actorId', actorId)
+          .whereNotExists(
+            database('attachments')
+              .select(database.raw('1'))
+              .where('attachments.mediaId', mediaIdRef(database))
+          )
+        rows.push(...((await query) as MediaRow[]))
+      }
+      return sortByIdDesc(rows, (row) => row.id).map(parseMediaRow)
+    },
+
+    async addMediaToGallery({ actorId, mediaIds }) {
+      const rowIds = [
+        ...new Set(
+          mediaIds
+            .map((id) => toMediaRowId(String(id)))
+            .filter((id): id is number => id !== null)
+        )
+      ]
+      if (rowIds.length === 0) return []
+
+      const added: string[] = []
+      const now = new Date()
+      for (const chunk of chunkArray(
+        rowIds,
+        getWhereInBatchSize(database, RESERVED_BINDINGS)
+      )) {
+        await database.transaction(async (trx) => {
+          // Re-checked inside the write's own transaction: a media a status
+          // started using meanwhile is not the unposted media this adds.
+          const unattached = (query: Knex.QueryBuilder) =>
+            query
+              .whereIn('medias.id', chunk)
+              .where('medias.actorId', actorId)
+              .whereNotExists(
+                trx('attachments')
+                  .select(trx.raw('1'))
+                  .where('attachments.mediaId', mediaIdRef(trx))
+              )
+          const rows: Array<{ id: string | number }> = await unattached(
+            trx('medias').select('medias.id')
+          )
+          if (rows.length === 0) return
+
+          // `galleryAddedAt` keeps the first time, so a repeated call is a
+          // no-op rather than moving the media to the front of the list.
+          await trx('medias')
+            .whereIn(
+              'id',
+              rows.map((row) => row.id)
+            )
+            .update({
+              inGallery: true,
+              galleryAddedAt: trx.raw('COALESCE(??, ?)', [
+                'galleryAddedAt',
+                now
+              ])
+            })
+          added.push(...rows.map((row) => String(row.id)))
+        })
+      }
+      return sortByIdDesc(added, (id) => id)
     }
   }
 }

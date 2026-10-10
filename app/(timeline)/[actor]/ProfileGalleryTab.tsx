@@ -286,7 +286,8 @@ const MapPanel: FC<{
   const openPost = (mediaId: string) => {
     if (!handle) return
     const point = points.find((entry) => entry.mediaId === mediaId)
-    if (!point) return
+    // An unposted photo (the owner's own) has no post to open.
+    if (!point?.statusId) return
     router.push(`/${handle}/${encodeURIComponent(point.statusId)}`)
   }
   return (

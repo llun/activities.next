@@ -1,6 +1,6 @@
 'use client'
 
-import { FolderPlus, Pencil, X } from 'lucide-react'
+import { FolderPlus, Pencil, Send, Trash2, X } from 'lucide-react'
 import { FC } from 'react'
 
 import { Button } from '@/lib/components/ui/button'
@@ -28,11 +28,20 @@ interface Props {
   onEditDetails: () => void
   /** How many of the selected photos are hidden from the gallery (never in an album). */
   hiddenCount?: number
+  /**
+   * Whether every selected photo was added in Gallery and is not posted yet.
+   * Post and Delete only act on those, so they are off for any other selection.
+   */
+  allUnposted?: boolean
+  /** The most photos one post holds on this instance. */
+  maxPostAttachments?: number
+  onPost?: () => void
+  onDelete?: () => void
 }
 
 /**
  * The bar that rides the bottom of the page while photos are selected:
- * "N selected" with the Edit details and Add to album actions. Albums hold only
+ * "N selected" with the Edit details, Add to album, Post and Delete actions. Albums hold only
  * photos shown in the gallery, so Add to album is off while only hidden photos
  * are selected, and says so. It is a toolbar region, so a screen reader can find
  * it, and the count is a polite live region so every tick of a
@@ -45,7 +54,11 @@ export const GallerySelectionBar: FC<Props> = ({
   onClear,
   onAddToAlbum,
   onEditDetails,
-  hiddenCount = 0
+  hiddenCount = 0,
+  allUnposted = false,
+  maxPostAttachments = Number.POSITIVE_INFINITY,
+  onPost,
+  onDelete
 }) => {
   const allSelected = loadedCount === 0 || count >= loadedCount
   const canAdd = count > hiddenCount
@@ -59,6 +72,15 @@ export const GallerySelectionBar: FC<Props> = ({
   const editHint = canEdit
     ? null
     : `Edit up to ${MAX_EDIT_DETAILS_PHOTOS} at a time`
+  // Post and Delete are for photos added in Gallery that no post uses yet.
+  const unpostedOnly = count > 0 && !allUnposted
+  const canPost = count > 0 && allUnposted && count <= maxPostAttachments
+  const canDelete = count > 0 && allUnposted
+  const unpostedHint = unpostedOnly ? 'Only photos you haven’t posted' : null
+  const postLimitHint =
+    count > maxPostAttachments && allUnposted
+      ? `Up to ${maxPostAttachments} per post`
+      : null
   return (
     <div
       id={GALLERY_SELECTION_BAR_ID}
@@ -73,12 +95,14 @@ export const GallerySelectionBar: FC<Props> = ({
         className="min-w-0 flex-1 text-sm font-medium tabular-nums"
       >
         {count.toLocaleString('en-US')} selected
-        {addHint || editHint ? (
+        {addHint || editHint || unpostedHint || postLimitHint ? (
           <span
             id={`${GALLERY_SELECTION_BAR_ID}-hint`}
             className="text-muted-foreground block text-xs font-normal"
           >
-            {[editHint, addHint].filter(Boolean).join(' ')}
+            {[editHint, addHint, unpostedHint, postLimitHint]
+              .filter(Boolean)
+              .join(' ')}
           </span>
         ) : null}
       </p>
@@ -139,6 +163,47 @@ export const GallerySelectionBar: FC<Props> = ({
           <FolderPlus aria-hidden="true" />
           Add to album
         </Button>
+        {onPost ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn('pointer-coarse:h-10', DISABLED_CLASS)}
+            onClick={() => {
+              if (canPost) onPost()
+            }}
+            aria-disabled={!canPost || undefined}
+            aria-describedby={
+              unpostedHint || postLimitHint
+                ? `${GALLERY_SELECTION_BAR_ID}-hint`
+                : undefined
+            }
+          >
+            <Send aria-hidden="true" />
+            Post
+          </Button>
+        ) : null}
+        {onDelete ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn(
+              'text-destructive hover:text-destructive pointer-coarse:h-10',
+              DISABLED_CLASS
+            )}
+            onClick={() => {
+              if (canDelete) onDelete()
+            }}
+            aria-disabled={!canDelete || undefined}
+            aria-describedby={
+              unpostedHint ? `${GALLERY_SELECTION_BAR_ID}-hint` : undefined
+            }
+          >
+            <Trash2 aria-hidden="true" />
+            Delete
+          </Button>
+        ) : null}
       </div>
     </div>
   )

@@ -1,3 +1,4 @@
+import { getConfig } from '@/lib/config'
 import type {
   GalleryMapRow,
   GalleryMediaRow
@@ -18,12 +19,57 @@ import {
   toTakenAtIso
 } from '@/lib/services/gallery/publicMediaDetails'
 import { isPlaceWithheldForThreat } from '@/lib/services/gallery/threatenedSpecies'
+import { getMediaFileUrl } from '@/lib/services/medias/mediaFileUrl'
 import {
   EMPTY_MEDIA_DETAILS,
   GallerySettings,
   MediaDetailsRecord
 } from '@/lib/types/database/gallery'
+import type { Attachment } from '@/lib/types/domain/attachment'
 import { getClientStatusId } from '@/lib/utils/publicId'
+
+// The client id of the status a row is shown through; null for the owner's
+// Gallery additions, which no status uses.
+const toRowStatusId = (row: {
+  statusId: string | null
+  statusPublicId: string | null
+}): string | null =>
+  row.statusId === null
+    ? null
+    : getClientStatusId({ id: row.statusId, publicId: row.statusPublicId })
+
+/**
+ * The attachment an unposted media is shown through. There is no attachment row
+ * (no post wrote one), so it is built from the stored `medias` row the way a
+ * post would snapshot it: the same urls, placeholder and focal point, `name` =
+ * the alt text. `statusId` is empty — nothing carries it past the entity.
+ */
+const toUnpostedAttachment = (media: GalleryMediaRow['media']): Attachment => {
+  const host = getConfig().host
+  return {
+    id: `media-${media.id}`,
+    actorId: media.actorId,
+    statusId: '',
+    type: 'Document',
+    mediaType: media.original.mimeType,
+    url: getMediaFileUrl(host, media.original.path),
+    ...(media.original.metaData.width
+      ? { width: media.original.metaData.width }
+      : {}),
+    ...(media.original.metaData.height
+      ? { height: media.original.metaData.height }
+      : {}),
+    name: media.description ?? '',
+    mediaId: media.id,
+    blurhash: media.blurhash ?? null,
+    focus: media.focus ?? null,
+    thumbnailUrl: media.thumbnail
+      ? getMediaFileUrl(host, media.thumbnail.path)
+      : null,
+    createdAt: 0,
+    updatedAt: 0
+  }
+}
 
 // The ONLY place that decides what of a gallery row leaves the server. The
 // database layer decides which rows a viewer may see at all; this decides how
@@ -114,18 +160,20 @@ export const toGalleryItemEntity = (
 
   return {
     mediaId: row.media.id,
-    statusId: getClientStatusId({
-      id: row.statusId,
-      publicId: row.statusPublicId
-    }),
-    attachment: row.attachment,
+    statusId: toRowStatusId(row),
+    attachment:
+      row.attachment === null
+        ? toUnpostedAttachment(row.media)
+        : row.attachment,
     subject: toSubjectEntity(details),
     takenAt: toTakenAtIso(details.takenAt),
     camera: toGear(details.cameraGearId),
     lens: toGear(details.lensGearId),
     exposure: showGear ? toExposureEntity(details.exposure) : null,
     // Gallery membership is the owner's own bookkeeping.
-    ...(isOwner ? { inGallery: details.inGallery } : {}),
+    ...(isOwner
+      ? { inGallery: details.inGallery, posted: row.statusId !== null }
+      : {}),
     place: isOwner
       ? toOwnerPlace(details)
       : getPublicPlace(details, {
@@ -208,6 +256,18 @@ const getPublicState = (
   return row.placePrecision === 'exact' ? 'shown-exact' : 'shown-area'
 }
 
+// An unposted media is shown from its stored files: the thumbnail, or the
+// original when that is an image.
+const toUnpostedThumbnail = (row: GalleryMapRow): string | null => {
+  const host = getConfig().host
+  if (row.file.thumbnailPath) {
+    return getMediaFileUrl(host, row.file.thumbnailPath)
+  }
+  return row.file.mimeType.startsWith('image/')
+    ? getMediaFileUrl(host, row.file.path)
+    : null
+}
+
 /**
  * The owner gets every stored point exactly, marked with what the public map
  * does with it. Anyone else gets `toPublicMapLocation` or nothing.
@@ -218,12 +278,10 @@ export const toGalleryMapPoint = (
 ): GalleryMapPoint | null => {
   const base = {
     mediaId: row.id,
-    statusId: getClientStatusId({
-      id: row.statusId,
-      publicId: row.statusPublicId
-    }),
+    statusId: toRowStatusId(row),
     subjectName: row.subjectName,
-    thumbnailUrl: row.thumbnailUrl,
+    thumbnailUrl:
+      row.statusId === null ? toUnpostedThumbnail(row) : row.thumbnailUrl,
     takenAt: toTakenAtIso(row.takenAt)
   }
 
