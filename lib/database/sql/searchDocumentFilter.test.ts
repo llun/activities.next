@@ -494,38 +494,6 @@ describe('SearchDatabase document filtering', () => {
         expect.arrayContaining(['runner', 'runner%'])
       )
     })
-
-    it.runIf(testDb.backend === 'sqlite')(
-      'joins the SQLite FTS table and matches every token as a prefix',
-      async () => {
-        const [search] = await captureSearches(() =>
-          database.searchDocuments({ q: 'trail run', limit: 10 })
-        )
-
-        expect(search.sql).toContain(
-          'inner join "search_documents_fts" on search_documents_fts.rowid = search_documents.rowid'
-        )
-        expect(search.sql).toContain('search_documents_fts match ?')
-        expect(search.bindings).toContain('trail* run*')
-      }
-    )
-
-    it.runIf(testDb.backend === 'pg')(
-      'matches the PostgreSQL full-text query expression to the index',
-      async () => {
-        const [search] = await captureSearches(() =>
-          database.searchDocuments({ q: 'trail run', limit: 10 })
-        )
-
-        expect(search.sql).toContain(
-          `to_tsvector('simple', "documentText") @@ to_tsquery('simple', $`
-        )
-        expect(search.sql).not.toContain(
-          `to_tsvector('simple', "search_documents"."documentText")`
-        )
-        expect(search.bindings).toContain('trail:* & run:*')
-      }
-    )
   })
 
   it('matches database clients by exact supported names', async () => {

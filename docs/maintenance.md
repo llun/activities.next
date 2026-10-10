@@ -535,7 +535,7 @@ yarn search:reindex
 node scripts/run.cjs scripts/maintenance/rebuildSearchIndex.ts
 ```
 
-Batch sizing can be controlled with the `SEARCH_REINDEX_BATCH_SIZE` environment variable (default: `500`):
+Batch sizing can be controlled with the `SEARCH_REINDEX_BATCH_SIZE` environment variable, a positive integer (default: `500`, also used for any other value):
 
 ```bash
 SEARCH_REINDEX_BATCH_SIZE=1000 yarn search:reindex

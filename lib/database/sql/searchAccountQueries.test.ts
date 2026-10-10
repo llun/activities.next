@@ -422,6 +422,30 @@ describe('the actor search document', () => {
     })
   })
 
+  it('keeps the creation time of an actor created at the epoch', async () => {
+    const id = actorIdOf('zqepoch')
+    await database.createActor({
+      actorId: id,
+      username: 'zqepoch',
+      domain: 'acct.test',
+      inboxUrl: `${id}/inbox`,
+      sharedInboxUrl: 'https://acct.test/inbox',
+      followersUrl: `${id}/followers`,
+      publicKey: 'public-key',
+      privateKey: 'private-key',
+      createdAt: 0
+    })
+    await expect(readDocument('account', id)).resolves.toMatchObject({
+      entityCreatedAt: 0
+    })
+
+    // Rebuilt from the stored actor row, as a deletion step or a reindex does.
+    await database.indexActorSearchDocument({ id })
+    await expect(readDocument('account', id)).resolves.toMatchObject({
+      entityCreatedAt: 0
+    })
+  })
+
   it('goes with the actor, and only its account document', async () => {
     const goneId = actorIdOf('zqgone')
     const neighbourId = await addActor('zqgone-neighbour')

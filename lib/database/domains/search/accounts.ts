@@ -91,7 +91,8 @@ const isDiscoverableAccount = (actor: AccountSearchActor) => {
   )
 }
 
-// Not a federation signing actor: those have no profile page to find.
+// Not being deleted, and not the internal federation signing actor, which has
+// no profile page to find.
 const isSearchableAccount = (eb: ExpressionBuilder<DB, 'actors'>) =>
   eb.and([
     eb('actors.deletionStatus', 'is', null),
@@ -206,9 +207,10 @@ const getActorSearchDocumentRow = (
   documentText: getAccountDocumentText(actor),
   actorId: actor.id,
   visibility: null,
-  entityCreatedAt: actor.createdAt
-    ? new Date(getCompatibleTime(actor.createdAt))
-    : null,
+  entityCreatedAt:
+    actor.createdAt != null
+      ? new Date(getCompatibleTime(actor.createdAt))
+      : null,
   discoverable: isDiscoverableAccount(actor),
   postCount: null,
   lastPostAt: null,
@@ -304,10 +306,7 @@ export const searchAccountIds = async (
     exactActorIds: normalizedExactActorIds,
     followingActorId
   })
-  const exactPageIds =
-    offset < exactResultIds.length
-      ? exactResultIds.slice(offset, offset + limit)
-      : []
+  const exactPageIds = exactResultIds.slice(offset, offset + limit)
   const indexedLimit = limit - exactPageIds.length
   if (indexedLimit <= 0) return exactPageIds
   const indexedOffset = Math.max(offset - exactResultIds.length, 0)

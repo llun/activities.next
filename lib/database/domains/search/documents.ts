@@ -1,6 +1,7 @@
 import {
   type Expression,
   type ExpressionBuilder,
+  type Insertable,
   type SelectQueryBuilder,
   type Selectable,
   type SqlBool,
@@ -45,20 +46,7 @@ const toSearchDocument = (
   updatedAt: row.updatedAt ?? 0
 })
 
-export type SearchDocumentRow = {
-  id: string
-  entityType: string
-  entityId: string
-  documentText: string
-  actorId: string | null
-  visibility: string | null
-  entityCreatedAt: Date | null
-  discoverable: boolean | null
-  postCount: number | null
-  lastPostAt: Date | null
-  createdAt: Date
-  updatedAt: Date
-}
+export type SearchDocumentRow = Insertable<SearchDocuments>
 
 // Inserts the documents, replacing the indexed fields of any that exist.
 export const upsertDocuments = (
