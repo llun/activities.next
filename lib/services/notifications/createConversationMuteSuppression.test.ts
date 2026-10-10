@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { createNotificationWithPolicy } from '@/lib/services/notifications/createNotificationWithPolicy'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -9,9 +9,11 @@ import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 // notification-creation seam: a recipient who muted a thread receives no
 // notifications for statuses in that thread.
 describe('createNotificationWithPolicy conversation-mute suppression', () => {
-  const database = getTestSQLDatabase()
+  const testDb = createTestDatabase()
+  const { database } = testDb
 
   beforeAll(async () => {
+    await testDb.prepare()
     await database.migrate()
     await seedDatabase(database)
   })

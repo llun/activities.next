@@ -1,9 +1,11 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 
 describe('StatusDetectedLanguage', () => {
-  const database = getTestSQLDatabase()
+  const testDb = createTestDatabase()
+  const { database } = testDb
 
   beforeAll(async () => {
+    await testDb.prepare()
     await database.migrate()
   })
 
@@ -76,6 +78,30 @@ describe('StatusDetectedLanguage', () => {
       expect(
         await database.getDetectedLanguage({ statusId: 'status-clear' })
       ).toBeNull()
+    })
+
+    it('keeps the languages of the other statuses', async () => {
+      await database.setDetectedLanguage({
+        statusId: 'status-clear-one',
+        language: 'th',
+        confidence: 0.9
+      })
+      await database.setDetectedLanguage({
+        statusId: 'status-clear-neighbour',
+        language: 'en',
+        confidence: 0.9
+      })
+
+      await database.clearDetectedLanguage({ statusId: 'status-clear-one' })
+
+      expect(
+        await database.getDetectedLanguage({ statusId: 'status-clear-one' })
+      ).toBeNull()
+      expect(
+        await database.getDetectedLanguage({
+          statusId: 'status-clear-neighbour'
+        })
+      ).toBe('en')
     })
 
     it('is a no-op when there is nothing to clear', async () => {

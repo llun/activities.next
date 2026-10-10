@@ -1231,6 +1231,8 @@ The database layer is moving from Knex to Kysely one domain at a time. Knex stil
 - **Regenerate `lib/database/kysely/db.ts` whenever a migration changes the schema** (see [Regenerating the Kysely DB types](setup.md#regenerating-the-kysely-db-types)).
 - **Kysely supports better-sqlite3 and pg only, and so does the app.** `lib/database/index.ts` refuses any other client (`mysql`, `mysql2`, `sqlite3`, `pg-native`) when the database is first created, naming the driver, so a misconfiguration fails at startup instead of on the first like query.
 - Counters in ported code go through `lib/database/kysely/counter.ts` (one atomic upsert per adjustment); the Knex helpers in `lib/database/sql/utils/counter.ts` remain for unported domains.
+- **Big `IN` lists and multi-row inserts go through `lib/database/kysely/inList.ts`** (`selectInChunks`, `insertInChunks`), which use the same batch sizes as the Knex `getWhereInBatchSize`/`getInsertBatchSize`, so one statement stays under SQLite's 999 bound values.
+- **A statement whose failure the code catches inside a transaction (a unique violation to skip) runs in `inSavepoint(trx, fn)`** (`lib/database/kysely/savepoint.ts`). PostgreSQL aborts the whole transaction when any statement fails, SQLite does not, so a bare `try`/`catch` passes the SQLite run and breaks every later statement on PostgreSQL.
 
 <a id="review-uploaded-file-names"></a>
 
