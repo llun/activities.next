@@ -43,7 +43,7 @@ describe('GallerySubjectsView', () => {
     ).toHaveAttribute('href', '/gallery/subjects/sci%3Aramphastos%20sulfuratus')
     expect(screen.getByRole('link', { name: 'See all' })).toHaveAttribute(
       'href',
-      '/gallery/recent?category=bird'
+      '/gallery/media?category=bird'
     )
   })
 })

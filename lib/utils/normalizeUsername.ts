@@ -28,7 +28,7 @@
  * which requests are treated as addressing the reserved slot.
  *
  * So the callers are FOUR: three on the mint side — `createAccount` and
- * `createActorForAccount` in `lib/database/sql/account.ts`, plus
+ * `createActorForAccount` in `lib/database/domains/account/accounts.ts`, plus
  * `registerAccount`, which is its own layer precisely so a direct service call
  * cannot bypass the schema — and the guard's reserved-name check. A new rule
  * reaches those four and does NOT propagate to the lookup or the schema;

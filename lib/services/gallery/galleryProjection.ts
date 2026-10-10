@@ -124,6 +124,8 @@ export const toGalleryItemEntity = (
     camera: toGear(details.cameraGearId),
     lens: toGear(details.lensGearId),
     exposure: showGear ? toExposureEntity(details.exposure) : null,
+    // Gallery membership is the owner's own bookkeeping.
+    ...(isOwner ? { inGallery: details.inGallery } : {}),
     place: isOwner
       ? toOwnerPlace(details)
       : getPublicPlace(details, {

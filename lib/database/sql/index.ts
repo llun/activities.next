@@ -1,5 +1,7 @@
 import { Knex } from 'knex'
 
+import { accountQueries } from '@/lib/database/domains/account/queries'
+import type { AccountDatabase } from '@/lib/database/domains/account/types'
 import { accountNoteQueries } from '@/lib/database/domains/accountNote/queries'
 import type { AccountNoteDatabase } from '@/lib/database/domains/accountNote/types'
 import { actorDomainBlockQueries } from '@/lib/database/domains/actorDomainBlock/queries'
@@ -40,6 +42,11 @@ import { linkPreviewQueries } from '@/lib/database/domains/linkPreview/queries'
 import type { LinkPreviewDatabase } from '@/lib/database/domains/linkPreview/types'
 import { markerQueries } from '@/lib/database/domains/marker/queries'
 import type { MarkerDatabase } from '@/lib/database/domains/marker/types'
+import { moderationQueries } from '@/lib/database/domains/moderation/queries'
+import type {
+  AdminAccountDatabase,
+  ModerationDatabase
+} from '@/lib/database/domains/moderation/types'
 import { muteQueries } from '@/lib/database/domains/mute/queries'
 import type { MuteDatabase } from '@/lib/database/domains/mute/types'
 import { notificationQueries } from '@/lib/database/domains/notification/queries'
@@ -85,7 +92,6 @@ import {
   installKnexKyselyGuard,
   kyselyFor
 } from '@/lib/database/kysely'
-import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
@@ -102,7 +108,6 @@ import { GalleryLookupCacheSQLDatabaseMixin } from '@/lib/database/sql/galleryLo
 import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
-import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { Database } from '@/lib/database/types'
@@ -114,7 +119,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   // Domains that have moved to Kysely. `kyselyFor` runs on first use, so a
   // mocked Knex without a client still builds the facade.
   const kysely = () => kyselyFor(database)
-  const accountDatabase = AccountSQLDatabaseMixin(database)
+  const accountDatabase: AccountDatabase = bindDb(kysely, accountQueries)
   const accountNoteDatabase: AccountNoteDatabase = bindDb(
     kysely,
     accountNoteQueries
@@ -223,7 +228,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     linkPreviewQueries
   )
   const mediaDatabase = MediaSQLDatabaseMixin(database)
-  const moderationDatabase = ModerationSQLDatabaseMixin(database)
+  const moderationDatabase: ModerationDatabase & AdminAccountDatabase = bindDb(
+    kysely,
+    moderationQueries
+  )
   const notificationDatabase: NotificationDatabase = bindDb(
     kysely,
     notificationQueries
