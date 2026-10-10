@@ -566,6 +566,29 @@ describe('AiPanel', () => {
       expect(masks()).toEqual([manual, { tint: 3 }])
     })
 
+    it('go back to the photo after undo and a hand edit, from the style undo brought back', async () => {
+      mockEnhance.mockResolvedValue({
+        ...SUGGESTION,
+        vivid: style({ subject: { exposure: 0.9 }, background: null })
+      })
+      render(<Harness start={start()} />)
+      await runEnhance()
+      fireEvent.click(screen.getByRole('radio', { name: 'Vivid' }))
+      expect(masks()[0]).toEqual({ exposure: 0.72 })
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(masks()).toEqual([
+        { exposure: 0.24, shadows: 20 },
+        { saturation: -16 }
+      ])
+      fireEvent.click(screen.getByRole('button', { name: 'Nudge' }))
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+
+      // The masks still hold what Natural wrote, which undo brought back: they
+      // go back to the photo's, not stay as Natural's.
+      expect(masks()).toEqual([manual, { tint: 3 }])
+    })
+
     it('stay as the hand edit made them, the others go back', async () => {
       render(<Harness start={start()} />)
       await runEnhance()

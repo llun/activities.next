@@ -263,6 +263,11 @@ export const useAiEnhance = ({
   }, [applyStyle, available, bitmap, disabled, mediaId])
 
   const current = applied.current.get(recipe) ?? null
+  // Undo and redo bring back a recipe this tab made: a hand edit after that
+  // starts from that style, not the last one applied.
+  useEffect(() => {
+    if (current) lastApplied.current = current
+  })
   const shownStyle = current?.style ?? null
   const shownStrength = current?.strength ?? chosenStrength
 
