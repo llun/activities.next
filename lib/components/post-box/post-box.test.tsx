@@ -11,6 +11,7 @@ import { Status, StatusType } from '@/lib/types/domain/status'
 
 import { PostBox } from './post-box'
 import {
+  choosePostOption,
   createNoteMock,
   createPollMock,
   editStatus,
@@ -242,7 +243,7 @@ describe('PostBox markdown preview', () => {
 
     const textarea = screen.getByPlaceholderText('What is on your mind?')
     fireEvent.change(textarea, { target: { value: 'hi :blobcat:' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle preview' }))
+    await choosePostOption('Preview')
 
     const image = await screen.findByAltText(':blobcat:')
     expect(image).toHaveAttribute(
@@ -273,12 +274,12 @@ describe('PostBox markdown preview', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add content warning' }))
+    await choosePostOption('Content warning')
     const cwInput = screen.getByPlaceholderText('Write your warning here')
     fireEvent.change(cwInput, { target: { value: 'CW :blobcat:' } })
     const textarea = screen.getByPlaceholderText('What is on your mind?')
     fireEvent.change(textarea, { target: { value: 'hidden secret' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle preview' }))
+    await choosePostOption('Preview')
 
     const image = await screen.findByAltText(':blobcat:')
     expect(image).toHaveAttribute(
@@ -300,7 +301,7 @@ describe('PostBox markdown preview', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle preview' }))
+    await choosePostOption('Preview')
 
     expect(screen.getByText('Nothing to preview')).toBeInTheDocument()
   })
@@ -466,7 +467,7 @@ describe('PostBox poll creation', () => {
 
     const textarea = screen.getByPlaceholderText('What is on your mind?')
     fireEvent.change(textarea, { target: { value: 'Best framework?' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add poll' }))
+    await choosePostOption('Poll')
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
 
     await waitFor(() => expect(createPollMock).toHaveBeenCalled())

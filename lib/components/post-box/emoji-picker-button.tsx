@@ -149,6 +149,7 @@ export const EmojiPickerButton: FC<Props> = ({
         aria-expanded={open}
         title="Add emoji or sticker"
         className={cn(
+          'size-10 md:size-8',
           open
             ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
             : 'text-muted-foreground hover:text-foreground'

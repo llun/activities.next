@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, BarChart3, Eye, X } from 'lucide-react'
+import { Activity, Eye, X } from 'lucide-react'
 import {
   FC,
   FormEvent,
@@ -80,7 +80,9 @@ import {
   isWithinLengthLimit
 } from './composerValidation'
 import { EmojiPickerButton } from './emoji-picker-button'
+import { FitnessFileInput, FitnessFileInputHandle } from './fitness-file-input'
 import { PollChoices } from './poll-choices'
+import { PostOptionsMenu } from './post-options-menu'
 import { QuotedPreview } from './quoted-preview'
 import {
   addAttachment,
@@ -104,9 +106,7 @@ import {
   updateAttachment
 } from './reducers'
 import { ReplyPreview } from './reply-preview'
-import { UploadFitnessFileButton } from './upload-fitness-file-button'
 import { UploadMediaButton } from './upload-media-button'
-import { VisibilitySelector } from './visibility-selector'
 
 // Subject suggestions are model calls: at most this many run at once per
 // composer, the rest wait their turn.
@@ -1090,6 +1090,8 @@ export const PostBox: FC<Props> = ({
     await onPost()
   }
 
+  const fitnessFileInputRef = useRef<FitnessFileInputHandle>(null)
+
   const onTextChange = (value: string) => {
     setText(value)
     textRef.current = value
@@ -1114,6 +1116,45 @@ export const PostBox: FC<Props> = ({
     }
     postExtensionRef.current = nextExtension
     setAllowPost(isEditSubmittable(textRef.current, nextExtension))
+  }
+
+  const onFitnessFileSelected = (file: File) => {
+    setWarningMsg(null)
+    discardUploadedMedia(postExtensionRef.current.attachments)
+    resetMediaState()
+    postExtensionRef.current.attachments.forEach((attachment) => {
+      if (attachment.url.startsWith('blob:')) {
+        URL.revokeObjectURL(attachment.url)
+      }
+      if (attachment.posterUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(attachment.posterUrl)
+      }
+    })
+    dispatch(setAttachments([]))
+    postExtensionRef.current = {
+      ...postExtensionRef.current,
+      attachments: []
+    }
+    const nextExtension = {
+      ...postExtensionRef.current,
+      fitnessFile: { file, uploading: false }
+    }
+    postExtensionRef.current = nextExtension
+    dispatch(setFitnessFile(file))
+    setAllowPost(
+      hasNewPostContent(textRef.current, nextExtension, maxStatusCharacters)
+    )
+  }
+
+  const onTogglePoll = () => {
+    // The poll replaces any attached media (the reducer drops it and revokes
+    // the previews), so delete what was already uploaded for it instead of
+    // orphaning it on the server.
+    if (!submitInFlightRef.current) {
+      discardUploadedMedia(postExtensionRef.current.attachments)
+      resetMediaState()
+    }
+    dispatch(setPollVisibility(!postExtension.poll.showing))
   }
 
   const onToggleContentWarning = () => {
@@ -1392,8 +1433,8 @@ export const PostBox: FC<Props> = ({
           onPollTypeChange={(pollType) => dispatch(setPollType(pollType))}
           onRemove={() => dispatch(setPollVisibility(false))}
         />
-        <div className="mt-3 mb-3 flex flex-wrap items-center gap-y-2 border-t pt-3">
-          <div className="flex flex-wrap items-center gap-1">
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+          <div className="flex min-w-0 items-center gap-1">
             <UploadMediaButton
               isMediaUploadEnabled={isMediaUploadEnabled}
               attachments={postExtension.attachments}
@@ -1472,110 +1513,18 @@ export const PostBox: FC<Props> = ({
               onUploadStart={() => setWarningMsg(null)}
               onBeforeAddAttachments={onRemoveFitnessFile}
             />
-            {!replyStatus && !editStatus ? (
-              <UploadFitnessFileButton
-                disabled={isPosting}
-                onFileSelected={(file) => {
-                  setWarningMsg(null)
-                  discardUploadedMedia(postExtensionRef.current.attachments)
-                  resetMediaState()
-                  postExtensionRef.current.attachments.forEach((attachment) => {
-                    if (attachment.url.startsWith('blob:')) {
-                      URL.revokeObjectURL(attachment.url)
-                    }
-                    if (attachment.posterUrl?.startsWith('blob:')) {
-                      URL.revokeObjectURL(attachment.posterUrl)
-                    }
-                  })
-                  dispatch(setAttachments([]))
-                  postExtensionRef.current = {
-                    ...postExtensionRef.current,
-                    attachments: []
-                  }
-                  const nextExtension = {
-                    ...postExtensionRef.current,
-                    fitnessFile: { file, uploading: false }
-                  }
-                  postExtensionRef.current = nextExtension
-                  dispatch(setFitnessFile(file))
-                  setAllowPost(
-                    hasNewPostContent(
-                      textRef.current,
-                      nextExtension,
-                      maxStatusCharacters
-                    )
-                  )
-                }}
-                onError={(message) => setWarningMsg(message)}
-              />
-            ) : null}
             <EmojiPickerButton
               customEmojis={customEmojis}
               onSelect={insertAtCaret}
               disabled={isPosting}
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={
-                postExtension.poll.showing ? 'Remove poll' : 'Add poll'
-              }
-              aria-pressed={postExtension.poll.showing}
-              // A quote post cannot carry a poll (they are mutually exclusive,
-              // like media); disable the toggle while quoting.
-              disabled={isPosting || Boolean(quotedStatus)}
-              title={
-                quotedStatus
-                  ? 'A quote post cannot include a poll'
-                  : postExtension.poll.showing
-                    ? 'Remove poll'
-                    : 'Add poll'
-              }
-              className={cn(
-                postExtension.poll.showing
-                  ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-              onClick={() => {
-                // The poll replaces any attached media (the reducer drops it
-                // and revokes the previews), so delete what was already
-                // uploaded for it instead of orphaning it on the server.
-                if (!submitInFlightRef.current) {
-                  discardUploadedMedia(postExtensionRef.current.attachments)
-                  resetMediaState()
-                }
-                dispatch(setPollVisibility(!postExtension.poll.showing))
-              }}
-            >
-              <BarChart3 className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className={cn(
-                postExtension.contentWarningVisible
-                  ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-              aria-label={
-                postExtension.contentWarningVisible
-                  ? 'Remove content warning'
-                  : 'Add content warning'
-              }
-              aria-pressed={postExtension.contentWarningVisible}
+            <PostOptionsMenu
               disabled={isPosting}
-              title={
-                postExtension.contentWarningVisible
-                  ? 'Remove content warning'
-                  : 'Add content warning'
-              }
-              onClick={onToggleContentWarning}
-            >
-              <AlertTriangle className="size-4" />
-            </Button>
-            <VisibilitySelector
+              showFitnessFile={!replyStatus && !editStatus}
+              onChooseFitnessFile={() => fitnessFileInputRef.current?.open()}
+              pollShowing={postExtension.poll.showing}
+              quoting={Boolean(quotedStatus)}
+              onTogglePoll={onTogglePoll}
               visibility={postExtension.visibility}
               onVisibilityChange={(visibility) =>
                 dispatch(setVisibility(visibility))
@@ -1584,23 +1533,18 @@ export const PostBox: FC<Props> = ({
               onQuotePolicyChange={(policy) =>
                 dispatch(setQuoteApprovalPolicy(policy))
               }
-              disabled={isPosting}
+              contentWarningVisible={postExtension.contentWarningVisible}
+              onToggleContentWarning={onToggleContentWarning}
+              previewShowing={showPreview}
+              onTogglePreview={() => setShowPreview((value) => !value)}
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className={cn(
-                'text-muted-foreground hover:text-foreground',
-                showPreview && 'bg-primary/10 text-primary'
-              )}
-              aria-label="Toggle preview"
-              aria-pressed={showPreview}
-              title="Toggle preview"
-              onClick={() => setShowPreview((value) => !value)}
-            >
-              <Eye className="size-4" />
-            </Button>
+            {!replyStatus && !editStatus ? (
+              <FitnessFileInput
+                ref={fitnessFileInputRef}
+                onFileSelected={onFitnessFileSelected}
+                onError={(message) => setWarningMsg(message)}
+              />
+            ) : null}
           </div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -1620,8 +1564,13 @@ export const PostBox: FC<Props> = ({
                 variant="destructive"
                 size="sm"
                 onClick={onDiscardEdit}
+                // Below md only an icon: with the three 40px buttons on the
+                // left the toolbar must stay on one line at 320px.
+                title="Cancel Edit"
+                className="max-md:size-8 max-md:has-[>svg]:px-0 md:has-[>svg]:px-3"
               >
-                Cancel Edit
+                <X className="size-4 md:hidden" aria-hidden="true" />
+                <span className="max-md:sr-only">Cancel Edit</span>
               </Button>
             ) : null}
             <Button
@@ -1636,17 +1585,17 @@ export const PostBox: FC<Props> = ({
           </div>
         </div>
         {warningMsg ? (
-          <div role="alert" className="text-xs text-destructive-text mb-3">
+          <div role="alert" className="mt-3 text-xs text-destructive-text">
             {warningMsg}
           </div>
         ) : null}
         {missingDescription ? (
-          <div className="text-xs text-destructive-text mb-3" role="status">
+          <div className="mt-3 text-xs text-destructive-text" role="status">
             Add a description to every item, or mark it decorative
           </div>
         ) : null}
         {!replyStatus && postExtension.fitnessFile ? (
-          <div className="mb-3 flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+          <div className="mt-3 flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
             <div className="flex min-w-0 items-center gap-2 text-sm">
               <Activity className="size-4 text-muted-foreground" />
               <span className="shrink-0 text-muted-foreground">Fitness:</span>

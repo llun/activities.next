@@ -9,6 +9,7 @@ import { Status, StatusNote, StatusType } from '@/lib/types/domain/status'
 import { PostBox } from './post-box'
 import {
   createNoteMock,
+  openPostOptions,
   profile,
   resetEditMediaMocks
 } from './post-box.testUtils'
@@ -313,6 +314,9 @@ describe('PostBox quote composing', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Add poll' })).toBeDisabled()
+    await openPostOptions()
+
+    const poll = screen.getByRole('menuitemcheckbox', { name: 'Poll' })
+    expect(poll).toHaveAttribute('aria-disabled', 'true')
   })
 })

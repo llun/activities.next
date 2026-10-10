@@ -1,3 +1,4 @@
+import { fireEvent, screen } from '@testing-library/react'
 import { vi } from 'vitest'
 
 import {
@@ -156,4 +157,27 @@ export const resetEditMediaMocks = () => {
     status: editStatus,
     attachments: []
   })
+}
+
+/**
+ * Opens the composer's "Post options" menu (a no-op when it is already open,
+ * which is the case after toggling a switch: toggles keep the menu open).
+ * Radix dropdowns open from the keyboard in jsdom.
+ */
+export const openPostOptions = async () => {
+  if (!screen.queryByRole('menu')) {
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Post options' }), {
+      key: 'ArrowDown'
+    })
+  }
+  return screen.findByRole('menu')
+}
+
+/** Opens the Post options menu and activates one of its items. */
+export const choosePostOption = async (
+  name: string | RegExp,
+  role: 'menuitem' | 'menuitemcheckbox' = 'menuitemcheckbox'
+) => {
+  await openPostOptions()
+  fireEvent.click(await screen.findByRole(role, { name }))
 }
