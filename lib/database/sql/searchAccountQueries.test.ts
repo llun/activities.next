@@ -534,6 +534,85 @@ describe('the actor search document', () => {
   })
 })
 
+describe('the account search document follows the actor row', () => {
+  it('is rebuilt when the actor profile changes', async () => {
+    const id = await addActor('zqprofile', { summary: 'zqoldsummary' })
+    const neighbourId = await addActor('zqprofile-neighbour', {
+      summary: 'zqoldsummary'
+    })
+
+    await database.updateActor({
+      actorId: id,
+      name: 'Zebrafinch',
+      summary: 'zqnewsummary'
+    })
+
+    await expect(searchIds({ q: 'zebrafinch' })).resolves.toEqual([id])
+    await expect(searchIds({ q: 'zqoldsummary' })).resolves.toEqual([
+      neighbourId
+    ])
+  })
+
+  it.each(['scheduleActorDeletion', 'startActorDeletion'] as const)(
+    'stops being discoverable on %s',
+    async (method) => {
+      const id = await addActor(`zq-${method}`)
+      const neighbourId = await addActor(`zq-${method}-neighbour`)
+      await expect(readDocument('account', id)).resolves.toMatchObject({
+        discoverable: true
+      })
+
+      await database[method]({ actorId: id, scheduledAt: new Date() })
+
+      await expect(readDocument('account', id)).resolves.toMatchObject({
+        discoverable: false
+      })
+      await expect(readDocument('account', neighbourId)).resolves.toMatchObject(
+        { discoverable: true }
+      )
+    }
+  )
+
+  it.each(['deleteActor', 'deleteActorData'] as const)(
+    "is removed by %s, and only that actor's",
+    async (method) => {
+      const id = await addActor(`zq-${method}`)
+      const neighbourId = await addActor(`zq-${method}-neighbour`)
+
+      await database[method]({ actorId: id })
+
+      await expect(readDocument('account', id)).resolves.toBeUndefined()
+      await expect(readDocument('account', neighbourId)).resolves.toBeDefined()
+    }
+  )
+
+  it('is removed with a rejected pending account', async () => {
+    const neighbourId = await addActor('zq-reject-neighbour')
+    const accountId = await database.createAccount({
+      email: 'zqreject@acct.test',
+      username: 'zqreject',
+      passwordHash: 'password-hash',
+      domain: 'acct.test',
+      privateKey: 'private-key',
+      publicKey: 'public-key'
+    })
+    await testDb.db
+      .updateTable('accounts')
+      .set({ approvedAt: null })
+      .where('id', '=', accountId)
+      .execute()
+    const id = actorIdOf('zqreject')
+    await expect(readDocument('account', id)).resolves.toBeDefined()
+
+    await expect(database.rejectPendingAccount({ accountId })).resolves.toBe(
+      true
+    )
+
+    await expect(readDocument('account', id)).resolves.toBeUndefined()
+    await expect(readDocument('account', neighbourId)).resolves.toBeDefined()
+  })
+})
+
 describe('reindexSearchAccounts', () => {
   it('walks actors in id order from the cursor and leaves the rest alone', async () => {
     const reindexDb = createTestDatabase({ isolated: true })
