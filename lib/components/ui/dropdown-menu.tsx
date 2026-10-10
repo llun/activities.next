@@ -192,35 +192,158 @@ function DropdownMenuShortcut({
   )
 }
 
+// Tailwind's `max-md` (`md` is 48rem), written as `max-width` so Safari before
+// 16.4 (no range syntax) matches it too. Below it a menu takes most of the
+// screen's width, so a submenu has no room beside it on either side: Radix can
+// only flip it to the other side, where it opens off the screen's edge. There
+// the submenu opens inline instead, as an indented group under its row.
+const PHONE_QUERY = '(max-width: 47.99rem)'
+
+const subscribeToPhoneQuery = (onChange: () => void) => {
+  if (typeof window.matchMedia !== 'function') return () => {}
+  const query = window.matchMedia(PHONE_QUERY)
+  query.addEventListener('change', onChange)
+  return () => query.removeEventListener('change', onChange)
+}
+
+const isPhoneViewport = () =>
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia(PHONE_QUERY).matches
+
+const useIsPhoneViewport = () =>
+  React.useSyncExternalStore(
+    subscribeToPhoneQuery,
+    isPhoneViewport,
+    () => false
+  )
+
+interface InlineSubState {
+  open: boolean
+  setOpen: (open: boolean) => void
+  contentId: string
+}
+
+// Set only while a `DropdownMenuSub` renders inline; its trigger and content
+// read it to draw an expandable row and a group instead of Radix's floating
+// submenu.
+const InlineSubContext = React.createContext<InlineSubState | null>(null)
+
 function DropdownMenuSub({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
-  return <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" {...props} />
+  const inline = useIsPhoneViewport()
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+  const contentId = React.useId()
+  const open = openProp ?? uncontrolledOpen
+  const inlineState = React.useMemo<InlineSubState>(
+    () => ({
+      open,
+      setOpen: (next) => {
+        if (openProp === undefined) setUncontrolledOpen(next)
+        onOpenChange?.(next)
+      },
+      contentId
+    }),
+    [open, openProp, onOpenChange, contentId]
+  )
+
+  if (inline) {
+    return (
+      <InlineSubContext.Provider value={inlineState}>
+        {children}
+      </InlineSubContext.Provider>
+    )
+  }
+
+  return (
+    <DropdownMenuPrimitive.Sub
+      data-slot="dropdown-menu-sub"
+      open={openProp}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      {...props}
+    >
+      {children}
+    </DropdownMenuPrimitive.Sub>
+  )
 }
+
+const SUB_TRIGGER_CLASS =
+  // `data-[disabled]:*` matches the three sibling item primitives above.
+  // Radix already emits both `data-disabled` and `aria-disabled` on a
+  // disabled SubTrigger and makes it inert (its onClick/onKeyDown return
+  // early) — what was missing is any styling keyed to that attribute, so
+  // it painted identically to the enabled row beside it and read as a
+  // broken control rather than a disabled one. Upstream shadcn omits this
+  // here too; only the sibling item primitives carry it.
+  "focus:bg-accent focus:text-accent-foreground dark:focus:bg-muted data-[state=open]:bg-accent data-[state=open]:text-accent-foreground dark:data-[state=open]:bg-muted [&_svg:not([class*='text-'])]:text-muted-foreground flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
 
 function DropdownMenuSubTrigger({
   className,
   inset,
   children,
+  onKeyDown,
+  onSelect,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger> & {
   inset?: boolean
 }) {
+  const inlineSub = React.useContext(InlineSubContext)
+
+  if (inlineSub) {
+    const { open, setOpen, contentId } = inlineSub
+    return (
+      // A plain item that expands its group in place. `onSelect` keeps the
+      // menu open; the arrow keys mirror a floating submenu's (right opens,
+      // left closes).
+      <DropdownMenuPrimitive.Item
+        {...props}
+        data-slot="dropdown-menu-sub-trigger"
+        data-inset={inset}
+        data-state={open ? 'open' : 'closed'}
+        aria-expanded={open}
+        id={`${contentId}-trigger`}
+        aria-controls={open ? contentId : undefined}
+        className={cn(SUB_TRIGGER_CLASS, className)}
+        onSelect={(event) => {
+          event.preventDefault()
+          setOpen(!open)
+        }}
+        onKeyDown={(event) => {
+          onKeyDown?.(event)
+          // Radix's own handler skips a disabled item; this one runs first.
+          if (event.defaultPrevented || props.disabled) return
+          if (event.key === 'ArrowRight' && !open) {
+            event.preventDefault()
+            setOpen(true)
+          } else if (event.key === 'ArrowLeft' && open) {
+            event.preventDefault()
+            setOpen(false)
+          }
+        }}
+      >
+        {children}
+        <ChevronRightIcon
+          className={cn(
+            'ml-auto size-4 transition-transform',
+            open && 'rotate-90'
+          )}
+        />
+      </DropdownMenuPrimitive.Item>
+    )
+  }
+
   return (
     <DropdownMenuPrimitive.SubTrigger
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
-      className={cn(
-        // `data-[disabled]:*` matches the three sibling item primitives above.
-        // Radix already emits both `data-disabled` and `aria-disabled` on a
-        // disabled SubTrigger and makes it inert (its onClick/onKeyDown return
-        // early) — what was missing is any styling keyed to that attribute, so
-        // it painted identically to the enabled row beside it and read as a
-        // broken control rather than a disabled one. Upstream shadcn omits this
-        // here too; only the sibling item primitives carry it.
-        "focus:bg-accent focus:text-accent-foreground dark:focus:bg-muted data-[state=open]:bg-accent data-[state=open]:text-accent-foreground dark:data-[state=open]:bg-muted [&_svg:not([class*='text-'])]:text-muted-foreground flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
+      className={cn(SUB_TRIGGER_CLASS, className)}
+      onKeyDown={onKeyDown}
+      onSelect={onSelect}
       {...props}
     >
       {children}
@@ -229,10 +352,33 @@ function DropdownMenuSubTrigger({
   )
 }
 
+/**
+ * Beside its row on desktop. On a phone (see `PHONE_QUERY`) it opens inline as
+ * an indented group under the row, and `className`, `style` and the
+ * positioning props are left out: they size and place the floating panel.
+ */
 function DropdownMenuSubContent({
   className,
+  children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  const inlineSub = React.useContext(InlineSubContext)
+
+  if (inlineSub) {
+    if (!inlineSub.open) return null
+    return (
+      <DropdownMenuPrimitive.Group
+        id={inlineSub.contentId}
+        aria-labelledby={`${inlineSub.contentId}-trigger`}
+        data-slot="dropdown-menu-sub-content"
+        data-inline=""
+        className="border-border my-1 ml-4 border-l pl-1"
+      >
+        {children}
+      </DropdownMenuPrimitive.Group>
+    )
+  }
+
   return (
     <DropdownMenuPrimitive.SubContent
       data-slot="dropdown-menu-sub-content"
@@ -241,7 +387,9 @@ function DropdownMenuSubContent({
         className
       )}
       {...props}
-    />
+    >
+      {children}
+    </DropdownMenuPrimitive.SubContent>
   )
 }
 

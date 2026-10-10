@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 
 import {
   DropdownMenu,
@@ -75,5 +75,103 @@ describe('DropdownMenu', () => {
     const dot = row.querySelector('span > span > span')
     expect(dot).toHaveClass('size-1.5', 'rounded-full', 'bg-current')
     expect(row.querySelector('svg')).toBeNull()
+  })
+
+  // A phone has no room for a submenu beside its menu (Radix flips it off the
+  // screen's edge), so there it expands inline under its row.
+  describe('on a phone', () => {
+    const originalMatchMedia = window.matchMedia
+
+    beforeEach(() => {
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(max-width: 47.99rem)',
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn()
+      })) as unknown as typeof window.matchMedia
+    })
+
+    afterEach(() => {
+      window.matchMedia = originalMatchMedia
+    })
+
+    it('expands the submenu inline when its row is chosen', () => {
+      renderMenu()
+      const row = screen.getByText('Translate to').closest('[role="menuitem"]')
+      expect(row).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText('English')).not.toBeInTheDocument()
+
+      fireEvent.click(row as HTMLElement)
+
+      expect(row).toHaveAttribute('aria-expanded', 'true')
+      expect(row).toHaveAttribute('data-state', 'open')
+      const group = screen.getByText('English').closest('[role="group"]')
+      expect(group).toHaveAttribute('data-inline')
+      expect(group).toHaveAccessibleName('Translate to')
+      expect(row).toHaveAttribute('aria-controls', group?.id)
+      // Inside the menu itself, not a second floating menu.
+      expect(screen.getAllByRole('menu')).toHaveLength(1)
+      expect(screen.getByRole('menu')).toContainElement(group as HTMLElement)
+
+      fireEvent.click(row as HTMLElement)
+      expect(row).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText('English')).not.toBeInTheDocument()
+    })
+
+    it('opens with the right arrow key and closes with the left', () => {
+      renderMenu()
+      const row = screen
+        .getByText('Translate to')
+        .closest('[role="menuitem"]') as HTMLElement
+      fireEvent.keyDown(row, { key: 'ArrowRight' })
+      expect(screen.getByText('English')).toBeInTheDocument()
+      fireEvent.keyDown(row, { key: 'ArrowLeft' })
+      expect(screen.queryByText('English')).not.toBeInTheDocument()
+    })
+
+    it('keeps a disabled submenu closed', () => {
+      render(
+        <DropdownMenu open modal={false}>
+          <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger disabled>
+                Translate to
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem>English</DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+      const row = screen
+        .getByText('Translate to')
+        .closest('[role="menuitem"]') as HTMLElement
+      fireEvent.click(row)
+      fireEvent.keyDown(row, { key: 'ArrowRight' })
+      expect(screen.queryByText('English')).not.toBeInTheDocument()
+    })
+
+    it('closes the whole menu when an inline option is chosen', () => {
+      const onOpenChange = vi.fn()
+      const onSelect = vi.fn()
+      render(
+        <DropdownMenu open modal={false} onOpenChange={onOpenChange}>
+          <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuSub defaultOpen>
+              <DropdownMenuSubTrigger>Translate to</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onSelect={onSelect}>English</DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )
+      fireEvent.click(screen.getByText('English'))
+      expect(onSelect).toHaveBeenCalledTimes(1)
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+    })
   })
 })
