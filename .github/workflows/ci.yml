@@ -161,7 +161,9 @@ jobs:
 
   # Bounded PostgreSQL integration test job covering database access layers:
   # media (and media details/gallery, incl. gallery services), fitness files, gear, component periods, heatmap tiles, queue jobs,
-  # status deletion queue transactions, and list membership row locking.
+  # status deletion queue transactions, list membership row locking, likes, and
+  # the Knex-backed Kysely driver (result normalisation, the mixed-transaction
+  # guard, counters).
   # Vitest worker concurrency is bounded (--maxWorkers=2) to avoid exhausting
   # database connections or overloading disposable service containers.
   test-pg:
@@ -232,7 +234,11 @@ jobs:
             lib/database/sql/statusDeletionQueue.test.ts \
             lib/database/sql/stravaArchiveImport.test.ts \
             lib/database/sql/list.test.ts \
-            lib/database/sql/listMembershipEligibility.test.ts
+            lib/database/sql/listMembershipEligibility.test.ts \
+            lib/database/sql/like.test.ts \
+            lib/database/kysely/driver.test.ts \
+            lib/database/kysely/guard.test.ts \
+            lib/database/kysely/counter.test.ts
         env:
           TEST_DATABASE_TYPE: pg
           TEST_DATABASE_HOST: 127.0.0.1
@@ -294,6 +300,8 @@ jobs:
   # generates a schema-only dump using PostgreSQL 17 tooling, applies the
   # documented normalization (CONTRIBUTING.md → "PostgreSQL —
   # migrations/schema.sql"), and fails if the result differs from the committed file.
+  # It then regenerates the Kysely DB types (lib/database/kysely/db.ts) from the
+  # same database and fails if they differ from the committed file too.
   schema-dump-check-pg:
     name: PostgreSQL Schema Dump Sync
     runs-on: ubuntu-latest
@@ -362,6 +370,23 @@ jobs:
           ' /tmp/schema_raw.sql | cat -s > /tmp/schema-regenerated.sql
           if ! diff -u migrations/schema.sql /tmp/schema-regenerated.sql; then
             echo "::error::migrations/schema.sql is out of sync with the migrations. Regenerate BOTH schema dumps in this PR — see AGENTS.md → 'Keeping the reference schema dumps in sync'."
+            exit 1
+          fi
+      # The Kysely DB types (lib/database/kysely/db.ts) are generated from this
+      # migrated database plus migrations/schema.sqlite.sql, so they drift
+      # whenever a migration changes the schema.
+      - name: Diff regenerated Kysely DB types against lib/database/kysely/db.ts
+        run: |
+          ACTIVITIES_DATABASE_CLIENT=pg \
+          ACTIVITIES_DATABASE_PG_HOST=127.0.0.1 \
+          ACTIVITIES_DATABASE_PG_PORT=${{ job.services.postgres.ports['5432'] }} \
+          ACTIVITIES_DATABASE_PG_USER=activities \
+          ACTIVITIES_DATABASE_PG_PASSWORD=activities \
+          ACTIVITIES_DATABASE_PG_DATABASE=activities \
+            node scripts/run.cjs scripts/maintenance/generateDatabaseTypes.ts \
+              --output /tmp/db-regenerated.ts
+          if ! diff -u lib/database/kysely/db.ts /tmp/db-regenerated.ts; then
+            echo "::error::lib/database/kysely/db.ts is out of sync with the schema. Regenerate it in this PR — see docs/setup.md → 'Regenerating the Kysely DB types'."
             exit 1
           fi
 

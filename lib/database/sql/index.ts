@@ -1,5 +1,12 @@
 import { Knex } from 'knex'
 
+import { likeQueries } from '@/lib/database/domains/like/queries'
+import type { LikeDatabase } from '@/lib/database/domains/like/types'
+import {
+  bindDb,
+  installKnexKyselyGuard,
+  kyselyFor
+} from '@/lib/database/kysely'
 import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
 import { AccountNoteSQLDatabaseMixin } from '@/lib/database/sql/accountNote'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
@@ -32,7 +39,6 @@ import { IdempotencySQLDatabaseMixin } from '@/lib/database/sql/idempotency'
 import { ImportLockSQLDatabaseMixin } from '@/lib/database/sql/importLock'
 import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
 import { InstanceRuleSQLDatabaseMixin } from '@/lib/database/sql/instanceRule'
-import { LikeSQLDatabaseMixin } from '@/lib/database/sql/like'
 import { LinkPreviewSQLDatabaseMixin } from '@/lib/database/sql/linkPreview'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MarkerSQLDatabaseMixin } from '@/lib/database/sql/marker'
@@ -63,6 +69,12 @@ import { WahooImportSQLDatabaseMixin } from '@/lib/database/sql/wahooImport'
 import { Database } from '@/lib/database/types'
 
 export const getSQLDatabase = (database: Knex): Database => {
+  // Track Knex transactions from the start, so a Kysely call inside one is
+  // caught even if it is the first Kysely call (see lib/database/kysely/guard.ts).
+  installKnexKyselyGuard(database)
+  // Domains that have moved to Kysely. `kyselyFor` runs on first use, so a
+  // mocked Knex without a client still builds the facade.
+  const kysely = () => kyselyFor(database)
   const accountDatabase = AccountSQLDatabaseMixin(database)
   const accountNoteDatabase = AccountNoteSQLDatabaseMixin(database)
   const actorDatabase = ActorSQLDatabaseMixin(database)
@@ -107,7 +119,7 @@ export const getSQLDatabase = (database: Knex): Database => {
   const followedTagDatabase = FollowedTagSQLDatabaseMixin(database)
   const instanceActivityDatabase = InstanceActivitySQLDatabaseMixin(database)
   const instanceRuleDatabase = InstanceRuleSQLDatabaseMixin(database)
-  const likeDatabase = LikeSQLDatabaseMixin(database)
+  const likeDatabase: LikeDatabase = bindDb(kysely, likeQueries)
   const linkPreviewDatabase = LinkPreviewSQLDatabaseMixin(database)
   const mediaDatabase = MediaSQLDatabaseMixin(database)
   const moderationDatabase = ModerationSQLDatabaseMixin(database)

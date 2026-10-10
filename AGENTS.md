@@ -9,7 +9,7 @@ Every change, however small, is done only when ALL of these hold:
 1. It is on a feature branch — never commit to `main`.
 2. `yarn run prettier --write .` → `yarn lint` → `yarn typecheck` → `yarn build` → `yarn test` all pass, run in that order.
 3. Every document the change makes stale is updated in the same PR (see **Documentation Maintenance**).
-4. If a migration was added/edited/removed, BOTH schema dumps are regenerated (see **Database Backends & Local Setup**; CI fails on SQLite-dump drift).
+4. If a migration was added/edited/removed, BOTH schema dumps and the generated Kysely DB types (`lib/database/kysely/db.ts`) are regenerated (see **Database Backends & Local Setup**; CI fails on drift in any of them).
 5. The commit subject and PR title carry the correct conventional prefix, and `package.json` `version` is untouched (see **Commit & Pull Request Guidelines**).
 6. UI changes are verified in a real browser (see [Local Manual / Browser Testing](CONTRIBUTING.md#local-manual-browser-testing)) (screenshots in the PR are not required).
 7. Changes that alter the design keep the Sketch design library in step: `Activities.next.sketch` is updated (and redesign screens regenerated when affected), the interactive prototype (`Activities.next/Interactive/`) is regenerated from the merged change, and both are committed and pushed in the separate `llun/sketch` repository (see [Design Library Sync](CONTRIBUTING.md#agents-design-library-sync)).

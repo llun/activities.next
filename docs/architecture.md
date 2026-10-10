@@ -26,7 +26,7 @@ Domain and service boundary: Core library (lib/)
         │
         ▼
 Infrastructure boundary
-  ├─ Database layer: Knex with SQLite/PostgreSQL; MySQL-compatible config paths
+  ├─ Database layer: Knex and Kysely with SQLite/PostgreSQL
   ├─ File storage: local filesystem, S3, or S3-compatible object storage
   └─ External services: QStash, SMTP/Resend/SES, OpenTelemetry
 ```
@@ -114,13 +114,13 @@ The frontend and API layer, organized using Next.js route groups:
 
 ### `migrations/` — Database Schema
 
-Knex migration files that define the database schema. Migrations are designed to work with SQLite and PostgreSQL, while avoiding assumptions that break MySQL-compatible Knex clients where possible.
+Knex migration files that define the database schema. Migrations are designed to work with SQLite and PostgreSQL.
 
 ## Key Design Decisions
 
 ### Database Abstraction
 
-All database operations go through the `lib/database/` layer using [Knex.js](https://knexjs.org/) as the query builder. This enables SQLite (development/small instances) and PostgreSQL (production) support without changing application code. The configuration loader also accepts MySQL-compatible Knex clients for deployments that provide the needed driver/runtime support.
+All database operations go through the `lib/database/` layer using [Knex.js](https://knexjs.org/) as the query builder. This enables SQLite (development/small instances) and PostgreSQL (production) support without changing application code. Only the `better-sqlite3` and `pg` clients are supported.
 
 ### Mastodon API Compatibility
 
@@ -559,7 +559,7 @@ Other tables: sessions, notifications, medias, gallery_gears,
 | **UI Library**       | React 19                                                                                                                              |
 | **Styling**          | Tailwind CSS                                                                                                                          |
 | **UI Components**    | Radix UI primitives                                                                                                                   |
-| **Database**         | Knex.js (SQLite / PostgreSQL; MySQL-compatible config paths)                                                                          |
+| **Database**         | Knex.js + Kysely (SQLite / PostgreSQL)                                                                                                |
 | **Authentication**   | better-auth                                                                                                                           |
 | **Logging**          | Pino                                                                                                                                  |
 | **Testing**          | Vitest (native ESM)                                                                                                                   |

@@ -55,7 +55,7 @@ This document tracks the implemented and planned features for Activity.next.
 
 ### Storage & Media
 
-- ✅ **SQL database support** — SQLite and PostgreSQL, with MySQL-compatible Knex configuration paths
+- ✅ **SQL database support** — SQLite (`better-sqlite3`) and PostgreSQL (`pg`)
 - ✅ **Media upload** — Upload images and video to local filesystem, S3, or S3-compatible object storage
 - ✅ **Blurhash & smart focal points** — Automatic server-side blurhash placeholder generation and saliency-based smart focal point detection on uploaded images and video preview frames, with client-overridable focal points, inbound ActivityPub focal point/blurhash parsing, and timeline blurhash placeholder canvas rendering. Every path that attaches media carries them — composing, editing a posted status (including a focal point moved from a Mastodon client), route map images, and Strava photo and archive imports — and both image and video attachments serialise `meta.focus`
 - ✅ **Automated alt text** — Generate accessibility descriptions for uploaded images and videos from a configured OpenAI-compatible vision endpoint (`ACTIVITIES_ALT_TEXT_*`) when the client sends none, as well as route descriptions for fitness activity route map images when enabled in the actor's Fitness Settings (off by default). Video descriptions come from the representative preview frame, which is more likely than frame 0 to show the scene instead of a black or blank opening; a vision or preview-extraction failure degrades to an upload or activity with no generated description rather than failing the upload or processing. Storing the video's own poster frame is still required and fatal if the clip cannot be decoded

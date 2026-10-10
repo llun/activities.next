@@ -7,7 +7,6 @@ import { BookmarkSQLDatabaseMixin } from './bookmark'
 import { FitnessSettingsSQLDatabaseMixin } from './fitnessSettings'
 import { FollowerSQLDatabaseMixin } from './follow'
 import { getSQLDatabase } from './index'
-import { LikeSQLDatabaseMixin } from './like'
 import { MediaSQLDatabaseMixin } from './media'
 import { NotificationSQLDatabaseMixin } from './notification'
 import { OAuthSQLDatabaseMixin } from './oauth'
@@ -15,6 +14,20 @@ import { SearchSQLDatabaseMixin } from './search'
 import { StatusSQLDatabaseMixin } from './status'
 import { StatusDetectedLanguageSQLDatabaseMixin } from './statusDetectedLanguage'
 import { TimelineSQLDatabaseMixin } from './timeline'
+
+const { kyselyForMock, createLikeMock } = vi.hoisted(() => ({
+  kyselyForMock: vi.fn(),
+  createLikeMock: vi.fn()
+}))
+
+vi.mock('@/lib/database/kysely', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/database/kysely')>()),
+  kyselyFor: kyselyForMock
+}))
+
+vi.mock('@/lib/database/domains/like/queries', () => ({
+  likeQueries: { createLike: createLikeMock, isActorLikedStatus: vi.fn() }
+}))
 
 vi.mock('@/lib/database/sql/account', () => ({
   AccountSQLDatabaseMixin: vi.fn()
@@ -38,10 +51,6 @@ vi.mock('@/lib/database/sql/fitnessSettings', () => ({
 
 vi.mock('@/lib/database/sql/follow', () => ({
   FollowerSQLDatabaseMixin: vi.fn()
-}))
-
-vi.mock('@/lib/database/sql/like', () => ({
-  LikeSQLDatabaseMixin: vi.fn()
 }))
 
 vi.mock('@/lib/database/sql/media', () => ({
@@ -80,7 +89,6 @@ describe('getSQLDatabase', () => {
   const fitnessSettingsMixinMock =
     FitnessSettingsSQLDatabaseMixin as unknown as jest.Mock
   const followerMixinMock = FollowerSQLDatabaseMixin as unknown as jest.Mock
-  const likeMixinMock = LikeSQLDatabaseMixin as unknown as jest.Mock
   const mediaMixinMock = MediaSQLDatabaseMixin as unknown as jest.Mock
   const notificationMixinMock =
     NotificationSQLDatabaseMixin as unknown as jest.Mock
@@ -125,9 +133,6 @@ describe('getSQLDatabase', () => {
     const followerDatabase = {
       getFollowers: vi.fn()
     }
-    const likeDatabase = {
-      createLike: vi.fn()
-    }
     const mediaDatabase = {
       createMedia: vi.fn()
     }
@@ -158,7 +163,6 @@ describe('getSQLDatabase', () => {
     bookmarkMixinMock.mockReturnValue(bookmarkDatabase)
     fitnessSettingsMixinMock.mockReturnValue(fitnessSettingsDatabase)
     followerMixinMock.mockReturnValue(followerDatabase)
-    likeMixinMock.mockReturnValue(likeDatabase)
     mediaMixinMock.mockReturnValue(mediaDatabase)
     notificationMixinMock.mockReturnValue(notificationDatabase)
     oauthMixinMock.mockReturnValue(oauthDatabase)
@@ -180,7 +184,6 @@ describe('getSQLDatabase', () => {
       followerDatabase,
       fitnessSettingsDatabase,
       knexDatabase,
-      likeDatabase,
       mediaDatabase,
       notificationDatabase,
       oauthDatabase,
@@ -196,7 +199,6 @@ describe('getSQLDatabase', () => {
       actorDatabase,
       bookmarkDatabase,
       knexDatabase,
-      likeDatabase,
       mediaDatabase,
       statusDatabase,
       statusDetectedLanguageDatabase
@@ -208,7 +210,6 @@ describe('getSQLDatabase', () => {
     expect(bookmarkMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(fitnessSettingsMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(followerMixinMock).toHaveBeenCalledWith(knexDatabase, actorDatabase)
-    expect(likeMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(mediaMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(notificationMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(oauthMixinMock).toHaveBeenCalledWith(knexDatabase)
@@ -217,7 +218,12 @@ describe('getSQLDatabase', () => {
     expect(statusMixinMock).toHaveBeenCalledWith(
       knexDatabase,
       actorDatabase,
-      likeDatabase,
+      // Likes are Kysely queries bound lazily to this Knex instance (see the
+      // dedicated test below).
+      expect.objectContaining({
+        createLike: expect.any(Function),
+        isActorLikedStatus: expect.any(Function)
+      }),
       bookmarkDatabase,
       mediaDatabase,
       statusDetectedLanguageDatabase,
@@ -229,6 +235,20 @@ describe('getSQLDatabase', () => {
       })
     )
     expect(timelineMixinMock).toHaveBeenCalledWith(knexDatabase, statusDatabase)
+  })
+
+  it('binds like queries to kyselyFor(knex), resolved on each call', async () => {
+    const { database, knexDatabase } = createComposedDatabase()
+    const kyselyDb = { name: 'kysely' }
+    kyselyForMock.mockReturnValue(kyselyDb)
+    createLikeMock.mockResolvedValue(true)
+    expect(kyselyForMock).not.toHaveBeenCalled()
+
+    const params = { actorId: 'actor', statusId: 'status' }
+    await expect(database.createLike(params)).resolves.toBe(true)
+
+    expect(kyselyForMock).toHaveBeenCalledWith(knexDatabase)
+    expect(createLikeMock).toHaveBeenCalledWith(kyselyDb, params)
   })
 
   it('merges properties with later mixins taking precedence', () => {

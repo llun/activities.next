@@ -1,6 +1,9 @@
 import { Span, trace } from '@opentelemetry/api'
-import knex from 'knex'
+import knex, { Knex } from 'knex'
+import { sql } from 'kysely'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { kyselyFor } from '@/lib/database/kysely'
 
 import { attachSqlcommenter } from './index'
 
@@ -142,5 +145,97 @@ describe('attachSqlcommenter', () => {
 
     const sql = query.toSQL().sql
     expect(sql).not.toContain('traceparent')
+  })
+})
+
+describe('sqlcommenter on Kysely queries', () => {
+  const traceparent =
+    "/* traceparent='00-02dad5002ab305f1fd75ae8bd0d46e94-3ca938408dc381d3-01' */"
+  const mockSpan = {
+    spanContext: () => ({
+      traceId: '02dad5002ab305f1fd75ae8bd0d46e94',
+      spanId: '3ca938408dc381d3',
+      traceFlags: 1
+    })
+  } as unknown as Span
+
+  const createInstance = () =>
+    knex({
+      client: 'better-sqlite3',
+      useNullAsDefault: true,
+      connection: { filename: ':memory:' }
+    })
+
+  const captureSql = async (
+    instance: Knex,
+    run: () => Promise<unknown>
+  ): Promise<string[]> => {
+    const statements: string[] = []
+    const onQuery = ({ sql }: { sql: string }) => statements.push(sql)
+    instance.on('query', onQuery)
+    try {
+      await run()
+    } finally {
+      instance.off('query', onQuery)
+    }
+    return statements
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('appends the traceparent comment as a suffix of the executed SQL', async () => {
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
+    const instance = attachSqlcommenter(createInstance())
+    try {
+      const statements = await captureSql(instance, () =>
+        sql`select 1 as one`.execute(kyselyFor(instance))
+      )
+      expect(statements).toEqual([`select 1 as one ${traceparent}`])
+    } finally {
+      await instance.destroy()
+    }
+  })
+
+  it('appends it inside a Knex transaction through kyselyFor(trx)', async () => {
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
+    const instance = attachSqlcommenter(createInstance())
+    try {
+      const statements = await captureSql(instance, () =>
+        instance.transaction((trx) =>
+          sql`select 2 as two`.execute(kyselyFor(trx))
+        )
+      )
+      expect(statements).toContain(`select 2 as two ${traceparent}`)
+    } finally {
+      await instance.destroy()
+    }
+  })
+
+  it('adds nothing when the Knex instance has no sqlcommenter hook', async () => {
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(mockSpan)
+    const instance = createInstance()
+    try {
+      const statements = await captureSql(instance, () =>
+        sql`select 1 as one`.execute(kyselyFor(instance))
+      )
+      expect(statements).toEqual(['select 1 as one'])
+    } finally {
+      await instance.destroy()
+    }
+  })
+
+  it('adds nothing when there is no active span', async () => {
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(undefined)
+    const instance = attachSqlcommenter(createInstance())
+    try {
+      const statements = await captureSql(instance, () =>
+        sql`select 1 as one`.execute(kyselyFor(instance))
+      )
+      expect(statements).toEqual(['select 1 as one'])
+    } finally {
+      await instance.destroy()
+    }
   })
 })

@@ -1,9 +1,13 @@
-import { trace } from '@opentelemetry/api'
 import knex, { Knex } from 'knex'
 import memoize from 'lodash/memoize'
 
 import { getConfig } from '@/lib/config'
+import { getKyselyDialectName } from '@/lib/database/kysely/driver'
 import { getSQLDatabase } from '@/lib/database/sql'
+import {
+  getTraceparentCommentSuffix,
+  markSqlcommenterAttached
+} from '@/lib/database/sqlcommenter'
 import { Database } from '@/lib/database/types'
 
 interface DatabaseInstance {
@@ -30,17 +34,16 @@ interface DatabaseInstance {
 // positions are rewritten for the target dialect (e.g. `?` -> `$1` for
 // PostgreSQL) — the trace tag never contains a `?`, so it cannot shift any
 // binding position.
+//
+// Kysely queries never fire `start` (no Knex builder is involved), so the
+// shared Kysely driver appends the same suffix itself for every instance
+// marked here (see lib/database/kysely/driver.ts).
 export const attachSqlcommenter = (db: Knex): Knex => {
+  markSqlcommenterAttached(db)
   db.on('start', (builder: Knex.QueryBuilder) => {
     try {
-      const span = trace.getActiveSpan()
-      if (!span) return
-      const spanContext = span.spanContext()
-      if (!trace.isSpanContextValid(spanContext)) return
-
-      const traceFlags = spanContext.traceFlags.toString(16).padStart(2, '0')
-      const traceparent = `00-${spanContext.traceId}-${spanContext.spanId}-${traceFlags}`
-      const commentSuffix = ` /* traceparent='${traceparent}' */`
+      const commentSuffix = getTraceparentCommentSuffix()
+      if (!commentSuffix) return
 
       if (typeof builder?.toSQL !== 'function') return
       // knex fires `start` once per EXECUTION, not once per builder, and a
@@ -71,9 +74,21 @@ export const attachSqlcommenter = (db: Knex): Knex => {
   return db
 }
 
+export const assertSupportedDatabaseClient = (db: Knex): void => {
+  try {
+    getKyselyDialectName(db.client)
+  } catch (error) {
+    void db.destroy()
+    throw error
+  }
+}
+
 const getDatabaseInstance = memoize((): DatabaseInstance | null => {
   const config = getConfig()
   const db = attachSqlcommenter(knex(config.database))
+  // Only better-sqlite3 and pg are supported. Fail here, at startup, rather
+  // than on the first request that reaches a Kysely-backed query.
+  assertSupportedDatabaseClient(db)
   return { database: getSQLDatabase(db), knex: db }
 })
 
