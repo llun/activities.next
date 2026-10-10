@@ -1,4 +1,4 @@
-import { getTestSQLDatabase } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import {
   getAttachmentsFromMediaIds,
@@ -120,7 +120,8 @@ describe('getAttachmentsFromMediaIds', () => {
   })
 
   it('rejects media uploaded by a sibling actor of the same account', async () => {
-    const database = getTestSQLDatabase()
+    const { database, prepare } = createTestDatabase()
+    await prepare()
     await database.migrate()
     try {
       await database.createAccount({
