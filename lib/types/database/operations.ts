@@ -23,8 +23,6 @@ import {
   AttachmentMediaMetadata,
   PostBoxAttachment
 } from '@/lib/types/domain/attachment'
-import { Block } from '@/lib/types/domain/block'
-import { Bookmark } from '@/lib/types/domain/bookmark'
 import {
   Collection,
   CollectionFeatureState,
@@ -32,14 +30,8 @@ import {
 } from '@/lib/types/domain/collection'
 import { Follow, FollowStatus } from '@/lib/types/domain/follow'
 import { List, ListRepliesPolicy } from '@/lib/types/domain/list'
-import { Mute } from '@/lib/types/domain/mute'
 import { Session } from '@/lib/types/domain/session'
-import {
-  QuoteApprovalPolicy,
-  QuoteState,
-  Status,
-  StatusType
-} from '@/lib/types/domain/status'
+import { QuoteApprovalPolicy, Status } from '@/lib/types/domain/status'
 import { Tag, TagType } from '@/lib/types/domain/tag'
 import * as Mastodon from '@/lib/types/mastodon'
 
@@ -1263,58 +1255,19 @@ export interface FollowDatabase {
 // Block Database
 // ============================================================================
 
-export type CreateBlockParams = {
-  actorId: string
-  targetActorId: string
-  uri: string
-}
-export type DeleteBlockParams = {
-  actorId: string
-  targetActorId: string
-}
-export type DeleteBlockByUriParams = {
-  actorId: string
-  uri: string
-}
-export type GetBlockParams = {
-  actorId: string
-  targetActorId: string
-}
-export type GetBlockByUriParams = {
-  uri: string
-}
-export type IsBlockingParams = {
-  actorId: string
-  targetActorId: string
-}
-export type IsEitherBlockingParams = {
-  actorIdA: string
-  actorIdB: string
-}
-export type GetBlocksParams = {
-  actorId: string
-  limit: number
-  maxId?: string | null
-  minId?: string | null
-  sinceId?: string | null
-}
-export type GetBlockRelationsParams = {
-  actorIds: string[]
-  targetActorIds: string[]
-}
-export type BlockRelation = Pick<Block, 'actorId' | 'targetActorId'>
-
-export interface BlockDatabase {
-  createBlock(params: CreateBlockParams): Promise<Block>
-  deleteBlock(params: DeleteBlockParams): Promise<Block | null>
-  deleteBlockByUri(params: DeleteBlockByUriParams): Promise<Block | null>
-  getBlock(params: GetBlockParams): Promise<Block | null>
-  getBlockByUri(params: GetBlockByUriParams): Promise<Block | null>
-  isBlocking(params: IsBlockingParams): Promise<boolean>
-  isEitherBlocking(params: IsEitherBlockingParams): Promise<boolean>
-  getBlocks(params: GetBlocksParams): Promise<Block[]>
-  getBlockRelations(params: GetBlockRelationsParams): Promise<BlockRelation[]>
-}
+export type {
+  BlockDatabase,
+  BlockRelation,
+  CreateBlockParams,
+  DeleteBlockByUriParams,
+  DeleteBlockParams,
+  GetBlockByUriParams,
+  GetBlockParams,
+  GetBlockRelationsParams,
+  GetBlocksParams,
+  IsBlockingParams,
+  IsEitherBlockingParams
+} from '@/lib/database/domains/block/types'
 
 // ============================================================================
 // Actor Domain Block Database (user-level Mastodon domain blocks)
@@ -1332,35 +1285,15 @@ export type {
 // Mute Database
 // ============================================================================
 
-export type CreateMuteParams = {
-  actorId: string
-  targetActorId: string
-  notifications: boolean
-  endsAt: number | null
-}
-export type DeleteMuteParams = {
-  actorId: string
-  targetActorId: string
-}
-export type GetMuteParams = {
-  actorId: string
-  targetActorId: string
-}
-export type GetMuteRelationsParams = {
-  actorIds: string[]
-  targetActorIds: string[]
-}
-export type MuteRelation = Pick<
-  Mute,
-  'actorId' | 'targetActorId' | 'notifications'
->
-export type GetMutesParams = {
-  actorId: string
-  limit?: number
-  maxId?: string | null
-  minId?: string | null
-  sinceId?: string | null
-}
+export type {
+  CreateMuteParams,
+  DeleteMuteParams,
+  GetMuteParams,
+  GetMuteRelationsParams,
+  GetMutesParams,
+  MuteDatabase,
+  MuteRelation
+} from '@/lib/database/domains/mute/types'
 
 export type {
   GetMarkersParams,
@@ -1369,14 +1302,6 @@ export type {
   MarkerTimeline,
   UpsertMarkerParams
 } from '@/lib/database/domains/marker/types'
-
-export interface MuteDatabase {
-  createMute(params: CreateMuteParams): Promise<Mute>
-  deleteMute(params: DeleteMuteParams): Promise<Mute | null>
-  getMute(params: GetMuteParams): Promise<Mute | null>
-  getMuteRelations(params: GetMuteRelationsParams): Promise<MuteRelation[]>
-  getMutes(params: GetMutesParams): Promise<Mute[]>
-}
 
 // ============================================================================
 // Status (conversation) Mute Database
@@ -2320,267 +2245,58 @@ export type {
 // Status Reaction Database (Misskey/Pleroma emoji reactions)
 // ============================================================================
 
-// One reaction row per (status, actor, name) — Pleroma/glitch-soc multi-reaction
-// semantics rather than Misskey's one-per-actor rule, so a legitimate inbound
-// second reaction is never silently dropped or destructively replaced.
-//
-// `name` is stored colon-free: a unicode emoji, a local custom-emoji shortcode,
-// or `shortcode@domain` for a remote custom emoji. `url` carries the remote
-// emoji image; local shortcodes resolve live from `customEmojis` so an admin
-// re-upload propagates.
-//
-// A reaction is NEVER a favourite: it writes no `likes` row and never moves
-// `favourites_count`/`favourited`.
-interface BaseStatusReactionParams {
-  statusId: string
-  actorId: string
-  name: string
-}
-
-export type CreateStatusReactionParams = BaseStatusReactionParams & {
-  url?: string | null
-}
-export type DeleteStatusReactionParams = BaseStatusReactionParams
-
-export type GetStatusReactionRollupsParams = {
-  statusIds: string[]
-  currentActorId?: string
-}
-
-// One (status, name) reaction rollup: `count` is the number of distinct actors
-// who reacted with `name`, `me` whether the querying actor is among them, and
-// `url`/`staticUrl` the emoji image for custom emoji (null for unicode).
-export type StatusReactionRollup = {
-  statusId: string
-  name: string
-  count: number
-  me: boolean
-  url: string | null
-  staticUrl: string | null
-}
-
-export type GetStatusReactionActorsParams = {
-  statusId: string
-  // Restrict to a single reaction name. Omit for every reaction on the status.
-  name?: string
-}
-
-export type StatusReactionActor = {
-  name: string
-  actorId: string
-  createdAt: number
-}
-
-export interface StatusReactionDatabase {
-  // Idempotent on (statusId, actorId, name). Returns whether a row was actually
-  // stored: false when the status does not exist, the actor had already reacted
-  // with this name, or the actor is at the per-status reaction cap. Callers use
-  // it to fire notifications (and, from PR 5.1b, federation) only on a real
-  // state change.
-  createStatusReaction(params: CreateStatusReactionParams): Promise<boolean>
-  // Returns whether a row was removed, so callers can skip the outbound Undo
-  // (PR 5.1b) when the reaction was not there to begin with.
-  deleteStatusReaction(params: DeleteStatusReactionParams): Promise<boolean>
-  // Rollups grouped by (statusId, name) for the given statuses, ordered by
-  // first-reaction time ascending (Pleroma's insertion order).
-  getStatusReactionRollups(
-    params: GetStatusReactionRollupsParams
-  ): Promise<StatusReactionRollup[]>
-  // The actors behind a status's reactions, oldest first.
-  getStatusReactionActors(
-    params: GetStatusReactionActorsParams
-  ): Promise<StatusReactionActor[]>
-}
+export type {
+  CreateStatusReactionParams,
+  DeleteStatusReactionParams,
+  GetStatusReactionActorsParams,
+  GetStatusReactionRollupsParams,
+  StatusReactionActor,
+  StatusReactionDatabase,
+  StatusReactionRollup
+} from '@/lib/database/domains/statusReaction/types'
 
 // ============================================================================
 // Bookmark Database
 // ============================================================================
 
-interface BaseBookmarkParams {
-  actorId: string
-  statusId: string
-}
-export type CreateBookmarkParams = BaseBookmarkParams
-export type DeleteBookmarkParams = BaseBookmarkParams
-export type IsActorBookmarkedStatusParams = BaseBookmarkParams & {
-  // Allows callers that already loaded the status to skip an extra lookup for non-Announce rows.
-  statusType?: StatusType
-}
-export type GetBookmarksParams = {
-  actorId: string
-  limit: number
-  maxId?: string | null
-  minId?: string | null
-  sinceId?: string | null
-}
-
-export interface BookmarkDatabase {
-  createBookmark(params: CreateBookmarkParams): Promise<void>
-  deleteBookmark(params: DeleteBookmarkParams): Promise<void>
-  isActorBookmarkedStatus(
-    params: IsActorBookmarkedStatusParams
-  ): Promise<boolean>
-  getBookmarks(params: GetBookmarksParams): Promise<Bookmark[]>
-}
+export type {
+  BookmarkDatabase,
+  CreateBookmarkParams,
+  DeleteBookmarkParams,
+  GetBookmarksParams,
+  IsActorBookmarkedStatusParams
+} from '@/lib/database/domains/bookmark/types'
 
 // ============================================================================
 // Status Quote Database (FEP-044f / Mastodon 4.5 quote edges)
 // ============================================================================
 
-// One quote edge: the quoting status (`statusId`, PK) → the quoted status. Only
-// the five persistent states are stored; viewer-relative states are computed at
-// serialization time. There is intentionally no FK to statuses (the edge can be
-// created before the quoting status row exists, matching likes/recipients).
-export type StatusQuoteRecord = {
-  statusId: string
-  quotedStatusId: string
-  state: QuoteState
-  quoteRequestId: string | null
-  authorizationUri: string | null
-  createdAt: number
-  updatedAt: number
-}
-
-export type CreateStatusQuoteParams = {
-  statusId: string
-  quotedStatusId: string
-  state?: QuoteState
-  quoteRequestId?: string | null
-  authorizationUri?: string | null
-}
-export type GetStatusQuoteParams = { statusId: string }
-export type GetStatusQuoteByQuoteRequestIdParams = { quoteRequestId: string }
-export type GetStatusQuoteByAuthorizationUriParams = {
-  authorizationUri: string
-}
-export type UpdateStatusQuoteStateParams = {
-  statusId: string
-  state: QuoteState
-  authorizationUri?: string | null
-}
-export type GetQuotingStatusIdsParams = {
-  quotedStatusId: string
-  state?: QuoteState
-  limit?: number
-  maxId?: string | null
-  sinceId?: string | null
-  // Row offset for sequential enumeration (e.g. notifying every quoter). Unlike
-  // the maxId keyset cursor, an offset does not reference a deletable row, so a
-  // full sweep is not truncated if a quoting post is deleted mid-enumeration.
-  offset?: number
-}
-
-export interface StatusQuoteDatabase {
-  // Upsert on `statusId` (the edge may pre-exist from an inbound QuoteRequest).
-  createStatusQuote(params: CreateStatusQuoteParams): Promise<StatusQuoteRecord>
-  getStatusQuote(
-    params: GetStatusQuoteParams
-  ): Promise<StatusQuoteRecord | null>
-  // Match an inbound Accept/Reject against our outbound QuoteRequest.
-  getStatusQuoteByQuoteRequestId(
-    params: GetStatusQuoteByQuoteRequestIdParams
-  ): Promise<StatusQuoteRecord | null>
-  // Look up an edge by the hosted stamp uri (stamp GET route + revocation).
-  getStatusQuoteByAuthorizationUri(
-    params: GetStatusQuoteByAuthorizationUriParams
-  ): Promise<StatusQuoteRecord | null>
-  // Enforces the one-way state machine; an illegal transition is a no-op that
-  // returns the row unchanged. Returns null when no edge exists.
-  updateStatusQuoteState(
-    params: UpdateStatusQuoteStateParams
-  ): Promise<StatusQuoteRecord | null>
-  // Ids of statuses quoting `quotedStatusId`, newest first, for GET /:id/quotes.
-  getQuotingStatusIds(params: GetQuotingStatusIdsParams): Promise<string[]>
-}
+export type {
+  CreateStatusQuoteParams,
+  GetQuotingStatusIdsParams,
+  GetStatusQuoteByAuthorizationUriParams,
+  GetStatusQuoteByQuoteRequestIdParams,
+  GetStatusQuoteParams,
+  StatusQuoteDatabase,
+  StatusQuoteRecord,
+  UpdateStatusQuoteStateParams
+} from '@/lib/database/domains/statusQuote/types'
 
 // ============================================================================
 // Link Preview Database (Mastodon PreviewCard)
 // ============================================================================
 
-// A cached preview card, keyed per URL rather than per status so the same link
-// shared by many posts is fetched once. `fetchStatus: 'failed'` is a negative
-// cache entry, not a card — it keeps an unreachable host from being re-fetched
-// on every mention, and is never linked to a status.
-export type LinkPreviewRecord = {
-  urlHash: string
-  url: string
-  type: string
-  title: string | null
-  description: string | null
-  siteName: string | null
-  authorName: string | null
-  authorUrl: string | null
-  imageUrl: string | null
-  imageWidth: number | null
-  imageHeight: number | null
-  publishedAt: number | null
-  fetchStatus: LinkPreviewFetchStatus
-  error: string | null
-  createdAt: number
-  updatedAt: number
-}
-
-export type LinkPreviewFetchStatus = 'pending' | 'completed' | 'failed'
-
-// Everything except the identity (`urlHash`/`url`) and the timestamps, which
-// the mixin owns.
-export type UpsertLinkPreviewParams = {
-  urlHash: string
-  url: string
-  type?: string
-  title?: string | null
-  description?: string | null
-  siteName?: string | null
-  authorName?: string | null
-  authorUrl?: string | null
-  imageUrl?: string | null
-  imageWidth?: number | null
-  imageHeight?: number | null
-  publishedAt?: number | null
-  fetchStatus: LinkPreviewFetchStatus
-  error?: string | null
-}
-
-export type RecordLinkPreviewFailureParams = {
-  urlHash: string
-  url: string
-  error: string
-}
-
-export type GetLinkPreviewParams = { urlHash: string }
-export type LinkStatusLinkPreviewParams = { statusId: string; urlHash: string }
-export type GetStatusLinkPreviewsParams = { statusIds: string[] }
-export type DeleteStatusLinkPreviewParams = { statusId: string }
-
-export interface LinkPreviewDatabase {
-  // Upsert on `urlHash` for a SUCCESSFUL fetch: a page that changed its
-  // metadata is not stuck on a stale row.
-  upsertLinkPreview(params: UpsertLinkPreviewParams): Promise<LinkPreviewRecord>
-  // Record that a fetch failed, WITHOUT destroying a card that already works.
-  // The row is shared by every status linking that URL, so writing a failure as
-  // a full-row replace made one transient 502 on a weekly refresh blank the
-  // card for every one of those posts — and the negative cache then suppressed
-  // the retry that would have repaired it. A row that is already `completed`
-  // keeps its content and its status and only records the error; anything else
-  // becomes the `failed` negative-cache entry.
-  recordLinkPreviewFailure(
-    params: RecordLinkPreviewFailureParams
-  ): Promise<void>
-  getLinkPreview(
-    params: GetLinkPreviewParams
-  ): Promise<LinkPreviewRecord | null>
-  // Point a status at a card. Upsert on `statusId`: an edit can move a status
-  // from one card to another.
-  linkStatusLinkPreview(params: LinkStatusLinkPreviewParams): Promise<void>
-  // Batched hydration for a whole timeline page — one query, keyed by statusId.
-  // Only `completed` cards are returned; a pending or failed row renders
-  // nothing.
-  getStatusLinkPreviews(
-    params: GetStatusLinkPreviewsParams
-  ): Promise<Map<string, LinkPreviewRecord>>
-  // Drop a status→card link (the status no longer has an eligible URL).
-  deleteStatusLinkPreview(params: DeleteStatusLinkPreviewParams): Promise<void>
-}
+export type {
+  DeleteStatusLinkPreviewParams,
+  GetLinkPreviewParams,
+  GetStatusLinkPreviewsParams,
+  LinkPreviewDatabase,
+  LinkPreviewFetchStatus,
+  LinkPreviewRecord,
+  LinkStatusLinkPreviewParams,
+  RecordLinkPreviewFailureParams,
+  UpsertLinkPreviewParams
+} from '@/lib/database/domains/linkPreview/types'
 
 // ============================================================================
 // Media Database

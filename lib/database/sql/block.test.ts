@@ -1,33 +1,25 @@
 import crypto from 'crypto'
-import knex, { Knex } from 'knex'
+import type { Knex } from 'knex'
 
-import { getSQLDatabase } from '@/lib/database/sql'
-import { BlockSQLDatabaseMixin } from '@/lib/database/sql/block'
 import { CounterKey, getCounterValue } from '@/lib/database/sql/utils/counter'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
-import { BlockRelation } from '@/lib/types/database/operations'
 
 describe('BlockDatabase', () => {
-  let knexDatabase: Knex
-  let database: Database
+  const testDb = createTestDatabase()
+  const knexDatabase: Knex = testDb.knex
+  const database: Database = testDb.database
 
   beforeAll(async () => {
-    knexDatabase = knex({
-      client: 'better-sqlite3',
-      useNullAsDefault: true,
-      connection: {
-        filename: ':memory:'
-      }
-    })
-    database = getSQLDatabase(knexDatabase)
+    await testDb.prepare()
     await database.migrate()
     await seedDatabase(database)
   })
 
   afterAll(async () => {
-    await database.destroy()
+    await testDb.destroy()
   })
 
   const targetActorId = () =>
@@ -281,72 +273,298 @@ describe('BlockDatabase', () => {
     ).resolves.toIncludeSameMembers(expectedRelations)
   })
 
-  it('runs chunked block relation lookups concurrently', async () => {
-    const actorIds = Array.from(
-      { length: 1001 },
-      (_, index) => `https://remote.test/users/concurrent-actor-${index}`
-    )
-    const targetActorIds = Array.from(
-      { length: 1001 },
-      (_, index) => `https://remote.test/users/concurrent-target-${index}`
-    )
-    let startedQueries = 0
-    let releaseQueries = false
-    const resolvers: Array<() => void> = []
-
-    const releaseAllQueries = () => {
-      releaseQueries = true
-      while (resolvers.length > 0) {
-        resolvers.pop()?.()
-      }
-    }
-
-    const builder = {
-      orWhere: vi.fn((callback?: (value: typeof builder) => void) => {
-        callback?.(builder)
-        return builder
-      }),
-      where: vi.fn((callback?: (value: typeof builder) => void) => {
-        callback?.(builder)
-        return builder
-      }),
-      whereIn: vi.fn(() => builder)
-    }
-    const databaseStub = vi.fn(() => {
-      const promise = new Promise<BlockRelation[]>((resolve) => {
-        const resolver = () => resolve([])
-        if (releaseQueries) {
-          resolver()
-        } else {
-          resolvers.push(resolver)
-        }
-      })
-      const query = {
-        select: vi.fn(() => query),
-        then: promise.then.bind(promise),
-        where: vi.fn((callback?: (value: typeof builder) => void) => {
-          startedQueries += 1
-          callback?.(builder)
-          return query
-        })
-      }
-
-      return query
-    }) as unknown as Knex
-    const blockDatabase = BlockSQLDatabaseMixin(databaseStub)
-
-    const relationsPromise = blockDatabase.getBlockRelations({
-      actorIds,
-      targetActorIds
+  it('returns the existing block when another pair already owns the uri', async () => {
+    const owner = `https://remote.test/users/uri-owner-${crypto.randomUUID()}`
+    const other = `https://remote.test/users/uri-other-${crypto.randomUUID()}`
+    const target = targetActorId()
+    const otherTarget = targetActorId()
+    const uri = `${owner}#blocks/${crypto.randomUUID()}`
+    const first = await database.createBlock({
+      actorId: owner,
+      targetActorId: target,
+      uri
     })
 
-    await Promise.resolve()
+    await expect(
+      database.createBlock({
+        actorId: other,
+        targetActorId: otherTarget,
+        uri
+      })
+    ).resolves.toEqual(first)
 
-    try {
-      expect(startedQueries).toBe(4)
-    } finally {
-      releaseAllQueries()
-    }
-    await expect(relationsPromise).resolves.toEqual([])
+    // The insert that hit the unique uri failed before touching the counters.
+    await expect(
+      database.getBlock({ actorId: other, targetActorId: otherTarget })
+    ).resolves.toBeNull()
+    expect(
+      await getCounterValue(knexDatabase, CounterKey.totalBlocking(other))
+    ).toBe(0)
+    expect(
+      await getCounterValue(
+        knexDatabase,
+        CounterKey.totalBlockedBy(otherTarget)
+      )
+    ).toBe(0)
+    expect(
+      await getCounterValue(knexDatabase, CounterKey.totalBlocking(owner))
+    ).toBe(1)
+  })
+
+  it('looks blocks up by the exact actor and target pair', async () => {
+    const actorId = `https://remote.test/users/pair-${crypto.randomUUID()}`
+    const otherActorId = `https://remote.test/users/pair-${crypto.randomUUID()}`
+    const target = targetActorId()
+    const otherTarget = targetActorId()
+    const uri = `${actorId}#blocks/${crypto.randomUUID()}`
+    // The neighbours go first, so a lookup missing one of its predicates
+    // finds them before it finds the pair.
+    await database.createBlock({
+      actorId: otherActorId,
+      targetActorId: target,
+      uri: `${otherActorId}#blocks/${crypto.randomUUID()}`
+    })
+    await database.createBlock({
+      actorId,
+      targetActorId: otherTarget,
+      uri: `${actorId}#blocks/${crypto.randomUUID()}`
+    })
+    const block = await database.createBlock({
+      actorId,
+      targetActorId: target,
+      uri
+    })
+
+    await expect(
+      database.getBlock({ actorId, targetActorId: target })
+    ).resolves.toEqual(block)
+    await expect(database.getBlockByUri({ uri })).resolves.toEqual(block)
+    // Neither the actor alone, nor the target alone, nor the reverse pair.
+    await expect(
+      database.getBlock({ actorId: otherActorId, targetActorId: otherTarget })
+    ).resolves.toBeNull()
+    await expect(
+      database.getBlock({ actorId: target, targetActorId: actorId })
+    ).resolves.toBeNull()
+
+    expect(await database.isBlocking({ actorId, targetActorId: target })).toBe(
+      true
+    )
+    expect(
+      await database.isBlocking({
+        actorId: otherActorId,
+        targetActorId: otherTarget
+      })
+    ).toBe(false)
+    expect(
+      await database.isBlocking({ actorId: target, targetActorId: actorId })
+    ).toBe(false)
+  })
+
+  it('reports a block in either direction only for the exact pair', async () => {
+    const actorId = `https://remote.test/users/either-${crypto.randomUUID()}`
+    const target = targetActorId()
+    const stranger = targetActorId()
+    const otherBlocker = targetActorId()
+    await database.createBlock({
+      actorId: otherBlocker,
+      targetActorId: stranger,
+      uri: `${otherBlocker}#blocks/${crypto.randomUUID()}`
+    })
+    await database.createBlock({
+      actorId,
+      targetActorId: target,
+      uri: `${actorId}#blocks/${crypto.randomUUID()}`
+    })
+
+    expect(
+      await database.isEitherBlocking({ actorIdA: actorId, actorIdB: target })
+    ).toBe(true)
+    expect(
+      await database.isEitherBlocking({ actorIdA: target, actorIdB: actorId })
+    ).toBe(true)
+    // Each of the pair is blocked by or blocking somebody else, not the other.
+    expect(
+      await database.isEitherBlocking({
+        actorIdA: actorId,
+        actorIdB: stranger
+      })
+    ).toBe(false)
+    expect(
+      await database.isEitherBlocking({
+        actorIdA: stranger,
+        actorIdB: actorId
+      })
+    ).toBe(false)
+    expect(
+      await database.isEitherBlocking({
+        actorIdA: target,
+        actorIdB: otherBlocker
+      })
+    ).toBe(false)
+    expect(
+      await database.isEitherBlocking({
+        actorIdA: otherBlocker,
+        actorIdB: target
+      })
+    ).toBe(false)
+  })
+
+  it('deletes exactly the named block and decrements its counters', async () => {
+    const actorId = `https://remote.test/users/delete-${crypto.randomUUID()}`
+    const otherActorId = `https://remote.test/users/delete-${crypto.randomUUID()}`
+    const target = targetActorId()
+    const otherTarget = targetActorId()
+    const create = (blocker: string, blocked: string) =>
+      database.createBlock({
+        actorId: blocker,
+        targetActorId: blocked,
+        uri: `${blocker}#blocks/${crypto.randomUUID()}`
+      })
+    // Neighbours first: one shares the target, one shares the actor.
+    const sameTarget = await create(otherActorId, target)
+    const sameActor = await create(actorId, otherTarget)
+    const block = await create(actorId, target)
+    const counter = (key: string) => getCounterValue(knexDatabase, key)
+    expect(await counter(CounterKey.totalBlocking(actorId))).toBe(2)
+    expect(await counter(CounterKey.totalBlockedBy(target))).toBe(2)
+
+    await expect(
+      database.deleteBlock({ actorId, targetActorId: target })
+    ).resolves.toEqual(block)
+
+    await expect(
+      database.getBlock({ actorId, targetActorId: target })
+    ).resolves.toBeNull()
+    await expect(
+      database.getBlock({ actorId, targetActorId: otherTarget })
+    ).resolves.toEqual(sameActor)
+    await expect(
+      database.getBlock({ actorId: otherActorId, targetActorId: target })
+    ).resolves.toEqual(sameTarget)
+    expect(await counter(CounterKey.totalBlocking(actorId))).toBe(1)
+    expect(await counter(CounterKey.totalBlockedBy(target))).toBe(1)
+    expect(await counter(CounterKey.totalBlocking(otherActorId))).toBe(1)
+    expect(await counter(CounterKey.totalBlockedBy(otherTarget))).toBe(1)
+
+    // Nothing left to delete: no row, no counter movement.
+    await expect(
+      database.deleteBlock({ actorId, targetActorId: target })
+    ).resolves.toBeNull()
+    await expect(
+      database.deleteBlock({
+        actorId: otherActorId,
+        targetActorId: otherTarget
+      })
+    ).resolves.toBeNull()
+    expect(await counter(CounterKey.totalBlocking(actorId))).toBe(1)
+    expect(await counter(CounterKey.totalBlockedBy(target))).toBe(1)
+  })
+
+  it('deletes only the block with the given uri and decrements its counters', async () => {
+    const actorId = `https://remote.test/users/delete-uri-${crypto.randomUUID()}`
+    const target = targetActorId()
+    const otherTarget = targetActorId()
+    const keptUri = `${actorId}#blocks/${crypto.randomUUID()}`
+    const deletedUri = `${actorId}#blocks/${crypto.randomUUID()}`
+    const kept = await database.createBlock({
+      actorId,
+      targetActorId: otherTarget,
+      uri: keptUri
+    })
+    const deleted = await database.createBlock({
+      actorId,
+      targetActorId: target,
+      uri: deletedUri
+    })
+
+    await expect(
+      database.deleteBlockByUri({ actorId, uri: deletedUri })
+    ).resolves.toEqual(deleted)
+
+    await expect(
+      database.getBlockByUri({ uri: deletedUri })
+    ).resolves.toBeNull()
+    await expect(database.getBlockByUri({ uri: keptUri })).resolves.toEqual(
+      kept
+    )
+    expect(
+      await getCounterValue(knexDatabase, CounterKey.totalBlocking(actorId))
+    ).toBe(1)
+    expect(
+      await getCounterValue(knexDatabase, CounterKey.totalBlockedBy(target))
+    ).toBe(0)
+    expect(
+      await getCounterValue(
+        knexDatabase,
+        CounterKey.totalBlockedBy(otherTarget)
+      )
+    ).toBe(1)
+  })
+
+  it('lists only the actor blocks and ignores another actor cursor', async () => {
+    const actorId = `https://remote.test/users/list-${crypto.randomUUID()}`
+    const otherActorId = `https://remote.test/users/list-${crypto.randomUUID()}`
+    const mine = await database.createBlock({
+      actorId,
+      targetActorId: targetActorId(),
+      uri: `${actorId}#blocks/${crypto.randomUUID()}`
+    })
+    const theirs = await database.createBlock({
+      actorId: otherActorId,
+      targetActorId: targetActorId(),
+      uri: `${otherActorId}#blocks/${crypto.randomUUID()}`
+    })
+    // The foreign cursor is strictly newer, so a lookup that found it would
+    // page to `mine` instead of returning nothing (two blocks written in the
+    // same millisecond would leave that to the order of their random ids).
+    await knexDatabase('blocks')
+      .where({ id: theirs.id })
+      .update({ createdAt: new Date(mine.createdAt + 60_000) })
+
+    await expect(database.getBlocks({ actorId, limit: 10 })).resolves.toEqual([
+      mine
+    ])
+    await expect(
+      database.getBlocks({ actorId, limit: 10, maxId: theirs.id })
+    ).resolves.toEqual([])
+    await expect(
+      database.getBlocks({ actorId: otherActorId, limit: 10 })
+    ).resolves.toMatchObject([{ id: theirs.id }])
+  })
+
+  it('returns only relations between the requested actors and targets', async () => {
+    const actorId = `https://remote.test/users/scope-${crypto.randomUUID()}`
+    const outsideActor = targetActorId()
+    const target = targetActorId()
+    const outsideTarget = targetActorId()
+    const create = (blocker: string, blocked: string) =>
+      database.createBlock({
+        actorId: blocker,
+        targetActorId: blocked,
+        uri: `${blocker}#blocks/${crypto.randomUUID()}`
+      })
+    await Promise.all([
+      create(actorId, target),
+      // Right actor, target outside the request; and the reverse of both.
+      create(actorId, outsideTarget),
+      create(outsideTarget, actorId),
+      // Right target, actor outside the request; and the reverse of both.
+      create(outsideActor, target),
+      create(target, outsideActor)
+    ])
+
+    await expect(
+      database.getBlockRelations({
+        actorIds: [actorId],
+        targetActorIds: [target]
+      })
+    ).resolves.toEqual([{ actorId, targetActorId: target }])
+    await expect(
+      database.getBlockRelations({
+        actorIds: [target],
+        targetActorIds: [actorId]
+      })
+    ).resolves.toEqual([{ actorId, targetActorId: target }])
   })
 })

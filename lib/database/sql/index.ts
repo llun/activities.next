@@ -4,6 +4,10 @@ import { accountNoteQueries } from '@/lib/database/domains/accountNote/queries'
 import type { AccountNoteDatabase } from '@/lib/database/domains/accountNote/types'
 import { actorDomainBlockQueries } from '@/lib/database/domains/actorDomainBlock/queries'
 import type { ActorDomainBlockDatabase } from '@/lib/database/domains/actorDomainBlock/types'
+import { blockQueries } from '@/lib/database/domains/block/queries'
+import type { BlockDatabase } from '@/lib/database/domains/block/types'
+import { bookmarkQueries } from '@/lib/database/domains/bookmark/queries'
+import type { BookmarkDatabase } from '@/lib/database/domains/bookmark/types'
 import { customEmojiQueries } from '@/lib/database/domains/customEmoji/queries'
 import type { CustomEmojiDatabase } from '@/lib/database/domains/customEmoji/types'
 import { deadLetterJobQueries } from '@/lib/database/domains/deadLetterJob/queries'
@@ -22,8 +26,12 @@ import { instanceRuleQueries } from '@/lib/database/domains/instanceRule/queries
 import type { InstanceRuleDatabase } from '@/lib/database/domains/instanceRule/types'
 import { likeQueries } from '@/lib/database/domains/like/queries'
 import type { LikeDatabase } from '@/lib/database/domains/like/types'
+import { linkPreviewQueries } from '@/lib/database/domains/linkPreview/queries'
+import type { LinkPreviewDatabase } from '@/lib/database/domains/linkPreview/types'
 import { markerQueries } from '@/lib/database/domains/marker/queries'
 import type { MarkerDatabase } from '@/lib/database/domains/marker/types'
+import { muteQueries } from '@/lib/database/domains/mute/queries'
+import type { MuteDatabase } from '@/lib/database/domains/mute/types'
 import { oauthQueries } from '@/lib/database/domains/oauth/queries'
 import type { OAuthDatabase } from '@/lib/database/domains/oauth/types'
 import { pushSubscriptionQueries } from '@/lib/database/domains/pushSubscription/queries'
@@ -44,6 +52,10 @@ import { statusDetectedLanguageQueries } from '@/lib/database/domains/statusDete
 import type { StatusDetectedLanguageDatabase } from '@/lib/database/domains/statusDetectedLanguage/types'
 import { statusMuteQueries } from '@/lib/database/domains/statusMute/queries'
 import type { StatusMuteDatabase } from '@/lib/database/domains/statusMute/types'
+import { statusQuoteQueries } from '@/lib/database/domains/statusQuote/queries'
+import type { StatusQuoteDatabase } from '@/lib/database/domains/statusQuote/types'
+import { statusReactionQueries } from '@/lib/database/domains/statusReaction/queries'
+import type { StatusReactionDatabase } from '@/lib/database/domains/statusReaction/types'
 import { suggestionQueries } from '@/lib/database/domains/suggestion/queries'
 import type { SuggestionDatabase } from '@/lib/database/domains/suggestion/types'
 import { translationCacheQueries } from '@/lib/database/domains/translationCache/queries'
@@ -57,8 +69,6 @@ import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { AdminSQLDatabaseMixin } from '@/lib/database/sql/admin'
 import { AnnouncementSQLDatabaseMixin } from '@/lib/database/sql/announcement'
-import { BlockSQLDatabaseMixin } from '@/lib/database/sql/block'
-import { BookmarkSQLDatabaseMixin } from '@/lib/database/sql/bookmark'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
 import { FeaturedTagSQLDatabaseMixin } from '@/lib/database/sql/featuredTag'
@@ -75,16 +85,12 @@ import { GalleryAlbumSQLDatabaseMixin } from '@/lib/database/sql/galleryAlbums'
 import { GalleryLookupCacheSQLDatabaseMixin } from '@/lib/database/sql/galleryLookupCache'
 import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
 import { InstanceActivitySQLDatabaseMixin } from '@/lib/database/sql/instanceActivity'
-import { LinkPreviewSQLDatabaseMixin } from '@/lib/database/sql/linkPreview'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
-import { MuteSQLDatabaseMixin } from '@/lib/database/sql/mute'
 import { NotificationSQLDatabaseMixin } from '@/lib/database/sql/notification'
 import { SearchSQLDatabaseMixin } from '@/lib/database/sql/search'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
-import { StatusQuoteSQLDatabaseMixin } from '@/lib/database/sql/statusQuote'
-import { StatusReactionSQLDatabaseMixin } from '@/lib/database/sql/statusReaction'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
 import { TrendsSQLDatabaseMixin } from '@/lib/database/sql/trends'
@@ -129,8 +135,8 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     importLockQueries
   )
-  const bookmarkDatabase = BookmarkSQLDatabaseMixin(database)
-  const blockDatabase = BlockSQLDatabaseMixin(database)
+  const bookmarkDatabase: BookmarkDatabase = bindDb(kysely, bookmarkQueries)
+  const blockDatabase: BlockDatabase = bindDb(kysely, blockQueries)
   const customEmojiDatabase: CustomEmojiDatabase = bindDb(
     kysely,
     customEmojiQueries
@@ -140,7 +146,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     deadLetterJobQueries
   )
   const markerDatabase: MarkerDatabase = bindDb(kysely, markerQueries)
-  const muteDatabase = MuteSQLDatabaseMixin(database)
+  const muteDatabase: MuteDatabase = bindDb(kysely, muteQueries)
   const endorsementDatabase: EndorsementDatabase = bindDb(
     kysely,
     endorsementQueries
@@ -150,8 +156,14 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     statusMuteQueries
   )
-  const statusQuoteDatabase = StatusQuoteSQLDatabaseMixin(database)
-  const statusReactionDatabase = StatusReactionSQLDatabaseMixin(database)
+  const statusQuoteDatabase: StatusQuoteDatabase = bindDb(
+    kysely,
+    statusQuoteQueries
+  )
+  const statusReactionDatabase: StatusReactionDatabase = bindDb(
+    kysely,
+    statusReactionQueries
+  )
   const idempotencyDatabase: IdempotencyDatabase = bindDb(
     kysely,
     idempotencyQueries
@@ -184,7 +196,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     instanceRuleQueries
   )
   const likeDatabase: LikeDatabase = bindDb(kysely, likeQueries)
-  const linkPreviewDatabase = LinkPreviewSQLDatabaseMixin(database)
+  const linkPreviewDatabase: LinkPreviewDatabase = bindDb(
+    kysely,
+    linkPreviewQueries
+  )
   const mediaDatabase = MediaSQLDatabaseMixin(database)
   const moderationDatabase = ModerationSQLDatabaseMixin(database)
   const notificationDatabase = NotificationSQLDatabaseMixin(database)

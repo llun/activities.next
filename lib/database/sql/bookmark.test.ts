@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto'
 
-import { getOriginalStatusIdFromAnnounceContent } from '@/lib/database/sql/bookmark'
 import {
-  databaseBeforeAll,
-  getTestDatabaseTable
+  bookmarkQueries,
+  getOriginalStatusIdFromAnnounceContent
+} from '@/lib/database/domains/bookmark/queries'
+import {
+  type TestDatabaseTable,
+  databaseBeforeAll
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { withStaleFirstRead } from '@/lib/database/testing/staleRead'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -14,7 +19,10 @@ import { StatusType } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 describe('BookmarkDatabase', () => {
-  const table = getTestDatabaseTable()
+  const testDb = createTestDatabase()
+  const table: TestDatabaseTable = [
+    [testDb.backend, testDb.database, testDb.prepare]
+  ]
 
   beforeAll(async () => {
     await databaseBeforeAll(table)
@@ -356,6 +364,15 @@ describe('BookmarkDatabase', () => {
       await expect(
         database.getBookmarks({ actorId, limit: 20, sinceId: 'not-a-number' })
       ).resolves.toEqual([])
+      // Digit strings past Number.MAX_SAFE_INTEGER name no bookmark: the
+      // int8 maximum some clients send as "no upper bound", and one past it.
+      for (const cursor of ['9223372036854775807', '99999999999999999999']) {
+        for (const key of ['maxId', 'minId', 'sinceId'] as const) {
+          await expect(
+            database.getBookmarks({ actorId, limit: 20, [key]: cursor })
+          ).resolves.toEqual([])
+        }
+      }
     })
 
     it('removes bookmarks when a bookmarked status is deleted', async () => {
@@ -370,6 +387,365 @@ describe('BookmarkDatabase', () => {
           statusId: status.id
         })
       ).resolves.toBe(false)
+    })
+
+    describe('bookmarks of different actors and statuses', () => {
+      const actorOf = (name: string) =>
+        `${ACTOR3_ID}/bookmark-${name}-${randomUUID()}`
+
+      const createAnnounceOf = async (originalId: string, name: string) => {
+        const announce = await database.createAnnounce({
+          id: `${ACTOR2_ID}/statuses/bookmark-${name}-${randomUUID()}`,
+          actorId: ACTOR2_ID,
+          originalStatusId: originalId,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        if (!announce) throw new Error('announce must not be null')
+        return announce
+      }
+
+      const storedSources = async (statusId: string) =>
+        Object.fromEntries(
+          (
+            await testDb
+              .knex('bookmarks')
+              .where({ statusId })
+              .select('actorId', 'sourceStatusId')
+          ).map((row) => [row.actorId, row.sourceStatusId])
+        )
+
+      it('lets every actor bookmark the same status', async () => {
+        const status = await createStatus('shared')
+        const first = actorOf('shared-first')
+        const second = actorOf('shared-second')
+
+        await database.createBookmark({ actorId: first, statusId: status.id })
+        await database.createBookmark({ actorId: second, statusId: status.id })
+
+        for (const actorId of [first, second]) {
+          const bookmarks = await database.getBookmarks({ actorId, limit: 20 })
+          expect(bookmarks.map((bookmark) => bookmark.statusId)).toEqual([
+            status.id
+          ])
+          expect(bookmarks[0].actorId).toBe(actorId)
+        }
+      })
+
+      it('reports a bookmark only for the actor and status it belongs to', async () => {
+        const bookmarked = await createStatus('is-bookmarked')
+        const other = await createStatus('is-other')
+        const owner = actorOf('is-owner')
+        const stranger = actorOf('is-stranger')
+        await database.createBookmark({
+          actorId: owner,
+          statusId: bookmarked.id
+        })
+
+        await expect(
+          database.isActorBookmarkedStatus({
+            actorId: owner,
+            statusId: bookmarked.id
+          })
+        ).resolves.toBe(true)
+        await expect(
+          database.isActorBookmarkedStatus({
+            actorId: stranger,
+            statusId: bookmarked.id
+          })
+        ).resolves.toBe(false)
+        await expect(
+          database.isActorBookmarkedStatus({
+            actorId: owner,
+            statusId: other.id
+          })
+        ).resolves.toBe(false)
+      })
+
+      it('reports a bookmark made through an announce only for its owner', async () => {
+        const original = await createStatus('is-announce-original')
+        const announce = await createAnnounceOf(original.id, 'is-announce')
+        const owner = actorOf('is-announce-owner')
+        const stranger = actorOf('is-announce-stranger')
+        await database.createBookmark({ actorId: owner, statusId: announce.id })
+
+        await expect(
+          database.isActorBookmarkedStatus({
+            actorId: stranger,
+            statusId: announce.id,
+            statusType: StatusType.enum.Announce
+          })
+        ).resolves.toBe(false)
+        await expect(
+          database.isActorBookmarkedStatus({
+            actorId: owner,
+            statusId: announce.id,
+            statusType: StatusType.enum.Announce
+          })
+        ).resolves.toBe(true)
+      })
+
+      it('deletes only the bookmark of the actor and status asked for', async () => {
+        const target = await createStatus('delete-target')
+        const kept = await createStatus('delete-kept')
+        const owner = actorOf('delete-owner')
+        const other = actorOf('delete-other')
+        await database.createBookmark({ actorId: owner, statusId: kept.id })
+        await database.createBookmark({ actorId: other, statusId: target.id })
+        await database.createBookmark({ actorId: owner, statusId: target.id })
+
+        await database.deleteBookmark({
+          actorId: owner,
+          statusId: target.id
+        })
+
+        const isBookmarked = (actorId: string, statusId: string) =>
+          database.isActorBookmarkedStatus({ actorId, statusId })
+        await expect(isBookmarked(owner, target.id)).resolves.toBe(false)
+        await expect(isBookmarked(owner, kept.id)).resolves.toBe(true)
+        await expect(isBookmarked(other, target.id)).resolves.toBe(true)
+      })
+
+      it('deleting through an announce leaves other actors and statuses alone', async () => {
+        const original = await createStatus('delete-announce-original')
+        const announce = await createAnnounceOf(original.id, 'delete-announce')
+        const kept = await createStatus('delete-announce-kept')
+        const owner = actorOf('delete-announce-owner')
+        const other = actorOf('delete-announce-other')
+        await database.createBookmark({ actorId: owner, statusId: kept.id })
+        await database.createBookmark({
+          actorId: other,
+          statusId: announce.id
+        })
+        await database.createBookmark({
+          actorId: owner,
+          statusId: announce.id
+        })
+
+        await database.deleteBookmark({
+          actorId: owner,
+          statusId: announce.id
+        })
+
+        const isBookmarked = (actorId: string, statusId: string) =>
+          database.isActorBookmarkedStatus({ actorId, statusId })
+        await expect(isBookmarked(owner, original.id)).resolves.toBe(false)
+        await expect(isBookmarked(owner, kept.id)).resolves.toBe(true)
+        await expect(isBookmarked(other, original.id)).resolves.toBe(true)
+      })
+
+      it('deletes a bookmark made through one announce through another announce of the same status', async () => {
+        const original = await createStatus('delete-sibling-original')
+        const first = await createAnnounceOf(original.id, 'delete-sibling-1')
+        const second = await createAnnounceOf(original.id, 'delete-sibling-2')
+        const owner = actorOf('delete-sibling-owner')
+        await database.createBookmark({ actorId: owner, statusId: first.id })
+
+        // Neither the stored status (the original) nor the stored source (the
+        // first announce) is the second announce: only resolving it finds them.
+        await database.deleteBookmark({ actorId: owner, statusId: second.id })
+
+        await expect(
+          database.isActorBookmarkedStatus({
+            actorId: owner,
+            statusId: original.id
+          })
+        ).resolves.toBe(false)
+      })
+
+      it('resolves an announce stored without originalStatusId through its content', async () => {
+        const original = await createStatus('legacy-original')
+        const owner = actorOf('legacy-owner')
+        // A row written before originalStatusId existed: the announced id is
+        // only in the content.
+        const legacyAnnounceId = `${ACTOR2_ID}/statuses/bookmark-legacy-${randomUUID()}`
+        await testDb.knex('statuses').insert({
+          id: legacyAnnounceId,
+          actorId: ACTOR2_ID,
+          type: StatusType.enum.Announce,
+          content: original.id,
+          originalStatusId: null
+        })
+
+        await database.createBookmark({
+          actorId: owner,
+          statusId: legacyAnnounceId
+        })
+
+        await expect(storedSources(original.id)).resolves.toEqual({
+          [owner]: legacyAnnounceId
+        })
+      })
+
+      it('records the announce a bookmark was made through on that bookmark only', async () => {
+        const original = await createStatus('source-original')
+        const firstAnnounce = await createAnnounceOf(original.id, 'source-one')
+        const secondAnnounce = await createAnnounceOf(original.id, 'source-two')
+        const mover = actorOf('source-mover')
+        const bystander = actorOf('source-bystander')
+        const unrelated = actorOf('source-unrelated')
+        const plain = await createStatus('source-plain')
+        await database.createBookmark({
+          actorId: unrelated,
+          statusId: plain.id
+        })
+        await database.createBookmark({
+          actorId: bystander,
+          statusId: firstAnnounce.id
+        })
+        await database.createBookmark({
+          actorId: mover,
+          statusId: firstAnnounce.id
+        })
+
+        await database.createBookmark({
+          actorId: mover,
+          statusId: secondAnnounce.id
+        })
+
+        await expect(storedSources(original.id)).resolves.toEqual({
+          [mover]: secondAnnounce.id,
+          [bystander]: firstAnnounce.id
+        })
+        await expect(storedSources(plain.id)).resolves.toEqual({
+          [unrelated]: null
+        })
+      })
+
+      it('stays idempotent when a concurrent request bookmarks the status first', async () => {
+        const status = await createStatus('concurrent')
+        const actorId = actorOf('concurrent')
+        await database.createBookmark({ actorId, statusId: status.id })
+
+        // The existing bookmark is not seen by the check, as if the other
+        // request inserted it after the check ran.
+        const racing = withStaleFirstRead(testDb.db, 'bookmarks', () => [])
+        await expect(
+          bookmarkQueries.createBookmark(racing, {
+            actorId,
+            statusId: status.id
+          })
+        ).resolves.toBeUndefined()
+
+        await expect(
+          database.getBookmarks({ actorId, limit: 20 })
+        ).resolves.toHaveLength(1)
+      })
+
+      it('orders bookmarks by creation time, then by id', async () => {
+        const actorId = actorOf('ordering')
+        const statuses = await Promise.all(
+          [1, 2, 3, 4].map((index) => createStatus(`ordering-${index}`))
+        )
+        // Written in this order, so ids ascend 0..3 while createdAt does not:
+        // 0 and 2 share a timestamp, 1 is the oldest and 3 the newest.
+        const createdAts = [2_000, 1_000, 2_000, 3_000]
+        for (const [index, status] of statuses.entries()) {
+          await testDb.knex('bookmarks').insert({
+            actorId,
+            statusId: status.id,
+            createdAt: new Date(createdAts[index]),
+            updatedAt: new Date(createdAts[index])
+          })
+        }
+        const byStatus = (bookmarks: { statusId: string }[]) =>
+          bookmarks.map((bookmark) =>
+            statuses.findIndex((status) => status.id === bookmark.statusId)
+          )
+
+        const newestFirst = await database.getBookmarks({ actorId, limit: 10 })
+        expect(byStatus(newestFirst)).toEqual([3, 2, 0, 1])
+
+        const olderThanTie = await database.getBookmarks({
+          actorId,
+          limit: 10,
+          maxId: newestFirst[1].id
+        })
+        expect(byStatus(olderThanTie)).toEqual([0, 1])
+
+        const newerThanTie = await database.getBookmarks({
+          actorId,
+          limit: 10,
+          minId: newestFirst[2].id
+        })
+        expect(byStatus(newerThanTie)).toEqual([3, 2])
+
+        const afterOldest = await database.getBookmarks({
+          actorId,
+          limit: 2,
+          minId: newestFirst[3].id
+        })
+        expect(byStatus(afterOldest)).toEqual([2, 0])
+      })
+
+      it('ignores a pagination cursor that belongs to another actor', async () => {
+        const status = await createStatus('foreign-cursor')
+        const owner = actorOf('foreign-cursor-owner')
+        const reader = actorOf('foreign-cursor-reader')
+        await database.createBookmark({ actorId: owner, statusId: status.id })
+        await database.createBookmark({ actorId: reader, statusId: status.id })
+        const [foreign] = await database.getBookmarks({
+          actorId: owner,
+          limit: 20
+        })
+
+        for (const cursor of [
+          { maxId: foreign.id },
+          { minId: foreign.id },
+          { sinceId: foreign.id }
+        ]) {
+          await expect(
+            database.getBookmarks({ actorId: reader, limit: 20, ...cursor })
+          ).resolves.toEqual([])
+        }
+      })
+
+      it('pages only through the bookmarks of the actor asked for', async () => {
+        const statuses = await Promise.all([
+          createStatus('scoped-1'),
+          createStatus('scoped-2'),
+          createStatus('scoped-3')
+        ])
+        const reader = actorOf('scoped-reader')
+        const neighbour = actorOf('scoped-neighbour')
+        for (const status of statuses) {
+          await database.createBookmark({
+            actorId: reader,
+            statusId: status.id
+          })
+          await database.createBookmark({
+            actorId: neighbour,
+            statusId: status.id
+          })
+        }
+
+        const all = await database.getBookmarks({ actorId: reader, limit: 20 })
+        expect(all).toHaveLength(3)
+        expect(all.every((bookmark) => bookmark.actorId === reader)).toBe(true)
+        const older = await database.getBookmarks({
+          actorId: reader,
+          limit: 20,
+          maxId: all[0].id
+        })
+        expect(older.map((bookmark) => bookmark.id)).toEqual([
+          all[1].id,
+          all[2].id
+        ])
+        const newer = await database.getBookmarks({
+          actorId: reader,
+          limit: 20,
+          sinceId: all[2].id
+        })
+        expect(newer.map((bookmark) => bookmark.id)).toEqual([
+          all[0].id,
+          all[1].id
+        ])
+        const limited = await database.getBookmarks({
+          actorId: reader,
+          limit: 1
+        })
+        expect(limited).toHaveLength(1)
+      })
     })
   })
 })

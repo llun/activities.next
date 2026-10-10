@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
 import {
-  databaseBeforeAll,
-  getTestDatabaseTable
+  type TestDatabaseTable,
+  databaseBeforeAll
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { Database } from '@/lib/database/types'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
@@ -11,7 +12,10 @@ import { QuoteState, StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 describe('StatusQuoteDatabase', () => {
-  const table = getTestDatabaseTable()
+  const testDb = createTestDatabase()
+  const table: TestDatabaseTable = [
+    [testDb.backend, testDb.database, testDb.prepare]
+  ]
 
   beforeAll(async () => {
     await databaseBeforeAll(table)
@@ -387,6 +391,304 @@ describe('StatusQuoteDatabase', () => {
 
       const ids = await database.getQuotingStatusIds({ quotedStatusId })
       expect([...ids].sort()).toEqual([accepted, pending].sort())
+    })
+
+    describe('edges of other statuses', () => {
+      // Neighbours are written first with values that differ from the edge
+      // under test, so a write or read that loses its status filter shows.
+      const createNeighbour = (name: string) => {
+        const statusId = uniqueId(`neighbour-${name}`)
+        return database.createStatusQuote({
+          statusId,
+          quotedStatusId: uniqueId(`neighbour-${name}-target`),
+          state: 'pending',
+          quoteRequestId: `${statusId}#request`,
+          authorizationUri: `https://llun.test/stamp/${randomUUID()}`
+        })
+      }
+
+      it('reads the edge of the status asked for', async () => {
+        const before = await createNeighbour('read-before')
+        const statusId = uniqueId('read')
+        const created = await database.createStatusQuote({
+          statusId,
+          quotedStatusId: uniqueId('read-target')
+        })
+        const after = await createNeighbour('read-after')
+
+        await expect(database.getStatusQuote({ statusId })).resolves.toEqual(
+          created
+        )
+        await expect(
+          database.getStatusQuote({ statusId: before.statusId })
+        ).resolves.toEqual(before)
+        await expect(
+          database.getStatusQuote({ statusId: after.statusId })
+        ).resolves.toEqual(after)
+      })
+
+      it('looks up the edge that owns the quote request or stamp', async () => {
+        const before = await createNeighbour('lookup-before')
+        const statusId = uniqueId('lookup')
+        const quoteRequestId = `${statusId}#request`
+        const authorizationUri = `https://llun.test/stamp/${randomUUID()}`
+        await database.createStatusQuote({
+          statusId,
+          quotedStatusId: uniqueId('lookup-target'),
+          state: 'accepted',
+          quoteRequestId,
+          authorizationUri
+        })
+
+        await expect(
+          database.getStatusQuoteByQuoteRequestId({ quoteRequestId })
+        ).resolves.toMatchObject({ statusId })
+        await expect(
+          database.getStatusQuoteByAuthorizationUri({ authorizationUri })
+        ).resolves.toMatchObject({ statusId })
+        await expect(
+          database.getStatusQuoteByQuoteRequestId({
+            quoteRequestId: before.quoteRequestId as string
+          })
+        ).resolves.toMatchObject({ statusId: before.statusId })
+        await expect(
+          database.getStatusQuoteByAuthorizationUri({
+            authorizationUri: before.authorizationUri as string
+          })
+        ).resolves.toMatchObject({ statusId: before.statusId })
+      })
+
+      it('breaks a tie between equal stamp uris on the status id', async () => {
+        const authorizationUri = `https://llun.test/stamp/${randomUUID()}`
+        const prefix = `${ACTOR1_ID}/statuses/quote-tie-${randomUUID()}`
+        // Written in reverse so the lowest status id is not the first row.
+        for (const suffix of ['c', 'a', 'b']) {
+          await database.createStatusQuote({
+            statusId: `${prefix}-${suffix}`,
+            quotedStatusId: uniqueId('tie-target'),
+            state: 'rejected',
+            authorizationUri
+          })
+        }
+
+        await expect(
+          database.getStatusQuoteByAuthorizationUri({ authorizationUri })
+        ).resolves.toMatchObject({ statusId: `${prefix}-a` })
+      })
+
+      it('prefers the accepted edge even when a pending edge sorts first', async () => {
+        const authorizationUri = `https://llun.test/stamp/${randomUUID()}`
+        const prefix = `${ACTOR1_ID}/statuses/quote-prefer-${randomUUID()}`
+        // The pending edge has the lowest status id and is written first, so
+        // only the `accepted` preference puts the other one ahead of it.
+        for (const [suffix, state] of [
+          ['a-pending', 'pending'],
+          ['b-rejected', 'rejected'],
+          ['z-accepted', 'accepted']
+        ] as const) {
+          await database.createStatusQuote({
+            statusId: `${prefix}-${suffix}`,
+            quotedStatusId: uniqueId('prefer-target'),
+            state,
+            authorizationUri
+          })
+        }
+
+        await expect(
+          database.getStatusQuoteByAuthorizationUri({ authorizationUri })
+        ).resolves.toMatchObject({
+          statusId: `${prefix}-z-accepted`,
+          state: 'accepted'
+        })
+      })
+
+      it('upserts the edge of the status asked for and no other', async () => {
+        const neighbour = await createNeighbour('upsert')
+        const statusId = uniqueId('upsert-scoped')
+        await database.createStatusQuote({
+          statusId,
+          quotedStatusId: uniqueId('upsert-scoped-first')
+        })
+        const target = uniqueId('upsert-scoped-second')
+
+        await database.createStatusQuote({
+          statusId,
+          quotedStatusId: target,
+          state: 'accepted',
+          authorizationUri: 'https://llun.test/stamp/upsert-scoped'
+        })
+
+        await expect(
+          database.getStatusQuote({ statusId: neighbour.statusId })
+        ).resolves.toEqual(neighbour)
+        await expect(
+          database.getStatusQuote({ statusId })
+        ).resolves.toMatchObject({ quotedStatusId: target, state: 'accepted' })
+      })
+
+      it('moves the state of the edge asked for and no other', async () => {
+        const neighbour = await createNeighbour('state')
+        const statusId = uniqueId('state')
+        await database.createStatusQuote({
+          statusId,
+          quotedStatusId: uniqueId('state-target')
+        })
+
+        await database.updateStatusQuoteState({ statusId, state: 'accepted' })
+
+        await expect(
+          database.getStatusQuote({ statusId: neighbour.statusId })
+        ).resolves.toEqual(neighbour)
+        await expect(
+          database.getStatusQuote({ statusId })
+        ).resolves.toMatchObject({ state: 'accepted' })
+      })
+
+      it('keeps the stamp uri when a transition does not carry one', async () => {
+        const statusId = uniqueId('keep-stamp')
+        await database.createStatusQuote({
+          statusId,
+          quotedStatusId: uniqueId('keep-stamp-target'),
+          state: 'accepted',
+          authorizationUri: 'https://llun.test/stamp/keep'
+        })
+
+        await expect(
+          database.updateStatusQuoteState({ statusId, state: 'revoked' })
+        ).resolves.toMatchObject({
+          state: 'revoked',
+          authorizationUri: 'https://llun.test/stamp/keep'
+        })
+        await expect(
+          database.updateStatusQuoteState({ statusId, state: 'deleted' })
+        ).resolves.toMatchObject({
+          state: 'revoked',
+          authorizationUri: 'https://llun.test/stamp/keep'
+        })
+      })
+
+      it('clears the stamp uri when a transition carries null', async () => {
+        const statusId = uniqueId('clear-stamp')
+        await database.createStatusQuote({
+          statusId,
+          quotedStatusId: uniqueId('clear-stamp-target'),
+          state: 'accepted',
+          authorizationUri: 'https://llun.test/stamp/clear'
+        })
+
+        await expect(
+          database.updateStatusQuoteState({
+            statusId,
+            state: 'revoked',
+            authorizationUri: null
+          })
+        ).resolves.toMatchObject({ state: 'revoked', authorizationUri: null })
+      })
+
+      it('lists only the edges that quote the status asked for', async () => {
+        const quotedStatusId = uniqueId('list-scoped-target')
+        const otherQuotedStatusId = uniqueId('list-scoped-other')
+        const other = uniqueId('list-scoped-other-edge')
+        await database.createStatusQuote({
+          statusId: other,
+          quotedStatusId: otherQuotedStatusId,
+          state: 'accepted'
+        })
+        const ids: string[] = []
+        for (let index = 0; index < 3; index += 1) {
+          const statusId = uniqueId(`list-scoped-${index}`)
+          await database.createStatusQuote({
+            statusId,
+            quotedStatusId,
+            state: 'accepted'
+          })
+          ids.push(statusId)
+        }
+
+        const listed = await database.getQuotingStatusIds({ quotedStatusId })
+        expect([...listed].sort()).toEqual([...ids].sort())
+        await expect(
+          database.getQuotingStatusIds({ quotedStatusId: otherQuotedStatusId })
+        ).resolves.toEqual([other])
+        await expect(
+          database.getQuotingStatusIds({
+            quotedStatusId,
+            maxId: listed[0]
+          })
+        ).resolves.toEqual(listed.slice(1))
+        await expect(
+          database.getQuotingStatusIds({
+            quotedStatusId,
+            sinceId: listed[2]
+          })
+        ).resolves.toEqual(listed.slice(0, 2))
+      })
+
+      it('lists 20 ids by default and as many as the limit asks for', async () => {
+        const quotedStatusId = uniqueId('limit-target')
+        for (let index = 0; index < 22; index += 1) {
+          await database.createStatusQuote({
+            statusId: uniqueId(`limit-${index}`),
+            quotedStatusId,
+            state: 'accepted'
+          })
+        }
+
+        const byDefault = await database.getQuotingStatusIds({ quotedStatusId })
+        expect(byDefault).toHaveLength(20)
+        const all = await database.getQuotingStatusIds({
+          quotedStatusId,
+          limit: 30
+        })
+        expect(all).toHaveLength(22)
+        expect(all.slice(0, 20)).toEqual(byDefault)
+        await expect(
+          database.getQuotingStatusIds({
+            quotedStatusId,
+            limit: 5,
+            offset: 20
+          })
+        ).resolves.toEqual(all.slice(20))
+      })
+
+      it('orders ids by creation time, then by status id', async () => {
+        const quotedStatusId = uniqueId('order-target')
+        const prefix = `${ACTOR1_ID}/statuses/quote-order-${randomUUID()}`
+        // Neither insertion order nor status id order is the time order: a is
+        // the newest, b the oldest, and c and d share a timestamp. c is written
+        // before d, so only the status id tie-break puts d first.
+        const createdAts = { b: 1_000, c: 2_000, a: 3_000, d: 2_000 }
+        for (const [suffix, createdAt] of Object.entries(createdAts)) {
+          await testDb.knex('status_quotes').insert({
+            statusId: `${prefix}-${suffix}`,
+            quotedStatusId,
+            state: 'accepted',
+            createdAt: new Date(createdAt),
+            updatedAt: new Date(createdAt)
+          })
+        }
+        const suffixes = (ids: string[]) =>
+          ids.map((id) => id.slice(prefix.length + 1))
+
+        const all = await database.getQuotingStatusIds({ quotedStatusId })
+        expect(suffixes(all)).toEqual(['a', 'd', 'c', 'b'])
+        expect(
+          suffixes(
+            await database.getQuotingStatusIds({
+              quotedStatusId,
+              maxId: `${prefix}-d`
+            })
+          )
+        ).toEqual(['c', 'b'])
+        expect(
+          suffixes(
+            await database.getQuotingStatusIds({
+              quotedStatusId,
+              sinceId: `${prefix}-c`
+            })
+          )
+        ).toEqual(['a', 'd'])
+      })
     })
 
     it('hydrates the quote edge onto the quoting status', async () => {

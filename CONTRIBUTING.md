@@ -849,6 +849,14 @@ These rules apply to every change. The [Definition of Done](AGENTS.md#definition
   cross-backend behaviour matters, verify it by pointing `TEST_DATABASE_HOST` at
   an unreachable address first: a suite that still passes is not running where
   you think it is.
+- **To reach the branch a concurrent writer would take in a read-then-write,
+  stage the race with `withStaleFirstRead(db, table, stale)`**
+  (`lib/database/testing/staleRead.ts`): the first SELECT from `table` sees
+  `stale(rows)` instead of what is stored, standing in for another request
+  writing between the query function's read and its write, so the
+  unique-conflict and guarded-update branches run on both backends. Row locks
+  are checked on PostgreSQL itself: listen to the Knex `query` event, which
+  Kysely statements also emit, and assert the `for update`.
 - **To grab a mocked module and configure it, use `vi.importMock<T>('@/path')`,
   not `(await import('@/path')) as unknown as T`.** `vi.importMock` is the
   Vitest equivalent of the old `jest.requireMock`: it is purpose-built, always

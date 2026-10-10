@@ -1,13 +1,17 @@
-import knex from 'knex'
+import { randomUUID } from 'node:crypto'
 
+import { statusReactionQueries } from '@/lib/database/domains/statusReaction/queries'
 import {
-  databaseBeforeAll,
-  getTestDatabaseTable
+  type TestDatabaseTable,
+  databaseBeforeAll
 } from '@/lib/database/testUtils'
+import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
+import { withStaleFirstRead } from '@/lib/database/testing/staleRead'
 import { Database } from '@/lib/database/types'
 import { MAX_REACTIONS_PER_ACTOR } from '@/lib/services/statuses/reactionLimits'
 import { seedDatabase } from '@/lib/stub/database'
 import { DatabaseSeed } from '@/lib/stub/scenarios/database'
+import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
 // Distinct timestamps: reaction rollups are ordered by first-reaction time, and
 // SQLite stores the column with millisecond resolution.
@@ -19,7 +23,10 @@ describe('StatusReactionDatabase', () => {
   const replyAuthorId = actors.replyAuthor.id
   const extraActorId = actors.extra.id
   const emptyActorId = actors.empty.id
-  const table = getTestDatabaseTable()
+  const testDb = createTestDatabase()
+  const table: TestDatabaseTable = [
+    [testDb.backend, testDb.database, testDb.prepare]
+  ]
 
   beforeAll(async () => {
     await databaseBeforeAll(table)
@@ -66,39 +73,30 @@ describe('StatusReactionDatabase', () => {
 
       it('row-locks the statuses row, not the actor reactions it counts', async () => {
         // The lock is what serialises a burst of distinct reactions on
-        // PostgreSQL. knex drops FOR UPDATE on SQLite, where writers already
-        // serialise, so no result-based test can see it go: pin the call. Every
-        // dialect builds on the same QueryBuilder, so a throwaway instance
-        // (no connection, no pool) exposes the prototype the database uses.
-        const queryBuilderPrototype = Object.getPrototypeOf(
-          knex({
-            client: 'better-sqlite3',
-            useNullAsDefault: true
-          }).queryBuilder()
-        )
-        // Record WHICH table each lock targets: a lock moved onto the
+        // PostgreSQL. SQLite has no row locks and rejects FOR UPDATE, so no
+        // result-based test can see the lock go: read the statements the call
+        // sent. Record WHICH table each lock targets: a lock moved onto the
         // status_reactions read locks zero rows for a first reaction, so it
-        // serialises nothing, yet still calls forUpdate.
-        const originalForUpdate = queryBuilderPrototype.forUpdate
-        const lockedTables: unknown[] = []
-        const forUpdate = vi
-          .spyOn(queryBuilderPrototype, 'forUpdate')
-          .mockImplementation(function (
-            this: { _single: { table?: unknown } },
-            ...args: unknown[]
-          ) {
-            lockedTables.push(this._single.table)
-            return originalForUpdate.apply(this, args)
-          })
+        // serialises nothing, yet still says FOR UPDATE.
+        const statements: string[] = []
+        const record = ({ sql }: { sql: string }) => statements.push(sql)
+        testDb.knex.on('query', record)
         try {
           await database.createStatusReaction({
             statusId: statuses.primary.post,
             actorId: extraActorId,
             name: '🔒'
           })
-          expect(lockedTables).toEqual(['statuses'])
         } finally {
-          forUpdate.mockRestore()
+          testDb.knex.removeListener('query', record)
+        }
+
+        const locking = statements.filter((sql) => /\bfor update\b/i.test(sql))
+        if (testDb.backend === 'pg') {
+          expect(locking).toHaveLength(1)
+          expect(locking[0]).toMatch(/\bfrom "statuses"/)
+        } else {
+          expect(locking).toEqual([])
         }
       })
 
@@ -482,6 +480,313 @@ describe('StatusReactionDatabase', () => {
           statusId: 'https://nonexistent.status/id'
         })
         expect(reactors).toEqual([])
+      })
+    })
+
+    describe('reactions of other statuses, actors and emoji', () => {
+      const remoteActor = (name: string) =>
+        `https://remote.test/users/reaction-${name}-${randomUUID()}`
+
+      const createStatus = async (name: string) => {
+        const statusId = `${primaryActorId}/statuses/reaction-${name}-${randomUUID()}`
+        await database.createNote({
+          id: statusId,
+          url: statusId,
+          actorId: primaryActorId,
+          text: name,
+          to: [ACTIVITY_STREAM_PUBLIC],
+          cc: []
+        })
+        return statusId
+      }
+
+      const insertReaction = (
+        statusId: string,
+        actorId: string,
+        name: string,
+        createdAt: number
+      ) =>
+        testDb.knex('status_reactions').insert({
+          statusId,
+          actorId,
+          name,
+          createdAt: new Date(createdAt),
+          updatedAt: new Date(createdAt)
+        })
+
+      it('counts the per-actor cap on each status separately', async () => {
+        const full = await createStatus('cap-full')
+        const empty = await createStatus('cap-empty')
+        const actorId = remoteActor('cap')
+        for (let index = 0; index < MAX_REACTIONS_PER_ACTOR; index += 1) {
+          await expect(
+            database.createStatusReaction({
+              statusId: full,
+              actorId,
+              name: `cap-${index}`
+            })
+          ).resolves.toBe(true)
+        }
+
+        await expect(
+          database.createStatusReaction({
+            statusId: full,
+            actorId,
+            name: 'one-too-many'
+          })
+        ).resolves.toBe(false)
+        await expect(
+          database.createStatusReaction({
+            statusId: empty,
+            actorId,
+            name: 'one-too-many'
+          })
+        ).resolves.toBe(true)
+        // The same name on the other status is not a repeat either.
+        await expect(
+          database.createStatusReaction({
+            statusId: empty,
+            actorId,
+            name: 'cap-0'
+          })
+        ).resolves.toBe(true)
+      })
+
+      it('stores a reaction once when a concurrent request stores it after the check', async () => {
+        const statusId = await createStatus('concurrent')
+        const actorId = remoteActor('concurrent')
+        await database.createStatusReaction({ statusId, actorId, name: '🏁' })
+        // The reaction is not seen by the check, as if the other request
+        // stored it just after the check ran.
+        const racing = withStaleFirstRead(
+          testDb.db,
+          'status_reactions',
+          () => []
+        )
+
+        await expect(
+          statusReactionQueries.createStatusReaction(racing, {
+            statusId,
+            actorId,
+            name: '🏁'
+          })
+        ).resolves.toBe(true)
+
+        await expect(
+          database.getStatusReactionActors({ statusId })
+        ).resolves.toHaveLength(1)
+      })
+
+      it('treats a name another actor used on the status as new', async () => {
+        const statusId = await createStatus('shared-name')
+        const first = remoteActor('shared-first')
+        const second = remoteActor('shared-second')
+
+        await expect(
+          database.createStatusReaction({
+            statusId,
+            actorId: first,
+            name: '🍀'
+          })
+        ).resolves.toBe(true)
+        await expect(
+          database.createStatusReaction({
+            statusId,
+            actorId: second,
+            name: '🍀'
+          })
+        ).resolves.toBe(true)
+        await expect(
+          database.createStatusReaction({
+            statusId,
+            actorId: first,
+            name: '🍀'
+          })
+        ).resolves.toBe(false)
+      })
+
+      it('deletes the reaction on the status asked for and no other', async () => {
+        const first = await createStatus('delete-first')
+        const second = await createStatus('delete-second')
+        const actorId = remoteActor('delete')
+        const bystander = remoteActor('delete-bystander')
+        for (const statusId of [first, second]) {
+          await database.createStatusReaction({ statusId, actorId, name: '🧹' })
+        }
+        await database.createStatusReaction({
+          statusId: first,
+          actorId: bystander,
+          name: '🧹'
+        })
+
+        await expect(
+          database.deleteStatusReaction({
+            statusId: first,
+            actorId,
+            name: '🧹'
+          })
+        ).resolves.toBe(true)
+
+        const rollups = await database.getStatusReactionRollups({
+          statusIds: [first, second]
+        })
+        expect(
+          rollups.map(({ statusId, name, count }) => ({
+            statusId,
+            name,
+            count
+          }))
+        ).toEqual(
+          expect.arrayContaining([
+            { statusId: first, name: '🧹', count: 1 },
+            { statusId: second, name: '🧹', count: 1 }
+          ])
+        )
+        expect(rollups).toHaveLength(2)
+        await expect(
+          database.getStatusReactionActors({ statusId: first })
+        ).resolves.toMatchObject([{ actorId: bystander }])
+      })
+
+      it('keeps one rollup per status for the same reaction name', async () => {
+        const first = await createStatus('rollup-first')
+        const second = await createStatus('rollup-second')
+        const actorId = remoteActor('rollup')
+        await database.createStatusReaction({
+          statusId: first,
+          actorId,
+          name: '🐝'
+        })
+        await database.createStatusReaction({
+          statusId: second,
+          actorId: remoteActor('rollup-other'),
+          name: '🐝'
+        })
+        await database.createStatusReaction({
+          statusId: second,
+          actorId: remoteActor('rollup-third'),
+          name: '🐝'
+        })
+
+        const rollups = await database.getStatusReactionRollups({
+          statusIds: [first, second],
+          currentActorId: actorId
+        })
+        expect(
+          rollups
+            .map(({ statusId, count, me }) => ({ statusId, count, me }))
+            .sort((a, b) => a.count - b.count)
+        ).toEqual([
+          { statusId: first, count: 1, me: true },
+          { statusId: second, count: 2, me: false }
+        ])
+      })
+
+      it('orders rollups by first reaction, then by name', async () => {
+        const statusId = await createStatus('rollup-order')
+        const actorId = remoteActor('rollup-order')
+        // Insertion order matches neither the time order nor the name order:
+        // b and c react at the same time, a later than both, d earliest.
+        await insertReaction(statusId, actorId, 'c', 2_000)
+        await insertReaction(statusId, actorId, 'a', 3_000)
+        await insertReaction(statusId, actorId, 'd', 1_000)
+        await insertReaction(statusId, actorId, 'b', 2_000)
+
+        const rollups = await database.getStatusReactionRollups({
+          statusIds: [statusId]
+        })
+        expect(rollups.map((rollup) => rollup.name)).toEqual([
+          'd',
+          'b',
+          'c',
+          'a'
+        ])
+      })
+
+      it('uses the earliest reaction of a group as its first reaction time', async () => {
+        const statusId = await createStatus('rollup-first-time')
+        const early = remoteActor('rollup-early')
+        const late = remoteActor('rollup-late')
+        await insertReaction(statusId, late, 'x', 9_000)
+        await insertReaction(statusId, early, 'y', 5_000)
+        await insertReaction(statusId, early, 'x', 1_000)
+
+        const rollups = await database.getStatusReactionRollups({
+          statusIds: [statusId]
+        })
+        expect(rollups.map((rollup) => [rollup.name, rollup.count])).toEqual([
+          ['x', 2],
+          ['y', 1]
+        ])
+      })
+
+      it('lists the reactors of the status asked for, oldest first', async () => {
+        const statusId = await createStatus('actors-order')
+        const other = await createStatus('actors-other')
+        const early = remoteActor('actors-b-early')
+        const lateA = remoteActor('actors-a-late')
+        const lateB = remoteActor('actors-c-late')
+        // Written out of order; the two late reactors share a timestamp and
+        // are ranked by actor id.
+        await insertReaction(statusId, lateB, 'x', 2_000)
+        await insertReaction(other, early, 'x', 500)
+        await insertReaction(statusId, lateA, 'x', 2_000)
+        await insertReaction(statusId, early, 'y', 1_000)
+
+        const reactors = await database.getStatusReactionActors({ statusId })
+        expect(reactors.map((reactor) => reactor.actorId)).toEqual([
+          early,
+          lateA,
+          lateB
+        ])
+        const named = await database.getStatusReactionActors({
+          statusId,
+          name: 'x'
+        })
+        expect(named.map((reactor) => reactor.actorId)).toEqual([lateA, lateB])
+        await expect(
+          database.getStatusReactionActors({ statusId: other, name: 'y' })
+        ).resolves.toEqual([])
+      })
+
+      it('shows a disabled local custom emoji as its shortcode only', async () => {
+        const statusId = await createStatus('disabled-emoji')
+        await database.createCustomEmoji({
+          shortcode: 'enabledblob',
+          url: 'https://test.llun.dev/emojis/enabledblob.gif',
+          staticUrl: 'https://test.llun.dev/emojis/enabledblob.png'
+        })
+        await database.createCustomEmoji({
+          shortcode: 'disabledblob',
+          url: 'https://test.llun.dev/emojis/disabledblob.gif',
+          staticUrl: 'https://test.llun.dev/emojis/disabledblob.png',
+          disabled: true
+        })
+        const actorId = remoteActor('disabled-emoji')
+        await insertReaction(statusId, actorId, 'enabledblob', 1_000)
+        await insertReaction(statusId, actorId, 'disabledblob', 2_000)
+
+        const rollups = await database.getStatusReactionRollups({
+          statusIds: [statusId]
+        })
+        expect(rollups).toEqual([
+          {
+            statusId,
+            name: 'enabledblob',
+            count: 1,
+            me: false,
+            url: 'https://test.llun.dev/emojis/enabledblob.gif',
+            staticUrl: 'https://test.llun.dev/emojis/enabledblob.png'
+          },
+          {
+            statusId,
+            name: 'disabledblob',
+            count: 1,
+            me: false,
+            url: null,
+            staticUrl: null
+          }
+        ])
       })
     })
 

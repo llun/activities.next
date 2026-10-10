@@ -2,8 +2,6 @@ import { Knex } from 'knex'
 
 import { AccountSQLDatabaseMixin } from './account'
 import { ActorSQLDatabaseMixin } from './actor'
-import { BlockSQLDatabaseMixin } from './block'
-import { BookmarkSQLDatabaseMixin } from './bookmark'
 import { FitnessSettingsSQLDatabaseMixin } from './fitnessSettings'
 import { FollowerSQLDatabaseMixin } from './follow'
 import { getSQLDatabase } from './index'
@@ -33,14 +31,6 @@ vi.mock('@/lib/database/sql/account', () => ({
 
 vi.mock('@/lib/database/sql/actor', () => ({
   ActorSQLDatabaseMixin: vi.fn()
-}))
-
-vi.mock('@/lib/database/sql/block', () => ({
-  BlockSQLDatabaseMixin: vi.fn()
-}))
-
-vi.mock('@/lib/database/sql/bookmark', () => ({
-  BookmarkSQLDatabaseMixin: vi.fn()
 }))
 
 vi.mock('@/lib/database/sql/fitnessSettings', () => ({
@@ -74,8 +64,6 @@ vi.mock('@/lib/database/sql/timeline', () => ({
 describe('getSQLDatabase', () => {
   const accountMixinMock = AccountSQLDatabaseMixin as unknown as jest.Mock
   const actorMixinMock = ActorSQLDatabaseMixin as unknown as jest.Mock
-  const blockMixinMock = BlockSQLDatabaseMixin as unknown as jest.Mock
-  const bookmarkMixinMock = BookmarkSQLDatabaseMixin as unknown as jest.Mock
   const fitnessSettingsMixinMock =
     FitnessSettingsSQLDatabaseMixin as unknown as jest.Mock
   const followerMixinMock = FollowerSQLDatabaseMixin as unknown as jest.Mock
@@ -111,12 +99,6 @@ describe('getSQLDatabase', () => {
     const fitnessSettingsDatabase = {
       createFitnessSettings: vi.fn()
     }
-    const blockDatabase = {
-      createBlock: vi.fn()
-    }
-    const bookmarkDatabase = {
-      createBookmark: vi.fn()
-    }
     const followerDatabase = {
       getFollowers: vi.fn()
     }
@@ -140,8 +122,6 @@ describe('getSQLDatabase', () => {
     _knexMock = knexDatabase
     accountMixinMock.mockReturnValue(accountDatabase)
     actorMixinMock.mockReturnValue(actorDatabase)
-    blockMixinMock.mockReturnValue(blockDatabase)
-    bookmarkMixinMock.mockReturnValue(bookmarkDatabase)
     fitnessSettingsMixinMock.mockReturnValue(fitnessSettingsDatabase)
     followerMixinMock.mockReturnValue(followerDatabase)
     mediaMixinMock.mockReturnValue(mediaDatabase)
@@ -155,8 +135,6 @@ describe('getSQLDatabase', () => {
     return {
       accountDatabase,
       actorDatabase,
-      blockDatabase,
-      bookmarkDatabase,
       database,
       followerDatabase,
       fitnessSettingsDatabase,
@@ -170,18 +148,11 @@ describe('getSQLDatabase', () => {
   }
 
   it('wires mixin dependencies correctly', () => {
-    const {
-      actorDatabase,
-      bookmarkDatabase,
-      knexDatabase,
-      mediaDatabase,
-      statusDatabase
-    } = createComposedDatabase()
+    const { actorDatabase, knexDatabase, mediaDatabase, statusDatabase } =
+      createComposedDatabase()
 
     expect(accountMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(actorMixinMock).toHaveBeenCalledWith(knexDatabase)
-    expect(blockMixinMock).toHaveBeenCalledWith(knexDatabase)
-    expect(bookmarkMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(fitnessSettingsMixinMock).toHaveBeenCalledWith(knexDatabase)
     expect(followerMixinMock).toHaveBeenCalledWith(knexDatabase, actorDatabase)
     expect(mediaMixinMock).toHaveBeenCalledWith(knexDatabase)
@@ -196,7 +167,11 @@ describe('getSQLDatabase', () => {
         createLike: expect.any(Function),
         isActorLikedStatus: expect.any(Function)
       }),
-      bookmarkDatabase,
+      // Bookmarks are Kysely queries bound lazily to this Knex instance.
+      expect.objectContaining({
+        createBookmark: expect.any(Function),
+        isActorBookmarkedStatus: expect.any(Function)
+      }),
       mediaDatabase,
       // Detected languages are Kysely queries bound lazily to this Knex instance.
       expect.objectContaining({
