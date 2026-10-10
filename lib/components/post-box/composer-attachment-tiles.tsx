@@ -224,7 +224,7 @@ export const ComposerAttachmentTiles: FC<Props> = ({
       <p role="status" aria-live="polite" className="sr-only">
         {announcements.join('. ')}
       </p>
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+      <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
         {attachments.map((item, index) => {
           const label = getAttachmentLabel(item, fileNames, index)
           const error = uploadErrors[item.id]
