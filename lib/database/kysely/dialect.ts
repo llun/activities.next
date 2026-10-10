@@ -42,6 +42,15 @@ export const jsonText = (db: Db, column: string, key: string) =>
       >`json_extract(${sql.ref(column)}, ${sql.lit(`$.${key}`)})`
     : sql<string | null>`${sql.ref(column)}::jsonb ->> ${sql.lit(key)}`
 
+// The hashtag name in `column` (a qualified tags.nameNormalized reference)
+// with its leading `#`s stripped and lowercased, so a tag stored as `name` and
+// one stored as `#name` group and match as one: ltrim() on SQLite, trim(leading)
+// on PostgreSQL.
+export const normalizedHashtagName = (db: Db, column: string) =>
+  getDialectName(db) === 'sqlite'
+    ? sql<string>`lower(ltrim(${sql.ref(column)}, ${'#'}))`
+    : sql<string>`lower(trim(leading '#' from ${sql.ref(column)}))`
+
 // Keeps the `search_documents` rows whose documentText contains every token as
 // a word prefix. `query` must select from `search_documents` and `tokens` must
 // be non-empty and made of letters, digits and underscores (getSearchTokens()

@@ -2,12 +2,9 @@ import { Knex } from 'knex'
 
 import { getConfig } from '@/lib/config'
 import { searchQueries } from '@/lib/database/domains/search/queries'
+import { normalizeHashtagSearchName } from '@/lib/database/domains/search/rows'
+import { deleteStatusSearchDocumentsByStatusIds } from '@/lib/database/domains/search/statuses'
 import { kyselyFor } from '@/lib/database/kysely'
-import {
-  indexHashtagSearchDocuments,
-  normalizeHashtagSearchName
-} from '@/lib/database/sql/search/hashtag'
-import { deleteStatusSearchDocumentsByStatusIds } from '@/lib/database/sql/search/status'
 import {
   CounterKey,
   decreaseCounterValue,
@@ -1734,7 +1731,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
       // Delete statuses
       await trx('statuses').where('actorId', actorId).delete()
       if (statusIds.length > 0) {
-        await deleteStatusSearchDocumentsByStatusIds(trx, statusIds)
+        await deleteStatusSearchDocumentsByStatusIds(kyselyFor(trx), statusIds)
       }
 
       // Delete follows (both directions)
@@ -1987,7 +1984,7 @@ export const ActorSQLDatabaseMixin = (database: Knex): SQLActorDatabase => ({
 
     if (affectedHashtags.length > 0) {
       try {
-        await indexHashtagSearchDocuments(database, {
+        await searchQueries.indexHashtagSearchDocuments(kyselyFor(database), {
           hashtags: [...new Set(affectedHashtags)]
         })
       } catch (err) {

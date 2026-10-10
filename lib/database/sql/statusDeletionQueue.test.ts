@@ -1,6 +1,7 @@
 import { Knex } from 'knex'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { searchQueries } from '@/lib/database/domains/search/queries'
 import { type Db, kyselyFor } from '@/lib/database/kysely'
 import {
   getTestDatabaseTable,
@@ -11,8 +12,6 @@ import { Database } from '@/lib/database/types'
 import { CreateQueueJobParams } from '@/lib/types/database/operations'
 import { Actor } from '@/lib/types/domain/actor'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
-
-import * as searchModule from './search/hashtag'
 
 const table = getTestDatabaseTable()
 
@@ -127,7 +126,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
       }
     }
 
-    const indexSpy = vi.spyOn(searchModule, 'indexHashtagSearchDocuments')
+    const indexSpy = vi.spyOn(searchQueries, 'indexHashtagSearchDocuments')
 
     const result = await database.deleteStatusWithQueueJob({
       actorId: primaryActor.id,
@@ -443,7 +442,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     let statusVisibleDuringRefresh: unknown = 'init'
 
     const indexSpy = vi
-      .spyOn(searchModule, 'indexHashtagSearchDocuments')
+      .spyOn(searchQueries, 'indexHashtagSearchDocuments')
       .mockImplementation(async () => {
         // Query the database outside any transaction to check committed state
         const row = await knexDatabase('statuses')
@@ -498,7 +497,7 @@ describe.each(table)('deleteStatusWithQueueJob (%s)', (backendName) => {
     }
 
     const indexSpy = vi
-      .spyOn(searchModule, 'indexHashtagSearchDocuments')
+      .spyOn(searchQueries, 'indexHashtagSearchDocuments')
       .mockRejectedValueOnce(new Error('Simulated hashtag indexing failure'))
 
     // The method should NOT reject because hashtag refresh is best-effort outside the committed transaction

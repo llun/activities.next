@@ -4,8 +4,7 @@ import {
   MAX_SEARCH_TOKEN_LENGTH
 } from '@/lib/utils/searchQueryLimits'
 
-// Pure helpers shared by the document and account queries, and by the Knex
-// hashtag and status search that has yet to move here.
+// Pure helpers shared by the search queries, featured tags and trends.
 
 export const getSearchDocumentId = ({
   entityType,
@@ -37,3 +36,15 @@ export const getSearchTokens = (value: string): string[] =>
 // Escapes `\`, `%` and `_` for a LIKE pattern written with `escape '\'`.
 export const escapeLikePattern = (value: string) =>
   value.replace(/[\\%_]/g, '\\$&')
+
+// A hashtag's name as search, featured tags and trends key it: trimmed, without
+// its leading `#`s, lowercased.
+export const normalizeHashtagSearchName = (hashtag: string) =>
+  hashtag.trim().replace(/^#+/, '').toLowerCase()
+
+// tags.nameNormalized holds a hashtag as `#name` or, in older rows, `name`;
+// these are the values to look it up by.
+export const getHashtagStorageNames = (hashtag: string) => {
+  const name = normalizeHashtagSearchName(hashtag)
+  return name ? [name, `#${name}`] : []
+}

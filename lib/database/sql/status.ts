@@ -3,6 +3,15 @@ import { Knex } from 'knex'
 import { PER_PAGE_LIMIT } from '@/lib/database/constants'
 import { incrementLocalStatusBucket } from '@/lib/database/domains/instanceActivity/queries'
 import { createQueueJob } from '@/lib/database/domains/queueJob/queries'
+import { searchQueries } from '@/lib/database/domains/search/queries'
+import {
+  getHashtagStorageNames,
+  normalizeHashtagSearchName
+} from '@/lib/database/domains/search/rows'
+import {
+  type StatusSearchRow,
+  deleteStatusSearchDocumentsByStatusIds
+} from '@/lib/database/domains/search/statuses'
 import { kyselyFor } from '@/lib/database/kysely'
 import { parseElevationSeries } from '@/lib/database/sql/fitnessFile'
 import { coercePollEndAt } from '@/lib/database/sql/utils/coercePollEndAt'
@@ -132,16 +141,6 @@ import {
 } from '@/lib/utils/publicId'
 import { widensStatusAudience } from '@/lib/utils/widensStatusAudience'
 
-import {
-  indexHashtagSearchDocument,
-  indexHashtagSearchDocuments,
-  normalizeHashtagSearchName
-} from './search/hashtag'
-import {
-  deleteStatusSearchDocumentsByStatusIds,
-  indexStatusSearchDocument
-} from './search/status'
-import type { SQLStatusSearchRow } from './search/status'
 import { getCompatibleJSON } from './utils/getCompatibleJSON'
 
 const MAX_ANNOUNCE_RESOLUTION_DEPTH = 10
@@ -603,7 +602,7 @@ export const StatusSQLDatabaseMixin = (
       ...(quoteApprovalPolicy ? { quoteApprovalPolicy } : {})
     }
     const statusContent = JSON.stringify(content)
-    const searchStatus: SQLStatusSearchRow = {
+    const searchStatus: StatusSearchRow = {
       id,
       actorId,
       type: StatusType.enum.Note,
@@ -676,7 +675,9 @@ export const StatusSQLDatabaseMixin = (
       return { status: outcome.existing, isNew: false }
     }
 
-    await indexStatusSearchDocument(database, { status: searchStatus })
+    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
+      status: searchStatus
+    })
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     const status = StatusNote.parse({
@@ -756,7 +757,7 @@ export const StatusSQLDatabaseMixin = (
       language: language === undefined ? status.language : language
     }
     const statusContent = JSON.stringify(content)
-    const searchStatus: SQLStatusSearchRow = {
+    const searchStatus: StatusSearchRow = {
       id: status.id,
       actorId: status.actorId,
       type: status.type,
@@ -917,7 +918,9 @@ export const StatusSQLDatabaseMixin = (
         )
       }
     })
-    await indexStatusSearchDocument(database, { status: searchStatus })
+    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
+      status: searchStatus
+    })
     return getStatus({ statusId })
   }
 
@@ -932,7 +935,7 @@ export const StatusSQLDatabaseMixin = (
 
     let affectedHashtags: string[] = []
     const currentTime = new Date()
-    const searchStatus: SQLStatusSearchRow = {
+    const searchStatus: StatusSearchRow = {
       id: status.id,
       actorId: status.actorId,
       type: status.type,
@@ -1006,11 +1009,13 @@ export const StatusSQLDatabaseMixin = (
       }
     })
     if (affectedHashtags.length > 0) {
-      await indexHashtagSearchDocuments(database, {
+      await searchQueries.indexHashtagSearchDocuments(kyselyFor(database), {
         hashtags: affectedHashtags
       })
     }
-    await indexStatusSearchDocument(database, { status: searchStatus })
+    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
+      status: searchStatus
+    })
     return getStatus({ statusId })
   }
 
@@ -1156,7 +1161,7 @@ export const StatusSQLDatabaseMixin = (
       hideTotals
     }
     const statusContent = JSON.stringify(content)
-    const searchStatus: SQLStatusSearchRow = {
+    const searchStatus: StatusSearchRow = {
       id,
       actorId,
       type: StatusType.enum.Poll,
@@ -1243,7 +1248,9 @@ export const StatusSQLDatabaseMixin = (
       return { status: outcome.existing, isNew: false }
     }
 
-    await indexStatusSearchDocument(database, { status: searchStatus })
+    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
+      status: searchStatus
+    })
 
     const actor = await actorDatabase.getActorFromId({ id: actorId })
     const status = StatusPoll.parse({
@@ -1331,7 +1338,7 @@ export const StatusSQLDatabaseMixin = (
         hideTotals === undefined ? (data.hideTotals ?? false) : hideTotals
     }
     const statusContent = JSON.stringify(content)
-    const searchStatus: SQLStatusSearchRow = {
+    const searchStatus: StatusSearchRow = {
       id: existingStatus.id,
       actorId: existingStatus.actorId,
       type: existingStatus.type,
@@ -1412,7 +1419,9 @@ export const StatusSQLDatabaseMixin = (
           })
       }
     })
-    await indexStatusSearchDocument(database, { status: searchStatus })
+    await searchQueries.indexStatusSearchDocument(kyselyFor(database), {
+      status: searchStatus
+    })
     return getStatus({ statusId })
   }
 
@@ -1818,7 +1827,7 @@ export const StatusSQLDatabaseMixin = (
     }
 
     if (tagged !== undefined && tagged !== null) {
-      const normalizedNames = getHashtagLookupNames(tagged)
+      const normalizedNames = getHashtagStorageNames(tagged)
       if (normalizedNames.length === 0) {
         query = query.whereRaw('1 = 0')
       } else {
@@ -2559,7 +2568,7 @@ export const StatusSQLDatabaseMixin = (
     // reindexSearchHashtags run can reconcile this if the process exits
     // after commit and before this best-effort refresh completes.
     try {
-      await indexHashtagSearchDocuments(database, {
+      await searchQueries.indexHashtagSearchDocuments(kyselyFor(database), {
         hashtags: [...new Set(collectedHashtags)]
       })
     } catch (err) {
@@ -2794,7 +2803,10 @@ export const StatusSQLDatabaseMixin = (
       actorIds: statusesToDelete.map((status) => status.actorId),
       trx
     })
-    await deleteStatusSearchDocumentsByStatusIds(trx, statusIdsToDelete)
+    await deleteStatusSearchDocumentsByStatusIds(
+      kyselyFor(trx),
+      statusIdsToDelete
+    )
     await deleteCounterValues(
       trx,
       statusIdsToDelete.flatMap((statusId) => [
@@ -3129,7 +3141,9 @@ export const StatusSQLDatabaseMixin = (
     if (type === 'hashtag' && !skipSearchIndex) {
       // Hashtag search stores an aggregate across all public statuses for the
       // tag, so the inserted row alone is not enough to update the document.
-      await indexHashtagSearchDocument(database, { hashtag: name })
+      await searchQueries.indexHashtagSearchDocument(kyselyFor(database), {
+        hashtag: name
+      })
     }
     return data
   }
@@ -3152,11 +3166,6 @@ export const StatusSQLDatabaseMixin = (
     await database('tags').where({ statusId, type }).delete()
   }
 
-  function getHashtagLookupNames(hashtag: string): string[] {
-    const bare = normalizeHashtagSearchName(hashtag)
-    return bare ? [bare, `#${bare}`] : []
-  }
-
   async function getStatusesByHashtag({
     hashtag,
     currentActorId,
@@ -3172,7 +3181,9 @@ export const StatusSQLDatabaseMixin = (
   }: GetStatusesByHashtagParams): Promise<Status[]> {
     // `any[]` widens the primary tag match: a status qualifies when it carries
     // the main hashtag OR any of the additional tags (Mastodon semantics).
-    const normalizedNames = [hashtag, ...anyTags].flatMap(getHashtagLookupNames)
+    const normalizedNames = [hashtag, ...anyTags].flatMap(
+      getHashtagStorageNames
+    )
     let query = database('tags')
       .innerJoin('statuses', 'tags.statusId', 'statuses.id')
       .innerJoin('recipients', 'statuses.id', 'recipients.statusId')
@@ -3188,7 +3199,7 @@ export const StatusSQLDatabaseMixin = (
 
     // `all[]`: every additional tag must also be present on the status.
     for (const tag of allTags) {
-      const lookupNames = getHashtagLookupNames(tag)
+      const lookupNames = getHashtagStorageNames(tag)
       if (lookupNames.length === 0) {
         query = query.whereRaw('1 = 0')
         continue
@@ -3203,7 +3214,7 @@ export const StatusSQLDatabaseMixin = (
     }
 
     // `none[]`: statuses carrying any of these tags are excluded.
-    const noneLookupNames = noneTags.flatMap(getHashtagLookupNames)
+    const noneLookupNames = noneTags.flatMap(getHashtagStorageNames)
     if (noneLookupNames.length > 0) {
       query = query.whereNotExists(function () {
         this.select(database.raw('1'))
@@ -3295,7 +3306,7 @@ export const StatusSQLDatabaseMixin = (
     limit,
     offset
   }: GetHashtagStatusesPageParams) {
-    const normalizedNames = getHashtagLookupNames(hashtag)
+    const normalizedNames = getHashtagStorageNames(hashtag)
     const baseQuery = () =>
       database('tags')
         .innerJoin('statuses', 'tags.statusId', 'statuses.id')

@@ -9,9 +9,20 @@ import {
   searchDocuments,
   upsertSearchDocument
 } from '@/lib/database/domains/search/documents'
+import {
+  deleteHashtagSearchDocument,
+  indexHashtagSearchDocument,
+  indexHashtagSearchDocuments,
+  reindexSearchHashtags,
+  searchHashtags
+} from '@/lib/database/domains/search/hashtags'
+import {
+  deleteStatusSearchDocument,
+  indexStatusSearchDocument,
+  reindexSearchStatuses,
+  searchStatusIds
+} from '@/lib/database/domains/search/statuses'
 
-// The facade getSQLDatabase binds with bindDb(). The hashtag and status
-// halves of search are still Knex (lib/database/sql/search/).
 export const searchQueries = {
   upsertSearchDocument,
   deleteSearchDocument,
@@ -19,5 +30,14 @@ export const searchQueries = {
   searchAccountIds,
   indexActorSearchDocument,
   deleteActorSearchDocument,
-  reindexSearchAccounts
+  reindexSearchAccounts,
+  searchHashtags,
+  indexHashtagSearchDocument,
+  indexHashtagSearchDocuments,
+  deleteHashtagSearchDocument,
+  reindexSearchHashtags,
+  searchStatusIds,
+  indexStatusSearchDocument,
+  deleteStatusSearchDocument,
+  reindexSearchStatuses
 }

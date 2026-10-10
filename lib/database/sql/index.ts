@@ -18,6 +18,8 @@ import { deadLetterJobQueries } from '@/lib/database/domains/deadLetterJob/queri
 import type { DeadLetterJobDatabase } from '@/lib/database/domains/deadLetterJob/types'
 import { endorsementQueries } from '@/lib/database/domains/endorsement/queries'
 import type { EndorsementDatabase } from '@/lib/database/domains/endorsement/types'
+import { featuredTagQueries } from '@/lib/database/domains/featuredTag/queries'
+import type { FeaturedTagDatabase } from '@/lib/database/domains/featuredTag/types'
 import { filterQueries } from '@/lib/database/domains/filter/queries'
 import type { FilterDatabase } from '@/lib/database/domains/filter/types'
 import { followedTagQueries } from '@/lib/database/domains/followedTag/queries'
@@ -72,6 +74,8 @@ import { suggestionQueries } from '@/lib/database/domains/suggestion/queries'
 import type { SuggestionDatabase } from '@/lib/database/domains/suggestion/types'
 import { translationCacheQueries } from '@/lib/database/domains/translationCache/queries'
 import type { TranslationCacheDatabase } from '@/lib/database/domains/translationCache/types'
+import { trendsQueries } from '@/lib/database/domains/trends/queries'
+import type { TrendsDatabase } from '@/lib/database/domains/trends/types'
 import {
   bindDb,
   installKnexKyselyGuard,
@@ -81,7 +85,6 @@ import { AccountSQLDatabaseMixin } from '@/lib/database/sql/account'
 import { ActorSQLDatabaseMixin } from '@/lib/database/sql/actor'
 import { CollectionSQLDatabaseMixin } from '@/lib/database/sql/collection'
 import { DirectConversationSQLDatabaseMixin } from '@/lib/database/sql/conversation'
-import { FeaturedTagSQLDatabaseMixin } from '@/lib/database/sql/featuredTag'
 import { FitnessFileSQLDatabaseMixin } from '@/lib/database/sql/fitnessFile'
 import { FitnessFileRouteSQLDatabaseMixin } from '@/lib/database/sql/fitnessFileRoute'
 import { FitnessGearSQLDatabaseMixin } from '@/lib/database/sql/fitnessGear'
@@ -97,23 +100,9 @@ import { GalleryMediaSQLDatabaseMixin } from '@/lib/database/sql/galleryMedia'
 import { ListSQLDatabaseMixin } from '@/lib/database/sql/list'
 import { MediaSQLDatabaseMixin } from '@/lib/database/sql/media'
 import { ModerationSQLDatabaseMixin } from '@/lib/database/sql/moderation'
-import {
-  deleteHashtagSearchDocument,
-  indexHashtagSearchDocument,
-  indexHashtagSearchDocuments,
-  reindexSearchHashtags,
-  searchHashtags
-} from '@/lib/database/sql/search/hashtag'
-import {
-  deleteStatusSearchDocument,
-  indexStatusSearchDocument,
-  reindexSearchStatuses,
-  searchStatusIds
-} from '@/lib/database/sql/search/status'
 import { StatusSQLDatabaseMixin } from '@/lib/database/sql/status'
 import { StravaArchiveImportSQLDatabaseMixin } from '@/lib/database/sql/stravaArchiveImport'
 import { TimelineSQLDatabaseMixin } from '@/lib/database/sql/timeline'
-import { TrendsSQLDatabaseMixin } from '@/lib/database/sql/trends'
 import { WahooImportSQLDatabaseMixin } from '@/lib/database/sql/wahooImport'
 import { Database } from '@/lib/database/types'
 
@@ -174,7 +163,10 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     endorsementQueries
   )
-  const featuredTagDatabase = FeaturedTagSQLDatabaseMixin(database)
+  const featuredTagDatabase: FeaturedTagDatabase = bindDb(
+    kysely,
+    featuredTagQueries
+  )
   const statusMuteDatabase: StatusMuteDatabase = bindDb(
     kysely,
     statusMuteQueries
@@ -245,25 +237,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     scheduledStatusQueries
   )
   const oauthDatabase: OAuthDatabase = bindDb(kysely, oauthQueries)
-  // Search documents and account search run on Kysely; the hashtag and status
-  // halves are still Knex (sql/search/hashtag.ts and status.ts).
-  const searchDatabase: SearchDatabase = {
-    ...bindDb(kysely, searchQueries),
-    searchHashtags: (params) => searchHashtags(database, params),
-    indexHashtagSearchDocument: (params) =>
-      indexHashtagSearchDocument(database, params),
-    indexHashtagSearchDocuments: (params) =>
-      indexHashtagSearchDocuments(database, params),
-    deleteHashtagSearchDocument: (params) =>
-      deleteHashtagSearchDocument(database, params),
-    reindexSearchHashtags: (params) => reindexSearchHashtags(database, params),
-    searchStatusIds: (params) => searchStatusIds(database, params),
-    indexStatusSearchDocument: (params) =>
-      indexStatusSearchDocument(database, params),
-    deleteStatusSearchDocument: (params) =>
-      deleteStatusSearchDocument(database, params),
-    reindexSearchStatuses: (params) => reindexSearchStatuses(database, params)
-  }
+  const searchDatabase: SearchDatabase = bindDb(kysely, searchQueries)
   const stravaArchiveImportDatabase =
     StravaArchiveImportSQLDatabaseMixin(database)
   const wahooImportDatabase = WahooImportSQLDatabaseMixin(database)
@@ -271,7 +245,7 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     suggestionQueries
   )
-  const trendsDatabase = TrendsSQLDatabaseMixin(database)
+  const trendsDatabase: TrendsDatabase = bindDb(kysely, trendsQueries)
   const statusDatabase = StatusSQLDatabaseMixin(
     database,
     actorDatabase,
