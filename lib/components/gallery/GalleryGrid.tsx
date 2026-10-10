@@ -1,7 +1,7 @@
 'use client'
 
 import { Check, Video } from 'lucide-react'
-import { FC, useRef, useState } from 'react'
+import { FC, useMemo, useRef, useState } from 'react'
 
 import { formatGalleryDate } from '@/lib/components/gallery/galleryCategories'
 import { MediasModal } from '@/lib/components/medias-modal/medias-modal'
@@ -68,6 +68,12 @@ export const GalleryGrid: FC<Props> = ({
   viewerOpen.current = modalIndex !== null
   const albumsChangedRef = useRef(onAlbumsChanged)
   albumsChangedRef.current = onAlbumsChanged
+  // A new array resets the viewer's open overlay and details cache, so it only
+  // changes when the items do.
+  const attachments = useMemo(
+    () => items.map((item) => item.attachment),
+    [items]
+  )
 
   return (
     <>
@@ -145,9 +151,7 @@ export const GalleryGrid: FC<Props> = ({
       </ul>
 
       <MediasModal
-        medias={
-          modalIndex === null ? null : items.map((item) => item.attachment)
-        }
+        medias={modalIndex === null ? null : attachments}
         initialSelection={modalIndex ?? 0}
         albumsOwnerId={albumsOwnerId}
         onAlbumsChange={(albumId) => {

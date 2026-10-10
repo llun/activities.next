@@ -90,6 +90,15 @@ const renderModal = (
   return { onClosed }
 }
 
+// The pill lives in the info overlay, which starts hidden.
+const openDetails = () =>
+  fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+
+const findPill = async (name = 'In 1 album') => {
+  openDetails()
+  return screen.findByRole('button', { name })
+}
+
 describe('MediasModal albums pill', () => {
   beforeEach(() => {
     getMediaAlbumsMock.mockReset()
@@ -99,10 +108,13 @@ describe('MediasModal albums pill', () => {
     getDetailsMock.mockResolvedValue(null)
   })
 
-  it('has no pill, and asks for nothing, without an owner', async () => {
+  it('has no pill, no Details button, and asks for nothing, without an owner', async () => {
     renderModal({ albumsOwnerId: undefined })
 
     await act(async () => {})
+    expect(screen.getByText('Details').closest('button')).toHaveClass(
+      'invisible'
+    )
     expect(
       screen.queryByRole('button', { name: /album/i })
     ).not.toBeInTheDocument()
@@ -112,9 +124,7 @@ describe('MediasModal albums pill', () => {
   it('shows how many albums hold the photo being viewed, for that photo only', async () => {
     renderModal()
 
-    expect(
-      await screen.findByRole('button', { name: 'In 1 album' })
-    ).toBeVisible()
+    expect(await findPill()).toBeVisible()
     expect(getMediaAlbumsMock).toHaveBeenCalledTimes(1)
     expect(getMediaAlbumsMock).toHaveBeenCalledWith('m1')
   })
@@ -124,7 +134,7 @@ describe('MediasModal albums pill', () => {
       id === 'm1' ? albumsResponse(['a1']) : albumsResponse([])
     )
     renderModal()
-    await screen.findByRole('button', { name: 'In 1 album' })
+    await findPill()
 
     fireEvent.keyDown(window, { key: 'ArrowRight' })
 
@@ -137,9 +147,60 @@ describe('MediasModal albums pill', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('keeps the pill out of sight and the accessibility tree until Details is pressed', async () => {
+    renderModal()
+
+    await act(async () => {})
+    expect(getMediaAlbumsMock).toHaveBeenCalledWith('m1')
+    expect(
+      screen.queryByRole('button', { name: 'In 1 album' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'In 1 album', hidden: true })
+    ).not.toBeVisible()
+
+    expect(await findPill()).toBeVisible()
+  })
+
+  it('shows a skeleton in the overlay while the albums load', async () => {
+    getMediaAlbumsMock.mockReturnValue(new Promise(() => {}))
+    renderModal()
+    openDetails()
+
+    const region = screen.getByRole('region', { name: 'Photo details' })
+    expect(
+      region.querySelector('[data-slot="skeleton-bar"]')
+    ).toBeInTheDocument()
+  })
+
+  it('keeps the albums control mounted while Details is closed', async () => {
+    renderModal()
+    const pill = await findPill()
+
+    openDetails()
+
+    expect(pill).toBeInTheDocument()
+    expect(pill).not.toBeVisible()
+    expect(getMediaAlbumsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('moves focus to the Details button when the pill remounts for the next photo', async () => {
+    renderModal()
+    const pill = await findPill()
+    pill.focus()
+    expect(pill).toHaveFocus()
+
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Details' })).toHaveFocus()
+    )
+  })
+
   it('shows no pill for a photo that is not the caller’s', async () => {
     getMediaAlbumsMock.mockResolvedValue(null)
     renderModal()
+    openDetails()
 
     await waitFor(() => expect(getMediaAlbumsMock).toHaveBeenCalled())
     await act(async () => {})
@@ -157,7 +218,7 @@ describe('MediasModal albums pill', () => {
     })
     renderModal()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+    fireEvent.click(await findPill())
     const menu = await screen.findByRole('dialog', { name: 'Add to album' })
     fireEvent.click(
       within(menu).getByRole('checkbox', { name: /^Garden birds/ })
@@ -172,9 +233,9 @@ describe('MediasModal albums pill', () => {
     )
   })
 
-  it('closes only the menu on Escape, and the viewer on the next', async () => {
+  it('closes only the menu on Escape, then the overlay, and the viewer after', async () => {
     const { onClosed } = renderModal()
-    fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+    fireEvent.click(await findPill())
     const menu = await screen.findByRole('dialog', { name: 'Add to album' })
     const box = within(menu).getAllByRole('checkbox')[0]
     box.focus()
@@ -188,13 +249,20 @@ describe('MediasModal albums pill', () => {
     )
     expect(onClosed).not.toHaveBeenCalled()
 
+    // The overlay is still open: the next Escape closes it, then the viewer.
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClosed).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole('region', { name: 'Photo details' })
+    ).not.toBeInTheDocument()
+
     fireEvent.keyDown(document.body, { key: 'Escape' })
     expect(onClosed).toHaveBeenCalledTimes(1)
   })
 
   it('leaves the arrow keys to the menu instead of changing the photo', async () => {
     renderModal()
-    fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+    fireEvent.click(await findPill())
     const menu = await screen.findByRole('dialog', { name: 'Add to album' })
     const [first, second] = within(menu).getAllByRole('checkbox')
     first.focus()
@@ -209,7 +277,7 @@ describe('MediasModal albums pill', () => {
 
   it('still changes photo with the arrow keys when the menu is closed', async () => {
     renderModal()
-    await screen.findByRole('button', { name: 'In 1 album' })
+    await findPill()
 
     fireEvent.keyDown(document.body, { key: 'ArrowRight' })
 
@@ -220,7 +288,7 @@ describe('MediasModal albums pill', () => {
 
   it('opens its menu inside the modal viewer so a screen reader keeps it', async () => {
     renderModal()
-    fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+    fireEvent.click(await findPill())
     const menu = await screen.findByRole('dialog', { name: 'Add to album' })
 
     expect(
@@ -234,7 +302,7 @@ describe('MediasModal albums pill', () => {
 
     it('does not swipe the photo from a flick that starts in the menu', async () => {
       renderModal()
-      fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+      fireEvent.click(await findPill())
       const menu = await screen.findByRole('dialog', { name: 'Add to album' })
       const title = within(menu).getByText('Add to album', { selector: 'p' })
 
@@ -248,7 +316,7 @@ describe('MediasModal albums pill', () => {
 
     it('still swipes from the photo itself', async () => {
       renderModal()
-      await screen.findByRole('button', { name: 'In 1 album' })
+      await findPill()
       const image = document.querySelector('img')!
 
       fireEvent.touchStart(image, { touches: [{ clientX: 300 }] })
@@ -260,7 +328,7 @@ describe('MediasModal albums pill', () => {
 
     it('closes only the menu when the backdrop is pressed, then the viewer on the next press', async () => {
       const { onClosed } = renderModal()
-      fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+      fireEvent.click(await findPill())
       await screen.findByRole('dialog', { name: 'Add to album' })
       const backdrop = screen.getByRole('dialog', { name: 'Media viewer' })
 
@@ -274,6 +342,11 @@ describe('MediasModal albums pill', () => {
       )
       expect(onClosed).not.toHaveBeenCalled()
 
+      // The overlay is still open: the next press closes it, then the viewer.
+      fireEvent.pointerDown(backdrop)
+      fireEvent.click(backdrop)
+      expect(onClosed).not.toHaveBeenCalled()
+
       fireEvent.pointerDown(backdrop)
       fireEvent.click(backdrop)
       expect(onClosed).toHaveBeenCalledTimes(1)
@@ -281,7 +354,6 @@ describe('MediasModal albums pill', () => {
 
     it('closes the viewer from the backdrop as before when no menu is open', async () => {
       const { onClosed } = renderModal()
-      await screen.findByRole('button', { name: 'In 1 album' })
       const backdrop = screen.getByRole('dialog', { name: 'Media viewer' })
 
       fireEvent.pointerDown(backdrop)
@@ -292,7 +364,7 @@ describe('MediasModal albums pill', () => {
 
     it('keeps the viewer open when a press inside the menu is released on the backdrop', async () => {
       const { onClosed } = renderModal()
-      fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+      fireEvent.click(await findPill())
       const menu = await screen.findByRole('dialog', { name: 'Add to album' })
       const backdrop = screen.getByRole('dialog', { name: 'Media viewer' })
 
@@ -315,6 +387,10 @@ describe('MediasModal albums pill', () => {
           screen.queryByRole('dialog', { name: 'Add to album' })
         ).not.toBeInTheDocument()
       )
+      // Then the overlay, then the viewer.
+      fireEvent.pointerDown(backdrop)
+      fireEvent.click(backdrop)
+      expect(onClosed).not.toHaveBeenCalled()
       fireEvent.pointerDown(backdrop)
       fireEvent.click(backdrop)
       expect(onClosed).toHaveBeenCalledTimes(1)
@@ -322,7 +398,7 @@ describe('MediasModal albums pill', () => {
 
     it('does not count a press inside the menu as one that closed it', async () => {
       const { onClosed } = renderModal()
-      fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+      fireEvent.click(await findPill())
       const menu = await screen.findByRole('dialog', { name: 'Add to album' })
       const backdrop = screen.getByRole('dialog', { name: 'Media viewer' })
 
@@ -339,6 +415,10 @@ describe('MediasModal albums pill', () => {
         ).not.toBeInTheDocument()
       )
 
+      // The overlay is still open: the backdrop closes it first.
+      fireEvent.pointerDown(backdrop)
+      fireEvent.click(backdrop)
+      expect(onClosed).not.toHaveBeenCalled()
       fireEvent.pointerDown(backdrop)
       fireEvent.click(backdrop)
       expect(onClosed).toHaveBeenCalledTimes(1)
@@ -355,7 +435,7 @@ describe('MediasModal albums pill', () => {
     const onAlbumsChange = vi.fn()
     renderModal({ onAlbumsChange })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'In 1 album' }))
+    fireEvent.click(await findPill())
     const menu = await screen.findByRole('dialog', { name: 'Add to album' })
     fireEvent.click(
       within(menu).getByRole('checkbox', { name: /^Garden birds/ })
