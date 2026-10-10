@@ -280,6 +280,10 @@ describe('AdminDatabase domain federation rules', () => {
           await database.getDomainBlocks({ sinceId: 'block-e.test', limit: 2 })
         )
       ).toEqual(['a.test', 'b.test'])
+      // The cursor's own rule stays out even when the page has room for it.
+      expect(
+        domainsOf(await database.getDomainBlocks({ sinceId: 'block-c.test' }))
+      ).toEqual(['a.test', 'b.test'])
     })
 
     it('prefers maxId to minId to sinceId', async () => {

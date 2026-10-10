@@ -48,7 +48,7 @@ const Page = async ({ searchParams }: Props) => {
     params.sort === 'recent' || params.sort === 'count'
       ? params.sort
       : 'alphabetical'
-  const offset = (page - 1) * ITEMS_PER_PAGE
+  const offset = Math.min((page - 1) * ITEMS_PER_PAGE, Number.MAX_SAFE_INTEGER)
 
   const { hashtags, total } = await database.getAllHashtags({
     limit: ITEMS_PER_PAGE,

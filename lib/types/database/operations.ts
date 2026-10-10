@@ -2665,7 +2665,6 @@ export type {
   ImportDomainBlockParams,
   ImportDomainBlocksParams,
   ImportDomainBlocksResult,
-  ListDomainFederationRulesParams,
   ServiceStatCounterType,
   ServiceStats,
   ServiceStatsBucket,

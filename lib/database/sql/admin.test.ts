@@ -998,6 +998,11 @@ describe('AdminDatabase queries over seeded rows', () => {
       await insertCounter('x-total-media:acct-a', 7000)
       await insertCounter('x-fitness-usage:acct-a', 8000)
       await insertCounter('x-total-fitness:acct-a', 9000)
+      // Ids that start with a prefix but not with its colon.
+      await insertCounter('media-usage-old:acct-a', 12_000)
+      await insertCounter('total-media-old:acct-a', 13_000)
+      await insertCounter('fitness-usage-old:acct-a', 14_000)
+      await insertCounter('total-fitness-old:acct-a', 15_000)
       await insertCounter('total-status:acct-a', 10_000)
       await insertCounter('servicestat:other', 11_000)
 

@@ -19,7 +19,6 @@ import type {
   GetDomainAllowsParams,
   GetDomainBlocksParams,
   GetServiceStatsBucketsParams,
-  HashtagSortOrder,
   ImportDomainBlocksParams,
   ImportDomainBlocksResult,
   ServiceStats,
@@ -217,38 +216,20 @@ const publicHashtagTags = (db: Db) =>
     .where('recipients.actorId', '=', ACTIVITY_STREAM_PUBLIC)
     .where('statuses.type', 'in', [StatusType.enum.Note, StatusType.enum.Poll])
 
-const HASHTAG_ORDER = {
-  alphabetical: [['tags.nameNormalized', 'asc']],
-  recent: [
-    ['latestPostAt', 'desc'],
-    ['tags.nameNormalized', 'asc']
-  ],
-  count: [
-    ['postCount', 'desc'],
-    ['tags.nameNormalized', 'asc']
-  ]
-} as const satisfies Record<
-  HashtagSortOrder,
-  readonly (readonly [
-    'tags.nameNormalized' | 'latestPostAt' | 'postCount',
-    'asc' | 'desc'
-  ])[]
->
-
 export const getAllHashtags = async (
   db: Db,
   { limit, offset, sort }: GetAllHashtagsParams
 ): Promise<GetAllHashtagsResult> => {
-  let page = publicHashtagTags(db)
+  const page = publicHashtagTags(db)
     .groupBy('tags.nameNormalized')
     .select((eb) => [
       'tags.nameNormalized',
       eb.fn.count<number>('tags.statusId').distinct().as('postCount'),
       eb.fn.max('statuses.createdAt').as('latestPostAt')
     ])
-  for (const [column, direction] of HASHTAG_ORDER[sort]) {
-    page = page.orderBy(column, direction)
-  }
+    .$if(sort === 'recent', (qb) => qb.orderBy('latestPostAt', 'desc'))
+    .$if(sort === 'count', (qb) => qb.orderBy('postCount', 'desc'))
+    .orderBy('tags.nameNormalized', 'asc')
 
   const [rows, total] = await Promise.all([
     page.limit(limit).offset(offset).execute(),
@@ -391,7 +372,7 @@ const deleteRule = async <Rule extends DomainFederationRule>(
 // applies no bound, and any cursor disables offset.
 const listRules = async <Rule extends DomainFederationRule>(
   db: Db,
-  { type, toRule }: RuleKind<Rule>,
+  kind: RuleKind<Rule>,
   {
     limit = 100,
     offset = 0,
@@ -404,7 +385,7 @@ const listRules = async <Rule extends DomainFederationRule>(
   let query = db
     .selectFrom('domain_federation_rules')
     .selectAll()
-    .where('type', '=', type)
+    .where('type', '=', kind.type)
     .limit(limit)
 
   // Block rows always persist a severity (only allow rows store null), so an
@@ -422,21 +403,15 @@ const listRules = async <Rule extends DomainFederationRule>(
         : null
   if (!cursor) {
     const rows = await query.orderBy('domain', 'asc').offset(offset).execute()
-    return rows.map(toRule)
+    return rows.map(kind.toRule)
   }
 
-  const cursorRule = await db
-    .selectFrom('domain_federation_rules')
-    .select('domain')
-    .where('id', '=', cursor.id)
-    .where('type', '=', type)
-    .limit(1)
-    .executeTakeFirst()
+  const cursorRule = await getRuleById(db, kind, cursor.id)
   if (cursorRule?.domain) {
     query = query.where('domain', cursor.operator, cursorRule.domain)
   }
   const rows = await query.orderBy('domain', cursor.direction).execute()
-  return (cursor.direction === 'desc' ? rows.reverse() : rows).map(toRule)
+  return (cursor.direction === 'desc' ? rows.reverse() : rows).map(kind.toRule)
 }
 
 // The rule that applies to `domain`: its own, else the longest wildcard parent,

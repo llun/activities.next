@@ -117,12 +117,6 @@ export interface DomainAllow extends DomainFederationRule {
   type: 'allow'
 }
 
-export type ListDomainFederationRulesParams = {
-  type: DomainFederationRuleType
-  limit?: number
-  offset?: number
-}
-
 export type GetDomainBlocksParams = {
   limit?: number
   offset?: number
@@ -136,13 +130,7 @@ export type GetDomainBlocksParams = {
   sinceId?: string
 }
 
-export type GetDomainAllowsParams = {
-  limit?: number
-  offset?: number
-  maxId?: string
-  minId?: string
-  sinceId?: string
-}
+export type GetDomainAllowsParams = Omit<GetDomainBlocksParams, 'severities'>
 
 export type CreateDomainBlockParams = {
   domain: string
