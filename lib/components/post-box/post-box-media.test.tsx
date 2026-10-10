@@ -1146,6 +1146,53 @@ describe('PostBox media details', () => {
         </StrictMode>
       )
 
+    const withProfile = (nextProfile: typeof profile) => (
+      <StrictMode>
+        <InstanceLimitsProvider>
+          <PostBox
+            host="activities.local"
+            profile={nextProfile}
+            isMediaUploadEnabled
+            initialMedia={prefilled}
+            onDiscardReply={vi.fn()}
+            onPostCreated={vi.fn()}
+            onPostUpdated={vi.fn()}
+            onDiscardEdit={vi.fn()}
+          />
+        </InstanceLimitsProvider>
+      </StrictMode>
+    )
+
+    it('keeps the photos when the profile changes identity', async () => {
+      const { rerender } = render(withProfile(profile))
+      await screen.findByRole('button', { name: 'Remove media A heron' })
+
+      rerender(withProfile({ ...profile }))
+
+      expect(
+        await screen.findByRole('button', { name: 'Remove media A heron' })
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Remove media 2' })
+      ).toBeInTheDocument()
+    })
+
+    it('does not bring back a photo the author removed when the profile changes', async () => {
+      const { rerender } = render(withProfile(profile))
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Remove media 2' })
+      )
+      expect(
+        screen.queryByRole('button', { name: 'Remove media 2' })
+      ).not.toBeInTheDocument()
+
+      rerender(withProfile({ ...profile }))
+
+      expect(
+        screen.queryByRole('button', { name: 'Remove media 2' })
+      ).not.toBeInTheDocument()
+    })
+
     it('opens with the photos attached, reads their details and allows posting', async () => {
       renderWith()
 

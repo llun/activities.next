@@ -130,6 +130,19 @@ describe('MediaDetailsDialog adding to the gallery', () => {
     expect(screen.queryByText('Apply to all')).not.toBeInTheDocument()
   })
 
+  it('offers Edit photo on an uploaded photo, and not while it is uploading', () => {
+    renderDialog([makeItem('a'), uploading('b')], {
+      context: 'add',
+      onAdd: onAdd()
+    })
+
+    expect(screen.getByRole('button', { name: 'Edit photo' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Item 2, uploading' }))
+    expect(
+      screen.queryByRole('button', { name: 'Edit photo' })
+    ).not.toBeInTheDocument()
+  })
+
   it('explains a failed file and removes it when asked', () => {
     const onRemoveItem = vi.fn()
     renderDialog([failed('a'), makeItem('b')], {

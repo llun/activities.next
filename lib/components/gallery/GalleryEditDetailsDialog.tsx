@@ -8,6 +8,7 @@ import {
   applySavedToItem,
   toMediaDetailsDialogItem
 } from '@/lib/components/gallery/galleryItemEdit'
+import { useInstanceLimits } from '@/lib/components/instance-limits'
 import {
   MediaDetailsDialog,
   type MediaDetailsSavedItem
@@ -64,6 +65,7 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
   onDeleted
 }) => {
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const { maxMediaAttachments } = useInstanceLimits()
   const [settings, setSettings] = useState<GallerySettingsEntity | null>(null)
   const [details, setDetails] = useState<Record<string, MediaDetailsEntity>>({})
   // The tiles as the dialog last saw them, so a save maps onto them.
@@ -207,6 +209,17 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
     []
   )
 
+  // Post… from the photo on screen posts every photo of the dialog that is
+  // not posted yet (that one first), as many as one post holds: the details
+  // of all of them were just saved with it.
+  const handlePostItem = (id: string) => {
+    const unposted = itemsRef.current
+      .filter((item) => item.posted === false)
+      .map((item) => item.mediaId)
+    const ordered = [id, ...unposted.filter((mediaId) => mediaId !== id)]
+    onPost?.(ordered.slice(0, maxMediaAttachments))
+  }
+
   return (
     <>
       <MediaDetailsDialog
@@ -219,7 +232,7 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
         onSaved={handleSaved}
         onMediaEdited={handleMediaEdited}
         onDetailsRefreshed={handleDetailsRefreshed}
-        onPostItem={onPost ? (id) => onPost([id]) : undefined}
+        onPostItem={onPost ? handlePostItem : undefined}
         onDeleteItem={onDeleted ? (id) => setDeletingId(id) : undefined}
       />
       {deletingId !== null && onDeleted ? (

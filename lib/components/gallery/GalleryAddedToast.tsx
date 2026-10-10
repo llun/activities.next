@@ -26,9 +26,10 @@ export const GALLERY_ADDED_TOAST_DURATION_MS = 12_000
 /**
  * The message that floats at the bottom of the page after photos were added
  * to the gallery: "N added to your gallery." with a "Post them" action. The
- * message is a status region, so the result is spoken (the buttons stay outside
- * it, or a screen reader would read them out again), and the toast waits while
- * the pointer or focus is on it, so the action is never taken away mid-reach.
+ * toast has no live region of its own: one that mounts with its text is often
+ * not announced, so the page keeps a region mounted and puts the message (and
+ * why the action is off) in it. The toast waits while the pointer or focus is
+ * on it, so the action is never taken away mid-reach.
  */
 export const GalleryAddedToast: FC<Props> = ({
   id,
@@ -57,9 +58,7 @@ export const GalleryAddedToast: FC<Props> = ({
         onBlur={() => setPaused(false)}
       >
         <Check className="text-primary size-4 shrink-0" aria-hidden="true" />
-        <span role="status" aria-live="polite" className="min-w-0 break-words">
-          {message}
-        </span>
+        <span className="min-w-0 break-words">{message}</span>
         {action ? (
           <>
             <button

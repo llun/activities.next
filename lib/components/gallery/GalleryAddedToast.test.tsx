@@ -32,25 +32,20 @@ describe('GalleryAddedToast', () => {
     return { onDismiss, onSelect }
   }
 
-  it('says what happened in a status region, with the action', () => {
+  it('shows what happened, with the action', () => {
     const { onSelect } = renderToast()
 
-    expect(screen.getByRole('status')).toHaveTextContent(
+    expect(screen.getByTestId('gallery-added-toast')).toHaveTextContent(
       '3 added to your gallery.'
     )
     fireEvent.click(screen.getByRole('button', { name: 'Post them' }))
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the buttons out of the status region', () => {
+  it('has no live region of its own: the page announces it', () => {
     renderToast()
 
-    expect(screen.getByRole('status')).not.toContainElement(
-      screen.getByRole('button', { name: 'Post them' })
-    )
-    expect(screen.getByRole('status')).not.toContainElement(
-      screen.getByRole('button', { name: 'Dismiss' })
-    )
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('disables the action and says why', () => {

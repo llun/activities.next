@@ -256,8 +256,9 @@ describe('(timeline)/(home) page', () => {
         actorId: mockActor.id,
         mediaIds: ['3', '4']
       })
+      expect(timeline).toBeDefined()
       expect(
-        (timeline?.props.initialMedia as { id: string; name?: string }[]).map(
+        (timeline!.props.initialMedia as { id: string; name?: string }[]).map(
           (attachment) => [attachment.id, attachment.name]
         )
       ).toEqual([
@@ -274,8 +275,9 @@ describe('(timeline)/(home) page', () => {
       })
       const timeline = findElementByType(node, MainPageTimeline)
 
+      expect(timeline).toBeDefined()
       expect(
-        (timeline?.props.initialMedia as { id: string }[]).map(
+        (timeline!.props.initialMedia as { id: string }[]).map(
           (attachment) => attachment.id
         )
       ).toEqual(['3'])

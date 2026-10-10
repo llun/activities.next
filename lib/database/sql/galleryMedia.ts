@@ -221,8 +221,9 @@ export interface GalleryMediaDatabase {
   ): Promise<GalleryGearUsageRow[]>
   // Keeps the actor's own media that no status uses in their gallery: stamps
   // `galleryAddedAt` and turns `inGallery` on, both only the first time, so
-  // repeating the call changes nothing (a photo hidden since stays hidden). Media of another actor, media a status already uses and
-  // ids that are not media are skipped. Returns the ids that are now added.
+  // repeating the call changes nothing (a photo hidden since stays hidden).
+  // Media of another actor, media a status already uses and ids that are not
+  // media are skipped. Returns the ids that are now added.
   addMediaToGallery(params: AddMediaToGalleryParams): Promise<string[]>
   // The actor's own media among `mediaIds` that no status uses, whether or not
   // it was added in Gallery. Newest (highest id) first; any other id is simply

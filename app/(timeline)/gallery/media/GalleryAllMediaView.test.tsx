@@ -528,7 +528,9 @@ describe('GalleryAllMediaView', () => {
       await act(async () => addDialog.current?.onAdded(['9', '8']))
       act(() => addDialog.current?.onClose())
 
-      expect(await screen.findByText('2 added to your gallery.')).toBeVisible()
+      expect(
+        await screen.findByTestId('gallery-added-toast')
+      ).toHaveTextContent('2 added to your gallery.')
       await waitFor(() =>
         expect(screen.getByTestId('grid')).toHaveTextContent('98')
       )
@@ -540,7 +542,7 @@ describe('GalleryAllMediaView', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Post them' }))
       expect(router.push).toHaveBeenCalledWith('/?media=9,8')
       expect(
-        screen.queryByText('2 added to your gallery.')
+        screen.queryByTestId('gallery-added-toast')
       ).not.toBeInTheDocument()
     })
 
@@ -553,10 +555,15 @@ describe('GalleryAllMediaView', () => {
       await act(async () => addDialog.current?.onAdded(mediaIds))
       act(() => addDialog.current?.onClose())
 
-      expect(await screen.findByText('5 added to your gallery.')).toBeVisible()
+      expect(
+        await screen.findByTestId('gallery-added-toast')
+      ).toHaveTextContent('5 added to your gallery.')
       const post = screen.getByRole('button', { name: 'Post them' })
       expect(post).toBeDisabled()
       expect(post).toHaveAccessibleDescription('Up to 4 per post')
+      expect(screen.getByTestId('added-announcement')).toHaveTextContent(
+        '5 added to your gallery. Up to 4 per post: select some to post.'
+      )
       fireEvent.click(post)
       expect(router.push).not.toHaveBeenCalled()
     })
@@ -588,9 +595,35 @@ describe('GalleryAllMediaView', () => {
       const second = photo('second.jpg')
       fireEvent.dragEnter(window, { dataTransfer: dataTransfer(second) })
       expect(screen.queryByTestId('drop-overlay')).not.toBeInTheDocument()
-      fireEvent.drop(window, { dataTransfer: dataTransfer(second) })
+      // Still taken, or the browser would open the file in this tab.
+      const dragOverNotPrevented = fireEvent.dragOver(window, {
+        dataTransfer: dataTransfer(second)
+      })
+      const dropNotPrevented = fireEvent.drop(window, {
+        dataTransfer: dataTransfer(second)
+      })
 
+      expect(dragOverNotPrevented).toBeFalse()
+      expect(dropNotPrevented).toBeFalse()
       expect(addDialog.current?.files).toEqual([first])
+    })
+
+    it('ignores a drop over a dialog the grid opened, and still takes it', () => {
+      renderView()
+      const viewer = document.createElement('div')
+      viewer.setAttribute('role', 'dialog')
+      document.body.appendChild(viewer)
+      try {
+        const dataTransfer = { types: ['Files'], files: [photo('a.jpg')] }
+        fireEvent.dragEnter(window, { dataTransfer })
+        expect(screen.queryByTestId('drop-overlay')).not.toBeInTheDocument()
+        const notPrevented = fireEvent.drop(window, { dataTransfer })
+
+        expect(notPrevented).toBeFalse()
+        expect(addDialog.current).toBeNull()
+      } finally {
+        viewer.remove()
+      }
     })
 
     it('shows Everything again when it was added from Hidden from gallery', async () => {
@@ -620,12 +653,14 @@ describe('GalleryAllMediaView', () => {
       renderView()
       pick(photo('a.jpg'))
       await act(async () => addDialog.current?.onAdded(['9']))
-      expect(await screen.findByText('1 added to your gallery.')).toBeVisible()
+      expect(
+        await screen.findByTestId('gallery-added-toast')
+      ).toHaveTextContent('1 added to your gallery.')
 
       fireEvent.click(screen.getByRole('button', { name: 'Select' }))
 
       expect(
-        screen.queryByText('1 added to your gallery.')
+        screen.queryByTestId('gallery-added-toast')
       ).not.toBeInTheDocument()
     })
 
@@ -634,7 +669,9 @@ describe('GalleryAllMediaView', () => {
       renderView()
       pick(photo('a.jpg'))
       await act(async () => addDialog.current?.onAdded(['9']))
-      expect(await screen.findByText('1 added to your gallery.')).toBeVisible()
+      expect(
+        await screen.findByTestId('gallery-added-toast')
+      ).toHaveTextContent('1 added to your gallery.')
 
       fireEvent.click(
         within(screen.getByTestId('gallery-added-toast')).getByRole('button', {
@@ -642,7 +679,7 @@ describe('GalleryAllMediaView', () => {
         })
       )
       expect(
-        screen.queryByText('1 added to your gallery.')
+        screen.queryByTestId('gallery-added-toast')
       ).not.toBeInTheDocument()
     })
   })

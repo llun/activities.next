@@ -363,6 +363,12 @@ describe('MediaDetailsDialog in the gallery', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('offers Edit photo on a photo that is not posted', () => {
+      renderDialog([unposted('a')], { context: 'gallery' })
+
+      expect(screen.getByRole('button', { name: 'Edit photo' })).toBeVisible()
+    })
+
     it('saves the details first, then hands the photo over to post', async () => {
       const onPostItem = vi.fn()
       const { onClose, onSaved } = renderDialog([unposted('a')], {

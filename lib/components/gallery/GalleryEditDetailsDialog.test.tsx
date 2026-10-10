@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { deleteUnpostedMedia, getGallerySettings, getMedia } from '@/lib/client'
 import { buildGalleryItem } from '@/lib/components/gallery/__fixtures__/galleryItems'
+import { InstanceLimitsProvider } from '@/lib/components/instance-limits'
 import type {
   MediaDetailsDialogItem,
   MediaDetailsSavedItem
@@ -414,6 +415,32 @@ describe('GalleryEditDetailsDialog', () => {
       act(() => latest().onPostItem?.('9'))
 
       expect(onPost).toHaveBeenCalledWith(['9'])
+    })
+
+    it('posts every unposted photo of the dialog, the shown one first, up to the limit', () => {
+      const onPost = vi.fn()
+      const mixed = [
+        buildGalleryItem('7', { statusId: null, posted: false }),
+        buildGalleryItem('6'),
+        buildGalleryItem('8', { statusId: null, posted: false }),
+        buildGalleryItem('9', { statusId: null, posted: false })
+      ]
+      render(
+        <InstanceLimitsProvider maxMediaAttachments={2}>
+          <GalleryEditDetailsDialog
+            items={mixed}
+            initialMediaId="8"
+            ownerId={OWNER}
+            onClose={vi.fn()}
+            onSaved={vi.fn()}
+            onPost={onPost}
+          />
+        </InstanceLimitsProvider>
+      )
+
+      act(() => latest().onPostItem?.('8'))
+
+      expect(onPost).toHaveBeenCalledWith(['8', '7'])
     })
 
     it('confirms a delete, deletes the photo, tells the page and closes', async () => {

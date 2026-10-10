@@ -285,8 +285,11 @@ export const GalleryAllMediaView: FC<Props> = ({
     })
   }, [])
 
-  // A dialog being open (Add, edit, delete, album) means a drop is not for this
-  // page: it would replace the files being added or open Add on top of it.
+  // A dialog being open (Add, edit, delete, album, or the viewer and the Edit
+  // details inside the grid) means a drop is not for this page: it would
+  // replace the files being added or open Add on top of unsaved edits. The
+  // drop is still taken (default prevented), or the browser would open the
+  // file in this tab and lose what the dialog holds.
   const dialogOpen =
     addFiles !== null ||
     isEditOpen ||
@@ -303,13 +306,16 @@ export const GalleryAllMediaView: FC<Props> = ({
   useEffect(() => {
     if (!isUploadEnabled) return
     let depth = 0
+    const isDialogOpen = () =>
+      dialogOpenRef.current ||
+      document.querySelector('[role="dialog"], [role="alertdialog"]') !== null
     const enter = (event: DragEvent) => {
-      if (!hasFiles(event) || dialogOpenRef.current) return
+      if (!hasFiles(event) || isDialogOpen()) return
       depth += 1
       setIsDragging(true)
     }
     const over = (event: DragEvent) => {
-      if (!hasFiles(event) || dialogOpenRef.current) return
+      if (!hasFiles(event)) return
       event.preventDefault()
     }
     const leave = (event: DragEvent) => {
@@ -319,10 +325,10 @@ export const GalleryAllMediaView: FC<Props> = ({
     }
     const drop = (event: DragEvent) => {
       if (!hasFiles(event)) return
+      event.preventDefault()
       depth = 0
       setIsDragging(false)
-      if (dialogOpenRef.current) return
-      event.preventDefault()
+      if (isDialogOpen()) return
       const files = Array.from(event.dataTransfer?.files ?? [])
       if (files.length > 0) startAdd(files)
     }
@@ -449,6 +455,18 @@ export const GalleryAllMediaView: FC<Props> = ({
       <div role="status" aria-live="polite" className="sr-only">
         {isSelecting
           ? 'Select mode is on. Choose photos, then edit their details, add them to an album, post or delete them.'
+          : ''}
+      </div>
+      <div
+        role="status"
+        aria-live="polite"
+        data-testid="added-announcement"
+        className="sr-only"
+      >
+        {toast
+          ? toast.mediaIds.length > maxMediaAttachments
+            ? `${toast.message} Up to ${maxMediaAttachments} per post: select some to post.`
+            : toast.message
           : ''}
       </div>
       {isSelecting ? (
