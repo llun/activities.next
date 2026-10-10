@@ -71,7 +71,7 @@ describe('PillGroup', () => {
       ).toEqual([0, -1, -1])
     })
 
-    it('moves to the first pill with ArrowRight and the last with ArrowLeft', () => {
+    it('moves on from the focused pill, like any radio group', () => {
       const onValueChange = vi.fn()
       render(
         <PillGroup
@@ -84,9 +84,17 @@ describe('PillGroup', () => {
       const first = screen.getByRole('radio', { name: 'Alpha' })
 
       fireEvent.keyDown(first, { key: 'ArrowRight' })
-      expect(onValueChange).toHaveBeenLastCalledWith('a')
+      expect(onValueChange).toHaveBeenLastCalledWith('b')
 
       fireEvent.keyDown(first, { key: 'ArrowLeft' })
+      expect(onValueChange).toHaveBeenLastCalledWith('c')
+
+      fireEvent.keyDown(screen.getByRole('radio', { name: 'Gamma' }), {
+        key: 'ArrowRight'
+      })
+      expect(onValueChange).toHaveBeenLastCalledWith('a')
+
+      fireEvent.keyDown(first, { key: 'End' })
       expect(onValueChange).toHaveBeenLastCalledWith('c')
     })
 

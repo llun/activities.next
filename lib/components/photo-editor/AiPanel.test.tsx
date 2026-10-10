@@ -135,6 +135,21 @@ const Harness = ({
       >
         Nudge
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          history.set({
+            ...history.present,
+            masks: history.present.masks.map((mask, index) =>
+              index === 0
+                ? { ...mask, adjustments: { ...mask.adjustments, tint: 9 } }
+                : mask
+            )
+          })
+        }
+      >
+        Tweak subject
+      </button>
     </>
   )
 }
@@ -539,17 +554,28 @@ describe('AiPanel', () => {
       expect(masks()).toEqual([manual, { tint: 3 }])
     })
 
-    it('are taken again from the photo after a hand edit', async () => {
+    it('go back to the photo after a hand edit that left them alone', async () => {
       render(<Harness start={start()} />)
       await runEnhance()
       fireEvent.click(screen.getByRole('button', { name: 'Nudge' }))
 
       fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
 
-      // The masks the hand edit left (Natural's values) are the new base.
+      // Dramatic has no mask values, and the edit touched no mask: both masks
+      // are what they were, not what Natural wrote.
+      expect(masks()).toEqual([manual, { tint: 3 }])
+    })
+
+    it('stay as the hand edit made them, the others go back', async () => {
+      render(<Harness start={start()} />)
+      await runEnhance()
+      fireEvent.click(screen.getByRole('button', { name: 'Tweak subject' }))
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Dramatic' }))
+
       expect(masks()).toEqual([
-        { exposure: 0.24, shadows: 20 },
-        { saturation: -16 }
+        { exposure: 0.24, shadows: 20, tint: 9 },
+        { tint: 3 }
       ])
     })
   })

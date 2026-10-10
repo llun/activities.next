@@ -13,6 +13,7 @@ import {
   getEnhanceBase,
   hasBackgroundValues,
   hasMaskValues,
+  resolveEnhanceBase,
   scaleEnhanceValue
 } from './enhanceApply'
 
@@ -294,6 +295,57 @@ describe('applyEnhance with a base', () => {
       gone0001: { contrast: 3 }
     })
     expect(next.masks).toEqual([])
+  })
+})
+
+describe('resolveEnhanceBase', () => {
+  const before = withMasks(
+    { ...subject, adjustments: { contrast: 5 } },
+    { ...background, adjustments: { saturation: -4 } }
+  )
+  const applied = () => {
+    const base = getEnhanceBase(before)
+    const next = applyEnhance(before, STYLE, 80, base)
+    return { base, wrote: getEnhanceBase(next), next }
+  }
+  const edit = (recipe: Recipe, index: number): Recipe => ({
+    ...recipe,
+    masks: recipe.masks.map((mask, at) =>
+      at === index
+        ? { ...mask, adjustments: { ...mask.adjustments, tint: 9 } }
+        : mask
+    )
+  })
+
+  it('reads the recipe as it is without a last style', () => {
+    expect(resolveEnhanceBase(before)).toEqual(getEnhanceBase(before))
+  })
+
+  it('goes back to the earlier base for masks left as written', () => {
+    const { base, wrote, next } = applied()
+    expect(resolveEnhanceBase(next, { base, wrote })).toEqual(base)
+  })
+
+  it('keeps a mask the hand edit changed, and reverts the rest', () => {
+    const { base, wrote, next } = applied()
+    const resolved = resolveEnhanceBase(edit(next, 0), { base, wrote })
+    expect(resolved).toEqual({
+      subj0001: { exposure: 0.24, shadows: 20, tint: 9 },
+      back0001: { saturation: -4 }
+    })
+  })
+
+  it('does not hand out the earlier base object itself', () => {
+    const { base, wrote, next } = applied()
+    const resolved = resolveEnhanceBase(next, { base, wrote })
+    resolved.subj0001.contrast = 77
+    expect(base.subj0001.contrast).toBe(5)
+  })
+
+  it('reads a mask the last style did not know as it is', () => {
+    const { next } = applied()
+    const resolved = resolveEnhanceBase(next, { base: {}, wrote: {} })
+    expect(resolved).toEqual(getEnhanceBase(next))
   })
 })
 

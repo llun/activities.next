@@ -49,7 +49,13 @@ export const PillGroup = ({
         : items[0]?.value
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const index = items.findIndex((item) => item.value === current)
+    // With nothing checked the arrows move from the focused pill, as in any
+    // radio group, instead of from a checked one.
+    const from =
+      current ??
+      (event.target as HTMLElement).closest<HTMLElement>('[data-pill]')?.dataset
+        .pill
+    const index = items.findIndex((item) => item.value === from)
     const last = items.length - 1
     const target =
       event.key === 'ArrowRight' || event.key === 'ArrowDown'

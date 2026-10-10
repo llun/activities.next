@@ -76,6 +76,38 @@ export const getEnhanceBase = (recipe: Recipe): EnhanceBase => {
   return base
 }
 
+const sameAdjustments = (a: MaskAdjustments, b: MaskAdjustments): boolean => {
+  const keys = Object.keys(a) as (keyof MaskAdjustments)[]
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => a[key] === b[key])
+  )
+}
+
+/**
+ * The base for a recipe the suggestion's last style did not make (a hand edit
+ * since): a mask still holding exactly what that style wrote goes back to the
+ * base from before it, and only a mask the hand edit changed is taken as it
+ * is. `last` is the base and the mask values of the last applied style.
+ */
+export const resolveEnhanceBase = (
+  recipe: Recipe,
+  last?: { base: EnhanceBase; wrote: EnhanceBase }
+): EnhanceBase => {
+  const now = getEnhanceBase(recipe)
+  if (!last) return now
+  const out: EnhanceBase = {}
+  for (const [id, adjustments] of Object.entries(now)) {
+    const wrote = last.wrote[id]
+    const before = last.base[id]
+    out[id] =
+      wrote && before && sameAdjustments(adjustments, wrote)
+        ? { ...before }
+        : adjustments
+  }
+  return out
+}
+
 /**
  * The recipe with one suggested style applied at `strength`.
  *

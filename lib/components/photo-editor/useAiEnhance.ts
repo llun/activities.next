@@ -18,7 +18,8 @@ import {
   getEnhanceBase,
   getEnhanceSubject,
   hasBackgroundValues,
-  hasMaskValues
+  hasMaskValues,
+  resolveEnhanceBase
 } from './enhanceApply'
 import { ENHANCE_COPY, ENHANCE_STYLE_LABELS } from './enhanceCopy'
 import { getBackgroundOf } from './masks/maskRecipe'
@@ -97,6 +98,8 @@ interface Applied {
   strength: number
   /** The masks' adjustments from before the suggestion. */
   base: EnhanceBase
+  /** The masks' adjustments right after the style was applied. */
+  wrote: EnhanceBase
 }
 
 /**
@@ -134,6 +137,8 @@ export const useAiEnhance = ({
   } | null>(null)
   const [seenResetKey, setSeenResetKey] = useState(resetKey)
   const applied = useRef(new WeakMap<Recipe, Applied>())
+  // The last style written, for a hand edit that leaves some masks as written.
+  const lastApplied = useRef<Applied | null>(null)
 
   // A reload starts the editor over, so nothing of the old suggestion stays.
   if (seenResetKey !== resetKey) {
@@ -171,6 +176,7 @@ export const useAiEnhance = ({
   useEffect(() => {
     abort()
     applied.current = new WeakMap()
+    lastApplied.current = null
   }, [abort, resetKey])
 
   /** Applies one style, and remembers the recipe it made. */
@@ -182,10 +188,20 @@ export const useAiEnhance = ({
       strength: number,
       coalesceKey?: string
     ) => {
-      const base = applied.current.get(from)?.base ?? getEnhanceBase(from)
+      // After a hand edit, a mask the edit left as the last style wrote it
+      // goes back to what it was before that style.
+      const base =
+        applied.current.get(from)?.base ??
+        resolveEnhanceBase(from, lastApplied.current ?? undefined)
       const next = applyEnhance(from, answer[style], strength, base)
-      const entry: Applied = { style, strength, base }
+      const entry: Applied = {
+        style,
+        strength,
+        base,
+        wrote: getEnhanceBase(next)
+      }
       applied.current.set(next, entry)
+      lastApplied.current = entry
       // An unchanged recipe stays the same object in the history; it now
       // stands for this style and Strength.
       if (snapshotsEqual(next, from)) applied.current.set(from, entry)
