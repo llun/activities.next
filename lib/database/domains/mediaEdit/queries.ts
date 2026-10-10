@@ -1,4 +1,10 @@
 import {
+  MEDIA_COLUMNS,
+  type MediaRow,
+  parseMediaRow,
+  toMediaRowId
+} from '@/lib/database/domains/media/rows'
+import {
   type ApplyMediaEditParams,
   type ApplyMediaEditResult,
   type GetMediaEditFilePathsParams,
@@ -22,12 +28,6 @@ import {
 import { incrementBucket } from '@/lib/database/kysely/counterBucket'
 import { forUpdate } from '@/lib/database/kysely/dialect'
 import { selectInChunks } from '@/lib/database/kysely/inList'
-import {
-  MEDIA_COLUMNS,
-  type MediaRow,
-  parseMediaRow,
-  toMediaRowId
-} from '@/lib/database/sql/media'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
 import { MEDIA_FILE_URL_PATH } from '@/lib/services/medias/mediaFileUrl'
 import type { Media } from '@/lib/types/database/operations'

@@ -49,6 +49,8 @@ import { linkPreviewQueries } from '@/lib/database/domains/linkPreview/queries'
 import type { LinkPreviewDatabase } from '@/lib/database/domains/linkPreview/types'
 import { markerQueries } from '@/lib/database/domains/marker/queries'
 import type { MarkerDatabase } from '@/lib/database/domains/marker/types'
+import { mediaQueries } from '@/lib/database/domains/media/queries'
+import type { MediaDatabase } from '@/lib/database/domains/media/types'
 import { mediaEditQueries } from '@/lib/database/domains/mediaEdit/queries'
 import type { MediaEditDatabase } from '@/lib/database/domains/mediaEdit/types'
 import { moderationQueries } from '@/lib/database/domains/moderation/queries'
@@ -243,7 +245,11 @@ export const getSQLDatabase = (database: Knex): Database => {
     kysely,
     linkPreviewQueries
   )
-  const mediaDatabase = MediaSQLDatabaseMixin(database)
+  // The media reads are Kysely queries; the writes are still the Knex mixin.
+  const mediaDatabase: MediaDatabase = {
+    ...MediaSQLDatabaseMixin(database),
+    ...bindDb(kysely, mediaQueries)
+  }
   const mediaEditDatabase: MediaEditDatabase = bindDb(kysely, mediaEditQueries)
   const moderationDatabase: ModerationDatabase & AdminAccountDatabase = bindDb(
     kysely,

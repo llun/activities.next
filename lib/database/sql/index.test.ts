@@ -116,7 +116,13 @@ describe('getSQLDatabase', () => {
         createBookmark: expect.any(Function),
         isActorBookmarkedStatus: expect.any(Function)
       }),
-      mediaDatabase,
+      // The Knex media writes, plus the media reads as Kysely queries bound
+      // lazily to this Knex instance.
+      expect.objectContaining({
+        createMedia: mediaDatabase.createMedia,
+        getAttachments: expect.any(Function),
+        getMediaByIdForAccount: expect.any(Function)
+      }),
       // Detected languages are Kysely queries bound lazily to this Knex instance.
       expect.objectContaining({
         getDetectedLanguage: expect.any(Function),
