@@ -407,6 +407,61 @@ describe('MediaEditDatabase', () => {
     expect(await usage()).toBe(before)
   })
 
+  // A refresh that passed its version check before a later save committed can
+  // still write its render into a post afterwards: the prune must not delete a
+  // render any attachment of the photo shows, whatever the version says.
+  it('keeps a superseded render an attachment still shows', async () => {
+    const media = await createPhoto('prune-shown')
+    for (const [index, name] of [
+      'prune-shown-a',
+      'prune-shown-b',
+      'prune-shown-c'
+    ].entries()) {
+      await database.applyMediaEdit({
+        mediaId: media.id,
+        accountId,
+        baseVersion: index,
+        saveId: name,
+        recipe: RECIPE,
+        render: render(name, 100 * (index + 1))
+      })
+    }
+    const statusId = `${ACTOR1_ID}/statuses/prune-shown`
+    await database.createNote({
+      id: statusId,
+      url: statusId,
+      actorId: ACTOR1_ID,
+      to: [],
+      cc: [],
+      text: 'Still on render a'
+    })
+    await database.createAttachment({
+      actorId: ACTOR1_ID,
+      statusId,
+      mediaType: 'image/webp',
+      url: 'https://llun.test/api/v1/files/medias/prune-shown-a.webp',
+      width: 2000,
+      height: 1500,
+      name: '',
+      mediaId: media.id
+    })
+    const before = await usage()
+
+    const pruned = await database.pruneSupersededMediaEditFiles({
+      mediaId: media.id,
+      accountId,
+      version: 3
+    })
+
+    expect(pruned).toEqual(['medias/prune-shown-b.webp'])
+    expect(
+      (await database.listMediaEditFiles({ mediaIds: [media.id] }))
+        .filter((file) => file.slot.startsWith('superseded'))
+        .map((file) => file.path)
+    ).toEqual(['medias/prune-shown-a.webp'])
+    expect(await usage()).toBe(before - 200)
+  })
+
   // A delete reads the row's files and bytes under the media row's lock, so a
   // save committing at the same moment is either fully in what the delete
   // removes or finds the row gone; no file is orphaned and no byte left counted.

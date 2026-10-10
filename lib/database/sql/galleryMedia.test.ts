@@ -776,7 +776,9 @@ describe('GalleryMediaDatabase', () => {
           width: 400,
           height: 300,
           mediaId: media.id,
-          blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj'
+          blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj',
+          // A thumbnail uploaded with the photo: it shows the photo unedited.
+          thumbnailUrl: fileUrl('medias/gallery-edit-thumb.jpg')
         })
         await database.applyMediaEdit({
           mediaId: media.id,
@@ -806,7 +808,8 @@ describe('GalleryMediaDatabase', () => {
           width: 300,
           height: 300,
           blurhash: 'L00000fQfQfQfQfQfQfQfQfQfQfQ',
-          focus: { x: 0.5, y: 0 }
+          focus: { x: 0.5, y: 0 },
+          thumbnailUrl: null
         })
 
         const [point] = await database.getGalleryMapRows({
@@ -821,6 +824,9 @@ describe('GalleryMediaDatabase', () => {
         // The post still shows the file it was published with.
         const [attachment] = await database.getAttachments({ statusId })
         expect(attachment.url).toBe(fileUrl('medias/gallery-edit-uploaded.jpg'))
+        expect(attachment.thumbnailUrl).toBe(
+          fileUrl('medias/gallery-edit-thumb.jpg')
+        )
       })
     })
 

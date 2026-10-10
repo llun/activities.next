@@ -117,6 +117,7 @@ export const PhotoEditorDialog = ({
   const [failure, setFailure] = useState<EditFailure | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const bitmapRef = useRef<ImageBitmap | null>(null)
 
@@ -493,6 +494,17 @@ export const PhotoEditorDialog = ({
             if (!dialogsOpen) requestCancel()
           }}
           onInteractOutside={(event) => event.preventDefault()}
+          // Radix focuses the first tabbable element on open, which is Cancel.
+          // After a tap, touch browsers count that programmatic focus as
+          // :focus-visible and ring Cancel as if it were pressed, one Enter
+          // from discarding. Focus the dialog itself instead: it is focusable
+          // (tabIndex -1) and outline-none, the title still names it, and the
+          // first Tab reaches Cancel.
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+            contentRef.current?.focus({ preventScroll: true })
+          }}
+          ref={contentRef}
           className="inset-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 bg-background p-0 sm:max-w-none dark:bg-background motion-reduce:animate-none"
         >
           <Tabs

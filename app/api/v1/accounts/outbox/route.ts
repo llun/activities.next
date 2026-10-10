@@ -138,7 +138,7 @@ export const POST = traceApiRoute(
           // is only shape-checked, never rewritten: the resolved number is
           // discarded and the original string is forwarded untouched, because
           // whether the row EXISTS (and belongs to this actor) is
-          // `resolveAttachmentMediaMetadata`'s question, not this one.
+          // `resolveOwnedAttachments`'s question, not this one.
           if (attachments?.some(({ id }) => toMediaRowId(id) === null)) {
             return apiResponse({
               req,

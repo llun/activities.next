@@ -531,7 +531,14 @@ so that the posts just updated keep it. So `pruneSupersededMediaEditFiles`
 takes the version the write produced and, under the row lock, prunes nothing
 once the media has moved past it, and `refreshPostsForEditedMedia` stops (the
 rest go to `skipped`) as soon as the media's version moves, rather than
-pointing a post at a render the later write is free to prune.
+pointing a post at a render the later write is free to prune. That check runs
+before each post's write, so a refresh can still write an older render into a
+post just after a later save committed; the prune therefore also keeps any
+superseded render an attachment of the photo still shows. For an edited
+photo, the file a post shows is never taken from the client as sent:
+`resolveOwnedAttachments` accepts the live file or, on an edit, the file that
+post already shows for the photo, and replaces anything else (a stale
+composer, an outbox client) with the live file.
 
 A "Gallery only" post keeps the file it was published with, and later edits of
 that post keep it too: `withAttachmentMediaMetadata` re-reads the BlurHash,
@@ -539,7 +546,10 @@ focal point and thumbnail from the media row only for an attachment showing the
 live file, and an attachment still on an earlier file of an edited photo keeps
 what its row recorded for that file (so an "Update posts" save of another photo
 in the post, or a text edit in the composer, does not federate the new
-render's placeholder and focal point with the old image). Three things do move
+render's placeholder and focal point with the old image). An alt-text or
+focal-point edit (`media_attributes` without `media_ids`, from the composer,
+the Gallery's Edit details or a Mastodon client) keeps each photo's file too:
+the route rebuilds the attachments from the post's own rows. Three things do move
 such a post to the live file: an "Update posts" save of that photo, a revert
 with "Update posts", and an edit from a Mastodon client, which sends
 `media_ids` and so rebuilds each attachment from its media row. A superseded
@@ -554,8 +564,11 @@ the attachment's thumbnail are the edited file, until a revert.
 Every kept file counts toward the account's storage usage. The editor reads the
 uploaded original through `GET /api/v1/media/:id/edit/source`, served from this
 origin with `Cache-Control: private` so the canvas is never tainted by a CDN or
-S3 origin. Deleting a media, an account or an actor removes these rows and their
-files too, and the storage cleanup and both archives treat them as referenced.
+S3 origin. Deleting a media removes these rows and their files too. Deleting
+an account or an actor removes the rows and frees their bytes from the usage
+counter, and leaves the files to the storage cleanup script
+(`cleanupMediaStorage.ts`), as it does the media's own files. The storage
+cleanup and both archives treat the files as referenced.
 
 ## Database Schema (Simplified)
 

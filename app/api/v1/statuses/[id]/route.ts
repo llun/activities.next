@@ -443,25 +443,42 @@ export const PUT = traceApiRoute(
                 attachmentMediaIds
               )
         // When only `media_attributes` came, the media set is re-read from the
-        // media rows, whose description is not always what the post publishes
-        // (the composer stores the alt text on the attachment, and a details
-        // save can run ahead of a post edit that was cancelled). So only the
-        // photos this request describes take their alt text from the row;
-        // every other photo keeps the alt text the post already has.
+        // media rows to check them, but each photo keeps the file the post
+        // already shows: the media row's file is the live one, and a photo
+        // edited "Gallery only" must not reach the post through an alt-text
+        // or focal-point edit. Its alt text is not always what the post
+        // publishes either (the composer stores the alt text on the
+        // attachment, and a details save can run ahead of a post edit that
+        // was cancelled), so only the photos this request describes take
+        // their alt text from the row; every other photo keeps the post's.
         const attachments =
           resolvedAttachments &&
           resolvedMediaIds === undefined &&
           attachmentMediaIds !== undefined
             ? resolvedAttachments.map((attachment) => {
-                if (describedMediaIds.has(String(attachment.id)))
-                  return attachment
                 const existing = existingStatus.attachments.find(
                   (candidate) => String(candidate.mediaId) === attachment.id
                 )
-                const { name: _rowName, ...withoutName } = attachment
-                return existing?.name
-                  ? { ...withoutName, name: existing.name }
-                  : withoutName
+                if (!existing) return attachment
+                const {
+                  name: rowName,
+                  posterUrl: _rowPosterUrl,
+                  ...rest
+                } = attachment
+                const name = describedMediaIds.has(attachment.id)
+                  ? rowName
+                  : existing.name || undefined
+                return {
+                  ...rest,
+                  mediaType: existing.mediaType,
+                  url: existing.url,
+                  width: existing.width ?? rest.width,
+                  height: existing.height ?? rest.height,
+                  ...(existing.thumbnailUrl
+                    ? { posterUrl: existing.thumbnailUrl }
+                    : {}),
+                  ...(name ? { name } : {})
+                }
               })
             : resolvedAttachments
         if (attachments === null) {

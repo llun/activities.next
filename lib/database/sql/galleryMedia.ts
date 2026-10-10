@@ -453,7 +453,8 @@ const LIVE_FILE_COLUMNS = [
   'medias.originalMetaData as galleryLiveMetaData',
   'medias.blurhash as galleryLiveBlurhash',
   'medias.focusX as galleryLiveFocusX',
-  'medias.focusY as galleryLiveFocusY'
+  'medias.focusY as galleryLiveFocusY',
+  'medias.editedAt as galleryLiveEditedAt'
 ]
 
 const parseLiveNumber = (value: unknown): number | null => {
@@ -500,7 +501,11 @@ const withLiveFile = (
     url: `${attachment.url.slice(0, pathIndex)}${MEDIA_FILE_URL_PATH}${livePath}`,
     ...(width !== null && height !== null ? { width, height } : {}),
     blurhash: typeof blurhash === 'string' && blurhash ? blurhash : null,
-    focus: focusX !== null && focusY !== null ? { x: focusX, y: focusY } : null
+    focus: focusX !== null && focusY !== null ? { x: focusX, y: focusY } : null,
+    // A thumbnail the post snapshotted shows the photo as it was uploaded, so
+    // an edited photo has none (as `getLiveThumbnail`) and the tile, subject
+    // card and map fall back to the live file.
+    ...(row.galleryLiveEditedAt != null ? { thumbnailUrl: null } : {})
   }
 }
 

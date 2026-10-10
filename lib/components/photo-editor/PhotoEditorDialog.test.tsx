@@ -181,6 +181,24 @@ describe('PhotoEditorDialog', () => {
     expect(screen.queryByRole('tab', { name: 'AI' })).not.toBeInTheDocument()
   })
 
+  // Touch browsers ring a control focused programmatically after a tap, so
+  // Cancel must not take focus on open; it stays the first stop for Tab.
+  it('opens with the dialog focused, not Cancel', async () => {
+    await setup()
+    const dialog = screen.getByRole('dialog')
+    expect(document.activeElement).toBe(dialog)
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancel).not.toHaveFocus()
+    const tabbable = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]'
+      )
+    ).filter(
+      (element) => element.tabIndex >= 0 && !element.hasAttribute('disabled')
+    )
+    expect(tabbable[0]).toBe(cancel)
+  })
+
   it('starts from the saved recipe', async () => {
     await setup({ recipe: editedRecipe, editedAt: '2026-10-09T10:00:00.000Z' })
     expect(exposure()).toHaveAttribute('aria-valuetext', '+0.50 EV')

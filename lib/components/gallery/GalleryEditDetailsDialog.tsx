@@ -146,7 +146,10 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
   )
 
   // The photo editor saved or reverted a photo: the tile shows the new file
-  // (url, size, BlurHash) and the details that came with it.
+  // (url, size, BlurHash, focal point) and the details that came with it. The
+  // BlurHash and focal point belong to that file, so one it has none of is
+  // cleared rather than kept from the image it replaced: the square tile is
+  // framed by the focal point, and an uncropped one can cut a cropped subject.
   const handleMediaEdited = useCallback(
     (id: string, media: MediaStorageSaveFileOutput) => {
       if (media.details) {
@@ -163,7 +166,8 @@ export const GalleryEditDetailsDialog: FC<Props> = ({
           url: media.url,
           width: media.meta.original.width ?? base.attachment.width,
           height: media.meta.original.height ?? base.attachment.height,
-          blurhash: media.blurhash ?? base.attachment.blurhash,
+          blurhash: media.blurhash ?? null,
+          focus: media.meta.focus ?? null,
           thumbnailUrl: media.preview_url ?? media.url
         }
       }

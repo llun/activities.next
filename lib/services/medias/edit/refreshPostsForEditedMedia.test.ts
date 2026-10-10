@@ -1,3 +1,5 @@
+import { createNoteFromUserInput } from '@/lib/actions/createNote'
+import { updateNoteFromUserInput } from '@/lib/actions/updateNote'
 import { getBaseURL } from '@/lib/config'
 import { createTestDatabase } from '@/lib/database/testing/createTestDatabase'
 import { SEND_UPDATE_NOTE_JOB_NAME } from '@/lib/jobs/names'
@@ -6,6 +8,7 @@ import { getQueue } from '@/lib/services/queue'
 import { seedDatabase } from '@/lib/stub/database'
 import { ACTOR1_ID } from '@/lib/stub/seed/actor1'
 import { Media } from '@/lib/types/database/operations'
+import { Actor } from '@/lib/types/domain/actor'
 import { StatusNote } from '@/lib/types/domain/status'
 import { ACTIVITY_STREAM_PUBLIC } from '@/lib/utils/activitystream'
 
@@ -309,5 +312,176 @@ describe('refreshPostsForEditedMedia', () => {
 
     expect(result).toEqual({ updated: [], skipped: [pollId] })
     expect(getQueue().publish).not.toHaveBeenCalled()
+  })
+  describe('a post pointed at an earlier render', () => {
+    const editTo = async (media: Media, name: string) => {
+      const result = await database.applyMediaEdit({
+        mediaId: media.id,
+        accountId,
+        baseVersion: media.edit?.version ?? 0,
+        saveId: name,
+        recipe: JSON.stringify({ v: 1, name }),
+        render: {
+          path: `medias/${name}.webp`,
+          bytes: 200,
+          mimeType: 'image/webp',
+          width: 200,
+          height: 150,
+          blurhash: 'L00000fQfQfQfQfQfQfQfQfQfQfQ',
+          focus: { x: 0.5, y: 0.5 }
+        }
+      })
+      if (result.status !== 'ok') throw new Error('edit failed')
+      return result.media
+    }
+
+    const editFilePaths = async (media: Media) =>
+      (await database.listMediaEditFiles({ mediaIds: [media.id] })).map(
+        (file) => file.path
+      )
+
+    const actor = async () =>
+      (await database.getActorFromId({ id: ACTOR1_ID })) as Actor
+
+    // Save A passed its version check for the post, then save B committed and
+    // updated the post; A's write lands last. B's prune must keep render A.
+    it('keeps the render a slower refresh wrote after a later save updated the post', async () => {
+      const photo = await createPhoto()
+      const statusId = await createPost(photo)
+      const first = await editTo(photo, `race-a-${photo.id}`)
+      let second: Media | null = null
+      const original = database.updateNote
+      const updateNote = vi
+        .spyOn(database, 'updateNote')
+        .mockImplementation(async (params) => {
+          if (!second) {
+            second = await editTo(first, `race-b-${photo.id}`)
+            await refreshPostsForEditedMedia({
+              database,
+              media: second,
+              version: second.edit!.version,
+              accountId
+            })
+          }
+          return original(params)
+        })
+
+      await refreshPostsForEditedMedia({
+        database,
+        media: first,
+        version: first.edit!.version,
+        accountId
+      })
+      updateNote.mockRestore()
+      const pruned = await database.pruneSupersededMediaEditFiles({
+        mediaId: photo.id,
+        accountId,
+        version: second!.edit!.version
+      })
+
+      const [attachment] = await attachmentsOf(statusId)
+      expect(attachment.url).toBe(fileUrl(first.original.path))
+      expect(pruned).not.toContain(first.original.path)
+      expect(await editFilePaths(photo)).toContain(first.original.path)
+    })
+
+    // A composer opened before another tab's "Update posts" save still holds
+    // the render that save superseded and pruned.
+    it('takes the live file over a stale render sent for a kept photo', async () => {
+      const photo = await createPhoto()
+      const statusId = await createPost(photo)
+      const first = await editTo(photo, `stale-a-${photo.id}`)
+      await refreshPostsForEditedMedia({
+        database,
+        media: first,
+        version: first.edit!.version,
+        accountId
+      })
+      const second = await editTo(first, `stale-b-${photo.id}`)
+      await refreshPostsForEditedMedia({
+        database,
+        media: second,
+        version: second.edit!.version,
+        accountId
+      })
+      await database.pruneSupersededMediaEditFiles({
+        mediaId: photo.id,
+        accountId,
+        version: second.edit!.version
+      })
+      expect(await editFilePaths(photo)).not.toContain(first.original.path)
+
+      await updateNoteFromUserInput({
+        statusId,
+        currentActor: await actor(),
+        text: '<p>Fixed a typo</p>',
+        attachments: [
+          {
+            type: 'upload',
+            id: photo.id,
+            mediaType: 'image/webp',
+            url: fileUrl(first.original.path),
+            width: 999,
+            height: 999,
+            name: 'alt'
+          }
+        ],
+        database
+      })
+
+      const [attachment] = await attachmentsOf(statusId)
+      expect(attachment).toMatchObject({
+        url: fileUrl(second.original.path),
+        mediaType: 'image/webp',
+        width: 200,
+        height: 150,
+        blurhash: second.blurhash,
+        focus: second.focus
+      })
+    })
+
+    it('takes the live file over an earlier render sent for a new post', async () => {
+      const photo = await createPhoto()
+      const first = await editTo(photo, `new-a-${photo.id}`)
+      const second = await editTo(first, `new-b-${photo.id}`)
+
+      const status = (await createNoteFromUserInput({
+        text: 'A new post',
+        currentActor: await actor(),
+        attachments: [
+          {
+            type: 'upload',
+            id: photo.id,
+            mediaType: 'image/jpeg',
+            url: fileUrl(photo.original.path),
+            width: 400,
+            height: 300,
+            name: 'alt'
+          },
+          {
+            type: 'upload',
+            id: photo.id,
+            mediaType: 'image/webp',
+            url: fileUrl(first.original.path),
+            width: 200,
+            height: 150,
+            name: 'alt'
+          }
+        ],
+        database
+      })) as StatusNote
+
+      const attachments = await attachmentsOf(status.id)
+      expect(attachments.map((item) => item.url)).toEqual([
+        fileUrl(second.original.path),
+        fileUrl(second.original.path)
+      ])
+      expect(attachments[0]).toMatchObject({
+        mediaId: photo.id,
+        mediaType: 'image/webp',
+        width: 200,
+        height: 150
+      })
+    })
   })
 })

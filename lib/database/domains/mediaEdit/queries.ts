@@ -28,6 +28,7 @@ import {
   toMediaRowId
 } from '@/lib/database/sql/media'
 import { CounterKey } from '@/lib/database/sql/utils/counter'
+import { MEDIA_FILE_URL_PATH } from '@/lib/services/medias/mediaFileUrl'
 import type { Media } from '@/lib/types/database/operations'
 
 const EDIT_STATE_COLUMNS = [
@@ -483,8 +484,27 @@ export const revertMediaEdit = async (
 }
 
 /**
- * Removes every superseded render of the media and frees its bytes from the
- * account's media usage. Returns the paths, which the caller deletes after
+ * Whether a stored path is still shown by an attachment of the media, read in
+ * the prune's transaction. The version check alone cannot see a refresh that
+ * passed its own check before a later save committed and wrote its render into
+ * a post afterwards, nor a post edit that sent an earlier file back.
+ */
+const selectReferencedPaths = async (trx: Db, mediaRowId: number) => {
+  const rows = await trx
+    .selectFrom('attachments')
+    .select(['url', 'thumbnailUrl'])
+    // Bound as text: `attachments.mediaId` is varchar on SQLite, where a bound
+    // number is compared as a real ('12.0') and matches nothing.
+    .where('mediaId', '=', String(mediaRowId))
+    .execute()
+  const urls = rows.flatMap((row) => [row.url, row.thumbnailUrl])
+  return (path: string) =>
+    urls.some((url) => url?.endsWith(`${MEDIA_FILE_URL_PATH}${path}`))
+}
+
+/**
+ * Removes every superseded render of the media that no attachment of it still
+ * shows, and frees their bytes from the account's media usage. Returns the paths, which the caller deletes after
  * the commit. The hourly `media-bytes` bucket is increment-only (it counts
  * stored bytes per hour, like every other bucket), so it is left alone.
  *
@@ -506,9 +526,14 @@ export const pruneSupersededMediaEditFiles = async (
     if (!locked) return []
     if (Number(locked.row.editVersion) !== version) return []
 
+    const referenced = await selectReferencedPaths(trx, mediaRowId)
     const superseded = (await selectFiles(trx, mediaRowId))
       .map(toMediaEditFile)
-      .filter((file) => file.slot.startsWith(MEDIA_EDIT_SUPERSEDED_PREFIX))
+      .filter(
+        (file) =>
+          file.slot.startsWith(MEDIA_EDIT_SUPERSEDED_PREFIX) &&
+          !referenced(file.path)
+      )
     if (superseded.length === 0) return []
 
     await trx
